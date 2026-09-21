@@ -48,6 +48,9 @@ class PerksPanel(QGroupBox):
     def __init__(self, controller: NewItemStudioController, parent=None) -> None:
         super().__init__("5. Perks & Effects", parent)
         self._controller = controller
+        self._perk_lookup = controller.create_lookup_lane()
+        self._perk_lookup.completed.connect(self._publish_catalogue)
+        self._perk_lookup.failed.connect(self._perk_lookup_failed)
         self._syncing_effect = False
         self._syncing_catalogue = False
         layout = QVBoxLayout(self)
@@ -71,6 +74,7 @@ class PerksPanel(QGroupBox):
 
         controller.snapshot_ready.connect(self._refresh_all)
         controller.effect_catalogue_ready.connect(self._catalogue_ready)
+        controller.effect_compatibility_ready.connect(self._refresh_effect_support)
         controller.template_changed.connect(self._template_changed)
         self._refresh_all()
 
@@ -400,9 +404,18 @@ class PerksPanel(QGroupBox):
         self._update_add_enabled()
 
     def _refresh_catalogue(self, *_args) -> None:
+        from cdmw.services.new_item_panel_search import perk_choices
+        snapshot, query = self._controller.snapshot, self.perk_filter.text()
+        self._perk_lookup.request((id(snapshot), query), lambda stop: perk_choices(snapshot, query, stop), delay_ms=150)
+
+    def _perk_lookup_failed(self, _key, message):
+        self._controller.status_message.emit(f"Perks could not be loaded: {message}", True)
+
+    def _publish_catalogue(self, request, entries) -> None:
+        if request != (id(self._controller.snapshot), self.perk_filter.text()):
+            return
         current_item = self.perk_results.currentItem()
         current = current_item.data(Qt.ItemDataRole.UserRole) if current_item is not None else self.catalogue.currentData()
-        entries = tuple(self._controller.perk_catalogue(self.perk_filter.text()))
         self._syncing_catalogue = True
         self.perk_results.blockSignals(True)
         self.catalogue.blockSignals(True)
@@ -410,10 +423,10 @@ class PerksPanel(QGroupBox):
             self.perk_results.clear()
             self.catalogue.clear()
             selected_row = -1
-            for row, (key, label) in enumerate(entries):
+            for row, (key, label, detail) in enumerate(entries):
                 item = QListWidgetItem(label)
                 item.setData(Qt.ItemDataRole.UserRole, key)
-                item.setToolTip(self._controller.perk_details(int(key)))
+                item.setToolTip(detail)
                 self.perk_results.addItem(item)
                 self.catalogue.addItem(label, key)
                 if key == current:
@@ -819,10 +832,13 @@ class PerksPanel(QGroupBox):
             equip = snapshot.equip_type_name(row) or "Unknown equipment type"
             candidate = self._controller.draft.effect_stem
             if not candidate:
-                candidate = next(iter(self._controller.effect_stems("", limit=1)), "")
+                # Structural compatibility needs any shipped effect, not a sorted
+                # search of the entire catalogue on each support-label refresh.
+                candidate = next(iter(snapshot.effect_stems), "")
             compatibility = self._controller.effect_target_compatibility(candidate) if candidate else None
             supported = bool(compatibility is not None and compatibility.supported)
-            text = compatibility.message if compatibility is not None else f"{equip}: no effect target could be checked."
+            text = compatibility.message if compatibility is not None else (
+                "Checking compatibility…" if candidate else f"{equip}: no effect target could be checked.")
         self.use_effect.setEnabled(supported)
         self.effect_support.set_note(text, None if supported else WARN)
         self._refresh_effect_selection()

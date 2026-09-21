@@ -65,9 +65,41 @@ class NewItemEffectWorkspaceControllerMixin:
             str(spec.effect or ""),
         )
         cache = self._effect_target_compatibility_cache
-        if cache_key not in cache:
+        if cache_key in cache:
+            return cache[cache_key]
+        if self._synchronous:
             cache[cache_key] = self.service.inspect_effect_targets(spec, self.snapshot)
-        return cache[cache_key]
+            return cache[cache_key]
+        if self._shutdown_requested or cache_key in self._effect_compatibility_pending:
+            return None
+        pending = self._effect_compatibility_pending
+        for key in tuple(pending):
+            if key[0] != id(self.snapshot):
+                del pending[key]
+        pending[cache_key] = (spec, self.snapshot)
+        # A composition has at most 16 layers. Bound obsolete hover/selection work
+        # while also serving the committed selection's support label.
+        while len(pending) > 32:
+            del pending[next(iter(pending))]
+        requests = tuple(pending.items())
+        service = self.service
+        def inspect(stop_event):
+            return tuple((key, service.inspect_effect_targets(value, snapshot, stop_event=stop_event))
+                         for key, (value, snapshot) in requests)
+        self._effect_compatibility_lane.request(tuple(pending), inspect)
+        return None
+
+    def _effect_compatibilities_ready(self, _key, results):
+        for key, result in results:
+            self._effect_compatibility_pending.pop(key, None)
+            if key[0] == id(self.snapshot):
+                self._effect_target_compatibility_cache[key] = result
+        self.effect_compatibility_ready.emit()
+
+    def _effect_compatibilities_failed(self, keys, message):
+        from cdmw.services.new_item_effect_targets import EffectTargetCompatibility
+        self._effect_compatibilities_ready(keys, tuple(
+            (key, EffectTargetCompatibility(False, (), (message,))) for key in keys))
 
     def effect_preview_for_placement(self, stem: str = "", state: Optional[EffectWorkspaceState] = None):
         """Return a frozen staged-preview builder and its archive texture reader.

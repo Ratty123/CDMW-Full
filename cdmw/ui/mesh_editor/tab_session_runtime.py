@@ -525,6 +525,7 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
         mode: str = "object",
         source_skeleton: object | None = None,
         initial_element_type: str = "",
+        prepared_service: object | None = None,
     ) -> _tab.MeshEditSessionView:
         if not isinstance(mesh, _tab.ParsedMesh):
             raise TypeError("mesh must be ParsedMesh")
@@ -537,17 +538,15 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
                 "The current Finish must stop before another mesh session can open."
             )
         self.standalone_compare_mode = "edited"
-        self.standalone_controller = _tab.MeshEditorController()
+        self.standalone_controller = _tab.MeshEditorController(mesh_service=prepared_service) if prepared_service is not None else _tab.MeshEditorController()
         self.standalone_source_skeleton = source_skeleton
         requested_element = str(initial_element_type or "").strip().casefold()
         if requested_element in {"vertex", "edge", "face"}:
             self.current_element_type = requested_element
             self.standalone_controller.active_element_type = requested_element
-        view = self.standalone_controller.open_mesh(
-            mesh,
-            session_id=str(session_id or "mesh-editor-standalone"),
-            mode=str(mode or "object"),
-        )
+        view = (self.standalone_controller.attach_session(session_id) if prepared_service is not None
+                else self.standalone_controller.open_mesh(
+                    mesh, session_id=str(session_id or "mesh-editor-standalone"), mode=str(mode or "object")))
         self._show_standalone_session(view, mesh=mesh, target_entry=target_entry)
         return view
     def open_mesh_file_session(

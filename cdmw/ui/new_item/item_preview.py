@@ -39,7 +39,7 @@ from cdmw.ui.new_item.item_preview_materials import (
     upgrade_item_preview_package_materials,
 )
 from cdmw.workers.utility_workers import UtilityWorker
-from cdmw.workers.new_item_cleanup_worker import ModelSourceCleanupLane, PreviewPackageCleanup
+from cdmw.workers.new_item_cleanup_worker import ModelSourceCleanupLane, PreviewPackageCleanup, preview_process_barrier
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -1137,6 +1137,8 @@ class ItemPreviewFrame(QWidget):
         if self._pending is not None and token != self._pending[0]:
             self._remove_package(result)
             return
+        if isinstance(resolved_source, PlacementScene):
+            self._model_bounds = resolved_source.model_bounds
         if stage == "geometry" and resolved_source is not None:
             self._upgrade_request = (token, resolved_source, bool(is_placement), result)
         if self.host is None:
@@ -1276,6 +1278,8 @@ class ItemPreviewFrame(QWidget):
         return (*building, *self._cleanup_lane.iter_shutdown_workers())
 
     def request_shutdown(self) -> None:
+        if self._closed:
+            return
         self._closed = True
         worker = self._worker
         if worker is not None:
@@ -1288,6 +1292,7 @@ class ItemPreviewFrame(QWidget):
         if self.host is not None:
             try:
                 self.host.set_icon_capture_mode(False)
+                self._preview_shutdown_ready = preview_process_barrier(self.host.controller)
                 self.host.controller.shutdown()
             except Exception:  # noqa: BLE001
                 pass
@@ -1306,6 +1311,9 @@ class ItemPreviewFrame(QWidget):
         """Remove one transient package; durable cache entries outlive this frame."""
         cleanup = preview_package_cleanup(package_dir, self._output_root)
         if cleanup is not None:
+            ready = getattr(self, "_preview_shutdown_ready", None)
+            if ready is not None:
+                cleanup = PreviewPackageCleanup(cleanup.path, cleanup.output_root, ready=ready)
             self._cleanup_lane.retire(cleanup)
 
     def _package_cleanup_root(self, package_dir: Path) -> Path:

@@ -327,19 +327,24 @@ class NewItemPreviewControllerMixin:
                 _imported_model_progressive_source(model),
             )
         if result is not None:
-            mesh = self.item_mesh_for_preview()
-            if mesh is not None and include_character:
+            data = getattr(result, "rebuilt_data", b"")
+            fallback = self._template_geometry_build() if not data else None
+            def build_imported(stop_event):
+                from cdmw.services.mesh_workflow_service import parse_pac
                 from cdmw.ui.new_item.item_preview import PlacementScene
-
-                return (
-                    ("imported-bare-character", id(result), self.draft.template_key),
-                    lambda stop_event: PlacementScene(
-                        template=None,
-                        model=mesh,
-                        character=character_mesh(stop_event),
-                    ),
-                )
-            return (("imported-bare", id(result)), lambda _stop_event: mesh) if mesh is not None else None
+                raise_if_cancelled(stop_event)
+                try:
+                    mesh = parse_pac(data, "imported model") if data else fallback[1](stop_event) if fallback else None
+                except RunCancelled:
+                    raise
+                except Exception:  # noqa: BLE001 - preserve an unavailable bare preview
+                    return None
+                if mesh is not None and include_character:
+                    return PlacementScene(template=None, model=mesh, character=character_mesh(stop_event))
+                return mesh
+            token = (("imported-bare-character", id(result), self.draft.template_key)
+                     if include_character else ("imported-bare", id(result)))
+            return token, build_imported
         template = self._template_preview_build()
         if template is None:
             return None

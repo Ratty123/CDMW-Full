@@ -278,7 +278,7 @@ class PanelGlowSyncTests(unittest.TestCase):
 
         mesh = _mesh()
         if model_import is ...:
-            model_import = SimpleNamespace(baked_preview_mesh=lambda: mesh)
+            model_import = SimpleNamespace(preview_mesh=mesh)
         sent: list[tuple] = []
         host = SimpleNamespace(apply_material_parameter_groups=lambda groups: sent.append(groups) or True)
         panel = SimpleNamespace(

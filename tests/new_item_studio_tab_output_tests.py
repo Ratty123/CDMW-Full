@@ -174,9 +174,17 @@ class _TabOutputMixin:
         self.assertEqual(tab.controller.current_spec().effect, "fx_test_fire.level.effect")
         self.assertEqual(tab.controller.current_spec().socket_items, (1002812, 1002793))
         effects.search.setText("firefly")
+        effects._refresh_library(force=True)
+        deadline = QDeadlineTimer(2000)
+        while effects._library_timer.isActive() and not deadline.hasExpired():
+            self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
         stems = [effects.library_model.row(index).stem for index in range(effects.library_model.rowCount())]
         self.assertEqual(stems, ["", "fx_test_fire"])
         effects.search.setText("ice")
+        effects._refresh_library(force=True)
+        deadline = QDeadlineTimer(2000)
+        while effects._library_timer.isActive() and not deadline.hasExpired():
+            self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
         stems = [effects.library_model.row(index).stem for index in range(effects.library_model.rowCount())]
         self.assertEqual(stems, ["", "fx_test_fire", "fx_test_ice"], "filtering keeps the committed selection")
         self.assertTrue(tab.controller.effect_facts("fx_test_ice").walk_note, "an undecoded effect remains placeable as shipped")
@@ -763,7 +771,8 @@ class _TabOutputMixin:
             total_faces=3,
             has_uvs=True,
         )
-        binding = SimpleNamespace(material_name="steel", submesh_index=0, texture_slots=())
+        from cdmw.modding.scene_material_audit import ImportedMaterialBinding
+        binding = ImportedMaterialBinding(material_name="steel", submesh_index=0, submesh_name="blade")
         scene = SceneImportResult(mesh=mesh, material_bindings=(binding,))
         source = ModelImportSource(
             chosen_path=Path("blade.gltf"),
@@ -793,10 +802,12 @@ class _TabOutputMixin:
             standalone_controller = None
             standalone_pending_dotnet_topology_request = None
 
-            def open_mesh_session(self, opened, *, session_id, mode, initial_element_type=""):
+            def open_mesh_session(self, opened, *, session_id, mode, initial_element_type="", prepared_service=None):
                 self.assert_mode = mode
                 self.assert_element_type = initial_element_type
                 edited = clone_mesh_for_editing(opened)
+                if prepared_service is not None:
+                    prepared_service.close_edit_session(session_id, force_without_saving=True)
                 split_faces_to_submesh(edited, selected_faces_by_submesh={0: {0}})
                 split_faces_to_submesh(edited, selected_faces_by_submesh={0: {0}})
                 self.standalone_controller = FakeMeshController(edited, session_id)
@@ -984,7 +995,7 @@ class _TabOutputMixin:
         tab.identity_panel.display_name.setText("Layout review item")
         panel.build_button.click()
         self.assertIsNotNone(tab.controller.plan)
-        self.assertGreater(panel.file_changes.topLevelItemCount(), 0)
+        self.assertGreater(panel.file_changes.model().rowCount(), 0)
         panel.output_mode.setCurrentIndex(panel.output_mode.findData("overlay"))
         self.assertIsNone(tab.controller.plan)
         self.assertFalse(panel.export_button.isVisibleTo(tab))
@@ -999,7 +1010,7 @@ class _TabOutputMixin:
         panel.overlay_removal_requested.disconnect()
         panel.merge_requested.connect(lambda: requested.append("merge"))
         panel.overlay_removal_requested.connect(lambda: requested.append("overlays"))
-        merge, installed, recovery = panel.tools_menu.actions()
+        merge, _update, installed, recovery = panel.tools_menu.actions()
         merge.trigger()
         installed.trigger()
         recovery.trigger()

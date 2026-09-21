@@ -14,6 +14,7 @@ from typing import Tuple
 from cdmw.core.item_model_family import FamilyPart, ItemModelFamily
 from cdmw.core.prefab_component_graft import PrefabEditError, encode_transform, graft_prefab_component
 from cdmw.domain.new_item.spec import ModelSource, NewItemSpec, SheathedModel
+from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.services.new_item_snapshot import EFFECT_DONOR_PATH, EFFECT_DONOR_PREFAB, NewItemSnapshot
 
 
@@ -60,9 +61,10 @@ def effect_target_source_paths(
     return tuple(dict.fromkeys(path for path in paths if path))
 
 
-def inspect_effect_targets(snapshot: NewItemSnapshot, spec: NewItemSpec) -> EffectTargetCompatibility:
+def inspect_effect_targets(snapshot: NewItemSnapshot, spec: NewItemSpec, *, stop_event=None) -> EffectTargetCompatibility:
     """Dry-run the real component graft against every prefab the spec will own."""
 
+    raise_if_cancelled(stop_event)
     if spec.effect_layers is not None:
         from dataclasses import replace
         layers = spec.active_effect_layers
@@ -96,6 +98,7 @@ def inspect_effect_targets(snapshot: NewItemSnapshot, spec: NewItemSpec) -> Effe
         return EffectTargetCompatibility(False, targets, (f"The visual-effect donor prefab could not be read: {exc}",))
     errors: list[str] = []
     for path in targets:
+        raise_if_cancelled(stop_event)
         try:
             source = snapshot.payload(path)
             graft_prefab_component(

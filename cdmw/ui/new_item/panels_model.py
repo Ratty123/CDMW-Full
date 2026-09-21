@@ -959,9 +959,9 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         )
         if glow is None and translucency is None and not authored_glass and not self._glow_preview_touched:
             return
-        try:
-            mesh = source.baked_preview_mesh()
-        except Exception:  # noqa: BLE001 - no preview glow is a smaller loss than a step that errors
+        # Material names and factors do not depend on baked vertex positions.
+        mesh = getattr(source, "preview_mesh", None) or source_mesh
+        if mesh is None:
             return
         from cdmw.services.new_item_materials import glow_preview_parameter_groups
         groups = glow_preview_parameter_groups(mesh, glow) + translucency_preview_parameter_groups(

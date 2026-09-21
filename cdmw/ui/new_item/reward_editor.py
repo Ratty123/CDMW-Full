@@ -4,12 +4,20 @@ from PySide6.QtWidgets import (
     QSpinBox, QVBoxLayout, QWidget,
 )
 from cdmw.domain.new_item.authoring import RewardAcquisition
+from cdmw.ui.new_item.choice_model import set_choice_rows
+from cdmw.domain.cancellation import raise_if_cancelled
 
 
 class RewardEditor(QWidget):
     def __init__(self, controller, parent=None):
         super().__init__(parent)
         self.controller, self.index = controller, None
+        self._lookup = controller.create_lookup_lane()
+        self._lookup.completed.connect(self._choices_ready)
+        self._lookup.failed.connect(self._choices_failed)
+        self._details_lookup = controller.create_lookup_lane()
+        self._details_lookup.completed.connect(self._details_ready)
+        self._details_lookup.failed.connect(self._choices_failed)
         layout = QVBoxLayout(self)
         self.load = QPushButton("Load existing reward sources")
         self.load.clicked.connect(lambda: controller.start_authoring_index("acquisition"))
@@ -70,6 +78,8 @@ class RewardEditor(QWidget):
         self.refresh()
 
     def _snapshot(self):
+        self._lookup.cancel()
+        self._details_lookup.cancel()
         self.index = None
         self.consumer.clear()
         self.refresh()
@@ -78,12 +88,26 @@ class RewardEditor(QWidget):
         if kind != "acquisition":
             return
         self.index = index
+        snapshot = self.controller.snapshot
+        def prepare(stop):
+            names = snapshot.item_names()
+            rows = []
+            for number, value in enumerate(index.consumers):
+                if number % 128 == 0:
+                    raise_if_cancelled(stop)
+                key, position, _use, _reward = value
+                rows.append((f"{names.get(key,str(key))} · action {position + 1}", value))
+            return tuple(rows)
+        self._lookup.request((id(snapshot), id(index)), prepare)
+
+    def _choices_failed(self, _key, message):
+        self.state.setText(message)
+
+    def _choices_ready(self, key, rows):
+        if key != (id(self.controller.snapshot), id(self.index)):
+            return
         self.consumer.blockSignals(True)
-        self.consumer.clear()
-        names = self.controller.snapshot.item_names()
-        for value in index.consumers:
-            key, position, use, reward = value
-            self.consumer.addItem(f"{names.get(key,str(key))} · action {position + 1}", value)
+        set_choice_rows(self.consumer, rows)
         self.consumer.blockSignals(False)
         self._consumer()
         self.refresh()
@@ -93,21 +117,29 @@ class RewardEditor(QWidget):
             self.state.setText(message)
 
     def _consumer(self):
+        self._details_lookup.cancel()
         self.entry.clear()
+        self.add.setEnabled(False)
         value = self.consumer.currentData()
         if value is None or self.index is None:
+            self.details.clear()
             return
-        key, position, use_key, reward_key = value
-        names = self.controller.snapshot.item_names()
-        for index, entry in enumerate(self.index.rewards[reward_key].entries):
-            self.entry.addItem(f"{names.get(entry.item_key,str(entry.item_key))} · {entry.minimum}–{entry.maximum} · +{entry.enhancement}",index)
-        other = sum(r == reward_key for _i,_p,_u,r in self.index.consumers)
-        self.details.setText(f"Reward {reward_key} · {other} indexed consumer(s) · {len(self.index.uses[use_key].conditions)} preserved use condition(s)")
-        consumers = ", ".join(names.get(i,str(i)) for i,_p,_u,r in self.index.consumers if r == reward_key)
-        conditions = ", ".join(value.hex(" ") for value in self.index.uses[use_key].conditions) or "—"
-        self._consumer_tooltip = (f"ItemInfo {key}, use position {position}, ItemUseInfo {use_key}. This consumer gets owned copies; other consumers keep their definitions.\n"
-                                 f"Consumers: {consumers}\nUse condition records: {conditions}")
+        snapshot, index = self.controller.snapshot, self.index
+        self.details.setText("Loading reward details…")
+        from cdmw.services.new_item_panel_search import reward_details
+        self._details_lookup.request((id(snapshot), id(index), value),
+                                     lambda stop: reward_details(snapshot, index, value, stop))
+
+    def _details_ready(self, key, result):
+        if key != (id(self.controller.snapshot), id(self.index), self.consumer.currentData()):
+            return
+        rows, details, self._consumer_tooltip = result
+        self.entry.blockSignals(True)
+        set_choice_rows(self.entry, rows)
+        self.entry.blockSignals(False)
+        self.details.setText(details)
         self._entry()
+        self.add.setEnabled(bool(rows))
 
     def _entry(self):
         value, entry_index = self.consumer.currentData(), self.entry.currentData()
@@ -151,8 +183,9 @@ class RewardEditor(QWidget):
 
     def refresh(self):
         self.routes.clear()
-        names = self.controller.snapshot.item_names() if self.controller.snapshot else {}
-        for route in self.controller.draft.reward_acquisitions or ():
+        routes = self.controller.draft.reward_acquisitions or ()
+        names = self.controller.snapshot.item_names() if routes and self.controller.snapshot else {}
+        for route in routes:
             self.routes.addItem(f"{names.get(route.consumer_item_key,str(route.consumer_item_key))} · action {route.use_index+1} · {route.mode} · {route.minimum}–{route.maximum}")
-        self.add.setEnabled(self.index is not None and self.consumer.count() > 0)
+        self.add.setEnabled(self.index is not None and self.entry.count() > 0)
         self.state.setText(f"{self.routes.count()} selected reward route(s)." if self.index else "Load supported existing item-producing reward sources.")

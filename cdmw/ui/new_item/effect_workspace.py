@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import tempfile
-import time
 from dataclasses import replace
 from functools import partial
 from pathlib import Path
 from typing import Optional
+
+from cdmw.domain.cancellation import raise_if_cancelled
+from cdmw.services.new_item_effect_search import filter_effect_rows
+from cdmw.workers.new_item_lookup import NewItemLookupLane
 
 from PySide6.QtCore import QModelIndex, Qt, QTimer, Signal
 from PySide6.QtWidgets import (
@@ -246,10 +249,18 @@ class GuidedEffectsWorkspace(EffectWorkspaceAuthoringMixin, QWidget):
         self._library_build = None
         self._library_snapshot = None
         self._library_closed = False
+        self._library_dirty = False
+        self._library_request_key = None
+        self._library_build_lane = NewItemLookupLane(parent=self)
+        self._library_build_lane.completed.connect(self._library_prepared)
+        self._library_build_lane.failed.connect(self._library_failed)
+        self._library_search_lane = NewItemLookupLane(parent=self)
+        self._library_search_lane.completed.connect(self._library_filtered)
+        self._library_search_lane.failed.connect(self._library_failed)
 
     def _configure_preview_timers(self) -> None:
         self._library_timer = QTimer(self)
-        self._library_timer.setInterval(1)
+        self._library_timer.setInterval(16)
         self._library_timer.timeout.connect(self._advance_library)
         self.selection_timer = QTimer(self)
         self.selection_timer.setSingleShot(True)
@@ -288,6 +299,9 @@ class GuidedEffectsWorkspace(EffectWorkspaceAuthoringMixin, QWidget):
         controller.effect_catalogue_progress.connect(self._catalogue_progress)
         controller.effect_catalogue_ready.connect(self._catalogue_ready)
         controller.effect_catalogue_failed.connect(self._catalogue_failed)
+        ready = getattr(controller, "effect_compatibility_ready", None)
+        if ready is not None:
+            ready.connect(self._refresh_compatibility)
         controller.effect_changed.connect(self._effect_committed_elsewhere)
         controller.template_changed.connect(self._source_changed)
         controller.model_import_changed.connect(self._source_changed)
@@ -307,6 +321,9 @@ class GuidedEffectsWorkspace(EffectWorkspaceAuthoringMixin, QWidget):
 
     def showEvent(self, event) -> None:  # noqa: N802 - Qt override
         super().showEvent(event)
+        if self._library_dirty:
+            self._refresh_library()
+        self._refresh_compatibility()
         needs_preview = (
             self._preview_dirty
             or self.placement is None
@@ -323,6 +340,7 @@ class GuidedEffectsWorkspace(EffectWorkspaceAuthoringMixin, QWidget):
 
         clean = str(stem or "").strip()
         self._stage_source(clean)
+        self._refresh_selection_detail(clean)
         self._refresh_library()
         self._select_stem(clean)
         self._sync_placement_from_state()
@@ -336,13 +354,11 @@ class GuidedEffectsWorkspace(EffectWorkspaceAuthoringMixin, QWidget):
         if not self.has_staged_changes():
             self._publish_dirty()
             return True
-        for layer in self._staged.resolved_layers():
-            if not layer.enabled:
-                continue
-            compatibility = self._controller.effect_target_compatibility(layer.stem)
-            if compatibility is None or not compatibility.supported:
-                self._refresh_compatibility()
-                return False
+        checks = [self._controller.effect_target_compatibility(layer.stem)
+                  for layer in self._staged.resolved_layers() if layer.enabled]
+        if any(value is None or not value.supported for value in checks):
+            self._refresh_compatibility()
+            return False
         placement = self.placement
         if placement is not None and getattr(placement, '_content_failed', False) and self._has_authored_emitters():
             return False
@@ -383,81 +399,98 @@ class GuidedEffectsWorkspace(EffectWorkspaceAuthoringMixin, QWidget):
         return str(self.category_choice.currentData() or "All")
 
     def _start_library(self, *_args) -> None:
-        """Prepare labels in short event-loop slices; reuse them while browsing."""
-
+        """Prepare a replacement catalogue without touching widgets on its worker."""
         if self._library_closed:
             return
         self._library_snapshot = getattr(self._controller, "snapshot", None)
-        stems = self._controller.effect_stems("", limit=None)
-        self._library_build = self._prepare_library_rows(stems)
+        catalogue = getattr(self._controller, "effect_catalogue", None)
+        stems = (catalogue.facts if catalogue else self._library_snapshot.effect_stems
+                 if self._library_snapshot is not None else self._controller.effect_stems("", limit=None))
+        facts = catalogue.get if catalogue else self._controller.effect_facts
+        self._library_search_lane.cancel()
+        self._library_request_key = None
+        self._library_build = True
+        def prepare(stop_event):
+            rows, groups = {}, {}
+            for index, stem in enumerate(stems):
+                if index % 64 == 0:
+                    raise_if_cancelled(stop_event)
+                row = EffectLibraryRow.from_stem(stem, facts(stem))
+                rows[stem] = row
+                groups.setdefault(row.label.casefold(), []).append(stem)
+            for grouped in groups.values():
+                raise_if_cancelled(stop_event)
+                if len(grouped) > 1:
+                    for stem, label in _unique_effect_labels(tuple(grouped)).items():
+                        rows[stem] = replace(rows[stem], label=label)
+            return rows, {stem: row.label for stem, row in rows.items()}
+        self._library_build_lane.request(id(self._library_snapshot), prepare)
         self.library_count.setText("Loading effects…")
         self._library_timer.start()
 
-    def _prepare_library_rows(self, stems):
-        rows: dict[str, EffectLibraryRow] = {}
-        groups: dict[str, list[str]] = {}
-        for stem in stems:
-            row = EffectLibraryRow.from_stem(stem, self._controller.effect_facts(stem))
-            rows[stem] = row
-            groups.setdefault(row.label.casefold(), []).append(stem)
-            yield
-        for grouped in groups.values():
-            if len(grouped) > 1:
-                for stem, label in _unique_effect_labels(tuple(grouped)).items():
-                    rows[stem] = replace(rows[stem], label=label)
-            yield
-        self._library_rows = dict(sorted(rows.items(), key=lambda pair: pair[0].casefold()))
-        self._label_by_stem = {stem: row.label for stem, row in self._library_rows.items()}
+    def _library_prepared(self, _key, result):
+        self._library_rows, self._label_by_stem = result
+        self._library_build = None
+        self._refresh_library(force=True)
 
     def _advance_library(self) -> None:
-        if self._library_build is None:
-            return
-        deadline = time.perf_counter() + 0.004
-        try:
-            while time.perf_counter() < deadline:
-                next(self._library_build)
-        except StopIteration:
+        if not self._library_build_lane.busy and not self._library_search_lane.busy:
             self._library_timer.stop()
-            self._library_build = None
-            self._refresh_library()
 
-    def _refresh_library(self, *_args) -> None:
+    def _library_failed(self, _key, message):
+        self._library_build = None
+        self._library_request_key = None
+        self.library_count.setText(f"Effects could not be loaded: {message}")
+
+    def _refresh_library(self, *_args, force=False) -> None:
+        if self._library_closed:
+            return
+        if not force and not self.isVisible():
+            self._library_dirty = True
+            return
+        self._library_dirty = False
         selected = self._staged.stem
-        terms = self.search.text().casefold().split()
+        terms = tuple(self.search.text().casefold().split())
         candidates = self._library_rows
         if selected and selected not in candidates:
-            candidates = dict(candidates)
-            candidates[selected] = EffectLibraryRow.from_stem(selected, self._controller.effect_facts(selected))
+            extra = EffectLibraryRow.from_stem(selected, self._controller.effect_facts(selected))
+        else:
+            extra = None
         category = self._active_category()
         loop_only = self.loop_only.isChecked()
         one_shot_only = self.one_shot_only.isChecked()
-        rows = []
-        matches = 0
-        for stem, row in candidates.items():
-            text_matches = all(term in f"{row.search_text} {row.label}".casefold() for term in terms)
-            matched = (
-                text_matches
-                and (category == "All" or category in row.tags)
-                and (not loop_only or row.behavior == "Loop")
-                and (not one_shot_only or row.behavior == "One-shot")
-                and (not self.favourites_only.isChecked() or stem in self.user_library.favourites)
-                and (not self.family_only.isChecked() or self._effect_family(stem) == self._effect_family(selected))
-            )
-            matches += int(matched)
-            if not matched and stem != selected:
-                continue
-            rows.append(row)
-        rows.sort(key=lambda item: item.stem.casefold())
+        favourites = frozenset(self.user_library.favourites) if self.favourites_only.isChecked() else None
+        family = self._effect_family(selected) if self.family_only.isChecked() else None
+        key = (id(candidates), selected, terms, category, loop_only, one_shot_only, favourites, family)
+        if key == self._library_request_key:
+            return
+        self._library_request_key = key
+        previous = self.library_model._rows
+        family_of = self._effect_family
+        def match_effect_library(stop_event):
+            rows = {**candidates, selected: extra} if extra is not None else candidates
+            return filter_effect_rows(rows, selected=selected, terms=terms, category=category,
+                                      loop_only=loop_only, one_shot_only=one_shot_only, favourites=favourites,
+                                      family=family, family_of=family_of, previous_rows=previous,
+                                      no_effect=EffectLibraryRow("", "No effect", "Other", "Off"), stop_event=stop_event)
+        self._library_search_lane.request(key, match_effect_library, delay_ms=0 if force else 150)
+        self.library_count.setText("Searching effects…")
+        self._library_timer.start()
+        self.reset_filters.setVisible(bool(terms) or category != "All" or not self.behavior_all.isChecked() or self.favourites_only.isChecked() or self.family_only.isChecked())
+
+    def _library_filtered(self, key, result):
+        if key != self._library_request_key:
+            return
+        rows, stem_rows, matches = result
         self._syncing = True
         try:
-            self.library_model.replace_rows((EffectLibraryRow("", "No effect", "Other", "Off"), *rows))
-            self._select_stem(selected)
-            self._refresh_selection_detail(selected)
+            self.library_model.replace_rows(rows, stem_rows=stem_rows)
+            self._select_stem(self._staged.stem)
+            self._refresh_selection_detail(self._staged.stem)
         finally:
             self._syncing = False
         self.library_count.setText(self.tr("{count} effects").format(count=matches))
         self.empty_results.setVisible(matches == 0)
-        self.reset_filters.setVisible(bool(terms) or category != "All" or not self.behavior_all.isChecked() or self.favourites_only.isChecked() or self.family_only.isChecked())
 
     def _reset_filters(self) -> None:
         self.search.blockSignals(True)
@@ -581,7 +614,8 @@ class GuidedEffectsWorkspace(EffectWorkspaceAuthoringMixin, QWidget):
         self.compatibility_label.setVisible(True)
         compatibility = self._controller.effect_target_compatibility(self._staged.stem)
         if compatibility is None:
-            self.compatibility_label.setText("Choose a template to check compatibility.")
+            self.compatibility_label.setText("Checking compatibility…" if self._controller.draft.template_key is not None
+                                             else "Choose a template to check compatibility.")
         elif compatibility.supported:
             targets = getattr(compatibility, "target_prefabs", None)
             if targets is None:
@@ -759,10 +793,13 @@ class GuidedEffectsWorkspace(EffectWorkspaceAuthoringMixin, QWidget):
         self._sync_placement_from_state()
 
     def iter_shutdown_workers(self):
-        return self.placement.iter_shutdown_workers() if self.placement is not None else ()
+        placement = self.placement.iter_shutdown_workers() if self.placement is not None else ()
+        return (*placement, *self._library_build_lane.iter_shutdown_workers(), *self._library_search_lane.iter_shutdown_workers())
 
     def request_shutdown(self) -> None:
         self._library_closed = True
+        self._library_build_lane.request_shutdown()
+        self._library_search_lane.request_shutdown()
         self._thumbnail_timer.stop()
         self._library_timer.stop()
         self._library_build = None

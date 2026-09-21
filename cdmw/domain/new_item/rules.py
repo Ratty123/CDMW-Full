@@ -20,7 +20,9 @@ assert on the code, not the wording. `severity` is `error` (cannot build),
 from __future__ import annotations
 
 import re
+from bisect import bisect_left
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import FrozenSet, Iterable, Mapping, Optional, Tuple
 
 from cdmw.domain.new_item.allocation import is_conventional_localization_key
@@ -99,6 +101,17 @@ class TemplateFacts:
     socket_items: Tuple[int, ...] = ()
 
 
+@lru_cache(maxsize=4)
+def _collision_index(names, pappt_stems, texts):
+    return (frozenset(name.casefold() for name in names), tuple(sorted(pappt_stems)),
+            tuple(sorted(texts)), tuple(sorted(text.lower()[::-1] for text in texts)))
+
+
+def _has_prefix(values, prefix):
+    index = bisect_left(values, prefix)
+    return index < len(values) and values[index].startswith(prefix)
+
+
 @dataclass(frozen=True, slots=True)
 class NewItemContext:
     """A read-only snapshot of the archives, as far as a new item can collide with them."""
@@ -123,6 +136,13 @@ class NewItemContext:
     #: Capabilities of the current build; the rules refuse what the writers cannot do yet.
     store_insert_supported: bool = False
     stat_shape_edits_supported: bool = False
+    _collision_lookup: tuple = field(init=False, repr=False, compare=False)
+
+    def __post_init__(self):
+        # Contexts are prepared with the snapshot/selection on a worker. Replacing
+        # only the template reuses indexes for the same immutable catalogue.
+        object.__setattr__(self, "_collision_lookup", _collision_index(
+            self.internal_names, self.pappt_stems, self.stringinfo_texts))
 
 
 def has_errors(issues: Iterable[ValidationIssue]) -> bool:
@@ -307,10 +327,11 @@ def validate_spec(spec: NewItemSpec) -> Tuple[ValidationIssue, ...]:
 def _stem_family_taken(stem: str, context: NewItemContext) -> Optional[str]:
     if stem in context.model_stems:
         return "a model family with that stem already exists"
-    if stem in context.pappt_stems or any(existing.startswith(stem + "_") for existing in context.pappt_stems):
+    if stem in context.pappt_stems or _has_prefix(context._collision_lookup[1], stem + "_"):
         return "the part-prefab table already knows that stem"
     lower = stem.lower()
-    if stem in context.stringinfo_texts or any(text.startswith(stem + "_") or text.lower().endswith("_" + lower) for text in context.stringinfo_texts):
+    if (stem in context.stringinfo_texts or _has_prefix(context._collision_lookup[2], stem + "_")
+            or _has_prefix(context._collision_lookup[3], ("_" + lower)[::-1])):
         return "StringInfo already carries that stem"
     return None
 
@@ -332,7 +353,7 @@ def validate_against_context(spec: NewItemSpec, context: NewItemContext) -> Tupl
         issues.append(_issue("template.no_stat_block", "template_key", f"{template.internal_name}'s stat block did not decode; stats and prices cannot be edited on this template.", "warning"))
 
     name = str(spec.internal_name or "")
-    if name and (name in context.internal_names or name.casefold() in {n.casefold() for n in context.internal_names}):
+    if name and (name in context.internal_names or name.casefold() in context._collision_lookup[0]):
         issues.append(_issue("internal_name.taken", "internal_name", f"An item named {name} already exists."))
     if name and name == template.internal_name:
         issues.append(_issue("internal_name.same_as_template", "internal_name", "The clone needs its own internal name."))

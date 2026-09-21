@@ -66,6 +66,26 @@ own worker. The `panels_*.py` modules edit the draft and ask the
 controller for facts; `tab.py` composes them, and forwards install to the shell.
 Queued effect-toolbar resize and post-install refresh callbacks are tied to
 their owning widgets, so destroying the workspace cancels pending delivery.
+
+Secondary catalogue searches and effect compatibility checks use bounded,
+cancellable lookup lanes. Each lane runs one request and retains only the newest
+pending request; results return through queued signals and must still match the
+current snapshot and selection. Hidden Effects pages defer filtering until shown.
+Perk, group and recipe results retain their display limits, while large bonus,
+reward and tool dropdowns and the output file list use virtual Qt models. Plan,
+merge and update review text is prepared on workers and inserted in small batches.
+Name validation reuses immutable collision indexes and runs once per name edit.
+
+ZIP/FBX inspection, cold model bounds and Mesh Editor session cloning run on owned
+workers. Accepting an edited import warms its baked geometry and preview caches
+before publication; preview refresh never triggers a cold bake on the GUI thread.
+Model/session results retain source, variant and revision checks, and rejected
+sessions are disposed in the cleanup lane. Effect package retirement also uses
+that lane, with exact package-root ownership checks. Closing either preview waits
+for its owned renderer processes to exit before deleting their packages, while
+the GUI continues processing input. Legacy recovery performs its read-only scan
+on a worker before presenting the existing concrete mutation confirmation.
+
 The Template panel searches internal IDs, every available localized item name, equipment types and
 item keys with Archive Browser's normalized terms, phrases, alternatives and exclusions.
 The snapshot worker prepares immutable equipment names and category membership once.

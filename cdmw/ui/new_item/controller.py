@@ -53,6 +53,7 @@ from cdmw.workers.effect_catalogue_worker import EffectCatalogueIndexLane
 from cdmw.workers.new_item_cleanup_worker import ModelSourceCleanupLane
 from cdmw.workers.new_item_template_search import TemplateSearchLane
 from cdmw.workers.new_item_template_selection import TemplateSelectionLane
+from cdmw.workers.new_item_lookup import NewItemLookupLane
 from cdmw.workers.new_item_workers import export_task, install_overlay_task, install_task, overlay_migration_task, overlay_removal_task, plan_task, snapshot_task
 from cdmw.workers.utility_workers import UtilityWorker
 
@@ -96,6 +97,7 @@ class NewItemStudioController(
     effect_catalogue_progress = Signal(int, int, str)
     effect_catalogue_failed = Signal(str)
     effect_changed = Signal(object)
+    effect_compatibility_ready = Signal()
     preview_lighting_changed = Signal(str)
     authoring_index_ready = Signal(str, object)
     authoring_index_failed = Signal(str, str)
@@ -156,10 +158,15 @@ class NewItemStudioController(
         self._lane: str = ""
         self._cancel_requested_lane: str = ""
         self._shutdown_requested = False
+        self._lookup_lanes = []
         self._model_cleanup_lane = ModelSourceCleanupLane(synchronous=self._synchronous, parent=self)
         #: What every shipped effect is made of, once indexed (a minute, cached on disk).
         self.effect_catalogue: Optional[EffectCatalogue] = None
         self._effect_target_compatibility_cache: Dict[tuple, object] = {}
+        self._effect_compatibility_pending = {}
+        self._effect_compatibility_lane = NewItemLookupLane(parent=self)
+        self._effect_compatibility_lane.completed.connect(self._effect_compatibilities_ready)
+        self._effect_compatibility_lane.failed.connect(self._effect_compatibilities_failed)
         #: Where the catalogue cache lives; None keeps it in memory only.
         self.effect_cache_path: Optional[Path] = None
         self._effect_lane = EffectCatalogueIndexLane(synchronous=self._synchronous, parent=self)
@@ -185,6 +192,11 @@ class NewItemStudioController(
     @property
     def busy(self) -> bool:
         return self._thread is not None
+
+    def create_lookup_lane(self):
+        lane = NewItemLookupLane(synchronous=self._synchronous, parent=self)
+        self._lookup_lanes.append(lane)
+        return lane
 
     @property
     def ready(self) -> bool:

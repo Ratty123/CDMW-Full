@@ -239,7 +239,6 @@ class IdentityPanel(QGroupBox):
     def _store_internal_name(self, text: str) -> None:
         self._controller.draft.internal_name = str(text)
         self._controller.invalidate_plan()
-        self.refresh_issues()
 
     def _store_item_key(self, value: int) -> None:
         if not self.item_key_manual.isChecked():
@@ -323,7 +322,6 @@ class IdentityPanel(QGroupBox):
     def _store_display_name(self, text: str) -> None:
         self._controller.draft.display_names[self._language] = str(text)
         self._controller.invalidate_plan()
-        self.refresh_issues()
 
     def _store_description(self) -> None:
         self._controller.draft.descriptions[self._language] = self.description.toPlainText()

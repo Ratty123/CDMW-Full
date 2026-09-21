@@ -186,8 +186,18 @@ class _DialogTestCase(unittest.TestCase):
             box_min=(-11.0, -10.0, -11.0), box_max=(11.0, 17.0, 11.0),
             reach_submesh_index=1, body_submesh_index=3,
         )
-        self.addCleanup(dialog.deleteLater)
+        self.addCleanup(self._shutdown_dialog, dialog)
         return dialog
+
+    def _shutdown_workspace(self, workspace):
+        workspace.request_shutdown()
+        self._settle(lambda: not workspace.iter_shutdown_workers())
+        self.assertFalse(workspace.iter_shutdown_workers())
+        workspace.deleteLater()
+
+    def _shutdown_dialog(self, dialog):
+        self._shutdown_workspace(dialog.workspace)
+        dialog.deleteLater()
 
     def _settle(self, done, timeout_ms: int = 20_000) -> None:
         """Run the event loop until `done()` or the deadline; a worker thread is only
@@ -378,7 +388,7 @@ class DialogTests(_DialogPresentationMixin, _DialogTestCase):
             compatibility_ui=True,
         )
         self.addCleanup(workspace.request_shutdown)
-        self.addCleanup(workspace.deleteLater)
+        self.addCleanup(self._shutdown_workspace, workspace)
         workspace._initial_package_timer.stop()
         workspace._preview = EffectPlacementPreview(
             package_dir=Path("."),
@@ -670,7 +680,7 @@ class DialogTests(_DialogPresentationMixin, _DialogTestCase):
                 output_root=output,
                 host_factory=lambda parent: _Host(parent),
             )
-            self.addCleanup(dialog.deleteLater)
+            self.addCleanup(self._shutdown_dialog, dialog)
             dialog.show()
             try:
                 self._settle(build_started.is_set)
@@ -717,7 +727,7 @@ class DialogTests(_DialogPresentationMixin, _DialogTestCase):
             effect_preview=decode_preview,
             compatibility_ui=True,
         )
-        self.addCleanup(workspace.deleteLater)
+        self.addCleanup(self._shutdown_workspace, workspace)
         workspace.show()
         try:
             self._settle(decode_started.is_set, timeout_ms=2_000)
@@ -776,7 +786,7 @@ class DialogTests(_DialogPresentationMixin, _DialogTestCase):
                 box_min=(-1.0, -1.0, -1.0), box_max=(1.0, 1.0, 1.0),
                 output_root=Path(folder), host_factory=lambda parent: _Host(parent),
             )
-            self.addCleanup(workspace.deleteLater)
+            self.addCleanup(self._shutdown_workspace, workspace)
             workspace.item_mesh_ready.connect(lambda mesh, label: published.append((mesh, label, QThread.currentThread())))
             workspace.show()
             try:
@@ -817,7 +827,7 @@ class DialogTests(_DialogPresentationMixin, _DialogTestCase):
                 box_min=(-1.0, -1.0, -1.0), box_max=(1.0, 1.0, 1.0),
                 output_root=Path(folder), host_factory=lambda parent: _AckHost(parent),
             )
-            self.addCleanup(workspace.deleteLater)
+            self.addCleanup(self._shutdown_workspace, workspace)
             published = []
             workspace.item_mesh_ready.connect(lambda *values: published.append(values))
             workspace.show()
@@ -852,7 +862,7 @@ class DialogTests(_DialogPresentationMixin, _DialogTestCase):
                 item_mesh=None, box_min=(-1.0, -1.0, -1.0), box_max=(1.0, 1.0, 1.0),
                 output_root=root, host_factory=lambda parent: _Host(parent),
             )
-            self.addCleanup(workspace.deleteLater)
+            self.addCleanup(self._shutdown_workspace, workspace)
             workspace._package_generation = 1
             workspace.item_mesh_ready.connect(lambda _mesh, _label: workspace.request_shutdown())
             preview = EffectPlacementPreview(
@@ -862,6 +872,7 @@ class DialogTests(_DialogPresentationMixin, _DialogTestCase):
             workspace._package_ready((1, preview, (), True, None, _blade(), "placed"))
             self.assertTrue(workspace._closed)
             self.assertIsNone(workspace.host.loaded)
+            self._settle(lambda: not workspace.iter_shutdown_workers())
             self.assertFalse(package.exists())
 
     def test_superseded_effect_package_releases_its_model_source_usage_after_teardown(self) -> None:
@@ -906,7 +917,7 @@ class DialogTests(_DialogPresentationMixin, _DialogTestCase):
                     compatibility_ui=True,
                     model_source_usage=acquire_usage,
                 )
-                self.addCleanup(workspace.deleteLater)
+                self.addCleanup(self._shutdown_workspace, workspace)
                 workspace.show()
                 self._settle(lambda: started)
                 self.assertTrue(acquired)
@@ -963,7 +974,7 @@ class DialogTests(_DialogPresentationMixin, _DialogTestCase):
                 host_factory=lambda parent: _AckHost(parent),
                 compatibility_ui=True,
             )
-            self.addCleanup(workspace.deleteLater)
+            self.addCleanup(self._shutdown_workspace, workspace)
             first = EffectPlacementPreview(
                 package_dir=first_dir,
                 box_submesh_index=0,
@@ -986,11 +997,13 @@ class DialogTests(_DialogPresentationMixin, _DialogTestCase):
             self.assertIs(workspace._preview, first)
             self.assertEqual(workspace.host.loaded_requests[-1], (second_dir, False))
             workspace.host.controller.package_applied.emit(str(second_dir), 1)
+            self._settle(lambda: not workspace.iter_shutdown_workers())
             self.assertFalse(first_dir.exists())
             self.assertTrue(second_dir.is_dir())
             self.assertIs(workspace._preview, second)
             self.assertEqual(workspace.host.restored_views[-1]["role"], "reference")
             workspace.request_shutdown()
+            self._settle(lambda: not workspace.iter_shutdown_workers())
             self.assertFalse(second_dir.exists())
 
     def test_rapid_rebuilds_publish_only_the_latest_package_and_keep_the_camera(self) -> None:
@@ -1027,7 +1040,7 @@ class DialogTests(_DialogPresentationMixin, _DialogTestCase):
                     host_factory=lambda parent: _AckHost(parent),
                     compatibility_ui=True,
                 )
-                self.addCleanup(workspace.deleteLater)
+                self.addCleanup(self._shutdown_workspace, workspace)
                 workspace.show()
                 self._settle(lambda: started)
                 workspace.set_content(

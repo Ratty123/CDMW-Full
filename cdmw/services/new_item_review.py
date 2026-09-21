@@ -22,3 +22,35 @@ def authoring_review_lines(plan):
     lines.append("Files replaced:")
     lines.extend(f"- {request.entry.path}" for request in plan.patches)
     return lines
+
+
+def plan_review_content(plan, mode, labels, stop_event):
+    from cdmw.domain.cancellation import raise_if_cancelled
+    rows = []
+    for request in plan.patches:
+        raise_if_cancelled(stop_event)
+        rows.append((request.entry.path, labels[0]))
+    for path in plan.new_paths:
+        raise_if_cancelled(stop_event)
+        rows.append((path, labels[1]))
+    if mode == "overlay":
+        rows.extend((meta.path, labels[2]) for meta in plan.meta_files)
+    lines = [f"Item {plan.spec.item_key} {plan.spec.internal_name} from template {plan.spec.template_key}"]
+    if plan.spec.stem:
+        lines.append(f"Model stem: {plan.spec.stem}")
+    lines.append("")
+    lines.extend(plan.summary_lines)
+    lines.extend(authoring_review_lines(plan))
+    if plan.warnings:
+        lines.append("")
+        lines.append("Warnings:")
+        lines.extend(f"- {warning}" for warning in plan.warnings)
+    notes = [issue for issue in plan.issues if not issue.is_error]
+    if notes:
+        lines.append("")
+        lines.extend(f"Note: {issue.message}" for issue in notes)
+    lines.append("")
+    lines.append(f"{len(plan.patches)} table file(s) replaced, {len(plan.additions)} new file(s):")
+    lines.extend(f"- {path}" for path in plan.new_paths)
+    raise_if_cancelled(stop_event)
+    return tuple(rows), "\n".join(lines)

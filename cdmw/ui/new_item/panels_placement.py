@@ -47,6 +47,9 @@ class PlacementPanel(QGroupBox):
     def __init__(self, controller: NewItemStudioController, parent=None) -> None:
         super().__init__("6. Shop and item groups", parent)
         self._controller = controller
+        self._group_lookup = controller.create_lookup_lane()
+        self._group_lookup.completed.connect(self._publish_groups)
+        self._group_lookup.failed.connect(self._group_lookup_failed)
         layout = QVBoxLayout(self)
         layout.addWidget(intro_label("Choose shops, crafting recipes or existing reward sources, and review group memberships."))
 
@@ -354,7 +357,16 @@ class PlacementPanel(QGroupBox):
         self._template_changed(None)
 
     def _refresh_groups(self, *_args) -> None:
-        groups = self._controller.item_groups(self.group_filter.text())
+        from cdmw.services.new_item_panel_search import group_choices
+        snapshot, query = self._controller.snapshot, self.group_filter.text()
+        self._group_lookup.request((id(snapshot), query), lambda stop: group_choices(snapshot, query, stop), delay_ms=150)
+
+    def _group_lookup_failed(self, _key, message):
+        self._controller.status_message.emit(f"Item groups could not be loaded: {message}", True)
+
+    def _publish_groups(self, request, groups) -> None:
+        if request != (id(self._controller.snapshot), self.group_filter.text()):
+            return
         chosen = set(self._controller.draft.explicit_item_groups)
         self.group_list.blockSignals(True)
         try:

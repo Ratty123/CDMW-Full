@@ -47,6 +47,12 @@ PYTHON_SOURCE_ROOTS = (
 )
 MANUAL_SOURCE_KEYS = frozenset(
     {
+        # New Item virtual rows and worker-prepared review text have no widget sink.
+        "Change", "Built for: {value_0}", "Current game: {value_0}",
+        "Compared files:", "Required review:",
+        "Game build changed. The file comparison below determines whether an update is possible.",
+        "This checks recorded data and merge conflicts. In-game behavior still needs testing.",
+        "{value_0} · action {value_1}", "{value_0} · {value_1}–{value_2} · +{value_3}",
         # Experimental replacement controls are drawn by the compiled Rust UI.
         # Vertex inspector labels are retained for the future editor catalog;
         # the integrated Rust authoring UI currently uses English labels.

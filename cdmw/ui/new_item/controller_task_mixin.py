@@ -115,6 +115,8 @@ class NewItemTaskControllerMixin:
                 self._held_character = ()
                 self._material_parts = ()
                 self._effect_target_compatibility_cache.clear()
+                self._effect_compatibility_pending.clear()
+                self._effect_compatibility_lane.cancel()
                 self.snapshot_ready.emit()
             else:
                 self.snapshot_failed.emit("The snapshot finished with an unexpected result.")
@@ -229,6 +231,8 @@ class NewItemTaskControllerMixin:
                     self._held_character = ()
                     self._material_parts = ()
                     self._effect_target_compatibility_cache.clear()
+                    self._effect_compatibility_pending.clear()
+                    self._effect_compatibility_lane.cancel()
                 self.plan = result
                 self._plan_revision = revision
                 self.remember_issued_identity(result.spec.item_key, str(result.spec.stem or ""))
@@ -385,7 +389,7 @@ class NewItemTaskControllerMixin:
             else:
                 cleanup = getattr(result, "cleanup", None)
                 if callable(cleanup):
-                    cleanup()
+                    self._model_cleanup_lane.retire(result)
             return
         if self._cancel_requested_lane == self._lane:
             if isinstance(result, ModelImportSource):
@@ -393,7 +397,7 @@ class NewItemTaskControllerMixin:
             else:
                 cleanup = getattr(result, "cleanup", None)
                 if callable(cleanup):
-                    cleanup()
+                    self._model_cleanup_lane.retire(result)
             self.status_message.emit("Operation cancelled.", False)
             return
         handler = self._on_done
@@ -454,6 +458,9 @@ class NewItemTaskControllerMixin:
         workers.extend(self._effect_lane.iter_shutdown_workers())
         workers.extend(self._template_search_lane.iter_shutdown_workers())
         workers.extend(self._template_selection_lane.iter_shutdown_workers())
+        workers.extend(self._effect_compatibility_lane.iter_shutdown_workers())
+        for lane in self._lookup_lanes:
+            workers.extend(lane.iter_shutdown_workers())
         return tuple(workers)
 
     def request_shutdown(self) -> None:
@@ -474,6 +481,10 @@ class NewItemTaskControllerMixin:
         self._effect_lane.request_shutdown()
         self._template_search_lane.request_shutdown()
         self._template_selection_lane.request_shutdown()
+        self._effect_compatibility_lane.request_shutdown()
+        self._effect_compatibility_pending.clear()
+        for lane in self._lookup_lanes:
+            lane.request_shutdown()
         self._template_request = None
 
     def shutdown(self) -> None:

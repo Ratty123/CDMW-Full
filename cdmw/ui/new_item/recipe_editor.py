@@ -5,15 +5,23 @@ from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QFormLayout, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QPushButton,
     QTableWidget, QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget,
 )
-from cdmw.services.new_item_recipes import connected_recipe_keys
+from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.new_item.authoring import RecipeInput, RecipeOutput, RecipeOverride
 from cdmw.ui.new_item.ui_kit import compact_table_height
+from cdmw.ui.new_item.choice_model import set_choice_rows
+from cdmw.services.new_item_panel_search import recipe_choices
 
 
 class RecipeEditor(QWidget):
     def __init__(self, controller, parent=None):
         super().__init__(parent)
         self.controller, self.index, self._syncing = controller, None, False
+        self._lookup = controller.create_lookup_lane()
+        self._lookup.completed.connect(self._choices_ready)
+        self._lookup.failed.connect(self._choices_failed)
+        self._tool_lookup = controller.create_lookup_lane()
+        self._tool_lookup.completed.connect(self._tools_ready)
+        self._tool_lookup.failed.connect(self._choices_failed)
         layout = QVBoxLayout(self)
         row = QHBoxLayout()
         self.load = QPushButton("Load recipes and rewards")
@@ -102,18 +110,30 @@ class RecipeEditor(QWidget):
         self._show_recipe()
 
     def _snapshot(self):
+        self._tool_lookup.cancel()
         self.index = None
         self._choices()
 
     def _ready(self, kind, index):
         if kind == "acquisition":
             self.index = index
-            self._syncing = True
-            self.tool.clear()
-            for key, name in index.tools.items():
-                self.tool.addItem(name, key)
-            self._syncing = False
+            def prepare_tools(stop):
+                rows = []
+                for position, (key, name) in enumerate(index.tools.items()):
+                    if position % 128 == 0:
+                        raise_if_cancelled(stop)
+                    rows.append((name, key))
+                return tuple(rows)
+            self._tool_lookup.request(id(index), prepare_tools)
             self._choices()
+
+    def _tools_ready(self, key, rows):
+        if key != id(self.index):
+            return
+        self._syncing = True
+        set_choice_rows(self.tool, rows)
+        self._syncing = False
+        self._show_recipe()
 
     def _failed(self, kind, message):
         if kind == "acquisition":
@@ -121,31 +141,23 @@ class RecipeEditor(QWidget):
 
     def _choices(self):
         old = self.recipe.currentData()
+        snapshot, index, key = self.controller.snapshot, self.index, self.controller.draft.template_key
+        inherited, query = self.inherited.isChecked(), self.search.text()
+        def match_recipes(stop):
+            rows = recipe_choices(snapshot, index, key, inherited, query, stop)
+            selected = next((i for i, (_, value) in enumerate(rows) if value == old), 0)
+            return rows, selected
+        self._lookup.request((id(snapshot), id(index), key), match_recipes)
+
+    def _choices_failed(self, _key, message):
+        self.state.setText(message)
+
+    def _choices_ready(self, request, result):
+        if request != (id(self.controller.snapshot), id(self.index), self.controller.draft.template_key):
+            return
+        rows, selected = result
         self.recipe.blockSignals(True)
-        self.recipe.clear()
-        c = self.controller
-        if self.index is not None and c.snapshot is not None and c.draft.template_key in c.snapshot.rows:
-            try:
-                linked = connected_recipe_keys(c.snapshot.rows[c.draft.template_key], c.snapshot.multichange_rows,
-                                               self.index.recipes, self.index.rewards,
-                                               related_keys=self.index.recipe_items.get(c.draft.template_key, ()))
-            except ValueError as error:
-                self.recipe.blockSignals(False)
-                self.state.setText(str(error))
-                return
-            keys = linked if self.inherited.isChecked() else self.index.recipes
-            query = self.search.text().strip().casefold()
-            for key in keys:
-                source = self.index.recipes.get(key)
-                name = source.name if source else c.snapshot.multichange_rows[key].name
-                if query and query not in f"{key} {name}".casefold():
-                    continue
-                supported = source is not None and all(r in self.index.rewards for r in source.reward_keys + source.additional_reward_keys)
-                self.recipe.addItem(f"{name} · {key}" + ("" if supported else " · unsupported"), key)
-                if self.recipe.count() >= 250:
-                    break
-        if self.recipe.findData(old) >= 0:
-            self.recipe.setCurrentIndex(self.recipe.findData(old))
+        set_choice_rows(self.recipe, rows, selected)
         self.recipe.blockSignals(False)
         self._show_recipe()
 

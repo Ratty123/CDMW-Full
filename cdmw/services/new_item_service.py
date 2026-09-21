@@ -142,10 +142,10 @@ class NewItemService:
             issues.extend(validate_against_context(spec, build_context(snapshot, spec.template_key)))
         return tuple(issues)
 
-    def inspect_effect_targets(self, spec: NewItemSpec, snapshot: NewItemSnapshot) -> EffectTargetCompatibility:
+    def inspect_effect_targets(self, spec: NewItemSpec, snapshot: NewItemSnapshot, *, stop_event=None) -> EffectTargetCompatibility:
         """Read-only compatibility for the prefabs this spec would own."""
 
-        return inspect_effect_targets(snapshot, spec)
+        return inspect_effect_targets(snapshot, spec, stop_event=stop_event)
 
     def allocate(
         self,

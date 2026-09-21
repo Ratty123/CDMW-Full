@@ -181,11 +181,12 @@ class EffectLibraryModel(QAbstractTableModel):
             index = self.index(index.row(), 0)
             self.dataChanged.emit(index, index, [int(Qt.ItemDataRole.DecorationRole), int(Qt.ItemDataRole.DisplayRole)])
 
-    def replace_rows(self, rows: tuple[EffectLibraryRow, ...]) -> None:
-        if rows == self._rows:
+    def replace_rows(self, rows: tuple[EffectLibraryRow, ...], *, stem_rows=None) -> None:
+        if rows is self._rows or (stem_rows is None and rows == self._rows):
             return
         self.beginResetModel()
         self._rows = rows
+        self._stem_rows = stem_rows
         self.endResetModel()
 
     def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:  # noqa: N802 - Qt override
@@ -217,6 +218,10 @@ class EffectLibraryModel(QAbstractTableModel):
 
     def index_for_stem(self, stem: str) -> QModelIndex:
         wanted = str(stem or "")
+        lookup = getattr(self, "_stem_rows", None)
+        if lookup is not None:
+            row = lookup.get(wanted)
+            return self.index(row, 1) if row is not None else QModelIndex()
         for row, item in enumerate(self._rows):
             if item.stem == wanted:
                 return self.index(row, 1)

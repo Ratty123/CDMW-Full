@@ -1,5 +1,6 @@
 """Review selected mod folders and export one combined DMM package."""
 from pathlib import Path
+from cdmw.domain.cancellation import raise_if_cancelled
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -8,12 +9,16 @@ from PySide6.QtWidgets import (
 )
 
 from cdmw.workers.mod_merge_workers import mod_merge_export_task, mod_merge_scan_task
+from cdmw.ui.new_item.review_model import ReviewTextWriter
 
 
 class ModMergeDialog(QDialog):
     def __init__(self, controller, game_root="", parent=None):
         super().__init__(parent)
         self.controller = controller
+        self._review_lookup = controller.create_lookup_lane()
+        self._review_lookup.completed.connect(self._review_ready)
+        self._review_lookup.failed.connect(self._review_failed)
         self._closed, self._working, self._generation = False, False, 0
         self._plan = None
         self.setWindowTitle("Merge mods")
@@ -64,6 +69,7 @@ class ModMergeDialog(QDialog):
         self.progress.setMaximumHeight(6)
         layout.addWidget(self.progress)
         self.review = QPlainTextEdit()
+        self._review_writer = ReviewTextWriter(self.review)
         self.review.setReadOnly(True)
         self.review.setPlaceholderText("The merge summary and any conflicts appear here.")
         layout.addWidget(self.review, 1)
@@ -112,7 +118,8 @@ class ModMergeDialog(QDialog):
     def _invalidate(self, *_args):
         self._generation += 1
         self._plan = None
-        self.review.clear()
+        self._review_lookup.cancel()
+        self._review_writer.set_text("")
         self.status.setText("Selection changed. Check compatibility before exporting.")
         self._buttons()
 
@@ -152,6 +159,8 @@ class ModMergeDialog(QDialog):
 
     def _scan(self):
         self._plan = None
+        self._review_lookup.cancel()
+        self._review_writer.set_text("")
         self._run(mod_merge_scan_task(self._folder_paths(), self.game_root.text().strip()),
                   self._scanned, "Checking mod contents and their game baseline...")
 
@@ -159,12 +168,29 @@ class ModMergeDialog(QDialog):
         self._plan = plan
         if plan.conflicts:
             self.status.setText(f"{len(plan.conflicts)} conflict(s). No package can be written yet.")
-            self.review.setPlainText("\n\n".join(plan.conflicts) +
-                "\n\nRemove an incompatible mod from this selection, or rebuild it with different item IDs, asset names or conflicting edits; then check again.")
         else:
             self.status.setText(f"Ready to combine {len(plan.folders)} mods into one DMM package.")
-            self.review.setPlainText(f"{len(plan.files)} files; {len(plan.items)} recorded item(s).\n\n" +
-                "\n".join(path for path, _data, _flags in plan.files))
+        def build(stop):
+            lines = []
+            if plan.conflicts:
+                for conflict in plan.conflicts:
+                    raise_if_cancelled(stop)
+                    lines.append(conflict)
+                lines.append("Remove an incompatible mod from this selection, or rebuild it with different item IDs, asset names or conflicting edits; then check again.")
+                return "\n\n".join(lines)
+            lines.extend((f"{len(plan.files)} files; {len(plan.items)} recorded item(s).", ""))
+            for path, _data, _flags in plan.files:
+                raise_if_cancelled(stop)
+                lines.append(path)
+            return "\n".join(lines)
+        self._review_lookup.request((self._generation, id(plan)), build)
+
+    def _review_ready(self, key, text):
+        if not self._closed and key == (self._generation, id(self._plan)):
+            self._review_writer.set_text(text)
+
+    def _review_failed(self, key, message):
+        self._review_ready(key, f"The review could not be prepared: {message}")
 
     def _export(self):
         if self._plan is None or self._plan.conflicts:
@@ -179,6 +205,8 @@ class ModMergeDialog(QDialog):
 
     def _finished(self, _result):
         self._closed = True
+        self._review_lookup.request_shutdown()
+        self._review_writer.timer.stop()
         self._generation += 1
         self._plan = None
         if self._working:

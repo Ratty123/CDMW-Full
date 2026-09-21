@@ -24,8 +24,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QTabWidget,
     QToolButton,
-    QTreeWidget,
-    QTreeWidgetItem,
+    QTreeView,
     QVBoxLayout,
     QWidget,
 )
@@ -34,6 +33,7 @@ from cdmw.services.new_item_planning import NewItemPlan
 from cdmw.services.archive_overlay_install import OVERLAY_DIRECTORY_FIRST
 from cdmw.ui.new_item.controller import NewItemStudioController
 from cdmw.ui.new_item.state import MANAGERS
+from cdmw.ui.new_item.review_model import FileChangeModel, ReviewTextWriter
 from cdmw.ui.new_item.ui_kit import BLOCK, EDIT, OK, WARN, DetailsToggle, NoteLabel
 
 # Both review tabs scroll locally inside the remaining workspace height.
@@ -142,15 +142,19 @@ class OutputPanel(QGroupBox):
         review = QGroupBox("3. Review the plan")
         review_layout = QVBoxLayout(review)
         self.review_tabs = QTabWidget()
-        self.file_changes = QTreeWidget()
-        self.file_changes.setHeaderLabels(["File", "Change"])
+        self.file_changes = QTreeView()
+        self._file_model = FileChangeModel(["File", "Change"], self.file_changes)
+        self.file_changes.setModel(self._file_model)
         self.file_changes.header().setStretchLastSection(False)
         self.file_changes.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.file_changes.header().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self.file_changes.header().setResizeContentsPrecision(32)
+        self.file_changes.setUniformRowHeights(True)
         self.file_changes.setRootIsDecorated(False)
         self.file_changes.setMinimumHeight(_COMPACT_SUMMARY_HEIGHT)
         self.review_tabs.addTab(self.file_changes, "File changes")
         self.summary = QPlainTextEdit()
+        self._summary_writer = ReviewTextWriter(self.summary)
         self.summary.setReadOnly(True)
         self.summary.setPlaceholderText("The plan's summary, warnings and touched files appear here.")
         self.summary.setMinimumHeight(_COMPACT_SUMMARY_HEIGHT)
@@ -162,6 +166,9 @@ class OutputPanel(QGroupBox):
     def __init__(self, controller: NewItemStudioController, parent=None) -> None:
         super().__init__("7. Output", parent)
         self._controller = controller
+        self._review_lookup = controller.create_lookup_lane()
+        self._review_lookup.completed.connect(self._review_ready)
+        self._review_lookup.failed.connect(self._review_failed)
         self._install_error = ""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 6, 8, 6)
@@ -435,46 +442,39 @@ class OutputPanel(QGroupBox):
         enabled = plan is not None
         self.export_button.setEnabled(enabled and not self._controller.busy)
         self.install_overlay_button.setEnabled(enabled and not self._controller.busy)
-        self.file_changes.clear()
+        mode = self.output_mode.currentData()
+        if getattr(self, "_displayed_plan", False) == (id(plan), mode):
+            return
+        self._displayed_plan = (id(plan), mode)
+        self._review_lookup.cancel()
+        self._file_model.replace_rows(())
         if plan is None:
             self.build_button.setText(self.tr("Build plan"))
-            self.summary.setPlainText("")
+            self._summary_writer.set_text("")
             self.plan_state.set_note("Not built yet. Every change on the other steps clears the plan, so build it last.", WARN)
             return
         self.build_button.setText(self.tr("Rebuild plan"))
-        for request in plan.patches:
-            QTreeWidgetItem(self.file_changes, [request.entry.path, self.tr("Replace table")])
-        for path in plan.new_paths:
-            QTreeWidgetItem(self.file_changes, [path, self.tr("Add file")])
-        if self.output_mode.currentData() == "overlay":
-            for meta in plan.meta_files:
-                QTreeWidgetItem(self.file_changes, [meta.path, self.tr("Overlay metadata")])
         warnings = len(plan.warnings)
         self.plan_state.set_note(
             f"Ready: item {plan.spec.item_key}, {len(plan.patches)} table file(s) replaced, {len(plan.additions)} new file(s)"
             + (f", {warnings} warning(s) below" if warnings else ""),
             WARN if warnings else OK,
         )
-        lines = [f"Item {plan.spec.item_key} {plan.spec.internal_name} from template {plan.spec.template_key}"]
-        if plan.spec.stem:
-            lines.append(f"Model stem: {plan.spec.stem}")
-        lines.append("")
-        lines.extend(plan.summary_lines)
-        from cdmw.services.new_item_review import authoring_review_lines
-        lines.extend(authoring_review_lines(plan))
-        if plan.warnings:
-            lines.append("")
-            lines.append("Warnings:")
-            lines.extend(f"- {warning}" for warning in plan.warnings)
-        notes = [issue for issue in plan.issues if not issue.is_error]
-        if notes:
-            lines.append("")
-            lines.extend(f"Note: {issue.message}" for issue in notes)
-        lines.append("")
-        lines.append(f"{len(plan.patches)} table file(s) replaced, {len(plan.additions)} new file(s):")
-        lines.extend(f"- {path}" for path in plan.new_paths)
-        self.summary.setPlainText("\n".join(lines))
+        from cdmw.services.new_item_review import plan_review_content
+        labels = (self.tr("Replace table"), self.tr("Add file"), self.tr("Overlay metadata"))
+        self._summary_writer.set_text("Preparing the plan review…")
+        self._review_lookup.request((id(plan), mode), lambda stop: plan_review_content(plan, mode, labels, stop))
         self.review_tabs.setCurrentWidget(self.summary if plan.warnings else self.file_changes)
+
+    def _review_failed(self, key, message):
+        if key == self._displayed_plan:
+            self._summary_writer.set_text(f"The plan review could not be prepared: {message}")
+
+    def _review_ready(self, key, result):
+        if key == self._displayed_plan:
+            rows, text = result
+            self._file_model.replace_rows(rows)
+            self._summary_writer.set_text(text)
 
     def _plan_failed(self, message: str, issues: object) -> None:
         lines = [f"The plan could not be built: {message}"]

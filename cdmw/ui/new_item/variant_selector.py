@@ -6,6 +6,7 @@ class VariantSelector(QWidget):
     def __init__(self, controller, panel):
         super().__init__(panel)
         self.controller,self.panel,self._restore = controller,panel,None
+        self._choices = None
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0,0,0,0)
         layout.addWidget(QLabel("Variant:"))
@@ -26,9 +27,12 @@ class VariantSelector(QWidget):
     def refresh(self,*_):
         identity = self.controller.current_variant_identity()
         self.choice.blockSignals(True)
-        self.choice.clear()
-        for key,label in self.controller.variant_choices():
-            self.choice.addItem(label,key)
+        choices = self.controller.variant_choices()
+        if choices != self._choices:
+            self._choices = choices
+            self.choice.clear()
+            for key,label in choices:
+                self.choice.addItem(label,key)
         # QVariant compares Python tuple payloads by object identity. Bindings are
         # reconstructed by the controller, so select by their exact path values.
         index = next((i for i in range(self.choice.count())

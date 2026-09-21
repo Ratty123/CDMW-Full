@@ -196,18 +196,6 @@ class NewItemModelControllerMixin:
         # read on the UI thread, used on the worker: the Blender the reader chose, or ""
         blender = blender_for_fbx()
 
-        # An FBX with no Blender is refused here rather than inside the read: the question
-        # is answered from the file's name and a zip's listing, so nothing is extracted and
-        # no worker starts. Starting one only to fail at the end left the step saying
-        # "Reading the model file..." while a zip was unpacked for a conversion that could
-        # never run.
-        needs_blender = fbx_needing_blender(chosen)
-        if needs_blender and not blender:
-            message = fbx_needs_blender_message(needs_blender)
-            self.status_message.emit(message, True)
-            self.model_import_failed.emit(message)
-            return False
-
         import_snapshot = self.snapshot
         import_template_key = int(self.draft.template_key)
         import_variant = self._active_variant
@@ -220,6 +208,11 @@ class NewItemModelControllerMixin:
                 log(message)
                 progress(0, 0, message)
 
+            report(f"Inspecting {chosen.name}...")
+            needs_blender = fbx_needing_blender(chosen)
+            raise_if_cancelled(stop_event)
+            if needs_blender and not blender:
+                raise ValueError(fbx_needs_blender_message(needs_blender))
             report(f"Reading {chosen.name}...")
             result = load_model_import_source(chosen, stop_event=stop_event, blender_path=blender, on_log=report)
             try:
@@ -354,7 +347,7 @@ class NewItemModelControllerMixin:
             if self.snapshot is not snapshot or self.model_import is not source or self._active_variant != variant or self.model_placement != placement or source.bake != source_bake:
                 cleanup = getattr(result,"cleanup",None)
                 if callable(cleanup):
-                    cleanup()
+                    self._model_cleanup_lane.retire(result)
                 return
             source.applied = (source.bake, placement)
             self.set_imported_model(entry, result, source.scene)
@@ -367,6 +360,29 @@ class NewItemModelControllerMixin:
             self.model_apply_failed.emit(said)
 
         return self._run("model_apply", task, done, failed, task_accepts_progress=True, source_owners=(source,))
+
+    def start_model_editor_session(self, on_ready, on_error) -> bool:
+        from cdmw.workers.new_item_mesh_session import prepare_new_item_mesh_session
+        source = self.model_import
+        if source is None:
+            return False
+        snapshot, variant, generation = self.snapshot, self._active_variant, source.mesh_generation
+        mesh = source.scene.mesh
+        session_id = f"new-item-model:{id(source):x}:{generation}"
+        def task(log, stop_event):
+            log("Preparing Mesh Editor…")
+            return prepare_new_item_mesh_session(mesh, session_id, stop_event)
+        def done(result):
+            if (self.model_import is not source or self.snapshot is not snapshot
+                    or self._active_variant != variant or source.mesh_generation != generation):
+                self._model_cleanup_lane.retire(result)
+                return
+            try:
+                on_ready(result)
+            finally:
+                if not result.adopted:
+                    self._model_cleanup_lane.retire(result)
+        return self._run("model_editor", task, done, on_error, source_owners=(source,))
 
     def start_model_part_edit_apply(
         self,
@@ -387,6 +403,7 @@ class NewItemModelControllerMixin:
             return False
         session_id = str(expected_session_id or "")
         variant, snapshot = self._active_variant, self.snapshot
+        source_bake, source_generation = source.bake, source.mesh_generation
         scene = copy.copy(source.scene)
         model_path = Path(source.model_path)
 
@@ -408,21 +425,31 @@ class NewItemModelControllerMixin:
                     model_path=model_path,
                     stop_event=stop_event,
                 )
-                return after.revision, prepared
-
-        def done(result: object) -> None:
-            if source is not self.model_import or variant != self._active_variant or snapshot is not self.snapshot:
-                return
-            try:
-                revision, prepared = result  # type: ignore[misc]
-                current = mesh_controller.session_view()
-                if current.session_id != session_id or current.revision != int(revision):
-                    raise RuntimeError("The Mesh Editor revision could not be captured safely.")
                 if len(prepared) == 4 and isinstance(prepared[2], MeshGeometryAnalysis):
                     edited_scene, preview_model, analysis, texture_count = prepared
                 else:
                     edited_scene, preview_model, bounds, centroid, texture_count = prepared
                     analysis = MeshGeometryAnalysis(bounds, centroid, mesh_principal_frame(edited_scene.mesh))
+                baked = copy.copy(source)
+                baked.bake = source_bake
+                baked.scene, baked.preview_model = edited_scene, preview_model
+                baked.preview_mesh = edited_scene.mesh
+                baked._baked_scene_mesh = baked._baked_preview_mesh = None
+                baked.baked_scene_mesh()
+                baked.baked_preview_mesh()
+                raise_if_cancelled(stop_event)
+                return after.revision, (edited_scene, preview_model, analysis, texture_count), baked
+
+        def done(result: object) -> None:
+            if (source is not self.model_import or variant != self._active_variant or snapshot is not self.snapshot
+                    or source.bake != source_bake or source.mesh_generation != source_generation):
+                return
+            try:
+                revision, prepared, baked = result  # type: ignore[misc]
+                current = mesh_controller.session_view()
+                if current.session_id != session_id or current.revision != int(revision):
+                    raise RuntimeError("The Mesh Editor revision could not be captured safely.")
+                edited_scene, preview_model, analysis, texture_count = prepared
             except (AttributeError, KeyError, RuntimeError, TypeError, ValueError) as exc:
                 failed(str(exc))
                 return
@@ -434,8 +461,8 @@ class NewItemModelControllerMixin:
             source.principal_frame = analysis.principal_frame
             source.texture_count = int(texture_count)
             source.mesh_generation += 1
-            source._baked_scene_mesh = None
-            source._baked_preview_mesh = None
+            source._baked_scene_mesh = baked._baked_scene_mesh
+            source._baked_preview_mesh = baked._baked_preview_mesh
             source.applied = None
             self._material_parts = ()
             if self.model_result is not None:
@@ -454,7 +481,7 @@ class NewItemModelControllerMixin:
 
     def discard_model(self) -> None:
         """Drop the imported model, its placement and any result: back to the template's model."""
-        if self._lane in {"model_import", "model_apply", "model_part_edit"}:
+        if self._lane in {"model_import", "model_apply", "model_part_edit", "model_editor"}:
             self.cancel_operation(self._lane)
         previous = self.model_import
         self.model_import = None

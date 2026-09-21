@@ -6,11 +6,16 @@ from PySide6.QtWidgets import (
 )
 from cdmw.domain.new_item.authoring import EquipmentBonus, LevelBonuses
 from cdmw.services.new_item_equipment_bonuses import signed_parameter
+from cdmw.ui.new_item.choice_model import set_choice_rows
+from cdmw.domain.cancellation import raise_if_cancelled
 
 
 class BonusEditor(QWidget):
     def __init__(self, controller, parent=None):
         super().__init__(parent)
+        self._lookup = controller.create_lookup_lane()
+        self._lookup.completed.connect(self._choices_ready)
+        self._lookup.failed.connect(self._choices_failed)
         self.controller, self.index = controller, None
         self._syncing = False
         layout = QVBoxLayout(self)
@@ -72,6 +77,7 @@ class BonusEditor(QWidget):
         self.controller.start_authoring_index("bonuses")
 
     def _snapshot_changed(self):
+        self._lookup.cancel()
         self.index = None
         self.presets.clear()
         self.advanced.clear()
@@ -81,12 +87,22 @@ class BonusEditor(QWidget):
         if kind != "bonuses":
             return
         self.index = index
-        self.presets.clear()
-        for _item, label, values in index.presets:
-            self.presets.addItem(label, values)
-        self.advanced.clear()
-        for key, buff in sorted(index.buffs.items(), key=lambda pair: pair[1].name):
-            self.advanced.addItem(f"{buff.name} ({key})", key)
+        def prepare(stop):
+            presets = tuple((label, values) for _item, label, values in index.presets)
+            raise_if_cancelled(stop)
+            buffs = tuple((f"{buff.name} ({key})", key) for key, buff in sorted(index.buffs.items(), key=lambda pair: pair[1].name))
+            raise_if_cancelled(stop)
+            return presets, buffs
+        self._lookup.request(id(index), prepare)
+
+    def _choices_failed(self, _key, message):
+        self.state.setText(message)
+
+    def _choices_ready(self, key, rows):
+        if key != id(self.index):
+            return
+        set_choice_rows(self.presets, rows[0])
+        set_choice_rows(self.advanced, rows[1])
         self.refresh()
 
     def _failed(self, kind, message):

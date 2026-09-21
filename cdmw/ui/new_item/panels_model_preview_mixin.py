@@ -71,7 +71,7 @@ class ModelPanelPreviewMixin:
                 self.capture_inline_button.setEnabled(False)
             self._preview_mesh_token = token
             placement = self._controller.model_placement if imported is not None or template_model else ModelPlacement()
-            model_bounds = imported.baked_bounds() if imported is not None else None
+            model_bounds = getattr(imported, "cached_baked_bounds", None)
             self.preview.show_placement(
                 build,
                 token=token,

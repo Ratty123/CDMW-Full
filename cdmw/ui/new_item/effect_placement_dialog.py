@@ -11,7 +11,7 @@ viewport's edge (see :class:`PlacementFrame`). Nothing here touches the archives
 
 from __future__ import annotations
 
-import shutil
+from cdmw.workers.new_item_cleanup_worker import ModelSourceCleanupLane, PreviewPackageCleanup, preview_process_barrier
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Optional, Sequence, Tuple
@@ -160,6 +160,7 @@ class EffectPlacementWorkspace(
         del lighting_preset, lighting_changed
         self._lighting_preset = "neutral_studio"
         self._output_root = Path(output_root) if output_root is not None else Path(tempfile.gettempdir()) / "cdmw_effect_placement"
+        self._cleanup_lane = ModelSourceCleanupLane(parent=self)
         self._preview: Optional[EffectPlacementPreview] = None
         self._effect_preview = effect_preview
         self._texture_reader = texture_reader
@@ -651,7 +652,8 @@ class EffectPlacementWorkspace(
             self._scale_finished(*(float(v) for v in tuple(scale_delta)[:3]))
 
     def iter_shutdown_workers(self):
-        return (("effect placement preview", self._thread, self._worker),) if self._thread is not None else ()
+        building = (("effect placement preview", self._thread, self._worker),) if self._thread is not None else ()
+        return (*building, *self._cleanup_lane.iter_shutdown_workers())
 
     def request_shutdown(self) -> None:
         if self._closed:
@@ -670,6 +672,7 @@ class EffectPlacementWorkspace(
         host = self.host
         if host is not None:
             try:
+                self._preview_shutdown_ready = preview_process_barrier(host.controller)
                 host.controller.shutdown()
             except Exception:  # noqa: BLE001
                 pass
@@ -686,15 +689,12 @@ class EffectPlacementWorkspace(
 
         if preview is None:
             return False
-        root = self._output_root.resolve(strict=False)
-        candidate = Path(preview.package_dir).resolve(strict=False)
-        try:
-            relative = candidate.relative_to(root)
-        except ValueError:
+        root = self._output_root
+        candidate = Path(preview.package_dir)
+        if candidate.parent != root or not candidate.name.startswith("package_"):
             return False
-        if len(relative.parts) != 1 or not relative.name.startswith("package_"):
-            return False
-        shutil.rmtree(candidate, ignore_errors=True)
+        self._cleanup_lane.retire(PreviewPackageCleanup(
+            candidate, root, direct_package=True, ready=getattr(self, "_preview_shutdown_ready", None)))
         return True
 
 

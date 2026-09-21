@@ -7,12 +7,17 @@ from PySide6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QFileDialog
 
 from cdmw.core.mod_compatibility import build_label, build_status
 from cdmw.workers.mod_update_workers import mod_update_export_task, mod_update_scan_task
+from cdmw.ui.new_item.review_model import ReviewTextWriter
+from cdmw.domain.cancellation import raise_if_cancelled
 
 
 class ModUpdateDialog(QDialog):
     def __init__(self, controller, game_root="", parent=None, *, installed=False):
         super().__init__(parent)
         self.controller, self._plan = controller, None
+        self._review_lookup = controller.create_lookup_lane()
+        self._review_lookup.completed.connect(self._review_ready)
+        self._review_lookup.failed.connect(self._review_failed)
         self._working = self._closed = False
         self._generation = 0
         self._running_generation = None
@@ -54,6 +59,7 @@ class ModUpdateDialog(QDialog):
         self.progress.setToolTip("Progress is measured for the current stage. Stages can take different amounts of time.")
         layout.addWidget(self.progress)
         self.review = QPlainTextEdit()
+        self._review_writer = ReviewTextWriter(self.review)
         self.review.setReadOnly(True)
         self.review.setPlaceholderText("Original and current game builds, affected files, and conflicts appear here.")
         layout.addWidget(self.review, 1)
@@ -111,7 +117,8 @@ class ModUpdateDialog(QDialog):
         self._plan = None
         if self._working:
             self.controller.cancel_operation("mod_update")
-        self.review.clear()
+        self._review_lookup.cancel()
+        self._review_writer.set_text("")
         self.status.setText("Selection changed. Check compatibility before exporting.")
         self._buttons()
 
@@ -151,6 +158,8 @@ class ModUpdateDialog(QDialog):
 
     def _scan(self):
         self._plan = None
+        self._review_lookup.cancel()
+        self._review_writer.set_text("")
         self._run(mod_update_scan_task(self.folder.text(), self.game_root.text(),
             installed=bool(self.source_kind.currentData())), self._scanned, "Comparing the mod with current game data...",
             task_accepts_progress=True)
@@ -162,17 +171,29 @@ class ModUpdateDialog(QDialog):
                     "conflict": "Conflicts need review before this mod can be updated.",
                     "unknown": "The original baseline is incomplete. This mod cannot be updated automatically."}
         self.status.setText(statuses[plan.status])
-        lines = [f"Built for: {build_label(plan.recorded_game)}", f"Current game: {build_label(plan.current_game)}"]
-        if build_status(plan.recorded_game, plan.current_game) == "changed":
-            lines.append("Game build changed. The file comparison below determines whether an update is possible.")
-        if plan.conflicts:
-            lines.extend(("", "Required review:", *plan.conflicts))
         labels = {"unknown": self.tr("Unknown baseline"), "unchanged": self.tr("Source data unchanged"),
                   "changed": self.tr("Updated data merged"), "conflict": self.tr("Conflict"),
                   "dependency_changed": self.tr("Referenced asset changed or missing")}
-        lines.extend(("", "Compared files:", *(f"{labels[status]}: {path}" for path, status in plan.comparisons),
-                      "", "This checks recorded data and merge conflicts. In-game behavior still needs testing."))
-        self.review.setPlainText("\n".join(lines))
+        def prepare(stop):
+            lines = [f"Built for: {build_label(plan.recorded_game)}", f"Current game: {build_label(plan.current_game)}"]
+            if build_status(plan.recorded_game, plan.current_game) == "changed":
+                lines.append("Game build changed. The file comparison below determines whether an update is possible.")
+            if plan.conflicts:
+                lines.extend(("", "Required review:", *plan.conflicts))
+            lines.extend(("", "Compared files:"))
+            for path, status in plan.comparisons:
+                raise_if_cancelled(stop)
+                lines.append(f"{labels[status]}: {path}")
+            lines.extend(("", "This checks recorded data and merge conflicts. In-game behavior still needs testing."))
+            return "\n".join(lines)
+        self._review_lookup.request((self._generation, id(plan)), prepare)
+
+    def _review_ready(self, key, text):
+        if not self._closed and key == (self._generation, id(self._plan)):
+            self._review_writer.set_text(text)
+
+    def _review_failed(self, key, message):
+        self._review_ready(key, f"The review could not be prepared: {message}")
 
     def _export(self):
         if self._plan is not None and self._plan.can_update:
@@ -186,6 +207,8 @@ class ModUpdateDialog(QDialog):
 
     def _finished(self, _result):
         self._closed = True
+        self._review_lookup.request_shutdown()
+        self._review_writer.timer.stop()
         self._generation += 1
         self._plan = None
         if self._working:

@@ -474,10 +474,8 @@ class _TabLifecycleMixin:
         tab.deleteLater()
 
     def test_an_fbx_with_no_blender_never_starts_a_read(self) -> None:
-        """It did, and that was the fault: the refusal lived at the bottom of the worker,
-        so a zip was extracted whole, the reason arrived in the window's status line, and
-        the step was left saying "Reading the model file..." over a read that could never
-        finish. The rule is answered from the listing, before the worker exists."""
+        """The worker inspects the ZIP before extraction and reports missing Blender
+        beside the import controls without starting the model reader."""
 
         import zipfile
 
@@ -495,11 +493,14 @@ class _TabLifecycleMixin:
 
         said: list = []
         controller.status_message.connect(lambda text, bad: said.append((text, bad)))
-        with patch("cdmw.ui.new_item.controller.blender_for_fbx", return_value=""):
+        with patch("cdmw.ui.new_item.controller_model_mixin.blender_for_fbx", return_value=""), patch(
+            "cdmw.ui.new_item.controller_model_mixin.load_model_import_source"
+        ) as reader:
             started = controller.start_model_import(archive)
+            reader.assert_not_called()
 
-        self.assertFalse(started, "no read is started at all")
-        self.assertFalse(controller.busy, "and nothing goes busy over it")
+        self.assertTrue(started, "inspection is accepted without extracting or converting the ZIP")
+        self.assertFalse(controller.busy, "the synchronous fixture has completed the inspection")
         self.assertEqual(sorted(path.name for path in folder.iterdir()), ["magic-sword.zip"], "nothing extracted")
         self.assertTrue(said and said[-1][1], "the refusal is said as a problem")
         self.assertIn("MagicSword.fbx", said[-1][0])

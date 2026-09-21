@@ -1715,6 +1715,16 @@
       "key": "- {value_0}",
       "origins": [
         {
+          "path": "cdmw/services/new_item_review.py",
+          "line": 56,
+          "sink": "python-return:plan_review_content"
+        },
+        {
+          "path": "cdmw/services/new_item_review.py",
+          "line": 56,
+          "sink": "python-return:plan_review_content"
+        },
+        {
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_physics_part_01.py",
           "line": 227,
           "sink": "setPlainText"
@@ -1746,18 +1756,8 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 284,
+          "line": 291,
           "sink": "DetailsToggle"
-        },
-        {
-          "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 476,
-          "sink": "setPlainText"
-        },
-        {
-          "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 476,
-          "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/policy_preview_dialog.py",
@@ -7598,6 +7598,16 @@
           "path": "cdmw/ui/shell/utility_controller.py",
           "line": 29,
           "sink": "set_status_message"
+        }
+      ]
+    },
+    {
+      "key": "Another mesh was opened while this model was being prepared.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/tab.py",
+          "line": 975,
+          "sink": "failed"
         }
       ]
     },
@@ -16183,13 +16193,8 @@
     },
     {
       "key": "Built for: {value_0}",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 175,
-          "sink": "setPlainText"
-        }
-      ]
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Built path lookup with C++ helper.",
@@ -18308,13 +18313,8 @@
     },
     {
       "key": "Change",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 146,
-          "sink": "setHeaderLabels"
-        }
-      ]
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Change at least one material value before exporting.",
@@ -19523,6 +19523,21 @@
           "path": "cdmw/ui/mesh_editor/hair_setup_dialog.py",
           "line": 151,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Checking compatibility…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_workspace.py",
+          "line": 617,
+          "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/new_item/panels_perks.py",
+          "line": 843,
+          "sink": "set_note"
         }
       ]
     },
@@ -23708,13 +23723,8 @@
     },
     {
       "key": "Compared files:",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 175,
-          "sink": "setPlainText"
-        }
-      ]
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Compares matching DDS files in Original DDS root and Output root. Results appear only when both roots exist and contain the same relative file path.",
@@ -27188,13 +27198,8 @@
     },
     {
       "key": "Current game: {value_0}",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 175,
-          "sink": "setPlainText"
-        }
-      ]
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Current only",
@@ -32757,6 +32762,16 @@
       ]
     },
     {
+      "key": "Effect cleanup must name a directly owned package.",
+      "origins": [
+        {
+          "path": "cdmw/workers/new_item_cleanup_worker.py",
+          "line": 61,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Effect colour",
       "origins": [
         {
@@ -33038,6 +33053,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 54,
           "sink": "python-return:_build_start_sections"
+        }
+      ]
+    },
+    {
+      "key": "Effects could not be loaded: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_workspace.py",
+          "line": 443,
+          "sink": "setText"
         }
       ]
     },
@@ -38040,11 +38065,6 @@
           "sink": "setHeaderLabels"
         },
         {
-          "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 146,
-          "sink": "setHeaderLabels"
-        },
-        {
           "path": "cdmw/ui/research/tab_builders.py",
           "line": 136,
           "sink": "setHeaderLabels"
@@ -41378,13 +41398,8 @@
     },
     {
       "key": "Game build changed. The file comparison below determines whether an update is possible.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 175,
-          "sink": "setPlainText"
-        }
-      ]
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Game check",
@@ -47902,6 +47917,16 @@
       ]
     },
     {
+      "key": "Inspecting {value_0}...",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/controller_model_mixin.py",
+          "line": 211,
+          "sink": "report"
+        }
+      ]
+    },
+    {
       "key": "Inspection, export, and direct mesh authoring.",
       "origins": [
         {
@@ -49372,6 +49397,16 @@
       ]
     },
     {
+      "key": "Item groups could not be loaded: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_placement.py",
+          "line": 365,
+          "sink": "emit"
+        }
+      ]
+    },
+    {
       "key": "Item icon export failed: {value_0}",
       "origins": [
         {
@@ -49650,9 +49685,9 @@
       "key": "Item {value_0} {value_1} from template {value_2}",
       "origins": [
         {
-          "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 476,
-          "sink": "setPlainText"
+          "path": "cdmw/services/new_item_review.py",
+          "line": 56,
+          "sink": "python-return:plan_review_content"
         }
       ]
     },
@@ -49823,6 +49858,16 @@
           "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
           "line": 2473,
           "sink": "log"
+        }
+      ]
+    },
+    {
+      "key": "ItemInfo {value_0}, use position {value_1}, ItemUseInfo {value_2}. This consumer gets owned copies; other consumers keep their definitions.\nConsumers: {value_3}\nUse condition records: {value_4}",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_panel_search.py",
+          "line": 98,
+          "sink": "python-return:reward_details"
         }
       ]
     },
@@ -52893,6 +52938,16 @@
           "path": "cdmw/ui/mesh_editor/hair_setup_dialog.py",
           "line": 162,
           "sink": "_run_utility_task_when_idle"
+        }
+      ]
+    },
+    {
+      "key": "Loading reward details…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/reward_editor.py",
+          "line": 128,
+          "sink": "setText"
         }
       ]
     },
@@ -60365,9 +60420,9 @@
       "key": "Model stem: {value_0}",
       "origins": [
         {
-          "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 476,
-          "sink": "setPlainText"
+          "path": "cdmw/services/new_item_review.py",
+          "line": 56,
+          "sink": "python-return:plan_review_content"
         }
       ]
     },
@@ -61221,22 +61276,27 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1107,
+          "line": 1111,
           "sink": "_overlay_services"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1116,
+          "line": 1121,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1119,
+          "line": 1126,
+          "sink": "_overlay_services"
+        },
+        {
+          "path": "cdmw/ui/new_item/tab.py",
+          "line": 1131,
           "sink": "information"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1123,
+          "line": 1135,
           "sink": "question"
         }
       ]
@@ -67095,14 +67155,14 @@
       "key": "Note: {value_0}",
       "origins": [
         {
-          "path": "cdmw/ui/new_item/panels_identity.py",
-          "line": 387,
-          "sink": "note"
+          "path": "cdmw/services/new_item_review.py",
+          "line": 56,
+          "sink": "python-return:plan_review_content"
         },
         {
-          "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 476,
-          "sink": "setPlainText"
+          "path": "cdmw/ui/new_item/panels_identity.py",
+          "line": 385,
+          "sink": "note"
         }
       ]
     },
@@ -74577,6 +74637,16 @@
       ]
     },
     {
+      "key": "Perks could not be loaded: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_perks.py",
+          "line": 412,
+          "sink": "emit"
+        }
+      ]
+    },
+    {
       "key": "Perks: template list ({value_0})",
       "origins": [
         {
@@ -77302,6 +77372,21 @@
       ]
     },
     {
+      "key": "Preparing Mesh Editor…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/controller_model_mixin.py",
+          "line": 373,
+          "sink": "log"
+        },
+        {
+          "path": "cdmw/ui/new_item/tab.py",
+          "line": 969,
+          "sink": "set_part_editor_state"
+        }
+      ]
+    },
+    {
       "key": "Preparing Modify Original in-app session for {value_0}...",
       "origins": [
         {
@@ -78193,6 +78278,16 @@
           "path": "cdmw/ui/new_item/effect_placement_package.py",
           "line": 187,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Preparing the plan review…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 465,
+          "sink": "set_text"
         }
       ]
     },
@@ -83192,6 +83287,16 @@
       ]
     },
     {
+      "key": "Reading installed items for recovery…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/tab.py",
+          "line": 1117,
+          "sink": "emit"
+        }
+      ]
+    },
+    {
       "key": "Reading installed overlay history...",
       "origins": [
         {
@@ -85367,6 +85472,16 @@
       ]
     },
     {
+      "key": "Recovery cancelled because the archive source changed.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/tab.py",
+          "line": 1128,
+          "sink": "emit"
+        }
+      ]
+    },
+    {
       "key": "Recovery open did not return an archive session.",
       "origins": [
         {
@@ -86833,6 +86948,21 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 456,
           "sink": "python-return:_build_placement_texture_sections"
+        }
+      ]
+    },
+    {
+      "key": "Remove an incompatible mod from this selection, or rebuild it with different item IDs, asset names or conflicting edits; then check again.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 178,
+          "sink": "python-return:build"
+        },
+        {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 183,
+          "sink": "python-return:build"
         }
       ]
     },
@@ -88533,13 +88663,8 @@
     },
     {
       "key": "Required review:",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 175,
-          "sink": "setPlainText"
-        }
-      ]
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Required textured Hair material and game physics profile are unavailable.",
@@ -91535,9 +91660,9 @@
       "key": "Reward {value_0} · {value_1} indexed consumer(s) · {value_2} preserved use condition(s)",
       "origins": [
         {
-          "path": "cdmw/ui/new_item/reward_editor.py",
-          "line": 105,
-          "sink": "setText"
+          "path": "cdmw/services/new_item_panel_search.py",
+          "line": 98,
+          "sink": "python-return:reward_details"
         }
       ]
     },
@@ -94722,6 +94847,16 @@
         {
           "path": "cdmw/ui/character_finder/dialog.py",
           "line": 372,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Searching effects…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_workspace.py",
+          "line": 477,
           "sink": "setText"
         }
       ]
@@ -110632,6 +110767,16 @@
       ]
     },
     {
+      "key": "The plan review could not be prepared: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 471,
+          "sink": "set_text"
+        }
+      ]
+    },
+    {
       "key": "The plan's summary, warnings and touched files appear here.",
       "origins": [
         {
@@ -110938,6 +111083,21 @@
           "path": "cdmw/services/archive_overlay_manager.py",
           "line": 503,
           "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
+      "key": "The review could not be prepared: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 191,
+          "sink": "_review_ready"
+        },
+        {
+          "path": "cdmw/ui/new_item/mod_update_dialog.py",
+          "line": 194,
+          "sink": "_review_ready"
         }
       ]
     },
@@ -111873,13 +112033,8 @@
     },
     {
       "key": "This checks recorded data and merge conflicts. In-game behavior still needs testing.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 175,
-          "sink": "setPlainText"
-        }
-      ]
+      "origins": [],
+      "manual": true
     },
     {
       "key": "This choice has incomplete or ambiguous dependencies.",
@@ -119210,14 +119365,14 @@
       "key": "Warnings:",
       "origins": [
         {
+          "path": "cdmw/services/new_item_review.py",
+          "line": 56,
+          "sink": "python-return:plan_review_content"
+        },
+        {
           "path": "cdmw/ui/archive_browser/appearance_swap.py",
           "line": 281,
           "sink": "python-return:_appearance_swap_plan_review_text"
-        },
-        {
-          "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 476,
-          "sink": "setPlainText"
         }
       ]
     },
@@ -126491,13 +126646,18 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 970,
+          "line": 978,
           "sink": "open_mesh_session"
         },
         {
           "path": "cdmw/ui/texture_workflow/workspace_ui.py",
           "line": 422,
           "sink": "addItem"
+        },
+        {
+          "path": "cdmw/workers/new_item_mesh_session.py",
+          "line": 23,
+          "sink": "open_edit_session"
         }
       ]
     },
@@ -139482,16 +139642,6 @@
       ]
     },
     {
-      "key": "{value_0}\n\nRemove an incompatible mod from this selection, or rebuild it with different item IDs, asset names or conflicting edits; then check again.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 162,
-          "sink": "setPlainText"
-        }
-      ]
-    },
-    {
       "key": "{value_0}\n\nTarget: {value_1}\nSource: {value_2}\n\nSelect the target in Archive Browser so its dependencies are prepared again, then choose the source. The swap target stays armed.",
       "origins": [
         {
@@ -140272,11 +140422,6 @@
         {
           "path": "cdmw/ui/character_finder/dialog.py",
           "line": 513,
-          "sink": "addItem"
-        },
-        {
-          "path": "cdmw/ui/new_item/bonus_editor.py",
-          "line": 89,
           "sink": "addItem"
         },
         {
@@ -141617,12 +141762,17 @@
       ]
     },
     {
-      "key": "{value_0} files; {value_1} recorded item(s).\n\n{value_2}",
+      "key": "{value_0} files; {value_1} recorded item(s).",
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 166,
-          "sink": "setPlainText"
+          "line": 178,
+          "sink": "python-return:build"
+        },
+        {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 183,
+          "sink": "python-return:build"
         }
       ]
     },
@@ -142835,9 +142985,9 @@
       "key": "{value_0} table file(s) replaced, {value_1} new file(s):",
       "origins": [
         {
-          "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 476,
-          "sink": "setPlainText"
+          "path": "cdmw/services/new_item_review.py",
+          "line": 56,
+          "sink": "python-return:plan_review_content"
         }
       ]
     },
@@ -143493,13 +143643,8 @@
     },
     {
       "key": "{value_0} · action {value_1}",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/reward_editor.py",
-          "line": 86,
-          "sink": "addItem"
-        }
-      ]
+      "origins": [],
+      "manual": true
     },
     {
       "key": "{value_0} · action {value_1} · {value_2} · {value_3}–{value_4}",
@@ -143538,11 +143683,6 @@
           "path": "cdmw/ui/new_item/effect_library_model.py",
           "line": 90,
           "sink": "python-return:effect_display_label"
-        },
-        {
-          "path": "cdmw/ui/new_item/recipe_editor.py",
-          "line": 144,
-          "sink": "addItem"
         },
         {
           "path": "tools/format_explorer/tab.py",
@@ -143593,13 +143733,8 @@
     },
     {
       "key": "{value_0} · {value_1}–{value_2} · +{value_3}",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/reward_editor.py",
-          "line": 103,
-          "sink": "addItem"
-        }
-      ]
+      "origins": [],
+      "manual": true
     },
     {
       "key": "{value_0} — changing this also changes it for: {value_1}",

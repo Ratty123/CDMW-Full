@@ -925,6 +925,12 @@ class ModelImportSource:
         mesh = self.baked_scene_mesh()
         return (tuple(mesh.bbox_min), tuple(mesh.bbox_max)) if mesh is not None and mesh.bbox_min is not None else None
 
+    @property
+    def cached_baked_bounds(self) -> Optional[Bounds]:
+        """GUI-safe bounds; a cache miss is prepared by the preview worker."""
+        mesh = self._baked_scene_mesh
+        return (tuple(mesh.bbox_min), tuple(mesh.bbox_max)) if mesh is not None and mesh.bbox_min is not None else None
+
     def cleanup(self) -> None:
         """Release an extraction directory created for this import, once."""
 

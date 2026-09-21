@@ -211,10 +211,14 @@ class EffectWorkspaceTests(unittest.TestCase):
         )
         workspace.show()
         self.app.processEvents()
-        self.addCleanup(workspace.request_shutdown)
-        self.addCleanup(workspace.deleteLater)
+        self.addCleanup(self._shutdown_workspace, workspace)
         self._settle(lambda: not workspace._library_timer.isActive())
         return workspace, controller, confirmations
+
+    def _shutdown_workspace(self, workspace):
+        workspace.request_shutdown()
+        self._settle(lambda: not workspace.iter_shutdown_workers())
+        workspace.deleteLater()
 
     def _settle(self, predicate, timeout_ms=5000):
         deadline = QDeadlineTimer(timeout_ms)
@@ -229,8 +233,7 @@ class EffectWorkspaceTests(unittest.TestCase):
         controller.stems = tuple(f"fx_fire_{index:05d}_loop" for index in range(20_000))
         with patch.object(controller, "effect_facts", wraps=controller.effect_facts) as facts:
             workspace = GuidedEffectsWorkspace(controller, placement_factory=_Placement)
-            self.addCleanup(workspace.deleteLater)
-            self.addCleanup(workspace.request_shutdown)
+            self.addCleanup(self._shutdown_workspace, workspace)
             self.assertEqual(facts.call_count, 0, "mounting the page must not format the entire library")
             self._settle(lambda: not workspace._library_timer.isActive())
             self.assertEqual(workspace.library_model.rowCount(), 20_001)
@@ -245,8 +248,7 @@ class EffectWorkspaceTests(unittest.TestCase):
         controller = _Controller()
         controller.stems = tuple(f"fx_old_{index}" for index in range(20_000))
         workspace = GuidedEffectsWorkspace(controller, placement_factory=_Placement)
-        self.addCleanup(workspace.deleteLater)
-        self.addCleanup(workspace.request_shutdown)
+        self.addCleanup(self._shutdown_workspace, workspace)
         workspace._advance_library()
         controller.stems = ("fx_new_fire_loop",)
         controller.effect_catalogue_ready.emit()
@@ -258,7 +260,6 @@ class EffectWorkspaceTests(unittest.TestCase):
         controller = _Controller()
         controller.stems = tuple(f"fx_fire_{index}" for index in range(20_000))
         workspace = GuidedEffectsWorkspace(controller, placement_factory=_Placement)
-        self.addCleanup(workspace.deleteLater)
         workspace.request_shutdown()
         controller.effect_catalogue_ready.emit()
         self.app.processEvents()
@@ -272,8 +273,7 @@ class EffectWorkspaceTests(unittest.TestCase):
         controller = _Controller()
         with patch.object(controller, "item_mesh_as_planned", wraps=controller.item_mesh_as_planned) as decode:
             workspace = GuidedEffectsWorkspace(controller, placement_factory=_Placement)
-            self.addCleanup(workspace.deleteLater)
-            self.addCleanup(workspace.request_shutdown)
+            self.addCleanup(self._shutdown_workspace, workspace)
             controller.model_changed.emit(None)
             workspace._rebuild_preview()
             self.app.processEvents()
@@ -700,13 +700,13 @@ class EffectWorkspaceTests(unittest.TestCase):
         committed = EffectWorkspaceState(stem="fx_fire_hit", scale=0.5)
         committed.write_to(controller.draft)
         controller.effect_changed.emit(committed)
+        self.assertTrue(workspace.selection_timer.isActive())
+        self._settle(lambda: not workspace._library_timer.isActive())
         self.assertEqual(workspace.staged_state, committed)
         self.assertEqual(
             workspace.library_view.currentIndex().data(EffectLibraryModel.StemRole),
             committed.stem,
         )
-        self.assertTrue(workspace.selection_timer.isActive())
-
         workspace.choose_effect("fx_frost_loop")
         newer = EffectWorkspaceState(stem="fx_fire_ring_loop", scale=0.25)
         newer.write_to(controller.draft)
@@ -717,9 +717,11 @@ class EffectWorkspaceTests(unittest.TestCase):
         workspace, _controller, _confirmations = self._workspace()
         workspace.category_choice.setCurrentIndex(workspace.category_choice.findData("Fire"))
         workspace.loop_only.click()
+        self._settle(lambda: not workspace._library_timer.isActive())
         stems = [workspace.library_model.row(row).stem for row in range(workspace.library_model.rowCount())]
         self.assertEqual(stems, ["", "fx_fire_ring_loop"])
         workspace.choose_effect("fx_frost_loop")
+        self._settle(lambda: not workspace._library_timer.isActive())
         stems = [workspace.library_model.row(row).stem for row in range(workspace.library_model.rowCount())]
         self.assertEqual(stems, ["", "fx_fire_ring_loop", "fx_frost_loop"], "the current selection stays visible")
 
@@ -729,9 +731,11 @@ class EffectWorkspaceTests(unittest.TestCase):
         workspace, _, _ = self._workspace(controller)
         workspace.choose_effect("fx_fire-03")
         workspace.family_only.click()
+        self._settle(lambda: not workspace._library_timer.isActive())
         stems = [workspace.library_model.row(row).stem for row in range(workspace.library_model.rowCount())]
         self.assertEqual(stems, ["", "fx_fire-03", "fx_fire_01", "fx_fire__02a", "fx_fire__a"])
         workspace.search.setText("no match")
+        self._settle(lambda: not workspace._library_timer.isActive())
         stems = [workspace.library_model.row(row).stem for row in range(workspace.library_model.rowCount())]
         self.assertEqual(stems, ["", "fx_fire-03"], "the current selection stays visible")
 
@@ -743,12 +747,15 @@ class EffectWorkspaceTests(unittest.TestCase):
         workspace.choose_effect("fx_frost_loop")
         workspace.library_toggle.setChecked(True)
         workspace.search.setText("fire ring")
+        self._settle(lambda: not workspace._library_timer.isActive())
         stems = [workspace.library_model.row(row).stem for row in range(workspace.library_model.rowCount())]
         self.assertEqual(stems, ["", "fx_fire_ring_loop", "fx_frost_loop"])
         workspace.search.setText("no such effect")
+        self._settle(lambda: not workspace._library_timer.isActive())
         self.assertTrue(workspace.empty_results.isVisibleTo(workspace))
         self.assertEqual(workspace.staged_state.stem, "fx_frost_loop")
         workspace.reset_filters.click()
+        self._settle(lambda: not workspace._library_timer.isActive())
         self.assertEqual(workspace.search.text(), "")
         self.assertFalse(workspace.empty_results.isVisibleTo(workspace))
         self.assertEqual(workspace.library_model.rowCount(), 4)

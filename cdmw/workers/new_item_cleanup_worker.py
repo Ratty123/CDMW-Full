@@ -8,10 +8,35 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Tuple
 
-from PySide6.QtCore import QObject, QThread, Qt, QTimer
+from PySide6.QtCore import QObject, QProcess, QThread, Qt, QTimer
 
 from cdmw.workers.new_item_workers import model_source_cleanup_task
 from cdmw.workers.utility_workers import UtilityWorker
+
+
+def preview_process_barrier(controller: object) -> threading.Event:
+    """Capture owned processes on the GUI thread before requesting shutdown.
+
+    Retired packages can wait on this event in the cleanup lane. Connecting before
+    shutdown also covers a process that exits immediately or fails during startup.
+    """
+    ready = threading.Event()
+    children = getattr(controller, "findChildren", None)
+    pending = set(children(QProcess) if callable(children) else ())
+
+    def settled(process: QProcess) -> None:
+        if process.state() == QProcess.NotRunning:
+            pending.discard(process)
+        if not pending:
+            ready.set()
+
+    for process in tuple(pending):
+        process.finished.connect(lambda *_args, process=process: settled(process))
+        process.errorOccurred.connect(lambda *_args, process=process: settled(process))
+        settled(process)
+    if not pending:
+        ready.set()
+    return ready
 
 
 @dataclass(frozen=True, slots=True)
@@ -20,12 +45,20 @@ class PreviewPackageCleanup:
 
     path: Path
     output_root: Path
+    direct_package: bool = False
+    ready: threading.Event | None = None
+
+    def wait_until_unused(self, stop_event=None) -> None:
+        if self.ready is not None:
+            self.ready.wait()
 
     def cleanup(self) -> None:
         path = self.path.resolve()
         root = self.output_root.resolve()
         if path == root or not path.is_relative_to(root):
             raise ValueError("Preview cleanup must stay inside its output root.")
+        if self.direct_package and (path.parent != root or not path.name.startswith("package_")):
+            raise ValueError("Effect cleanup must name a directly owned package.")
         shutil.rmtree(path, ignore_errors=True)
 
 
@@ -61,7 +94,9 @@ class ModelSourceCleanupLane(QObject):
         source = self._pending.pop(0)
         task = model_source_cleanup_task(source)
         worker = UtilityWorker(task, task_accepts_cancel=True)
-        thread = QThread(self)
+        # ChildAdded observers must see the fully initialized QThread wrapper.
+        thread = QThread()
+        thread.setParent(self)
         worker.moveToThread(thread)
         self._jobs.append((thread, worker, source))
         worker.finished.connect(self._worker_finished, Qt.DirectConnection)
@@ -102,4 +137,4 @@ class ModelSourceCleanupLane(QObject):
         self._start_next()
 
 
-__all__ = ["ModelSourceCleanupLane", "PreviewPackageCleanup"]
+__all__ = ["ModelSourceCleanupLane", "PreviewPackageCleanup", "preview_process_barrier"]

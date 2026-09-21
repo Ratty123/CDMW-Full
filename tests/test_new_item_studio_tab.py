@@ -113,6 +113,11 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         for tab in self._tabs:
             if isValid(tab):
                 tab.close()
+                deadline = time.monotonic() + 5
+                while tab.iter_shutdown_workers() and time.monotonic() < deadline:
+                    QApplication.processEvents()
+                    time.sleep(0.001)
+                self.assertFalse(tab.iter_shutdown_workers())
                 tab.deleteLater()
         QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
         QApplication.processEvents()
@@ -174,7 +179,7 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         panel = tab.model_panel
         self.assertTrue(panel.preview._ensure_host())
         mesh = SimpleNamespace(submeshes=[SimpleNamespace(name="part_0", material="Blade")])
-        source = SimpleNamespace(baked_preview_mesh=lambda: mesh)
+        source = SimpleNamespace(preview_mesh=mesh)
         tab.controller.model_import = source
         try:
             with patch.object(tab.controller, "material_parts", return_value=(("Blade", "Blade"),)), \

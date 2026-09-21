@@ -13,6 +13,7 @@ from pathlib import Path
 from datetime import datetime
 import time
 from typing import Callable, Iterable, Optional
+from cdmw.workers.new_item_lookup import NewItemLookupLane
 
 from PySide6.QtCore import QEvent, Qt, Signal, QTimer
 from PySide6.QtWidgets import (
@@ -167,6 +168,9 @@ class NewItemStudioTab(QWidget):
         self._model_part_editor_widget: object | None = None
         self._model_part_editor_controller: object | None = None
         self._model_part_editor_session_id = ""
+        self._migration_preview_lane = NewItemLookupLane(synchronous=self.controller._synchronous, parent=self)
+        self._migration_preview_lane.completed.connect(self._confirm_overlay_migration)
+        self._migration_preview_lane.failed.connect(self._migration_preview_failed)
         self._current_step = 0
         self._syncing_step = False
 
@@ -540,8 +544,6 @@ class NewItemStudioTab(QWidget):
         controller.plan_ready.connect(self._refresh_summary)
         controller.plan_failed.connect(self._refresh_summary)
         controller.plan_invalidated.connect(self._refresh_summary)
-        self.identity_panel.internal_name.textChanged.connect(self._refresh_summary)
-        self.identity_panel.display_name.textChanged.connect(self._refresh_summary)
         # The stats tables are deliberately not wired here: every edit on that step
         # invalidates the plan, which refreshes the rail once, after the draft changed.
         # A table's itemChanged fires once per cell it is given, so listening to it ran
@@ -964,28 +966,30 @@ class NewItemStudioTab(QWidget):
                 "Mesh Editor already has an active mesh. Finish or close it before opening this imported model.",
             )
             return
-        mesh = getattr(getattr(source, "scene", None), "mesh", None)
-        session_id = f"new-item-model:{id(source):x}:{int(getattr(source, 'mesh_generation', 0) or 0)}"
-        try:
-            view = editor.open_mesh_session(
-                mesh,
-                session_id=session_id,
-                mode="edit",
-                initial_element_type="face",
-            )
-            mesh_controller = editor.standalone_controller
-        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
-            self.model_panel.set_part_editor_state(False, f"Mesh Editor could not open this imported model: {exc}")
-            return
-        self._model_part_editor_source = source
-        self._model_part_editor_widget = editor
-        self._model_part_editor_controller = mesh_controller
-        self._model_part_editor_session_id = str(getattr(view, "session_id", "") or session_id)
-        self.model_panel.set_part_editor_state(
-            True,
-            "Brush or select faces, then choose Create Part from Selection. Return here to use the edited parts.",
-        )
-        self._activate_model_part_editor()
+        self.model_panel.set_part_editor_state(False, "Preparing Mesh Editor…")
+        def failed(message):
+            self.model_panel.set_part_editor_state(False, f"Mesh Editor could not open this imported model: {message}")
+        def ready(prepared):
+            active = getattr(editor, "standalone_controller", None)
+            if active is not None and getattr(active, "active_session_id", ""):
+                failed("Another mesh was opened while this model was being prepared.")
+                return
+            try:
+                view = editor.open_mesh_session(
+                    prepared.mesh, session_id=prepared.view.session_id, mode="edit",
+                    initial_element_type="face", prepared_service=prepared.service)
+            except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                failed(str(exc))
+                return
+            prepared.adopted = True
+            self._model_part_editor_source = source
+            self._model_part_editor_widget = editor
+            self._model_part_editor_controller = editor.standalone_controller
+            self._model_part_editor_session_id = view.session_id
+            self.model_panel.set_part_editor_state(
+                True, "Brush or select faces, then choose Create Part from Selection. Return here to use the edited parts.")
+            self._activate_model_part_editor()
+        self.controller.start_model_editor_session(ready, failed)
 
     def _use_model_part_editor_changes(self) -> None:
         source = self.controller.model_import
@@ -1110,10 +1114,18 @@ class NewItemStudioTab(QWidget):
         mutations, root = found
         from cdmw.services.archive_overlay_migration import plan_migration
 
-        try:
-            preview = plan_migration(root)
-        except Exception as exc:  # noqa: BLE001 - the message is the answer
-            QMessageBox.warning(self, title, f"The archives could not be read: {exc}")
+        self.controller.status_message.emit("Reading installed items for recovery…", False)
+        self._migration_preview_lane.request((mutations, root), lambda stop: plan_migration(root, stop_event=stop))
+
+    def _migration_preview_failed(self, _key, message):
+        QMessageBox.warning(self, "Move installed items into the overlay", f"The archives could not be read: {message}")
+
+    def _confirm_overlay_migration(self, key, preview):
+        title = "Move installed items into the overlay"
+        mutations, root = key
+        current = self._overlay_services(title)
+        if current is None or current[0] is not mutations or current[1] != root:
+            self.controller.status_message.emit("Recovery cancelled because the archive source changed.", True)
             return
         if preview.is_empty:
             QMessageBox.information(self, title, "Nothing in the shipped archives differs from the oldest backup of it, so there is nothing to move.")
@@ -1155,6 +1167,7 @@ class NewItemStudioTab(QWidget):
 
     def iter_shutdown_workers(self):
         workers = list(self.controller.iter_shutdown_workers())
+        workers.extend(self._migration_preview_lane.iter_shutdown_workers())
         if self._panels_built:
             workers.extend(self.model_panel.iter_shutdown_workers())
             if self._perks_panel is not None:
@@ -1162,6 +1175,7 @@ class NewItemStudioTab(QWidget):
         return tuple(workers)
 
     def request_shutdown(self) -> None:
+        self._migration_preview_lane.request_shutdown()
         self.controller.request_shutdown()
         if self._panels_built:
             self.model_panel.request_shutdown_preview()
