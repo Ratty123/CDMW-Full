@@ -5096,7 +5096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace_authoring.py",
-          "line": 24,
+          "line": 26,
           "sink": "setToolTip"
         }
       ]
@@ -17837,6 +17837,16 @@
       ]
     },
     {
+      "key": "Capture thumbnail",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_workspace_authoring.py",
+          "line": 42,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Captured Morph & Refit retained-byte evidence does not match its native snapshot.",
       "origins": [
         {
@@ -17918,6 +17928,16 @@
           "path": "cdmw/workers/mesh_editor_workers.py",
           "line": 734,
           "sink": "emit"
+        }
+      ]
+    },
+    {
+      "key": "Capturing thumbnail…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_workspace_authoring.py",
+          "line": 150,
+          "sink": "setText"
         }
       ]
     },
@@ -37921,7 +37941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace_authoring.py",
-          "line": 28,
+          "line": 30,
           "sink": "setText"
         }
       ]
@@ -50891,7 +50911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace_authoring.py",
-          "line": 45,
+          "line": 48,
           "sink": "setText"
         }
       ]
@@ -100041,7 +100061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace_authoring.py",
-          "line": 31,
+          "line": 33,
           "sink": "setToolTip"
         }
       ]
@@ -111737,6 +111757,16 @@
       ]
     },
     {
+      "key": "The viewport returned no image.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_workspace_authoring.py",
+          "line": 173,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "The viewport starts when there is a mesh to show.",
       "origins": [
         {
@@ -112912,11 +112942,31 @@
       ]
     },
     {
-      "key": "Thumbnail",
+      "key": "Thumbnail capture failed: the viewport rejected the request.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace_authoring.py",
-          "line": 37,
+          "line": 154,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Thumbnail capture failed: {message}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_workspace_authoring.py",
+          "line": 174,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Thumbnail saved.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_workspace_authoring.py",
+          "line": 171,
           "sink": "setText"
         }
       ]
@@ -117211,7 +117261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace_authoring.py",
-          "line": 38,
+          "line": 43,
           "sink": "setToolTip"
         }
       ]
@@ -118106,7 +118156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace_authoring.py",
-          "line": 30,
+          "line": 32,
           "sink": "setText"
         }
       ]
@@ -144346,7 +144396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/ui_kit.py",
-          "line": 285,
+          "line": 286,
           "sink": "tinted"
         },
         {
@@ -145681,7 +145731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/ui_kit.py",
-          "line": 191,
+          "line": 192,
           "sink": "python-return:elided"
         }
       ]

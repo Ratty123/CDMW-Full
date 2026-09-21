@@ -191,12 +191,42 @@ class _Placement(QWidget):
         self.item_timer.stop()
 
 
+class _CaptureController(QObject):
+    capture_completed = Signal(object)
+
+
+class _CaptureHost(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.controller = _CaptureController(self)
+        self.requests = []
+        self.accept_capture = True
+
+    def capture_replacement_icon(self, path, *, width, height):
+        self.requests.append((path, width, height))
+        return self.accept_capture
+
+
+class _CapturePlacement(_Placement):
+    effect_preview_ready = Signal(object)
+    preview_presented = Signal(int)
+
+    def __init__(self, parent=None, **kwargs):
+        super().__init__(parent, **kwargs)
+        self.host = _CaptureHost(self)
+        self.inspector_widget = QWidget(self)
+        self._package_generation = 1
+
+    def _add_inspector_tab(self, page, _title):
+        page.setParent(self.inspector_widget)
+
+
 class EffectWorkspaceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.app = QApplication.instance() or QApplication([])
 
-    def _workspace(self, controller=None, confirmations=None):
+    def _workspace(self, controller=None, confirmations=None, *, placement_factory=_Placement):
         controller = controller or _Controller()
         confirmations = confirmations if confirmations is not None else []
 
@@ -206,7 +236,7 @@ class EffectWorkspaceTests(unittest.TestCase):
 
         workspace = GuidedEffectsWorkspace(
             controller,
-            placement_factory=_Placement,
+            placement_factory=placement_factory,
             confirm_unreviewed=confirm,
         )
         workspace.show()
@@ -738,6 +768,113 @@ class EffectWorkspaceTests(unittest.TestCase):
         self._settle(lambda: not workspace._library_timer.isActive())
         stems = [workspace.library_model.row(row).stem for row in range(workspace.library_model.rowCount())]
         self.assertEqual(stems, ["", "fx_fire-03"], "the current selection stays visible")
+
+    def test_library_toggle_buttons_show_their_current_state(self) -> None:
+        workspace, _, _ = self._workspace()
+        workspace.choose_effect("fx_fire_hit")
+        self._settle(lambda: not workspace._library_timer.isActive())
+        workspace.favourite.click()
+        self.assertIn("fx_fire_hit", workspace.user_library.favourites)
+        self.assertEqual(workspace.favourite.text(), "★")
+        self.assertTrue(workspace.favourite.isChecked())
+        workspace.favourite.click()
+        self.assertEqual(workspace.favourite.text(), "☆")
+        self.assertFalse(workspace.favourite.isChecked())
+        for button in (workspace.favourites_only, workspace.family_only, workspace.large_thumbnails):
+            button.click()
+            self.assertTrue(button.isChecked(), button.text())
+        self.assertEqual(workspace.library_view.iconSize().width(), 48)
+        self.assertEqual(workspace.library_view.verticalHeader().defaultSectionSize(), 56)
+        workspace.reset_filters.click()
+        self.assertFalse(workspace.favourites_only.isChecked())
+        self.assertFalse(workspace.family_only.isChecked())
+        self.assertTrue(workspace.large_thumbnails.isChecked())
+
+    def _capture_workspace(self, root):
+        controller = _Controller()
+        controller.effect_cache_path = root / "catalogue.json"
+        workspace, _, _ = self._workspace(controller, placement_factory=_CapturePlacement)
+        workspace.choose_effect("fx_fire_hit")
+        workspace._rebuild_preview()
+        workspace.selection_timer.stop()
+        self._settle(lambda: not workspace._library_timer.isActive())
+        workspace.placement.preview_presented.emit(workspace.placement._package_generation)
+        return workspace
+
+    def test_thumbnail_capture_updates_the_saved_image_and_reports_failures(self) -> None:
+        from PySide6.QtGui import QColor, QImage
+
+        with tempfile.TemporaryDirectory() as folder:
+            workspace = self._capture_workspace(Path(folder))
+            host = workspace.placement.host
+            self.assertTrue(workspace.thumbnail.isEnabled())
+            self.assertFalse(workspace.thumbnail.isCheckable())
+            for colour in ("red", "blue"):
+                workspace.thumbnail.click()
+                self.assertFalse(workspace.thumbnail.isEnabled())
+                self.assertEqual(workspace.thumbnail_status.text(), "Capturing thumbnail…")
+                requests = len(host.requests)
+                workspace._capture_thumbnail()
+                self.assertEqual(len(host.requests), requests, "allow only one pending capture")
+                path, width, height = host.requests[-1]
+                path.parent.mkdir(parents=True, exist_ok=True)
+                image = QImage(width, height, QImage.Format.Format_ARGB32)
+                image.fill(QColor(colour))
+                self.assertTrue(image.save(str(path)))
+                host.controller.capture_completed.emit({"requested_output_path": str(path), "status": "captured"})
+                self.assertTrue(workspace.thumbnail.isEnabled())
+                self.assertTrue(workspace.large_thumbnails.isChecked())
+                self.assertEqual(workspace.thumbnail_status.text(), "Thumbnail saved.")
+                self.assertFalse(workspace.thumbnail_status.isHidden())
+                workspace._sync_library_tools(workspace.staged_state.stem)
+                workspace._load_visible_thumbnails()
+                index = workspace.library_model.index_for_stem(workspace.staged_state.stem)
+                icon = workspace.library_model.index(index.row(), 0).data(Qt.ItemDataRole.DecorationRole)
+                self.assertEqual(icon.pixmap(20, 20).toImage().pixelColor(10, 10), QColor(colour))
+
+            previous = path.read_bytes()
+            workspace.thumbnail.click()
+            host.controller.capture_completed.emit({"requested_output_path": str(path), "status": "error", "message": "Capture unavailable"})
+            self.assertEqual(path.read_bytes(), previous)
+            self.assertIn("Capture unavailable", workspace.thumbnail_status.text())
+            self.assertTrue(workspace.thumbnail.isEnabled())
+            host.accept_capture = False
+            workspace.thumbnail.click()
+            self.assertIsNone(workspace._thumbnail_request)
+            self.assertIn("rejected", workspace.thumbnail_status.text())
+            self.assertTrue(workspace.thumbnail.isEnabled())
+
+    def test_thumbnail_capture_ignores_unrelated_late_and_closed_results(self) -> None:
+        from PySide6.QtGui import QImage
+
+        with tempfile.TemporaryDirectory() as folder:
+            workspace = self._capture_workspace(Path(folder))
+            host = workspace.placement.host
+            workspace.thumbnail.click()
+            pending = workspace._thumbnail_request
+            host.controller.capture_completed.emit({"requested_output_path": "another.png", "status": "captured"})
+            self.assertEqual(workspace._thumbnail_request, pending)
+            workspace.choose_effect("fx_frost_loop")
+            workspace._rebuild_preview()
+            workspace.selection_timer.stop()
+            workspace.placement.preview_presented.emit(workspace.placement._package_generation)
+            self.assertFalse(workspace.thumbnail.isEnabled(), "the previous capture is still pending")
+            path, width, height = host.requests[-1]
+            path.parent.mkdir(parents=True, exist_ok=True)
+            image = QImage(width, height, QImage.Format.Format_ARGB32)
+            image.fill(Qt.GlobalColor.red)
+            self.assertTrue(image.save(str(path)))
+            host.controller.capture_completed.emit({"requested_output_path": str(path), "status": "captured"})
+            self.assertIn("fx_fire_hit", workspace.library_model._thumbnails)
+            self.assertNotIn("fx_frost_loop", workspace.library_model._thumbnails)
+            self.assertEqual(workspace.thumbnail_status.text(), "")
+            self.assertTrue(workspace.thumbnail_status.isHidden())
+            self.assertTrue(workspace.thumbnail.isEnabled())
+            workspace.thumbnail.click()
+            workspace.request_shutdown()
+            host.controller.capture_completed.emit({"requested_output_path": str(host.requests[-1][0]), "status": "captured"})
+            self.assertFalse(workspace.thumbnail.isEnabled())
+            self.assertNotIn("fx_frost_loop", workspace.library_model._thumbnails)
 
     def test_readable_search_reset_and_discard_preserve_the_committed_effect(self) -> None:
         workspace, controller, _ = self._workspace()

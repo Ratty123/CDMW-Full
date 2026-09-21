@@ -798,6 +798,8 @@ class GuidedEffectsWorkspace(EffectWorkspaceAuthoringMixin, QWidget):
 
     def request_shutdown(self) -> None:
         self._library_closed = True
+        self._thumbnail_request = None
+        self.thumbnail.setEnabled(False)
         self._library_build_lane.request_shutdown()
         self._library_search_lane.request_shutdown()
         self._thumbnail_timer.stop()

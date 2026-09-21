@@ -443,11 +443,15 @@ prepared in short event-loop slices and reused across filtering and placement
 changes. Unchanged rows retain their selection and layout, and metadata column
 sizing samples a bounded number of rows even while the page is hidden. Returning
 to Effects keeps the resident scene; changed inputs and failed updates still retry.
-Favourites and Variants narrow the library. Variant families remove numeric and
+Favourites and Variants narrow the library. The star, filters and Large thumbnails
+show their selected state, and library buttons respond visibly to hovering and pressing.
+Variant families remove numeric and
 letter suffixes in one scan, so long or malformed names cannot trigger regex
-backtracking during filtering. **Thumbnail** captures the current preview
-frame into the local library; **Large thumbnails** expands the rows, loading only the
-visible cached images. Saved recipes contain references and settings, never game assets.
+backtracking during filtering. **Capture thumbnail** saves the current preview
+frame into the local library and reports capture progress, success or failure. A saved
+capture immediately replaces the displayed image and enables **Large thumbnails**,
+which expands the rows and loads only visible cached images. Failed captures retain
+the previous thumbnail. Saved recipes contain references and settings, never game assets.
 A replaced snapshot or catalogue cancels the previous preparation;
 shutdown prevents late catalogue events from restarting it. The hidden legacy
 selector mirrors only the committed choice. Item preview preparation starts when

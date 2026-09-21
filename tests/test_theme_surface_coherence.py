@@ -351,6 +351,53 @@ def test_new_item_guided_workspace_uses_only_each_theme_palette() -> None:
         _APP.setPalette(previous_palette)
 
 
+def test_effect_library_controls_render_hover_pressed_and_checked_states() -> None:
+    from PySide6.QtCore import QDeadlineTimer, QEventLoop
+    from cdmw.ui.new_item.effect_workspace import GuidedEffectsWorkspace
+    from tests.test_new_item_effect_workspace import _Controller, _Placement
+
+    previous_palette = QPalette(_APP.palette())
+    previous_stylesheet = _APP.styleSheet()
+    workspace = GuidedEffectsWorkspace(_Controller(), placement_factory=_Placement)
+    buttons = (workspace.favourite, workspace.favourites_only, workspace.family_only,
+               workspace.thumbnail, workspace.large_thumbnails)
+    enabled = QStyle.StateFlag.State_Enabled
+    try:
+        for theme_key in UI_THEME_SCHEMES:
+            palette = build_app_palette(theme_key)
+            _APP.setPalette(palette)
+            _APP.setStyleSheet(build_app_stylesheet(theme_key))
+            workspace.setStyleSheet(step_style(palette))
+            for button in buttons:
+                button.resize(160, 32)
+                button.ensurePolished()
+                normal = _tool_button_background(button, enabled)
+                hovered = _tool_button_background(button, enabled | QStyle.StateFlag.State_MouseOver)
+                pressed = _tool_button_background(button, enabled | QStyle.StateFlag.State_Sunken)
+                assert hovered != normal, (theme_key, button.text(), "hover")
+                assert pressed != normal, (theme_key, button.text(), "pressed")
+                assert pressed != hovered, (theme_key, button.text(), "pressed hover")
+                if button.isCheckable():
+                    checked = _tool_button_background(button, enabled | QStyle.StateFlag.State_On)
+                    checked_hover = _tool_button_background(
+                        button, enabled | QStyle.StateFlag.State_On | QStyle.StateFlag.State_MouseOver
+                    )
+                    disabled = _tool_button_background(button, QStyle.StateFlag.State_On)
+                    assert checked == palette.highlight().color().name(), (theme_key, button.text())
+                    assert checked_hover == checked, (theme_key, button.text(), "checked hover")
+                    assert disabled != checked, (theme_key, button.text(), "disabled")
+    finally:
+        workspace.request_shutdown()
+        deadline = QDeadlineTimer(5000)
+        while workspace.iter_shutdown_workers() and not deadline.hasExpired():
+            _APP.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 25)
+        assert not workspace.iter_shutdown_workers()
+        workspace.deleteLater()
+        _APP.processEvents()
+        _APP.setStyleSheet(previous_stylesheet)
+        _APP.setPalette(previous_palette)
+
+
 def test_checkable_headers_and_choices_render_visible_indicator_states() -> None:
     from PySide6.QtWidgets import QCheckBox, QGroupBox, QRadioButton, QStyleOptionGroupBox, QVBoxLayout
     from PySide6.QtTest import QTest

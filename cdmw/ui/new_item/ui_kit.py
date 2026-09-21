@@ -103,8 +103,7 @@ def step_style(palette) -> str:
         QTableView#effect_library::item:selected {{ color: {active_text}; background: {active}; }}
         QTableView#effect_library QHeaderView::section {{ min-height: 20px; padding: 0 4px; font-weight: normal; }}
         QLineEdit#effect_search {{ min-height: 30px; border: 1px solid {border}; padding: 0 8px; background: {background}; }}
-        QToolButton[effectChip="true"] {{ min-height: 24px; padding: 0 5px; border: 1px solid {border}; border-radius: 4px; }}
-        QToolButton[effectChip="true"]:checked {{ color: {active_text}; background: {active}; border-color: {active}; }}
+        QToolButton[effectChip="true"] {{ min-height: 24px; padding: 0 5px; color: {text}; background: {background}; border: 1px solid {border}; border-radius: 4px; }}
         QGroupBox#new_item_step QLineEdit, QGroupBox#new_item_step QComboBox,
         QGroupBox#new_item_step QDoubleSpinBox, QGroupBox#new_item_step QPushButton {{ min-height: 30px; }}
         QLabel#new_item_step_counter {{ color: {muted}; }}
@@ -148,9 +147,11 @@ def step_style(palette) -> str:
         QPushButton[newItemPrimary="true"]:pressed {{ color: {text}; background: {pressed}; border-color: {active}; }}
         QPushButton[newItemPrimary="true"]:focus {{ border: 2px solid {text}; }}
         QPushButton[newItemPrimary="true"]:disabled {{ background: {panel}; color: {disabled}; border-color: {border}; }}
-        QToolButton[effectChip="true"]:hover {{ border-color: {active}; }}
+        QToolButton[effectChip="true"]:hover {{ background: {hover}; border-color: {active}; }}
+        QToolButton[effectChip="true"]:checked, QToolButton[effectChip="true"]:checked:hover {{ color: {active_text}; background: {active}; border-color: {active}; }}
+        QToolButton[effectChip="true"]:pressed, QToolButton[effectChip="true"]:checked:pressed {{ color: {text}; background: {pressed}; border-color: {active}; }}
         QToolButton[effectChip="true"]:focus {{ border: 2px solid {active}; }}
-        QToolButton[effectChip="true"]:disabled {{ color: {disabled}; background: {panel}; }}
+        QToolButton[effectChip="true"]:disabled, QToolButton[effectChip="true"]:checked:disabled {{ color: {disabled}; background: {panel}; border-color: {border}; }}
         QWidget#effect_action_bar {{ background: {panel}; border-top: 1px solid {border}; }}
         QLabel#effect_section_heading {{ color: {text}; font-weight: 600; padding-top: 4px; }}
         QLabel#effect_library_count, QLabel#effect_staging_state {{ color: {muted}; }}

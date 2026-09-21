@@ -5,8 +5,8 @@ import hashlib
 from dataclasses import replace
 
 from PySide6.QtCore import QSize, QTimer
-from PySide6.QtGui import QIcon
-from PySide6.QtWidgets import QHBoxLayout, QToolButton
+from PySide6.QtGui import QIcon, QImage, QPixmap
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QToolButton
 
 from cdmw.domain.new_item.effect_authoring import EffectLook
 from cdmw.ui.new_item.effect_recipe_panel import EffectRecipePanel, EffectUserLibrary
@@ -18,9 +18,11 @@ class EffectWorkspaceAuthoringMixin:
         self.user_library = EffectUserLibrary(getattr(self._controller, 'effect_cache_path', None))
         self.recipe_panel = None
         self._thumbnail_request = None
+        self._thumbnail_generation = None
         row = QHBoxLayout()
         self.favourite = QToolButton()
         self.favourite.setText('☆')
+        self.favourite.setCheckable(True)
         self.favourite.setToolTip('Add or remove the selected effect from favourites')
         self.favourite.clicked.connect(self._toggle_favourite)
         row.addWidget(self.favourite)
@@ -33,19 +35,29 @@ class EffectWorkspaceAuthoringMixin:
             button.setCheckable(True)
             button.clicked.connect(self._refresh_library)
             row.addWidget(button)
+        row.addStretch()
+        layout.addLayout(row)
+        row = QHBoxLayout()
         self.thumbnail = QToolButton()
-        self.thumbnail.setText('Thumbnail')
+        self.thumbnail.setText('Capture thumbnail')
         self.thumbnail.setToolTip('Use the current preview frame as this effect’s library thumbnail')
         self.thumbnail.setEnabled(False)
         self.thumbnail.clicked.connect(self._capture_thumbnail)
         row.addWidget(self.thumbnail)
-        row.addStretch()
-        layout.addLayout(row)
         self.large_thumbnails = QToolButton()
         self.large_thumbnails.setText('Large thumbnails')
         self.large_thumbnails.setCheckable(True)
         self.large_thumbnails.toggled.connect(self._thumbnail_size_changed)
-        layout.addWidget(self.large_thumbnails)
+        row.addWidget(self.large_thumbnails)
+        row.addStretch()
+        layout.addLayout(row)
+        for button in (self.favourite, self.favourites_only, self.family_only,
+                       self.thumbnail, self.large_thumbnails):
+            button.setProperty('effectChip', True)
+        self.thumbnail_status = QLabel()
+        self.thumbnail_status.setWordWrap(True)
+        self.thumbnail_status.hide()
+        layout.addWidget(self.thumbnail_status)
         self._thumbnail_timer = QTimer(self)
         self._thumbnail_timer.setSingleShot(True)
         self._thumbnail_timer.setInterval(80)
@@ -68,7 +80,7 @@ class EffectWorkspaceAuthoringMixin:
             row = self.library_model.row(index)
             path = self._thumbnail_path(row.stem)
             if path and path.is_file():
-                self.library_model.set_thumbnail(row.stem, QIcon(str(path)))
+                self.library_model.set_thumbnail(row.stem, QIcon(QPixmap.fromImage(QImage(str(path)))))
 
     @staticmethod
     def _effect_family(stem):
@@ -100,12 +112,13 @@ class EffectWorkspaceAuthoringMixin:
 
     def _sync_library_tools(self, stem):
         self.favourite.setText('★' if stem in self.user_library.favourites else '☆')
+        self.favourite.setChecked(stem in self.user_library.favourites)
         self.favourite.setEnabled(bool(stem))
         self.family_only.setEnabled(bool(stem))
         # Only read the small selected thumbnail, never thousands of images while indexing.
         path = self._thumbnail_path(stem)
         if path and path.is_file():
-            self.library_model.set_thumbnail(stem, QIcon(str(path)))
+            self.library_model.set_thumbnail(stem, QIcon(QPixmap.fromImage(QImage(str(path)))))
 
     def _toggle_favourite(self):
         stem = self._staged.stem
@@ -116,6 +129,7 @@ class EffectWorkspaceAuthoringMixin:
         else:
             self.user_library.favourites.add(stem)
         self.user_library.save()
+        self._sync_library_tools(stem)
         self._refresh_library()
 
     def _thumbnail_path(self, stem):
@@ -124,15 +138,21 @@ class EffectWorkspaceAuthoringMixin:
         return self.user_library.path / ('thumb_' + hashlib.sha256(stem.encode()).hexdigest()[:24] + '.png')
 
     def _capture_thumbnail(self):
+        if not self.thumbnail.isEnabled() or self._thumbnail_request is not None:
+            return
         placement = self.placement
         path = self._thumbnail_path(self._staged.stem)
         capture = getattr(getattr(placement, 'host', None), 'capture_replacement_icon', None)
         if path is None or not callable(capture):
             return
-        path.parent.mkdir(parents=True, exist_ok=True)
         self._thumbnail_request = (self._staged.stem, str(path))
+        self.thumbnail.setEnabled(False)
+        self.thumbnail_status.setText('Capturing thumbnail…')
+        self.thumbnail_status.show()
         if not capture(path, width=128, height=128):
             self._thumbnail_request = None
+            self.thumbnail_status.setText('Thumbnail capture failed: the viewport rejected the request.')
+            self._refresh_thumbnail_action()
 
     def _thumbnail_ready(self, payload):
         if self._library_closed or not isinstance(payload, dict) or self._thumbnail_request is None:
@@ -141,11 +161,24 @@ class EffectWorkspaceAuthoringMixin:
         if str(payload.get('requested_output_path') or payload.get('output_path') or '') != path:
             return
         self._thumbnail_request = None
-        icon = QIcon(path)
-        if not icon.isNull():
-            self.library_model.set_thumbnail(stem, icon)
+        # Decode fresh pixels; filename-based QIcon caching can retain the old
+        # thumbnail when a new capture replaces the same PNG.
+        image = QImage(path) if payload.get('status') == 'captured' else QImage()
+        if not image.isNull():
+            self.library_model.set_thumbnail(stem, QIcon(QPixmap.fromImage(image)))
+            if stem == self._staged.stem:
+                self.large_thumbnails.setChecked(True)
+                self.thumbnail_status.setText('Thumbnail saved.')
+        elif stem == self._staged.stem:
+            message = str(payload.get('message') or self.tr('The viewport returned no image.'))
+            self.thumbnail_status.setText(self.tr('Thumbnail capture failed: {message}').format(message=message))
+        self.thumbnail_status.setVisible(stem == self._staged.stem)
+        self._refresh_thumbnail_action()
 
     def _stage_source(self, stem):
+        if stem != self._staged.stem:
+            self.thumbnail_status.clear()
+            self.thumbnail_status.hide()
         if not stem:
             self._staged = EffectWorkspaceState.defaults()
         elif self._staged.layers is not None and self._staged.resolved_layers():
@@ -183,7 +216,17 @@ class EffectWorkspaceAuthoringMixin:
         self.thumbnail.setEnabled(False)
 
     def _thumbnail_presented(self, generation):
-        self.thumbnail.setEnabled(bool(not self._library_closed and not self._preview_dirty and self.user_library.path and self._staged.stem and generation == self.placement._package_generation))
+        if generation == self.placement._package_generation:
+            self._thumbnail_generation = generation
+        self._refresh_thumbnail_action()
+
+    def _refresh_thumbnail_action(self):
+        ready = bool(not self._library_closed and not self._preview_dirty
+                     and not self.look_timer.isActive() and self.user_library.path and self._staged.stem
+                     and self.placement is not None
+                     and self._thumbnail_generation == self.placement._package_generation
+                     and callable(getattr(self.placement.host, 'capture_replacement_icon', None)))
+        self.thumbnail.setEnabled(ready and self._thumbnail_request is None)
 
     def _send_effect_controls(self, controls):
         method = getattr(getattr(self.placement, 'host', None), 'set_effect_preview_controls', None)
