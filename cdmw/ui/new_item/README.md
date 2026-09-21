@@ -251,11 +251,13 @@ Imported resident previews update without rebuilding geometry; template previews
 recompose their cached native material inputs. Both restore source defaults when the
 manual override is disabled. Effects previews carry the
 same settings. Switching to Builder clears the automatic glass preview.
-For layered `SkinnedMeshStandard_Ver2` / `SkinnedMeshEmissive_Ver2` templates
-without a base-colour map, Build plan bakes only the selected parts into Plain PBR
-textures before applying translucency. It uses the shared material combiner's
-colour layers, masks, tints, normal and surface maps, up to 2048px, with complete
-DDS mipmaps and game normal orientation. Authored emission masks and colours
+For templates without a usable base-colour map, Build plan bakes only the selected
+parts into Plain PBR textures before applying translucency. This uses declared
+material inputs across item types, including cloth and fur on helmets, armour and
+shields, without a separate shader-name restriction. Direct diffuse/albedo inputs
+and the shared material combiner's colour layers, masks, tints, normal and surface
+maps are prepared up to 2048px, with complete DDS mipmaps and game normal
+orientation. Base colours use BC7 and retain source alpha. Authored emission masks and colours
 remain bound; explicit Glow overrides still apply. Unselected wrappers and source
 archives are unchanged. The plan summary identifies the baked parts: their dye
 colours become fixed in the textures. This conversion is approximate; in-game

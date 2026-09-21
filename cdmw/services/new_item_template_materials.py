@@ -21,12 +21,14 @@ def bake_template_translucency(snapshot, text, model_path, settings, *, stop_eve
     from cdmw.services.new_item_variants import xml_path
 
     selected = [row for row in find_material_wrappers(text)
-                if row.submesh_name.casefold() in settings and not row.textures.get("_baseColorTexture")]
+                if row.submesh_name.casefold() in settings and (
+                    not row.textures.get("_baseColorTexture")
+                    or _is_placeholder_model_texture(row.textures["_baseColorTexture"]))]
     if not selected:
         return text, {}, ()
-    for row in selected:
-        if row.shader not in {"SkinnedMeshStandard_Ver2", "SkinnedMeshEmissive_Ver2"}:
-            raise NewItemPlanError(f"{row.submesh_name}: translucency cannot convert {row.shader} without a base colour texture.")
+    # The shared combiner resolves each shader's declared colour and surface
+    # inputs, including cloth and fur. Eligibility depends on usable output,
+    # not a separate shader-name allowlist in the template workflow.
     bindings = _parse_archive_model_sidecar_texture_bindings(text, sidecar_path=xml_path(model_path))
     replacements, side, notes = {}, {}, []
     input_fields = {field.name for field in fields(PreviewMaterialTextureInput)}
@@ -71,7 +73,7 @@ def bake_template_translucency(snapshot, text, model_path, settings, *, stop_eve
             output.mkdir()
             combined = combine_preview_material(SimpleNamespace(material_name=row.submesh_name,
                 source_path=model_path, material_texture_inputs=tuple(inputs), tangents_usable=True,
-                texture_flip_vertical=False), output, index,
+                texture_flip_vertical=False, alpha_mode="blend"), output, index,
                 settings=MaterialPreviewCombinerSettings(support_map_max_dimension=2048,
                     preserve_texture_orientation=True,
                     requested_output_channels=frozenset({"base", "normal", "roughness", "metalness", "legacy_material"})),
@@ -108,18 +110,19 @@ def _encode_baked_map(source, png, role, *, material, stop_event):
 
     raise_if_cancelled(stop_event)
     with Image.open(QUrl(source).toLocalFile() or source) as image:
-        rgb = image.convert("RGB")
-    red, green, blue = rgb.split()
+        pixels = image.convert("RGBA" if role == "base" else "RGB")
     if role == "normal":
         # The preview combiner emits OpenGL normals; the game consumes DirectX.
-        rgb = Image.merge("RGB", (red, ImageOps.invert(green), blue))
+        red, green, blue = pixels.split()
+        pixels = Image.merge("RGB", (red, ImageOps.invert(green), blue))
     elif role == "material":
-        rgb = Image.merge("RGB", (Image.new("L", rgb.size, 255), green, blue))
-    rgb.save(png)
+        _, green, blue = pixels.split()
+        pixels = Image.merge("RGB", (Image.new("L", pixels.size, 255), green, blue))
+    pixels.save(png)
     dds = png.with_suffix(".dds")
     report = encode_dds_with_directxtex(png, dds,
-        dds_format="BC5_UNORM" if role == "normal" else "BC1_UNORM",
-        width=rgb.width, height=rgb.height, mip_count=max_mips_for_size(*rgb.size),
+        dds_format={"base": "BC7_UNORM", "normal": "BC5_UNORM", "material": "BC1_UNORM"}[role],
+        width=pixels.width, height=pixels.height, mip_count=max_mips_for_size(*pixels.size),
         source_color_policy="ignore_srgb_metadata", stop_event=stop_event)
     if not report or not dds.is_file():
         raise NewItemPlanError(f"{material}: could not encode the {role} texture for translucency.")

@@ -29,7 +29,7 @@ BLADE = "cd_phm_02_sword_0003"
 MASK = "character/texture/template_ma.dds"
 
 
-def layered_inputs():
+def layered_inputs(shader="SkinnedMeshStandard_Ver2"):
     files = current_files()
     files[PAC] = _skinned_pac()[0]
     maps = [("_colorBlendingMaskTexture", MASK, (255, 0, 0)),
@@ -58,13 +58,17 @@ def layered_inputs():
         ("Float", "_emissiveIntensity", "4"),
     ], len(maps)):
         params += f'<MaterialParameter{kind} StringItemID="{name}" ItemID="{index}" _name="{name}" _value="{value}" Index="{index}"/>\r\n'
-    files[PAC_XML] = (HEAD + wrapper(BLADE, "SkinnedMeshStandard_Ver2", params) + GLOWING + TAIL).encode()
+    files[PAC_XML] = (HEAD + wrapper(BLADE, shader, params) + GLOWING + TAIL).encode()
     return files
 
 
+@pytest.mark.parametrize("shader", [
+    "SkinnedMeshStandard_Ver2", "SkinnedMeshEmissive_Ver2",
+    "SkinnedMeshCloth_Ver2", "SkinnedMeshCloth", "SkinnedMeshFur_Ver2", "SkinnedMeshFur",
+])
 @pytest.mark.parametrize("variant,low_shine", [(False, False), (True, False), (False, True), (True, True)])
-def test_build_plan_bakes_layered_template_and_keeps_other_materials(tmp_path, variant, low_shine):
-    files = layered_inputs()
+def test_build_plan_bakes_layered_template_and_keeps_other_materials(tmp_path, variant, low_shine, shader):
+    files = layered_inputs(shader)
     original = dict(files)
     service = NewItemService()
     entries = parse_archive_pamt(build_package(tmp_path / "game", files))
@@ -108,6 +112,89 @@ def test_build_plan_bakes_layered_template_and_keeps_other_materials(tmp_path, v
         assert snapshot.payload(path) == data
 
 
+@pytest.mark.parametrize("shader,parameter", [
+    ("SkinnedMeshStandard", "_diffuseTexture"),
+    ("SkinnedMeshCloth", "_diffuseTexture"),
+    ("SkinnedMeshSkin", "_diffuseTexture"),
+    ("SkinnedMeshHairStandard", "_diffuseTexture"),
+    ("SkinnedMeshFur", "_albedoTexture"),
+    ("SkinnedMeshEmissive", "_colorTexture"),
+    ("StaticMeshStandard", "_diffuseTexture"),
+    ("EquipmentSurface", "_albedoTexture"),
+])
+def test_template_bake_uses_declared_colour_inputs_across_shader_families(shader, parameter):
+    files = layered_inputs()
+    colour_path = "character/texture/template_colour.dds"
+    colour = Image.new("RGBA", (16, 16), (160, 60, 20, 70))
+    colour.paste((20, 60, 160, 210), (8, 0, 16, 16))
+    stream = BytesIO()
+    colour.save(stream, format="DDS")
+    files[colour_path] = stream.getvalue()
+    params = texture(parameter, "0", colour_path, 0)
+    params += texture("_normalTexture", "1", "character/texture/template_n.dds", 1)
+    params += texture("_emissiveIntensityTexture", "2", "character/texture/template_emi.dds", 2)
+    part = "cd_m0001_00_death_knight_hel_0001_02"
+    files[PAC_XML] = (HEAD + wrapper(part, shader, params) + GLOWING + TAIL).encode()
+    original = dict(files)
+    snapshot = SimpleNamespace(payload=files.__getitem__, has_entry=files.__contains__)
+
+    result = prepare_template_model(snapshot, [PAC], translucency=TranslucencyChoice((part,), 0.4, 0.6))
+
+    xml = result.side_files[PAC_XML].decode("utf-8-sig")
+    row = find_material_wrappers(xml)[0]
+    assert row.shader == "SkinnedMeshTranslucent"
+    assert GLOWING in xml
+    assert row.textures["_emissiveIntensityTexture"] == "character/texture/template_emi.dds"
+    data = result.side_files[row.textures["_baseColorTexture"]]
+    assert data[84:88] == b"DX10" and struct.unpack_from("<I", data, 128)[0] == 98, "BC7_UNORM"
+    with Image.open(BytesIO(data)) as image:
+        rgba = image.convert("RGBA")
+        for actual, expected in ((rgba.getpixel((1, 1)), (160, 60, 20, 70)),
+                                 (rgba.getpixel((rgba.width - 2, 1)), (20, 60, 160, 210))):
+            assert all(abs(a - e) <= 8 for a, e in zip(actual, expected)), (actual, expected)
+    assert result.pac_data == original[PAC]
+    assert files == original
+
+
+def test_cloth_template_bakes_authored_layers_when_base_is_a_placeholder():
+    files = layered_inputs("SkinnedMeshCloth_Ver2")
+    placeholder = texture("_baseColorTexture", "100", "engine/texture/NoneTexture.dds", 100)
+    files[PAC_XML] = files[PAC_XML].replace(b'<Vector Name="_parameters">',
+        b'<Vector Name="_parameters">' + placeholder.encode(), 1)
+    original = dict(files)
+    snapshot = SimpleNamespace(payload=files.__getitem__, has_entry=files.__contains__)
+
+    result = prepare_template_model(snapshot, [PAC], translucency=TranslucencyChoice((BLADE,)))
+
+    xml = result.side_files[PAC_XML].decode("utf-8-sig")
+    row = find_material_wrappers(xml)[0]
+    assert row.shader == "SkinnedMeshTranslucent"
+    assert row.textures["_baseColorTexture"] in result.side_files
+    with Image.open(BytesIO(result.side_files[row.textures["_baseColorTexture"]])) as image:
+        red, _, blue, _ = image.convert("RGBA").getpixel((1, 1))
+        assert red > blue + 50
+    assert GLOWING in xml
+    assert files == original
+
+
+@pytest.mark.parametrize("enabled", [False, True])
+def test_template_without_colour_inputs_is_only_blocked_for_selected_translucency(enabled):
+    files = layered_inputs("SkinnedMeshCloth_Ver2")
+    params = texture("_normalTexture", "0", "character/texture/template_n.dds", 0)
+    files[PAC_XML] = (HEAD + wrapper(BLADE, "SkinnedMeshCloth_Ver2", params) + GLOWING + TAIL).encode()
+    original = dict(files)
+    snapshot = SimpleNamespace(payload=files.__getitem__, has_entry=files.__contains__)
+
+    if enabled:
+        with pytest.raises(NewItemPlanError, match=f"{BLADE}:.*could not produce a base colour texture"):
+            prepare_template_model(snapshot, [PAC], translucency=TranslucencyChoice((BLADE,)))
+    else:
+        result = prepare_template_model(snapshot, [PAC])
+        assert result.pac_data == original[PAC]
+        assert result.side_files == {}
+    assert files == original
+
+
 def test_baked_template_glow_override_retains_source_mask():
     files = layered_inputs()
     snapshot = SimpleNamespace(payload=files.__getitem__, has_entry=files.__contains__)
@@ -120,12 +207,15 @@ def test_baked_template_glow_override_retains_source_mask():
     assert float(row.value("_emissiveIntensity")) == 7
 
 
-def test_missing_layer_texture_reports_part_and_path_without_changing_source():
-    files = layered_inputs()
+@pytest.mark.parametrize("shader", ["SkinnedMeshStandard_Ver2", "SkinnedMeshCloth_Ver2"])
+def test_missing_layer_texture_reports_part_and_path_without_changing_source(shader):
+    files = layered_inputs(shader)
     del files[MASK]
+    original = dict(files)
     snapshot = SimpleNamespace(payload=files.__getitem__, has_entry=files.__contains__)
     with pytest.raises(NewItemPlanError, match=f"{BLADE}:.*missing texture {MASK}"):
         prepare_template_model(snapshot, [PAC], translucency=TranslucencyChoice((BLADE,)))
+    assert files == original
 
 
 def test_cancelled_template_bake_does_not_read_archives():
