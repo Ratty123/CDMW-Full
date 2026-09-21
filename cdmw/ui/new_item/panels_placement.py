@@ -25,13 +25,6 @@ from cdmw.domain.new_item.spec import ItemGroupsChoice, PlacementKind
 from cdmw.ui.new_item.controller import NewItemStudioController
 from cdmw.ui.new_item.ui_kit import OK, WARN, NoteLabel, intro_label
 
-# A normal shell tab leaves about 600 px for a guided page at 1280x720. Keep the
-# optional group picker inside that page; its own list remains scrollable when there
-# are more groups than the compact viewport can show.
-_COMPACT_PAGE_HEIGHT = 650
-_COMPACT_GROUP_LIST_HEIGHT = 120
-
-
 class _DistributionTabs(QTabWidget):
     """Let the active route page determine the surrounding scroll-area height."""
 
@@ -137,12 +130,9 @@ class PlacementPanel(QGroupBox):
         groups_layout.addWidget(self.group_filter)
         self.group_list = QListWidget()
         self.group_list.setMinimumHeight(96)
-        self.group_list.setMaximumHeight(260)
-        self._group_list_default_maximum = self.group_list.maximumHeight()
-        self._group_list_compact, self._group_item_pool = None, []
+        self._group_item_pool = []
         self.group_list.itemChanged.connect(self._group_toggled)
-        groups_layout.addWidget(self.group_list)
-        groups_layout.addStretch(1)
+        groups_layout.addWidget(self.group_list, 1)
         layout.addWidget(groups)
         # Acquisition settings share one page family; group membership no longer
         # occupies a permanent half-width panel beside the shop controls.
@@ -177,16 +167,6 @@ class PlacementPanel(QGroupBox):
         """Move the existing recipe editor here; keep its controller and signals."""
         self.recipes = recipes
         self.routes_view.insertTab(1, recipes, "Recipes")
-
-    def resizeEvent(self, event) -> None:  # noqa: N802 - Qt override
-        super().resizeEvent(event)
-        compact = self.height() <= _COMPACT_PAGE_HEIGHT
-        if compact == self._group_list_compact:
-            return
-        self._group_list_compact = compact
-        self.group_list.setMaximumHeight(
-            _COMPACT_GROUP_LIST_HEIGHT if compact else self._group_list_default_maximum
-        )
 
     # ------------------------------------------------------------------ shop
 

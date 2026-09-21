@@ -351,6 +351,74 @@ def test_new_item_guided_workspace_uses_only_each_theme_palette() -> None:
         _APP.setPalette(previous_palette)
 
 
+def test_checkable_headers_and_choices_render_visible_indicator_states() -> None:
+    from PySide6.QtWidgets import QCheckBox, QGroupBox, QRadioButton, QStyleOptionGroupBox, QVBoxLayout
+    from PySide6.QtTest import QTest
+
+    previous_palette = QPalette(_APP.palette())
+    previous_stylesheet = _APP.styleSheet()
+    root = QGroupBox()
+    root.setObjectName("new_item_step")
+    root.setProperty("guidedPage", True)
+    root.setProperty("compactModelPanel", True)
+    layout = QVBoxLayout(root)
+    controls = (QGroupBox("Glow"), QGroupBox("Translucency (experimental)"),
+                QCheckBox("Grid"), QRadioButton("Template model"))
+    for control in controls:
+        if isinstance(control, QGroupBox):
+            control.setCheckable(True)
+            control.setMinimumHeight(48)
+        elif isinstance(control, QRadioButton):
+            control.setAutoExclusive(False)
+        layout.addWidget(control)
+    root.resize(420, 250)
+    try:
+        for theme_key, theme in UI_THEME_SCHEMES.items():
+            palette = build_app_palette(theme_key)
+            _APP.setPalette(palette)
+            _APP.setStyleSheet(build_app_stylesheet(theme_key))
+            root.setStyleSheet(step_style(palette))
+            root.show()
+            _APP.processEvents()
+            for control in controls:
+                control.setChecked(False)
+                control.clearFocus()
+                if isinstance(control, QGroupBox):
+                    option = QStyleOptionGroupBox()
+                    control.initStyleOption(option)
+                    rect = control.style().subControlRect(
+                        QStyle.ComplexControl.CC_GroupBox, option,
+                        QStyle.SubControl.SC_GroupBoxCheckBox, control,
+                    )
+                else:
+                    option = QStyleOptionButton()
+                    control.initStyleOption(option)
+                    element = (QStyle.SubElement.SE_CheckBoxIndicator if isinstance(control, QCheckBox)
+                               else QStyle.SubElement.SE_RadioButtonIndicator)
+                    rect = control.style().subElementRect(element, option, control)
+                assert rect.width() >= 16, (theme_key, type(control).__name__, rect)
+                unchecked = control.grab().toImage()
+                center = unchecked.pixelColor(rect.center())
+                outline_contrast = max(_color_contrast(unchecked.pixelColor(rect.left() + x, rect.center().y()), center)
+                                       for x in range(3))
+                assert outline_contrast >= 3.0, (theme_key, type(control).__name__)
+                QTest.mouseClick(control, Qt.MouseButton.LeftButton, pos=rect.center())
+                assert control.isChecked(), (theme_key, type(control).__name__)
+                checked = control.grab().toImage().pixelColor(rect.center())
+                assert checked == QColor(theme["accent"]), (theme_key, type(control).__name__, checked.name())
+                assert checked != center
+                control.setEnabled(False)
+                disabled = control.grab().toImage().pixelColor(rect.center())
+                assert disabled != checked, (theme_key, type(control).__name__)
+                control.setEnabled(True)
+    finally:
+        root.close()
+        root.deleteLater()
+        _APP.processEvents()
+        _APP.setStyleSheet(previous_stylesheet)
+        _APP.setPalette(previous_palette)
+
+
 def test_archive_xml_editors_use_every_theme_text_roles() -> None:
     previous_palette = QPalette(_APP.palette())
     previous_theme_key = _APP.property("_cdmw_theme_key")

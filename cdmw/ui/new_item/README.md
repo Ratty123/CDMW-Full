@@ -416,14 +416,18 @@ origin so the gizmo opens on the helmet or armour rather than at the character's
 feet-at-zero bind-space stand-in is used when the matching archive body is unavailable.
 
 The Model & Placement step puts a tall resident preview beside one resizable inspector.
-Model selection and import actions share a strip above it. Placement, Appearance, Dyes
-and Icon share the right inspector; Apply placement stays fixed beneath its scroll area.
-The active tab uses its natural height, and captured icon thumbnails stay in Icon so the
-preview footer remains compact. Controls retain their values when switching tabs or resizing.
+Model selection, import actions, variant selection, preview controls, status and icon
+capture share the right inspector with Placement, Appearance, Dyes and Icon. The viewport
+uses the full left column; Apply placement stays fixed beneath the inspector's scroll area.
+The active tab uses its natural height, and captured icon thumbnails stay in Icon.
+Controls retain their values when switching tabs or resizing.
 When the two columns cannot fit, the inspector stacks below the preview. Neither widget
 changes parent on resize, preserving the resident renderer and current control values.
 Full import notes, FBX setup and Quick turn expand on demand; Glow details collapse while off.
 Long or expanded inspector content scrolls locally while Apply placement remains visible.
+Distribution's Item groups list fills its page and scrolls internally. Checkable section
+headers such as Glow and Translucency use the theme's visible indicator states, including
+OLED Black, consistently with ordinary checkboxes and radio buttons.
 Quick turn buttons add −90°, +90° or 180° to the X, Y or Z placement rotation around the
 fitted model pivot, retaining position and scale. **Reset rotation** restores the fitted
 orientation; **Fit to template** restores the complete fit. These actions move only the

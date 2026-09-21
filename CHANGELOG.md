@@ -11,6 +11,10 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Changed
+
+- Create New Item moves model selection, import and preview controls into the right inspector so Model & Placement can use the full viewport height. Distribution's Item groups list fills the available page space.
+
 ### Added
 
 - Mesh Editor can create experimental cloth guides from a stored LOD of guide-free PAC parts, using existing bones and an adjustable pin height. Generated bindings cover every LOD and support preview, Restore, Undo/Redo, Finish, drafts and Build Mod. Optional skin-weight reduction is explicit. Adding skeletal bones remains unsupported, and generated guides have not been tested in game.
@@ -24,6 +28,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Checkable section headers such as Glow and Translucency, along with radio buttons and checkboxes, have visible theme-aware outlines and selected, hover, focus and disabled states, including in OLED Black.
 - New Item retains glass and glow after mesh-part edits, preserves existing materials when changing translucency on prebuilt imports, and includes manual translucency in dye previews.
 - New Item's Plain PBR export and previews keep authored glTF transmission layers translucent, including glass shells around emissive gems, even when translucency is manually selected only on another part. Source colours and glow are retained. The glass mapping remains experimental, and mixed glass/opaque atlases require separate parts or an explicit whole-atlas override.
 - Cloth preview accepts upward gravity from authored profiles. Its gravity control now uses the XML sign: negative pulls down, positive lifts up. The profile panel distinguishes absent cloth guides from guide data it cannot decode; profile edits do not create new bindings.

@@ -752,19 +752,34 @@ def _app_status_stylesheet(theme: Dict[str, str], metrics: Dict[str, int]) -> st
         border-color: {theme["error"]};
         font-weight: 700;
     }}
-    QCheckBox {{
+    QCheckBox, QRadioButton {{
         spacing: 8px;
     }}
-    QCheckBox::indicator {{
+    QCheckBox::indicator, QGroupBox::indicator, QRadioButton::indicator {{
         width: 16px;
         height: 16px;
         border-radius: 4px;
-        border: 1px solid {theme["button_border"]};
+        border: 2px solid {theme["border_strong"]};
         background: {theme["field"]};
     }}
-    QCheckBox::indicator:checked {{
+    QRadioButton::indicator {{
+        border-radius: 10px;
+    }}
+    QCheckBox::indicator:checked, QGroupBox::indicator:checked, QRadioButton::indicator:checked {{
         background: {theme["accent"]};
-        border: 1px solid {theme["accent"]};
+        border: 2px solid {theme["accent"]};
+    }}
+    QCheckBox::indicator:hover, QGroupBox::indicator:hover, QRadioButton::indicator:hover,
+    QCheckBox::indicator:focus, QGroupBox::indicator:focus, QRadioButton::indicator:focus {{
+        border-color: {theme["text_strong"]};
+    }}
+    QCheckBox::indicator:disabled, QGroupBox::indicator:disabled, QRadioButton::indicator:disabled {{
+        background: {theme["button_disabled"]};
+        border-color: {theme["button_disabled_text"]};
+    }}
+    QCheckBox::indicator:checked:disabled, QGroupBox::indicator:checked:disabled,
+    QRadioButton::indicator:checked:disabled {{
+        background: {theme["button_disabled_text"]};
     }}
     QProgressBar {{
         border: 1px solid {theme["border_strong"]};

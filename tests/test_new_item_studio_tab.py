@@ -744,7 +744,10 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
                 self.assertFalse(placement.group_list.isVisibleTo(placement))
                 self.assertTrue(placement.store.isVisibleTo(placement))
                 placement.routes_view.setCurrentWidget(placement.groups_page)
+                self.app.processEvents()
                 self.assertTrue(placement.group_list.isVisibleTo(placement))
+                self.assertEqual(page.verticalScrollBar().maximum(), 0)
+                self.assertGreater(placement.group_list.height(), placement.groups_page.height() // 2)
                 placement.routes_view.setCurrentIndex(0)
 
                 tab.show_step(6)

@@ -233,7 +233,9 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
 
         self._build_icon_controls()
 
-        outer.insertWidget(0, self.model_group)
+        model_icon_content_layout.addWidget(self.model_group)
+        model_icon_content_layout.addWidget(self.operation_banner)
+        model_icon_content_layout.addWidget(self.preview_controls)
         from cdmw.ui.new_item.dye_editor import DyeEditor
         self.dyes = DyeEditor(controller,self)
         self.inspector_tabs = _InspectorTabs()
@@ -244,9 +246,7 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self.inspector_tabs.addTab(self.icon_group, "Icon")
         model_icon_content_layout.addWidget(self.inspector_tabs)
         model_icon_content_layout.addStretch(1)
-        preview_column_layout.addWidget(self.operation_banner)
         preview_column_layout.addWidget(self.preview_group, 1)
-        self.preview_layout.addWidget(self.part_editor_holder)
         model_icon_column_layout.addWidget(self.placement_actions)
         self.workspace_splitter.addWidget(self.preview_column)
         self.workspace_splitter.addWidget(self.model_icon_column)
@@ -256,8 +256,8 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         from cdmw.ui.new_item.variant_selector import VariantSelector
         self.variants = VariantSelector(controller,self)
         self.variants.choice.setMinimumContentsLength(12)
-        self.variants.layout().addWidget(self.show_character)
-        self.preview_layout.insertWidget(0,self.variants)
+        self.preview_controls.layout().insertWidget(0, self.variants)
+        self.preview_controls.layout().insertWidget(1, self.show_character)
 
         controller.model_changed.connect(self._show_model)
         controller.model_changed.connect(lambda _result: self.refresh_preview())
@@ -318,7 +318,8 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
             inspector_content_width = max(
                 self.inspector_tabs.tabBar().minimumSizeHint().width() + 6,
                 *(page.minimumSizeHint().width() + 6
-                  for page in (self.placement_group, self.appearance_page, self.dyes, self.icon_group)),
+                  for page in (self.model_group, self.preview_controls, self.placement_group,
+                               self.appearance_page, self.dyes, self.icon_group)),
             )
             inspector_width = max(340, inspector_content_width + scrollbar)
             preview_width = max(440, self.preview_group.minimumSizeHint().width())
@@ -379,13 +380,19 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
 
 
     def _build_preview_controls(self, controller) -> None:
-        preview = QGroupBox("Preview")
+        preview = QGroupBox()
+        preview.setProperty("titlelessSection", True)
+        preview.setAccessibleName("Preview")
         self.preview_group = preview
         preview.setMinimumWidth(440)
         preview_layout = QVBoxLayout(preview)
-        preview_layout.setContentsMargins(8, 6, 8, 6)
-        preview_layout.setSpacing(4)
+        preview_layout.setContentsMargins(0, 0, 0, 0)
+        preview_layout.setSpacing(0)
         self.preview_layout = preview_layout
+        self.preview_controls = QGroupBox("Preview")
+        controls_layout = QVBoxLayout(self.preview_controls)
+        controls_layout.setContentsMargins(8, 6, 8, 6)
+        controls_layout.setSpacing(4)
         preview.setToolTip(
             "Your model over the template. Orbit, zoom, move it with the gizmo, and capture the icon from this view."
         )
@@ -396,8 +403,8 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         )
         self.show_character.setEnabled(controller.draft.template_key is not None)
         self.show_character.toggled.connect(self._character_preview_changed)
-        preview_layout.addWidget(self.view_toolbar)
-        self.operation_banner = QFrame(self.preview_column)
+        controls_layout.addWidget(self.view_toolbar)
+        self.operation_banner = QFrame(self.model_icon_content)
         self.operation_banner.setObjectName("new_item_loading_card")
         self.operation_banner.setFrameShape(QFrame.Shape.StyledPanel)
         self.operation_banner.setSizePolicy(
@@ -426,23 +433,21 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self.preview.captured.connect(self._inline_capture_done)
         self.preview.placement_changed.connect(self._gizmo_moved)
         preview_layout.addWidget(self.preview, 1)
-        preview_row = QHBoxLayout()
         self.capture_inline_button = QPushButton("Capture icon…")
         self.capture_inline_button.setToolTip(
             "Takes the view as it is (grid and gizmo hidden), then you drag the rectangle that becomes the 512 x 512 icon."
         )
         self.capture_inline_button.clicked.connect(self._capture_inline)
         self.capture_inline_button.setEnabled(False)
-        preview_row.addWidget(self.capture_inline_button)
+        controls_layout.addWidget(self.capture_inline_button, 0, Qt.AlignmentFlag.AlignLeft)
         self.preview_status = QLabel("")
         self.preview_status.setObjectName("new_item_intro")
         self.preview_status.setWordWrap(True)
-        preview_row.addWidget(self.preview_status, 1)
+        controls_layout.addWidget(self.preview_status)
         self.icon_thumbnail = QLabel("")
         self.icon_thumbnail.setFixedSize(72, 72)
         self.icon_thumbnail.setAlignment(Qt.AlignCenter)
         self.icon_thumbnail.setVisible(False)
-        preview_layout.addLayout(preview_row)
         self._preview_mesh_token: object = None
         self._preview_busy = False
 
@@ -475,13 +480,12 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self.view_mode.currentIndexChanged.connect(
             lambda _i: self.preview.set_view_mode(str(self.view_mode.currentData() or "overlay"))
         )
-        view_row.addWidget(self.view_mode)
+        view_row.addWidget(self.view_mode, 1)
         self.grid_visible = QCheckBox("Grid")
         self.grid_visible.setChecked(True)
         self.grid_visible.toggled.connect(self.preview.set_grid_visible)
         view_row.addWidget(self.grid_visible)
         self.preview.set_lighting_preset("neutral_studio")
-        view_row.addStretch(1)
         self.frame_view_button = QPushButton("Frame")
         self.frame_view_button.setToolTip("Bring the camera back onto the model where it sits now.")
         self.frame_view_button.clicked.connect(self.preview.fit_view)
@@ -684,12 +688,12 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         row.addStretch(1)
         import_row = QWidget()
         import_row.setLayout(row)
-        source_choices.addWidget(import_row)
+        model_layout.addWidget(import_row)
         self.import_summary = QLabel("No imported model.")
         self.import_summary.setWordWrap(True)
         self.import_summary.setTextFormat(Qt.TextFormat.PlainText)
         self.import_summary.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
-        source_choices.addWidget(self.import_summary, 1)
+        model_layout.addWidget(self.import_summary)
         source_choices.addStretch(1)
         self.model_status = NoteLabel("No imported model.", None)
         self.import_details = _foldout(self.model_status)
@@ -698,7 +702,7 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self.part_editor_holder = QWidget()
         part_editor_layout = QVBoxLayout(self.part_editor_holder)
         part_editor_layout.setContentsMargins(0, 0, 0, 0)
-        part_editor_buttons = QHBoxLayout()
+        part_editor_buttons = QVBoxLayout()
         part_editor_buttons.setSpacing(4)
         self.open_part_editor_button = QPushButton("Open in Mesh Editor")
         self.open_part_editor_button.setToolTip(
@@ -784,7 +788,7 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         """Move the shared resident viewport back into Model & Placement."""
 
         if self.preview.parentWidget() is not self.preview_group:
-            self.preview_layout.insertWidget(self.preview_layout.indexOf(self.view_toolbar) + 1, self.preview, 1)
+            self.preview_layout.insertWidget(0, self.preview, 1)
 
     def _model_source_changed(self, keep: bool) -> None:
         draft = self._controller.draft

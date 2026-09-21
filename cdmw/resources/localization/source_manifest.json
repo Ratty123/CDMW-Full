@@ -78326,7 +78326,12 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 382,
+          "line": 385,
+          "sink": "setAccessibleName"
+        },
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 392,
           "sink": "QGroupBox"
         },
         {

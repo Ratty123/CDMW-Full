@@ -874,7 +874,11 @@ class _TabAuthoringMixin:
         self.assertIs(panel.preview.parentWidget(), panel.preview_group)
         self.assertIs(panel.icon_thumbnail.parentWidget(), panel.icon_group)
         self.assertTrue(panel.quick_turn_section.contents.isHidden())
-        self.assertLess(panel.preview_layout.indexOf(panel.view_toolbar), panel.preview_layout.indexOf(panel.preview))
+        for control in (panel.model_group, panel.variants, panel.show_character,
+                        panel.view_toolbar, panel.capture_inline_button, panel.preview_status,
+                        panel.part_editor_holder, panel.operation_banner):
+            self.assertTrue(panel.model_icon_column.isAncestorOf(control))
+            self.assertFalse(panel.preview_column.isAncestorOf(control))
         panel.inspector_tabs.setCurrentWidget(panel.appearance_page)
         self.assertFalse(panel.model_status.isVisibleTo(panel))
         panel.import_details.toggle.click()
@@ -896,6 +900,7 @@ class _TabAuthoringMixin:
             if width >= 1280:
                 self.assertEqual(panel.inspector_tabs.indexOf(panel.placement_group), 0)
                 self.assertGreater(panel.preview_column.width(), panel.model_icon_column.width())
+                self.assertGreaterEqual(panel.preview.height(), panel.workspace_splitter.height() - 4)
             for index, page in enumerate((panel.placement_group, panel.appearance_page, panel.dyes, panel.icon_group)):
                 panel.inspector_tabs.setCurrentIndex(index)
                 self.app.processEvents()
@@ -914,6 +919,9 @@ class _TabAuthoringMixin:
                 panel.quick_turn_section.toggle.setChecked(True)
                 self.app.processEvents()
                 for button in (panel.apply_button, *panel.quick_turn_buttons.values()):
+                    if panel.model_icon_scroll.isAncestorOf(button):
+                        panel.model_icon_scroll.ensureWidgetVisible(button)
+                        self.app.processEvents()
                     bounds = button.rect().translated(button.mapTo(panel, button.rect().topLeft()))
                     self.assertTrue(panel.rect().contains(bounds), button.text())
                 panel.quick_turn_section.toggle.setChecked(False)
