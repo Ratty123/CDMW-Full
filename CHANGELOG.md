@@ -33,6 +33,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- New Item and model replacement keep imported BC7 colour textures as BC7 when baking material settings, including their sRGB tag. Re-encoding avoids a second gamma conversion and correctly prepares DDS inputs for alpha-only edits.
 - New Item encodes imported translucent base colours from their source images as BC7, reducing compression colour noise amplified by glass absorption. Source factors, alpha and atlas regions are preserved without changing opaque parts that share an image.
 - Hair Tools' soft motion collides with the loaded body surface, including shoulders, chest and back, and prunes distant contact searches. Focus loss and resize now cancel unfinished hair strokes instead of leaving the editor busy.
 - New Item now reaches Browse Archives' shared native texture cache in the assembled app, avoiding the slower fallback path and retaining template textures, glow and translucency in Perks & Effects.

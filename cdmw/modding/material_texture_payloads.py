@@ -986,6 +986,7 @@ def _build_texture_payload(
             return int(image.width), int(image.height)
 
     source_is_dds = source_slot.source_path.suffix.lower() == ".dds"
+    source_info = parse_dds(source_slot.source_path) if source_is_dds else None
     needs_source_color_bake = (
         _source_slot_needs_base_color_factor(source_slot)
         or _source_slot_needs_base_alpha_factor(source_slot)
@@ -998,7 +999,6 @@ def _build_texture_payload(
     if source_is_dds and not (needs_source_color_bake or needs_normal_bake or source_alpha_mode):
         target_vpath = str(getattr(target_entry, "path", "") or "").replace("\\", "/").strip()
         _append_crimson_dds_validation_warnings(source_slot.source_path, vpath=target_vpath, report=report)
-        source_info = parse_dds(source_slot.source_path)
         original_info = parse_dds(original_texture_source_path(target_entry))
         mismatch_parts: list[str] = []
         if (source_info.width, source_info.height) != (original_info.width, original_info.height):
@@ -1031,6 +1031,15 @@ def _build_texture_payload(
             report.warnings.append(f"Inverted green channel for green-up normal map: {source_png.name}")
         else:
             shutil.copy2(source_png, prepared_png)
+        if prepared_png.suffix.lower() == ".dds":
+            # An alpha mode alone can require re-encoding without a factor bake.
+            # The native encoder takes PNG, even when the authored input is DDS.
+            from PIL import Image
+
+            with Image.open(prepared_png) as image:
+                decoded = image.convert("RGBA")
+            prepared_png = temp_dir / "decoded_source.png"
+            decoded.save(prepared_png)
         if needs_normal_bake and source_slot.normal_scale != 1.0:
             import numpy as np
             from PIL import Image
@@ -1076,6 +1085,10 @@ def _build_texture_payload(
                 f"{source_width}x{source_height}."
             )
         output_format = str(original_info.dds_format or "").strip() or "BC7_UNORM"
+        if source_info is not None and source_info.dds_format.upper() in {"BC7_UNORM", "BC7_UNORM_SRGB"}:
+            # Baking a material factor must not downgrade an authored BC7 DDS
+            # to the template's BC1/BC3, or discard its sRGB format tag.
+            output_format = source_info.dds_format
         if source_alpha_mode != "OPAQUE" and (source_alpha_mode in {"BLEND", "MASK"} or _source_slot_needs_base_alpha_factor(source_slot)):
             # BC1 can only retain one-bit alpha. DXT5 is also used by the game's
             # plain base-colour materials and preserves intermediate opacity.
@@ -1100,6 +1113,11 @@ def _build_texture_payload(
             width=output_width,
             height=output_height,
             mip_count=mip_count,
+            # Pillow retains the encoded sRGB channel values when decoding DDS;
+            # its temporary PNG must not be treated as linear and gamma-encoded again.
+            source_color_policy=("assume_srgb" if source_info is not None
+                                 and source_info.dds_format.upper() == "BC7_UNORM_SRGB"
+                                 and output_format.upper() == "BC7_UNORM_SRGB" else "auto"),
         )
         native_encode_ok = False
         native_encode_error = ""

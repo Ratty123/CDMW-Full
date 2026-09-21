@@ -546,3 +546,95 @@ def test_dds_normals_apply_scale_but_unmodified_dds_can_still_pass_through(tmp_p
             with Image.open(BytesIO(data)) as image:
                 np.testing.assert_allclose(np.asarray(image)[0, 0, :2], [128, 128], atol=1)
     assert source.read_bytes() == original
+
+
+@pytest.mark.parametrize("source_format", ["BC7_UNORM", "BC7_UNORM_SRGB"])
+@pytest.mark.parametrize("template_fourcc", [b"DXT1", b"DXT5"], ids=["bc1-template", "bc3-template"])
+@pytest.mark.parametrize("edit", ["unchanged", "colour", "alpha", "opaque", "blend"])
+def test_bc7_dds_preserves_format_and_pixels_when_material_settings_require_encoding(
+    tmp_path, source_format, template_fourcc, edit,
+):
+    from cdmw.core.texture_native import encode_dds_with_directxtex
+    from cdmw.modding.material_replacer import ReplacementTextureSlot
+    from cdmw.modding.material_texture_payloads import _build_texture_payload
+
+    png, source, template = (tmp_path / name for name in ("colour.png", "colour.dds", "template.dds"))
+    Image.new("RGBA", (16, 16), (128, 96, 64, 160)).save(png)
+    assert encode_dds_with_directxtex(png, source, dds_format=source_format, width=16, height=16, mip_count=5,
+                                     source_color_policy="assume_srgb" if source_format.endswith("_SRGB") else "auto")
+    original = source.read_bytes()
+    template_bytes = dds(template_fourcc)
+    template.write_bytes(template_bytes)
+    settings = {
+        "unchanged": {}, "colour": {"base_color_factor": (0.5, 1.0, 1.0)},
+        "alpha": {"base_alpha_factor": 0.5, "alpha_mode": "BLEND"},
+        "opaque": {"alpha_mode": "OPAQUE"}, "blend": {"alpha_mode": "BLEND"},
+    }[edit]
+    payload = _build_texture_payload(
+        ReplacementTextureSlot("Colour", "base", source, **settings),
+        target_entry=SimpleNamespace(path="character/texture/colour.dds"),
+        read_original_texture_bytes=lambda _entry: template_bytes,
+        original_texture_source_path=lambda _entry: template,
+        report=TextureReplacementReport(), on_log=None,
+    )
+    info = inspect_dds_native(payload)
+    assert info.format_name == source_format
+    assert (info.width, info.height, info.mip_count) == (16, 16, 5)
+    with Image.open(BytesIO(original)) as image:
+        expected = np.asarray(image.convert("RGBA"))[0, 0].astype(float)
+    if edit == "colour":
+        expected[0] *= 0.5
+    elif edit == "alpha":
+        expected[3] *= 0.5
+    elif edit == "opaque":
+        expected[3] = 255
+    with Image.open(BytesIO(payload)) as image:
+        np.testing.assert_allclose(np.asarray(image.convert("RGBA"))[0, 0], expected, atol=2)
+    if edit == "unchanged":
+        assert payload == original
+    assert source.read_bytes() == original
+    assert template.read_bytes() == template_bytes
+
+
+@pytest.mark.parametrize("source_format", ["BC7_UNORM", "BC7_UNORM_SRGB"])
+def test_new_item_bc7_colour_keeps_its_format_after_import_and_factor_bake(tmp_path, source_format):
+    from cdmw.core.texture_native import encode_dds_with_directxtex
+
+    png, source = tmp_path / "colour.png", tmp_path / "colour.dds"
+    Image.new("RGBA", (16, 16), (128, 96, 64, 255)).save(png)
+    assert encode_dds_with_directxtex(png, source, dds_format=source_format, width=16, height=16, mip_count=5,
+                                     source_color_policy="assume_srgb" if source_format.endswith("_SRGB") else "auto")
+    original = source.read_bytes()
+    path = write_gltf(tmp_path, [{"name": "Opaque", "pbrMetallicRoughness": {
+        "baseColorTexture": {"index": 0}, "baseColorFactor": [0.5, 1, 1, 1],
+    }}], ["colour.dds"])
+    _, files, materials = export_materials(path, tmp_path, socket_attached=True)
+    material = materials["Opaque"]
+    assert material.shader == "SkinnedMeshStandard"
+    info = inspect_dds_native(files.side_files[material.textures["_baseColorTexture"]])
+    assert info.format_name == source_format
+    np.testing.assert_allclose(pixels(files, material)[0, 0], [64, 96, 64, 255], atol=2)
+    assert source.read_bytes() == original
+
+
+def test_bc7_normal_conversion_keeps_bc5_and_numeric_channels(tmp_path):
+    from cdmw.core.texture_native import encode_dds_with_directxtex
+    from cdmw.modding.material_replacer import ReplacementTextureSlot
+    from cdmw.modding.material_texture_payloads import _build_texture_payload
+
+    png, source = tmp_path / "normal.png", tmp_path / "normal.dds"
+    Image.new("RGB", (16, 16), (128, 96, 250)).save(png)
+    assert encode_dds_with_directxtex(png, source, dds_format="BC7_UNORM_SRGB", width=16, height=16,
+                                     mip_count=5, source_color_policy="assume_srgb")
+    original = source.read_bytes()
+    data = _build_texture_payload(
+        ReplacementTextureSlot("Normal", "normal", source, normal_space="green_up"),
+        target_entry=SimpleNamespace(path="character/texture/normal_n.dds"),
+        read_original_texture_bytes=lambda _entry: original,
+        original_texture_source_path=lambda _entry: source,
+        report=TextureReplacementReport(), on_log=None,
+    )
+    assert inspect_dds_native(data).format_name == "BC5_UNORM"
+    with Image.open(BytesIO(data)) as image:
+        np.testing.assert_allclose(np.asarray(image.convert("RGBA"))[0, 0, :2], [128, 159], atol=2)
+    assert source.read_bytes() == original

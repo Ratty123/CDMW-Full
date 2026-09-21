@@ -14,6 +14,13 @@ the remaining slots, with the current UV transforms and per-draw vertex limit ap
 during allocation. The output section plan owns both mesh and texture routing;
 unsupported capacity still blocks output without changing the PAC descriptor layout.
 
+Material texture replacement keeps source BC7 DDS formats when colour or opacity
+settings require re-encoding, including the `BC7_UNORM_SRGB` tag. Temporary PNGs
+decoded from these sRGB inputs are marked as sRGB for the encoder so their colours
+are not gamma-converted twice. Unmodified DDS inputs still pass through unchanged.
+Normal-map conversion retains its BC5 output contract; other generated textures
+continue to follow the existing template-format rules.
+
 ## OBJ material dependencies
 
 OBJ geometry import, texture discovery and replacement dependency checks use the
