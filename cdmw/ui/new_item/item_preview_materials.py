@@ -35,8 +35,17 @@ class PlacementScene:
 def compose_template_materials(template_build, make_scene, stop_event, token, preview_context):
     """Copy native template materials into the scene before their staging tree closes."""
 
+    def prepared_scene(template):
+        # The Python decoder returns ModelPreviewData; appearance edits operate on
+        # ParsedMesh. Prepare its texture slots before that conversion, just as the
+        # ordinary placement package does, and leave the cached decoder result alone.
+        prepared = prepare_preview_model(
+            template, render_settings=preview_context.get("render_settings"), stop_event=stop_event,
+        )
+        return make_scene(as_parsed_mesh(prepared))
+
     if preview_context.get("native_preview_core_cache_root") is None:
-        return make_scene(template_build(stop_event))
+        return prepared_scene(template_build(stop_event))
 
     from cdmw.services.mesh_dotnet_reference_composite import decode_dotnet_native_preview_package
     from cdmw.ui.new_item.item_preview import build_item_preview_package
@@ -44,7 +53,7 @@ def compose_template_materials(template_build, make_scene, stop_event, token, pr
     def consume_native_package(package_path):
         template = decode_dotnet_native_preview_package(package_path, cancelled=stop_event.is_set)
         return build_item_preview_package(
-            make_scene(template),
+            prepared_scene(template),
             token=token,
             output_root=preview_context["output_root"],
             stop_event=stop_event,
@@ -57,7 +66,7 @@ def compose_template_materials(template_build, make_scene, stop_event, token, pr
     item = template_build(
         stop_event, **preview_context, consume_native_package=consume_native_package,
     )
-    return item if isinstance(item, Path) else make_scene(item)
+    return item if isinstance(item, Path) else prepared_scene(item)
 
 
 def flat_preview_normal_axis(bounds: Any) -> str:

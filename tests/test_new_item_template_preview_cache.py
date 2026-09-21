@@ -11,6 +11,67 @@ from cdmw.models import ModelPreviewRenderSettings
 from cdmw.ui.new_item import template_preview_cache
 
 
+@pytest.mark.parametrize("appearance", ["translucency", "glow", "both"])
+@pytest.mark.parametrize("include_character", [False, True])
+def test_template_appearance_prepares_python_materials_before_overrides(tmp_path, appearance, include_character):
+    from PIL import Image
+    from cdmw.domain.new_item.spec import GlowChoice
+    from cdmw.domain.new_item.translucency import TranslucencyChoice
+    from cdmw.models import ModelPreviewData, ModelPreviewMesh
+    from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+    from cdmw.ui.new_item.controller_preview_mixin import _template_progressive_source
+    from cdmw.ui.new_item.item_preview import _PreviewPackageTask
+
+    textures = {}
+    for role, colour in (("base", (40, 100, 180)), ("normal", (128, 128, 255)), ("emissive", (64, 64, 64))):
+        path = tmp_path / f"{role}.dds"
+        Image.new("RGBA", (4, 4), (*colour, 255)).save(path)
+        textures[role] = str(path)
+    template = ModelPreviewData(path="sword.pac", format="pac", meshes=[
+        ModelPreviewMesh(
+            material_name=name, texture_name="base", source_submesh_index=index,
+            positions=[(0, 0, 0), (1, 0, 0), (0, 1, 0)], indices=[0, 1, 2],
+            normals=[(0, 0, 1)] * 3, texture_coordinates=[(0, 0), (1, 0), (0, 1)],
+            preview_base_texture_default_path=textures["base"],
+            preview_normal_texture_default_path=textures["normal"],
+            preview_normal_texture_default_strength=1.0,
+            preview_emissive_texture_default_path=textures["emissive"],
+        ) for index, name in enumerate(("Blade", "Guard"))
+    ])
+    character = ParsedMesh(path="character.pac", format="pac", submeshes=[SubMesh(
+        name="character", vertices=[(0, 0, 0), (1, 0, 0), (0, 1, 0)], faces=[(0, 1, 2)],
+    )]) if include_character else None
+    glow = GlowChoice(("Blade",), (1, 0, 0), 4) if appearance in {"glow", "both"} else None
+    glass = TranslucencyChoice(("Blade",), 0.1, 0.3) if appearance in {"translucency", "both"} else None
+    token, source = _template_progressive_source(
+        ("template", 17), 17, lambda _: None, lambda _: template,
+        include_character, lambda _: character, glow, glass,
+    )
+    task = _PreviewPackageTask(
+        output_root=tmp_path / "output", token=token, candidate=source,
+        is_placement=True, full_stage=True, base_package=None,
+        render_settings=ModelPreviewRenderSettings(use_textures_by_default=True), cache_mode="off",
+        native_preview_core_cache_root=None, source_usage_required=False, source_usage_acquired=False,
+    )
+    package = task(None, lambda *_: None, threading.Event()).package_dir
+    manifest = json.loads((package / "manifest.json").read_text(encoding="utf-8"))
+    parts = {row["material_index"]: row for row in manifest["material_presentations"] if row["lod_index"] == 0}
+    assert parts[0]["translucency"] == ([0.1, 0.3] if glass else None)
+    assert parts[1]["translucency"] is None
+    if glow:
+        assert parts[0]["emissive_color"] == [1.0, 0.0, 0.0]
+        assert parts[0]["emissive_intensity"] == 4.0
+        assert parts[1].get("emissive_intensity") != 4.0
+    for role in ("base_color", "normal", "emissive"):
+        bindings = [row for row in manifest["textures"] if row["role"] == role]
+        assert {0, 1} <= {index for row in bindings for index in row["material_indices_by_lod"][0]}
+        expected = Path(textures["base" if role == "base_color" else role]).read_bytes()
+        assert all((package / row["file"]["path"]).read_bytes() == expected for row in bindings)
+    assert manifest["state"]["preview_scene"]["reference_submesh_count"] == int(include_character)
+    assert all(not mesh.preview_native_material_overrides for mesh in template.meshes)
+    assert all(not mesh.preview_texture_path for mesh in template.meshes), "the cached decoded template is unchanged"
+
+
 @pytest.mark.parametrize("changed", ["primary", "other_texture", "other_index", "removed_archive", "native", "settings", "dependency", "prepared"])
 def test_native_template_identity_tracks_all_archive_and_render_inputs(tmp_path, monkeypatch, changed):
     root = tmp_path / "game"

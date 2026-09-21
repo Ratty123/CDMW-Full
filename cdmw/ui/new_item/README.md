@@ -177,6 +177,9 @@ settings override the source glass defaults on selected parts. Other parts retai
 their source glass or ordinary Plain PBR route. Settings follow each model variant;
 old shared-value choices remain supported. Parts combined into one atlas must use
 the same absorption settings or remain separate materials.
+Python-decoded template previews prepare their texture slots and convert to the
+shared mesh format before applying appearance edits, preserving texture bindings
+and leaving the cached source unchanged.
 Imported resident previews update without rebuilding geometry; template previews
 recompose their cached native material inputs. Both restore source defaults when the
 manual override is disabled. Effects previews carry the
