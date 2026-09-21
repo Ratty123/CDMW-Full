@@ -225,6 +225,8 @@ cannot simulate safely: assign roots to smaller selections, or mark scalp sectio
 rigid. Static editing remains available. The Rust XPBD solver drives the rendered cards and uses
 matching reference/root/collision transforms. Cached scalp-surface contacts check
 guide segments and card width while retaining neck and shoulder collision shapes.
+Head contacts use the actual scalp surface, so starting Play does not push fitted
+hair outward to the head's larger bounding capsule.
 A rest-shape force preserves the groom while allowing softer tip movement; adjust
 **Shape softness** to change it. This is an editor preview, not a simulation of
 the donor's in-game rig or physics. Optional procedural fills remain in the editor.

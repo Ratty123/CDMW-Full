@@ -1225,29 +1225,21 @@ impl Simulation {
                         &mut length_lambda[i],
                     );
                 }
+                // The scalp triangles below own head contacts. A bounding head
+                // capsule can extend outside that surface and inflate a fitted
+                // groom as soon as Play starts. Retain body capsules only.
                 for point in points.iter_mut().skip(1) {
                     let mut world = Vec3::from(*point);
-                    for capsule in capsules {
-                        let mut p = if capsule.follows_head {
-                            self.pivot
-                                + rotation.inverse() * (world - self.pivot - self.translation)
-                        } else {
-                            world
-                        };
+                    for capsule in capsules.iter().filter(|c| !c.follows_head) {
                         let a = Vec3::from(capsule.a);
                         let ab = Vec3::from(capsule.b) - a;
-                        let t = ((p - a).dot(ab) / ab.length_squared().max(1e-12)).clamp(0.0, 1.0);
+                        let t = ((world - a).dot(ab) / ab.length_squared().max(1e-12)).clamp(0.0, 1.0);
                         let center = a + ab * t;
-                        let offset = p - center;
+                        let offset = world - center;
                         let radius = capsule.radius + settings.collision_margin;
                         if offset.length_squared() < radius * radius {
-                            p = center + offset.try_normalize().unwrap_or(Vec3::X) * radius;
+                            world = center + offset.try_normalize().unwrap_or(Vec3::X) * radius;
                         }
-                        world = if capsule.follows_head {
-                            self.pivot + self.translation + rotation * (p - self.pivot)
-                        } else {
-                            p
-                        };
                     }
                     *point = world.to_array();
                 }
@@ -1535,6 +1527,58 @@ mod tests {
     }
 
     #[test]
+    fn hair_motion_uses_scalp_surface_instead_of_inflating_to_head_capsule() {
+        let mut s = state();
+        // An owned head narrower across the temples than from front to back.
+        // Its bounding capsule protrudes well beyond the fitting surface.
+        s.scalp.positions = vec![
+            [0.0, 0.15, 0.0], [0.08, 0.0, 0.0], [0.0, 0.0, 0.12],
+            [-0.08, 0.0, 0.0], [0.0, 0.0, -0.12], [0.0, -0.15, 0.0],
+        ];
+        s.scalp.triangles = vec![
+            [0, 2, 1], [0, 3, 2], [0, 4, 3], [0, 1, 4],
+            [5, 1, 2], [5, 2, 3], [5, 3, 4], [5, 4, 1],
+        ];
+        s.groups[0].width = 0.004;
+        let root = Attachment { triangle: 0, barycentric: [0.65, 0.1, 0.25] };
+        let normal = s.scalp.normal(&root);
+        let start = s.scalp.point(&root).unwrap();
+        let end = s.scalp.point(&Attachment { triangle: 0, barycentric: [0.05, 0.25, 0.7] }).unwrap();
+        let points = (0..32).map(|i| {
+            let t = i as f32 / 31.0;
+            (start.lerp(end, t) + normal * 0.005 * root_blend(start.distance(end) * t, 0.004)).to_array()
+        }).collect();
+        s.guides.push(Guide { root, group: 0, points });
+        s.collisions.push(Capsule {
+            a: [0.0, -0.03, 0.0], b: [0.0, 0.03, 0.0], radius: 0.12, follows_head: true,
+        });
+        let mesh = generate(&s, &AtomicBool::new(false)).unwrap().remove(0);
+        s.bindings = mesh.bindings;
+        let before = s.clone();
+        let mut sim = Simulation::new(&s).unwrap();
+        for frame in 0..120 {
+            let settings = MotionSettings {
+                // First isolate the startup jump, then force actual contacts.
+                gravity: if frame < 60 { [0.0; 3] } else { (-normal * 9.81).to_array() },
+                ..Default::default()
+            };
+            sim.advance_test(1.0 / 60.0, settings, &s.collisions, 0, 0.3).unwrap();
+            assert!(Vec3::from(sim.points[0][0]).distance(start) < 1e-7);
+            let displacement = sim.points[0].iter().zip(&s.guides[0].points)
+                .map(|(a, b)| Vec3::from(*a).distance(Vec3::from(*b)))
+                .fold(0.0_f32, f32::max);
+            assert!(displacement < 0.004, "Play inflated close-fitting hair by {displacement} at frame {frame}");
+            let mut rendered = mesh.positions.clone();
+            deform(&s.bindings, &sim.points, 0, &mut rendered).unwrap();
+            for point in rendered {
+                assert!((Vec3::from(point) - start).dot(normal) >= -0.0003,
+                    "motion must still keep the cards outside the actual scalp");
+            }
+        }
+        assert_eq!(s, before, "preview must preserve the authored shape");
+    }
+
+    #[test]
     fn hair_existing_binding_roundtrips_and_requires_explicit_group() {
         let mut s = planted();
         let positions = vec![[0.02, 1.0, 0.0], [0.03, 0.9, 0.0], [0.04, 0.8, 0.0]];
@@ -1710,15 +1754,23 @@ mod tests {
     }
 
     #[test]
-    fn hair_collision_pushes_vertices_outside_capsule() {
-        let s = planted();
+    fn hair_body_collision_pushes_vertices_outside_capsule() {
+        let mut s = planted();
+        let root = Vec3::from(s.guides[0].points[0]);
+        s.guides[0].points = (0..16)
+            .map(|i| (root + Vec3::Y * (i as f32 * 0.02)).to_array())
+            .collect();
         let mut sim = Simulation::new(&s).unwrap();
         let capsule = Capsule {
-            a: [0.0, 0.77, -0.2],
-            b: [0.0, 0.9, -0.2],
+            a: [0.0, 1.1, -0.2],
+            b: [0.0, 1.23, -0.2],
             radius: 0.08,
-            follows_head: true,
+            follows_head: false,
         };
+        let distance = |p: [f32; 3]| {
+            Vec3::from(p).distance(Vec3::new(0.0, p[1].clamp(1.1, 1.23), -0.2))
+        };
+        assert!(s.guides[0].points.iter().skip(1).any(|p| distance(*p) < capsule.radius));
         sim.advance(
             1.0 / 60.0,
             MotionSettings::default(),
@@ -1727,8 +1779,7 @@ mod tests {
         )
         .unwrap();
         for p in sim.points[0].iter().skip(1) {
-            let center = Vec3::new(0.0, p[1].clamp(0.77, 0.9), -0.2);
-            assert!(Vec3::from(*p).distance(center) >= 0.0819);
+            assert!(distance(*p) >= capsule.radius + 0.0019);
         }
     }
     #[test]
