@@ -129,7 +129,11 @@ def _template_progressive_source(
     from cdmw.services.new_item_materials import glow_preview_mesh
     from cdmw.services.new_item_translucency import translucency_preview_mesh
 
-    token = (*token, repr(glow), repr(translucency))
+    # The composed material cache must name the same scene as its geometry and
+    # worker request. Include character visibility and invalidate packages that
+    # lost the template's wrapper names before applying appearance edits.
+    token = (*token, "appearance-v2", bool(include_character), repr(glow), repr(translucency))
+    scene_token = ("template-character", template_key, token) if include_character else token
 
     def appearance(mesh):
         return translucency_preview_mesh(glow_preview_mesh(mesh, glow), translucency)
@@ -151,11 +155,11 @@ def _template_progressive_source(
                 model=appearance(template),
                 character=character_mesh(stop_event),
             ),
-            stop_event, ("template-character", template_key, token), preview_context,
+            stop_event, scene_token, preview_context,
         )
 
     return (
-        ("template-character", template_key, token) if include_character else token,
+        scene_token,
         _progressive_preview_source(
             build_geometry_character_scene,
             build_material_character_scene,

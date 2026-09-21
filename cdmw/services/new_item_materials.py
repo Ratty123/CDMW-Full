@@ -465,6 +465,14 @@ def encode_emissive_solid(*, on_log: Optional[Callable[[str], None]] = None) -> 
         return produced.read_bytes()
 
 
+def appearance_preview_part_names(part: object) -> tuple[str, ...]:
+    """Native template edits target a wrapper, even when its material is shared."""
+    wrapper = str(getattr(part, "cdmw_native_source_submesh_name", "") or "")
+    if wrapper:
+        return (wrapper,)
+    return (str(getattr(part, "name", "") or ""), str(getattr(part, "material", "") or ""))
+
+
 def glow_preview_parameter_groups(mesh: object, glow: object = None) -> Tuple[Dict[str, object], ...]:
     """The Glow choice as resident material parameter groups for the studio's viewport.
 
@@ -472,8 +480,8 @@ def glow_preview_parameter_groups(mesh: object, glow: object = None) -> Tuple[Di
     renderer draws from the same three values sent as parameter overrides, so the
     preview and the shipped item agree by construction. `mesh` is the ParsedMesh the
     preview package was built from, so the group indices are the package's own submesh
-    order. A ticked part (matched on the submesh's material or name, the two keys the
-    export matches on) takes the reader's colour and strength; every other part goes
+    order. A ticked template part uses its exact PAC wrapper; imported parts match
+    their material or name. It takes the reader's colour and strength; every other part goes
     back to the import's own emissive when it declares one, else its override is
     cleared outright (an explicit None, which the renderer reads as "unset").
     Every push is a complete statement over all submeshes: un-ticking needs no
@@ -495,10 +503,7 @@ def glow_preview_parameter_groups(mesh: object, glow: object = None) -> Tuple[Di
     intensity = float(getattr(glow, "intensity", 0.0) or 0.0)
     buckets: Dict[tuple, Tuple[Dict[str, object], list]] = {}
     for index, submesh in enumerate(tuple(getattr(mesh, "submeshes", ()) or ())):
-        names = {
-            str(getattr(submesh, "material", "") or "").casefold(),
-            str(getattr(submesh, "name", "") or "").casefold(),
-        }
+        names = {name.casefold() for name in appearance_preview_part_names(submesh)}
         wants_glow = bool(ticked & names)
         adjustment = (
             SimpleNamespace(material_role="glow", emissive_color_rgb=color, emissive_strength=intensity)

@@ -272,6 +272,14 @@ def decode_dotnet_native_preview_package(
     if not isinstance(raw_batches, Sequence) or isinstance(raw_batches, (str, bytes, bytearray)):
         raise ValueError("Preview-core package batch list is invalid.")
 
+    # The material name is often shared by multiple PAC wrappers. Keep the
+    # per-batch wrapper identity used by New Item's appearance controls/export.
+    part_names = {
+        _index(slot.get("batch_index")): str(slot.get("submesh_name") or "").strip()
+        for slot in (manifest.get("material_slots") or ())
+        if isinstance(slot, Mapping) and _index(slot.get("batch_index")) >= 0
+        and str(slot.get("submesh_name") or "").strip()
+    }
     decoded: list[SubMesh] = []
     total_vertices = 0
     from cdmw.services.mesh_rust_preview_package import _rebased_preview_core_batch, _validated_preview_core_source
@@ -300,6 +308,9 @@ def decode_dotnet_native_preview_package(
             if stop_requested():
                 raise RunCancelled("Preview-core package decode cancelled.")
             raise ValueError("Preview-core package geometry is incomplete or corrupt.")
+        if part_name := part_names.get(_index(raw_batch.get("index"))):
+            submesh.name = part_name
+            submesh.cdmw_native_source_submesh_name = part_name
         if canonical_graph:
             # Composition must retain the same layered graph that Browse sends to
             # Rust. The material override dictionary survives scene/placement clones.

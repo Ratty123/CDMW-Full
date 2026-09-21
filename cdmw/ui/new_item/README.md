@@ -249,6 +249,9 @@ path ignores `_refractiveIndex` unless its hidden depth-thickness mode is enable
 Python-decoded template previews prepare their texture slots and convert to the
 shared mesh format before applying appearance edits, preserving texture bindings
 and leaving the cached source unchanged.
+Native template previews retain each PAC wrapper name by its material batch index.
+Glow, translucency and surface overrides therefore target the selected part in
+Model & Placement and Effects, even when several parts share a material name.
 Imported resident previews update without rebuilding geometry; template previews
 recompose their cached native material inputs. Both restore source defaults when the
 manual override is disabled. Effects previews carry the
@@ -624,6 +627,10 @@ the body in the item's authored frame so the exact relative fit is preserved wit
 the placement numbers, gizmo axes or Builder transform. Turning the character on or off rebuilds
 through the existing latest-wins preview worker, and the character can never enter the item mesh,
 Apply result, plan or output package.
+Character visibility is part of the composed scene's cache identity for every texture
+tier. Texture upgrades retain the selected comparison mode, and rapid on/off/on
+changes restart cancelled work while rejecting its late results. Old appearance
+packages rebuild once so cached scenes cannot restore an outdated character state.
 The viewport's
 rotation convention (the helper's yaw/pitch/roll) and the pipeline's x-then-y-
 then-z are the same matrix re-expressed, proven in

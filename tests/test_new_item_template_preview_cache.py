@@ -11,6 +11,193 @@ from cdmw.models import ModelPreviewRenderSettings
 from cdmw.ui.new_item import template_preview_cache
 
 
+def _native_helmet(tmp_path):
+    """Two independently editable wrappers sharing one underlying material."""
+    import copy
+    from tests.test_rust_preview_material_oracle_parity import _layer, _write_preview_core_package
+
+    native = tmp_path / "native-helmet"
+    _write_preview_core_package(native, layers=[_layer(role="base", source_parameter="_diffuseTexture")])
+    manifest = native / "manifest.json"
+    document = json.loads(manifest.read_text())
+    first = document["batches"][0]
+    first["material_name"] = "helmet_shell"
+    second = copy.deepcopy(first)
+    second["index"] = 1
+    document["batches"].append(second)
+    # Material slots can arrive in a different order from the geometry batches.
+    document["material_slots"] = [
+        {"batch_index": 1, "submesh_name": "helmet_eye", "material_name": "helmet_shell"},
+        {"batch_index": 0, "submesh_name": "helmet_shell", "material_name": "helmet_shell"},
+    ]
+    manifest.write_text(json.dumps(document))
+    return native
+
+
+@pytest.mark.parametrize("first_character", [False, True])
+def test_template_character_toggle_keeps_each_cached_material_stage(tmp_path, first_character):
+    from cdmw.domain.new_item.translucency import TranslucencyChoice
+    from cdmw.services.mesh_dotnet_reference_composite import decode_dotnet_native_preview_package
+    from cdmw.ui.new_item.controller_preview_mixin import _template_progressive_source
+    from cdmw.ui.new_item.item_preview import _PreviewPackageTask
+
+    native = _native_helmet(tmp_path)
+    original = (native / "manifest.json").read_bytes()
+    character = decode_dotnet_native_preview_package(native)
+
+    def material_build(stop, **context):
+        return context["consume_native_package"](native)
+
+    packages = {}
+    for template_key, enabled in ((17, first_character), (17, not first_character),
+                                  (29, not first_character), (17, first_character)):
+        token, source = _template_progressive_source(
+            ("template", template_key), template_key,
+            lambda _: decode_dotnet_native_preview_package(native), material_build,
+            enabled, lambda _: character if enabled else None,
+            translucency=TranslucencyChoice(("helmet_eye",), 0.2, 0.4,
+                surface_settings=(("helmet_eye", 0.9, 0.0),)),
+        )
+        task = _PreviewPackageTask(
+            output_root=tmp_path / "output", token=token, candidate=source,
+            is_placement=True, full_stage=False, base_package=None,
+            render_settings=ModelPreviewRenderSettings(), cache_mode="balanced",
+            native_preview_core_cache_root=tmp_path / "native-cache",
+            source_usage_required=False, source_usage_acquired=False,
+        )
+        stages = []
+        product = task(None, lambda current, total, path: stages.append((current, Path(path))), threading.Event())
+        stages.append((3, product.package_dir))
+        assert any(stage == 2 for stage, _ in stages), "exercise the fast material handoff too"
+        for stage, package in stages:
+            manifest = json.loads((package / "manifest.json").read_text())
+            scene = manifest["state"]["preview_scene"]
+            assert scene["reference_submesh_count"] == (2 if enabled else 0)
+        key = (template_key, enabled)
+        if key in packages:
+            assert packages[key] == product.package_dir, "revisiting the same scene should reuse its cache"
+        packages[key] = product.package_dir
+    assert packages[(17, False)] != packages[(17, True)]
+    assert (native / "manifest.json").read_bytes() == original
+
+
+@pytest.mark.parametrize("surface", ["appearance", "effects"])
+@pytest.mark.parametrize("selected", ["helmet_shell", "helmet_eye"])
+def test_template_appearance_uses_wrapper_identity_instead_of_shared_material(tmp_path, surface, selected):
+    from cdmw.domain.new_item.spec import GlowChoice
+    from cdmw.domain.new_item.translucency import TranslucencyChoice
+    from cdmw.ui.new_item.controller_preview_mixin import _template_progressive_source
+    from cdmw.ui.new_item.effect_item_source import PlannedEffectItemSource
+    from cdmw.ui.new_item.item_preview import PlacementScene, build_item_preview_package
+    from cdmw.ui.new_item.model_import import ModelPlacement
+
+    native = _native_helmet(tmp_path)
+    context = dict(output_root=tmp_path / "output", native_preview_core_cache_root=tmp_path / "native-cache",
+                   render_settings=ModelPreviewRenderSettings(), cache_mode="off")
+    stop = threading.Event()
+    glow = GlowChoice((selected,), (1.0, 0.0, 0.0), 4.0)
+    glass = TranslucencyChoice((selected,), 0.2, 0.4, surface_settings=((selected, 0.9, 0.0),))
+
+    def material_build(stop, **kwargs):
+        return kwargs["consume_native_package"](native)
+
+    if surface == "appearance":
+        _, source = _template_progressive_source(
+            ("template", 17), 17, lambda _: None, material_build, False, lambda _: None, glow, glass,
+        )
+        package = source.materials(stop, **context)
+    else:
+        source = PlannedEffectItemSource(source=None, placement=ModelPlacement(offset=(0.1, 0.0, 0.0)), applied=False,
+            preview_model=None, rebuilt_data=b"", snapshot=None, template_key=17, glow=glow,
+            translucency=glass, template_build=material_build, preview_context=context)
+        package = source.consume(stop, lambda result: build_item_preview_package(
+            PlacementScene(template=None, model=result[0]), token="effects", stop_event=stop,
+            output_root=tmp_path / "effects"))
+    manifest = json.loads((package / "manifest.json").read_text())
+    parts = manifest["state"]["preview_scene"]["part_identities"]
+    assert [part["name"] for part in parts] == ["helmet_shell", "helmet_eye"]
+    assert [part["material"] for part in parts] == ["helmet_shell", "helmet_shell"]
+    for index, name in enumerate(("helmet_shell", "helmet_eye")):
+        row = manifest["material_presentations"][index]
+        assert row["translucency"] == ([0.2, 0.4] if name == selected else None)
+        assert row["translucency_surface"] == ([0.9, 0.0] if name == selected else None)
+        assert (row.get("emissive_intensity") == 4.0) == (name == selected)
+
+
+def test_placement_material_upgrade_does_not_temporarily_hide_character(tmp_path):
+    from PySide6.QtWidgets import QApplication
+    from cdmw.ui.new_item.item_preview import ItemPreviewFrame
+    from tests.test_new_item_item_preview import ItemPreviewFrameTests
+
+    app = QApplication.instance() or QApplication([])
+    frame = ItemPreviewFrame(output_root=tmp_path, host_factory=ItemPreviewFrameTests._fake_host_class())
+    frame._ensure_host()
+    frame._pending = ("helmet-character", object())
+    try:
+        for stage in ("geometry", "fast_materials", "materials"):
+            package = tmp_path / f"package_{stage}"
+            package.mkdir()
+            frame._package_ready(package, "helmet-character", True, stage)
+        modes = [call[1][0] for call in frame.host.calls if call[0] == "set_display_mode"]
+        assert modes == ["overlay"] * 3
+    finally:
+        frame.shutdown()
+        app.processEvents()
+
+
+@pytest.mark.parametrize("late_result", [False, True])
+def test_rapid_character_toggle_restarts_a_cancelled_request(tmp_path, monkeypatch, late_result):
+    import time
+    from PySide6.QtWidgets import QApplication
+    from cdmw.domain.cancellation import RunCancelled
+    from cdmw.ui.new_item.item_preview import ItemPreviewFrame, _PreviewBuildProduct, _PreviewPackageTask
+    from cdmw.ui.new_item.model_import import ModelPlacement
+    from tests.test_new_item_item_preview import ItemPreviewFrameTests
+
+    app = QApplication.instance() or QApplication([])
+    frame = ItemPreviewFrame(output_root=tmp_path, host_factory=ItemPreviewFrameTests._fake_host_class())
+    frame._ensure_host()
+    started, release = threading.Event(), threading.Event()
+    builds = []
+
+    def build(task, log, progress, stop):
+        builds.append(task.token)
+        if len(builds) == 1:
+            started.set()
+            assert release.wait(3)
+            assert stop.is_set()
+            if not late_result:
+                raise RunCancelled("superseded character toggle")
+        package = tmp_path / f"package_{len(builds)}"
+        package.mkdir()
+        if len(builds) == 1:
+            progress(2, 3, str(package))
+        return _PreviewBuildProduct(package, task.candidate, "materials")
+
+    def pump_until(predicate):
+        deadline = time.monotonic() + 3
+        while not predicate() and time.monotonic() < deadline:
+            app.processEvents()
+            time.sleep(0.001)
+        assert predicate()
+
+    monkeypatch.setattr(_PreviewPackageTask, "__call__", build)
+    try:
+        frame.show_placement(object(), token="character-on", placement=ModelPlacement())
+        pump_until(started.is_set)
+        frame.show_placement(object(), token="character-off", placement=ModelPlacement())
+        frame.show_placement(object(), token="character-on", placement=ModelPlacement())
+        release.set()
+        pump_until(lambda: frame._thread is None)
+        assert builds == ["character-on", "character-on"]
+        loads = [call[1][0] for call in frame.host.calls if call[0] == "load_package"]
+        assert loads == [tmp_path / "package_2"], "cancelled work must not replace the latest scene"
+    finally:
+        release.set()
+        frame.shutdown()
+        pump_until(lambda: not frame.iter_shutdown_workers())
+
+
 @pytest.mark.parametrize("appearance", ["translucency", "glow", "both"])
 @pytest.mark.parametrize("include_character", [False, True])
 def test_template_appearance_prepares_python_materials_before_overrides(tmp_path, appearance, include_character):

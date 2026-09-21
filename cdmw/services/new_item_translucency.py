@@ -214,11 +214,14 @@ def selected_translucency(choice: TranslucencyChoice | None, wrapper_name: str, 
 
 
 def translucency_preview_parameter_groups(mesh, choice: TranslucencyChoice | None = None, *, source_transmission=True):
+    from cdmw.services.new_item_materials import appearance_preview_part_names
+
     if choice is not None:
         choice.validate()
     groups = []
     for index, part in enumerate(getattr(mesh, "submeshes", ())):
-        absorption = choice.values_for(getattr(part, "name", ""), getattr(part, "material", "")) if choice else None
+        names = appearance_preview_part_names(part)
+        absorption = choice.values_for(*names) if choice else None
         if absorption is None:
             absorption = source_translucency(part) if source_transmission else None
         groups.append({
@@ -226,7 +229,7 @@ def translucency_preview_parameter_groups(mesh, choice: TranslucencyChoice | Non
             "editor_role": "replacement_preview",
             "translucency": list(absorption) if absorption is not None else None,
         })
-        surface = choice.surface_for(getattr(part, "name", ""), getattr(part, "material", "")) if choice else None
+        surface = choice.surface_for(*names) if choice else None
         if surface is not None:
             groups[-1]["translucency_surface"] = list(surface)
     return tuple(groups)

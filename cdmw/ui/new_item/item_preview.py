@@ -1026,6 +1026,7 @@ class ItemPreviewFrame(QWidget):
         if (
             building is not None
             and not self._closed
+            and not self._superseded
             and self._pending is not None
             and self._pending[0] == building[0]
             and self._building is not None
@@ -1079,9 +1080,12 @@ class ItemPreviewFrame(QWidget):
         done_token = self._building[0] if self._building is not None else None
         done_stage = self._building[2] if self._building is not None else ""
         self._building = None
+        superseded = self._superseded
         self._superseded = False
         newer = self._pending
-        if newer is not None and newer[0] != done_token and not self._closed:
+        # On -> off -> on can return to the same token after cancelling its
+        # worker. It still needs a fresh build; the cancelled one cannot finish it.
+        if newer is not None and (newer[0] != done_token or superseded) and not self._closed:
             self._upgrade_request = None
             self._start_package(newer)
             return
@@ -1126,7 +1130,7 @@ class ItemPreviewFrame(QWidget):
             self._building = (self._building[0], self._building[1], stage)
         if not isinstance(result, Path):
             return
-        if self._closed:
+        if self._closed or self._superseded:
             self._remove_package(result)
             return
         if self._pending is not None and token != self._pending[0]:
@@ -1161,7 +1165,7 @@ class ItemPreviewFrame(QWidget):
             self._loaded_stage = stage
             self._full_texture_upgrade_from_fast = stage == "materials" and previous_stage == "fast_materials"
             self._reset_view_on_ready = reset_view
-            self.host.set_display_mode("replacement_only")
+            self.host.set_display_mode(self._view_mode if is_placement else "replacement_only")
             self.status_changed.emit(
                 "Fast textures are visible; loading full textures…"
                 if stage == "fast_materials" or self._full_texture_upgrade_from_fast

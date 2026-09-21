@@ -121,6 +121,7 @@ _EXTRA_SUBMESH_ATTRS = (
     "cdmw_native_preview_triangle_group",
     "cdmw_native_preview_vertex_update_group",
     "cdmw_native_source_submesh_index",
+    "cdmw_native_source_submesh_name",
     "cdmw_native_source_local_submesh_index",
     "cdmw_native_source_component_index",
     "cdmw_native_source_component_label",
