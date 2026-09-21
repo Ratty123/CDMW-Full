@@ -2292,6 +2292,87 @@ fn hair_shaping_tools_change_rendered_hair_keep_roots_and_lengthen_only_tips() {
 }
 
 #[test]
+fn hair_groom_brush_reaches_drawn_locks_inside_its_radius() {
+    for follow_scalp in [true, false] {
+        for tool in [HairTool::Comb, HairTool::Smooth, HairTool::Curl, HairTool::Clump] {
+            let (mut state, document) = fixture();
+            for p in &mut state.scalp.positions {
+                p[1] = (0.25_f32.powi(2) - p[0] * p[0] - p[2] * p[2]).sqrt();
+            }
+            state.collisions.clear();
+            let mut app = LabApplication::new(None, None);
+            app.document = Some(document);
+            app.cdmw_state = json!({"hair":{"available":true,"materials_ready":true},
+                "replacement":{"comparison":"edit"}});
+            app.hydrate_hair(Some(state));
+            app.hair.pending_preset = false;
+            let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1200.0, 900.0));
+            app.viewport_rect = Some(rect);
+            app.camera.set_standard_view(crate::camera::StandardView::Top);
+            app.camera.frame_positions_in_viewport(
+                app.hair.state.as_ref().unwrap().scalp.positions.iter().copied().map(Vec3::from), rect);
+            app.run_hair_action(HairAction::Empty);
+            await_hair(&mut app);
+            app.hair.tool = Some(HairTool::Guide);
+            app.hair.draw_shape = DrawShape::Arc;
+            app.hair.draw_follow_scalp = follow_scalp;
+            let start = app.camera.project(Vec3::new(-0.06, 0.24, 0.0), rect).unwrap().screen;
+            let end = start + Vec2::X * 30.0;
+            app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryPressed(start), rect, false, false, false);
+            app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryMoved(end), rect, false, false, false);
+            app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryReleased(end), rect, false, false, false);
+            await_hair(&mut app);
+            let before = app.hair.state.clone().unwrap();
+            assert_eq!(before.locks.len(), 1);
+            let (visible, id) = visible_lock(&app, rect);
+            let frame = app.hair.scene.as_ref().unwrap().frame.positions.clone();
+            app.hair.tool = Some(tool);
+            app.hair.radius = 100.0;
+            let brush = visible + Vec2::Y * 50.0;
+            assert!(app.lock_at(brush, rect).is_none(), "the brush centre misses the lock");
+            app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryPressed(brush), rect, false, false, false);
+            app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryMoved(brush + Vec2::X * 4.0), rect, false, false, false);
+            let stroke = app.hair.stroke.as_ref().unwrap();
+            assert!(stroke.guides != before.guides,
+                "{tool:?} ignored a visible lock inside the brush, Follow scalp={follow_scalp}");
+            assert_eq!(stroke.guides[0].points[0], before.guides[0].points[0]);
+            assert_eq!(app.hair.selected, HashSet::from([id as usize]));
+            app.render_hair();
+            assert_ne!(app.hair.scene.as_ref().unwrap().frame.positions, frame);
+            app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryReleased(brush + Vec2::X * 4.0), rect, false, false, false);
+            await_hair(&mut app);
+            let after = app.hair.state.as_ref().unwrap();
+            assert_eq!(after.revision, before.revision + 1);
+            assert_ne!(after.guides, before.guides);
+            after.validate().unwrap();
+
+            // Enlarging the brush must not turn visible-only grooming into
+            // selection through the character reference.
+            let mut covered = after.clone();
+            let mut occluder = covered.scalp.clone();
+            occluder.identity = "head:owned-occluder".into();
+            for p in &mut occluder.positions {
+                p[1] += 0.15;
+            }
+            covered.references.push(occluder);
+            let document = app.hair.preview.clone().unwrap();
+            app.document = Some(document);
+            app.hydrate_hair(Some(covered.clone()));
+            app.hair.pending_preset = false;
+            app.render_hair();
+            app.hair.tool = Some(tool);
+            app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryPressed(brush), rect, false, false, false);
+            app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryMoved(brush + Vec2::X * 4.0), rect, false, false, false);
+            assert!(app.hair.stroke.as_ref().unwrap().guides == covered.guides,
+                "{tool:?} groomed hair through the bust");
+            app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryReleased(brush + Vec2::X * 4.0), rect, false, false, false);
+            assert!(!app.hair.preparing());
+            assert_eq!(app.hair.state.as_ref().unwrap().revision, covered.revision);
+        }
+    }
+}
+
+#[test]
 fn hair_stroke_escape_cancels_without_history_and_playback_resumes_same_pose() {
     let (mut app, rect) = ready_hair_app();
     app.hair.playing = true;

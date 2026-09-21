@@ -24,6 +24,42 @@ pub struct SurfaceHit {
 }
 
 impl SurfaceIndex {
+    /// Visit candidate faces inside a convex picking volume using the resident BVH.
+    /// Leaf faces still need an exact brush test and a visible-surface check.
+    pub fn visit_frustum_candidates(
+        &self,
+        planes: &[glam::Vec4; 6],
+        mut visit: impl FnMut(usize),
+    ) {
+        if self.nodes.is_empty() {
+            return;
+        }
+        let mut stack = [0_usize; usize::BITS as usize + 1];
+        let mut pending = 1;
+        while pending > 0 {
+            pending -= 1;
+            let node = &self.nodes[stack[pending]];
+            if planes.iter().any(|plane| {
+                let support = Vec3::new(
+                    if plane.x >= 0.0 { node.max.x } else { node.min.x },
+                    if plane.y >= 0.0 { node.max.y } else { node.min.y },
+                    if plane.z >= 0.0 { node.max.z } else { node.min.z },
+                );
+                plane.dot(support.extend(1.0)) < 0.0
+            }) {
+                continue;
+            }
+            if let Some((a, b)) = node.children {
+                stack[pending..pending + 2].copy_from_slice(&[a, b]);
+                pending += 2;
+            } else {
+                for &face in &self.faces[node.start..node.end] {
+                    visit(face);
+                }
+            }
+        }
+    }
+
     /// Closest point with BVH pruning, reused by the transient contact solver.
     pub fn nearest(
         &self,
@@ -339,6 +375,39 @@ impl SurfaceIndex {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hair_brush_frustum_prunes_distant_faces_and_follows_refits() {
+        let mut positions = vec![];
+        let mut indices = vec![];
+        for x in [0.0, 100.0] {
+            for row in 0..16 {
+                let y = row as f32 * 0.02;
+                let first = positions.len() as u32;
+                positions.extend([[x, y, 0.5], [x + 0.01, y, 0.5], [x, y + 0.01, 0.5]]);
+                indices.extend([first, first + 1, first + 2]);
+            }
+        }
+        let mut index = SurfaceIndex::new(&positions, &indices);
+        let planes = [
+            glam::vec4(1.0, 0.0, 0.0, 1.0), glam::vec4(-1.0, 0.0, 0.0, 1.0),
+            glam::vec4(0.0, 1.0, 0.0, 1.0), glam::vec4(0.0, -1.0, 0.0, 1.0),
+            glam::vec4(0.0, 0.0, 1.0, 0.0), glam::vec4(0.0, 0.0, -1.0, 1.0),
+        ];
+        let mut faces = vec![];
+        index.visit_frustum_candidates(&planes, |face| faces.push(face));
+        faces.sort_unstable();
+        assert_eq!(faces, (0..16).collect::<Vec<_>>());
+        for p in &mut positions {
+            p[0] -= 100.0;
+        }
+        index.refit(&positions, &indices);
+        faces.clear();
+        index.visit_frustum_candidates(&planes, |face| faces.push(face));
+        faces.sort_unstable();
+        assert_eq!(faces, (16..32).collect::<Vec<_>>());
+        SurfaceIndex::default().visit_frustum_candidates(&planes, |_| panic!("empty scene"));
+    }
 
     #[test]
     fn hair_concave_contacts_keep_surface_winding() {

@@ -150,24 +150,78 @@ impl LabApplication {
     }
 
     fn brush_locks(&self, point: Vec2, rect: egui::Rect) -> Vec<u64> {
+        let Some(scene) = &self.hair.scene else {
+            return vec![];
+        };
         let mut ids = BTreeSet::new();
-        // Bounded surface samples respect occlusion; never select every guide
-        // projected behind the face or the visible lock.
-        for offset in [
-            Vec2::ZERO,
-            Vec2::X,
-            -Vec2::X,
-            Vec2::Y,
-            -Vec2::Y,
-            Vec2::new(0.7, 0.7),
-            Vec2::new(-0.7, 0.7),
-            Vec2::new(0.7, -0.7),
-            Vec2::new(-0.7, -0.7),
-        ] {
-            if let Some((id, _, _)) = self.lock_at(point + offset * self.hair.radius, rect) {
+        let radius = self.hair.radius;
+        let view = self.camera.view_projection(rect);
+        let ndc = Vec2::new(
+            (point.x - rect.left()) / rect.width() * 2.0 - 1.0,
+            1.0 - (point.y - rect.top()) / rect.height() * 2.0,
+        );
+        let extent = Vec2::new(2.0 * radius / rect.width(), 2.0 * radius / rect.height());
+        let [x, y, z, w] = [view.row(0), view.row(1), view.row(2), view.row(3)];
+        let planes = [
+            x - w * (ndc.x - extent.x),
+            w * (ndc.x + extent.x) - x,
+            y - w * (ndc.y - extent.y),
+            w * (ndc.y + extent.y) - y,
+            z,
+            w - z,
+        ];
+        // Test actual card surfaces inside the circle. Fixed centre/rim rays
+        // miss short or thin locks even when the brush visibly covers them.
+        scene.picking.visit_frustum_candidates(&planes, |triangle| {
+            let face = &scene.frame.indices[triangle * 3..triangle * 3 + 3];
+            let Some(id) = scene.vertex_locks[face[0] as usize] else {
+                return;
+            };
+            if ids.contains(&id) {
+                return;
+            }
+            let projected = |vertex: u32| {
+                let clip = view * Vec3::from(scene.frame.positions[vertex as usize]).extend(1.0);
+                (clip.is_finite() && clip.w > 1e-6).then(|| {
+                    Vec2::new(
+                        rect.left() + (clip.x / clip.w + 1.0) * 0.5 * rect.width(),
+                        rect.top() + (1.0 - clip.y / clip.w) * 0.5 * rect.height(),
+                    )
+                })
+            };
+            let (Some(a), Some(b), Some(c)) =
+                (projected(face[0]), projected(face[1]), projected(face[2]))
+            else {
+                return;
+            };
+            let cross = [
+                (b - a).perp_dot(point - a),
+                (c - b).perp_dot(point - b),
+                (a - c).perp_dot(point - c),
+            ];
+            let mut closest = point;
+            if !cross.iter().all(|v| *v >= 0.0) && !cross.iter().all(|v| *v <= 0.0) {
+                closest = [a, b, c]
+                    .into_iter()
+                    .zip([b, c, a])
+                    .map(|(start, end)| {
+                        let edge = end - start;
+                        let along = (point - start).dot(edge) / edge.length_squared().max(1e-12);
+                        start + edge * along.clamp(0.0, 1.0)
+                    })
+                    .min_by(|a, b| a.distance_squared(point).total_cmp(&b.distance_squared(point)))
+                    .unwrap();
+            }
+            if closest.distance_squared(point) > radius * radius {
+                return;
+            }
+            // Nudge off shared triangle edges before the depth test. The same
+            // resident scene preserves scalp occlusion and part visibility.
+            let sample = closest.lerp((a + b + c) / 3.0, 0.0001);
+            if self.lock_at(sample, rect).is_some_and(|hit| hit.0 == id) {
                 ids.insert(id);
             }
-        }
+        });
         ids.into_iter().collect()
     }
 

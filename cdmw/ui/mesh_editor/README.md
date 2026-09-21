@@ -189,7 +189,10 @@ the pointed distal section. **Lengthen** acquires a clicked lock like Move,
 respects an existing selection and extends tips without moving roots. Empty,
 rigid and unresolved selections explain what is required.
 Comb, Smooth, Curl and Clump use the highlighted brush region, restricted to the
-selection when one exists. Appearance controls width and generated follower
+selection when one exists. They work with hair drawn with **Follow scalp** either
+on or off. Short and thin locks anywhere inside the brush circle can be groomed;
+the character reference and nearer hair still block edits to hidden locks.
+Appearance controls width and generated follower
 cards. Symmetry uses explicit pairs created while drawing. Escape cancels a
 stroke; Ctrl-Z/Ctrl-Y undo or redo one completed action. Alt-drag orbits,
 Shift-drag pans, and the wheel zooms.
