@@ -40,7 +40,8 @@ class TranslucencyEditor(QGroupBox):
         details.addLayout(form)
         hint = QLabel(
             "Approximate viewport preview; game refraction and lighting may differ. "
-            "Uses Plain PBR materials. Glow maps and colours are kept; glow brightness may differ in game."
+            "Uses Plain PBR materials. Authored glass is preserved automatically; these controls override selected parts. "
+            "Glow maps and colours are kept; brightness and tint may differ in game."
         )
         hint.setWordWrap(True)
         details.addWidget(hint)
@@ -66,7 +67,7 @@ class TranslucencyEditor(QGroupBox):
             self.setChecked(choice is not None and bool(parts))
             self.setEnabled(bool(parts))
             self.details.setVisible(self.isChecked())
-            self.setToolTip("Import a model to experiment with translucent materials." if not parts else "Turn off to restore the imported materials.")
+            self.setToolTip("Import a model to experiment with translucent materials." if not parts else "Turn off to restore the source materials, including authored glass.")
         finally:
             self._loading = False
 

@@ -8,6 +8,7 @@ import pytest
 from PySide6.QtWidgets import QApplication
 
 from cdmw.domain.cancellation import RunCancelled
+from cdmw.domain.new_item.spec import MaterialRoute
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.ui.new_item.controller import NewItemStudioController
 from cdmw.ui.new_item.model_import import ModelPlacement
@@ -90,5 +91,28 @@ def test_cancelled_import_decode_does_not_start_mesh_baking():
         with pytest.raises(RunCancelled):
             source(stop)
     bake.assert_not_called()
+    controller.deleteLater()
+    app.processEvents()
+
+
+@pytest.mark.parametrize("route", [MaterialRoute.PLAIN_PBR, MaterialRoute.BUILDER])
+def test_source_glass_and_emission_follow_captured_material_route(route):
+    app = QApplication.instance() or QApplication([])
+    controller = NewItemStudioController(synchronous=True)
+    original = mesh()
+    part = original.submeshes[0]
+    part.preview_material_parameters = [SimpleNamespace(parameter_name="_transmissionFactor", value="0.5")]
+    part.preview_native_material_overrides = {"emissive_color": [1.0, 0.0, 0.0], "emissive_intensity": 10.0}
+    controller.model_import = SimpleNamespace(baked_preview_mesh=lambda: original, baked_scene_mesh=lambda: original)
+    controller.draft.material_route = route
+    source = controller.item_effect_preview_source()
+    controller.draft.material_route = MaterialRoute.BUILDER if route is MaterialRoute.PLAIN_PBR else MaterialRoute.PLAIN_PBR
+    prepared, label = source(threading.Event())
+    overrides = prepared.submeshes[0].preview_native_material_overrides
+    assert label == "placed"
+    assert overrides.get("translucency") == ([0.1, 0.3] if route is MaterialRoute.PLAIN_PBR else None)
+    assert overrides["emissive_color"] == [1.0, 0.0, 0.0]
+    assert overrides["emissive_intensity"] == 10.0
+    assert "translucency" not in part.preview_native_material_overrides
     controller.deleteLater()
     app.processEvents()

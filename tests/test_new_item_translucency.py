@@ -17,7 +17,7 @@ from cdmw.domain.new_item.spec import MaterialRoute, ModelSource
 from cdmw.domain.new_item.translucency import TranslucencyChoice
 from cdmw.services.new_item_materials import SourceMaterialTextures, route_model_files, route_plain_pbr
 from cdmw.services.new_item_planning import NewItemPlanError
-from cdmw.services.new_item_translucency import selected_translucency, translucency_preview_mesh
+from cdmw.services.new_item_translucency import selected_translucency, source_translucency, translucency_preview_mesh
 from cdmw.ui.new_item.state import NewItemDraft, spec_from_draft
 from tests.test_new_item_materials import XML, builder_files
 
@@ -59,6 +59,26 @@ def test_source_names_resolve_but_missing_names_and_mixed_atlases_do_not_silentl
     with pytest.raises(NewItemPlanError, match="share one atlas"):
         selected_translucency(choice, "part_0", atlas)
     assert selected_translucency(TranslucencyChoice(("Blade", "Grip")), "part_0", atlas) == {"blade", "grip"}
+
+
+def test_authored_glass_atlases_cannot_silently_change_opaque_regions():
+    files = builder_files()
+    name = find_material_wrappers(files.side_files[XML].decode())[0].submesh_name
+    glass = SourceMaterialTextures("Glass", transmission_factor=0.5)
+    atlas = SourceMaterialTextures("Combined", atlas_sources=(glass, SourceMaterialTextures("Grip")))
+    assert source_translucency(SourceMaterialTextures("AllGlass", atlas_sources=(glass, glass))) == (0.1, 0.3)
+    with pytest.raises(NewItemPlanError, match="glass and opaque materials share one atlas"):
+        route_plain_pbr(files, sources={name.casefold(): atlas})
+    result = route_plain_pbr(
+        files, sources={name.casefold(): atlas}, translucency=TranslucencyChoice(("Glass", "Grip")),
+        encode_factors=lambda *_: b"material map",
+    ).files
+    assert find_material_wrappers(result.side_files[XML].decode())[0].shader == "SkinnedMeshTranslucent"
+
+
+@pytest.mark.parametrize("factor", [0, -0.1, float("nan"), float("inf"), "invalid"])
+def test_inactive_or_invalid_transmission_does_not_enable_glass(factor):
+    assert source_translucency(SimpleNamespace(transmission_factor=factor)) is None
 
 
 def test_emissive_selection_retains_map_colour_and_strength():
@@ -109,6 +129,50 @@ def test_live_panel_groups_keep_glow_and_clear_translucency_when_disabled():
     panel._controller.draft.translucency = None
     ModelPanel._sync_glow_preview(panel)
     assert all(group.get("translucency") is None for group in sent[-1])
+
+
+def test_plain_pbr_checkbox_replays_source_glass_and_restores_builder_preview():
+    from cdmw.ui.new_item.controller import NewItemStudioController
+    from cdmw.ui.new_item.model_import import ModelPlacement
+    from cdmw.ui.new_item.panels_model import ModelPanel
+    from tests.test_new_item_glow_preview import _mesh, _parameter
+
+    app = QApplication.instance() or QApplication([])
+    controller = NewItemStudioController(synchronous=True)
+    panel = ModelPanel(controller)
+    mesh = _mesh()
+    mesh.submeshes[1].preview_material_parameters.append(_parameter("_transmissionFactor", value="0.5"))
+    controller.model_import = SimpleNamespace(scene=SimpleNamespace(mesh=mesh), baked_preview_mesh=lambda: mesh)
+    sent = []
+    panel.preview.host = SimpleNamespace(apply_material_parameter_groups=lambda groups: sent.append(groups) or True)
+    panel.preview.is_ready = True
+    panel.preview._loaded_is_placement = True
+    panel.preview._placement = ModelPlacement()
+    panel.plain_pbr.setEnabled(True)
+    try:
+        panel._sync_glow_preview()
+        assert any(group.get("translucency") == [0.1, 0.3] and group["source_submesh_indices"] == [1] for group in sent[-1])
+        panel.plain_pbr.setChecked(False)
+        assert controller.draft.material_route is MaterialRoute.BUILDER
+        assert all(group.get("translucency") is None for group in sent[-1])
+        panel.plain_pbr.setChecked(True)
+        assert any(group.get("translucency") == [0.1, 0.3] for group in sent[-1])
+        controller.draft.translucency = TranslucencyChoice(("Blade",), 0.05, 0.5)
+        panel._sync_glow_preview()
+        assert any(group.get("translucency") == [0.05, 0.5] and group["source_submesh_indices"] == [0] for group in sent[-1])
+        assert any(group.get("translucency") == [0.1, 0.3] and group["source_submesh_indices"] == [1] for group in sent[-1])
+        controller.draft.translucency = None
+        panel._sync_glow_preview()
+        absorption = [group["translucency"] for group in sent[-1] if "translucency" in group]
+        assert absorption == [None, [0.1, 0.3], None]
+    finally:
+        panel.preview.host = None
+        controller.model_import = None
+        panel.preview.shutdown()
+        controller.request_shutdown()
+        panel.deleteLater()
+        controller.deleteLater()
+        app.processEvents()
 
 
 def test_editor_signals_values_and_restores_a_variant_without_emitting_edits():

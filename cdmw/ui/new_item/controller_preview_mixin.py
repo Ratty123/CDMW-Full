@@ -175,6 +175,7 @@ class NewItemPreviewControllerMixin:
             template_key=self.draft.template_key,
             glow=glow_choice(self.draft),
             translucency=self.draft.translucency,
+            material_route=self.draft.material_route,
         )
 
     def _textured_preview_mesh(self):

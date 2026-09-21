@@ -138,21 +138,33 @@ cannot represent every multicoloured emissive image exactly.
 Blend and mask textures retain opacity precision in alpha-capable DDS output.
 The plain-PBR route reports unsupported alpha mode/cutoff and double-sided shader
 semantics explicitly: preserved alpha pixels do not establish matching game
-transparency. Existing exported or installed
-items need to be rebuilt to pick up these material corrections.
+transparency. Imported glTF materials with positive `KHR_materials_transmission`
+use the experimental translucent route automatically, including glass shells
+around emissive gems. This keeps those shells from exporting as opaque surfaces
+when translucency is selected only on another part. Authored base colours and
+emission remain unchanged; a coloured base under an emissive layer is not recoloured
+to match the glow. Source transmission uses the default thickness and extinction
+below, not a conversion of the glTF transmission factor, alpha, or transmission
+texture. The export reports this approximation. Ordinary BLEND/MASK materials
+without transmission retain the unsupported-alpha warning. Existing exported or
+installed items need to be rebuilt to pick up these material corrections.
 The Appearance page also offers **Translucency (experimental)** for imported models.
 Enable it, tick the material parts to change, and adjust **Thickness** and
 **Extinction** from 0 to 1. Defaults are 0.1 and 0.3 respectively; increasing
 either generally reduces transmission. Texture colour, texture alpha and viewing
 angle also matter, so these values are not percentages of opacity. Selecting parts
 enables Plain PBR and writes `SkinnedMeshTranslucent` with `_thickness` and
-`_extinctionCoefficient`, preserving the chosen parts' texture bindings. Other
-parts retain the normal Plain PBR export route. Settings follow each model variant.
+`_extinctionCoefficient`, preserving the chosen parts' texture bindings. These
+settings override the source glass defaults on selected parts. Other parts retain
+their source glass or ordinary Plain PBR route. Settings follow each model variant.
 The resident Rust viewport updates without rebuilding geometry and restores the
-imported material when disabled. Effects previews carry the same settings.
+source defaults when the manual override is disabled. Effects previews carry the
+same settings. Switching to Builder clears the automatic glass preview.
 The viewport approximates the game's absorption with sorted alpha blending; it
 does not reproduce scene refraction, coloured background transmission, game
-lighting or shadow behaviour. Verify the result in-game. Glow and translucency
+lighting or shadow behaviour. The glass shader can change apparent brightness and
+tint compared with an opaque material; exact colour parity remains unverified.
+Verify the result in-game. Glow and translucency
 can share a part: the shipped translucent parameter group declares an emissive
 map and colour. Export retains those inputs and the authored strength, but the
 translucent shader may ignore the separate strength parameter, so brightness

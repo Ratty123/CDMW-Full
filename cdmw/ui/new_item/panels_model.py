@@ -869,6 +869,7 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
     def _material_route_changed(self, plain: bool) -> None:
         self._controller.draft.material_route = MaterialRoute.PLAIN_PBR if plain else MaterialRoute.BUILDER
         self._controller.invalidate_plan()
+        self._sync_glow_preview()
 
     def refresh_glow_parts(self) -> None:
         """Fill the part list from the chosen template, keeping what was already ticked."""
@@ -927,7 +928,8 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         applies to, and the only role the renderer's parameter channel can touch. The
         groups are a complete statement over the model's submeshes, so un-ticking a
         part restores the import's own emissive without remembering what was sent.
-        A draft that never glowed sends nothing: there is nothing to restore.
+        Source glass also follows the export route without requiring a manual
+        override. An untouched import with no glass or overrides sends nothing.
         """
 
         preview = self.preview
@@ -937,18 +939,25 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
             return
         glow = glow_choice(self._controller.draft)
         translucency = self._controller.draft.translucency
-        if glow is None and translucency is None and not self._glow_preview_touched:
+        from cdmw.services.new_item_translucency import source_translucency, translucency_preview_parameter_groups
+
+        source_transmission = self._controller.draft.material_route is MaterialRoute.PLAIN_PBR
+        source_mesh = getattr(getattr(source, "scene", None), "mesh", None)
+        authored_glass = source_transmission and any(
+            source_translucency(part) is not None for part in getattr(source_mesh, "submeshes", ())
+        )
+        if glow is None and translucency is None and not authored_glass and not self._glow_preview_touched:
             return
         try:
             mesh = source.baked_preview_mesh()
         except Exception:  # noqa: BLE001 - no preview glow is a smaller loss than a step that errors
             return
         from cdmw.services.new_item_materials import glow_preview_parameter_groups
-        from cdmw.services.new_item_translucency import translucency_preview_parameter_groups
-
-        groups = glow_preview_parameter_groups(mesh, glow) + translucency_preview_parameter_groups(mesh, translucency)
+        groups = glow_preview_parameter_groups(mesh, glow) + translucency_preview_parameter_groups(
+            mesh, translucency, source_transmission=source_transmission,
+        )
         if groups and sender(groups):
-            self._glow_preview_touched = self._glow_preview_touched or glow is not None or translucency is not None
+            self._glow_preview_touched = self._glow_preview_touched or glow is not None or translucency is not None or authored_glass
 
     def _pick_glow_color(self) -> None:
         from PySide6.QtGui import QColor

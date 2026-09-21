@@ -65,6 +65,9 @@ class SourceMaterialTextures:
     #: An atlas retains the authored materials and their exact output UV regions.
     atlas_section: object = None
     atlas_sources: Tuple[SourceMaterialTextures, ...] = ()
+    #: Positive glTF KHR_materials_transmission requires a glass shader, even
+    #: when the user only overrides translucency on another part of the item.
+    transmission_factor: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -148,6 +151,8 @@ def source_materials_from_import(result: object, scene: object) -> Dict[str, Sou
                     slots["emissive_intensity"] = max(0.0, value)
                 elif pname == "_gltfAlphaCutoff":
                     slots["alpha_cutoff"] = max(0.0, min(1.0, value))
+                elif pname == "_transmissionFactor":
+                    slots["transmission_factor"] = value
         for slot_kind, path in tuple(getattr(binding, "texture_slots", ()) or ()):
             kind = str(slot_kind or "").strip().lower()
             candidate = Path(str(path))
@@ -639,7 +644,7 @@ def route_plain_pbr(
     """Rewrite import-owned wrappers to the plain shaders described by this module."""
 
     sources = dict(sources or {})
-    from cdmw.services.new_item_translucency import selected_translucency
+    from cdmw.services.new_item_translucency import selected_translucency, source_translucency
 
     if translucency is not None:
         translucency.validate()
@@ -667,20 +672,29 @@ def route_plain_pbr(
         source = sources.get(wrapper.submesh_name.casefold()) or source_by_base.get(base.replace("\\", "/").casefold())
         matches = selected_translucency(translucency, wrapper.submesh_name, source)
         translucent_matches.update(matches)
+        absorption = ((translucency.thickness, translucency.extinction) if matches
+                      else source_translucency(source))
         is_atlas = source is not None and source.atlas_section is not None
         if source is not None and not is_atlas and source.normal is None:
             normal = ""
         source_name = source.name if source is not None else wrapper.submesh_name
         if source is not None and source.name not in warned_sources:
             warned_sources.add(source.name)
-            if source.alpha_mode in {"BLEND", "MASK"} and not matches:
+            if absorption is not None and not matches:
+                warnings.append(
+                    f"{source.name}: authored transmission uses experimental SkinnedMeshTranslucent "
+                    "with default thickness and extinction so the glass layer does not become opaque. "
+                    "This approximates glass absorption, not the source's alpha/transmission percentages; "
+                    "use the Translucency controls to adjust it."
+                )
+            if source.alpha_mode in {"BLEND", "MASK"} and absorption is None:
                 detail = f" (cutoff {source.alpha_cutoff:g})" if source.alpha_mode == "MASK" else ""
                 warnings.append(
                     f"{source.name}: source {source.alpha_mode}{detail} opacity is retained in the base DDS, "
                     "but the plain-PBR game shader has no verified mapping for this alpha mode; "
                     "the exported material does not support the source transparency behavior."
                 )
-            if source.double_sided and not matches:
+            if source.double_sided and absorption is None:
                 warnings.append(f"{source.name}: the source is double-sided; the plain-PBR export has no verified two-sided game shader mapping.")
         material = ""
         how = ""
@@ -792,7 +806,7 @@ def route_plain_pbr(
                 # the source glows and the reader also said how: the map is the source's,
                 # the colour and the strength are theirs
                 color, intensity = glow_color, glow_intensity
-        if matches and emissive:
+        if absorption is not None and emissive:
             warnings.append(
                 f"{source_name}: translucent emission keeps the emissive map, colour and strength. "
                 "The game shader exposes the map and colour but may ignore the separate strength; "
@@ -801,7 +815,7 @@ def route_plain_pbr(
         replacements[wrapper.submesh_name] = PlainMaterial(
             base=base, normal=normal, material=material,
             emissive_texture=emissive, emissive_color=color, emissive_intensity=intensity,
-            translucency=(translucency.thickness, translucency.extinction) if matches else None,
+            translucency=absorption,
         )
         parts = ["base", "normal" if normal else "no normal", how]
         if emissive:

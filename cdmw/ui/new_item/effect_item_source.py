@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from cdmw.domain.cancellation import RunCancelled
+from cdmw.domain.new_item.spec import MaterialRoute
 from cdmw.services.new_item_materials import glow_preview_mesh
 from cdmw.ui.new_item.model_import import bake_mesh
 
@@ -20,6 +21,7 @@ class PlannedEffectItemSource:
     template_key: int | None
     glow: object
     translucency: object = None
+    material_route: MaterialRoute = MaterialRoute.PLAIN_PBR
 
     def __call__(self, stop_event):
         self._check_cancelled(stop_event)
@@ -99,7 +101,9 @@ class PlannedEffectItemSource:
         preview = glow_preview_mesh(mesh, self.glow)
         from cdmw.services.new_item_translucency import translucency_preview_mesh
 
-        preview = translucency_preview_mesh(preview, self.translucency)
+        preview = translucency_preview_mesh(
+            preview, self.translucency, source_transmission=self.material_route is MaterialRoute.PLAIN_PBR,
+        )
         if self._is_wearable():
             point = origin
             if point is None and getattr(preview, "bbox_min", None) is not None and getattr(preview, "bbox_max", None) is not None:

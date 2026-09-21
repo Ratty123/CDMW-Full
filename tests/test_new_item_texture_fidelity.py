@@ -126,6 +126,60 @@ def test_selected_translucency_keeps_source_alpha_through_import_and_export(tmp_
     assert wrappers["Grip"].shader == "SkinnedMeshStandard"
 
 
+@pytest.mark.parametrize("selected_parts", [(), ("Blade",), ("GemOutside",)])
+def test_authored_glass_shell_does_not_hide_or_recolour_the_emissive_gem(tmp_path, selected_parts):
+    from cdmw.domain.new_item.translucency import TranslucencyChoice
+    from cdmw.services.new_item_translucency import translucency_preview_parameter_groups
+
+    # A red glass shell around a turquoise surface with red emission. Selecting
+    # the blade must not make the unselected source glass opaque during export.
+    materials = [
+        {"name": "Blade", "pbrMetallicRoughness": {"baseColorFactor": [0.2, 0.2, 0.2, 1]}},
+        {"name": "GemOutside", "alphaMode": "BLEND", "doubleSided": True,
+         "pbrMetallicRoughness": {"baseColorFactor": [1, 0, 0, 0.5], "roughnessFactor": 0},
+         "extensions": {"KHR_materials_transmission": {"transmissionFactor": 0.5}}},
+        {"name": "GemInside", "emissiveFactor": [1, 0, 0],
+         "pbrMetallicRoughness": {"baseColorFactor": [0, 1, 0.7911, 1], "roughnessFactor": 0.92},
+         "extensions": {"KHR_materials_emissive_strength": {"emissiveStrength": 10}}},
+    ]
+    choice = TranslucencyChoice(selected_parts, 0.05, 0.5) if selected_parts else None
+    scene, files, wrappers = export_materials(
+        write_gltf(tmp_path, materials, []), tmp_path, socket_attached=True, translucency=choice,
+    )
+    shell = wrappers["GemOutside"]
+    assert shell.shader == "SkinnedMeshTranslucent"
+    absorption = (0.05, 0.5) if "GemOutside" in selected_parts else (0.1, 0.3)
+    assert float(shell.value("_thickness")) == absorption[0]
+    assert float(shell.value("_extinctionCoefficient")) == absorption[1]
+    assert pixels(files, shell)[0, 0].tolist() == [255, 0, 0, 128]
+    gem = wrappers["GemInside"]
+    assert gem.shader == "SkinnedMeshEmissive"
+    assert gem.value("_emissiveColor") == "#FF0000FF"
+    assert float(gem.value("_emissiveIntensity")) == 10
+    assert pixels(files, gem, "_emissiveIntensityTexture")[0, 0, 0] == 255
+    base = pixels(files, gem)[0, 0]
+    assert base[0] == 0 and base[1] == 255 and 198 <= base[2] <= 210 and base[3] == 255
+    assert wrappers["Blade"].shader == ("SkinnedMeshTranslucent" if "Blade" in selected_parts else "SkinnedMeshStandard")
+    groups = translucency_preview_parameter_groups(scene.mesh, choice)
+    for part, group in zip(scene.mesh.submeshes, groups):
+        exported = wrappers[part.material]
+        if exported.shader == "SkinnedMeshTranslucent":
+            assert group["translucency"] == [float(exported.value("_thickness")), float(exported.value("_extinctionCoefficient"))]
+        else:
+            assert group["translucency"] is None
+    if "GemOutside" not in selected_parts:
+        assert any("GemOutside" in warning and "approximates" in warning for warning in files.warnings)
+    assert not any("GemOutside" in warning and "does not support" in warning for warning in files.warnings)
+
+
+@pytest.mark.parametrize("transmission, shader", [(0, "SkinnedMeshStandard"), (0.5, "SkinnedMeshTranslucent")])
+def test_source_transmission_is_independent_of_alpha_mode(tmp_path, transmission, shader):
+    materials = [{"name": "Glass", "pbrMetallicRoughness": {"baseColorFactor": [0.8, 0.2, 0.1, 1]},
+                  "extensions": {"KHR_materials_transmission": {"transmissionFactor": transmission}}}]
+    _, _, wrappers = export_materials(write_gltf(tmp_path, materials, []), tmp_path)
+    assert wrappers["Glass"].shader == shader
+
+
 def test_shared_images_and_factor_only_materials_keep_their_own_colour(tmp_path):
     Image.new("RGB", (16, 16), "white").save(tmp_path / "white.png")
     materials = [
