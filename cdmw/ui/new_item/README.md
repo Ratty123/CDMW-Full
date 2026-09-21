@@ -184,7 +184,25 @@ enables Plain PBR for imports and writes `SkinnedMeshTranslucent` with `_thickne
 settings override the source glass defaults on selected parts. Other parts retain
 their source glass or ordinary Plain PBR route. Settings follow each model variant;
 old shared-value choices remain supported. Parts combined into one atlas must use
-the same absorption settings or remain separate materials.
+the same absorption and surface settings or remain separate materials.
+
+**Surface preset** offers **Source surface** and **Low-shine translucent**. Low-shine
+sets roughness to 0.9 and metallic to 0 without changing absorption. Check **Roughness**
+or **Metallic** to override that channel on the highlighted part; uncheck it to retain
+the original texture channel. These are absolute values from 0 to 1. Higher roughness
+softens highlights and lower metallic reduces metallic reflections. Source surface
+restores both source channels while retaining translucency. The same controls are
+available in Mesh Editor.
+
+Surface overrides create a private `_materialTexture` DDS for each edited material,
+replacing only green (roughness) and/or blue (metallic), with full mipmaps. Source DDS,
+colour, normal and glow inputs remain intact, including maps shared with other parts.
+Defaults do not decode or re-encode surface textures. Both Model & Placement and
+Effects apply the same explicit channel overrides in the renderer. Some game reflections
+can remain; this is not a guaranteed reflection-free shader. Independent reflection
+strength and refraction sliders are not exposed: the inspected normal skinned shader
+path ignores `_refractiveIndex` unless its hidden depth-thickness mode is enabled.
+
 Python-decoded template previews prepare their texture slots and convert to the
 shared mesh format before applying appearance edits, preserving texture bindings
 and leaving the cached source unchanged.
@@ -203,8 +221,8 @@ colours become fixed in the textures. This conversion is approximate; in-game
 appearance remains unverified. Missing textures and decode failures identify the
 part and source path instead of exporting grey replacement textures.
 Dye previews use the same translucency choices as export. For prebuilt imports,
-manual translucency changes only the selected shaders and absorption values;
-existing glow, texture bindings, other parameters and unselected materials are kept.
+manual translucency changes only the selected shaders, absorption values and explicitly
+overridden surface channels; existing glow, other parameters and unselected materials are kept.
 The viewport applies absorption to the background separately from reflection and
 glow, without painting the opaque diffuse texture over the glass. On adapters with
 dual-source blending it preserves RGB transmission through sorted, overlapping

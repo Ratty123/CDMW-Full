@@ -19,6 +19,7 @@ The format is intentionally simple:
 
 ### Added
 
+- Create New Item and Mesh Editor have per-part Roughness and Metallic controls for translucency, a Low-shine translucent surface preset, and a Source surface reset. Previews use the same channel overrides as exported material maps; absorption and glow stay independent.
 - Hair Tools has a Physics brush for painting static and moving regions along locks, with blue/orange feedback, selection and symmetry support, Undo/Redo and drafts. Static paint disables retained PAC cloth bindings in output; Physical keeps the template's physics.
 - New Item keeps independent translucency settings for each material part. New Item and Mesh Editor offer absorption presets and a Clear-to-Dense slider, with the original thickness/extinction controls under Advanced.
 - Create New Item supports template-only Move, Rotate, Scale, Glow and experimental Translucency. Changes follow the selected variant and are included in Build plan without importing a model.

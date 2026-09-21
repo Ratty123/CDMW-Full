@@ -2210,6 +2210,70 @@ fn offscreen_d3d12_translucency_responds_to_absorption_and_texture_alpha() -> Te
 }
 
 #[test]
+#[ignore = "requires a local Direct3D 12 adapter"]
+fn offscreen_d3d12_translucency_surface_matches_exported_channels() -> TestResult {
+    let mut document = triangle_application()?.document.clone().ok_or("missing document")?;
+    let mut reference = document.lods[0].submeshes[0].clone();
+    reference.material = "unselected reference".to_owned();
+    for position in &mut reference.positions { position[0] += 3.0; }
+    document.lods[0].submeshes.push(reference);
+    let snapshot = WorkingMesh::from_document(&document)?.draw_snapshot();
+    let temporary = tempdir()?;
+    let ownership = vec![vec![0_u32]];
+    let mut base = cdmw_texture::synthetic::rgba8_checker_dds();
+    for pixel in base[148..].chunks_exact_mut(4) { pixel.copy_from_slice(&[180, 160, 140, 255]); }
+    let mut captures = Vec::new();
+    let mut base_captures = Vec::new();
+    let mut lumas = Vec::new();
+    let mut references = Vec::new();
+    for (name, surface, baked, glow) in [
+        ("source", None, false, false),
+        ("override", Some([Some(0.9), Some(0.0)]), false, false),
+        ("export", None, true, false),
+        ("override_glow", Some([Some(0.9), Some(0.0)]), false, true),
+        ("export_glow", None, true, true),
+    ] {
+        let mut packed = cdmw_texture::synthetic::rgba8_checker_dds();
+        for pixel in packed[148..].chunks_exact_mut(4) {
+            pixel.copy_from_slice(if baked { &[255, 230, 0, 255] } else { &[255, 8, 255, 255] });
+        }
+        let textures = [
+            HeadlessMaterialTexture { bytes: &base, role: cdmw_texture::TextureRole::BaseColor, material_indices_by_lod: &ownership },
+            HeadlessMaterialTexture { bytes: &packed, role: cdmw_texture::TextureRole::Material, material_indices_by_lod: &ownership },
+        ];
+        let factors = [HeadlessMaterialFactors {
+            factors: MaterialPreviewFactors {
+                translucency: Some([0.4, 0.6]), translucency_surface: surface,
+                category_code: Some(7), category_confidence: Some(1.0),
+                emissive_color: Some([0.1, 0.8, 0.3]), emissive_intensity: Some(if glow { 4.0 } else { 0.0 }),
+                ..MaterialPreviewFactors::default()
+            }, material_indices_by_lod: &ownership,
+        }];
+        let textured = temporary.path().join(format!("{name}.bmp"));
+        let base_path = temporary.path().join(format!("{name}_base.bmp"));
+        let report = pollster::block_on(cdmw_render_wgpu::run_headless_material_capture(
+            &snapshot, &textures, &factors,
+            HeadlessMaterialCaptureOptions { width: 96, height: 96, lod_index: 0, ..HeadlessMaterialCaptureOptions::default() },
+            HeadlessMaterialCaptureOutput { textured_bmp: &textured, base_color_bmp: &base_path,
+                part_id_bmp: &temporary.path().join(format!("{name}_parts.bmp")),
+                normal_map: None, material_response: None, layer_mask: None },
+        ))?;
+        captures.push(std::fs::read(textured)?);
+        base_captures.push(std::fs::read(base_path)?);
+        lumas.push(report.owner_coverage.iter().find(|row| row.material_index == 0).ok_or("edited part missing")?.textured_mean_luma_255);
+        references.push(report.owner_coverage.iter().find(|row| row.material_index == 1).ok_or("reference missing")?.textured_mean_luma_255);
+    }
+    assert_ne!(captures[0], captures[1], "surface controls did not affect pixels");
+    assert_eq!(captures[1], captures[2], "live surface must match exported G/B channels");
+    assert_eq!(captures[3], captures[4], "surface edits must retain emission");
+    assert!(lumas[1] < lumas[0], "low-shine surface should reduce reflected light: {lumas:?}");
+    assert!(lumas[3] > lumas[1] + 5.0, "emission disappeared: {lumas:?}");
+    assert!(base_captures.iter().all(|pixels| *pixels == base_captures[0]), "surface edits changed absorption");
+    assert!(references.iter().all(|value| *value == references[0]), "unselected part changed");
+    Ok(())
+}
+
+#[test]
 #[ignore = "requires a local Direct3D 12 adapter and an owned CDMW session package"]
 fn offscreen_d3d12_captures_the_exact_cdmw_material_package_without_a_window() -> TestResult {
     let manifest = std::env::var_os("CDMW_RUST_REAL_SESSION_MANIFEST")

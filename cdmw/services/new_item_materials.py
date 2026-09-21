@@ -18,7 +18,7 @@ import copy
 import hashlib
 import re
 import tempfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Dict, Mapping, Optional, Tuple
 
@@ -661,6 +661,8 @@ def route_plain_pbr(
     if translucency is not None:
         translucency.validate()
     translucent_matches: set[str] = set()
+    surface_settings = {}
+    absorption_settings = {}
     glow_parts = {str(name).casefold() for name in tuple(getattr(glow, "parts", ()) or ())}
     glow_color = str(getattr(glow, "hex_color", lambda: "#FFFFFFFF")() or "#FFFFFFFF")
     glow_intensity = float(getattr(glow, "intensity", 1.0))
@@ -687,6 +689,9 @@ def route_plain_pbr(
         translucent_matches.update(matches)
         absorption = (translucency.values_for(*matches) if matches
                       else source_translucency(source))
+        if matches and translucency.surface_for(*matches) is not None:
+            surface_settings[wrapper.submesh_name] = translucency.surface_for(*matches)
+            absorption_settings[wrapper.submesh_name] = absorption
         is_atlas = source is not None and source.atlas_section is not None
         if source is not None and not is_atlas and source.normal is None:
             normal = ""
@@ -854,7 +859,7 @@ def route_plain_pbr(
             "Experimental SkinnedMeshTranslucent: thickness and extinction control absorption. "
             "Viewport transmission is approximate; game refraction and lighting may differ."
         )
-    return _finish_plain_pbr_route(
+    result = _finish_plain_pbr_route(
         files=files,
         xml_key=xml_key,
         text=text,
@@ -865,6 +870,21 @@ def route_plain_pbr(
         warnings=warnings,
         encoded=encoded,
     )
+    if surface_settings:
+        from cdmw.services.translucency_surface import apply_translucency_surface
+
+        side = dict(result.files.side_files)
+        sources = {key.replace("\\", "/").casefold(): data for key, data in side.items()}
+        try:
+            text, generated = apply_translucency_surface(side[xml_key].decode("utf-8"),
+                absorption_settings, surface_settings, xml_key.removesuffix("_xml"),
+                lambda path: sources.get(path.replace("\\", "/").casefold()))
+        except ValueError as exc:
+            raise NewItemPlanError(str(exc)) from exc
+        side.update(generated)
+        side[xml_key] = text.encode("utf-8")
+        result = replace(result, files=replace(result.files, side_files=side))
+    return result
 
 
 def route_model_files(

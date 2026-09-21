@@ -181,6 +181,8 @@ pub struct SessionMaterialPresentation {
     #[serde(default)]
     pub translucency: Option<[f32; 2]>,
     #[serde(default)]
+    pub translucency_surface: Option<[Option<f32>; 2]>,
+    #[serde(default)]
     pub gltf_metallic_roughness: bool,
     pub double_sided: bool,
     pub roughness: Option<f32>,
@@ -2034,6 +2036,10 @@ fn validate_material_presentations(
             validate_optional_factor(Some(values[0]), 0.0, 1.0, "translucency thickness")?;
             validate_optional_factor(Some(values[1]), 0.0, 1.0, "translucency extinction")?;
         }
+        if let Some(values) = row.translucency_surface {
+            validate_optional_factor(values[0], 0.0, 1.0, "translucent surface roughness")?;
+            validate_optional_factor(values[1], 0.0, 1.0, "translucent surface metallic")?;
+        }
         validate_optional_factor(row.roughness, 0.0, 1.0, "roughness")?;
         validate_optional_factor(row.metalness, 0.0, 1.0, "metalness")?;
         validate_optional_factor(row.specular, 0.0, 1.0, "specular")?;
@@ -3311,6 +3317,7 @@ mod tests {
             alpha_cutoff: Some(0.17),
             opacity: None,
             translucency: None,
+            translucency_surface: None,
             gltf_metallic_roughness: false,
             double_sided: false,
             roughness: Some(0.22),

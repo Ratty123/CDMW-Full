@@ -4343,14 +4343,19 @@ impl LabApplication {
                     ui.small("Select one or more Parts above.");
                 }
                 let saved = rows.first().map(|row| &row["translucency"]);
-                let mixed = rows.iter().any(|row| Some(&row["translucency"]) != saved);
+                let saved_surface = rows.first().map(|row| &row["translucency_surface"]);
+                let mixed = rows.iter().any(|row| Some(&row["translucency"]) != saved
+                    || Some(&row["translucency_surface"]) != saved_surface);
                 if mixed { ui.small("Selected parts have different translucency settings."); }
                 let key = egui::Id::new(("translucency_values", ids.iter().map(Value::to_string).collect::<Vec<_>>(),
-                                        rows.iter().map(|row| row["translucency"].to_string()).collect::<Vec<_>>()));
+                                        rows.iter().map(|row| (row["translucency"].to_string(), row["translucency_surface"].to_string())).collect::<Vec<_>>()));
                 let mut values = ui.ctx().data_mut(|data| data.get_temp::<[f32; 2]>(key)).unwrap_or_else(|| {
                     [saved.and_then(|v| v[0].as_f64()).unwrap_or(0.1) as f32,
                      saved.and_then(|v| v[1].as_f64()).unwrap_or(0.3) as f32]
                 });
+                let surface_key = key.with("surface");
+                let mut surface = ui.ctx().data_mut(|data| data.get_temp::<[Option<f32>; 2]>(surface_key))
+                    .unwrap_or_else(|| [0, 1].map(|index| saved_surface.and_then(|v| v[index].as_f64()).map(|v| v as f32)));
                 let editing = self.cdmw_state["authoring_enabled"].as_bool().unwrap_or(false)
                     && self.cdmw_state["replacement"]["comparison"].as_str().unwrap_or("edit") == "edit";
                 ui.add_enabled_ui(available && !ids.is_empty() && !self.cdmw_busy() && editing, |ui| {
@@ -4370,6 +4375,30 @@ impl LabApplication {
                             .changed() { values = [strength, strength]; }
                         ui.label("Dense");
                     });
+                    let surface_label = match surface {
+                        [None, None] => "Source surface",
+                        [Some(0.9), Some(0.0)] => "Low-shine translucent",
+                        _ => "Custom surface",
+                    };
+                    egui::ComboBox::from_id_salt("translucency_surface_preset").selected_text(surface_label).show_ui(ui, |ui| {
+                        if ui.selectable_label(surface == [None, None], "Source surface").clicked() {
+                            surface = [None, None];
+                        }
+                        if ui.selectable_label(surface == [Some(0.9), Some(0.0)], "Low-shine translucent").clicked() {
+                            surface = [Some(0.9), Some(0.0)];
+                        }
+                    });
+                    for (index, label) in ["Roughness", "Metallic"].into_iter().enumerate() {
+                        ui.horizontal(|ui| {
+                            let mut enabled = surface[index].is_some();
+                            ui.checkbox(&mut enabled, label)
+                                .on_hover_text("Override this channel on selected parts. Uncheck to keep the source texture.");
+                            let mut value = surface[index].unwrap_or(if index == 0 { 0.9 } else { 0.0 });
+                            ui.add_enabled(enabled, egui::Slider::new(&mut value, 0.0..=1.0));
+                            surface[index] = enabled.then_some(value);
+                        });
+                    }
+                    ui.small("Higher roughness softens highlights; lower metallic reduces metallic reflections. Some game reflections may remain.");
                     egui::CollapsingHeader::new("Advanced").id_salt("translucency_advanced").show(ui, |ui| {
                         for (name, value) in ["Thickness", "Extinction"].into_iter().zip(values.iter_mut()) {
                             ui.horizontal(|ui| {
@@ -4382,7 +4411,8 @@ impl LabApplication {
                         if ui.button("Apply translucency").clicked() {
                             actions.push(UiAction::CdmwCommand {
                                 command: "replacement_translucency",
-                                arguments: json!({"part_ids": ids, "translucency": values}),
+                                arguments: json!({"part_ids": ids, "translucency": values,
+                                    "translucency_surface": surface.iter().any(Option::is_some).then_some(surface)}),
                                 label: "Edit material translucency",
                             });
                         }
@@ -4397,6 +4427,7 @@ impl LabApplication {
                     });
                 });
                 ui.ctx().data_mut(|data| data.insert_temp(key, values));
+                ui.ctx().data_mut(|data| data.insert_temp(surface_key, surface));
                 ui.small("Higher values absorb more light. Glow maps and colours are kept. Game refraction and glow brightness may differ from the preview.");
             });
     }

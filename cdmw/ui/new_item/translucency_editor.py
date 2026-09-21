@@ -1,7 +1,7 @@
 """Compact part selection and live absorption controls for New Item."""
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QSlider, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QSlider, QVBoxLayout, QWidget
 
 from cdmw.domain.new_item.translucency import TranslucencyChoice
 
@@ -15,6 +15,7 @@ class TranslucencyEditor(QGroupBox):
         self.setChecked(False)
         self._loading = False
         self._settings = {}
+        self._surfaces = {}
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 6, 8, 6)
         self.details = QWidget(self)
@@ -48,6 +49,29 @@ class TranslucencyEditor(QGroupBox):
         strength.addWidget(self.absorption, 1)
         strength.addWidget(QLabel("Dense"))
         controls.addLayout(strength)
+        surface_form = QFormLayout()
+        self.surface_preset = QComboBox()
+        for label, values in (("Source surface", None), ("Low-shine translucent", (0.9, 0.0)), ("Custom", "custom")):
+            self.surface_preset.addItem(label, values)
+        surface_form.addRow("Surface preset", self.surface_preset)
+        self.surface_fields = []
+        for label, default in (("Roughness", 0.9), ("Metallic", 0.0)):
+            enabled, spin = QCheckBox(label), QDoubleSpinBox()
+            enabled.setToolTip("Override this channel on the highlighted part. Uncheck to keep its source texture.")
+            spin.setRange(0, 1)
+            spin.setDecimals(3)
+            spin.setSingleStep(0.05)
+            spin.setKeyboardTracking(False)
+            spin.setValue(default)
+            spin.setEnabled(False)
+            surface_form.addRow(enabled, spin)
+            self.surface_fields.append((enabled, spin))
+            enabled.toggled.connect(self._surface_changed)
+            spin.valueChanged.connect(self._surface_changed)
+        self.surface_fields[0][1].setToolTip("Higher values soften shiny highlights. Overrides the roughness texture; does not change absorption.")
+        self.surface_fields[1][1].setToolTip("Lower values reduce metallic reflections. Some reflections may remain in game.")
+        self.surface_preset.currentIndexChanged.connect(self._surface_preset_changed)
+        controls.addLayout(surface_form)
         self.advanced = QGroupBox("Advanced")
         self.advanced.setCheckable(True)
         self.advanced.setChecked(False)
@@ -95,6 +119,7 @@ class TranslucencyEditor(QGroupBox):
         try:
             self.parts.clear()
             self._settings = {name.casefold(): choice.values_for(name) for name in choice.parts} if choice else {}
+            self._surfaces = {name.casefold(): choice.surface_for(name) for name in choice.parts} if choice else {}
             chosen = {name.casefold() for name in choice.parts} if choice else set()
             for name, label in parts:
                 item = QListWidgetItem(label)
@@ -130,6 +155,13 @@ class TranslucencyEditor(QGroupBox):
             self.absorption.setValue(round((values[0] * values[1]) ** 0.5 * 1000))
             self.preset.setCurrentIndex(next((index for index in range(1, self.preset.count())
                                              if tuple(self.preset.itemData(index)) == values), 0))
+            surface = self._surfaces.get(str(item.data(Qt.ItemDataRole.UserRole)).casefold()) if item else None
+            for (enabled, spin), value in zip(self.surface_fields, surface or (None, None)):
+                enabled.setChecked(value is not None)
+                spin.setEnabled(value is not None)
+                if value is not None:
+                    spin.setValue(value)
+            self.surface_preset.setCurrentIndex(0 if surface is None else 1 if surface == (0.9, 0.0) else 2)
         finally:
             self._loading = False
 
@@ -144,6 +176,25 @@ class TranslucencyEditor(QGroupBox):
 
     def _values_changed(self, *_args):
         self._set_pair((self.thickness.value(), self.extinction.value()))
+
+    def _surface_changed(self, *_args):
+        values = tuple(spin.value() if enabled.isChecked() else None for enabled, spin in self.surface_fields)
+        self._set_surface(values if any(value is not None for value in values) else None)
+
+    def _surface_preset_changed(self, index):
+        values = self.surface_preset.itemData(index)
+        if values != "custom":
+            self._set_surface(tuple(values) if values is not None else None)
+
+    def _set_surface(self, values):
+        if self._loading:
+            return
+        item = self.parts.currentItem()
+        if item is None or item.checkState() != Qt.CheckState.Checked:
+            return
+        self._surfaces[str(item.data(Qt.ItemDataRole.UserRole)).casefold()] = values
+        self._show_current()
+        self._emit_choice()
 
     def _preset_changed(self, index):
         values = self.preset.itemData(index)
@@ -175,6 +226,7 @@ class TranslucencyEditor(QGroupBox):
             if self.parts.item(index).checkState() == Qt.CheckState.Checked
         )
         self.changed.emit(
-            TranslucencyChoice.from_settings({name: self._settings.get(name.casefold(), (0.1, 0.3)) for name in parts})
+            TranslucencyChoice.from_settings({name: self._settings.get(name.casefold(), (0.1, 0.3)) for name in parts},
+                                            {name: self._surfaces.get(name.casefold()) for name in parts})
             if self.isChecked() and parts else None
         )

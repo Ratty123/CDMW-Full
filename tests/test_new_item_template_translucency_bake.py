@@ -62,14 +62,15 @@ def layered_inputs():
     return files
 
 
-@pytest.mark.parametrize("variant", [False, True])
-def test_build_plan_bakes_layered_template_and_keeps_other_materials(tmp_path, variant):
+@pytest.mark.parametrize("variant,low_shine", [(False, False), (True, False), (False, True), (True, True)])
+def test_build_plan_bakes_layered_template_and_keeps_other_materials(tmp_path, variant, low_shine):
     files = layered_inputs()
     original = dict(files)
     service = NewItemService()
     entries = parse_archive_pamt(build_package(tmp_path / "game", files))
     snapshot = service.build_snapshot(entries, read_entry=_read)
-    choice = replace(spec(), translucency=TranslucencyChoice((BLADE,), 0.4, 0.6))
+    choice = replace(spec(), translucency=TranslucencyChoice((BLADE,), 0.4, 0.6,
+        surface_settings=((BLADE, 0.9, 0.0),) if low_shine else ()))
     if variant:
         binding = next(item for item in selections(snapshot) if item.model_path == PAC)
         choice = replace(choice, variants=(replace(binding, translucency=choice.translucency),))
@@ -97,7 +98,10 @@ def test_build_plan_bakes_layered_template_and_keeps_other_materials(tmp_path, v
     surface = decoded["material"]
     left, right = surface.getpixel((1, 1)), surface.getpixel((surface.width - 2, 1))
     assert left[0] > 245 and right[0] > 245
-    assert left[1] < right[1] - 100 and left[2] > right[2] + 100
+    if low_shine:
+        assert all(abs(pixel[1] - 230) <= 2 and pixel[2] <= 2 for pixel in (left, right))
+    else:
+        assert left[1] < right[1] - 100 and left[2] > right[2] + 100
     assert plan.loose_files[output] == original[PAC]
     assert any("layered template" in line for line in plan.summary_lines)
     for path, data in original.items():

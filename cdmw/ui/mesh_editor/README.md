@@ -24,10 +24,20 @@ previous material; Finish and saved drafts retain the choices. Restoring an
 imported part keeps its imported materials. Drafts with captured dependencies
 can be edited without the archive mounted.
 
-The viewport reuses its prepared textures for absorption changes and keeps
+**Source surface** retains authored roughness and metallic textures. **Low-shine
+translucent** sets roughness to 0.9 and metallic to 0, keeping absorption unchanged.
+The **Roughness** and **Metallic** checkboxes enable independent absolute channel
+overrides from 0 to 1. Uncheck a channel to retain its source texture. Higher roughness
+softens highlights; lower metallic reduces metallic reflections. These controls
+match Create New Item and are retained through Undo/Redo, Finish and saved drafts
+(replacement draft version 10 when a surface override is present).
+
+The viewport reuses its prepared textures for absorption and surface changes and keeps
 emission. Export changes the selected PAC XML material to `SkinnedMeshTranslucent`
-with the two absorption parameters, preserving other parameters and texture
-paths. Material-only edits keep the PAC bytes unchanged. Shared materials require
+with the two absorption parameters. Explicit surface overrides export a private
+`_materialTexture` DDS with roughness in green and metallic in blue, preserving
+unedited channels and complete mipmaps. Other parameters, colour, normal and glow
+paths stay intact; shared source DDS are never overwritten. Material-only edits keep the PAC bytes unchanged. Shared materials require
 the same settings on all their parts; missing sidecars, unmatched wrappers and
 materials without an explicit base colour texture report an error before applying.
 Free Edit meshes without the original PAC binding are outside this export route.
@@ -39,6 +49,10 @@ This is an experimental approximation: the viewport does not reproduce game
 refraction or coloured background transmission. The shipped translucent shader
 declares emissive map and colour inputs; it may ignore the separate glow strength.
 Verify appearance and brightness in game.
+Some game reflections may remain even at high roughness and zero metallic. There
+is no verified independent reflection-strength control for this path; its declared
+refractive-index parameter is ignored in the normal non-depth-thickness path, so
+the UI does not expose a misleading refraction slider.
 
 The resident editor defers hidden Qt compatibility panels until an explicit widget
 or action lookup needs them. Output controls keep their identity, and the latest

@@ -287,11 +287,15 @@ def rewrite_emission(text: str, settings: Mapping[str, Tuple[str, str, float]]) 
     return text
 
 
-def rewrite_translucency(text: str, settings: Mapping[str, Tuple[float, float]]) -> str:
+def rewrite_translucency(text: str, settings: Mapping[str, Tuple[float, float]], *,
+                         material_paths: Mapping[str, str] | None = None) -> str:
     """Edit only selected shaders and absorption, retaining every other parameter."""
     if len(text) > 16 * 1024 * 1024:
         raise PacXmlMaterialError("Translucency material sidecar exceeds the supported size limit.")
     settings = {name.casefold(): values for name, values in settings.items()}
+    material_paths = {name.casefold(): path for name, path in (material_paths or {}).items()}
+    if material_paths.keys() - settings.keys():
+        raise PacXmlMaterialError("Surface overrides must belong to selected translucent materials.")
     for values in settings.values():
         if len(values) != 2 or any(not 0 <= value <= 1 for value in values):
             raise PacXmlMaterialError("translucency needs thickness and extinction in 0..1")
@@ -309,6 +313,19 @@ def rewrite_translucency(text: str, settings: Mapping[str, Tuple[float, float]])
         block = text[wrapper.start:wrapper.end]
         block = block.replace(f'_materialName="{wrapper.shader}"', f'_materialName="{TRANSLUCENT_SHADER}"', 1)
         newline = _newline_of(block)
+        if name in material_paths:
+            from xml.sax.saxutils import escape
+
+            block = re.sub(r'<MaterialParameterTexture\b[^>]*\bStringItemID="_materialTexture"[^>]*>.*?</MaterialParameterTexture>',
+                           "", block, flags=re.S)
+            index = max((int(i) for i in re.findall(r'\bIndex="(\d+)"', block)), default=-1) + 1
+            path = escape(material_paths[name], {'"': '&quot;'})
+            row = (f'<MaterialParameterTexture StringItemID="_materialTexture" ItemID="0" _name="_materialTexture" Index="{index}">'
+                   f'<ResourceReferencePath_ITexture Name="_value" _path="{path}"/></MaterialParameterTexture>')
+            position = block.rfind("</Vector>")
+            if position < 0:
+                raise PacXmlMaterialError("The material has no editable parameter vector.")
+            block = block[:position] + row + newline + block[position:]
         for parameter, item_id, value in (
             ("_thickness", "3214133184954366", settings[name][0]),
             ("_extinctionCoefficient", "3161969463918590", settings[name][1]),

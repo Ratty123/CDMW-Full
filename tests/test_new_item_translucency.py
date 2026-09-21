@@ -293,11 +293,22 @@ def test_per_part_controls_preserve_other_parts_and_restore_without_signals():
         assert sent[-1].values_for("Blade") == (0.5, 0.5)
         assert sent[-1].values_for("Gem") == (1.0, 1.0)
         saved = sent[-1]
+        editor.surface_preset.setCurrentIndex(1)
+        saved = sent[-1]
+        assert saved.surface_for("Blade") == (0.9, 0.0) and saved.surface_for("Gem") is None
+        assert saved.values_for("Blade") == (0.5, 0.5)
         editor.refresh(rows, None)
         editor.refresh(rows, saved)
-        assert sent[-1] == saved and len(sent) == before + 1
+        assert sent[-1] == saved and len(sent) == before + 2
         editor.parts.setCurrentRow(1)
         assert editor.preset.currentIndex() == 4
+        assert editor.surface_preset.currentIndex() == 0
+        editor.parts.setCurrentRow(0)
+        assert editor.surface_preset.currentIndex() == 1
+        editor.surface_fields[1][0].setChecked(False)
+        assert sent[-1].surface_for("Blade") == (0.9, None)
+        editor.surface_preset.setCurrentIndex(0)
+        assert sent[-1].surface_for("Blade") is None
         editor.parts.item(1).setCheckState(Qt.CheckState.Unchecked)
         assert sent[-1].parts == ("Blade",)
         assert sent[-1].values_for("Blade") == (0.5, 0.5)

@@ -87,16 +87,19 @@ def apply_prebuilt_translucency(files, route: MaterialRoute, choice: Translucenc
     if route is not MaterialRoute.PLAIN_PBR:
         raise NewItemPlanError("Enable Plain PBR materials to export translucency.")
     choice.validate()
-    from cdmw.core.pac_xml_standard_material import PacXmlMaterialError, rewrite_translucency
-
     xml_keys = [key for key in files.side_files if key.lower().endswith(".pac_xml")]
     if len(xml_keys) != 1:
         raise NewItemPlanError(f"the import carries {len(xml_keys)} .pac_xml sidecar(s), not one")
     key = xml_keys[0]
     try:
         text = files.side_files[key].decode("utf-8")
-        text = rewrite_translucency(text, {name: choice.values_for(name) for name in choice.parts})
-    except (UnicodeDecodeError, PacXmlMaterialError) as exc:
+        from cdmw.services.translucency_surface import apply_translucency_surface
+        sources = {path.replace("\\", "/").casefold(): data for path, data in files.side_files.items()}
+        text, surface_files = apply_translucency_surface(text,
+            {name: choice.values_for(name) for name in choice.parts},
+            {name: choice.surface_for(name) for name in choice.parts}, key.removesuffix("_xml"),
+            lambda path: sources.get(path.replace("\\", "/").casefold()))
+    except (UnicodeDecodeError, ValueError) as exc:
         raise NewItemPlanError(str(exc)) from exc
     notes = []
     for name in choice.parts:
@@ -106,7 +109,7 @@ def apply_prebuilt_translucency(files, route: MaterialRoute, choice: Translucenc
         if on_log is not None:
             on_log(note)
     return replace(
-        files, side_files={**files.side_files, key: text.encode("utf-8")}, material_route=route.value,
+        files, side_files={**files.side_files, **surface_files, key: text.encode("utf-8")}, material_route=route.value,
         notes=(*files.notes, *notes), warnings=(*files.warnings,
             "Experimental SkinnedMeshTranslucent: thickness and extinction control absorption. "
             "Viewport transmission is approximate; game refraction and lighting may differ."),
@@ -160,6 +163,7 @@ def selected_translucency(choice: TranslucencyChoice | None, wrapper_name: str, 
     matches = wanted & (names | atlas_names)
     try:
         choice.values_for(*matches)
+        choice.surface_for(*matches)
     except ValueError as exc:
         raise NewItemPlanError(f"{wrapper_name}: {exc}") from exc
     return matches
@@ -178,6 +182,9 @@ def translucency_preview_parameter_groups(mesh, choice: TranslucencyChoice | Non
             "editor_role": "replacement_preview",
             "translucency": list(absorption) if absorption is not None else None,
         })
+        surface = choice.surface_for(getattr(part, "name", ""), getattr(part, "material", "")) if choice else None
+        if surface is not None:
+            groups[-1]["translucency_surface"] = list(surface)
     return tuple(groups)
 
 
@@ -193,5 +200,7 @@ def translucency_preview_mesh(mesh, choice: TranslucencyChoice | None = None, *,
         clone.preview_native_material_overrides = dict(getattr(part, "preview_native_material_overrides", {}) or {})
         if group["translucency"] is not None:
             clone.preview_native_material_overrides["translucency"] = group["translucency"]
+        if "translucency_surface" in group:
+            clone.preview_native_material_overrides["translucency_surface"] = group["translucency_surface"]
         result.submeshes.append(clone)
     return result

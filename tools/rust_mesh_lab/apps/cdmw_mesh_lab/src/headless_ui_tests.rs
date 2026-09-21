@@ -7734,6 +7734,7 @@ fn inspector_paints_loaded_texture_relationship_provenance() -> TestResult {
             alpha_blend: None,
             opacity: None,
             translucency: None,
+            translucency_surface: None,
             gltf_metallic_roughness: None,
             hair_anisotropy: Some(true),
             layer_mask_channel: Some(2),
@@ -7834,7 +7835,7 @@ fn translucency_controls_send_selected_parts_and_restore_without_changing_geomet
     let actions = ui.actions_from_click("Apply translucency")?;
     assert!(actions.iter().any(|action| matches!(action,
         UiAction::CdmwCommand { command: "replacement_translucency", arguments, .. }
-        if arguments == &json!({"part_ids": ["b"], "translucency": [0.25, 0.75]})
+        if arguments == &json!({"part_ids": ["b"], "translucency": [0.25, 0.75], "translucency_surface": null})
     )));
     ui.application.cdmw_pending_request = None;
     ui.click("Custom")?;
@@ -7842,7 +7843,18 @@ fn translucency_controls_send_selected_parts_and_restore_without_changing_geomet
     let actions = ui.actions_from_click("Apply translucency")?;
     assert!(actions.iter().any(|action| matches!(action,
         UiAction::CdmwCommand { command: "replacement_translucency", arguments, .. }
-        if arguments == &json!({"part_ids": ["b"], "translucency": [1.0, 1.0]})
+        if arguments == &json!({"part_ids": ["b"], "translucency": [1.0, 1.0], "translucency_surface": null})
+    )));
+    ui.application.cdmw_pending_request = None;
+    ui.click("Source surface")?;
+    ui.click("Low-shine translucent")?;
+    let actions = ui.actions_from_click("Apply translucency")?;
+    assert!(actions.iter().any(|action| matches!(action,
+        UiAction::CdmwCommand { command: "replacement_translucency", arguments, .. }
+        if arguments["part_ids"] == json!(["b"])
+            && arguments["translucency"] == json!([1.0, 1.0])
+            && (arguments["translucency_surface"][0].as_f64().unwrap() - 0.9).abs() < 1e-6
+            && arguments["translucency_surface"][1] == json!(0.0)
     )));
     ui.application.cdmw_pending_request = None;
     let actions = ui.actions_from_click("Restore material")?;

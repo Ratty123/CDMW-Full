@@ -14,7 +14,7 @@ from cdmw.domain.mesh.cloth import PacClothRule
 from cdmw.domain.mesh.cloth_guides import PacClothGuideRule
 from cdmw.domain.mesh.jiggle import PacJiggleRule
 from cdmw.domain.mesh.physics_profile import PacPhysicsProfileRule
-from cdmw.domain.mesh.translucency import translucency_values
+from cdmw.domain.mesh.translucency import translucency_values, translucency_surface_values
 
 
 MAX_REPLACEMENT_BYTES = 512 * 1024 * 1024
@@ -48,7 +48,7 @@ def save_replacement_state(state, project_root, generation_dir, stop_event=None)
     translucent = any(part.translucency is not None for part in state.parts)
     guides = any(part.cloth_guides is not None for part in state.parts)
     return {
-        "version": (9 if guides else 8 if translucent else
+        "version": (10 if any(part.translucency_surface is not None for part in state.parts) else 9 if guides else 8 if translucent else
                     7 if physics_profiles else 6 if relative_jiggle else
                     5 if any(part.jiggle is not None for part in state.parts) else
                     4 if any(part.cloth is not None for part in state.parts) else
@@ -67,6 +67,7 @@ def save_replacement_state(state, project_root, generation_dir, stop_event=None)
                    **({"cloth_guides": part.cloth_guides.to_dict()} if part.cloth_guides is not None else {}),
                    **({"physics_profiles": [rule.to_dict() for rule in part.physics_profiles]} if part.physics_profiles else {}),
                    **({"translucency": list(part.translucency)} if part.translucency is not None else {}),
+                   **({"translucency_surface": list(part.translucency_surface)} if part.translucency_surface is not None else {}),
                    **({"jiggle": {**part.jiggle.to_dict(),
                                   **({"retained": part.jiggle.retained} if relative_jiggle or physics_profiles or translucent or guides else {})}}
                       if part.jiggle is not None else {})}
@@ -87,7 +88,7 @@ def load_replacement_state(payload, project_root):
 def _load_replacement_state(payload, project_root):
     if payload is None:
         return None
-    if (not isinstance(payload, dict) or payload.get("version") not in {1, 2, 3, 4, 5, 6, 7, 8, 9}
+    if (not isinstance(payload, dict) or payload.get("version") not in {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
             or (payload["version"] < 3 and ("neutral_appearance" in payload or "neutral_coordinates" in payload))):
         raise ValueError("Unsupported replacement draft state.")
     root = Path(project_root).resolve()
@@ -133,6 +134,11 @@ def _load_replacement_state(payload, project_root):
         if payload["version"] < 8 and "translucency" in value:
             raise ValueError("Translucency settings require replacement draft version 8.")
         translucency = translucency_values(value["translucency"]) if "translucency" in value else None
+        if payload["version"] < 10 and "translucency_surface" in value:
+            raise ValueError("Translucent surface settings require replacement draft version 10.")
+        surface = translucency_surface_values(value.get("translucency_surface"))
+        if surface is not None and translucency is None:
+            raise ValueError("Surface overrides require translucency on the same part.")
         jiggle = PacJiggleRule.from_dict(value["jiggle"]) if "jiggle" in value else None
         profiles = value.get("physics_profiles", [])
         if (not isinstance(profiles, list) or len(profiles) > 256
@@ -168,7 +174,9 @@ def _load_replacement_state(payload, project_root):
             raise ValueError("Invalid replacement output intent.")
         parts.append(ReplacementPart(str(value["part_id"]), int(value["target_index"]),
             tuple(str(v) for v in value["source_part_ids"]), value["included"],
-            value["material_choice"], str(value["source_label"]), positions, normals, cloth, jiggle, profiles, translucency, guides))
+            value["material_choice"], str(value["source_label"]), positions, normals, cloth, jiggle, profiles, translucency, guides, surface))
+    if payload["version"] == 10 and not any(part.translucency_surface is not None for part in parts):
+        raise ValueError("Translucent surface draft has no surface settings.")
     if payload["version"] == 9 and not any(part.cloth_guides is not None for part in parts):
         raise ValueError("Guide draft has no guide creation settings.")
     if payload["version"] == 8 and not any(part.translucency is not None for part in parts):

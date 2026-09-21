@@ -98,8 +98,9 @@ def test_rust_command_preview_reuse_undo_reset_finish_and_saved_output(tmp_path,
         base = copy.deepcopy(session.archive_refit_material_cache["base"])
         key = session.state_payload()["translucency"]["parts"][0]["id"]
 
-        def apply(values=(.1, .3), reset=False):
-            return command(session, "replacement_translucency", {"part_ids": [key], "translucency": values, "reset": reset})
+        def apply(values=(.1, .3), reset=False, surface=None):
+            return command(session, "replacement_translucency", {"part_ids": [key], "translucency": values,
+                "translucency_surface": surface, "reset": reset})
 
         changed = apply()
         material_key = changed["state"]["archive_refit_materials"]["key"]
@@ -116,7 +117,18 @@ def test_rust_command_preview_reuse_undo_reset_finish_and_saved_output(tmp_path,
         restored = apply(reset=True)
         assert restored["state"]["archive_refit_materials"]["key"] == "base"
         assert not prepare_replacement_output(session.shadow_service.capture_export_snapshot(session.shadow_session_id)).companion_files
-        apply((.4, .6))
+        changed = apply((.4, .6), surface=(.9, 0))
+        material_key = changed["state"]["archive_refit_materials"]["key"]
+        assert session.archive_refit_material_cache[material_key]["material_presentations"][0]["translucency_surface"] == [.9, 0]
+        assert session.archive_refit_material_cache[material_key]["textures"] == base["textures"]
+        assert changed["state"]["translucency"]["parts"][0]["translucency_surface"] == (.9, 0)
+        surface_state = session.shadow_service.capture_export_snapshot(session.shadow_session_id).replacement_state
+        directory = tmp_path / "generation"
+        directory.mkdir()
+        draft = save_replacement_state(surface_state, tmp_path, directory)
+        assert draft["version"] == 10 and load_replacement_state(draft, tmp_path) == surface_state
+        with pytest.raises(ValueError, match="version 10"):
+            load_replacement_state({**draft, "version": 8}, tmp_path)
         before_failure = session.shadow_service.capture_export_snapshot(session.shadow_session_id)
         with monkeypatch.context() as failure:
             failure.setattr("cdmw.services.mesh_rust_replacement_materials.stage_replacement_materials",
@@ -130,7 +142,14 @@ def test_rust_command_preview_reuse_undo_reset_finish_and_saved_output(tmp_path,
         final = service.capture_export_snapshot(session.authoritative_session_id)
         result = prepare_replacement_output(final)
         assert result.data == original
-        assert find_material_wrappers(result.companion_files[0].data.decode())[0].value("_thickness") == "0.400000"
+        xml = next(file.data.decode() for file in result.companion_files if file.path.endswith(".pac_xml"))
+        row = find_material_wrappers(xml)[0]
+        assert row.value("_thickness") == "0.400000"
+        from io import BytesIO
+        from PIL import Image
+        surface = next(file.data for file in result.companion_files if file.path == row.textures["_materialTexture"])
+        with Image.open(BytesIO(surface)) as image:
+            assert abs(image.getpixel((0, 0))[1] - 230) <= 2 and image.getpixel((0, 0))[2] <= 2
     finally:
         if not session.closed:
             session.cancel()

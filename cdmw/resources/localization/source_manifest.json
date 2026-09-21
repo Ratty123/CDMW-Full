@@ -3751,7 +3751,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 327,
+          "line": 328,
           "sink": "ValueError"
         }
       ]
@@ -3981,7 +3981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 37,
+          "line": 38,
           "sink": "addRow"
         }
       ]
@@ -3991,7 +3991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 40,
+          "line": 41,
           "sink": "setAccessibleName"
         }
       ]
@@ -5316,7 +5316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 45,
+          "line": 46,
           "sink": "setToolTip"
         }
       ]
@@ -5331,7 +5331,7 @@
         },
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 51,
+          "line": 75,
           "sink": "QGroupBox"
         }
       ]
@@ -8026,7 +8026,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 292,
+          "line": 293,
           "sink": "ValueError"
         }
       ]
@@ -8576,7 +8576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 76,
+          "line": 100,
           "sink": "QLabel"
         }
       ]
@@ -19356,7 +19356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 25,
+          "line": 26,
           "sink": "setToolTip"
         }
       ]
@@ -19641,7 +19641,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7208,
+          "line": 7209,
           "sink": "report"
         }
       ]
@@ -20776,7 +20776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 115,
+          "line": 140,
           "sink": "setToolTip"
         }
       ]
@@ -22216,13 +22216,23 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 35,
+          "line": 36,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 47,
+          "line": 48,
           "sink": "QLabel"
+        },
+        {
+          "path": "cdmw/ui/new_item/translucency_editor.py",
+          "line": 55,
+          "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/translucency_editor.py",
+          "line": 59,
+          "sink": "QCheckBox"
         }
       ]
     },
@@ -22831,7 +22841,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 129,
+          "line": 130,
           "sink": "ValueError"
         }
       ]
@@ -22866,7 +22876,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 126,
+          "line": 127,
           "sink": "ValueError"
         }
       ]
@@ -26476,7 +26486,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 181,
+          "line": 182,
           "sink": "ValueError"
         }
       ]
@@ -27366,8 +27376,33 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 35,
+          "line": 36,
           "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/translucency_editor.py",
+          "line": 36,
+          "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/translucency_editor.py",
+          "line": 55,
+          "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/translucency_editor.py",
+          "line": 55,
+          "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/translucency_editor.py",
+          "line": 59,
+          "sink": "QCheckBox"
+        },
+        {
+          "path": "cdmw/ui/new_item/translucency_editor.py",
+          "line": 59,
+          "sink": "QCheckBox"
         }
       ]
     },
@@ -28961,7 +28996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 49,
+          "line": 50,
           "sink": "QLabel"
         }
       ]
@@ -28971,8 +29006,18 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 35,
+          "line": 36,
           "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/translucency_editor.py",
+          "line": 55,
+          "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/translucency_editor.py",
+          "line": 59,
+          "sink": "QCheckBox"
         }
       ]
     },
@@ -31926,7 +31971,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 9464,
+          "line": 9465,
           "sink": "RuntimeError"
         }
       ]
@@ -33566,7 +33611,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_materials.py",
-          "line": 719,
+          "line": 749,
           "sink": "on_log"
         }
       ]
@@ -33576,7 +33621,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_materials.py",
-          "line": 774,
+          "line": 804,
           "sink": "on_log"
         }
       ]
@@ -33586,7 +33631,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_materials.py",
-          "line": 761,
+          "line": 791,
           "sink": "on_log"
         }
       ]
@@ -33611,7 +33656,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_materials.py",
-          "line": 709,
+          "line": 739,
           "sink": "on_log"
         }
       ]
@@ -33621,7 +33666,17 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_materials.py",
-          "line": 798,
+          "line": 828,
+          "sink": "on_log"
+        }
+      ]
+    },
+    {
+      "key": "Encoding {value_0} translucent base colour from source (BC7, full mipmaps)",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_translucency.py",
+          "line": 72,
           "sink": "on_log"
         }
       ]
@@ -34766,7 +34821,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 123,
+          "line": 124,
           "sink": "ValueError"
         },
         {
@@ -36966,7 +37021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 71,
+          "line": 95,
           "sink": "addRow"
         }
       ]
@@ -39396,7 +39451,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_translucency.py",
-          "line": 46,
+          "line": 60,
           "sink": "python-return:translucency_ui_state"
         }
       ]
@@ -41831,7 +41886,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 304,
+          "line": 305,
           "sink": "ValueError"
         }
       ]
@@ -42476,7 +42531,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 173,
+          "line": 181,
           "sink": "ValueError"
         }
       ]
@@ -43146,12 +43201,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 330,
+          "line": 331,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 338,
+          "line": 339,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -43171,7 +43226,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 185,
+          "line": 186,
           "sink": "ValueError"
         }
       ]
@@ -43221,7 +43276,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 255,
+          "line": 256,
           "sink": "ValueError"
         }
       ]
@@ -43231,7 +43286,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 290,
+          "line": 291,
           "sink": "ValueError"
         }
       ]
@@ -43241,7 +43296,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 257,
+          "line": 258,
           "sink": "ValueError"
         }
       ]
@@ -43356,7 +43411,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 296,
+          "line": 297,
           "sink": "ValueError"
         }
       ]
@@ -43366,7 +43421,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 100,
+          "line": 101,
           "sink": "ValueError"
         }
       ]
@@ -43386,7 +43441,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 183,
+          "line": 184,
           "sink": "ValueError"
         }
       ]
@@ -43396,7 +43451,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 315,
+          "line": 316,
           "sink": "ValueError"
         }
       ]
@@ -43406,7 +43461,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 419,
+          "line": 420,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -43416,7 +43471,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 395,
+          "line": 396,
           "sink": "ValueError"
         }
       ]
@@ -43446,7 +43501,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 216,
+          "line": 217,
           "sink": "ValueError"
         }
       ]
@@ -43456,7 +43511,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 209,
+          "line": 210,
           "sink": "ValueError"
         }
       ]
@@ -43466,7 +43521,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 76,
+          "line": 77,
           "sink": "ValueError"
         }
       ]
@@ -43531,7 +43586,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 224,
+          "line": 225,
           "sink": "ValueError"
         }
       ]
@@ -43576,7 +43631,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 284,
+          "line": 285,
           "sink": "ValueError"
         }
       ]
@@ -44316,7 +44371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 68,
+          "line": 92,
           "sink": "setToolTip"
         }
       ]
@@ -44325,6 +44380,16 @@
       "key": "Higher values absorb more light. Glow maps and colours are kept. Game refraction and glow brightness may differ from the preview.",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Higher values soften shiny highlights. Overrides the roughness texture; does not change absorption.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/translucency_editor.py",
+          "line": 71,
+          "sink": "setToolTip"
+        }
+      ]
     },
     {
       "key": "Highest terrain-like group risk: {value_0}",
@@ -44616,7 +44681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 69,
+          "line": 93,
           "sink": "setToolTip"
         }
       ]
@@ -48361,7 +48426,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 190,
+          "line": 198,
           "sink": "ValueError"
         }
       ]
@@ -48571,17 +48636,17 @@
         },
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 140,
+          "line": 146,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 143,
+          "line": 149,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 179,
+          "line": 187,
           "sink": "ValueError"
         },
         {
@@ -48626,7 +48691,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 114,
+          "line": 115,
           "sink": "ValueError"
         }
       ]
@@ -48646,7 +48711,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 123,
+          "line": 124,
           "sink": "ValueError"
         }
       ]
@@ -48656,7 +48721,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 102,
+          "line": 103,
           "sink": "ValueError"
         }
       ]
@@ -48666,7 +48731,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 153,
+          "line": 159,
           "sink": "ValueError"
         }
       ]
@@ -48676,7 +48741,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 168,
+          "line": 174,
           "sink": "ValueError"
         }
       ]
@@ -48786,7 +48851,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_translucency.py",
-          "line": 68,
+          "line": 83,
           "sink": "ValueError"
         }
       ]
@@ -49961,7 +50026,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 132,
+          "line": 133,
           "sink": "ValueError"
         }
       ]
@@ -51281,8 +51346,18 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 35,
+          "line": 36,
           "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/translucency_editor.py",
+          "line": 55,
+          "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/translucency_editor.py",
+          "line": 59,
+          "sink": "QCheckBox"
         }
       ]
     },
@@ -53707,6 +53782,26 @@
       ]
     },
     {
+      "key": "Low-shine translucent",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/translucency_editor.py",
+          "line": 36,
+          "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/translucency_editor.py",
+          "line": 55,
+          "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/translucency_editor.py",
+          "line": 59,
+          "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
       "key": "Lower LOD geometry transfer is unsupported: {value_0}",
       "origins": [
         {
@@ -53743,6 +53838,16 @@
           "path": "cdmw/services/mesh_replacement_output.py",
           "line": 122,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Lower values reduce metallic reflections. Some reflections may remain in game.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/translucency_editor.py",
+          "line": 72,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -53806,7 +53911,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 84,
+          "line": 85,
           "sink": "ValueError"
         }
       ]
@@ -55231,8 +55336,18 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 35,
+          "line": 36,
           "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/translucency_editor.py",
+          "line": 55,
+          "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/translucency_editor.py",
+          "line": 59,
+          "sink": "QCheckBox"
         }
       ]
     },
@@ -58637,6 +58752,26 @@
       ]
     },
     {
+      "key": "Metallic",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/translucency_editor.py",
+          "line": 36,
+          "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/translucency_editor.py",
+          "line": 55,
+          "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/translucency_editor.py",
+          "line": 59,
+          "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
       "key": "Metalness scale",
       "origins": [
         {
@@ -59141,7 +59276,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 351,
+          "line": 352,
           "sink": "ValueError"
         }
       ]
@@ -59171,12 +59306,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 227,
+          "line": 228,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 280,
+          "line": 281,
           "sink": "ValueError"
         }
       ]
@@ -60776,7 +60911,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8795,
+          "line": 8796,
           "sink": "RuntimeError"
         }
       ]
@@ -60856,7 +60991,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8725,
+          "line": 8726,
           "sink": "RuntimeError"
         }
       ]
@@ -60866,7 +61001,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8721,
+          "line": 8722,
           "sink": "RuntimeError"
         }
       ]
@@ -60876,7 +61011,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8696,
+          "line": 8697,
           "sink": "RuntimeError"
         }
       ]
@@ -63386,7 +63521,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 194,
+          "line": 195,
           "sink": "ValueError"
         }
       ]
@@ -66461,7 +66596,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 166,
+          "line": 172,
           "sink": "ValueError"
         }
       ]
@@ -66471,7 +66606,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 156,
+          "line": 162,
           "sink": "ValueError"
         }
       ]
@@ -71762,6 +71897,16 @@
       ]
     },
     {
+      "key": "Override this channel on the highlighted part. Uncheck to keep its source texture.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/translucency_editor.py",
+          "line": 60,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Override tile",
       "origins": [
         {
@@ -74561,7 +74706,7 @@
         },
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 146,
+          "line": 152,
           "sink": "ValueError"
         },
         {
@@ -76996,7 +77141,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_replacement_materials.py",
-          "line": 234,
+          "line": 236,
           "sink": "ValueError"
         }
       ]
@@ -77006,7 +77151,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_replacement_materials.py",
-          "line": 236,
+          "line": 238,
           "sink": "ValueError"
         }
       ]
@@ -77141,7 +77286,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7206,
+          "line": 7207,
           "sink": "report"
         }
       ]
@@ -77606,7 +77751,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7761,
+          "line": 7762,
           "sink": "progress"
         }
       ]
@@ -77616,7 +77761,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7072,
+          "line": 7073,
           "sink": "report"
         }
       ]
@@ -77626,7 +77771,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7096,
+          "line": 7097,
           "sink": "report"
         }
       ]
@@ -83111,7 +83256,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 336,
+          "line": 337,
           "sink": "on_log"
         }
       ]
@@ -86461,7 +86606,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 177,
+          "line": 185,
           "sink": "ValueError"
         }
       ]
@@ -86471,7 +86616,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 148,
+          "line": 154,
           "sink": "ValueError"
         }
       ]
@@ -86481,7 +86626,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 150,
+          "line": 156,
           "sink": "ValueError"
         }
       ]
@@ -87676,7 +87821,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 192,
+          "line": 200,
           "sink": "ValueError"
         }
       ]
@@ -87716,7 +87861,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 159,
+          "line": 165,
           "sink": "ValueError"
         }
       ]
@@ -87736,7 +87881,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 181,
+          "line": 189,
           "sink": "ValueError"
         }
       ]
@@ -87746,7 +87891,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 107,
+          "line": 108,
           "sink": "ValueError"
         }
       ]
@@ -87756,7 +87901,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 104,
+          "line": 105,
           "sink": "ValueError"
         }
       ]
@@ -87806,7 +87951,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 183,
+          "line": 191,
           "sink": "ValueError"
         }
       ]
@@ -87926,7 +88071,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_replacement_materials.py",
-          "line": 261,
+          "line": 263,
           "sink": "ValueError"
         }
       ]
@@ -88401,7 +88546,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 272,
+          "line": 273,
           "sink": "ValueError"
         }
       ]
@@ -91957,6 +92102,26 @@
       ]
     },
     {
+      "key": "Roughness",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/translucency_editor.py",
+          "line": 36,
+          "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/translucency_editor.py",
+          "line": 55,
+          "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/translucency_editor.py",
+          "line": 59,
+          "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
       "key": "Roughness bias",
       "origins": [
         {
@@ -93136,7 +93301,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 163,
+          "line": 169,
           "sink": "ValueError"
         },
         {
@@ -96526,7 +96691,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_translucency.py",
-          "line": 18,
+          "line": 20,
           "sink": "ValueError"
         }
       ]
@@ -96986,7 +97151,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_translucency.py",
-          "line": 65,
+          "line": 80,
           "sink": "ValueError"
         }
       ]
@@ -102912,6 +103077,26 @@
       ]
     },
     {
+      "key": "Source surface",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/translucency_editor.py",
+          "line": 36,
+          "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/translucency_editor.py",
+          "line": 55,
+          "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/translucency_editor.py",
+          "line": 59,
+          "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
       "key": "Source {value_0} DDS failed readback: {value_1}",
       "origins": [
         {
@@ -105323,6 +105508,36 @@
           "path": "cdmw/ui/texture_editor_tab.py",
           "line": 796,
           "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "Surface overrides require translucency on the same part.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_draft.py",
+          "line": 141,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/mesh_translucency.py",
+          "line": 18,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/translucency_surface.py",
+          "line": 19,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Surface preset",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/translucency_editor.py",
+          "line": 56,
+          "sink": "addRow"
         }
       ]
     },
@@ -109176,7 +109391,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 374,
+          "line": 375,
           "sink": "ValueError"
         }
       ]
@@ -109186,7 +109401,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 362,
+          "line": 363,
           "sink": "ValueError"
         }
       ]
@@ -109196,7 +109411,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 245,
+          "line": 246,
           "sink": "ValueError"
         }
       ]
@@ -109466,7 +109681,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 332,
+          "line": 333,
           "sink": "ValueError"
         }
       ]
@@ -109486,7 +109701,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 418,
+          "line": 419,
           "sink": "ValueError"
         }
       ]
@@ -109536,7 +109751,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 392,
+          "line": 393,
           "sink": "ValueError"
         }
       ]
@@ -109766,7 +109981,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 359,
+          "line": 360,
           "sink": "ValueError"
         }
       ]
@@ -109806,7 +110021,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_translucency.py",
-          "line": 32,
+          "line": 35,
           "sink": "ValueError"
         }
       ]
@@ -110031,7 +110246,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 251,
+          "line": 252,
           "sink": "ValueError"
         }
       ]
@@ -110616,7 +110831,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 221,
+          "line": 222,
           "sink": "ValueError"
         }
       ]
@@ -111241,7 +111456,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 264,
+          "line": 265,
           "sink": "ValueError"
         }
       ]
@@ -111496,7 +111711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 70,
+          "line": 94,
           "sink": "addRow"
         }
       ]
@@ -111731,7 +111946,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 261,
+          "line": 262,
           "sink": "ValueError"
         },
         {
@@ -113396,7 +113611,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 175,
+          "line": 183,
           "sink": "ValueError"
         }
       ]
@@ -113421,7 +113636,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_translucency.py",
-          "line": 29,
+          "line": 32,
           "sink": "ValueError"
         }
       ]
@@ -113431,12 +113646,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_translucency.py",
-          "line": 24,
+          "line": 27,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_translucency.py",
-          "line": 46,
+          "line": 60,
           "sink": "python-return:translucency_ui_state"
         }
       ]
@@ -113451,7 +113666,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 134,
+          "line": 135,
           "sink": "ValueError"
         }
       ]
@@ -113461,8 +113676,38 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_translucency.py",
-          "line": 36,
+          "line": 110,
           "sink": "on_log"
+        }
+      ]
+    },
+    {
+      "key": "Translucent surface draft has no surface settings.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_draft.py",
+          "line": 179,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Translucent surface material bindings were not found: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/translucency_surface.py",
+          "line": 37,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Translucent surface settings require replacement draft version 10.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_draft.py",
+          "line": 138,
+          "sink": "ValueError"
         }
       ]
     },
@@ -113676,7 +113921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 115,
+          "line": 140,
           "sink": "setToolTip"
         }
       ]
@@ -115276,7 +115521,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 92,
+          "line": 93,
           "sink": "ValueError"
         }
       ]
@@ -124546,7 +124791,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 375,
+          "line": 376,
           "sink": "read"
         }
       ]
@@ -125412,6 +125657,21 @@
       ]
     },
     {
+      "key": "custom",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/translucency_editor.py",
+          "line": 36,
+          "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/translucency_editor.py",
+          "line": 55,
+          "sink": "addItem"
+        }
+      ]
+    },
+    {
       "key": "cyans",
       "origins": [
         {
@@ -125986,7 +126246,7 @@
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7354,
+          "line": 7355,
           "sink": "open_edit_session"
         },
         {
@@ -130511,12 +130771,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 6670,
+          "line": 6671,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 6768,
+          "line": 6769,
           "sink": "RuntimeError"
         }
       ]
@@ -143651,7 +143911,7 @@
         },
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 366,
+          "line": 367,
           "sink": "read"
         }
       ]
@@ -143982,11 +144242,41 @@
       ]
     },
     {
+      "key": "{value_0}: cannot decode the material texture for surface editing.",
+      "origins": [
+        {
+          "path": "cdmw/services/translucency_surface.py",
+          "line": 54,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "{value_0}: cannot edit the surface; missing material texture {value_1}.",
+      "origins": [
+        {
+          "path": "cdmw/services/translucency_surface.py",
+          "line": 31,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "{value_0}: complete original PAC skin records are required.",
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
           "line": 48,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "{value_0}: could not encode the translucent surface texture.",
+      "origins": [
+        {
+          "path": "cdmw/services/translucency_surface.py",
+          "line": 72,
           "sink": "ValueError"
         }
       ]
@@ -144931,7 +145221,7 @@
         },
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 369,
+          "line": 370,
           "sink": "read"
         }
       ]

@@ -59,6 +59,7 @@ struct MaterialUniform {
     relief_factors: vec4<f32>,
     texture_tint_and_strength: vec4<f32>,
     translucency_factors: vec4<f32>,
+    translucency_surface: vec4<f32>,
 };
 
 @group(0) @binding(0) var base_texture: texture_2d<f32>;
@@ -708,6 +709,16 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool) 
         let height_relief = (height_value - 0.5) * clamp(material.relief_factors.x, 0.0, 1.0);
         roughness = clamp(roughness - height_relief * 0.10, 0.04, 1.0);
     }
+    // Explicit surface edits replace packed G/B, matching the exported DDS.
+    // Apply after source layers and factors; never alter absorption or emission.
+    if material.translucency_factors.z > 0.5 {
+        if material.translucency_surface.z > 0.5 {
+            roughness = clamp(round(material.translucency_surface.x * 255.0) / 255.0, 0.04, 1.0);
+        }
+        if material.translucency_surface.w > 0.5 {
+            metalness = clamp(round(material.translucency_surface.y * 255.0) / 255.0, 0.0, 1.0);
+        }
+    }
     var raw_occlusion = 1.0;
     if (material.flags & MATERIAL_OCCLUSION) != 0u {
         raw_occlusion = clamp(textureSampleBias(occlusion_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS).r, 0.0, 1.0);
@@ -1300,6 +1311,7 @@ struct MaterialUniform {
     relief_factors: [f32; 4],
     texture_tint_and_strength: [f32; 4],
     translucency_factors: [f32; 4],
+    translucency_surface: [f32; 4],
 }
 
 const MATERIAL_BASE_COLOR: u32 = 1;
@@ -1528,6 +1540,7 @@ pub struct MaterialPreviewFactors {
     pub alpha_blend: Option<bool>,
     pub opacity: Option<f32>,
     pub translucency: Option<[f32; 2]>,
+    pub translucency_surface: Option<[Option<f32>; 2]>,
     pub gltf_metallic_roughness: Option<bool>,
     pub hair_anisotropy: Option<bool>,
     pub layer_mask_channel: Option<u32>,
@@ -4013,6 +4026,7 @@ fn validate_material_factor_ownership(
         && factors.alpha_blend.is_none()
         && factors.opacity.is_none()
         && factors.translucency.is_none()
+        && factors.translucency_surface.is_none()
         && factors.gltf_metallic_roughness.is_none()
         && factors.hair_anisotropy.is_none()
         && factors.layer_mask_channel.is_none()
@@ -4060,6 +4074,11 @@ fn validate_material_factor_ownership(
         values.into_iter().any(|value| !value.is_finite() || !(0.0..=1.0).contains(&value))
     }) {
         return Err(RenderError::Texture("translucency factors must be in 0..=1".to_owned()));
+    }
+    if factors.translucency_surface.is_some_and(|values| {
+        values.into_iter().flatten().any(|value| !value.is_finite() || !(0.0..=1.0).contains(&value))
+    }) {
+        return Err(RenderError::Texture("translucent surface factors must be in 0..=1".to_owned()));
     }
     if factors.category_code.is_some_and(|code| code > 14) {
         return Err(RenderError::Texture(
@@ -7959,6 +7978,9 @@ pub fn preview_material_factors(
         if changes.translucency.is_some() {
             target.translucency = changes.translucency;
         }
+        if changes.translucency_surface.is_some() {
+            target.translucency_surface = changes.translucency_surface;
+        }
         if changes.gltf_metallic_roughness.is_some() {
             target.gltf_metallic_roughness = changes.gltf_metallic_roughness;
         }
@@ -8129,6 +8151,14 @@ fn resolve_material_factors<'a>(
                     )));
                 }
                 resolved.translucency = Some(translucency);
+            }
+            if let Some(surface) = factors.translucency_surface {
+                if resolved.translucency_surface.is_some_and(|existing| existing != surface) {
+                    return Err(RenderError::Texture(format!(
+                        "material {material} has conflicting translucent surface factors in LOD {lod_index}"
+                    )));
+                }
+                resolved.translucency_surface = Some(surface);
             }
             if let Some(opacity) = factors.opacity {
                 if resolved
@@ -8963,6 +8993,10 @@ fn create_material_bind_group(
                 || factors.alpha_blend == Some(true)
                 || factors.alpha_cutoff.is_some();
             [values[0], values[1], 1.0, if use_alpha { 1.0 } else { 0.0 }]
+        }),
+        translucency_surface: factors.translucency_surface.map_or([0.0; 4], |values| {
+            [values[0].unwrap_or(0.0), values[1].unwrap_or(0.0),
+             if values[0].is_some() { 1.0 } else { 0.0 }, if values[1].is_some() { 1.0 } else { 0.0 }]
         }),
     };
     let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -9923,7 +9957,7 @@ mod tests {
 
     #[test]
     fn material_uniform_and_vertex_match_the_wgsl_layout_contracts() {
-        assert_eq!(std::mem::size_of::<MaterialUniform>(), 80);
+        assert_eq!(std::mem::size_of::<MaterialUniform>(), 112);
         assert_eq!(std::mem::size_of::<GpuVertex>(), 68);
         assert_eq!(GpuVertex::ATTRIBUTES[5].shader_location, 5);
         assert_eq!(GpuVertex::ATTRIBUTES[5].format, wgpu::VertexFormat::Uint32);
@@ -10223,7 +10257,7 @@ mod tests {
 
     #[test]
     fn skin_detail_uses_authored_scale_mask_channel_and_support_maps() {
-        assert_eq!(std::mem::size_of::<MaterialUniform>(), 80);
+        assert_eq!(std::mem::size_of::<MaterialUniform>(), 112);
         assert_eq!(MATERIAL_SKIN_DETAIL_MASK, 524_288);
         assert_eq!(MATERIAL_SKIN_DETAIL_NORMAL, 1_048_576);
         assert_eq!(MATERIAL_SKIN_DETAIL_MATERIAL, 2_097_152);

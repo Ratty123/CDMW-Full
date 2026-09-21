@@ -99,6 +99,7 @@ _DOTNET_NATIVE_MATERIAL_OVERRIDE_KEYS = frozenset(
         "normal_strength",
         "opacity",
         "translucency",
+        "translucency_surface",
         "primary_material_layer",
         "roughness",
         "roughness_hint_present",

@@ -2900,6 +2900,11 @@ fn apply_preview_material_parameters(
                     .map_err(|_| "Translucency requires thickness and extinction numbers".to_owned())?),
                 None => None,
             },
+            translucency_surface: match group.get("translucency_surface").filter(|value| !value.is_null()) {
+                Some(value) => Some(serde_json::from_value::<[Option<f32>; 2]>(value.clone())
+                    .map_err(|_| "Translucent surface requires roughness and metallic numbers or null".to_owned())?),
+                None => None,
+            },
             ..MaterialPreviewFactors::default()
         };
         if factors != MaterialPreviewFactors::default() {
@@ -3734,13 +3739,16 @@ mod tests {
         }, ownership.clone())];
         let overrides = vec![(MaterialPreviewFactors {
             translucency: Some([0.1, 0.3]),
+            translucency_surface: Some([Some(0.9), Some(0.0)]),
             ..MaterialPreviewFactors::default()
         }, ownership)];
         let changed = cdmw_render_wgpu::preview_material_factors(&authored, &overrides, 0).unwrap();
         assert_eq!(changed[0].0.translucency, Some([0.1, 0.3]));
+        assert_eq!(changed[0].0.translucency_surface, Some([Some(0.9), Some(0.0)]));
         assert_eq!(changed[0].0.roughness, Some(0.7));
         let restored = cdmw_render_wgpu::preview_material_factors(&authored, &[], 0).unwrap();
         assert_eq!(restored[0].0.translucency, None);
+        assert_eq!(restored[0].0.translucency_surface, None);
         assert_eq!(restored[0].0.alpha_blend, Some(false));
         for value in [json!([0.1, 0.3]), Value::Null] {
             let parameters = json!({"groups": [{"source_submesh_indices": [0], "translucency": value}]});
@@ -3749,6 +3757,11 @@ mod tests {
         for value in [json!([-0.1, 0.3]), json!([0.1, 2.0]), json!([0.1]), json!("bad")] {
             let parameters = json!({"groups": [{"source_submesh_indices": [0], "translucency": value}]});
             assert!(apply_preview_material_parameters(None, &[], &parameters, 1, 0).is_err());
+        }
+        for (value, valid) in [(json!([0.9, 0.0]), true), (json!([null, 0.0]), true),
+            (Value::Null, true), (json!([0.1, 2.0]), false), (json!([true, 0]), false), (json!([0.1]), false)] {
+            let parameters = json!({"groups": [{"source_submesh_indices": [0], "translucency_surface": value}]});
+            assert_eq!(apply_preview_material_parameters(None, &[], &parameters, 1, 0).is_ok(), valid);
         }
     }
 

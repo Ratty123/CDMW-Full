@@ -133,7 +133,7 @@ def transform_template_pac(payload, matrix, *, stop_event=None):
 
 
 def prepare_template_model(snapshot, paths, *, glow=None, translucency=None, transform=(), stop_event=None):
-    from cdmw.core.pac_xml_standard_material import find_material_wrappers, rewrite_emission, rewrite_translucency
+    from cdmw.core.pac_xml_standard_material import find_material_wrappers, rewrite_emission
     from cdmw.services.new_item_planning import ModelFiles, NewItemPlanError
     from cdmw.services.new_item_materials import encode_emissive_solid
     from cdmw.services.new_item_variants import xml_path
@@ -181,7 +181,18 @@ def prepare_template_model(snapshot, paths, *, glow=None, translucency=None, tra
         if emission:
             text = rewrite_emission(text, emission)
         if glass:
-            text = rewrite_translucency(text, glass)
+            from cdmw.services.translucency_surface import apply_translucency_surface
+
+            sources = {key.casefold(): data for key, data in side.items()}
+            def read_surface(path):
+                return sources.get(path.casefold()) if path.casefold() in sources else (
+                    snapshot.payload(path) if snapshot.has_entry(path) else None)
+            try:
+                text, textures = apply_translucency_surface(text, glass,
+                    {name: translucency.surface_for(name) for name in glass}, path, read_surface, stop_event=stop_event)
+            except ValueError as exc:
+                raise NewItemPlanError(str(exc)) from exc
+            side.update(textures)
         if emission or glass:
             side[xml] = (b"\xef\xbb\xbf" if original.startswith(b"\xef\xbb\xbf") else b"") + text.encode("utf-8")
     missing = (selected_glow - found_glow) | (selected_glass - found_glass)

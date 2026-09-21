@@ -41,6 +41,7 @@ class ReplacementPart:
     physics_profiles: tuple[PacPhysicsProfileRule, ...] = ()
     translucency: tuple[float, float] | None = None
     cloth_guides: PacClothGuideRule | None = None
+    translucency_surface: tuple[float | None, float | None] | None = None
 
 
 @dataclass(frozen=True, slots=True)

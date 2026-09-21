@@ -4,6 +4,18 @@ import math
 from collections.abc import Mapping
 
 
+def translucency_surface_values(value: object) -> tuple[float | None, float | None] | None:
+    """Optional absolute roughness/metallic overrides; None retains source maps."""
+    if value is None:
+        return None
+    if (not isinstance(value, (list, tuple)) or len(value) != 2
+            or any(item is not None and (isinstance(item, bool) or not isinstance(item, (int, float))
+                   or not math.isfinite(item) or not 0 <= item <= 1) for item in value)):
+        raise ValueError("Translucent surface requires roughness and metallic values between 0 and 1, or source values.")
+    result = tuple(float(item) if item is not None else None for item in value)
+    return result if any(item is not None for item in result) else None
+
+
 def translucency_values(value: object) -> tuple[float, float]:
     if (not isinstance(value, (list, tuple)) or len(value) != 2
             or any(isinstance(item, bool) or not isinstance(item, (int, float))

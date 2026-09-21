@@ -41,7 +41,8 @@ def test_combined_template_retains_browse_archives_material_graph(tmp_path, monk
 
         parts = (template.submeshes[0].material,)
         template = glow_preview_mesh(template, GlowChoice(parts, (0.0, 0.0, 1.0), 6.0))
-        template = translucency_preview_mesh(template, TranslucencyChoice(parts, 0.1, 0.3))
+        template = translucency_preview_mesh(template, TranslucencyChoice(parts, 0.1, 0.3,
+            surface_settings=((parts[0], 0.9, 0.0),)))
     if surface.startswith("effects"):
         from cdmw.services.effect_placement_preview import build_effect_placement_package
         combined = build_effect_placement_package(template, (-1, -1, -1), (1, 1, 1),
@@ -84,7 +85,8 @@ def test_combined_template_retains_browse_archives_material_graph(tmp_path, monk
         assert presentation["emissive_intensity"] == 6.0
         assert presentation["emissive_color"] == [0.0, 0.0, 1.0]
         assert presentation["translucency"] == [0.1, 0.3]
-        for field in ("emissive_intensity", "emissive_color", "translucency"):
+        assert presentation["translucency_surface"] == [0.9, 0.0]
+        for field in ("emissive_intensity", "emissive_color", "translucency", "translucency_surface"):
             expected[field] = presentation[field]
     for row in (presentation, expected):
         row.pop("material_index")
