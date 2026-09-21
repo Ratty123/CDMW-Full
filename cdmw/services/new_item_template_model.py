@@ -132,7 +132,7 @@ def transform_template_pac(payload, matrix, *, stop_event=None):
     return bytes(result)
 
 
-def prepare_template_model(snapshot, paths, *, glow=None, translucency=None, transform=(), stop_event=None):
+def prepare_template_model(snapshot, paths, *, glow=None, translucency=None, transform=(), on_log=None, on_progress=None, stop_event=None):
     from cdmw.core.pac_xml_standard_material import find_material_wrappers, rewrite_emission
     from cdmw.services.new_item_planning import ModelFiles, NewItemPlanError
     from cdmw.services.new_item_materials import encode_emissive_solid
@@ -148,6 +148,8 @@ def prepare_template_model(snapshot, paths, *, glow=None, translucency=None, tra
     solid = None
     for path in paths:
         raise_if_cancelled(stop_event)
+        if on_log is not None:
+            on_log(f"Preparing template model: {PurePosixPath(path).name}...")
         payload = snapshot.payload(path)
         if transform:
             payload = transform_template_pac(payload, transform, stop_event=stop_event)
@@ -175,7 +177,8 @@ def prepare_template_model(snapshot, paths, *, glow=None, translucency=None, tra
         if glass:
             from cdmw.services.new_item_template_materials import bake_template_translucency
 
-            text, textures, baked_notes = bake_template_translucency(snapshot, text, path, glass, stop_event=stop_event)
+            text, textures, baked_notes = bake_template_translucency(snapshot, text, path, glass,
+                on_log=on_log, on_progress=on_progress, stop_event=stop_event)
             side.update(textures)
             notes.extend(baked_notes)
         if emission:

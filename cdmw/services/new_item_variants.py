@@ -68,7 +68,7 @@ def bind_static_import_to_attachment(mesh, target_path, prefab_data):
     return replace(mesh, has_bones=True, submeshes=bound_parts)
 
 
-def prepare_variant_models(spec, snapshot, models, scenes, *, on_log=None, stop_event=None):
+def prepare_variant_models(spec, snapshot, models, scenes, *, on_log=None, on_progress=None, stop_event=None):
     from cdmw.domain.cancellation import raise_if_cancelled
     from cdmw.services.new_item_materials import route_model_files
     from cdmw.services.new_item_planning import ModelFiles, model_files_from_import
@@ -83,7 +83,8 @@ def prepare_variant_models(spec, snapshot, models, scenes, *, on_log=None, stop_
 
                 result[appearance.identity] = prepare_template_model(
                     snapshot, [appearance.model_path], glow=appearance.glow_choice(),
-                    translucency=appearance.translucency, transform=appearance.template_transform, stop_event=stop_event,
+                    translucency=appearance.translucency, transform=appearance.template_transform,
+                    on_log=on_log, on_progress=on_progress, stop_event=stop_event,
                 )
             continue
         if model is None:

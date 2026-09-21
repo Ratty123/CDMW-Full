@@ -36,6 +36,7 @@ The format is intentionally simple:
 ### Fixed
 
 - Perks & Effects library buttons show hover, pressed and selected states, and the favourite star updates immediately. Thumbnail capture reports progress and failures, refreshes saved images and opens the larger thumbnail view after saving.
+- Create New Item reuses completed layered template textures when rebuilding a plan or adjusting translucency strength. Output shows material preparation stages, completed materials and elapsed time while retaining full texture quality.
 - Create New Item no longer opens a blank gap above the inspector tabs when Dye assignments expands.
 - Create New Item applies an explicit Glow colour to both the surface and emission of selected imported Plain PBR materials, preventing an authored cyan gem from remaining underneath a red glow. Texture detail, alpha and unselected material colours are retained in preview and newly built plans.
 - Create New Item applies template translucency, glow and surface controls to the correct PAC parts even when they share a material. Show the character now stays consistent through cached texture upgrades, template changes and rapid toggling.

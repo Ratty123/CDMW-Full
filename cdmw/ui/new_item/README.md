@@ -36,6 +36,20 @@ The cache retains at most 16 entries and 64 MiB. Waiting for an encode and the e
 itself are cancellable; failed or cancelled work is not cached. The first encode
 still performs the full-quality conversion.
 
+Layered template translucency also reuses completed material bakes in a separate
+session cache, bounded to 16 materials and 64 MiB. Its key includes the authored XML,
+model path, source DDS contents and encoder identity. Changing only thickness or
+extinction updates the material parameters without baking its textures again.
+Source dependencies are still read and registered for provenance on cache hits;
+failed, incomplete or cancelled material bakes are not retained.
+
+Output shows the current Build plan stage and elapsed time, including source reads,
+layer combining, colour/normal/surface compression, cache reuse and table planning.
+The bar counts completed materials during a template bake and remains indeterminate
+for stages without measurable progress. It does not estimate an encoder percentage
+or time remaining. Progress travels through the existing worker signal; cancellation
+rejects late updates, and the elapsed timer stops when the operation finishes.
+
 Overlay preparation checks source provenance once at the preparation boundary,
 including recovery retries. Dependency analysis and composition share decoded
 journals only within that call; composition still rechecks each reused journal's

@@ -1,6 +1,7 @@
 """Layered template exports use real colours and maps, never a mask as albedo."""
 
 from dataclasses import replace
+from collections import OrderedDict
 from io import BytesIO
 from types import SimpleNamespace
 import threading
@@ -27,6 +28,12 @@ from tests.test_static_skin_weight_export import _skinned_pac
 
 BLADE = "cd_phm_02_sword_0003"
 MASK = "character/texture/template_ma.dds"
+
+
+@pytest.fixture(autouse=True)
+def isolated_template_bakes(monkeypatch):
+    from cdmw.services import new_item_template_materials
+    monkeypatch.setattr(new_item_template_materials, "_BAKE_CACHE", OrderedDict())
 
 
 def layered_inputs(shader="SkinnedMeshStandard_Ver2"):
@@ -110,6 +117,38 @@ def test_build_plan_bakes_layered_template_and_keeps_other_materials(tmp_path, v
     assert any("layered template" in line for line in plan.summary_lines)
     for path, data in original.items():
         assert snapshot.payload(path) == data
+
+
+@pytest.mark.parametrize("variant", [False, True])
+def test_plan_reuses_template_maps_when_only_translucency_strength_changes(tmp_path, monkeypatch, variant):
+    from cdmw.services import new_item_template_materials
+    files = layered_inputs()
+    service = NewItemService()
+    snapshot = service.build_snapshot(parse_archive_pamt(build_package(tmp_path / "game", files)), read_entry=_read)
+    choice = replace(spec(), translucency=TranslucencyChoice((BLADE,), 0.1, 0.3))
+    if variant:
+        binding = next(item for item in selections(snapshot) if item.model_path == PAC)
+        choice = replace(choice, variants=(replace(binding, translucency=choice.translucency),))
+    progress = []
+    plan = service.plan(choice, snapshot, on_progress=lambda *values: progress.append(values))
+    assert any("Compressing colour texture" in detail for _, _, detail in progress)
+    assert any((current, total) == (1, 1) for current, total, _ in progress)
+    assert progress[-1][2] == "Planning texture registry..."
+
+    monkeypatch.setattr(new_item_template_materials, "_bake_material_maps",
+        lambda *args, **kwargs: pytest.fail("an unchanged material was baked again"))
+    glass = TranslucencyChoice((BLADE,), 0.8, 0.2)
+    changed = replace(choice, translucency=glass,
+        variants=(replace(choice.variants[0], translucency=glass),) if variant else None)
+    progress.clear()
+    rebuilt = service.plan(changed, snapshot, on_progress=lambda *values: progress.append(values))
+    assert {p: v for p, v in plan.loose_files.items() if p.endswith(".dds")} == {
+        p: v for p, v in rebuilt.loose_files.items() if p.endswith(".dds")}
+    xml = next(data.decode("utf-8-sig") for path, data in rebuilt.loose_files.items() if path.endswith(".pac_xml"))
+    row = find_material_wrappers(xml)[0]
+    assert (float(row.value("_thickness")), float(row.value("_extinctionCoefficient"))) == (0.8, 0.2)
+    assert any("Reusing prepared textures" in detail for _, _, detail in progress)
+    assert snapshot.payload(PAC_XML) == files[PAC_XML]
 
 
 @pytest.mark.parametrize("shader,parameter", [

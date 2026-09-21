@@ -221,6 +221,9 @@ class NewItemTaskControllerMixin:
             mod_base_folder=self.mod_base_folder, read_entry=self._read_entry, **variant_arguments,
         )
 
+        def run(log, progress, stop_event):
+            return task(log, stop_event, on_progress=progress)
+
         def done(result: object) -> None:
             if revision != self._draft_revision:
                 return
@@ -252,7 +255,7 @@ class NewItemTaskControllerMixin:
                     shown = f"No image in {icon_source} matched the new item closely enough; pick a file instead."
                 self.plan_failed.emit(shown, ())
 
-        return self._run("plan", task, done, failed, source_owners=source_owners)
+        return self._run("plan", run, done, failed, task_accepts_progress=True, source_owners=source_owners)
 
     def start_export(self, package_root: Path, manager: str) -> bool:
         if not self.has_current_plan:

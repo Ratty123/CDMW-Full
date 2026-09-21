@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QElapsedTimer, QTimer, Qt, Signal
 from PySide6.QtGui import QIntValidator
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -183,6 +183,11 @@ class OutputPanel(QGroupBox):
         layout.addWidget(self.busy_bar)
         self.busy_state = NoteLabel("", None)
         layout.addWidget(self.busy_state)
+        self._busy_detail = ""
+        self._busy_elapsed = QElapsedTimer()
+        self._busy_timer = QTimer(self)
+        self._busy_timer.setInterval(1000)
+        self._busy_timer.timeout.connect(self._refresh_busy_detail)
         content = QGridLayout()
         content.setContentsMargins(0, 0, 0, 0)
         content.setVerticalSpacing(4)
@@ -334,6 +339,7 @@ class OutputPanel(QGroupBox):
         controller.install_finished.connect(self._install_finished)
         controller.install_failed.connect(self._install_failed)
         controller.busy_changed.connect(self._busy_changed)
+        controller.operation_progress.connect(self._operation_progress)
         controller.status_message.connect(self._operation_message)
         controller.template_changed.connect(lambda _key: self._show_plan(None))
         self._busy_changed(False)
@@ -513,18 +519,20 @@ class OutputPanel(QGroupBox):
             self._install_error = ""
         working = bool(busy) and lane in {"plan", "export", "install", "snapshot"}
         self.busy_bar.setVisible(working)
+        self.busy_bar.setRange(0, 0)
+        self._busy_timer.stop()
         if not working:
             self.busy_state.set_note(self._install_error, BLOCK if self._install_error else None)
-        elif lane == "plan":
-            self.busy_state.set_note("Building the plan.", EDIT)
-        elif lane == "export":
-            self.busy_state.set_note("Writing the mod folder...", EDIT)
-        elif lane == "install":
-            self.busy_state.set_note("Installing the overlay: backing up, validating, writing.", EDIT)
-        elif lane == "snapshot":
-            self.busy_state.set_note("Reading the archives...", EDIT)
         else:
-            self.busy_state.set_note("Working...", EDIT)
+            self._busy_detail = {
+                "plan": self.tr("Building the plan."),
+                "export": self.tr("Writing the mod folder..."),
+                "install": self.tr("Installing the overlay: backing up, validating, writing."),
+                "snapshot": self.tr("Reading the archives..."),
+            }[lane]
+            self._busy_elapsed.start()
+            self._busy_timer.start()
+            self._refresh_busy_detail()
         self.build_button.setEnabled(not busy)
         has_plan = self._controller.has_current_plan
         self.export_button.setEnabled(has_plan and not busy)
@@ -536,6 +544,23 @@ class OutputPanel(QGroupBox):
         self.overlay_removal_button.setEnabled(not busy)
         for control in (self.output_mode, self.folder_controls, self.add_to_mod, self.tools_button):
             control.setEnabled(not busy)
+
+    def _operation_progress(self, lane: str, current: int, total: int, detail: str) -> None:
+        if (not self._controller.busy or lane != self._controller._lane
+                or lane not in {"plan", "export", "install", "snapshot"}):
+            return
+        # Counts describe the current stage (for example, completed materials),
+        # never an estimated percentage of the whole plan or a native encode.
+        self.busy_bar.setRange(0, max(0, total))
+        if total > 0:
+            self.busy_bar.setValue(max(0, min(current, total)))
+        self._busy_detail = str(detail)
+        self._refresh_busy_detail()
+
+    def _refresh_busy_detail(self) -> None:
+        if self._busy_elapsed.isValid():
+            seconds = self._busy_elapsed.elapsed() // 1000
+            self.busy_state.set_note(f"{self._busy_detail} ({seconds}s)", EDIT)
 
 
 __all__ = ["CHECKLIST", "OutputPanel", "install_result_report"]

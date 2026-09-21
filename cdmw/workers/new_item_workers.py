@@ -157,22 +157,31 @@ def plan_task(
 ) -> Callable[[LogSink, threading.Event], NewItemPlan]:
     """Validate, allocate and compose the plan (fourteen language tables, an icon encode,
     the material route's texture encodes). `reserved_*` are identities already handed out
-    that the snapshot cannot see (an earlier plan this session, a loose mod not installed)."""
+    that the snapshot cannot see (an earlier plan this session, a loose mod not installed).
+    The returned callable accepts optional `on_progress(current, total, detail)`;
+    totals describe the current material stage, with zero for uncounted stages.
+    """
 
     variant_arguments = {} if variant_models is None else {
         "variant_models": dict(variant_models), "variant_scenes": dict(variant_scenes or {}),
     }
     reserved_keys, reserved_stems = tuple(reserved_keys), tuple(reserved_stems)
 
-    def run(log: LogSink, stop_event: threading.Event) -> NewItemPlan:
+    def run(log: LogSink, stop_event: threading.Event, *, on_progress=None) -> NewItemPlan:
+        def report(message):
+            log(message)
+            if on_progress is not None:
+                on_progress(0, 0, message)
+
+        report("Checking archives before building the plan...")
         base = snapshot
         refreshed = None
         if snapshot.source_files_changed():
-            log("The game archives changed. Refreshing them before building the plan...")
+            report("The game archives changed. Refreshing them before building the plan...")
             root = Path(snapshot.iteminfo.payload_entry.pamt_path).parent.parent
             refreshed = service.build_snapshot(
-                list_archive_entries(root, log, stop_event),
-                read_entry=read_entry or (snapshot.provenance.reader if snapshot.provenance else snapshot.read_entry), on_log=log, stop_event=stop_event,
+                list_archive_entries(root, report, stop_event),
+                read_entry=read_entry or (snapshot.provenance.reader if snapshot.provenance else snapshot.read_entry), on_log=report, stop_event=stop_event,
             )
             base = refreshed
         if mod_base_folder is not None:
@@ -181,10 +190,10 @@ def plan_task(
             # A normal snapshot owns its reader even when the controller was not
             # given an override. Reuse the current base after any archive refresh.
             base_reader = read_entry or (base.provenance.reader if base.provenance else base.read_entry)
-            log("Reading the mod base so the next item keeps its existing dependencies...")
+            report("Reading the mod base so the next item keeps its existing dependencies...")
             base = build_mod_base_snapshot(
                 service, base, Path(mod_base_folder), read_entry=base_reader,
-                on_log=log, stop_event=stop_event,
+                on_log=report, stop_event=stop_event,
             )
         resolved_icon = icon_source_path
         if spec.icon is IconSource.GENERATED and icon_source_path is not None:
@@ -192,7 +201,7 @@ def plan_task(
         plan = service.plan(
             spec, base, model=model, scene=scene, icon=icon, icon_source_path=resolved_icon, **variant_arguments,
             reserved_keys=tuple(reserved_keys), reserved_stems=tuple(reserved_stems),
-            on_log=log, stop_event=stop_event,
+            on_log=log, on_progress=on_progress, stop_event=stop_event,
         )
         return replace(plan, refreshed_snapshot=refreshed) if refreshed is not None else plan
 

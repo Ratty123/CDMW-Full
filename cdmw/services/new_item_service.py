@@ -228,6 +228,7 @@ class NewItemService:
         reserved_keys: Iterable[int] = (),
         reserved_stems: Iterable[str] = (),
         on_log: Optional[Callable[[str], None]] = None,
+        on_progress: Optional[Callable[[int, int, str], None]] = None,
         stop_event: Optional[threading.Event] = None,
     ) -> NewItemPlan:
         """Validate, allocate and compose. `model` is a Builder result or :class:`ModelFiles`.
@@ -242,7 +243,14 @@ class NewItemService:
         which this builds through the icon generator first.
         """
 
+        def report(message):
+            if on_log is not None:
+                on_log(message)
+            if on_progress is not None:
+                on_progress(0, 0, message)
+
         raise_if_cancelled(stop_event, "New item plan cancelled.")
+        report("Checking plan inputs and archive sources...")
         if model is not None and spec.variants is None and snapshot.sources and snapshot.sources.static_layout:
             from cdmw.domain.new_item.authoring import VariantAppearance
             from cdmw.services.new_item_variants import variant_bindings
@@ -275,12 +283,12 @@ class NewItemService:
             pass
         elif isinstance(model, ModelFiles):
             from cdmw.services.new_item_translucency import apply_prebuilt_translucency
-            files = apply_prebuilt_translucency(model, allocated.material_route, allocated.translucency, on_log=on_log)
+            files = apply_prebuilt_translucency(model, allocated.material_route, allocated.translucency, on_log=report)
         elif model is not None:
             files = model_files_from_import(model, family=snapshot.family(allocated.template_key))
             raise_if_cancelled(stop_event, "New item plan cancelled.")
             files = route_model_files(files, allocated.material_route, result=model, scene=scene, glow=allocated.glow,
-                                     translucency=allocated.translucency, on_log=on_log, stop_event=stop_event)
+                                     translucency=allocated.translucency, on_log=report, stop_event=stop_event)
         elif allocated.glow is not None or allocated.translucency is not None or allocated.template_transform:
             from cdmw.services.new_item_template_model import prepare_template_model
 
@@ -288,7 +296,8 @@ class NewItemService:
             paths = [item.path for item in family.files_for("pac") if item.exists]
             paths.sort(key=lambda path: PurePosixPath(path).stem.casefold() != family.model_stem.casefold())
             files = prepare_template_model(snapshot, paths, glow=allocated.glow, translucency=allocated.translucency,
-                                           transform=allocated.template_transform, stop_event=stop_event)
+                                           transform=allocated.template_transform, on_log=report,
+                                           on_progress=on_progress, stop_event=stop_event)
         built = icon
         prepared_variants = {}
         if allocated.variants is not None:
@@ -302,12 +311,15 @@ class NewItemService:
                     supplied[primary.identity] = model
                     if scene is not None:
                         scenes[primary.identity] = scene
-            prepared_variants = prepare_variant_models(allocated,snapshot,supplied,scenes,on_log=on_log,stop_event=stop_event)
+            prepared_variants = prepare_variant_models(allocated,snapshot,supplied,scenes,
+                on_log=report,on_progress=on_progress,stop_event=stop_event)
         if allocated.icon is IconSource.GENERATED and built is None:
             if icon_source_path is None:
                 raise NewItemPlanError("the spec asks for a generated icon; give an icon or an image to build one from")
-            built = self.build_icon(allocated, snapshot, icon_source_path, on_log=on_log, stop_event=stop_event)
-        return build_plan(allocated, snapshot, model=files, variant_models=prepared_variants, icon=built, issues=tuple(issues) + tuple(more), on_log=on_log, stop_event=stop_event, reserved_item_keys=tuple(reserved_keys))
+            report("Preparing the item icon...")
+            built = self.build_icon(allocated, snapshot, icon_source_path, on_log=report, stop_event=stop_event)
+        report("Composing item tables and files...")
+        return build_plan(allocated, snapshot, model=files, variant_models=prepared_variants, icon=built, issues=tuple(issues) + tuple(more), on_log=report, stop_event=stop_event, reserved_item_keys=tuple(reserved_keys))
 
     # ------------------------------------------------------------------ writing
 
