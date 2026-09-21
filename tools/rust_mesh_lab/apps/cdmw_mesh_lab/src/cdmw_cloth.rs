@@ -146,6 +146,42 @@ pub(super) mod profiles {
         json!([source["name"], source["path"], source["sha256"]]).to_string()
     }
 
+    fn draw_collision_overrides(ui: &mut egui::Ui, source: &Value, view: &mut ProfileView) {
+        ui.collapsing("Collision and attachment overrides", |ui| {
+            for (key, label) in [
+                ("IsCloak", "Cloak behavior"),
+                ("UseBackStopCollision", "Backstop collisions"),
+                ("UseInputPositionCollision", "Input-position collisions"),
+                ("ShrinkWhenShieldIsInSocket", "Shrink around sheathed shield"),
+                ("UseLraConstraint", "Long-range attachments"),
+            ] {
+                ui.push_id(key, |ui| {
+                    ui.horizontal_wrapped(|ui| {
+                        let raw = source["authored"][key.to_ascii_lowercase()].as_str();
+                        let original = raw.and_then(|text| text.parse::<f64>().ok())
+                            .filter(|value| *value == 0.0 || *value == 1.0);
+                        let mut overridden = view.edit_values.contains_key(key);
+                        let mut value = view.edit_values.get(key).copied().or(original).unwrap_or(0.0) == 1.0;
+                        ui.checkbox(&mut overridden, format!("Override {label}"));
+                        if overridden {
+                            ui.checkbox(&mut value, "Enabled");
+                            view.edit_values.insert(key.to_owned(), if value { 1.0 } else { 0.0 });
+                        } else {
+                            view.edit_values.remove(key);
+                            ui.small(match (raw, original) {
+                                (_, Some(0.0)) => "Disabled in source",
+                                (_, Some(_)) => "Enabled in source",
+                                (Some(_), None) => "Invalid source value",
+                                (None, None) => "Source default",
+                            });
+                        }
+                    });
+                });
+            }
+            ui.small("Exports raw collision and attachment switches. The preview does not reproduce every game collision branch.");
+        });
+    }
+
     fn draw_authoring(
         ui: &mut egui::Ui,
         state: &Value,
@@ -249,6 +285,7 @@ pub(super) mod profiles {
                         }
                     });
                 }
+                draw_collision_overrides(ui, source, view);
                 if ui.add_enabled(enabled && group["available"].as_bool() == Some(true) && !view.edit_values.is_empty(),
                     egui::Button::new("Apply profile edit")).clicked() {
                     actions.push(UiAction::CdmwCommand {

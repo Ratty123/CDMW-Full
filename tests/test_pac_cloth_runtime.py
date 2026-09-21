@@ -65,6 +65,34 @@ def test_material_frame_flags_reject_implicit_boolean_inputs(field):
         material_flags(**{field: 1})
 
 
+@pytest.mark.parametrize('material,global_enabled', [(False, False), (False, True), (True, False), (True, True)])
+def test_long_range_attachment_flag_requires_material_and_runtime_switch(material, global_enabled):
+    data = bytearray(100)
+    struct.pack_into('<I', data, 32, 0x80000088)
+    result = material_flags(bytes(data), use_lra_constraint=material, lra_constraint_enabled=global_enabled)
+    assert struct.unpack_from('<I', result['per_frame'], 32)[0] == (
+        0x80000008 | (0x80 if material and global_enabled else 0))
+    assert bytes(data)[32:36] == struct.pack('<I', 0x80000088)
+
+
+@pytest.mark.parametrize('enabled', [False, True])
+def test_backstop_flag_is_explicit_and_preserves_unselected_lra_bit(enabled):
+    data = bytearray(100)
+    struct.pack_into('<I', data, 32, 0x80000088)
+    result = material_flags(bytes(data), use_back_stop_collision=enabled)
+    assert struct.unpack_from('<I', result['per_frame'], 32)[0] == (0x80000080 | (8 if enabled else 0))
+    assert result['upload_invalidated'] is not enabled
+
+
+@pytest.mark.parametrize('changes', [
+    {'use_back_stop_collision': 1}, {'use_lra_constraint': True},
+    {'lra_constraint_enabled': True}, {'use_lra_constraint': 1, 'lra_constraint_enabled': False},
+])
+def test_optional_collision_flags_never_infer_missing_or_nonboolean_runtime_inputs(changes):
+    with pytest.raises(ValueError, match='explicit booleans'):
+        material_flags(**changes)
+
+
 def test_collision_mask_without_inclusions_preserves_unused_slots_and_excludes_matches():
     assert collision_mask() == (0xFFFFFFFF,) * 3
     assert collision_mask((10, 20, 30), exclude=(20, 999), temporary=(30,)) == (

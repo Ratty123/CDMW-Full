@@ -58,10 +58,15 @@ def output(host):
     return prepare_replacement_output(host.shadow_service.capture_export_snapshot(host.shadow_session_id))
 
 
-def test_apply_restore_history_finish_draft_reopen_without_archive_and_build_mod(profile_host, tmp_path):
+@pytest.mark.parametrize('collision_values', [(), (
+    ('IsCloak', 1), ('UseBackStopCollision', 0), ('UseInputPositionCollision', 1),
+    ('ShrinkWhenShieldIsInSocket', 1), ('UseLraConstraint', 0),
+)], ids=['mechanics', 'collision-and-attachments'])
+def test_apply_restore_history_finish_draft_reopen_without_archive_and_build_mod(profile_host, tmp_path, collision_values):
     from cdmw.workers.mesh_editor_workers import MeshDirectOutputWorker
 
     case, host = profile_host, profile_host.host
+    case.rule = replace(case.rule, values=tuple(sorted(case.rule.values + collision_values)))
     before = case.service.capture_export_snapshot(case.sid)
     args = arguments(case)
     command(host, 'replacement_physics_profile', args)
@@ -80,6 +85,8 @@ def test_apply_restore_history_finish_draft_reopen_without_archive_and_build_mod
     assert all(part['bindings'][0]['profile'].startswith('CDMW_') for part in edited['parts'])
     assert all(part['bindings'][1]['profile'] == '' for part in edited['parts'])
     assert next(row for row in edited['profiles'] if row.get('edited'))['authored']['damping'] == '1.25'
+    edited_values = next(row for row in edited['profiles'] if row.get('edited'))['authored']
+    assert all(edited_values[key.casefold()] == str(value) for key, value in collision_values)
 
     command(host, 'undo')
     assert host.shadow_service._session(host.shadow_session_id).replacement_state is None

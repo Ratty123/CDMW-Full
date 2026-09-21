@@ -19,7 +19,7 @@ if __package__ in (None, ""):
 
 from cdmw.modding.pac_cloth_guides import (
     decode_pac_cloth_guides, inspect_guide_attachment_candidates, inspect_guide_constraint_geometry,
-    inspect_guide_particle_initialization, inspect_guide_topology,
+    inspect_guide_particle_initialization, inspect_guide_profile_admission, inspect_guide_topology,
 )
 from cdmw.core.pbd_cloth import _parse_xml, parse_pbd_material_settings
 from cdmw.models import PbdMaterialSettings
@@ -44,6 +44,7 @@ def inspect_pac(data: bytes, *, path: str = "", material: PbdMaterialSettings | 
     }
     result = {**result, "status": "decoded", "vertex_count": len(guides.vertices),
             "triangle_count": len(guides.triangles), "guides": payload,
+            "profile_resource_prerequisites": inspect_guide_profile_admission(guides.metadata_flags, len(guides.vertices)),
             "topology_evidence": inspect_guide_topology(guides),
             "particle_initialization": inspect_guide_particle_initialization(guides, **material_inputs),
             "constraint_geometry": inspect_guide_constraint_geometry(guides),

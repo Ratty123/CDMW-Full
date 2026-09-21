@@ -4,7 +4,7 @@ import hashlib
 import pytest
 
 from cdmw.core.pbd_cloth import _parse_xml
-from cdmw.domain.mesh.physics_profile import PacPhysicsProfileRule
+from cdmw.domain.mesh.physics_profile import PacPhysicsProfileRule, validate_profile_values
 from cdmw.domain.mesh.replacement import ReplacementFile
 from cdmw.modding.pbd_profile_edit import ProfileXml, edit_profile_values
 from cdmw.services.mesh_physics_profiles import _xml_text
@@ -18,6 +18,27 @@ PROFILE = ('<?xml version="1.0" encoding="utf-16"?>\r\n<SimulationParameters unk
            '<!-- <Damping>9</Damping> untouched -->\r\n<SimulationMode>cloth</SimulationMode>'
            '<Damping> 0.8 </Damping><Gravity>-10</Gravity><Unknown value="keep &amp; preserve"/>'
            '<AttachedCloth><Damping>2</Damping></AttachedCloth></SimulationParameters>')
+
+COLLISION_FIELDS = ('IsCloak', 'UseBackStopCollision', 'UseInputPositionCollision',
+                    'ShrinkWhenShieldIsInSocket', 'UseLraConstraint')
+
+
+@pytest.mark.parametrize('encoding', ['utf-8', 'utf-8-sig', 'utf-16', 'utf-16-be'])
+def test_collision_profile_overrides_preserve_attached_settings_and_unrelated_xml(encoding):
+    parents = ''.join(f'<{key}>0</{key}>' for key in COLLISION_FIELDS)
+    children = ''.join(f'<{key}>1</{key}>' for key in COLLISION_FIELDS)
+    source = f'<SimulationParameters keep="yes">{parents}<!-- unchanged --><AttachedCloth>{children}</AttachedCloth></SimulationParameters>'
+    data = source.encode(encoding)
+    changed = edit_profile_values(data, tuple((key, 1) for key in COLLISION_FIELDS))
+    assert changed == source.replace(parents, children, 1).encode(encoding)
+    assert data == source.encode(encoding)
+
+
+@pytest.mark.parametrize('key', COLLISION_FIELDS)
+@pytest.mark.parametrize('value', [-1, .5, 2, True, float('nan')])
+def test_collision_profile_overrides_require_binary_numbers(key, value):
+    with pytest.raises(ValueError, match='Invalid physics profile settings'):
+        validate_profile_values(((key, value),))
 
 
 def inputs(snapshot):

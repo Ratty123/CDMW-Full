@@ -57,6 +57,74 @@ mod profiles {
     }
 
     #[test]
+    fn collision_overrides_emit_captured_binary_values_and_survive_collapsed_edits() -> TestResult {
+        let (_root, mut ui, _) = fixture()?;
+        editable_profiles(&mut ui);
+        let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
+        let mut fields = [
+            ("IsCloak", "Cloak behavior", 1),
+            ("UseBackStopCollision", "Backstop collisions", 0),
+            ("UseInputPositionCollision", "Input-position collisions", 1),
+            ("ShrinkWhenShieldIsInSocket", "Shrink around sheathed shield", 1),
+            ("UseLraConstraint", "Long-range attachments", 0),
+        ];
+        for (key, _, value) in fields {
+            ui.application.cdmw_state["physics_profiles"]["sources"][0]["authored"][key.to_ascii_lowercase()] = json!(value.to_string());
+        }
+        ui.click("Authored cloth profile")?;
+        ui.click("Variant 0")?;
+        ui.click("Edit profile for mod")?;
+        ui.click("Collision and attachment overrides")?;
+        for (_, label, _) in fields {
+            ui.click(&format!("Override {label}"))?;
+        }
+        let cloak = ui.reveal("Override Cloak behavior")?;
+        let next = ui.label_rect("Override Backstop collisions").ok_or("next collision row")?;
+        // The value checkbox can wrap below its long override label.
+        ui.click_where("Enabled", |rect| rect.top() >= cloak.top() - 2.0 && rect.bottom() < next.top())?;
+        fields[0].2 = 0;
+        let actions = ui.actions_from_click("Apply profile edit")?;
+        let rule = profile_command(&actions)["rule"].clone();
+        assert_eq!(rule["values"].as_object().unwrap().len(), fields.len());
+        for (key, _, value) in fields {
+            assert_eq!(rule["values"][key], json!(f64::from(value)));
+        }
+        ui.application.cdmw_pending_request = None;
+        ui.application.cdmw_state["physics_profiles"]["groups"][0]["rule"] = rule.clone();
+        ui.frame(Vec::new());
+        ui.click("Collision and attachment overrides")?;
+        ui.click("Override Damping")?;
+        let actions = ui.actions_from_click("Apply profile edit")?;
+        let mut expected = rule["values"].clone();
+        expected["Damping"] = json!(0.8);
+        assert_eq!(profile_command(&actions)["rule"]["values"], expected);
+        assert!(!ui.application.cdmw_jiggle.preview.cloth_settings.body_collisions);
+        assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
+        Ok(())
+    }
+
+    #[test]
+    fn collision_overrides_require_an_explicit_choice_for_invalid_source_flags() -> TestResult {
+        let (_root, mut ui, _) = fixture()?;
+        editable_profiles(&mut ui);
+        ui.click("Authored cloth profile")?;
+        ui.click("Variant 0")?;
+        ui.click("Edit profile for mod")?;
+        ui.click("Collision and attachment overrides")?;
+        for raw in ["NaN", "inf", "0.5", "invalid"] {
+            ui.application.cdmw_pending_request = None;
+            ui.application.cdmw_state["physics_profiles"]["sources"][0]["authored"]["iscloak"] = json!(raw);
+            ui.frame(Vec::new());
+            ui.reveal("Invalid source value")?;
+            assert!(ui.label_rect("Invalid source value").is_some());
+            ui.click("Override Cloak behavior")?;
+            let actions = ui.actions_from_click("Apply profile edit")?;
+            assert_eq!(profile_command(&actions)["rule"]["values"], json!({"IsCloak": 0.0}));
+        }
+        Ok(())
+    }
+
+    #[test]
     fn upward_profile_and_manual_gravity_use_xml_sign_without_changing_raw_edits() -> TestResult {
         let (_root, mut ui, _) = fixture()?;
         editable_profiles(&mut ui);

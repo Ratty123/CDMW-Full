@@ -550,6 +550,18 @@ there is no guide section, not that the model has no other physics. The guide
 block follows the complete submesh descriptor table. It has its own bounding
 box, up to 1024 vertices, triangle indices and a separate alpha bitmask.
 
+The retained `metadata_flags` also supplies the profile selector's default mode:
+bit 15 clear means cloth, set means spline. `inspect_guide_profile_admission`
+follows the loader/selector chain from `0x142C6D6E0` through `0x142C61960` and
+`0x142C63CE0` to `0x142CE39D0`. Guide count becomes resource `+0x148`; the
+`count <= 1024` result becomes byte `+0x120`. Both a nonzero count and that limit
+check are required. The optional global discard policy for oversized guides
+does not change their rejection by the selector. Byte `+0x121` retains bit 15
+and selects fallback mode `1 + bit`. The inspection tool reports these static
+prerequisites separately from live activation, which still depends on profile
+selection and scene scheduling. Neither the inspector nor this reference writes
+a PAC or assumes a live global value.
+
 Each 16-byte guide record contains three unsigned 15-bit coordinates, a fourth
 10-bit bone palette slot at bytes 6–7, three more 10-bit slots packed at bytes
 8–11, and four byte weights at bytes 12–15. The shader uses each weight divided
@@ -1273,7 +1285,7 @@ bytes 64..75. Synthetic tests compose these words with the existing guide input
 collision pass. Actual group selection, later mask changes, shader bypasses and
 native preview integration remain separate; this helper does not write a PAC.
 
-`update_cloth_material_frame_flags` connects four selected material controls to
+`update_cloth_material_frame_flags` connects six selected material controls to
 the frame's existing flag words. It sets or clears only the listed bits,
 preserves other frame state, and invalidates upload only when a word changes:
 
@@ -1283,11 +1295,18 @@ preserves other frame state, and invalidates upload only when a word changes:
 | `IsCloak` (`+0x187`) | Global byte `0x146D2BC48` | 32 / `0x20000000` |
 | `ShrinkWhenShieldIsInSocket` (`+0x194`) | None in this producer | 32 / `0x20` |
 | `UseInputPositionCollision` (`+0x19E`) | None in this producer | 36 / `0x20000` |
+| `UseBackStopCollision` (`+0x192`) | None in this producer | 32 / `0x8` |
+| `UseLraConstraint` (`+0x195`) | Global byte `0x146D10C18` | 32 / `0x80` |
 
 Flag builder `0x1435FF2F0` sets rotation and shield-shrink bits directly.
 Caller `0x143600750` resolves `IsCloak` at `0x143600E3C..0E55`, passes it to
 the builder, and uploads the returned word at `0x1436017DC`. The caller sets
 the input-position bit at `0x1436018E3..18F7` and uploads flags2 at `0x1436019C2`.
+Caller `0x14360124F` supplies the backstop byte in R9b; builder `0x1435FF35A`
+selects bit `0x8`. The LRA branch at `0x1435FF39F` requires both its global and
+material byte. Optional backstop/LRA arguments preserve those bits for existing
+callers when omitted; specifying LRA requires both explicit booleans. This
+avoids silently replacing unresolved runtime inputs with defaults.
 The cloak bit is distinct from the `EnlargeCriticalCollidable` preset and the
 equipment-derived critical-collider group bit. Authored XML, explicit runtime
 switches, and these CPU flags are composed with decoded guide rotation,
@@ -1586,6 +1605,13 @@ backend for raw PBD profile edits. `PacPhysicsProfileRule` records a variant,
 source profile/path/SHA-256 and explicit scalar changes; it never stores modified
 GPU stiffness coefficients. Supported raw fields are stretching/bending stiffness,
 damping, gravity, solver iteration count, vertex-alpha blending and guide rotation.
+The same binary-value validation and lossless writer support `IsCloak`,
+`UseBackStopCollision`, `UseInputPositionCollision`,
+`ShrinkWhenShieldIsInSocket` and `UseLraConstraint`. They are exposed under
+**Collision and attachment overrides**, retained through history/drafts and
+exported only to the cloned parent profile. Separate `AttachedCloth` values
+remain unchanged. These raw switches do not alter the preview's manual contact
+settings or bypass runtime global/scene eligibility.
 The profile's mode, other fields and separate `AttachedCloth` settings are preserved.
 
 The writer clones a captured profile under a deterministic `CDMW_` name, appends
@@ -1632,8 +1658,8 @@ name exits early. Otherwise, an existing
 over the named catalogue lookup; an empty or unresolved name can reach a fallback
 for the resource's mode. These branches explain why a sidecar assignment alone
 does not establish activation. The editor reports captured assignments, not the
-live result of this selector. The producers of the admission fields and full
-runtime scheduling remain unresolved.
+live result of this selector. The source guide-count, count-limit and default-mode
+producers are decoded above; complete runtime scheduling remains unresolved.
 
 Creating new guides would require a consistent guide section, bone-palette
 weights, constraint/attachment tables and render-to-guide bindings at every stored

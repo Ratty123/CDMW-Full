@@ -657,6 +657,16 @@ profile authoring remains unavailable for those models.
 Invalid source numbers are labelled; explicit overrides use finite bounded
 values. Preview stiffness coefficients are never copied into raw XML overrides.
 
+**Collision and attachment overrides** exposes cloak behavior, backstop
+collisions, input-position collisions, shrinking around a sheathed shield and
+long-range attachments. Tick **Override** to replace the captured value, then
+use **Enabled** to choose on or off. Unselected switches retain their original
+XML. Closing this section keeps selected overrides. These switches use the same
+Apply/Restore, history, draft and mod-output path as the other profile values.
+They do not change the manual preview's collision controls. Runtime globals,
+collider availability and scene conditions still gate the game's behavior;
+the preview does not reproduce every branch.
+
 **Apply profile edit** and **Restore profile assignment** each use Undo/Redo in
 the isolated edit session. **Finish Edit Mesh** accepts the edits into the main
 session. Save/Open Draft retains exact source bytes, archive locations and

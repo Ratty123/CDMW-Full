@@ -15,7 +15,7 @@ import pytest
 
 from cdmw.modding.pac_cloth_guides import (
     decode_pac_cloth_guides, inspect_guide_constraint_geometry,
-    inspect_guide_particle_initialization, inspect_guide_topology,
+    inspect_guide_particle_initialization, inspect_guide_profile_admission, inspect_guide_topology,
 )
 from tools.pac_cloth_guide_study import inspect_pac
 
@@ -74,6 +74,35 @@ def pack_pac(metadata):
     for section in range(1, 5):
         struct.pack_into("<II", header, 16 + section * 8, len(geometry), len(geometry))
     return bytes(header) + bytes(metadata) + geometry * 4
+
+
+@pytest.mark.parametrize('count,admitted', [(0, False), (1, True), (1024, True), (1025, False), (65535, False)])
+@pytest.mark.parametrize('spline', [False, True])
+def test_guide_profile_admission_uses_loader_count_limit_and_independent_mode_bit(count, admitted, spline):
+    flags = (3 << 8) | (0x8000 if spline else 0)
+    result = inspect_guide_profile_admission(flags, count)
+    assert result == {'passes_resource_checks': admitted, 'guide_count_limit': 1024,
+                      'default_profile_mode': 'spline' if spline else 'cloth'}
+    assert not inspect_guide_profile_admission(flags & ~0xF00, 0)['passes_resource_checks']
+
+
+@pytest.mark.parametrize('flags,count', [(0, 1), (-1, 0), (0, -1), (0x300, 65536), (True, 0)])
+def test_guide_profile_admission_rejects_inconsistent_or_out_of_storage_inputs(flags, count):
+    with pytest.raises(ValueError):
+        inspect_guide_profile_admission(flags, count)
+
+
+def test_guide_inspector_retains_metadata_mode_without_inventing_live_activation():
+    data, _ = guide_fixture()
+    spline = bytearray(data)
+    spline[81] |= 0x80
+    for source, mode in ((data, 'cloth'), (bytes(spline), 'spline')):
+        before = hashlib.sha256(source).hexdigest()
+        result = inspect_pac(source)
+        assert result['guides']['metadata_flags'] == (0x8300 if mode == 'spline' else 0x300)
+        assert result['profile_resource_prerequisites'] == {
+            'passes_resource_checks': True, 'guide_count_limit': 1024, 'default_profile_mode': mode}
+        assert result['sha256'] == before == hashlib.sha256(source).hexdigest()
 
 
 @pytest.mark.parametrize("layout", [3, 7])

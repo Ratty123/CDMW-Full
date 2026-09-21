@@ -112,8 +112,10 @@ def update_cloth_material_frame_flags(
     per_frame: bytes, *, use_rotation_correction: bool, is_cloak: bool,
     shrink_when_shield_is_in_socket: bool, use_input_position_collision: bool,
     rotation_correction_enabled: bool, cloak_enabled: bool,
+    use_back_stop_collision: bool | None = None,
+    use_lra_constraint: bool | None = None, lra_constraint_enabled: bool | None = None,
 ) -> dict:
-    """Set four decoded material-owned bits, preserving other frame state.
+    """Set selected decoded material-owned bits, preserving other frame state.
 
     In 0x1435FF2F0, material+0x180 and runtime byte0x146D10998 jointly
     select flags0x4000. Material+0x194 selects flags0x20. The caller at
@@ -121,6 +123,10 @@ def update_cloth_material_frame_flags(
     the callee sets flags0x20000000 from that argument. It is not the
     EnlargeCriticalCollidable preset. The caller uploads flags at frame+32.
     Its later material+0x19E branch sets flags2 mask0x20000 at frame+36.
+    Material+0x192 supplies the builder's R9b and selects flags0x8 (backstop).
+    Material+0x195 and global byte0x146D10C18 jointly select flags0x80 (LRA).
+    The optional backstop/LRA arguments preserve existing callers' untouched
+    bits when omitted. LRA needs both explicit inputs; neither is inferred.
 
     Supply selected material values and live global switches explicitly.
     Neither a material filename nor the presence of colliders enables these
@@ -135,7 +141,17 @@ def update_cloth_material_frame_flags(
     selected = ((0x4000 if use_rotation_correction and rotation_correction_enabled else 0)
                 | (0x20000000 if is_cloak and cloak_enabled else 0)
                 | (0x20 if shrink_when_shield_is_in_socket else 0))
-    words = ((flags & ~0x20004020) | selected,
+    mask = 0x20004020
+    if use_back_stop_collision is not None:
+        _boolean(use_back_stop_collision)
+        mask |= 0x8
+        selected |= 0x8 if use_back_stop_collision else 0
+    if use_lra_constraint is not None or lra_constraint_enabled is not None:
+        _boolean(use_lra_constraint)
+        _boolean(lra_constraint_enabled)
+        mask |= 0x80
+        selected |= 0x80 if use_lra_constraint and lra_constraint_enabled else 0
+    words = ((flags & ~mask) | selected,
              (flags2 & ~0x20000) | (0x20000 if use_input_position_collision else 0))
     result = bytearray(per_frame)
     offsets = []

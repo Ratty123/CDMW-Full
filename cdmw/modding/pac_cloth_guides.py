@@ -48,6 +48,29 @@ class PacClothGuides:
     groups_b: tuple[tuple[int, ...], ...] = ()
     edge_indices: tuple[int, ...] = ()
     cpu_unskinned_vertices: tuple[tuple[float, float, float], ...] = ()
+    metadata_flags: int = 0
+
+
+def inspect_guide_profile_admission(metadata_flags: int, guide_count: int) -> dict:
+    """Static resource prerequisites for the profile selector, not live activation.
+
+    Loader 0x142C63CE0 copies the guide count to resource+0x148 and the
+    count<=1024 result to byte+0x120. Selector 0x142CE39D0 requires both a
+    nonzero count and that limit check. An oversized resource fails regardless
+    of the global policy that optionally discards its guides after loading.
+    Loader 0x142C6D6E0 copies metadata bit15 to byte+0x121; the selector uses
+    1+that bit as its fallback profile mode. Named profiles, NoSimulation,
+    per-model overrides and later scene scheduling remain separate inputs.
+    """
+    if (type(metadata_flags) is not int or not 0 <= metadata_flags <= 0xFFFFFFFF
+            or type(guide_count) is not int or not 0 <= guide_count <= 0xFFFF):
+        raise ValueError("Guide admission requires unsigned PAC flags and a uint16 guide count.")
+    layout = (metadata_flags >> 8) & 15
+    if not layout and guide_count:
+        raise ValueError("A PAC without a guide section cannot supply a guide count.")
+    return {"passes_resource_checks": bool(layout and 0 < guide_count <= 1024),
+            "guide_count_limit": 1024,
+            "default_profile_mode": "spline" if metadata_flags & 0x8000 else "cloth"}
 
 
 def decode_pac_cloth_guides(data: bytes) -> PacClothGuides | None:
@@ -152,6 +175,7 @@ def decode_pac_cloth_guides(data: bytes) -> PacClothGuides | None:
         channel_a, channel_b, alpha_words, tuple(ranges),
         groups_a, group_a_tags, constraint_records, constraint_indices,
         vertex_constraint_spans, groups_b, edge_indices, tuple(cpu_vertices),
+        metadata_flags=flags,
     )
 
 

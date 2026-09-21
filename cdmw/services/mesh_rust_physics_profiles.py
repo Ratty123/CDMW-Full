@@ -13,7 +13,7 @@ from dataclasses import replace
 from types import SimpleNamespace
 
 from cdmw.core.pbd_cloth import _material_scalar_items, _parse_xml, parse_pbd_sidecar_hints, collect_pbd_config_materials
-from cdmw.domain.mesh.physics_profile import PacPhysicsProfileRule
+from cdmw.domain.mesh.physics_profile import PROFILE_VALUE_RANGES, PacPhysicsProfileRule
 from cdmw.domain.mesh.replacement import ReplacementFile
 from cdmw.modding._pbd_numeric import f32, round_pbd_half
 from cdmw.modding.mesh_parser import parse_pac
@@ -23,10 +23,8 @@ from cdmw.services.mesh_physics_profiles import _xml_text, _profile_path, resolv
 from cdmw.modding.pbd_profile_edit import ProfileXml
 
 
-_SCALARS = (
-    "simulationmode", "stretchingstiffness", "bendingstiffness", "damping",
-    "gravity", "solveriterationcount", "usevertexalphapositionblending",
-    "userotationcorrection", "useautoweightingpositionblending",
+_SCALARS = ("simulationmode", "useautoweightingpositionblending") + tuple(
+    key.casefold() for key in PROFILE_VALUE_RANGES
 )
 
 
