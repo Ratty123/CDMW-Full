@@ -7554,6 +7554,9 @@ fn draw_solid<'a>(
     mesh: &'a GpuMeshBuffers,
     pipeline: &'a wgpu::RenderPipeline,
 ) {
+    if mesh.triangle_index_count == 0 {
+        return;
+    }
     pass.set_pipeline(pipeline);
     pass.set_index_buffer(mesh.triangle_index.slice(..), wgpu::IndexFormat::Uint32);
     pass.draw_indexed(0..mesh.triangle_index_count, 0, 0..1);
@@ -7569,6 +7572,9 @@ fn draw_textured_solid<'a>(
     translucent_pipeline: Option<&'a wgpu::RenderPipeline>,
     transparency: Option<&'a material_transparency::PreparedTransparency>,
 ) {
+    if mesh.triangle_index_count == 0 {
+        return;
+    }
     pass.set_pipeline(pipeline);
     pass.set_index_buffer(mesh.triangle_index.slice(..), wgpu::IndexFormat::Uint32);
     for range in &mesh.material_ranges {
@@ -7611,6 +7617,9 @@ fn draw_wire<'a>(
     mesh: &'a GpuMeshBuffers,
     pipeline: &'a wgpu::RenderPipeline,
 ) {
+    if mesh.wire_index_count == 0 {
+        return;
+    }
     pass.set_pipeline(pipeline);
     pass.set_index_buffer(mesh.wire_index.slice(..), wgpu::IndexFormat::Uint32);
     pass.draw_indexed(0..mesh.wire_index_count, 0, 0..1);
@@ -7669,40 +7678,44 @@ fn draw_mesh<'a>(
 ) {
     pass.set_bind_group(0, default_material_bind_group, &[]);
     pass.set_bind_group(1, camera_bind_group, &[]);
-    pass.set_vertex_buffer(0, mesh.vertex.slice(..));
-    match view_mode {
-        ViewMode::TexturedSolid
-        | ViewMode::GameOutdoor
-        | ViewMode::BaseColor
-        | ViewMode::NormalMap
-        | ViewMode::UvChecker
-        | ViewMode::BaseAlpha
-        | ViewMode::PartId
-        | ViewMode::MaterialResponse
-        | ViewMode::LayerMask => draw_textured_solid(
-            pass,
-            mesh,
-            default_material_bind_group,
-            active_material_bindings,
-            solid_pipeline,
-            blended_pipeline,
-            translucent_pipeline,
-            transparency,
-        ),
-        ViewMode::Solid => draw_solid(pass, mesh, solid_pipeline),
-        ViewMode::SolidWire => {
-            draw_solid(pass, mesh, solid_pipeline);
-            draw_wire(pass, mesh, wire_pipeline);
-        }
-        ViewMode::Wireframe => draw_wire(pass, mesh, wire_pipeline),
-        ViewMode::Vertices => draw_points(pass, mesh, point_pipeline),
-        ViewMode::WireVertices => {
-            draw_wire(pass, mesh, wire_pipeline);
-            draw_points(pass, mesh, point_pipeline);
-        }
-        ViewMode::XRay => {
-            draw_solid(pass, mesh, xray_pipeline);
-            draw_wire(pass, mesh, xray_wire_pipeline);
+    // Hiding the last visible part (including the Hair Tools bust) is valid.
+    // wgpu rejects empty buffer slices, but independent overlays may still draw.
+    if mesh.vertex_count > 0 {
+        pass.set_vertex_buffer(0, mesh.vertex.slice(..));
+        match view_mode {
+            ViewMode::TexturedSolid
+            | ViewMode::GameOutdoor
+            | ViewMode::BaseColor
+            | ViewMode::NormalMap
+            | ViewMode::UvChecker
+            | ViewMode::BaseAlpha
+            | ViewMode::PartId
+            | ViewMode::MaterialResponse
+            | ViewMode::LayerMask => draw_textured_solid(
+                pass,
+                mesh,
+                default_material_bind_group,
+                active_material_bindings,
+                solid_pipeline,
+                blended_pipeline,
+                translucent_pipeline,
+                transparency,
+            ),
+            ViewMode::Solid => draw_solid(pass, mesh, solid_pipeline),
+            ViewMode::SolidWire => {
+                draw_solid(pass, mesh, solid_pipeline);
+                draw_wire(pass, mesh, wire_pipeline);
+            }
+            ViewMode::Wireframe => draw_wire(pass, mesh, wire_pipeline),
+            ViewMode::Vertices => draw_points(pass, mesh, point_pipeline),
+            ViewMode::WireVertices => {
+                draw_wire(pass, mesh, wire_pipeline);
+                draw_points(pass, mesh, point_pipeline);
+            }
+            ViewMode::XRay => {
+                draw_solid(pass, mesh, xray_pipeline);
+                draw_wire(pass, mesh, xray_wire_pipeline);
+            }
         }
     }
     if show_normals {

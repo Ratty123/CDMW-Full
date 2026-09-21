@@ -144,6 +144,9 @@ brows. Heads without fitted covers retain their separate eye reference.
 Reference loading parses fitting geometry and
 authored transforms directly, without opening editable sessions or decoding DDS.
 Eyes follow the head but remain outside the scalp planting and collision surface.
+**Advanced > Show character bust** only controls reference visibility. It can be
+turned off before any hair is created; the empty viewport remains usable, and
+turning it back on restores the reference without changing the hairstyle.
 Compatible single-mesh PAC registrations at LOD0 are supported, including
 registered variants without a `_player` suffix. Entries
 with multiple PAC references, additional LODs, unsupported layouts or incomplete

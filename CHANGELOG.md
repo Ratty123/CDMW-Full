@@ -31,6 +31,7 @@ The format is intentionally simple:
 ### Fixed
 
 - Applying Glow or Translucency to a template in New Item no longer leaves a grey model when the Python preview decoder is used. Template textures are prepared and retained before appearance edits are applied.
+- Hair Tools no longer crashes when Show character bust is turned off before creating hair or when all hair is hidden. Empty scenes and meshes with no faces render safely, and the bust can be shown again without changing the hairstyle.
 - Translucent previews separate background transmission from reflection and glow instead of blending an opaque shaded surface over the background. Supported GPUs preserve coloured transmission through overlapping glass; game refraction and lighting remain approximate.
 - Checkable section headers such as Glow and Translucency, along with radio buttons and checkboxes, have visible theme-aware outlines and selected, hover, focus and disabled states, including in OLED Black.
 - Create New Item prepares template selection off the UI thread, avoids duplicate geometry decoding, and reuses native template textures across Model & Placement and Perks & Effects. Effects also follows the shared archive viewport settings.

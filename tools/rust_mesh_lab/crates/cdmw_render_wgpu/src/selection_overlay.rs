@@ -373,6 +373,7 @@ impl FaceSelectionRenderer {
         xray: bool,
     ) {
         if self.vertex_count == 0
+            || mesh.triangle_index_count == 0
             || xray
             || !matches!(
                 mode,

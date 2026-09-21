@@ -115,6 +115,147 @@ fn hair_presets_create_distinct_geometry_and_keep_references_outside_output() {
     }
 }
 
+#[cfg(windows)]
+#[test]
+#[ignore = "explicit synthetic hidden-window D3D12 bust visibility regression"]
+fn hair_bust_toggle_renders_empty_and_populated_scenes() {
+    use winit::application::ApplicationHandler;
+    use winit::event::WindowEvent;
+    use winit::event_loop::{ActiveEventLoop, EventLoop};
+    use winit::platform::windows::EventLoopBuilderExtWindows;
+    use winit::window::{Window, WindowId};
+
+    #[derive(Default)]
+    struct Probe(Option<anyhow::Result<()>>);
+
+    impl ApplicationHandler for Probe {
+        fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+            self.0 = Some(run(event_loop));
+            event_loop.exit();
+        }
+
+        fn window_event(&mut self, _: &ActiveEventLoop, _: WindowId, _: WindowEvent) {}
+    }
+
+    fn run(event_loop: &ActiveEventLoop) -> anyhow::Result<()> {
+        let window = std::sync::Arc::new(event_loop.create_window(
+            Window::default_attributes()
+                .with_visible(false)
+                .with_inner_size(winit::dpi::PhysicalSize::new(96, 96)),
+        )?);
+        let mut renderer = pollster::block_on(WindowRenderer::new(window))?;
+        // A fixed camera keeps the bust visible even when the hair scene becomes empty.
+        renderer.set_camera(
+            glam::Mat4::orthographic_rh(-0.3, 0.3, -0.3, 0.3, 0.1, 3.0)
+                * glam::Mat4::look_at_rh(Vec3::new(0.0, 0.8, 1.0), Vec3::ZERO, Vec3::Y),
+        );
+        renderer.set_clear_colour([0.0, 0.0, 0.0, 1.0]);
+        let modes = [
+            ViewMode::TexturedSolid,
+            ViewMode::GameOutdoor,
+            ViewMode::BaseColor,
+            ViewMode::NormalMap,
+            ViewMode::UvChecker,
+            ViewMode::BaseAlpha,
+            ViewMode::PartId,
+            ViewMode::MaterialResponse,
+            ViewMode::LayerMask,
+            ViewMode::Solid,
+            ViewMode::SolidWire,
+            ViewMode::Wireframe,
+            ViewMode::Vertices,
+            ViewMode::WireVertices,
+            ViewMode::XRay,
+        ];
+        for existing in [false, true] {
+            let (mut state, document) = fixture();
+            if existing {
+                state.groups[0].mode = GroupMode::Existing;
+            }
+            let mut app = LabApplication::new(None, None);
+            app.document = Some(document.clone());
+            app.cdmw_state = json!({
+                "hair": {"available": true, "materials_ready": true},
+                "replacement": {"comparison": "edit"},
+            });
+            app.hydrate_hair(Some(state.clone()));
+            app.hair.pending_preset = false;
+            app.renderer = Some(renderer);
+            let mut baseline = None;
+            for show_reference in [true, false, true, false] {
+                app.hair.show_reference = show_reference;
+                app.render_hair();
+                let snapshot = &app.hair.scene.as_ref().unwrap().frame;
+                assert_eq!(snapshot.positions.is_empty(), !existing && !show_reference);
+                let renderer = app.renderer.as_mut().unwrap();
+                for mode in modes {
+                    renderer.set_view_mode(mode);
+                    let pixels = renderer.capture_frame(96, 96, None)?.read_rgba()?;
+                    assert_eq!(pixels.len(), 96 * 96 * 4);
+                    if !existing && !show_reference {
+                        assert!(pixels.chunks_exact(4).all(|p| p[..3] == [0, 0, 0]));
+                    }
+                    if mode == ViewMode::TexturedSolid && (show_reference || existing) {
+                        assert!(pixels.chunks_exact(4).any(|p| p[..3] != [0, 0, 0]));
+                    }
+                    if mode == ViewMode::TexturedSolid && show_reference {
+                        if let Some(expected) = &baseline {
+                            assert_eq!(&pixels, expected, "showing the bust restores its pixels");
+                        } else {
+                            baseline = Some(pixels);
+                        }
+                    }
+                }
+            }
+            assert_eq!(app.hair.state.as_ref(), Some(&state));
+            assert_eq!(app.document.as_ref(), Some(&document));
+            renderer = app.renderer.take().unwrap();
+        }
+
+        let (state, document) = fixture();
+        let empty = build_scene(&document, &state, false, None, 1).frame;
+        renderer.set_snapshot(&empty)?;
+        renderer.set_overlays(true, true);
+        renderer.set_preview_lines(&[
+            EffectLineVertex {
+                position: [-0.2, 0.0, 0.0],
+                colour: [0.0, 1.0, 0.0, 1.0],
+            },
+            EffectLineVertex {
+                position: [0.2, 0.0, 0.0],
+                colour: [0.0, 1.0, 0.0, 1.0],
+            },
+        ])?;
+        for mode in modes {
+            renderer.set_view_mode(mode);
+            let pixels = renderer.capture_frame(96, 96, None)?.read_rgba()?;
+            assert!(pixels.chunks_exact(4).any(|p| p[1] > 0), "guides remain visible");
+        }
+        renderer.set_preview_lines(&[])?;
+        // A retained highlight must not bind the empty mesh for its depth pass.
+        renderer.set_face_selection(&document.lods[0].submeshes[0].positions, [1.0; 4])?;
+        renderer.set_view_mode(ViewMode::Wireframe);
+        renderer.capture_frame(96, 96, None)?.read_rgba()?;
+        renderer.set_face_selection(&[], [1.0; 4])?;
+
+        // Erasing all faces can also leave a resident vertex buffer without indices.
+        let mut points = build_scene(&document, &state, true, None, 1).frame;
+        points.indices.clear();
+        points.triangle_materials.clear();
+        renderer.set_snapshot(&points)?;
+        for mode in modes {
+            renderer.set_view_mode(mode);
+            renderer.capture_frame(96, 96, None)?.read_rgba()?;
+        }
+        Ok(())
+    }
+
+    let event_loop = EventLoop::builder().with_any_thread(true).build().unwrap();
+    let mut probe = Probe::default();
+    event_loop.run_app(&mut probe).unwrap();
+    probe.0.expect("probe ran").expect("bust toggle renders safely");
+}
+
 #[test]
 fn hair_existing_bind_groom_retains_uv_and_conversion_preserves_current_geometry() {
     let (mut state, doc) = fixture();
