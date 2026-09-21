@@ -516,7 +516,7 @@ class OutputPanel(QGroupBox):
         if not working:
             self.busy_state.set_note(self._install_error, BLOCK if self._install_error else None)
         elif lane == "plan":
-            self.busy_state.set_note("Building the plan; the window stays usable while it runs.", EDIT)
+            self.busy_state.set_note("Building the plan.", EDIT)
         elif lane == "export":
             self.busy_state.set_note("Writing the mod folder...", EDIT)
         elif lane == "install":
