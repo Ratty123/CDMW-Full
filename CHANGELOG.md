@@ -34,6 +34,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Completed translations for translucency surface controls and related messages across all built-in languages.
 - Create New Item moves model prechecks, Mesh Editor preparation, catalogue filtering, effect compatibility checks and legacy recovery scans off the UI thread. Preview cleanup waits for renderer exit in the background, name edits reuse collision indexes, and large dropdowns and output reviews no longer populate all rows synchronously.
 - New Item and model replacement keep imported BC7 colour textures as BC7 when baking material settings, including their sRGB tag. Re-encoding avoids a second gamma conversion and correctly prepares DDS inputs for alpha-only edits.
 - New Item encodes imported translucent base colours from their source images as BC7, reducing compression colour noise amplified by glass absorption. Source factors, alpha and atlas regions are preserved without changing opaque parts that share an image.
