@@ -1418,6 +1418,47 @@ def _populate_preview_scene_overlays(
     return effect_texture_references
 
 
+def _composite_preview_core_material_graph(package_dir, scene, textures, presentations, quality, root_identity, cancelled):
+    """Copy native layers with scene-local draw indices, including reference roles."""
+    from cdmw.services.mesh_rust_authoring import _mesh_lods
+
+    sources = []
+    for lod_index, submeshes in enumerate(_mesh_lods(scene)):
+        for material_index, submesh in enumerate(submeshes):
+            overrides = getattr(submesh, "preview_native_material_overrides", {}) or {}
+            source = overrides.get("preview_core_material_source")
+            if source is not None:
+                sources.append((lod_index, material_index, source))
+    if not sources:
+        return None
+    if len(sources) > _PREVIEW_CORE_BATCH_LIMIT:
+        raise ValueError("Combined preview exceeds the bounded material graph limit.")
+    resources, next_index, aggregate_bytes = _preview_core_material_resource_index(package_dir, textures)
+    initial_resources = set(resources)
+    copied_sources, materials = {}, []
+    source_edge_count = 0
+    slots = {(row["lod_index"], row["material_index"]): row["material_slot_index"] for row in presentations}
+    for lod_index, material_index, source in sources:
+        _cancelled(cancelled)
+        aggregate_bytes, source_edge_count = _copy_preview_core_material_layers(
+            [source["batch"]], Path(source["package"]), package_dir, quality, resources,
+            next_index, aggregate_bytes, copied_sources, materials, source_edge_count, cancelled, root_identity,
+        )
+        materials[-1].update(lod_index=lod_index, material_index=material_index,
+                             material_slot_index=slots.get((lod_index, material_index), material_index))
+        next_index = max(next_index, len(resources))
+    return {
+        "schema_version": _PREVIEW_CORE_MATERIAL_GRAPH_SCHEMA,
+        "graph_version": _PREVIEW_CORE_MATERIAL_GRAPH_VERSION,
+        "semantics_version": _PREVIEW_CORE_MATERIAL_SEMANTICS_VERSION,
+        "quality": quality, "resources_included": quality == "full",
+        "source_edge_count": source_edge_count,
+        "unique_resource_count": len(resources),
+        "copied_resource_count": len(set(resources) - initial_resources),
+        "unique_resource_bytes": aggregate_bytes, "materials": materials,
+    }
+
+
 def _write_preview_mesh_resources(package_dir, scene, root_identity, include_material_resources, material_package_path, quality, cancelled):
     from cdmw.services.mesh_rust_authoring import (
         _RustMaterialSynthesisState,
@@ -1612,6 +1653,29 @@ def build_rust_preview_package(
         "theme": dict(theme or {}),
         "state": {"preview_scene": scene_payload},
     }
+    if include_material_resources:
+        graph = _composite_preview_core_material_graph(
+            package_dir, scene, textures, presentations, quality, root_identity, cancelled,
+        )
+        if graph is not None:
+            manifest["preview_core_material_graph"] = graph
+            from cdmw.services.mesh_rust_authoring import _mesh_lods
+
+            reports = {}
+            for level in _mesh_lods(scene):
+                for part in level:
+                    source = (getattr(part, "preview_native_material_overrides", {}) or {}).get("preview_core_material_source")
+                    if source is not None:
+                        reports[source["package"]] = source["conservation"]
+            manifest["material_contract"] = {
+                "graph_version": _PREVIEW_CORE_MATERIAL_GRAPH_VERSION,
+                "semantics_version": _PREVIEW_CORE_MATERIAL_SEMANTICS_VERSION,
+                "conservation": {
+                    "conserved": all(report.get("conserved") is True for report in reports.values()),
+                    "declared_parameter_count": sum(report["declared_parameter_count"] for report in reports.values()),
+                    "transported_parameter_count": sum(report["transported_parameter_count"] for report in reports.values()),
+                },
+            }
     manifest_path = package_dir / "manifest.json"
     atomic_write_text(manifest_path, json.dumps(manifest, indent=2, sort_keys=True))
     return RustPreviewPackage(

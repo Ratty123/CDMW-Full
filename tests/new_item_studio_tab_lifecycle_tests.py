@@ -149,6 +149,10 @@ class _TabLifecycleMixin:
         controller = NewItemStudioController(service=service, read_entry=_read)
         controller.snapshot = snapshot
         controller.set_template(TEMPLATE)
+        deadline = time.monotonic() + 2.0
+        while controller.draft.template_key != TEMPLATE and time.monotonic() < deadline:
+            self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
+        self.assertEqual(controller.draft.template_key, TEMPLATE)
         controller.draft.internal_name = "First_Name"
         controller.draft.display_names = {"eng": "First"}
         ready_plan = service.plan(controller.current_spec(), snapshot)
@@ -507,6 +511,7 @@ class _TabLifecycleMixin:
         # naming a button nobody can see is the same as no answer. It shows with the rest
         # of the import controls, which is the moment the question can be asked at all.
         panel.import_model.setChecked(True)
+        panel.inspector_tabs.setCurrentWidget(panel.appearance_page)
         self.assertTrue(panel.blender_holder.isVisibleTo(panel), "the Blender row shows with the import controls")
         # and it says which of the two states the studio is in (the machine running this
         # may have a Blender stored, so both are asked for rather than read off it)
@@ -748,7 +753,7 @@ class _TabLifecycleMixin:
         # nothing to glow until a model is imported: the route that writes a glow runs
         # only for one, so the group stays shut
         self.assertFalse(panel.glow_box.isEnabled())
-        self.assertIn("Import a model", panel.glow_box.toolTip())
+        self.assertIn("template or import", panel.glow_box.toolTip())
 
         # the parts are the imported model's own materials, keyed by the wrapper name the
         # file uses and labelled by the name the reader gave them

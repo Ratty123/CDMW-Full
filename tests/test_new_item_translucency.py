@@ -267,3 +267,79 @@ def test_editor_signals_values_and_restores_a_variant_without_emitting_edits():
         editor.close()
         editor.deleteLater()
         app.processEvents()
+
+
+def test_per_part_controls_preserve_other_parts_and_restore_without_signals():
+    from cdmw.ui.new_item.translucency_editor import TranslucencyEditor
+    app = QApplication.instance() or QApplication([])
+    editor = TranslucencyEditor()
+    sent = []
+    editor.changed.connect(sent.append)
+    try:
+        rows = (("Blade", "Blade"), ("Gem", "Gem"))
+        editor.refresh(rows, None)
+        editor.setChecked(True)
+        editor.parts.item(0).setCheckState(Qt.CheckState.Checked)
+        editor.extinction.setValue(0.7)
+        editor.parts.item(1).setCheckState(Qt.CheckState.Checked)
+        editor.preset.setCurrentIndex(4)  # Dense absorption on the highlighted Gem.
+        choice = sent[-1]
+        assert choice.values_for("Blade") == (0.1, 0.7)
+        assert choice.values_for("gem") == (1.0, 1.0)
+        before = len(sent)
+        editor.parts.setCurrentRow(0)
+        assert len(sent) == before and editor.extinction.value() == 0.7
+        editor.absorption.setValue(500)
+        assert sent[-1].values_for("Blade") == (0.5, 0.5)
+        assert sent[-1].values_for("Gem") == (1.0, 1.0)
+        saved = sent[-1]
+        editor.refresh(rows, None)
+        editor.refresh(rows, saved)
+        assert sent[-1] == saved and len(sent) == before + 1
+        editor.parts.setCurrentRow(1)
+        assert editor.preset.currentIndex() == 4
+        editor.parts.item(1).setCheckState(Qt.CheckState.Unchecked)
+        assert sent[-1].parts == ("Blade",)
+        assert sent[-1].values_for("Blade") == (0.5, 0.5)
+    finally:
+        editor.deleteLater()
+        app.processEvents()
+
+
+def test_per_part_values_reach_import_prebuilt_template_and_preview():
+    from cdmw.services.new_item_translucency import apply_prebuilt_translucency, translucency_preview_parameter_groups
+    from cdmw.services.new_item_template_model import prepare_template_model
+
+    files = prebuilt_glass_files()
+    names = tuple(row.submesh_name for row in find_material_wrappers(files.side_files[XML].decode())[:2])
+    settings = {names[0]: (0.2, 0.4), names[1]: (0.7, 0.9)}
+    choice = TranslucencyChoice.from_settings(settings)
+    choice.validate()
+    model_path = XML.replace("/modelproperty/", "/model/").removesuffix("_xml")
+    snapshot = SimpleNamespace(payload=lambda path: files.pac_data if path == model_path else files.side_files[path],
+                               has_entry=lambda path: path in files.side_files)
+    outputs = [
+        route_model_files(files, MaterialRoute.PLAIN_PBR, translucency=choice),
+        apply_prebuilt_translucency(files, MaterialRoute.PLAIN_PBR, choice),
+        prepare_template_model(snapshot, (model_path,), translucency=choice),
+    ]
+    for output in outputs:
+        for row in find_material_wrappers(output.side_files[XML].decode()):
+            if row.submesh_name not in settings:
+                continue
+            assert row.shader == "SkinnedMeshTranslucent"
+            assert (float(row.value("_thickness")), float(row.value("_extinctionCoefficient"))) == settings[row.submesh_name]
+    mesh = SimpleNamespace(submeshes=[SimpleNamespace(name=name, material=name) for name in names])
+    assert [row["translucency"] for row in translucency_preview_parameter_groups(mesh, choice)] == [[0.2, 0.4], [0.7, 0.9]]
+    legacy = TranslucencyChoice(names, 0.2, 0.4)
+    assert all(legacy.values_for(name) == (0.2, 0.4) for name in names)
+
+
+def test_conflicting_atlas_settings_and_invalid_part_overrides_fail():
+    choice = TranslucencyChoice.from_settings({"Blade": (0.2, 0.4), "Gem": (0.7, 0.9)})
+    atlas = SourceMaterialTextures("Combined", atlas_sources=(SourceMaterialTextures("Blade"), SourceMaterialTextures("Gem")))
+    with pytest.raises(NewItemPlanError, match="different translucency settings"):
+        selected_translucency(choice, "combined", atlas)
+    for settings in ((("Missing", 0.1, 0.3),), (("Blade", 0.1, 0.3), ("blade", 0.5, 0.7)), (("Blade", float("nan"), 0.3),)):
+        with pytest.raises(ValueError):
+            TranslucencyChoice(("Blade",), part_settings=settings).validate()

@@ -206,6 +206,22 @@ from tests.effect_placement_dialog_presentation_tests import _DialogPresentation
 
 
 class DialogTests(_DialogPresentationMixin, _DialogTestCase):
+    def test_effect_viewport_receives_shared_render_tuning(self) -> None:
+        from cdmw.models import ModelPreviewRenderSettings
+
+        initial = ModelPreviewRenderSettings(d3d11_tone_gamma=1.17, d3d11_ao_strength=0.7)
+        dialog = self._dialog(render_settings=initial)
+        tuning = []
+        dialog.host = _Host()
+        dialog.host.set_render_tuning = tuning.append
+        dialog._sync_host()
+        self.assertEqual(tuning[-1], initial)
+        updated = ModelPreviewRenderSettings(d3d11_tone_gamma=0.91, d3d11_ao_strength=0.4)
+        dialog.set_render_settings(updated)
+        self.assertEqual(tuning[-1], updated)
+        dialog.host.deleteLater()
+        dialog.host = None
+
     def test_package_thread_is_initialized_before_child_observers_can_see_it(self) -> None:
         from PySide6.QtCore import QEvent
 

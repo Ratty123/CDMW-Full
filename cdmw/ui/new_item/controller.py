@@ -52,6 +52,7 @@ from cdmw.ui.new_item.state import NewItemDraft, StatGrid, glow_choice, spec_fro
 from cdmw.workers.effect_catalogue_worker import EffectCatalogueIndexLane
 from cdmw.workers.new_item_cleanup_worker import ModelSourceCleanupLane
 from cdmw.workers.new_item_template_search import TemplateSearchLane
+from cdmw.workers.new_item_template_selection import TemplateSelectionLane
 from cdmw.workers.new_item_workers import export_task, install_overlay_task, install_task, overlay_migration_task, overlay_removal_task, plan_task, snapshot_task
 from cdmw.workers.utility_workers import UtilityWorker
 
@@ -143,6 +144,11 @@ class NewItemStudioController(
         #: the template's decoded preview (textures resolved), kept for the current template so
         #: a re-fit or an import does not decode it again (the worker fills it)
         self._template_models: Dict[tuple, object] = {}
+        self._template_parts = {}
+        self._template_request = None
+        self._template_selection_lane = TemplateSelectionLane(synchronous=self._synchronous, parent=self)
+        self._template_selection_lane.completed.connect(self._template_prepared)
+        self._template_selection_lane.failed.connect(self._template_failed)
         self._thread: Optional[QThread] = None
         self._worker: Optional[UtilityWorker] = None
         self._on_done: Optional[Callable[[object], None]] = None

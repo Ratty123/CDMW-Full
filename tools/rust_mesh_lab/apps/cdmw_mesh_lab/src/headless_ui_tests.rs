@@ -7824,6 +7824,14 @@ fn translucency_controls_send_selected_parts_and_restore_without_changing_geomet
         if arguments == &json!({"part_ids": ["b"], "translucency": [0.25, 0.75]})
     )));
     ui.application.cdmw_pending_request = None;
+    ui.click("Custom")?;
+    ui.click("Dense absorption")?;
+    let actions = ui.actions_from_click("Apply translucency")?;
+    assert!(actions.iter().any(|action| matches!(action,
+        UiAction::CdmwCommand { command: "replacement_translucency", arguments, .. }
+        if arguments == &json!({"part_ids": ["b"], "translucency": [1.0, 1.0]})
+    )));
+    ui.application.cdmw_pending_request = None;
     let actions = ui.actions_from_click("Restore material")?;
     assert!(actions.iter().any(|action| matches!(action,
         UiAction::CdmwCommand { command: "replacement_translucency", arguments, .. }

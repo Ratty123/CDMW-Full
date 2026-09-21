@@ -239,6 +239,7 @@ class NewItemDraft:
     effect_emitter_order: Optional[Tuple[int, ...]] = None
     effect_layers: Optional[Tuple[EffectLayer, ...]] = None
     translucency: Optional[TranslucencyChoice] = None
+    template_transform: Tuple[float, ...] = ()
 
     def reset_for_template(self, template_key: Optional[int]) -> None:
         self.template_key = template_key
@@ -257,6 +258,8 @@ class NewItemDraft:
         self.authoring_errors.clear()
         self.variants = None
         self.translucency = None
+        self.template_transform = ()
+        self.glow_parts = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -422,6 +425,7 @@ def spec_from_draft(draft: NewItemDraft, grid: Optional[StatGrid]) -> NewItemSpe
         keep_template_physics=draft.keep_template_physics,
         glow=glow_choice(draft),
         translucency=draft.translucency,
+        template_transform=draft.template_transform,
         icon=draft.icon,
         stat_edits=stats,
         buy_price_edits=buy_prices,

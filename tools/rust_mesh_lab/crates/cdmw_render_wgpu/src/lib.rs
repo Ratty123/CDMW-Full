@@ -378,9 +378,13 @@ fn neutral_surface(normal: vec3<f32>, front_facing: bool) -> vec3<f32> {
     return vec3<f32>(0.56, 0.58, 0.62) * shade;
 }
 
-@fragment
-fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @location(0) vec4<f32> {
+fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool) -> vec4<f32> {
+    if transmission_only && camera.view_mode != 0u && camera.view_mode != 2u && camera.view_mode != 9u {
+        // Material diagnostics show their values without transmitted background.
+        return vec4<f32>(0.0);
+    }
     if input.deformation.a > 0.0001 {
+        if transmission_only { return vec4<f32>(0.0); }
         let overlay_amount = clamp(input.deformation.a, 0.0, 0.88);
         let surface = neutral_surface(input.normal, front_facing);
         // Tint the lit surface. Flat colour used to suppress 88% of the shape
@@ -464,10 +468,10 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
         material_alpha = textureSampleBias(opacity_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS).r;
     }
     material_alpha = clamp(material_alpha * material.opacity, 0.0, 1.0);
+    var transmission = vec3<f32>(1.0);
     if material.translucency_factors.z > 0.5 {
-        // Approximate the game's ordinary SkinnedMeshTranslucent absorption path.
-        // Mean RGB transmission drives sorted blending; scene refraction and the
-        // game's coloured background compositor are deliberately not simulated.
+        // Retain colour-channel transmission for the background compositor.
+        // Refraction distortion and game lighting remain approximations.
         let thickness = round(clamp(material.translucency_factors.x, 0.0, 1.0) * 255.0) / 255.0;
         let view = safe_normalize(camera.view_direction.xyz, vec3<f32>(0.0, 0.0, -1.0));
         let normal = safe_normalize(input.normal, view);
@@ -479,8 +483,10 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
             dot(vec3<f32>(0.61312, 0.33951, 0.04737), absorption),
             dot(vec3<f32>(0.07020, 0.91636, 0.01345), absorption),
             dot(vec3<f32>(0.02062, 0.10958, 0.86980), absorption));
-        material_alpha = clamp(1.0 - dot(exp(-distance * sigma), vec3<f32>(1.0 / 3.0)), 0.0, 1.0);
+        transmission = clamp(exp(-distance * sigma), vec3<f32>(0.0), vec3<f32>(1.0));
+        material_alpha = 1.0 - dot(transmission, vec3<f32>(1.0 / 3.0));
     }
+    if transmission_only { return vec4<f32>(transmission, 1.0); }
     if (material.flags & MATERIAL_ALPHA_CUTOUT) != 0u && material.translucency_factors.z < 0.5 {
         if material_alpha < material.surface_factors.w {
             discard;
@@ -491,6 +497,9 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
         return present_srgb(fract(part_id * vec3<f32>(0.6180339, 0.3819660, 0.7548777)), 1.0);
     }
     if camera.view_mode == 2u {
+        if material.translucency_factors.z > 0.5 {
+            return vec4<f32>(0.0, 0.0, 0.0, material_alpha);
+        }
         return present(texel.rgb, select(1.0, material_alpha, (material.flags & MATERIAL_ALPHA_BLEND) != 0u));
     }
     if camera.view_mode == 5u {
@@ -1101,6 +1110,14 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
     }
     let showcase_warmth = select(vec3<f32>(1.0), vec3<f32>(1.08, 0.99, 0.90), showcase);
     let exposure = select(select(0.90, 1.0, showcase), 1.06, game_outdoor);
+    if material.translucency_factors.z > 0.5 {
+        // Glass absorbs background light. Do not paint its opaque diffuse body
+        // over that background or fade reflection/emission with absorption.
+        let surface = workbench_tone(
+            (specular + environment_specular) * showcase_warmth + glass_edge + emissive,
+            exposure);
+        return present(surface, material_alpha);
+    }
     let shaded = workbench_tone(
         diffuse
             + environment_diffuse
@@ -1114,6 +1131,20 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
             + emissive,
         exposure);
     return present(shaded, select(1.0, material_alpha, (material.flags & MATERIAL_ALPHA_BLEND) != 0u));
+}
+
+@fragment
+fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @location(0) vec4<f32> {
+    return shade_surface(input, front_facing, false);
+}
+
+@fragment
+fn fs_blended(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @location(0) vec4<f32> {
+    let surface = shade_surface(input, front_facing, false);
+    // The optional dual-source pipeline supplies RGB transmission. Adapters
+    // without it still retain surface light with a scalar transmission estimate.
+    let coverage = select(surface.a, 1.0, material.translucency_factors.z > 0.5);
+    return vec4<f32>(surface.rgb * coverage, surface.a);
 }
 
 @fragment
@@ -1916,6 +1947,7 @@ struct GpuMaterialBinding {
     bind_group: wgpu::BindGroup,
     _uniform_buffer: wgpu::Buffer,
     alpha_blend: bool,
+    translucent: bool,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -2359,7 +2391,8 @@ struct MultisampleTarget {
 }
 
 fn requested_renderer_features(supported: wgpu::Features) -> wgpu::Features {
-    supported & (wgpu::Features::TEXTURE_COMPRESSION_BC | wgpu::Features::FLOAT32_FILTERABLE)
+    supported & (wgpu::Features::TEXTURE_COMPRESSION_BC | wgpu::Features::FLOAT32_FILTERABLE
+        | wgpu::Features::DUAL_SOURCE_BLENDING)
 }
 
 fn preferred_sample_count_from_flags(
@@ -2536,6 +2569,7 @@ pub struct WindowRenderer {
     config: wgpu::SurfaceConfiguration,
     solid_pipeline: wgpu::RenderPipeline,
     blended_pipeline: wgpu::RenderPipeline,
+    translucent_pipeline: Option<wgpu::RenderPipeline>,
     wire_pipeline: wgpu::RenderPipeline,
     xray_wire_pipeline: wgpu::RenderPipeline,
     point_pipeline: wgpu::RenderPipeline,
@@ -2904,6 +2938,7 @@ impl WindowRenderer {
             config,
             solid_pipeline: pipelines.solid,
             blended_pipeline: pipelines.blended,
+            translucent_pipeline: pipelines.translucent,
             wire_pipeline: pipelines.wire,
             xray_wire_pipeline: pipelines.xray_wire,
             point_pipeline: pipelines.point,
@@ -3661,6 +3696,7 @@ impl WindowRenderer {
                     &self.camera_bind_group,
                     &self.solid_pipeline,
                     &self.blended_pipeline,
+                    self.translucent_pipeline.as_ref(),
                     transparency.as_ref(),
                     &self.wire_pipeline,
                     &self.xray_wire_pipeline,
@@ -6452,6 +6488,7 @@ fn record_headless_pass(
         camera_bind_group,
         &pipelines.solid,
         &pipelines.blended,
+        pipelines.translucent.as_ref(),
         transparency.as_ref(),
         &pipelines.wire,
         &pipelines.xray_wire,
@@ -6915,6 +6952,7 @@ struct Pipelines {
     sample_count: u32,
     solid: wgpu::RenderPipeline,
     blended: wgpu::RenderPipeline,
+    translucent: Option<wgpu::RenderPipeline>,
     wire: wgpu::RenderPipeline,
     xray_wire: wgpu::RenderPipeline,
     point: wgpu::RenderPipeline,
@@ -7156,8 +7194,35 @@ fn create_pipelines_with_sample_count(
         bind_group_layouts: &[Some(texture_layout), Some(camera_layout)],
         immediate_size: 0,
     });
+    let translucent = device.features().contains(wgpu::Features::DUAL_SOURCE_BLENDING).then(|| {
+        let source = format!("enable dual_source_blending;\n{SHADER}\n{}", r#"
+struct GlassOutput {
+    @location(0) @blend_src(0) surface: vec4<f32>,
+    @location(0) @blend_src(1) transmission: vec4<f32>,
+};
+@fragment
+fn fs_translucent(input: VertexOut, @builtin(front_facing) front_facing: bool) -> GlassOutput {
+    var out: GlassOutput;
+    out.surface = shade_surface(input, front_facing, false);
+    out.transmission = shade_surface(input, front_facing, true);
+    return out;
+}
+"#);
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("CDMW glass transmission shader"),
+            source: wgpu::ShaderSource::Wgsl(source.into()),
+        });
+        create_pipeline(device, format, &layout, &shader, "glass transmission",
+            wgpu::PrimitiveTopology::TriangleList, "fs_translucent", solid_cull_mode(),
+            PipelineDepth::Test, Some(wgpu::BlendState {
+                color: wgpu::BlendComponent { src_factor: wgpu::BlendFactor::One,
+                    dst_factor: wgpu::BlendFactor::Src1, operation: wgpu::BlendOperation::Add },
+                alpha: wgpu::BlendComponent::OVER,
+            }), sample_count)
+    });
     Pipelines {
         sample_count,
+        translucent,
         solid: create_pipeline(
             device,
             format,
@@ -7178,10 +7243,10 @@ fn create_pipelines_with_sample_count(
             &shader,
             "blended material",
             wgpu::PrimitiveTopology::TriangleList,
-            "fs_solid",
+            "fs_blended",
             solid_cull_mode(),
             PipelineDepth::Test,
-            Some(wgpu::BlendState::ALPHA_BLENDING),
+            Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
             sample_count,
         ),
         wire: create_pipeline(
@@ -7501,6 +7566,7 @@ fn draw_textured_solid<'a>(
     active_material_bindings: &'a BTreeMap<u32, GpuMaterialBinding>,
     pipeline: &'a wgpu::RenderPipeline,
     blended_pipeline: &'a wgpu::RenderPipeline,
+    translucent_pipeline: Option<&'a wgpu::RenderPipeline>,
     transparency: Option<&'a material_transparency::PreparedTransparency>,
 ) {
     pass.set_pipeline(pipeline);
@@ -7524,10 +7590,12 @@ fn draw_textured_solid<'a>(
         );
     }
     if let Some(transparency) = transparency {
-        pass.set_pipeline(blended_pipeline);
         pass.set_index_buffer(transparency.index.slice(..), wgpu::IndexFormat::Uint32);
         for batch in &transparency.batches {
             let binding = &active_material_bindings[&batch.material];
+            pass.set_pipeline(if binding.translucent {
+                translucent_pipeline.unwrap_or(blended_pipeline)
+            } else { blended_pipeline });
             pass.set_bind_group(0, &binding.bind_group, &[]);
             pass.draw_indexed(
                 batch.first_index..batch.end_index,
@@ -7580,6 +7648,7 @@ fn draw_mesh<'a>(
     camera_bind_group: &'a wgpu::BindGroup,
     solid_pipeline: &'a wgpu::RenderPipeline,
     blended_pipeline: &'a wgpu::RenderPipeline,
+    translucent_pipeline: Option<&'a wgpu::RenderPipeline>,
     transparency: Option<&'a material_transparency::PreparedTransparency>,
     wire_pipeline: &'a wgpu::RenderPipeline,
     xray_wire_pipeline: &'a wgpu::RenderPipeline,
@@ -7617,6 +7686,7 @@ fn draw_mesh<'a>(
             active_material_bindings,
             solid_pipeline,
             blended_pipeline,
+            translucent_pipeline,
             transparency,
         ),
         ViewMode::Solid => draw_solid(pass, mesh, solid_pipeline),
@@ -8969,6 +9039,7 @@ fn create_material_bind_group(
         bind_group,
         _uniform_buffer: uniform_buffer,
         alpha_blend: factors.alpha_blend == Some(true) || factors.translucency.is_some(),
+        translucent: factors.translucency.is_some(),
     }
 }
 
@@ -9470,6 +9541,50 @@ mod material_transparency {
                     "blended material {case}: BGRA pixel {actual:?}, expected {expected:?}"
                 )));
             }
+        }
+        // Base Color isolates background transmission from lighting. These
+        // linear-light fixtures detect grey averaging and painted diffuse glass.
+        if pipelines.translucent.is_some() {
+            for (case, mode, expected) in [
+                ("clear glass", ViewMode::BaseColor, [255u8, 255, 255, 255]),
+                ("coloured glass", ViewMode::BaseColor, [200, 242, 245, 255]),
+                ("stacked glass", ViewMode::BaseColor, [9, 141, 166, 255]),
+                ("glass over alpha blend", ViewMode::BaseColor, [200, 177, 180, 255]),
+                ("absorption diagnostic", ViewMode::BaseAlpha, [53, 53, 53, 255]),
+                ("UV diagnostic", ViewMode::UvChecker, [20, 20, 20, 255]),
+            ] {
+                camera.scene_model = Mat4::IDENTITY.to_cols_array_2d();
+                let glass = super::MaterialPreviewFactors {
+                    texture_tint: Some([1.0, 0.25, 0.05]),
+                    translucency: Some([0.1, if case == "clear glass" { 0.0 } else { 0.3 }]),
+                    ..Default::default()
+                };
+                let middle = if case == "glass over alpha blend" {
+                    super::MaterialPreviewFactors { texture_tint: Some([0.0, 0.0, 1.0]),
+                        alpha_blend: Some(true), opacity: Some(0.5), ..Default::default() }
+                } else {
+                    super::MaterialPreviewFactors {
+                        translucency: Some([0.5, if case == "stacked glass" { 0.6 } else { 0.0 }]),
+                        ..glass
+                    }
+                };
+                let bindings = [super::MaterialPreviewFactors {
+                    texture_tint: Some([1.0; 3]), ..Default::default()
+                }, glass, middle].into_iter().enumerate()
+                    .map(|(index, factor)| (index as u32, make_binding(factor))).collect();
+                let (buffer, width, height) = super::render_headless_readback_at(
+                    device, queue, format, &mesh, default_binding, &bindings, camera_binding,
+                    pipelines, camera, camera_buffer, mode, 64, 64,
+                    Mat4::IDENTITY, None, false, None);
+                let pixels = super::read_headless_pixels(device, &buffer, width, height)?;
+                let center = ((height / 2 * width + width / 2) * 4) as usize;
+                let actual = &pixels[center..center + 4];
+                if actual.iter().zip(expected).any(|(value, expected)| value.abs_diff(expected) > 3) {
+                    return Err(super::RenderError::Device(format!(
+                        "transmission {case}: BGRA pixel {actual:?}, expected {expected:?}")));
+                }
+            }
+            eprintln!("Verified coloured, clear and overlapping glass transmission and material diagnostic pixels.");
         }
         for (case, expected) in [
             ("glTF defaults without maps", [255u8, 255, 255, 255]),
@@ -10074,9 +10189,11 @@ mod tests {
             requested_renderer_features(
                 wgpu::Features::TEXTURE_COMPRESSION_BC
                     | wgpu::Features::FLOAT32_FILTERABLE
+                    | wgpu::Features::DUAL_SOURCE_BLENDING
                     | wgpu::Features::TIMESTAMP_QUERY
             ),
             wgpu::Features::TEXTURE_COMPRESSION_BC | wgpu::Features::FLOAT32_FILTERABLE
+                | wgpu::Features::DUAL_SOURCE_BLENDING
         );
     }
 

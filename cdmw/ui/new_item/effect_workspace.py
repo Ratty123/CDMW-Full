@@ -695,6 +695,7 @@ class GuidedEffectsWorkspace(EffectWorkspaceAuthoringMixin, QWidget):
                 character_builder=character_builder,
                 character_fit_control=self.character_fit_row,
                 model_source_usage=model_source_usage if callable(model_source_usage) else None,
+                render_settings=(getattr(self._controller, "_template_preview_context", None) or {}).get("render_settings"),
             )
             if self._host_factory is not None:
                 kwargs["host_factory"] = self._host_factory

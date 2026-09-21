@@ -77,9 +77,12 @@ Its result table separates the internal name, English item name, numeric key and
 type plus authoring capabilities into five labelled columns. Column edges are session-resizable, clicking a heading
 sorts the complete match set (including numeric key order), and scrolling near the bottom
 adds the next 60 rows until every match is visible. Startup and later panel growth distribute
-all available width across the columns instead of leaving an empty strip. An explicit mouse click commits immediately,
+all available width across the columns instead of leaving an empty strip. An explicit mouse click starts selection immediately,
 while keyboard row navigation keeps its 180 ms latest-row settle so holding an arrow key
-does not rebuild every dependent step along the way. It mounts the same resident item
+does not rebuild every dependent step along the way. A cancellable worker resolves the
+selected family, material parts and validation facts before publishing it to the UI.
+Only the latest selection can publish, and shared snapshot validation indexes are reused.
+It mounts the same resident item
 viewport used by Identity and Model & Placement, so a selected helmet, armour piece or weapon can
 be orbited and zoomed before the workflow inherits it. Template handoffs search the
 catalogue once and select the requested row. Search and results stay in the
@@ -150,24 +153,43 @@ below, not a conversion of the glTF transmission factor, alpha, or transmission
 texture. The export reports this approximation. Ordinary BLEND/MASK materials
 without transmission retain the unsupported-alpha warning. Existing exported or
 installed items need to be rebuilt to pick up these material corrections.
-The Appearance page also offers **Translucency (experimental)** for imported models.
-Enable it, tick the material parts to change, and adjust **Thickness** and
-**Extinction** from 0 to 1. Defaults are 0.1 and 0.3 respectively; increasing
+Template models also support Move, Rotate, Scale, Glow and **Translucency (experimental)**
+without importing a replacement. Template placement goes directly into Build plan;
+Reset placement restores the authored geometry. Each selected variant receives its
+own PAC/material copies, preserving UVs, skin weights and unselected materials.
+Placement updates every stored LOD and its packed normal/tangent frame. Unsupported
+or shared vertex layouts stop planning instead of publishing a partial transform.
+Glow retains an existing emission mask or supplies a solid mask for the selected part;
+the layered shader uses its emissive variant. Discard clears the imported appearance
+and placement, and changing the preview source clears live material overrides before
+the template is loaded.
+The Appearance page offers **Translucency (experimental)** for both template and imported models.
+Enable it and tick the material parts to change. Highlight a checked part to edit
+its own settings without changing the other checked parts. **Absorption preset**
+offers Clear, Light, Medium and Dense absorption; the Clear-to-Dense slider adjusts
+the exported parameters together, with finer adjustment near clear glass. **Advanced**
+exposes **Thickness** and **Extinction** from 0 to 1. Defaults are 0.1 and 0.3 respectively; increasing
 either generally reduces transmission. Texture colour, texture alpha and viewing
 angle also matter, so these values are not percentages of opacity. Selecting parts
-enables Plain PBR and writes `SkinnedMeshTranslucent` with `_thickness` and
+enables Plain PBR for imports and writes `SkinnedMeshTranslucent` with `_thickness` and
 `_extinctionCoefficient`, preserving the chosen parts' texture bindings. These
 settings override the source glass defaults on selected parts. Other parts retain
-their source glass or ordinary Plain PBR route. Settings follow each model variant.
-The resident Rust viewport updates without rebuilding geometry and restores the
-source defaults when the manual override is disabled. Effects previews carry the
+their source glass or ordinary Plain PBR route. Settings follow each model variant;
+old shared-value choices remain supported. Parts combined into one atlas must use
+the same absorption settings or remain separate materials.
+Imported resident previews update without rebuilding geometry; template previews
+recompose their cached native material inputs. Both restore source defaults when the
+manual override is disabled. Effects previews carry the
 same settings. Switching to Builder clears the automatic glass preview.
 Dye previews use the same translucency choices as export. For prebuilt imports,
 manual translucency changes only the selected shaders and absorption values;
 existing glow, texture bindings, other parameters and unselected materials are kept.
-The viewport approximates the game's absorption with sorted alpha blending; it
-does not reproduce scene refraction, coloured background transmission, game
-lighting or shadow behaviour. The glass shader can change apparent brightness and
+The viewport applies absorption to the background separately from reflection and
+glow, without painting the opaque diffuse texture over the glass. On adapters with
+dual-source blending it preserves RGB transmission through sorted, overlapping
+layers; other adapters use a mean-transmission approximation. Refraction distortion,
+game lighting and shadow behaviour remain approximate. These presets describe
+absorption strength, not opacity percentages. The glass shader can change apparent brightness and
 tint compared with an opaque material; exact colour parity remains unverified.
 Verify the result in-game. Glow and translucency
 can share a part: the shipped translucent parameter group declares an emissive
@@ -181,22 +203,33 @@ its package or resetting its camera. Texture upgrades wait for an active drag or
 orbit to finish and preserve the resulting placement. Snapshot creation
 reuses Archive Browser's published path, basename and extension indexes. A valid durable
 material-package hit is accepted before either preview builder, including packages
-produced by native Preview Core. The cache identity includes the native helper,
+produced by native Preview Core. Native template loading avoids a duplicate Python
+geometry decode. Its canonical material package is cached for Model & Placement and
+Perks & Effects, with texture resources leased until the consuming scene owns them.
+Effects uses the same archive render settings as the shared template viewport.
+Native material failures are reported instead of silently switching material pipelines.
+With a resident archive session, `template_preview_dependencies.py` uses Browse
+Archives' bounded association/preparation provider for every selected model and
+prefab. Prepared PAC, material and DDS inputs are marked complete only after the
+whole selection succeeds. Preparation is shared across previews, cached by archive
+session/revision, and cancelled on replacement or shutdown. Only workers wait for it;
+the GUI never reads or searches the complete archive catalogue to load a template.
+The cache identity includes the native helper,
 rendering inputs, and archive-file revisions so borrowed textures also invalidate
 correctly. With preview caching enabled, the snapshot worker also prepares the native
 service and shared material indexes using one small character model while the remaining
 archive tables load. It uses the template preview's cache and captured render settings;
 unfinished warm-up is cancelled and drained before the snapshot returns. Warm-up failure
 does not invalidate the table snapshot, and waiting for the native service is cancellable.
-On a cold miss, bare
-geometry and Archive Browser's native schema-8 Preview Core package prepare in parallel;
-the native package reuses the shared DDS cache and bypasses New Item's former Python
-OBJ/material recompilation. Geometry reaches the resident viewport first, then textures
-replace it without restarting the host or resetting the camera. If Preview Core is
-unavailable, the established Python preview remains the compatibility fallback.
+On a cold native template miss, Preview Core prepares geometry and materials once.
+The first textured package upgrades to full materials without restarting the host
+or resetting the camera. Standalone callers without native context retain the Python
+preview path; a configured native material failure remains visible as an error.
 Placement and character comparison scenes also consume that native template package.
-They copy its textures and material bindings into the complete scene before temporary
-native resources are removed, avoiding another full archive-index build during import.
+They retain its complete material graph, layer masks, DDS bytes and material parameters
+in the combined scene, including Perks & Effects and template appearance edits. Rust
+composes these same layers for archive and combined previews; Python does not synthesize
+the template maps again. Native resources remain leased until the scene owns its copies.
 The full material tier includes the reference, which comparison views can display textured.
 Skeleton lookup filters out non-descriptor entries before normalizing archive paths,
 while preserving exact descriptor priority and sibling skeleton/morph matching. The

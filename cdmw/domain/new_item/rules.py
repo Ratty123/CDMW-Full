@@ -161,8 +161,8 @@ def validate_spec(spec: NewItemSpec) -> Tuple[ValidationIssue, ...]:
     if spec.translucency is not None:
         try:
             spec.translucency.validate()
-            if spec.model_source is not ModelSource.IMPORTED or spec.material_route is not MaterialRoute.PLAIN_PBR:
-                raise ValueError("Translucency requires an imported model with Plain PBR materials enabled.")
+            if spec.model_source is ModelSource.IMPORTED and spec.material_route is not MaterialRoute.PLAIN_PBR:
+                raise ValueError("Translucency requires Plain PBR materials for imported models.")
         except ValueError as exc:
             issues.append(_issue("translucency.invalid", "translucency", str(exc)))
     if not name:

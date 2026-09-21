@@ -540,7 +540,7 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
             quick_turns.addWidget(QLabel(name), axis, 0)
             turns = ((-90, QPushButton("−90°")), (90, QPushButton("+90°")), (180, QPushButton("180°")))
             for column, (degrees, button) in enumerate(turns, start=1):
-                button.setToolTip(f"Turn the imported model {degrees:+d}° around {name}, keeping its position and scale.")
+                button.setToolTip(f"Turn the model {degrees:+d}° around {name}, keeping its position and scale.")
                 button.setAccessibleName(f"Turn {name} {degrees:+d}°")
                 button.clicked.connect(lambda _checked=False, a=axis, d=degrees: self._quick_turn(a, d))
                 quick_turns.addWidget(button, axis, column)
@@ -894,9 +894,13 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
             self.glow_parts.addItem(item)
         self.glow_parts.blockSignals(False)
         self.glow_box.setEnabled(bool(parts))
+        self.glow_box.blockSignals(True)
+        self.glow_box.setChecked(bool(chosen) and bool(parts))
+        self.glow_box.blockSignals(False)
+        self._set_glow_details_visible(self.glow_box.isChecked())
         if not parts:
             self.glow_box.setChecked(False)
-            self.glow_box.setToolTip("Import a model on this step to choose which of its parts glow.")
+            self.glow_box.setToolTip("Choose a template or import a model to edit its material parts.")
 
     def _ticked_glow_parts(self) -> tuple:
         return tuple(
@@ -928,9 +932,8 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
     def _sync_glow_preview(self) -> None:
         """Replay the draft's Glow and translucency choices together.
 
-        Only for the placement scene of a live import: that is the only mesh a glow
-        applies to, and the only role the renderer's parameter channel can touch. The
-        groups are a complete statement over the model's submeshes, so un-ticking a
+        Template choices rebuild from cached native materials. Imports use the live
+        parameter channel. Its groups cover the model's submeshes, so un-ticking a
         part restores the import's own emissive without remembering what was sent.
         Source glass also follows the export route without requiring a manual
         override. An untouched import with no glass or overrides sends nothing.
@@ -938,6 +941,10 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
 
         preview = self.preview
         source = self._controller.model_import
+        if source is None:
+            if self._controller.draft.template_key is not None:
+                self.refresh_preview()
+            return
         sender = getattr(preview.host, "apply_material_parameter_groups", None)
         if source is None or not callable(sender) or not preview.showing_placement:
             return
@@ -1006,7 +1013,8 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
     def _show_model(self, result: object) -> None:
         self._apply_error = ""
         source = self._controller.model_import
-        self._set_placement_visible(source is not None)
+        self._set_placement_visible(source is not None or self._controller.draft.template_key is not None)
+        self.fit_button.setText("Fit to template" if source is not None else "Reset placement")
         self.flip_texture_v.setVisible(source is not None)
         self.clear_button.setVisible(source is not None)
         self.open_part_editor_button.setEnabled(source is not None and not self._controller.busy)
@@ -1023,7 +1031,7 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
             self.plain_pbr.setEnabled(False)
             self.own_sheath.setEnabled(False)
             self._refresh_import_widgets()
-            self.apply_status.set_note("", None)
+            self._refresh_apply_status()
             return
         self.import_model.setChecked(True)
         self.plain_pbr.setEnabled(True)

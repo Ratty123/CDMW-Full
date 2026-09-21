@@ -78,6 +78,13 @@ def prepare_variant_models(spec, snapshot, models, scenes, *, on_log=None, stop_
         family = variant_family(snapshot.family(spec.template_key), appearance)
         model = models.get(appearance.identity)
         if not appearance.custom_model:
+            if appearance.glow_parts or appearance.translucency is not None or appearance.template_transform:
+                from cdmw.services.new_item_template_model import prepare_template_model
+
+                result[appearance.identity] = prepare_template_model(
+                    snapshot, [appearance.model_path], glow=appearance.glow_choice(),
+                    translucency=appearance.translucency, transform=appearance.template_transform, stop_event=stop_event,
+                )
             continue
         if model is None:
             raise ValueError(f"Apply the imported model for {appearance.model_path} before planning.")
@@ -267,7 +274,7 @@ def plan_variant_files(planner):
             if imported:
                 planner.summary.extend(f"  {old}: {note}" for note in model.notes)
                 planner.warnings.extend(f"{old}: {warning}" for warning in model.warnings)
-            payload = model.pac_data if imported else snapshot.payload(old)
+            payload = model.pac_data if model is not None else snapshot.payload(old)
             planner.add(snapshot.entry(old),new,payload,f"Variant model: {new}")
             written.append(new)
             source_xml, new_xml = xml_path(old),xml_path(new)

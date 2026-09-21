@@ -4354,12 +4354,30 @@ impl LabApplication {
                 let editing = self.cdmw_state["authoring_enabled"].as_bool().unwrap_or(false)
                     && self.cdmw_state["replacement"]["comparison"].as_str().unwrap_or("edit") == "edit";
                 ui.add_enabled_ui(available && !ids.is_empty() && !self.cdmw_busy() && editing, |ui| {
-                    for (name, value) in ["Thickness", "Extinction"].into_iter().zip(values.iter_mut()) {
-                        ui.horizontal(|ui| {
-                            ui.label(name);
-                            ui.add(egui::DragValue::new(value).range(0.0..=1.0).speed(0.005).fixed_decimals(3));
-                        });
-                    }
+                    let presets = [("Clear glass", [0.1, 0.0]), ("Light absorption", [0.1, 0.3]),
+                        ("Medium absorption", [0.5, 0.6]), ("Dense absorption", [1.0, 1.0])];
+                    let label = presets.iter().find(|(_, pair)| *pair == values).map_or("Custom", |(label, _)| *label);
+                    egui::ComboBox::from_id_salt("translucency_preset").selected_text(label).show_ui(ui, |ui| {
+                        for (label, pair) in presets {
+                            if ui.selectable_label(values == pair, label).clicked() { values = pair; }
+                        }
+                    });
+                    let mut strength = (values[0] * values[1]).sqrt();
+                    ui.horizontal(|ui| {
+                        ui.label("Clear glass");
+                        if ui.add(egui::Slider::new(&mut strength, 0.0..=1.0).show_value(false))
+                            .on_hover_text("Adjusts thickness and extinction together. This is absorption strength, not an opacity percentage.")
+                            .changed() { values = [strength, strength]; }
+                        ui.label("Dense");
+                    });
+                    egui::CollapsingHeader::new("Advanced").id_salt("translucency_advanced").show(ui, |ui| {
+                        for (name, value) in ["Thickness", "Extinction"].into_iter().zip(values.iter_mut()) {
+                            ui.horizontal(|ui| {
+                                ui.label(name);
+                                ui.add(egui::DragValue::new(value).range(0.0..=1.0).speed(0.005).fixed_decimals(3));
+                            });
+                        }
+                    });
                     ui.horizontal_wrapped(|ui| {
                         if ui.button("Apply translucency").clicked() {
                             actions.push(UiAction::CdmwCommand {

@@ -570,6 +570,8 @@ def mesh_names_textures(mesh: object) -> bool:
     """Whether any submesh of `mesh` names a texture to draw with."""
 
     for submesh in tuple(getattr(mesh, "submeshes", ()) or ()):
+        if (getattr(submesh, "preview_native_material_overrides", {}) or {}).get("preview_core_material_source"):
+            return True
         for attribute in _TEXTURE_ATTRIBUTES:
             if str(getattr(submesh, attribute, "") or "").strip():
                 return True

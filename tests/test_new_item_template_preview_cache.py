@@ -135,3 +135,51 @@ def test_composite_consumes_native_template_before_staging_cleanup(tmp_path, mon
             build()
     assert len(staged) == 1
     assert not staged[0].exists(), "temporary native resources must close on every outcome"
+
+
+def test_effects_and_template_reuse_one_native_material_package(tmp_path, monkeypatch):
+    from cdmw.services import preview_rendering_service, mesh_dotnet_reference_composite
+    from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+    from cdmw.ui.new_item.effect_item_source import PlannedEffectItemSource
+    from cdmw.ui.new_item.model_import import ModelPlacement
+    calls, consumed = [], []
+
+    def native_job(_entry, **kwargs):
+        output = Path(kwargs["output_root"])
+        output.mkdir(parents=True)
+        (output / "base.dds").write_bytes(b"authored texture")
+        (output / "manifest.json").write_text(json.dumps({"batches": [{"textures": {"base": "base.dds"}}]}))
+        calls.append(output)
+        return SimpleNamespace(succeeded=True, package_path=output)
+
+    def decode(package, **_kwargs):
+        consumed.append(package)
+        assert (package / "base.dds").read_bytes() == b"authored texture"
+        mesh = ParsedMesh(path="item.pac", format="pac", submeshes=[SubMesh(name="blade", vertices=[(0, 0, 0)])])
+        mesh.submeshes[0].preview_texture_path = str(package / "base.dds")
+        return mesh
+
+    monkeypatch.setattr(template_preview_cache, "template_preview_cache_identity", lambda *_: "reuse-test")
+    monkeypatch.setattr(preview_rendering_service, "run_native_preview_core_preview_job", native_job)
+    monkeypatch.setattr(mesh_dotnet_reference_composite, "decode_dotnet_native_preview_package", decode)
+    entry = SimpleNamespace(path="item.pac", pamt_path=tmp_path / "game" / "0000" / "0.pamt")
+    build = partial(template_preview_cache.build_native_template_preview,
+                    entry, (entry,), (), (), 17, SimpleNamespace())
+    context = dict(output_root=tmp_path / "output", native_preview_core_cache_root=tmp_path / "native-cache",
+                   render_settings=ModelPreviewRenderSettings(d3d11_tone_gamma=1.17), cache_mode="balanced")
+    stop = threading.Event()
+    first = build(stop, **context, consume_native_package=lambda package: package)
+    item = PlannedEffectItemSource(source=None, placement=ModelPlacement(offset=(1, 0, 0)), applied=False,
+        preview_model=None, rebuilt_data=b"", snapshot=None, template_key=17, glow=None,
+        template_build=build, preview_context=context)
+
+    def consume(result):
+        mesh, kind = result
+        assert kind == "template"
+        assert mesh.submeshes[0].vertices == [(1, 0, 0)]
+        assert Path(mesh.submeshes[0].preview_texture_path).is_file()
+        return "effect package"
+
+    assert item.consume(stop, consume) == "effect package"
+    assert len(calls) == 1 and consumed == [first]
+    assert first.is_dir(), "durable template textures remain reusable after Effects consumes them"

@@ -468,6 +468,46 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         tab.close()
         tab.deleteLater()
 
+    def test_model_handoff_waits_for_async_template_preparation(self) -> None:
+        from cdmw.workers import new_item_template_selection as selection
+
+        tab = self._tab()
+        tab.controller._template_selection_lane._synchronous = False
+        started, release = threading.Event(), threading.Event()
+        real_prepare = selection.prepare_template
+        imports = []
+
+        def prepare(snapshot, key, stop):
+            started.set()
+            if not release.wait(3):
+                raise RuntimeError("test did not release template preparation")
+            return real_prepare(snapshot, key, stop)
+
+        def settle(condition):
+            deadline = time.monotonic() + 3
+            while not condition() and time.monotonic() < deadline:
+                self.app.processEvents()
+                time.sleep(0.002)
+            self.assertTrue(condition())
+
+        with patch.object(selection, "prepare_template", prepare), patch.object(tab.controller, "start_model_import", imports.append):
+            try:
+                tab.prefill_template(TEMPLATE)
+                settle(started.is_set)
+                source = self.root / "sword.zip"
+                tab.open_model_source(source)
+                self.assertFalse(imports)
+                release.set()
+                settle(lambda: bool(imports))
+                self.assertEqual(imports, [source.resolve()])
+                self.assertEqual(tab.controller.draft.template_key, TEMPLATE)
+            finally:
+                release.set()
+                tab.request_shutdown()
+                settle(lambda: not tab.controller.iter_shutdown_workers())
+                tab.close()
+                tab.deleteLater()
+
     def test_model_preview_tracks_the_shared_archive_render_settings(self) -> None:
         from types import SimpleNamespace
 
@@ -499,6 +539,9 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
             tab.model_panel.preview._native_preview_core_cache_root,
             archive_cache_root / "preview" / "native",
         )
+        self.assertEqual(tab.controller._template_preview_context["render_settings"], initial)
+        effects_tuning = []
+        tab.perks_panel.effects_workspace.placement = SimpleNamespace(set_render_settings=effects_tuning.append)
 
         updated = ModelPreviewRenderSettings(d3d11_tone_gamma=0.91, d3d11_ao_strength=0.4)
         settings_tab.model_preview_settings_changed.emit(updated)
@@ -510,6 +553,9 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         self.assertAlmostEqual(tab.model_panel.preview._render_settings.d3d11_tone_gamma, 0.91)
         self.assertAlmostEqual(tab.model_panel.preview._render_settings.d3d11_ao_strength, 0.4)
         self.assertEqual(tab.model_panel.preview._cache_mode, "off")
+        self.assertEqual(effects_tuning, [updated])
+        self.assertEqual(tab.controller._template_preview_context["render_settings"], updated)
+        tab.perks_panel.effects_workspace.placement = None
         tab.shutdown()
         tab.close()
         tab.deleteLater()
@@ -1110,14 +1156,14 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         self.assertIn(entry, native_kwargs["dependency_entries"])
         self.assertFalse(native_kwargs["dependency_entries_complete"])
         self.assertEqual(native_kwargs["package_root"], Path(entry.pamt_path).parent.parent)
-        self.assertEqual(Path(native_kwargs["output_root"]).parent, output)
+        self.assertTrue(Path(native_kwargs["output_root"]).is_relative_to(native_cache / "new_item_templates"))
         adapt_package.assert_called_once()
         self.assertIs(adapt_package.call_args.kwargs["fast_package_ready"], fast_ready)
         python_decode.assert_not_called()
         tab.close()
         tab.deleteLater()
 
-    def test_template_materials_keep_the_python_fallback_when_preview_core_fails(self) -> None:
+    def test_template_materials_report_native_failure_without_changing_renderer(self) -> None:
         from types import SimpleNamespace
 
         tab = self._tab()
@@ -1140,15 +1186,15 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
             "cdmw.core.archive_preview_result_builder.build_archive_preview_result",
             return_value=decoded,
         ) as python_decode:
-            result = source.materials(
-                threading.Event(),
-                output_root=output,
-                native_preview_core_cache_root=self.root / "shared-native-cache",
-                cache_mode="balanced",
-            )
+            with self.assertRaisesRegex(RuntimeError, "Template textures could not be prepared"):
+                source.materials(
+                    threading.Event(),
+                    output_root=output,
+                    native_preview_core_cache_root=self.root / "shared-native-cache",
+                    cache_mode="balanced",
+                )
 
-        self.assertIs(result, decoded_model)
-        python_decode.assert_called_once()
+        python_decode.assert_not_called()
         self.assertEqual(tuple(output.glob("package_*_native")), ())
         tab.close()
         tab.deleteLater()

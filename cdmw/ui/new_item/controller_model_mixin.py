@@ -75,6 +75,28 @@ class NewItemModelControllerMixin:
         if template_key is not None and (self.snapshot is None or template_key not in self.snapshot.rows):
             self.status_message.emit(f"Item {template_key} is not in the snapshot.", True)
             return
+        if template_key is None:
+            self._template_request = None
+            self._template_parts = {}
+            self._template_selection_lane.cancel()
+            self._commit_template(None)
+        else:
+            self._template_request = (self.snapshot, template_key)
+            self._template_selection_lane.request(self.snapshot, template_key)
+
+    def _template_prepared(self, snapshot, key, parts) -> None:
+        if snapshot is not self.snapshot or self._shutdown_requested:
+            return
+        self._template_request = None
+        self._template_parts = parts
+        self._commit_template(key)
+
+    def _template_failed(self, message) -> None:
+        self._template_request = None
+        self.log_message.emit(message)
+        self.status_message.emit(message, True)
+
+    def _commit_template(self, template_key) -> None:
         self.reset_variants()
         self.draft = with_template(self.draft, template_key)
         self.invalidate_plan()
@@ -247,6 +269,9 @@ class NewItemModelControllerMixin:
             previous = self.model_import
             self.model_import = result
             self.model_placement = ModelPlacement()
+            self.draft.template_transform = ()
+            self.draft.glow_parts = ()
+            self.draft.translucency = None
             if self.model_result is not None:
                 self.set_imported_model(None, None)
             self.draft.model_source = ModelSource.IMPORTED
@@ -266,11 +291,12 @@ class NewItemModelControllerMixin:
         return self._run("model_import", task, done, failed, task_accepts_progress=True)
 
     def set_model_placement(self, placement: ModelPlacement) -> None:
-        """Move the imported model (the gizmo, the numbers, a fit, a reset). A result
+        """Move the active model (the gizmo, the numbers, a fit, a reset). A result
         built at another placement is dropped: it no longer says where the model sits."""
 
         self.model_placement = placement
         source = self.model_import
+        self.draft.template_transform = tuple(placement.matrix()) if source is None and not placement.is_identity else ()
         if self.model_result is not None and source is not None and source.applied != (source.bake, placement):
             self.set_imported_model(None, None)
         self.invalidate_plan()
@@ -282,6 +308,7 @@ class NewItemModelControllerMixin:
 
         source = self.model_import
         if source is None:
+            self.set_model_placement(ModelPlacement())
             return
         source.set_bake(self._fitted_placement(source))
         if self.model_result is not None:
@@ -432,6 +459,9 @@ class NewItemModelControllerMixin:
         previous = self.model_import
         self.model_import = None
         self.model_placement = ModelPlacement()
+        self.draft.template_transform = ()
+        self.draft.glow_parts = ()
+        self.draft.translucency = None
         if self.model_result is not None:
             self.set_imported_model(None, None)
         else:

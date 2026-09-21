@@ -410,7 +410,7 @@ class _TabOutputMixin:
         tab = self._tab()
         tab.prefill_template(TEMPLATE)
         panel = tab.model_panel
-        self.assertFalse(panel.placement_group.isVisibleTo(panel), "no model, no placement controls")
+        self.assertTrue(panel.placement_group.isVisibleTo(panel), "the template also supports placement")
         # a source: a 10 m long box along x, with one texture
         box = ParsedMesh(path="box.gltf", format="gltf", submeshes=[SubMesh(name="b", vertices=[(0, 0, 0), (10, 0, 0), (10, 2, 2), (0, 2, 2)], faces=[(0, 1, 2), (0, 2, 3)])])
         box.total_vertices = 4
@@ -525,7 +525,8 @@ class _TabOutputMixin:
         panel.clear_button.click()
         self.assertIsNone(tab.controller.model_import)
         self.assertEqual(tab.controller.draft.model_source, ModelSource.TEMPLATE)
-        self.assertFalse(panel.placement_group.isVisibleTo(panel))
+        self.assertTrue(panel.inspector_tabs.isTabVisible(panel.inspector_tabs.indexOf(panel.placement_group)))
+        self.assertTrue(panel.apply_button.isHidden(), "template placement is included directly in the plan")
         tab.close()
         tab.deleteLater()
 

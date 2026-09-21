@@ -280,6 +280,14 @@ class NewItemService:
             files = model_files_from_import(model, family=snapshot.family(allocated.template_key))
             raise_if_cancelled(stop_event, "New item plan cancelled.")
             files = route_model_files(files, allocated.material_route, result=model, scene=scene, glow=allocated.glow, translucency=allocated.translucency, on_log=on_log)
+        elif allocated.glow is not None or allocated.translucency is not None or allocated.template_transform:
+            from cdmw.services.new_item_template_model import prepare_template_model
+
+            family = snapshot.family(allocated.template_key)
+            paths = [item.path for item in family.files_for("pac") if item.exists]
+            paths.sort(key=lambda path: PurePosixPath(path).stem.casefold() != family.model_stem.casefold())
+            files = prepare_template_model(snapshot, paths, glow=allocated.glow, translucency=allocated.translucency,
+                                           transform=allocated.template_transform, stop_event=stop_event)
         built = icon
         prepared_variants = {}
         if allocated.variants is not None:

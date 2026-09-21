@@ -512,6 +512,22 @@ impl LoadedCdmwSessionPackage {
         };
         check_preview_cancelled(cancelled)?;
         validate_document(&document)?;
+        if manifest.preview_core_geometry.is_none()
+            && let Some(graph) = manifest.preview_core_material_graph.as_ref()
+        {
+            let mut owners = BTreeMap::new();
+            let slots: BTreeMap<_, _> = manifest.material_presentations.iter()
+                .map(|row| ((row.lod_index, row.material_index), row.material_slot_index))
+                .collect();
+            for (lod_index, lod) in document.lods.iter().enumerate() {
+                for (material_index, submesh) in lod.submeshes.iter().enumerate() {
+                    let key = (lod_index as u32, material_index as u32);
+                    let slot = slots.get(&key).copied().unwrap_or(key.1);
+                    owners.insert(key, (slot, submesh.material.as_str()));
+                }
+            }
+            validate_preview_core_material_graph(&manifest, graph, &owners, false)?;
+        }
         reject_unexpected_initial_files(&root, &manifest, &document)?;
         validate_material_presentations(&manifest, &document)?;
         check_preview_cancelled(cancelled)?;
@@ -1475,14 +1491,15 @@ fn validate_manifest_for(
             "session id and process generation are required".to_owned(),
         ));
     }
-    if let Some(geometry) = &manifest.preview_core_geometry {
+    if manifest.preview_core_geometry.is_some() || manifest.preview_core_material_graph.is_some() {
         if expected_schema != PREVIEW_PACKAGE_SCHEMA {
             return Err(SessionError::InvalidManifest(
                 "Preview Core geometry is allowed only in read-only preview packages".to_owned(),
             ));
         }
-        if geometry.material_graph_version != PREVIEW_CORE_MATERIAL_GRAPH_VERSION
-            || geometry.material_semantics_version != PREVIEW_CORE_MATERIAL_SEMANTICS_VERSION
+        if manifest.preview_core_geometry.as_ref().is_some_and(|geometry|
+            geometry.material_graph_version != PREVIEW_CORE_MATERIAL_GRAPH_VERSION
+            || geometry.material_semantics_version != PREVIEW_CORE_MATERIAL_SEMANTICS_VERSION)
             || manifest
                 .material_contract
                 .get("graph_version")
@@ -1528,19 +1545,21 @@ fn validate_manifest_for(
                     "Preview Core material transport graph is missing".to_owned(),
                 )
             })?;
-        validate_preview_core_material_graph(manifest, geometry, graph)?;
-    } else if manifest.preview_core_material_graph.is_some() {
-        return Err(SessionError::InvalidManifest(
-            "Preview Core material transport graph requires Preview Core geometry".to_owned(),
-        ));
+        if let Some(geometry) = &manifest.preview_core_geometry {
+            let owners = geometry.batches.iter().enumerate()
+                .map(|(index, batch)| ((0, index as u32), (batch.index, batch.material.as_str())))
+                .collect();
+            validate_preview_core_material_graph(manifest, graph, &owners, true)?;
+        }
     }
     Ok(())
 }
 
 fn validate_preview_core_material_graph(
     manifest: &SessionManifest,
-    geometry: &PreviewCoreGeometry,
     graph: &PreviewCoreMaterialGraph,
+    owners: &BTreeMap<(u32, u32), (u32, &str)>,
+    require_complete: bool,
 ) -> Result<(), SessionError> {
     let quality_is_full = graph.quality == "full";
     if graph.schema_version != PREVIEW_CORE_TRANSPORT_GRAPH_SCHEMA
@@ -1548,7 +1567,10 @@ fn validate_preview_core_material_graph(
         || graph.semantics_version != PREVIEW_CORE_MATERIAL_SEMANTICS_VERSION
         || !matches!(graph.quality.as_str(), "direct" | "full")
         || graph.resources_included != quality_is_full
-        || graph.materials.len() != geometry.batches.len()
+        || graph.materials.is_empty()
+        || graph.materials.len() > MAX_PREVIEW_CORE_BATCHES
+        || (require_complete && graph.materials.len() != owners.len())
+        || graph.materials.len() > owners.len()
         || graph.copied_resource_count > graph.unique_resource_count
     {
         return Err(SessionError::InvalidManifest(
@@ -1568,20 +1590,15 @@ fn validate_preview_core_material_graph(
     let mut material_indices = BTreeSet::new();
     let mut source_edges = 0_u64;
     for material in &graph.materials {
-        let material_index = usize::try_from(material.material_index).map_err(|_| {
-            SessionError::InvalidManifest(
-                "Preview Core material graph index exceeds this platform".to_owned(),
-            )
-        })?;
-        let Some(batch) = geometry.batches.get(material_index) else {
+        let owner = (material.lod_index, material.material_index);
+        let Some((slot, name)) = owners.get(&owner) else {
             return Err(SessionError::InvalidManifest(
                 "Preview Core material graph index is outside the geometry".to_owned(),
             ));
         };
-        if material.lod_index != 0
-            || !material_indices.insert(material.material_index)
-            || material.material_slot_index != batch.index
-            || material.material_name != batch.material
+        if !material_indices.insert(owner)
+            || material.material_slot_index != *slot
+            || material.material_name != *name
             || material.material_name.trim().is_empty()
             || material.material_name.len() > 256
             || material.layers.is_empty()
@@ -3754,6 +3771,61 @@ mod tests {
             .expect_err("geometry hash mismatch");
 
         assert!(error.to_string().contains("SHA-256 does not match"));
+    }
+
+    fn write_composite_material_fixture(root: &Path) -> PathBuf {
+        let path = write_preview_core_package_fixture(root);
+        let mut manifest: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        let geometry = manifest.as_object_mut().unwrap().remove("preview_core_geometry").unwrap();
+        for batch in geometry["batches"].as_array().unwrap() {
+            for role in ["vertices", "identity"] {
+                fs::remove_file(root.join(batch[role]["path"].as_str().unwrap())).unwrap();
+            }
+        }
+        let mut document = document();
+        let mut anchor = document.lods[0].submeshes[0].clone();
+        anchor.name = "anchor".into();
+        anchor.material = "anchor".into();
+        document.lods[0].submeshes.insert(0, anchor);
+        let bytes = serde_json::to_vec(&document).unwrap();
+        fs::write(root.join("document.json"), &bytes).unwrap();
+        manifest["document"]["byte_length"] = json!(bytes.len());
+        manifest["document"]["sha256"] = json!(sha256_upper(&bytes));
+        manifest["textures"][0]["material_indices_by_lod"] = json!([[1]]);
+        manifest["material_presentations"][0]["material_index"] = json!(1);
+        manifest["preview_core_material_graph"]["materials"][0]["material_index"] = json!(1);
+        manifest["preview_core_material_graph"]["materials"][0]["material_slot_index"] = json!(0);
+        manifest["preview_core_material_graph"]["quality"] = json!("full");
+        manifest["preview_core_material_graph"]["resources_included"] = json!(true);
+        manifest["preview_core_material_graph"]["materials"][0]["layers"][0]["diffuse"] =
+            manifest["textures"][0]["file"].clone();
+        fs::write(&path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+        path
+    }
+
+    #[test]
+    fn pure_preview_loader_composes_native_layers_with_document_placement_geometry() {
+        let root = tempdir().unwrap();
+        let path = write_composite_material_fixture(root.path());
+        let package = LoadedCdmwSessionPackage::load_preview(&path).expect("combined material graph");
+        assert_eq!(package.document().lods[0].submeshes.len(), 2);
+        assert_eq!(package.document().lods[0].submeshes[0].material, "anchor");
+        assert_eq!(package.manifest().preview_core_material_graph.as_ref().unwrap().materials[0].material_index, 1);
+        assert!(!package.textures.is_empty());
+    }
+
+    #[test]
+    fn pure_preview_loader_rejects_wrong_composite_material_ownership() {
+        for (field, value) in [("material_index", json!(0)), ("material_slot_index", json!(999)),
+                               ("material_name", json!("other"))] {
+            let root = tempdir().unwrap();
+            let path = write_composite_material_fixture(root.path());
+            let mut manifest: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+            manifest["preview_core_material_graph"]["materials"][0][field] = value;
+            fs::write(&path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+            let error = LoadedCdmwSessionPackage::load_preview(&path).expect_err("wrong material owner");
+            assert!(error.to_string().contains("ownership"));
+        }
     }
 
     #[test]

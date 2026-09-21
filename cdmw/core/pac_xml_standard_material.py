@@ -248,6 +248,45 @@ def plain_material_xml(material: PlainMaterial, *, indent: str = "", newline: st
     return newline.join(lines)
 
 
+def rewrite_emission(text: str, settings: Mapping[str, Tuple[str, str, float]]) -> str:
+    """Change selected emission while retaining the authored material's other inputs."""
+    if len(text) > 16 * 1024 * 1024:
+        raise PacXmlMaterialError("Glow material sidecar exceeds the supported size limit.")
+    settings = {name.casefold(): values for name, values in settings.items()}
+    edits, found = [], set()
+    for wrapper in find_material_wrappers(text):
+        name = wrapper.submesh_name.casefold()
+        if name not in settings:
+            continue
+        found.add(name)
+        texture, color, strength = settings[name]
+        material = PlainMaterial(base=wrapper.textures.get("_baseColorTexture", ""),
+                                 emissive_texture=texture, emissive_color=color, emissive_intensity=strength)
+        generated = plain_material_xml(material)
+        block = text[wrapper.start:wrapper.end]
+        if wrapper.shader != TRANSLUCENT_SHADER:
+            shader = "SkinnedMeshEmissive_Ver2" if wrapper.shader.endswith("_Ver2") else EMISSIVE_SHADER
+            block = block.replace(f'_materialName="{wrapper.shader}"', f'_materialName="{shader}"', 1)
+        for kind, parameter in (("Texture", "_emissiveIntensityTexture"),
+                                ("Color", "_emissiveColor"), ("Float", "_emissiveIntensity")):
+            pattern = (r'<MaterialParameter' + kind + r'\b[^>]*\bStringItemID="' + parameter + r'"[^>]*'
+                       + (r'>.*?</MaterialParameterTexture>' if kind == "Texture" else r'/>'))
+            block = re.sub(pattern, "", block, flags=re.S)
+            row = re.search(pattern, generated, flags=re.S).group(0)
+            used = [int(index) for index in re.findall(r'\bIndex="(\d+)"', block)]
+            row = re.sub(r'\bIndex="\d+"', f'Index="{max(used, default=-1) + 1}"', row, count=1)
+            position = block.rfind("</Vector>")
+            if position < 0:
+                raise PacXmlMaterialError("The material has no editable parameter vector.")
+            block = block[:position] + row + _newline_of(block) + block[position:]
+        edits.append((wrapper.start, wrapper.end, block))
+    if settings.keys() - found:
+        raise PacXmlMaterialError("Glow material bindings were not found: " + ", ".join(sorted(settings.keys() - found)))
+    for start, end, block in reversed(edits):
+        text = text[:start] + block + text[end:]
+    return text
+
+
 def rewrite_translucency(text: str, settings: Mapping[str, Tuple[float, float]]) -> str:
     """Edit only selected shaders and absorption, retaining every other parameter."""
     if len(text) > 16 * 1024 * 1024:
@@ -329,5 +368,6 @@ __all__ = [
     "find_material_wrappers",
     "plain_material_xml",
     "rewrite_materials",
+    "rewrite_emission",
     "rewrite_translucency",
 ]

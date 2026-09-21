@@ -241,6 +241,8 @@ class NewItemSpec:
     effect_look: "EffectLook" = field(default_factory=lambda: EffectLook())
     effect_layers: Optional[Tuple[EffectLayer, ...]] = None
     translucency: Optional[TranslucencyChoice] = None
+    #: Row-vector affine matrix for an owned copy of the template's geometry.
+    template_transform: Tuple[float, ...] = ()
 
     @property
     def active_effect_layers(self) -> Tuple[EffectLayer, ...]:
@@ -259,7 +261,8 @@ class NewItemSpec:
     def needs_own_family(self) -> bool:
         """The item gets prefabs, mesh and side files of its own under its stem."""
 
-        return self.model_source is ModelSource.IMPORTED or bool(self.active_effect_layers) or bool(self.variants)
+        return (self.model_source is ModelSource.IMPORTED or bool(self.active_effect_layers) or bool(self.variants)
+                or bool(self.glow and self.glow.wanted) or self.translucency is not None or bool(self.template_transform))
 
     @property
     def needs_new_stem(self) -> bool:

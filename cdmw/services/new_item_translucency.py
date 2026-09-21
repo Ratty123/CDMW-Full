@@ -24,15 +24,19 @@ def apply_prebuilt_translucency(files, route: MaterialRoute, choice: Translucenc
     key = xml_keys[0]
     try:
         text = files.side_files[key].decode("utf-8")
-        text = rewrite_translucency(text, {name: (choice.thickness, choice.extinction) for name in choice.parts})
+        text = rewrite_translucency(text, {name: choice.values_for(name) for name in choice.parts})
     except (UnicodeDecodeError, PacXmlMaterialError) as exc:
         raise NewItemPlanError(str(exc)) from exc
-    note = "Translucency: " + ", ".join(choice.parts) + f" (thickness {choice.thickness:g}, extinction {choice.extinction:g})"
-    if on_log is not None:
-        on_log(note)
+    notes = []
+    for name in choice.parts:
+        thickness, extinction = choice.values_for(name)
+        note = f"Translucency: {name} (thickness {thickness:g}, extinction {extinction:g})"
+        notes.append(note)
+        if on_log is not None:
+            on_log(note)
     return replace(
         files, side_files={**files.side_files, key: text.encode("utf-8")}, material_route=route.value,
-        notes=(*files.notes, note), warnings=(*files.warnings,
+        notes=(*files.notes, *notes), warnings=(*files.warnings,
             "Experimental SkinnedMeshTranslucent: thickness and extinction control absorption. "
             "Viewport transmission is approximate; game refraction and lighting may differ."),
     )
@@ -82,7 +86,12 @@ def selected_translucency(choice: TranslucencyChoice | None, wrapper_name: str, 
             f"{wrapper_name}: translucent and opaque parts share one atlas. "
             "Select all of its materials for translucency or import them as separate parts."
         )
-    return wanted & (names | atlas_names)
+    matches = wanted & (names | atlas_names)
+    try:
+        choice.values_for(*matches)
+    except ValueError as exc:
+        raise NewItemPlanError(f"{wrapper_name}: {exc}") from exc
+    return matches
 
 
 def translucency_preview_parameter_groups(mesh, choice: TranslucencyChoice | None = None, *, source_transmission=True):
@@ -90,9 +99,8 @@ def translucency_preview_parameter_groups(mesh, choice: TranslucencyChoice | Non
         choice.validate()
     groups = []
     for index, part in enumerate(getattr(mesh, "submeshes", ())):
-        if choice is not None and choice.matches(getattr(part, "name", ""), getattr(part, "material", "")):
-            absorption = choice.thickness, choice.extinction
-        else:
+        absorption = choice.values_for(getattr(part, "name", ""), getattr(part, "material", "")) if choice else None
+        if absorption is None:
             absorption = source_translucency(part) if source_transmission else None
         groups.append({
             "source_submesh_indices": [index],

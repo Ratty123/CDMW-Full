@@ -102,6 +102,12 @@ class NewItemTaskControllerMixin:
 
         def done(result: object) -> None:
             if isinstance(result, NewItemSnapshot):
+                self._template_selection_lane.cancel()
+                dependencies = getattr(self, "_template_preview_dependencies", None)
+                if dependencies is not None:
+                    dependencies.cancel()
+                self._template_request = None
+                self._template_parts = {}
                 self.snapshot = result
                 self.invalidate_plan()
                 # a different install can have different bodies and rigs
@@ -447,10 +453,14 @@ class NewItemTaskControllerMixin:
         workers.extend(self._model_cleanup_lane.iter_shutdown_workers())
         workers.extend(self._effect_lane.iter_shutdown_workers())
         workers.extend(self._template_search_lane.iter_shutdown_workers())
+        workers.extend(self._template_selection_lane.iter_shutdown_workers())
         return tuple(workers)
 
     def request_shutdown(self) -> None:
         self._shutdown_requested = True
+        dependencies = getattr(self, "_template_preview_dependencies", None)
+        if dependencies is not None:
+            dependencies.shutdown()
         self.retire_variant_sources()
         worker = self._worker
         if worker is not None:
@@ -463,6 +473,8 @@ class NewItemTaskControllerMixin:
         self._cleanup_model_source(source)
         self._effect_lane.request_shutdown()
         self._template_search_lane.request_shutdown()
+        self._template_selection_lane.request_shutdown()
+        self._template_request = None
 
     def shutdown(self) -> None:
         self.request_shutdown()

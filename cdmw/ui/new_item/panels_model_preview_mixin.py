@@ -65,11 +65,12 @@ class ModelPanelPreviewMixin:
             return
         token, build = source
         imported = self._controller.model_import
-        if imported is not None or show_character:
+        template_model = imported is None and self._controller.model_result is None
+        if imported is not None or show_character or template_model:
             if token != self._preview_mesh_token:
                 self.capture_inline_button.setEnabled(False)
             self._preview_mesh_token = token
-            placement = self._controller.model_placement if imported is not None else ModelPlacement()
+            placement = self._controller.model_placement if imported is not None or template_model else ModelPlacement()
             model_bounds = imported.baked_bounds() if imported is not None else None
             self.preview.show_placement(
                 build,
@@ -81,7 +82,7 @@ class ModelPanelPreviewMixin:
                     if imported is not None
                     else None
                 ),
-                gizmo_enabled=imported is not None,
+                gizmo_enabled=imported is not None or template_model,
             )
             self._refresh_placement_enabled()
             return
@@ -109,7 +110,9 @@ class ModelPanelPreviewMixin:
         self._controller.start_model_import(Path(path))
 
     def _refresh_apply_status(self) -> None:
+        self.apply_button.setVisible(self._controller.model_import is not None)
         if self._controller.model_import is None:
+            self.apply_status.set_note("Template edits are included when you build the plan." if self._controller.draft.template_key else "", None)
             return
         if getattr(self, "_apply_error", ""):
             self.apply_status.set_note(self._apply_error, WARN)
@@ -124,7 +127,7 @@ class ModelPanelPreviewMixin:
         self._controller.fit_model_placement()
 
     def _quick_turn(self, axis: int, degrees: float) -> None:
-        if self._controller.model_import is None or not self.placement_group.isEnabled():
+        if not self.placement_group.isEnabled():
             return
         placement = self._controller.model_placement
         rotation = list(placement.rotation)
@@ -133,7 +136,7 @@ class ModelPanelPreviewMixin:
         self._refresh_apply_status()
 
     def _reset_rotation(self) -> None:
-        if self._controller.model_import is None or not self.placement_group.isEnabled():
+        if not self.placement_group.isEnabled():
             return
         self._controller.set_model_placement(
             self._controller.model_placement.with_values(rotation=(0.0, 0.0, 0.0))
@@ -144,8 +147,10 @@ class ModelPanelPreviewMixin:
         if isinstance(placement, ModelPlacement):
             self._apply_error = ""
             self._sync_placement_numbers(placement)
-            if self._controller.model_import is not None:
+            if self._controller.model_import is not None or getattr(self.preview, "showing_placement", False):
                 self.preview.set_placement(placement)
+            if self._controller.model_import is None and self._controller.draft.template_key is not None:
+                self.refresh_preview()
             self._refresh_apply_status()
 
     def _sync_placement_numbers(self, placement: ModelPlacement) -> None:
@@ -164,7 +169,7 @@ class ModelPanelPreviewMixin:
             self._syncing_numbers = False
 
     def _numbers_changed(self, _value: float) -> None:
-        if self._syncing_numbers or self._controller.model_import is None:
+        if self._syncing_numbers or self._controller.draft.template_key is None:
             return
         self._controller.set_model_placement(
             ModelPlacement(
@@ -204,7 +209,7 @@ class ModelPanelPreviewMixin:
             widget.setEnabled(not busy)
         model_busy = bool(busy) and lane in {"model_import", "model_apply", "model_part_edit"}
         self._set_placement_visible(
-            self._controller.model_import is not None or model_busy
+            self._controller.draft.template_key is not None or model_busy
         )
         self.operation_banner.setVisible(model_busy or self._preview_busy)
         self.operation_spinner.set_running(model_busy or self._preview_busy)

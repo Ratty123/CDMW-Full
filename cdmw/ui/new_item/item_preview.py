@@ -151,7 +151,7 @@ class _PreviewPackageTask:
 
         cached = lookup_rust_preview_package_from_model_identity(
             cache_root=self.output_root,
-            archive_identity=f"new_item_preview:{token!r}",
+            archive_identity=f"new_item_preview:v2:{token!r}",
             semantic_view_axis="auto",
             cancelled=stop_event.is_set,
         )
@@ -171,27 +171,22 @@ class _PreviewPackageTask:
         material_thread.start()
         try:
             try:
-                geometry_item = candidate.geometry(stop_event)
-                geometry_package = build_item_preview_package(
-                    geometry_item,
-                    token=self.token,
-                    output_root=self.output_root,
-                    stop_event=stop_event,
-                    include_material_resources=False,
-                    render_settings=self.render_settings,
-                    cache_mode=self.cache_mode,
-                )
+                native_template = (self.native_preview_core_cache_root is not None and isinstance(self.token, tuple)
+                                   and self.token and self.token[0] == "template")
+                if not native_template:
+                    geometry_item = candidate.geometry(stop_event)
+                    geometry_package = build_item_preview_package(
+                        geometry_item, token=self.token, output_root=self.output_root, stop_event=stop_event,
+                        include_material_resources=False, render_settings=self.render_settings, cache_mode=self.cache_mode,
+                    )
             except RunCancelled:
                 raise
             except Exception:  # noqa: BLE001 - the full package can still land
                 pass
             else:
-                progress(
-                    1,
-                    3 if self.supports_fast_material_package else 2,
-                    str(geometry_package),
-                )
-                delivered.add(Path(geometry_package))
+                if geometry_package is not None:
+                    progress(1, 3 if self.supports_fast_material_package else 2, str(geometry_package))
+                    delivered.add(Path(geometry_package))
             if self.supports_fast_material_package:
                 while not (
                     materials.fast_ready.is_set()
@@ -488,7 +483,7 @@ def build_item_preview_package(
     resolved: it goes the Model Library's route and comes out textured), a bare
     `ParsedMesh`, a `PlacementScene`, or a callable `(stop_event) -> one of those`."""
 
-    archive_identity = f"new_item_preview:{token!r}"
+    archive_identity = f"new_item_preview:v2:{token!r}"
     normalized_cache_mode = str(cache_mode or "off").strip().lower()
     cacheable_template = (
         bool(include_material_resources)
@@ -759,6 +754,10 @@ class ItemPreviewFrame(QWidget):
             return
         if self._pending is not None and self._pending[0] == token and (self._thread is not None or self.is_ready or self._deferred_package is not None):
             return
+        if self.host is not None and (self._pending is None or self._pending[0] != token):
+            forget = getattr(self.host.controller, "forget_state", None)
+            if callable(forget):
+                forget("material_parameters")
         self._pending = (token, source)
         self._pending_is_placement = bool(is_placement)
         self._upgrade_request = None

@@ -115,8 +115,10 @@ def _template_progressive_source(
     material_build,
     include_character,
     character_mesh,
+    glow=None,
+    translucency=None,
 ):
-    if not include_character:
+    if not include_character and glow is None and translucency is None:
         from functools import partial
 
         return token, _progressive_preview_source(
@@ -124,6 +126,13 @@ def _template_progressive_source(
             cached_materials=partial(material_build, cache_only=True),
         )
     from cdmw.ui.new_item.item_preview import PlacementScene
+    from cdmw.services.new_item_materials import glow_preview_mesh
+    from cdmw.services.new_item_translucency import translucency_preview_mesh
+
+    token = (*token, repr(glow), repr(translucency))
+
+    def appearance(mesh):
+        return translucency_preview_mesh(glow_preview_mesh(mesh, glow), translucency)
 
     def build_geometry_character_scene(stop_event):
         return PlacementScene(
@@ -139,14 +148,14 @@ def _template_progressive_source(
             material_build,
             lambda template: PlacementScene(
                 template=None,
-                model=template,
+                model=appearance(template),
                 character=character_mesh(stop_event),
             ),
             stop_event, ("template-character", template_key, token), preview_context,
         )
 
     return (
-        ("template-character", template_key, token),
+        ("template-character", template_key, token) if include_character else token,
         _progressive_preview_source(
             build_geometry_character_scene,
             build_material_character_scene,
@@ -165,6 +174,9 @@ class NewItemPreviewControllerMixin:
 
         from cdmw.ui.new_item.effect_item_source import PlannedEffectItemSource
 
+        context = dict(getattr(self, "_template_preview_context", None) or {})
+        template = (self._template_preview_build() if self.model_import is None and self.model_result is None
+                    and context.get("native_preview_core_cache_root") is not None else None)
         return PlannedEffectItemSource(
             source=self.model_import,
             placement=self.model_placement,
@@ -176,6 +188,8 @@ class NewItemPreviewControllerMixin:
             glow=glow_choice(self.draft),
             translucency=self.draft.translucency,
             material_route=self.draft.material_route,
+            template_build=template[1] if template else None,
+            preview_context=context,
         )
 
     def _textured_preview_mesh(self):
@@ -341,6 +355,8 @@ class NewItemPreviewControllerMixin:
             material_build,
             include_character,
             character_mesh,
+            glow_choice(self.draft),
+            self.draft.translucency,
         )
 
     def _template_geometry_build(self):
@@ -405,6 +421,8 @@ class NewItemPreviewControllerMixin:
             dependency_identities.add(dependency.identity)
             dependencies_list.append(dependency)
         dependencies = tuple(dependencies_list)
+        preparer = getattr(self, "_template_preview_dependencies", None)
+        prepared_dependencies = preparer.capture(ordered_entries, prefab_entries) if preparer is not None else None
         component_paths = tuple(item.path for item in ordered_entries[1:])
         controller = self
         entry_revisions = tuple(
@@ -453,6 +471,7 @@ class NewItemPreviewControllerMixin:
                     fast_package_ready=fast_package_ready,
                     cache_only=cache_only,
                     consume_native_package=consume_native_package,
+                    prepared_dependencies=prepared_dependencies,
                 )
                 if package is not None:
                     return package
@@ -590,19 +609,14 @@ class NewItemPreviewControllerMixin:
         return held
 
     def material_parts(self) -> Tuple[Tuple[str, str], ...]:
-        """The imported model's own materials, for choosing which of them glow.
-
-        The reader's materials, never the template's: `Inside` and `Outside` are words
-        they can act on and `cd_phm_02_hammer_sub_0002` is not, and the template's parts
-        are not theirs to light in any case. They are in the scene the importer read, so
-        they are here from the moment the file is chosen rather than after Apply.
-
-        Empty without an imported model: the route that writes a glow runs only for one.
-        """
+        """Current imported materials or the template's worker-prepared bindings."""
 
         source = self.model_import
         if source is None:
-            return ()
+            identity = self.current_variant_identity()
+            selected = identity[1].casefold() if identity else None
+            return tuple(dict.fromkeys(part for path, parts in self._template_parts.items()
+                                       if selected is None or path == selected for part in parts))
         stamp = (id(source),)
         if self._material_parts and self._material_parts[0] == stamp:
             return self._material_parts[1]

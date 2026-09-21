@@ -864,6 +864,7 @@ class _TabAuthoringMixin:
         panel = tab.model_panel
         panel.import_model.setChecked(True)
         panel._set_placement_visible(True)
+        panel.apply_button.show()  # Layout fixture stands in for an imported source.
         panel.import_summary.setText("wolf_gravestone_sword_free (1).zip\n14,709 vertices · 3 parts · 3 textures")
         panel.model_status.set_note("Full import notes and material warnings stay available.")
         panel.keep_physics.show()
@@ -954,6 +955,7 @@ class _TabAuthoringMixin:
         self.addCleanup(panel.close)
         panel.setStyleSheet(tab.styleSheet())
         panel._set_placement_visible(True)
+        panel.apply_button.show()  # Restore the imported-layout fixture after busy-state checks.
         panel.show()
         for width, height, point_size in ((960, 640, 10), (780, 900, 10), (1140, 720, 14), (1600, 900, 10)):
             panel.setFont(QFont("Segoe UI", point_size))
@@ -985,6 +987,7 @@ class _TabAuthoringMixin:
         entry = tab.controller.template_entries()[0]
         tab.receive_imported_model(entry, ModelFiles(pac_data=b"PAC imported"), scene=None)
         panel = tab.model_panel
+        panel.inspector_tabs.setCurrentWidget(panel.appearance_page)
         self.app.processEvents()
         self.assertTrue(panel.own_sheath.isVisibleTo(panel))
         self.assertTrue(panel.keep_physics.isVisibleTo(panel))

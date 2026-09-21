@@ -91,6 +91,9 @@ MANUAL_SOURCE_KEYS = frozenset(
         "Armour weight donor: {value_0}",
         "Armour weights were transferred from the character body. Check fit and deformation; cloth simulation is not rebuilt.",
         # Shared core material errors surface through New Item and Mesh Editor.
+        "Translucency settings must name unique selected parts.",
+        "Parts sharing one material cannot use different translucency settings. Keep them as separate materials.",
+        "Light absorption", "Medium absorption", "Dense absorption",
         "The material has no editable parameter vector.",
         "Translucency material bindings were not found: {value_0}",
         "Translucency material sidecar exceeds the supported size limit.",

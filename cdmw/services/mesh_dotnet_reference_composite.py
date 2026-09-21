@@ -274,6 +274,11 @@ def decode_dotnet_native_preview_package(
 
     decoded: list[SubMesh] = []
     total_vertices = 0
+    from cdmw.services.mesh_rust_preview_package import _rebased_preview_core_batch, _validated_preview_core_source
+
+    canonical_graph = _index(manifest.get("schema_version"), 0) >= 8
+    if canonical_graph:
+        _validated_preview_core_source(package_dir, manifest)
     for raw_batch in raw_batches:
         if stop_requested():
             raise RunCancelled("Preview-core package decode cancelled.")
@@ -284,7 +289,7 @@ def decode_dotnet_native_preview_package(
             raise ValueError("Preview-core package exceeds the canonical preview vertex limit.")
         submesh = _decode_native_reference_submesh(
             package_dir,
-            raw_batch,
+            _rebased_preview_core_batch(package_dir, raw_batch),
             center=center,
             scale=scale,
             cancelled=stop_requested,
@@ -295,6 +300,13 @@ def decode_dotnet_native_preview_package(
             if stop_requested():
                 raise RunCancelled("Preview-core package decode cancelled.")
             raise ValueError("Preview-core package geometry is incomplete or corrupt.")
+        if canonical_graph:
+            # Composition must retain the same layered graph that Browse sends to
+            # Rust. The material override dictionary survives scene/placement clones.
+            submesh.preview_native_material_overrides["preview_core_material_source"] = {
+                "package": str(package_dir), "batch": dict(raw_batch),
+                "conservation": dict(manifest["material_conservation"]),
+            }
         decoded.append(submesh)
         total_vertices += len(submesh.vertices)
     if not decoded:

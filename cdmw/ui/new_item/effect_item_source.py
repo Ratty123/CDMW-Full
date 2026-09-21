@@ -22,6 +22,24 @@ class PlannedEffectItemSource:
     glow: object
     translucency: object = None
     material_route: MaterialRoute = MaterialRoute.PLAIN_PBR
+    template_build: object = None
+    preview_context: object = None
+
+    def consume(self, stop_event, consumer):
+        """Keep prepared native textures leased until the Effects package owns them."""
+        context = dict(self.preview_context or {})
+        if self.template_build is None or context.get("native_preview_core_cache_root") is None:
+            return consumer(self(stop_event))
+        from cdmw.services.mesh_dotnet_reference_composite import decode_dotnet_native_preview_package
+
+        def consume_native(package):
+            mesh = decode_dotnet_native_preview_package(package, cancelled=stop_event.is_set)
+            if not self.placement.is_identity:
+                from cdmw.services.new_item_template_model import transform_template_mesh
+                mesh = transform_template_mesh(mesh, self.placement.matrix())
+            return consumer(self._finish(mesh, "template", stop_event))
+
+        return self.template_build(stop_event, **context, consume_native_package=consume_native)
 
     def __call__(self, stop_event):
         self._check_cancelled(stop_event)
@@ -94,6 +112,9 @@ class PlannedEffectItemSource:
                 mesh = parsed if mesh is None else placement_reference_mesh(mesh, parsed)
         if mesh is None:
             return None, ""
+        if not self.rebuilt_data and not self.placement.is_identity:
+            from cdmw.services.new_item_template_model import transform_template_mesh
+            mesh = transform_template_mesh(mesh, self.placement.matrix())
         return self._finish(mesh, "applied" if self.applied else "template", stop_event)
 
     def _finish(self, mesh, kind, stop_event, origin=None):

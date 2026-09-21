@@ -138,6 +138,11 @@ class NewItemStudioTab(QWidget):
         self._get_package_root = get_package_root or (lambda: _window_package_root(window))
         self._effect_dirty_prompt = effect_dirty_prompt or self._prompt_for_staged_effect
         self.controller = controller or NewItemStudioController(service=service, parent=self)
+        catalogue_service = getattr(getattr(window, "archive", None), "archive_catalogue_service", None)
+        if catalogue_service is not None:
+            from cdmw.ui.new_item.template_preview_dependencies import TemplatePreviewDependencies
+
+            self.controller._template_preview_dependencies = TemplatePreviewDependencies(catalogue_service, self.controller)
         cache_root = getattr(getattr(window, "archive", None), "archive_cache_root", None)
         if cache_root is not None and self.controller.effect_cache_path is None:
             self.controller.effect_cache_path = Path(cache_root) / "index" / "effect_catalogue_v1.json"
@@ -202,6 +207,7 @@ class NewItemStudioTab(QWidget):
         self.log.hide()
         self.controller.log_message.connect(self._append_log)
         self.controller.template_changed.connect(self._log_template_selected)
+        self.controller.template_changed.connect(self._resume_pending_model_import)
         self.controller.effect_catalogue_failed.connect(self._log_effect_failure)
         self._append_log("Create New Item opened. Read the archives to begin.")
 
@@ -274,12 +280,21 @@ class NewItemStudioTab(QWidget):
         model_panel = getattr(self, "model_panel", None)
         if model_panel is not None:
             model_panel.preview.set_render_settings(self._preview_render_settings)
+        context = getattr(self.controller, "_template_preview_context", None)
+        if context is not None:
+            context["render_settings"] = self._preview_render_settings
+        perks = getattr(self, "_perks_panel", None)
+        if perks is not None and perks.effects_workspace.placement is not None:
+            perks.effects_workspace.placement.set_render_settings(self._preview_render_settings)
 
     def set_archive_performance_settings(self, settings: object | None) -> None:
         self._preview_cache_mode = clamp_archive_performance_settings(settings).native_preview_cache_mode
         model_panel = getattr(self, "model_panel", None)
         if model_panel is not None:
             model_panel.preview.set_cache_mode(self._preview_cache_mode)
+        context = getattr(self.controller, "_template_preview_context", None)
+        if context is not None:
+            context["cache_mode"] = self._preview_cache_mode
 
     def _game_package_root(self) -> Optional[Path]:
         root_text = str(self._get_package_root() or "").strip()
@@ -438,6 +453,11 @@ class NewItemStudioTab(QWidget):
         )
         self.model_panel.preview.set_render_settings(self._preview_render_settings)
         self.model_panel.preview.set_cache_mode(self._preview_cache_mode)
+        controller._template_preview_context = dict(
+            output_root=self.model_panel.preview._output_root,
+            native_preview_core_cache_root=self._native_preview_core_cache_root(),
+            render_settings=self._preview_render_settings, cache_mode=self._preview_cache_mode,
+        )
         self.model_panel.preview.status_changed.connect(self._log_preview_status)
         self.template_panel.mount_preview(self.model_panel.preview)
         self.output_panel = OutputPanel(controller)
@@ -854,7 +874,21 @@ class NewItemStudioTab(QWidget):
             self.start_snapshot()
             return
         self.steps.setCurrentRow(2)
+        if self.controller._template_request is not None or self.controller.draft.template_key is None:
+            self._pending_model_import = model_path
+            return
         self.controller.start_model_import(model_path)
+
+    def _resume_pending_model_import(self, key) -> None:
+        if key is not None and self._pending_model_import is not None:
+            QTimer.singleShot(0, self, self._import_after_template_ready)
+
+    def _import_after_template_ready(self) -> None:
+        if self.controller._shutdown_requested or self.controller._template_request is not None:
+            return
+        path, self._pending_model_import = self._pending_model_import, None
+        if path is not None:
+            self.open_model_source(path)
 
     def _reread_after_install(self) -> None:
         """After an install the archives hold the new item: read them again, so the next

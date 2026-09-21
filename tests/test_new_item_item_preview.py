@@ -1375,12 +1375,12 @@ class ItemPreviewFrameTests(unittest.TestCase):
         with patch("cdmw.ui.new_item.item_preview.build_item_preview_package", build_package):
             frame.show(source, token=("template", 17))
             deadline = time.monotonic() + 2.0
-            while len([call for call in frame.host.calls if call[0] == "load_package"]) < 2 and time.monotonic() < deadline:
+            while len([call for call in frame.host.calls if call[0] == "load_package"]) < 1 and time.monotonic() < deadline:
                 self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
 
         loads = [call for call in frame.host.calls if call[0] == "load_package"]
-        self.assertEqual(built, [geometry_source])
-        self.assertEqual([call[1][0] for call in loads], [output / "geometry", native_package])
+        self.assertEqual(built, [], "native template geometry must not also be decoded in Python")
+        self.assertEqual([call[1][0] for call in loads], [native_package])
         self.assertEqual(material_context["output_root"], output)
         self.assertEqual(material_context["native_preview_core_cache_root"], native_cache)
         self.assertEqual(material_context["render_settings"], frame._render_settings)

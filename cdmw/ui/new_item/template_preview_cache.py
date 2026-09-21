@@ -64,14 +64,12 @@ def build_native_template_preview(
     entry, dependencies, prefab_entries, component_paths, template_key, snapshot, stop_event,
     *, output_root, native_preview_core_cache_root, render_settings, cache_mode,
     fast_package_ready=None, cache_only=False, consume_native_package=None,
+    prepared_dependencies=None,
 ):
     """Keep staged native resources alive until the final scene owns its copies."""
 
-    import shutil
-    import time
     from dataclasses import replace
 
-    from cdmw.domain.cancellation import RunCancelled
     from cdmw.models import clamp_model_preview_render_settings
     from cdmw.services.mesh_rust_preview_cache import (
         build_or_lookup_rust_preview_package,
@@ -82,11 +80,22 @@ def build_native_template_preview(
         run_native_preview_core_preview_job,
     )
     from cdmw.workers.archive_preview_native import (
+        ArchivePreviewNativeMixin,
         native_preview_core_timeout_seconds,
         native_preview_model_property_indices,
     )
+    from cdmw.rendering.dotnet_preview_package_cache import (
+        create_dotnet_preview_package_staging_dir, release_dotnet_preview_package_staging_dir,
+        lookup_dotnet_preview_package_cache, store_dotnet_preview_package_cache,
+        dotnet_preview_package_cache_build_lock, dotnet_preview_package_cache_use,
+    )
 
     preview_root = Path(output_root)
+    if prepared_dependencies is not None:
+        dependencies = prepared_dependencies.wait(stop_event)
+        prepared_by_identity = {dependency.identity: dependency for dependency in dependencies}
+        entry = prepared_by_identity[entry.identity]
+        prefab_entries = tuple(prepared_by_identity[prefab.identity] for prefab in prefab_entries)
     native_settings = replace(
         clamp_model_preview_render_settings(render_settings), use_textures_by_default=True,
     )
@@ -103,49 +112,63 @@ def build_native_template_preview(
     if cache_only:
         return None
 
-    preview_root.mkdir(parents=True, exist_ok=True)
-    native_package = preview_root / f"package_{time.time_ns()}_native"
-    consuming = False
-    try:
-        attempt = run_native_preview_core_preview_job(
-            entry,
-            cache_root=Path(native_preview_core_cache_root),
-            render_settings=native_settings,
-            dependency_entries=dependencies,
-            dependency_entries_complete=False,
-            enabled_prefab_component_paths=component_paths,
-            model_property_indices=native_preview_model_property_indices(
-                prefab_entries, stop_event,
-                read_entry_data=lambda candidate: snapshot.payload(candidate.path),
-            ),
-            package_root=Path(entry.pamt_path).parent.parent,
-            output_root=native_package,
-            timeout_seconds=native_preview_core_timeout_seconds(native_settings),
-            stop_event=stop_event,
-        )
-        if not attempt.succeeded:
-            return None
+    # Retain the canonical material source as well as the final viewport package.
+    # Placement and Effects consume this same package instead of decoding every DDS again.
+    native_root = Path(native_preview_core_cache_root) / "new_item_templates"
+    native_key = hashlib.sha256(archive_identity.encode()).hexdigest()
+    durable = cache_mode in {"balanced", "aggressive"} and max_bytes > 0
+    validate = ArchivePreviewNativeMixin._validate_native_preview_core_package_basic
+    lock = dotnet_preview_package_cache_build_lock(native_root, native_key)
+    while not lock.acquire(timeout=0.05):
         raise_if_cancelled(stop_event)
-        if consume_native_package is not None:
-            consuming = True
-            return consume_native_package(attempt.package_path)
-        package = build_or_lookup_rust_preview_package(
-            attempt.package_path,
-            cache_root=preview_root,
-            archive_identity=archive_identity,
-            cache_mode=cache_mode,
-            max_bytes=max_bytes,
-            target_bytes=target_bytes,
-            cancelled=stop_event.is_set,
-            metadata={"surface": "new_item_studio", "source_path": entry.path},
-            fast_package_ready=fast_package_ready,
-        )
-        return Path(package.package_dir)
-    except RunCancelled:
-        raise
-    except Exception:  # noqa: BLE001 - native failure retains the established Python decoder
-        if consuming:
-            raise
-        return None
+    staging = None
+    try:
+        raise_if_cancelled(stop_event)
+        with dotnet_preview_package_cache_use(native_root, native_key):
+            hit = lookup_dotnet_preview_package_cache(native_root, native_key, validate_package=validate) if durable else None
+            if hit is not None:
+                native_package = hit.package_dir
+            else:
+                staging = create_dotnet_preview_package_staging_dir(native_root, leased=True)
+                native_package = staging / "package"
+                attempt = run_native_preview_core_preview_job(
+                    entry, cache_root=Path(native_preview_core_cache_root), render_settings=native_settings,
+                    dependency_entries=dependencies, dependency_entries_complete=prepared_dependencies is not None,
+                    enabled_prefab_component_paths=component_paths,
+                    model_property_indices=native_preview_model_property_indices(
+                        prefab_entries, stop_event,
+                        read_entry_data=(None if prepared_dependencies is not None
+                                         else lambda candidate: snapshot.payload(candidate.path)),
+                    ),
+                    package_root=Path(entry.pamt_path).parent.parent, output_root=native_package,
+                    timeout_seconds=native_preview_core_timeout_seconds(native_settings), stop_event=stop_event,
+                )
+                if not attempt.succeeded:
+                    raise RuntimeError(f"Template textures could not be prepared: {getattr(attempt, 'fallback_reason', 'native preview failed')}")
+                native_package = Path(attempt.package_path)
+                from cdmw.services.preview_material_status import native_preview_missing_texture_reason
+
+                if failure := native_preview_missing_texture_reason(native_package):
+                    raise RuntimeError(failure)
+                raise_if_cancelled(stop_event)
+                if durable and validate(native_package)[0]:
+                    hit = store_dotnet_preview_package_cache(
+                        native_root, native_key, staging, {"source_path": entry.path},
+                        validate_package=validate, max_bytes=max_bytes, target_bytes=target_bytes,
+                    )
+                    if hit is not None:
+                        native_package = hit.package_dir
+            if consume_native_package is not None:
+                return consume_native_package(native_package)
+            package = build_or_lookup_rust_preview_package(
+                native_package, cache_root=preview_root, archive_identity=archive_identity,
+                cache_mode=cache_mode, max_bytes=max_bytes, target_bytes=target_bytes,
+                cancelled=stop_event.is_set,
+                metadata={"surface": "new_item_studio", "source_path": entry.path},
+                fast_package_ready=fast_package_ready,
+            )
+            return Path(package.package_dir)
     finally:
-        shutil.rmtree(native_package, ignore_errors=True)
+        if staging is not None:
+            release_dotnet_preview_package_staging_dir(staging, cleanup=True)
+        lock.release()

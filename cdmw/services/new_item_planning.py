@@ -587,7 +587,7 @@ class _Planner(EffectPlanningMixin):
                 self.warnings.append(f"The template has no {role} at {item.path}; the clone goes without one.")
                 continue
             if role == "pac":
-                payload = self.model.pac_data if item.path == old_pac else self.snapshot.payload(item.path)
+                payload = self.model.pac_data if item.path == old_pac else self.model.side_files.get(item.path, self.snapshot.payload(item.path))
             elif role == "prefab":
                 result = rewrite_prefab_paths_any_length(self.snapshot.payload(item.path), pac_map)
                 if not result.edits:

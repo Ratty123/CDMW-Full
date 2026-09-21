@@ -132,8 +132,11 @@ class EffectPlacementWorkspace(
         compatibility_ui: bool = False,
         lighting_preset: str = "neutral_studio",
         lighting_changed: Optional[Callable[[str], None]] = None,
+        render_settings: object = None,
     ) -> None:
         super().__init__(parent)
+        from cdmw.models import clamp_model_preview_render_settings
+        self._render_settings = clamp_model_preview_render_settings(render_settings)
         self._item_mesh = item_mesh
         self._item_mesh_builder = item_mesh_builder
         self._item_origin = placed_item_origin(item_mesh)
@@ -541,6 +544,9 @@ class EffectPlacementWorkspace(
     def _sync_host(self) -> None:
         if self.host is None or self._preview is None:
             return
+        tuning = getattr(self.host, "set_render_tuning", None)
+        if callable(tuning):
+            tuning(self._render_settings)
         lighting = getattr(self.host, "set_lighting_preset", None)
         if callable(lighting):
             lighting(self._lighting_preset)
@@ -549,6 +555,11 @@ class EffectPlacementWorkspace(
             rotation_degrees=self._frame.to_scene_euler(self.rotation),
             scale_xyz=(self.scale, self.scale, self.scale),
         )
+
+    def set_render_settings(self, settings) -> None:
+        from cdmw.models import clamp_model_preview_render_settings
+        self._render_settings = clamp_model_preview_render_settings(settings)
+        self._sync_host()
 
     def _refresh_size_label(self) -> None:
         width, height, depth = self._box_size

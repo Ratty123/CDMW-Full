@@ -86,6 +86,7 @@ class VariantAppearance:
     glow_intensity: float = 4.0
 
     translucency: "TranslucencyChoice | None" = None
+    template_transform: tuple[float, ...] = ()
 
     def glow_choice(self):
         from cdmw.domain.new_item.spec import GlowChoice

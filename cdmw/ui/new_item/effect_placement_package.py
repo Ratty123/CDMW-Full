@@ -130,41 +130,47 @@ class EffectPlacementPackageMixin:
             # that patch its long-standing symbol keep controlling package creation.
             from cdmw.ui.new_item import effect_placement_dialog as facade
 
-            resolved_mesh, item_label = item_builder(stop_event) if callable(item_builder) else (mesh, "")
-            if stop_event.is_set():
-                raise RunCancelled("Effect placement preview cancelled")
-            if resolved_mesh is None:
-                return generation, None, (), reset_view, None, None, ""
-            textured = mesh_names_textures(resolved_mesh)
-            character, rotation, effect_sockets = None, None, ()
-            resolved_effect_preview = effect_preview(stop_event.is_set) if callable(effect_preview) else effect_preview
-            resolved_box = box
-            if isinstance(resolved_effect_preview, EffectPreview):
-                resolved_box = (resolved_effect_preview.box_min, resolved_effect_preview.box_max)
-            if builder is not None and not stop_event.is_set():
-                try:
-                    reference = builder(stop_event=stop_event)
-                except RunCancelled:
-                    raise
-                except Exception:  # noqa: BLE001 - a missing character must not remove numeric placement
-                    reference = None
-                if reference is not None:
-                    character = getattr(reference, "mesh", None)
-                    rotation = getattr(reference, "item_rotation", None)
-                    effect_sockets = tuple(getattr(reference, "effect_sockets", ()) or ())
-            preview = facade.build_effect_placement_package(
-                resolved_mesh,
-                resolved_box[0],
-                resolved_box[1],
-                output_root=root,
-                cancelled=stop_event.is_set,
-                include_item_textures=textured,
-                character_mesh=character,
-                item_rotation=rotation if character is not None else None,
-                effect_preview=resolved_effect_preview,
-                texture_reader=texture_reader,
-            )
-            return generation, preview, effect_sockets, reset_view, resolved_effect_preview, resolved_mesh, item_label
+            def build_resolved(item):
+                resolved_mesh, item_label = item
+                if stop_event.is_set():
+                    raise RunCancelled("Effect placement preview cancelled")
+                if resolved_mesh is None:
+                    return generation, None, (), reset_view, None, None, ""
+                textured = mesh_names_textures(resolved_mesh)
+                character, rotation, effect_sockets = None, None, ()
+                resolved_effect_preview = effect_preview(stop_event.is_set) if callable(effect_preview) else effect_preview
+                resolved_box = box
+                if isinstance(resolved_effect_preview, EffectPreview):
+                    resolved_box = (resolved_effect_preview.box_min, resolved_effect_preview.box_max)
+                if builder is not None and not stop_event.is_set():
+                    try:
+                        reference = builder(stop_event=stop_event)
+                    except RunCancelled:
+                        raise
+                    except Exception:  # noqa: BLE001 - a missing character must not remove numeric placement
+                        reference = None
+                    if reference is not None:
+                        character = getattr(reference, "mesh", None)
+                        rotation = getattr(reference, "item_rotation", None)
+                        effect_sockets = tuple(getattr(reference, "effect_sockets", ()) or ())
+                preview = facade.build_effect_placement_package(
+                    resolved_mesh,
+                    resolved_box[0],
+                    resolved_box[1],
+                    output_root=root,
+                    cancelled=stop_event.is_set,
+                    include_item_textures=textured,
+                    character_mesh=character,
+                    item_rotation=rotation if character is not None else None,
+                    effect_preview=resolved_effect_preview,
+                    texture_reader=texture_reader,
+                )
+                return generation, preview, effect_sockets, reset_view, resolved_effect_preview, resolved_mesh, item_label
+
+            consume = getattr(item_builder, "consume", None)
+            if callable(consume):
+                return consume(stop_event, build_resolved)
+            return build_resolved(item_builder(stop_event) if callable(item_builder) else (mesh, ""))
 
         worker = UtilityWorker(task, task_accepts_cancel=True)
         # QThread(parent) emits ChildAdded before PySide finishes its wrapper.

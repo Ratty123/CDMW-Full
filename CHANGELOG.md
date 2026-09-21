@@ -17,6 +17,8 @@ The format is intentionally simple:
 
 ### Added
 
+- New Item keeps independent translucency settings for each material part. New Item and Mesh Editor offer absorption presets and a Clear-to-Dense slider, with the original thickness/extinction controls under Advanced.
+- Create New Item supports template-only Move, Rotate, Scale, Glow and experimental Translucency. Changes follow the selected variant and are included in Build plan without importing a model.
 - Mesh Editor can create experimental cloth guides from a stored LOD of guide-free PAC parts, using existing bones and an adjustable pin height. Generated bindings cover every LOD and support preview, Restore, Undo/Redo, Finish, drafts and Build Mod. Optional skin-weight reduction is explicit. Adding skeletal bones remains unsupported, and generated guides have not been tested in game.
 - Mesh Editor's authored cloth profiles expose cloak behavior, backstop and input-position collisions, shield shrink and long-range attachments. These raw switches support Apply/Restore, Undo/Redo, drafts and mod companions; they do not enable new physics bindings or reproduce every game collision in preview.
 - Mesh Editor's Parts panel now offers experimental translucency for original PAC parts and imported replacements, with thickness/extinction controls, Restore, Undo/Redo, draft persistence and material sidecar export. Absorption edits reuse prepared viewport textures.
@@ -28,7 +30,11 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Translucent previews separate background transmission from reflection and glow instead of blending an opaque shaded surface over the background. Supported GPUs preserve coloured transmission through overlapping glass; game refraction and lighting remain approximate.
 - Checkable section headers such as Glow and Translucency, along with radio buttons and checkboxes, have visible theme-aware outlines and selected, hover, focus and disabled states, including in OLED Black.
+- Create New Item prepares template selection off the UI thread, avoids duplicate geometry decoding, and reuses native template textures across Model & Placement and Perks & Effects. Effects also follows the shared archive viewport settings.
+- Create New Item uses Browse Archives' prepared material and texture dependencies instead of another archive search. Combined previews preserve the same layered materials, detail masks and full texture quality without recompiling template textures.
+- Discarding an imported New Item model clears its material overrides before restoring the template, preventing imported glow or translucency from changing the template's appearance.
 - New Item retains glass and glow after mesh-part edits, preserves existing materials when changing translucency on prebuilt imports, and includes manual translucency in dye previews.
 - New Item's Plain PBR export and previews keep authored glTF transmission layers translucent, including glass shells around emissive gems, even when translucency is manually selected only on another part. Source colours and glow are retained. The glass mapping remains experimental, and mixed glass/opaque atlases require separate parts or an explicit whole-atlas override.
 - Cloth preview accepts upward gravity from authored profiles. Its gravity control now uses the XML sign: negative pulls down, positive lifts up. The profile panel distinguishes absent cloth guides from guide data it cannot decode; profile edits do not create new bindings.

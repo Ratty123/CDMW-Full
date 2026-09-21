@@ -679,6 +679,12 @@ def build_context(snapshot: NewItemSnapshot, template_key: int) -> NewItemContex
     cached = snapshot._contexts.get(key)
     if cached is not None:
         return cached
+    if snapshot._contexts:
+        from dataclasses import replace
+
+        context = replace(next(iter(snapshot._contexts.values())), template=template_facts(snapshot, key))
+        snapshot._contexts[key] = context
+        return context
     stock_names: Dict[str, FrozenSet[str]] = {}
     for store in snapshot.stores:
         names = set()

@@ -4222,6 +4222,10 @@ def _atomic_copy_texture_payload(
 
 
 def _submesh_has_material_synthesis_inputs(submesh: object) -> bool:
+    if (getattr(submesh, "preview_native_material_overrides", {}) or {}).get("preview_core_material_source"):
+        # Its native graph is copied by the preview package writer. Resynthesizing
+        # these textures repeats decoding and replaces authored layer semantics.
+        return False
     # Scene importers already bind these images to renderer roles. Their input
     # provenance survives composition with PAC references and placement helpers;
     # the combined mesh's format describes only its first role.
@@ -4248,7 +4252,10 @@ def _mesh_has_material_synthesis_inputs(mesh: ParsedMesh) -> bool:
 def rust_preview_mesh_needs_material_synthesis(mesh: ParsedMesh) -> bool:
     """Whether a full tier can add anything beyond the direct texture tier."""
 
-    return _mesh_has_material_synthesis_inputs(mesh)
+    return _mesh_has_material_synthesis_inputs(mesh) or any(
+        (getattr(part, "preview_native_material_overrides", {}) or {}).get("preview_core_material_source")
+        for level in _mesh_lods(mesh) for part in level
+    )
 
 
 def _validate_rust_material_synthesis_tree(

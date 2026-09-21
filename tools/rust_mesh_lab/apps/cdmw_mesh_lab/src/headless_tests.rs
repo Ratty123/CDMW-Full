@@ -2139,12 +2139,15 @@ fn offscreen_d3d12_translucency_responds_to_absorption_and_texture_alpha() -> Te
     for (name, translucency, alpha, gltf_opaque) in [
         ("opaque", None, 255_u8, false),
         ("clear", Some([0.5, 0.0]), 255, false),
-        ("thin", Some([0.01, 0.1]), 255, false),
+        // The old almost-clear pair is below one output code on this dark
+        // background once glass stops painting opaque diffuse colour over it.
+        ("thin", Some([0.1, 0.3]), 255, false),
         ("dense", Some([0.5, 1.0]), 255, false),
         ("zero-alpha", Some([0.5, 1.0]), 0, false),
         ("gltf-opaque-alpha", Some([0.5, 1.0]), 0, true),
         ("glowing-dense", Some([0.5, 1.0]), 255, false),
         ("masked-glow", Some([0.5, 1.0]), 255, false),
+        ("clear-glow", Some([0.1, 0.0]), 255, false),
     ] {
         let mut base = cdmw_texture::synthetic::rgba8_checker_dds();
         for pixel in base[148..].chunks_exact_mut(4) {
@@ -2166,7 +2169,7 @@ fn offscreen_d3d12_translucency_responds_to_absorption_and_texture_alpha() -> Te
             factors: MaterialPreviewFactors {
                 translucency, alpha_blend: Some(false), gltf_metallic_roughness: Some(gltf_opaque),
                 emissive_color: Some([0.1, 0.8, 0.3]),
-                emissive_intensity: Some(if matches!(name, "glowing-dense" | "masked-glow") { 4.0 } else { 0.0 }),
+                emissive_intensity: Some(if matches!(name, "glowing-dense" | "masked-glow" | "clear-glow") { 4.0 } else { 0.0 }),
                 opacity: Some(if gltf_opaque { 0.0 } else { 1.0 }),
                 ..MaterialPreviewFactors::default()
             },
@@ -2200,6 +2203,7 @@ fn offscreen_d3d12_translucency_responds_to_absorption_and_texture_alpha() -> Te
     assert_eq!(&captures[5][54..], &captures[3][54..], "glTF OPAQUE ignores texture and factor alpha, matching export");
     assert!(material_luma[6] > material_luma[3] + 5.0, "emission disappeared from the translucent part: {material_luma:?}");
     assert!((material_luma[7] - material_luma[3]).abs() < 1.0, "emissive texture mask was ignored: {material_luma:?}");
+    assert!(material_luma[8] > material_luma[1] + 5.0, "clear glass must not erase emission: {material_luma:?}");
     assert!(reference_luma.iter().all(|value| *value == reference_luma[0]), "unselected reference appearance changed");
     println!("D3D12 translucency pixels: opaque={opaque}, dense={dense}, thin={thin}; captures={}", root.display());
     Ok(())

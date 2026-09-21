@@ -2,8 +2,26 @@
 from cdmw.domain.new_item.rules import _issue, _U32_MAX, _I32_MIN, _I32_MAX, MAX_SOCKET_ITEMS, MAX_SHIPPED_SOCKET_SLOTS
 
 
+def validate_template_transform(matrix):
+    if not matrix:
+        return
+    import math
+
+    if len(matrix) != 16 or any(not math.isfinite(value) for value in matrix):
+        raise ValueError("Template placement needs a finite 4 by 4 matrix.")
+    if any(abs(matrix[index]) > 1e-9 for index in (3, 7, 11)) or abs(matrix[15] - 1) > 1e-9:
+        raise ValueError("Template placement must be an affine transform.")
+    a, b, c, d, e, f, g, h, i = (matrix[index] for index in (0, 1, 2, 4, 5, 6, 8, 9, 10))
+    if a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g) <= 0:
+        raise ValueError("Template placement must have positive scale.")
+
+
 def validate_authoring(spec):
     issues = []
+    try:
+        validate_template_transform(spec.template_transform)
+    except (ValueError, TypeError) as exc:
+        issues.append(_issue("template.placement", "template_transform", str(exc)))
     if spec.socket_slots is not None:
         if len(spec.socket_slots) > MAX_SOCKET_ITEMS:
             issues.append(_issue("slots.too_many", "socket_slots", "At most eight socket slots fit the supported row."))
@@ -47,10 +65,14 @@ def validate_authoring(spec):
         if variant.translucency is not None:
             try:
                 variant.translucency.validate()
-                if not variant.custom_model or variant.material_route != MaterialRoute.PLAIN_PBR.value:
-                    raise ValueError("Translucency requires an imported model with Plain PBR materials enabled.")
+                if variant.custom_model and variant.material_route != MaterialRoute.PLAIN_PBR.value:
+                    raise ValueError("Translucency requires Plain PBR materials for imported models.")
             except ValueError as exc:
                 issues.append(_issue("variant.translucency", "variants", str(exc)))
+        try:
+            validate_template_transform(variant.template_transform)
+        except (ValueError, TypeError) as exc:
+            issues.append(_issue("variant.placement", "variants", str(exc)))
         if (len(variant.glow_color) != 3 or any(not 0 <= value <= 1 for value in variant.glow_color)
                 or not 0 <= variant.glow_intensity <= 20):
             issues.append(_issue("variant.glow", "variants", "Variant glow needs three color components and a supported intensity."))

@@ -672,7 +672,7 @@ def route_plain_pbr(
         source = sources.get(wrapper.submesh_name.casefold()) or source_by_base.get(base.replace("\\", "/").casefold())
         matches = selected_translucency(translucency, wrapper.submesh_name, source)
         translucent_matches.update(matches)
-        absorption = ((translucency.thickness, translucency.extinction) if matches
+        absorption = (translucency.values_for(*matches) if matches
                       else source_translucency(source))
         is_atlas = source is not None and source.atlas_section is not None
         if source is not None and not is_atlas and source.normal is None:
