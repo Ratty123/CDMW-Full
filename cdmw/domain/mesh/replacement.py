@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 from .cloth import PacClothRule
+from .cloth_guides import PacClothGuideRule
 from .jiggle import PacJiggleRule
 from .physics_profile import PacPhysicsProfileRule
 
@@ -39,6 +40,7 @@ class ReplacementPart:
     jiggle: PacJiggleRule | None = None
     physics_profiles: tuple[PacPhysicsProfileRule, ...] = ()
     translucency: tuple[float, float] | None = None
+    cloth_guides: PacClothGuideRule | None = None
 
 
 @dataclass(frozen=True, slots=True)

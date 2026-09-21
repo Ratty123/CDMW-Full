@@ -72,7 +72,7 @@ def pac_cloth_lods(data: bytes):
     levels = []
     seen_offsets = set()
     for lod in range(count):
-        section = by_index.get(4 - lod)
+        section = by_index.get(count - lod)
         if section is None:
             raise ValueError(f"Cloth editing cannot read PAC LOD {lod}.")
         mesh = _parse_pac_geometry_section(data, "cloth.pac", descriptors, section, lod)

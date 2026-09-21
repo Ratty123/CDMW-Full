@@ -628,6 +628,40 @@ output hashes, selected part and height with any regression report.
 height rule, and `modding/pac_jiggle.py` the byte patch. The shared PAC LOD reader
 validates record ownership without requiring cloth bindings.
 
+### Creating cloth guides on existing bones
+
+In **Mesh Data > Cloth**, expand **Create cloth guides (experimental)**. This
+requires a guide-free PAC with a decoded 2-, 3- or 4-LOD layout and a matching
+skeleton. Select the parts to affect and enable **Create guides for selected
+parts only** when appropriate. Choose a **Source LOD** and **Pin guides at or
+above Y**, then **Create / update guides**. Pin height uses displayed neutral
+coordinates; generated positions remain in the PAC source frame.
+
+The generator welds identical positions with identical bone weights, builds
+distance/bend/area constraints and fixed-root chains, and binds the visible
+vertices at every stored LOD to up to four nearby guides in their own part.
+The total is limited to 1,024 guides. Degenerate or non-manifold source geometry,
+pieces without anchors, all-fixed selections and undecoded metadata are rejected.
+Choose a lower source LOD, a different height or fewer parts when needed.
+
+**Reduce skinning to four bones** is off by default. Enable it only when the
+conversion is wanted: it merges duplicate influences, keeps the four strongest
+existing bones and normalizes their weights at every LOD of each selected part.
+Without it, sources that need weight conversion are rejected. Other parts retain
+their original records. No bones are created or added to a skeleton.
+
+The generated guide data feeds the existing decoded motion preview. Cloth amount,
+Disable cloth and Restore cloth continue to work on these new bindings. **Restore
+source guides** removes the creation recipe and dependent cloth-influence rule for
+the chosen parts. Undo/Redo, Finish, saved drafts and Build Mod retain creation
+settings and the captured bone palette. Draft version 9 reopens without an archive
+or skeleton for output; decoded motion still needs the matching rig.
+
+The first version generates from PAC LOD geometry; importing or hand-editing a
+separate guide mesh and changing existing authored guide topology are not included.
+Offline decoder, deformation-reference and retained-asset checks establish
+structure and preservation, not in-game activation, appearance or solver parity.
+
 ### Authored physics profiles
 
 In **Mesh Data > Cloth**, expand **Authored cloth profile** and choose a variant.
@@ -640,7 +674,8 @@ downward acceleration and positive values for upward acceleration, from -100 to
 100. Loading a profile preserves that direction; restoring manual settings
 restores the previous gravity as well.
 
-The profile panel reports the source model's cloth-guide count and fixed guides.
+The profile panel reports the current model's cloth-guide count and fixed guides,
+including generated guides in Edit comparison and source guides in Original.
 A model without guides is labelled explicitly; an unsupported or damaged guide
 layout is reported as unknown instead. Profile metadata remains editable where
 its source assignment is available, but editing it does not add cloth or bone

@@ -7006,6 +7006,8 @@ class RustMeshAuthoringSession:
     texture_resource_count: int = 0
     hair_file_cache: tuple[bytes, dict[str, object]] | None = None
     cloth_source_cache: tuple[bytes, object, dict[str, object]] | None = field(default=None, repr=False)
+    cloth_guide_layout_cache: tuple | None = field(default=None, repr=False)
+    cloth_guide_output_cache: tuple | None = field(default=None, repr=False)
     jiggle_source_cache: tuple[bytes, object, dict[str, object]] | None = field(default=None, repr=False)
     cloth_collision_inputs: dict[str, tuple[str, object]] = field(default_factory=dict, repr=False)
     physics_profile_context: PbdProfileContext | None = field(default=None, repr=False)
@@ -7974,6 +7976,8 @@ class RustMeshAuthoringSession:
         state["translucency"] = translucency_ui_state(self, state["replacement"])
         from cdmw.services.mesh_rust_cloth import cloth_ui_state
         state["cloth"] = cloth_ui_state(self, state["replacement"])
+        from cdmw.services.mesh_rust_cloth_guides import guide_authoring_ui_state
+        state["cloth_guides"] = guide_authoring_ui_state(self, state["replacement"])
         from cdmw.services.mesh_rust_physics_profiles import physics_profiles_ui_state
         state["physics_profiles"] = physics_profiles_ui_state(self, state["replacement"])
         from cdmw.services.mesh_rust_jiggle import jiggle_ui_state

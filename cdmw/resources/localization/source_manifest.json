@@ -11882,6 +11882,16 @@
       ]
     },
     {
+      "key": "Attach the matching skeleton before creating guides on its existing bones.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_cloth_guides.py",
+          "line": 71,
+          "sink": "python-return:guide_authoring_ui_state"
+        }
+      ]
+    },
+    {
       "key": "Attached {value_0} companion descriptor hint document(s) to the HKX converter export.",
       "origins": [
         {
@@ -21112,6 +21122,16 @@
       "manual": true
     },
     {
+      "key": "Choose included parts for guide creation.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_cloth_guides.py",
+          "line": 90,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Choose included parts with editable jiggle data.",
       "origins": [
         {
@@ -21483,6 +21503,16 @@
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
           "line": 70,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Choose unique included parts for guide creation.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_cloth_guides.py",
+          "line": 85,
+          "sink": "ValueError"
         }
       ]
     },
@@ -22722,6 +22752,16 @@
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
           "line": 392,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Cloth guide settings require replacement draft version 9.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_draft.py",
+          "line": 129,
           "sink": "ValueError"
         }
       ]
@@ -41582,6 +41622,16 @@
       ]
     },
     {
+      "key": "Generated guide preview requires unchanged render topology.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_jiggle.py",
+          "line": 88,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Generated icon output stem is invalid.",
       "origins": [
         {
@@ -42288,6 +42338,36 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_shell_part_01.py",
           "line": 550,
           "sink": "setHeaderLabels"
+        }
+      ]
+    },
+    {
+      "key": "Guide creation is supported only for PAC meshes.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_output.py",
+          "line": 307,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Guide creation requires an original PAC outside the hair workflow.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_cloth_guides.py",
+          "line": 71,
+          "sink": "python-return:guide_authoring_ui_state"
+        }
+      ]
+    },
+    {
+      "key": "Guide draft has no guide creation settings.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_draft.py",
+          "line": 173,
+          "sink": "ValueError"
         }
       ]
     },
@@ -48193,6 +48273,16 @@
           "path": "tools/translation_studio/tab.py",
           "line": 592,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Invalid guide reset request.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_cloth_guides.py",
+          "line": 81,
+          "sink": "ValueError"
         }
       ]
     },

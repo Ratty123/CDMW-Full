@@ -105,6 +105,12 @@ def physics_profiles_ui_state(authoring, replacement):
     incoming = authoring.physics_profile_context
     state = session.replacement_state
     data = session.original_data
+    from cdmw.services.mesh_rust_cloth_guides import authored_cloth_source
+    geometry_error = ""
+    try:
+        data, _ = authored_cloth_source(authoring, session)
+    except ValueError as exc:
+        geometry_error = str(exc)
     cached = authoring.physics_profile_cache
     if cached is None or cached[0] is not data or cached[1] is not incoming or cached[2] is not state:
         retained = state and (any(part.physics_profiles for part in state.parts) or any(
@@ -133,7 +139,7 @@ def physics_profiles_ui_state(authoring, replacement):
             "sidecar_sha256": context.sidecar.sha256 if context.sidecar else "",
             "profiles": sources.copy(), "sources": sources, "groups": groups,
             "variants": list(dict.fromkeys(binding.variant_index for binding in context.bindings)),
-            "cloth_geometry": _cloth_geometry(data),
+            "cloth_geometry": ({"status": "unsupported", "reason": geometry_error} if geometry_error else _cloth_geometry(data)),
         }
         bindings = context.bindings
         if state and any(part.physics_profiles for part in state.parts) and not problem:

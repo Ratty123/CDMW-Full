@@ -13,6 +13,7 @@ The format is intentionally simple:
 
 ### Added
 
+- Mesh Editor can create experimental cloth guides from a stored LOD of guide-free PAC parts, using existing bones and an adjustable pin height. Generated bindings cover every LOD and support preview, Restore, Undo/Redo, Finish, drafts and Build Mod. Optional skin-weight reduction is explicit. Adding skeletal bones remains unsupported, and generated guides have not been tested in game.
 - Mesh Editor's authored cloth profiles expose cloak behavior, backstop and input-position collisions, shield shrink and long-range attachments. These raw switches support Apply/Restore, Undo/Redo, drafts and mod companions; they do not enable new physics bindings or reproduce every game collision in preview.
 - Mesh Editor's Parts panel now offers experimental translucency for original PAC parts and imported replacements, with thickness/extinction controls, Restore, Undo/Redo, draft persistence and material sidecar export. Absorption edits reuse prepared viewport textures.
 - Translucency can share a material with emissive glow in New Item. Emissive maps, colours and strength are retained; the translucent game shader may interpret brightness differently from the preview.

@@ -1,5 +1,90 @@
 //! Edit existing cloth influence through the host's reversible PAC output path.
 pub(crate) mod preview;
+mod authoring {
+    //! Bounded guide creation on existing skeleton bones through the host worker.
+    use super::*;
+
+    #[derive(Default)]
+    pub(crate) struct GuideView {
+        pub selected_only: bool,
+        pub source_lod: u32,
+        pub height: f64,
+        pub reduce_skinning: bool,
+        key: Value,
+    }
+
+    impl LabApplication {
+        pub(super) fn draw_cdmw_guide_authoring(
+            &mut self,
+            ui: &mut egui::Ui,
+            actions: &mut Vec<UiAction>,
+        ) {
+            let state = self.cdmw_state["cloth_guides"].clone();
+            if state.is_null() {
+                return;
+            }
+            ui.collapsing("Create cloth guides (experimental)", |ui| {
+                ui.small("Builds a simulation mesh from a stored LOD, using the existing bones.");
+                if !state_bool(&state, "available") {
+                    ui.label(state_str(&state, "reason").unwrap_or("Guide creation is unavailable."));
+                    return;
+                }
+                ui.checkbox(&mut self.cdmw_cloth.guides.selected_only, "Create guides for selected parts only");
+                let selected = self.selected_part_indices();
+                let parts = state["parts"].as_array().into_iter().flatten()
+                    .filter(|part| (state_bool(part, "included") || !part["rule"].is_null())
+                        && (!self.cdmw_cloth.guides.selected_only || selected.contains(&(state_u64(part, "index") as u32))))
+                    .collect::<Vec<_>>();
+                if parts.is_empty() {
+                    ui.label("Select an included part to create guides.");
+                    return;
+                }
+                let ids = parts.iter().filter_map(|part| part["id"].as_str()).collect::<Vec<_>>();
+                let enabled = !self.cdmw_busy() && state_bool(&self.cdmw_state, "authoring_enabled");
+                let key = json!([ids, parts.iter().map(|part| &part["rule"]).collect::<Vec<_>>()]);
+                let view = &mut self.cdmw_cloth.guides;
+                if view.key != key {
+                    view.key = key;
+                    let mixed = parts.iter().any(|part| part["rule"] != parts[0]["rule"]);
+                    let rule = if mixed { &Value::Null } else { &parts[0]["rule"] };
+                    view.source_lod = rule["source_lod"].as_u64().unwrap_or(0) as u32;
+                    let low = parts.iter().filter_map(|part| part["min_y"].as_f64()).fold(f64::INFINITY, f64::min);
+                    let high = parts.iter().filter_map(|part| part["max_y"].as_f64()).fold(f64::NEG_INFINITY, f64::max);
+                    view.height = rule["fixed_above"].as_f64().unwrap_or(low + (high-low)*0.9);
+                    view.reduce_skinning = rule["reduce_skinning"].as_bool().unwrap_or(false);
+                }
+                egui::ComboBox::from_id_salt("cloth-guide-source-lod")
+                    .selected_text(format!("Source LOD {}", view.source_lod)).show_ui(ui, |ui| {
+                        for lod in 0..state_u64(&state, "lod_count") as u32 {
+                            ui.selectable_value(&mut view.source_lod, lod, format!("Source LOD {lod}"));
+                        }
+                    });
+                let vertices: u64 = parts.iter().filter_map(|part| part["lod_vertices"][view.source_lod as usize].as_u64()).sum();
+                ui.small(format!("{vertices} source vertices before welding; maximum 1,024 guides across all parts."));
+                ui.horizontal(|ui| {
+                    ui.label("Pin guides at or above Y");
+                    ui.add(egui::DragValue::new(&mut view.height).speed(0.01));
+                });
+                ui.small("Height uses displayed model coordinates. Each disconnected piece needs an anchor.");
+                ui.checkbox(&mut view.reduce_skinning, "Reduce skinning to four bones");
+                ui.small("Optional: keeps the four strongest bone weights and normalizes them at every LOD. This changes skeletal deformation.");
+                let valid = enabled && view.height.is_finite() && parts.iter().all(|part| state_bool(part, "included"));
+                if ui.add_enabled(valid, egui::Button::new("Create / update guides")).clicked() {
+                    actions.push(UiAction::CdmwCommand { command: "replacement_guides",
+                        arguments: json!({"part_ids": ids, "source_lod": view.source_lod, "fixed_above": view.height,
+                                          "reduce_skinning": view.reduce_skinning}),
+                        label: "Create cloth guides" });
+                }
+                if ui.add_enabled(enabled && parts.iter().any(|part| !part["rule"].is_null()),
+                                  egui::Button::new("Restore source guides")).clicked() {
+                    actions.push(UiAction::CdmwCommand { command: "replacement_guides",
+                        arguments: json!({"part_ids": ids, "reset": true}), label: "Restore source guides" });
+                }
+                ui.small("Creates bindings at every stored LOD. Saved in drafts and Build Mod; game activation is unverified.");
+            });
+        }
+    }
+}
 pub(super) mod profiles {
     //! Separate raw profile authoring from converted preview presets.
     use crate::UiAction;
@@ -435,6 +520,7 @@ pub(super) struct ClothView {
     pub height: f64,
     pub fade: f64,
     pub profiles: profiles::ProfileView,
+    pub guides: authoring::GuideView,
     key: Value,
 }
 
@@ -447,6 +533,7 @@ impl Default for ClothView {
             height: 0.0,
             fade: 0.0,
             profiles: profiles::ProfileView::default(),
+            guides: authoring::GuideView::default(),
             key: Value::Null,
         }
     }
@@ -455,7 +542,8 @@ impl Default for ClothView {
 impl LabApplication {
     pub(super) fn draw_cdmw_cloth_page(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
         let cloth = self.cdmw_state["cloth"].clone();
-        ui.small("Fixed vertices follow the skeleton. Existing cloth bindings only.");
+        self.draw_cdmw_guide_authoring(ui, actions);
+        ui.small("Fixed vertices follow the skeleton. Cloth amount edits retained bindings.");
         if !state_bool(&cloth, "available") {
             ui.label(state_str(&cloth, "reason").unwrap_or("Cloth influence is unavailable."));
             let parts = self.cdmw_state["replacement"]["parts"].as_array().cloned().unwrap_or_default();

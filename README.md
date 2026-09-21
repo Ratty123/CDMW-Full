@@ -268,9 +268,16 @@ settings for an explicit variant and shared assignment group. Apply/Restore,
 Undo/Redo, Finish and saved drafts retain these overrides. **Build Mod** includes
 the cloned profile, catalogue and sidecar companions; profile-only edits leave
 the PAC byte-identical. Preview tuning remains separate from exported raw values.
-A generated gravity override was verified in game on Canta Plate Cloak. New guide
-geometry, skeletal bones and physics bindings remain unsupported, and the preview
-does not reproduce every game collision or solver stage.
+A generated gravity override was verified in game on Canta Plate Cloak.
+**Create cloth guides (experimental)** can now generate a guide mesh from a chosen
+stored LOD of selected guide-free PAC parts, bind it to existing bones, and create
+render bindings at every LOD. Choose a pin height; each connected piece needs an
+anchor and the PAC can contain at most 1,024 guides. Optional **Reduce skinning to
+four bones** explicitly permits converting the selected parts' skeletal weights.
+Creation supports preview, Restore, Undo/Redo, Finish, drafts and Build Mod.
+New skeleton bones and editing existing guide topology remain unsupported.
+Generated guides have offline structural validation; game activation and motion
+remain unverified. The preview does not reproduce every collision or solver stage.
 
 Collapse Tools or Inspector from their header chevrons. Tools becomes an icon
 rail; Inspector keeps an edge handle for reopening. Several tool windows can

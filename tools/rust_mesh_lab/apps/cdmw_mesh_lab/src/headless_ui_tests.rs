@@ -15,6 +15,67 @@ use tempfile::tempdir;
 use winit::event::DeviceId;
 
 mod cloth_preview_tests;
+mod guide_authoring_tests {
+    use super::*;
+
+    fn guide_ui() -> Result<HeadlessUi, Box<dyn std::error::Error>> {
+        let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+            triangle_application()?,
+            egui::vec2(1440.0, 1200.0),
+        );
+        ui.application.cdmw_state["cloth"] =
+            json!({"available": false, "reason": "No existing bindings", "parts": []});
+        ui.application.cdmw_state["cloth_guides"] = json!({"available": true, "reason": "", "lod_count": 4,
+            "parts": [{"id": "guides:0", "index": 0, "included": true, "name": "cloth", "min_y": 0.0,
+                       "max_y": 2.0, "lod_vertices": [1200, 800, 500, 200], "rule": null}]});
+        ui.click_tool_button("Cloth")?;
+        ui.click("Create cloth guides (experimental)")?;
+        ui.settle_layout();
+        Ok(ui)
+    }
+
+    #[test]
+    fn guide_authoring_creation_uses_explicit_lod_height_and_part_identity() -> TestResult {
+        let mut ui = guide_ui()?;
+        ui.application.cdmw_cloth.guides.source_lod = 2;
+        ui.application.cdmw_cloth.guides.height = 1.25;
+        let actions = ui.actions_from_click("Create / update guides")?;
+        assert!(actions.iter().any(|action| matches!(action,
+            UiAction::CdmwCommand { command: "replacement_guides", arguments, .. }
+            if arguments == &json!({"part_ids": ["guides:0"], "source_lod": 2, "fixed_above": 1.25, "reduce_skinning": false}))));
+        ui.click("Reduce skinning to four bones")?;
+        let actions = ui.actions_from_click("Create / update guides")?;
+        assert!(actions.iter().any(|action| matches!(action,
+            UiAction::CdmwCommand { command: "replacement_guides", arguments, .. }
+            if arguments["reduce_skinning"] == json!(true))));
+        ui.application.cdmw_state["cloth_guides"]["parts"][0]["rule"] =
+            json!({"source_lod": 1, "fixed_above": 0.75});
+        let actions = ui.actions_from_click("Restore source guides")?;
+        assert_eq!(ui.application.cdmw_cloth.guides.source_lod, 1);
+        assert!(actions.iter().any(|action| matches!(action,
+            UiAction::CdmwCommand { command: "replacement_guides", arguments, .. }
+            if arguments == &json!({"part_ids": ["guides:0"], "reset": true}))));
+        Ok(())
+    }
+
+    #[test]
+    fn guide_authoring_selection_and_unavailable_source_do_not_offer_creation() -> TestResult {
+        let mut ui = guide_ui()?;
+        ui.click("Create guides for selected parts only")?;
+        ui.settle_layout();
+        assert!(ui.label_rect("Create / update guides").is_none());
+        assert!(
+            ui.label_rect("Select an included part to create guides.")
+                .is_some()
+        );
+        ui.application.cdmw_state["cloth_guides"]["available"] = json!(false);
+        ui.application.cdmw_state["cloth_guides"]["reason"] = json!("Attach the matching skeleton.");
+        ui.settle_layout();
+        assert!(ui.label_rect("Attach the matching skeleton.").is_some());
+        assert!(ui.label_rect("Create / update guides").is_none());
+        Ok(())
+    }
+}
 
 struct HeadlessUi {
     application: LabApplication,

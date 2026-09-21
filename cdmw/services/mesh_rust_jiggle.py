@@ -28,20 +28,22 @@ def _decoded_preview_state(authoring, session, metadata, appearance, eligible):
     )
     from cdmw.modding.pac_jiggle_rig import prepare_jiggle_rig
     from cdmw.services.mesh_rust_authoring import _atomic_write_payload
+    from cdmw.services.mesh_rust_cloth_guides import authored_cloth_source
 
     skeleton = session.skeleton
     if skeleton is None:
         return {"available": False, "reason": "Decoded motion needs a matching fixed-layout PAB skeleton."}
     revision = authoring.shadow_service.session_view(authoring.shadow_session_id).revision
-    part_key = tuple(index for index, _, _ in eligible)
+    part_key = (authoring.replacement_comparison, tuple(index for index, _, _ in eligible))
     cached = metadata.get("decoded_cache")
     if cached is not None and cached[0] is skeleton and cached[1:3] == (revision, part_key):
         return dict(cached[3])
     try:
+        cloth_data, generated_parts = authored_cloth_source(authoring, session)
         if not eligible or sum(len(current.vertices) for _, _, current in eligible) > 100_000:
             raise ValueError("Decoded motion needs retained PAC geometry within 100,000 vertices.")
         rig_cached = metadata.get("decoded_rig")
-        if rig_cached is None or rig_cached[0] is not skeleton:
+        if rig_cached is None or rig_cached[0] is not skeleton or rig_cached[2] is not cloth_data:
             palette = resolve_pac_bone_palette(session.original_data, skeleton)
             rig = prepare_jiggle_rig(skeleton, palette, appearance=appearance)
             rows = lambda matrices: [[list(matrix[i:i + 4]) for i in range(0, 16, 4)] for matrix in matrices]
@@ -49,9 +51,9 @@ def _decoded_preview_state(authoring, session, metadata, appearance, eligible):
                            "inverse_bind_matrices": rows(rig.inverse_bind_matrices),
                            "neutral_global_matrices": rows(rig.neutral_global_matrices),
                            "neutral_local_matrices": rows(rig.neutral_local_matrices)}
-            metadata["decoded_rig"] = (skeleton, rig_payload)
+            metadata["decoded_rig"] = (skeleton, rig_payload, cloth_data)
             try:
-                cloth = build_cloth_preview_snapshot(session.original_data, rig_payload)
+                cloth = build_cloth_preview_snapshot(cloth_data, rig_payload)
                 collider_reason = ""
                 collider_source = ""
                 try:
@@ -81,12 +83,15 @@ def _decoded_preview_state(authoring, session, metadata, appearance, eligible):
                                                    current.bone_indices, current.bone_weights)):
                 raise ValueError("Decoded motion needs complete retained skeletal weights.")
             records = []
-            for vertex, offset in enumerate(original.source_vertex_offsets):
-                record = bytearray(session.original_data[offset:offset + 40])
+            record_source = generated_parts[index] if generated_parts is not None else original
+            if len(record_source.vertices) != count or record_source.faces != current.faces:
+                raise ValueError("Generated guide preview requires unchanged render topology.")
+            for vertex, offset in enumerate(record_source.source_vertex_offsets):
+                record = bytearray(cloth_data[offset:offset + 40])
                 if len(record) != 40 or original.source_vertex_stride != 40:
                     raise ValueError("Decoded motion needs complete 40-byte PAC records.")
                 slots, weights = current.bone_indices[vertex], current.bone_weights[vertex]
-                if (tuple(slots) != tuple(original.bone_indices[vertex])
+                if generated_parts is None and (tuple(slots) != tuple(original.bone_indices[vertex])
                         or tuple(weights) != tuple(original.bone_weights[vertex])):
                     if (len(slots) != len(weights) or not slots
                             or any(type(slot) is not int or not 0 <= slot < len(rig_payload["bone_palette"]) for slot in slots)
@@ -151,6 +156,12 @@ def jiggle_ui_state(authoring, replacement):
     else:
         metadata = cached[2]
     bindings = {part.part_id: part for part in state.parts} if state else {}
+    from cdmw.services.mesh_rust_cloth_guides import authored_cloth_source
+    generated_error = ""
+    try:
+        generated_data, generated_parts = authored_cloth_source(authoring, session)
+    except ValueError as exc:
+        generated_data, generated_parts, generated_error = data, None, str(exc)
     parts = []
     overlay_parts = []
     eligible = []
@@ -177,9 +188,16 @@ def jiggle_ui_state(authoring, replacement):
             candidates = [i for i, value in enumerate(original_bytes) if value & PAC_JIGGLE_MASK != PAC_JIGGLE_MASK]
             active = [i for i, value in enumerate(current_bytes) if value & PAC_JIGGLE_MASK != PAC_JIGGLE_MASK]
             original_cloth = [data[offset + 39] & 63 for offset in original.source_vertex_offsets]
+            authored_cloth = original_cloth
+            if generated_parts is not None:
+                generated = generated_parts[index]
+                if len(generated.vertices) != len(current.vertices) or generated.faces != current.faces:
+                    overlay_parts.append({"index": part["index"], "preview": {"available": False}})
+                    continue
+                authored_cloth = [generated_data[offset + 39] & 63 for offset in generated.source_vertex_offsets]
             cloth_rule = binding.cloth if binding else None
             current_cloth = [cloth_rule.blend(value, metadata["source_heights"][index][i]) if cloth_rule else value
-                             for i, value in enumerate(original_cloth)]
+                             for i, value in enumerate(authored_cloth)]
             preview = {"available": True, "vertex_count": len(current.vertices),
                        "original_vertices": candidates, "current_vertices": active,
                        "original_bytes": original_bytes, "current_bytes": current_bytes,
@@ -193,7 +211,8 @@ def jiggle_ui_state(authoring, replacement):
     return {"available": not reason, "reason": reason, "parts": parts,
             "overlay_parts": overlay_parts, "lod_count": metadata["lod_count"],
             "collision_inputs": {role: value[0] for role, value in authoring.cloth_collision_inputs.items()},
-            "decoded": _decoded_preview_state(authoring, session, metadata, appearance, eligible)}
+            "decoded": ({"available": False, "reason": generated_error} if generated_error else
+                        _decoded_preview_state(authoring, session, metadata, appearance, eligible))}
 
 
 def set_cloth_collision_input(authoring, args, stop_event):

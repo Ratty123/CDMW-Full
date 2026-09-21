@@ -1706,14 +1706,42 @@ producers are decoded above. CPU loop bounds and constraint dispatch categories
 are also decoded above; scene admission and complete runtime execution remain
 unresolved.
 
-Creating new guides would require a consistent guide section, bone-palette
-weights, constraint/attachment tables and render-to-guide bindings at every stored
-LOD, plus the resource admission metadata. Existing readers preserve undecoded
-constraint high bytes and layout tags; they do not define a validated constructor
-for those fields. Every referenced guide index must be valid even at zero weight,
-and zero-total bindings can produce singular transforms. New-guide and new-bone
-binding output therefore remain unsupported; profile editing does not manufacture
-those structures.
+`pac_cloth_guide_builder.py` now constructs layout-3 cloth guides for eligible
+guide-free PACs. A `PacClothGuideRule` selects an existing part LOD and neutral
+display pin height, retaining the exact bone-hash palette. Vertices with identical
+positions and skinning are welded; triangles generate distance, hinge and area
+records, per-vertex spans/references, edge tables and deterministic fixed-root
+chains. New records use zero unknown high bytes and 15-bit quantized positions.
+The constructor independently decodes its output and checks topology. Existing
+authored guide sections, embedded bone-group metadata, compressed sections and
+unframed trailers are rejected. No skeleton or new skeletal bones are authored.
+
+Each selected part's render vertices at every stored LOD bind to up to four
+nearest guides with inverse-squared-distance weights totaling 255. All indices,
+including zero-weight slots, remain valid. By default the writer requires one to
+four source influences totaling 255 and compacts them without changing weights.
+An explicit `reduce_skinning` opt-in merges duplicate bones, keeps the strongest
+four, and quantizes normalized weights to 255. This conversion changes skeletal
+deformation and applies only to selected parts. It never substitutes a missing
+bone or changes the palette. Source and generated guide meshes share source
+coordinates; the neutral transform is used only to select fixed guides.
+
+The complete metadata trailer is bounded before insertion. In build 1.0.0.2944,
+`0x142C65090` reads u8-counted groups of 16-byte records and optional
+`0x02000000` u32-counted 12-byte records. `0x142C61960` skips four bytes when that
+flag is absent. `0x142C623E0` supplies a length-delimited blob's own address and
+size to its reader, independently of its location in the PAC. The caller then
+reads optional u32 arrays, u16 groups of 16-byte records, and u8-counted 12-byte
+records sequentially. The writer validates this framing and preserves all those
+payloads byte-for-byte without interpreting their contents. Only the known LOD
+start/split offsets and metadata size are rebased after guide insertion.
+
+`mesh_rust_cloth_guides.py` owns the shadow command and cached preview source;
+replacement draft version 9 retains the immutable recipe. The normal replacement
+preflight, Undo/Redo, Finish and loose Build Mod route apply. Restore removes the
+recipe and dependent cloth amount rule, rebuilding from the retained PAC. This
+first generator does not import an independent guide mesh or edit an existing
+guide topology. Generated guides have no in-game activation/motion acceptance.
 
 The traced 10-byte constraint consumer at `0x143CCB740` copies the four index
 words and tests **byte 8** at `0x143CCB927`. A nonzero value takes the hinge
@@ -1732,11 +1760,16 @@ lanes. The serialized palette resolved against a deliberately reordered skeleton
 the preview preparation and skinning references reproduced both a controlled
 guide translation and the supplied bone-pose weights. This establishes a
 structural construction route for that fixture. Ordered groups and pins were
-explicit experiment inputs; arbitrary PAC metadata relocation, automatic guide
-generation, new skeletal bones, runtime admission and game behavior were not
-verified. The experiment does not add an editor command or enable new-binding
-export. Existing-palette binding and adding bones to a skeleton are separate
-authoring problems.
+explicit experiment inputs; it preceded the bounded authoring route above.
+Existing-palette binding and adding bones to a skeleton remain separate authoring
+problems. Scene admission and in-game behavior of generated guides remain
+unverified.
+
+New-guide coverage: `tests/test_pac_cloth_guide_builder.py`,
+`tests/test_mesh_cloth_guide_authoring.py`, and Rust headless
+`guide_authoring_tests`. These exercise structure, protected bytes, deformation
+references, optional skin conversion, real command/worker dispatch, history,
+draft reopening and Build Mod. They do not establish visible or in-game proof.
 
 Focused coverage: `tests/test_mesh_physics_profile_authoring.py`,
 `tests/test_mesh_physics_profile_output.py`, and Rust

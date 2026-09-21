@@ -76,7 +76,7 @@ def run_replacement_command(authoring, command, args, stop_event):
     snapshot = service.capture_export_snapshot(session_id, stop_event=stop_event)
     entry = args.get("_archive_entry")
     dependencies = ()
-    if snapshot.replacement_state is None and command in {"replacement_choose", "replacement_include", "replacement_cloth", "replacement_jiggle", "replacement_physics_profile", "replacement_translucency"}:
+    if snapshot.replacement_state is None and command in {"replacement_choose", "replacement_include", "replacement_cloth", "replacement_guides", "replacement_jiggle", "replacement_physics_profile", "replacement_translucency"}:
         from cdmw.services.mesh_replacement_materials import capture_replacement_dependencies
         dependencies = capture_replacement_dependencies(entry, args.get("_archive_dependencies"), stop_event)
         if authoring.neutral_appearance is not None:
@@ -118,6 +118,10 @@ def run_replacement_command(authoring, command, args, stop_event):
     elif command == "replacement_cloth":
         from cdmw.services.mesh_rust_cloth import set_cloth_rule
         result = set_cloth_rule(authoring, snapshot, args, entry=entry,
+                               dependencies=dependencies, stop_event=stop_event)
+    elif command == "replacement_guides":
+        from cdmw.services.mesh_rust_cloth_guides import set_guide_rule
+        result = set_guide_rule(authoring, snapshot, args, entry=entry,
                                dependencies=dependencies, stop_event=stop_event)
     elif command == "replacement_translucency":
         from cdmw.services.mesh_translucency import set_translucency

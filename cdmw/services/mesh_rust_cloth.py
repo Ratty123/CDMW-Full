@@ -21,7 +21,11 @@ def cloth_ui_state(authoring, replacement):
         reason = "Finish the hair workflow before editing cloth influence."
     if reason:
         return {"available": False, "reason": reason, "parts": []}
-    data = session.original_data
+    from cdmw.services.mesh_rust_cloth_guides import authored_cloth_source
+    try:
+        data, _ = authored_cloth_source(authoring, session)
+    except ValueError as exc:
+        return {"available": False, "reason": str(exc), "parts": []}
     appearance = state.neutral_appearance if state and state.neutral_appearance is not None else authoring.neutral_appearance
     cached = authoring.cloth_source_cache
     if cached is None or cached[0] is not data or cached[1] is not appearance:

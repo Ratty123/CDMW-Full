@@ -300,6 +300,13 @@ def prepare_replacement_output(snapshot) -> MeshReplacementOutput:
             if edited_skin_targets:
                 data = _patch_exact_pac_skin_weights(written, weighted, data, data,
                                                     frozenset(edited_skin_targets))
+    guide_rules = {part.target_index: part.cloth_guides for part in state.parts
+                   if part.included and part.cloth_guides is not None}
+    if guide_rules:
+        if original.format.lower() != "pac":
+            raise ValueError("Guide creation is supported only for PAC meshes.")
+        from cdmw.modding.pac_cloth_guide_builder import create_pac_cloth_guides
+        data = create_pac_cloth_guides(data, guide_rules, appearance=state.neutral_appearance)
     cloth_rules = {part.target_index: part.cloth for part in state.parts
                    if part.included and part.cloth is not None}
     if cloth_rules:
