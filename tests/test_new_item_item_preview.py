@@ -373,7 +373,7 @@ class ItemPreviewPackageTests(unittest.TestCase):
             self.assertNotEqual(first, revised, "a changed archive revision must not reuse the old package")
             self.assertTrue(second.is_dir())
 
-    def test_horizontal_placement_rebuilds_cached_bottom_view(self) -> None:
+    def test_horizontal_placement_rebuilds_cached_camera_orientation(self) -> None:
         from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
         from cdmw.services import mesh_rust_preview_cache as cache_service
         from cdmw.services import mesh_rust_preview_package as package_service
@@ -402,14 +402,17 @@ class ItemPreviewPackageTests(unittest.TestCase):
                     cache_mode="balanced",
                 )
 
-            # Seed the previous cache format through the real placement caller.
-            with patch.dict(cache_service._PYTHON_MODEL_PREVIEW_SOURCE_MANIFEST, schema_version=6), patch.object(
-                package_service, "semantic_initial_view", return_value=bottom_view,
-            ):
-                previous = build()
+            # Seed both older camera conventions through the real placement caller.
+            previous = []
+            for version, direction in ((6, [0.0, 1.0, 0.0]), (7, [0.0, -1.0, 0.0])):
+                with patch.dict(cache_service._PYTHON_MODEL_PREVIEW_SOURCE_MANIFEST, schema_version=version), patch.object(
+                    package_service, "semantic_initial_view", return_value={**bottom_view, "view_direction": direction},
+                ):
+                    previous.append(build())
 
             materials = build()
-            self.assertNotEqual(previous, materials, "the old underneath view must be rebuilt")
+            for old_package in previous:
+                self.assertNotEqual(old_package, materials, "old camera orientations must be rebuilt")
             self.assertEqual(materials, build(), "the corrected package is reusable")
             geometry = build(materials=False)
             for package in (geometry, materials):
@@ -417,7 +420,9 @@ class ItemPreviewPackageTests(unittest.TestCase):
                 preview_scene = manifest["state"]["preview_scene"]
                 self.assertEqual(preview_scene["grid"]["normal_axis"], "y")
                 self.assertEqual(preview_scene["framing"]["initial_view"], {
-                    **bottom_view, "view_direction": [0.0, -1.0, 0.0],
+                    **bottom_view,
+                    "view_direction": [0.0, -1.0, 0.0],
+                    "screen_up_direction": [1.0, 0.0, 0.0],
                 })
 
 
@@ -1133,6 +1138,51 @@ class ItemPreviewFrameTests(unittest.TestCase):
             frame.show(None)
             self.assertIsNone(frame._pending)
         frame._closed = True
+
+    def test_new_placement_resets_camera_regardless_of_first_package_stage(self) -> None:
+        from cdmw.ui.new_item.item_preview import ItemPreviewFrame
+        from cdmw.ui.new_item.model_import import ModelPlacement
+
+        class CanonicalHost(self._fake_host_class()):
+            def request_canonical_view(self):
+                self.calls.append(("request_canonical_view", (), {}))
+                return True
+
+        for first_stage in ("geometry", "fast_materials", "materials"):
+            with self.subTest(first_stage=first_stage), tempfile.TemporaryDirectory(prefix="cdmw_new_model_camera_") as temporary:
+                root = Path(temporary)
+                previous, current, upgraded = (root / name for name in ("previous", "current", "upgraded"))
+                for package in (previous, current, upgraded):
+                    package.mkdir()
+                frame = ItemPreviewFrame(output_root=root, host_factory=CanonicalHost)
+                self.addCleanup(frame.shutdown)
+                frame._ensure_host()
+                placement = ModelPlacement(offset=(0.1, 0.2, 0.3), rotation=(10.0, 20.0, 30.0))
+                frame._placement = placement
+                frame._pending = ("previous-model", object())
+                frame._package_ready(previous, "previous-model", True, "materials")
+                frame._host_state("ready", "")
+
+                frame.host.calls.clear()
+                frame._pending = ("new-model", object())
+                frame._package_ready(current, "new-model", True, first_stage)
+                frame._host_state("ready", "")
+                loads = [call for call in frame.host.calls if call[0] == "load_package"]
+                self.assertTrue(loads[-1][2]["reset_view"], "a new model must reset an older orbit")
+                self.assertIn(("request_canonical_view", (), {}), frame.host.calls)
+                self.assertEqual(frame.placement, placement, "framing must not rotate the model")
+
+                frame.host.calls.clear()
+                frame._package_ready(upgraded, "new-model", True, "materials")
+                frame._host_state("ready", "")
+                loads = [call for call in frame.host.calls if call[0] == "load_package"]
+                self.assertFalse(loads[-1][2]["reset_view"], "texture updates must retain the user's orbit")
+                self.assertNotIn(("request_canonical_view", (), {}), frame.host.calls)
+
+                frame.fit_view()
+                self.assertIn(("request_canonical_view", (), {}), frame.host.calls)
+                self.assertEqual(frame.placement, placement)
+                frame.shutdown()
 
     def test_progressive_placement_loads_geometry_then_materials_without_camera_reset(self) -> None:
         from PySide6.QtCore import QEventLoop

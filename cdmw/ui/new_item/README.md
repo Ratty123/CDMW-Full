@@ -152,9 +152,11 @@ not change texture dimensions, formats, colour policy or mipmap contents.
 Imported glTF materials preserve their declared alpha mode and opacity, use
 metallic/roughness factors as map multipliers, and draw blended surfaces in the
 current camera's depth order. Imported previews open flat against their broad
-plane with a matching grid. Horizontal placement grids open from above, looking
-down at the model; Frame restores that view. Older cached previews rebuild once
-to replace their underneath view.
+plane with a matching grid. Horizontal placement grids open from above with the
+model's longest axis across the viewport; Frame restores that view. A new model
+resets the camera even when its textured package arrives without a geometry preview.
+Texture upgrades for the same model preserve the user's orbit, pan and zoom. Older
+cached previews rebuild once to replace their underneath or vertically framed view.
 Plain-PBR exports keep each source material's roughness/metalness and emissive
 outputs separate even when the Builder shares a colour texture between parts.
 After Mesh Editor deletes, reorders or separates parts, material bindings follow

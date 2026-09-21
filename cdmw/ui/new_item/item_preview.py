@@ -1152,7 +1152,9 @@ class ItemPreviewFrame(QWidget):
                 return
         previous = self._package_dir
         previous_stage = self._loaded_stage
-        reset_view = previous is None or (stage == "geometry" and self._loaded_token != token)
+        # A new scene needs its own framing even if geometry was skipped or failed.
+        # Later material tiers for that same scene keep the user's camera.
+        reset_view = previous is None or self._loaded_token != token
         if self.host.load_package(result, reset_view=reset_view):
             self._last_pushed_placement = None
             self._package_dir = result

@@ -51,8 +51,8 @@ from cdmw.services.mesh_rust_preview_package import (
 )
 
 _PYTHON_MODEL_PREVIEW_SOURCE_MANIFEST = {
-    # Schema 7 replaces cached underneath views with above-grid horizontal framing.
-    "schema_version": 7,
+    # Schema 8 replaces cached vertical framing of horizontal placement grids.
+    "schema_version": 8,
     "material_semantics_version": 1,
     "material_graph_version": 1,
 }

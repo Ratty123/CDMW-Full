@@ -142,9 +142,9 @@ def semantic_initial_view(
 ) -> dict[str, list[float]]:
     """Describe a stable broadside view without baking camera angles into Qt.
 
-    The thinnest/template-normal axis faces the camera and the longest remaining
-    axis is kept upright. Horizontal grids are viewed from above; X/Z normals keep
-    their conventional side/front view at every DPI and aspect ratio.
+    The thinnest/template-normal axis faces the camera. Horizontal grids are viewed
+    from above with the longest remaining axis across the screen; X/Z normals keep
+    their conventional upright side/front view at every DPI and aspect ratio.
     """
 
     low, high = bounds
@@ -152,7 +152,12 @@ def semantic_initial_view(
     maximum = [float(high[index]) for index in range(3)]
     extents = [abs(maximum[index] - minimum[index]) for index in range(3)]
     axis = {"x": 0, "y": 1, "z": 2}.get(str(normal_axis or "y").casefold(), 1)
-    upright = max((index for index in range(3) if index != axis), key=extents.__getitem__)
+    plane_axes = [index for index in range(3) if index != axis]
+    upright = (
+        min(plane_axes, key=extents.__getitem__)
+        if axis == 1
+        else max(plane_axes, key=extents.__getitem__)
+    )
     view_direction = [0.0, 0.0, 0.0]
     screen_up_direction = [0.0, 0.0, 0.0]
     # This vector points from the eye to the model. Looking down from +Y

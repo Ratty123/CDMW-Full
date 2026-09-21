@@ -66,7 +66,7 @@ The format is intentionally simple:
 
 - Create New Item no longer scans every archive entry when checking its effects cache, preventing that work from stalling template selection and delaying textures. Loading is labelled, early progress and preview messages remain in Current Tool Log and diagnostics, and incomplete effect metadata includes names and decoder reasons.
 
-- Model & Placement views horizontal models from above the grid instead of underneath. Frame restores the corrected view, and older preview caches rebuild automatically.
+- Model & Placement views horizontal models from above the grid with their length across the viewport. New imports reset the camera even when their textured preview arrives without a geometry preview; texture upgrades retain the user's view. Frame restores the corrected view, and older preview caches rebuild automatically.
 
 ## [0.11.0-alpha.21] - 2026-09-20
 

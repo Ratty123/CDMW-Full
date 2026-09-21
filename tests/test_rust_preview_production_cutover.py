@@ -246,17 +246,17 @@ def test_rust_preview_package_is_bounded_read_only_and_self_identifying(
 
 
 @pytest.mark.parametrize(
-    "axis, view_direction, screen_up_direction",
+    "bounds, axis, view_direction, screen_up_direction",
     [
-        ("x", [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-        ("y", [0.0, -1.0, 0.0], [0.0, 0.0, 1.0]),
-        ("z", [0.0, 0.0, 1.0], [0.0, 1.0, 0.0]),
+        (((-0.1, -2.0, -0.2), (0.1, 2.0, 0.2)), "x", [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+        (((-0.1, -0.01, -2.0), (0.1, 0.01, 2.0)), "y", [0.0, -1.0, 0.0], [1.0, 0.0, 0.0]),
+        (((-2.0, -0.01, -0.1), (2.0, 0.01, 0.1)), "y", [0.0, -1.0, 0.0], [0.0, 0.0, 1.0]),
+        (((-0.1, -2.0, -0.2), (0.1, 2.0, 0.2)), "z", [0.0, 0.0, 1.0], [0.0, 1.0, 0.0]),
     ],
 )
 def test_preview_package_carries_semantic_broadside_camera_and_fit_bounds(
-    tmp_path: Path, axis: str, view_direction: list[float], screen_up_direction: list[float],
+    tmp_path: Path, bounds: tuple, axis: str, view_direction: list[float], screen_up_direction: list[float],
 ) -> None:
-    bounds = ((-0.1, -2.0, -0.2), (0.1, 2.0, 0.2))
     initial_view = semantic_initial_view(bounds, axis)
 
     package = build_rust_preview_package(
@@ -271,7 +271,7 @@ def test_preview_package_carries_semantic_broadside_camera_and_fit_bounds(
     assert manifest["state"]["preview_scene"]["framing"]["initial_view"] == {
         "view_direction": view_direction,
         "screen_up_direction": screen_up_direction,
-        "fit_bounds": [[-0.1, -2.0, -0.2], [0.1, 2.0, 0.2]],
+        "fit_bounds": [list(bounds[0]), list(bounds[1])],
     }
 
 
