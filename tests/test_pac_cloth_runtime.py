@@ -8,8 +8,151 @@ import pytest
 from cdmw.modding.pac_cloth_constraints import cloth_stretch_corrections
 from cdmw.modding.pac_cloth_runtime import (
     build_cloth_collision_group_flags, build_cloth_material_collision_mask,
+    select_cloth_constraint_dispatches, select_cloth_dispatch_schedule,
     update_cloth_frame_stiffness, update_cloth_iteration_bits, update_cloth_material_frame_flags,
 )
+from cdmw.modding.pac_cloth_state import select_cloth_base_substep
+
+
+def dispatch_globals(*, ordinary=2, scaled=4, maximum=6, active=1, reverse=0):
+    data = bytearray(1216)
+    for offset, value in ((816, active), (824, maximum), (884, ordinary),
+                          (916, scaled), (1148, reverse)):
+        struct.pack_into('<I', data, offset, value)
+    for offset in (864, 896):
+        struct.pack_into('<f', data, offset, 1 / 60)
+    # Deliberately distinct category dimensions reveal wrong category selection
+    # and the 64-thread linear versus 32-thread triangle dispatch boundaries.
+    for category in range(40):
+        struct.pack_into('<I', data, 160 + category * 4, category + 1)
+        struct.pack_into('<I', data, 320 + category * 4, 65 + category)
+    return bytes(data)
+
+
+def schedule(data=None, **changes):
+    args = dict(dispatch_mode=0, solver_iterations=5,
+                mode1_iteration_limit=3, mode1_substep_limit=1)
+    return select_cloth_dispatch_schedule(dispatch_globals() if data is None else data,
+                                          **(args | changes))
+
+
+def test_dispatch_loop_counts_keep_both_clocks_and_mode1_caps_before_even_rounding():
+    ordinary = schedule()
+    assert ordinary == dict(substep_count=4, selected_iteration_count=5, iteration_count=6,
+                            movement_enabled=True, constraints_enabled=True,
+                            initialize_static_vertices_enabled=False,
+                            layer_collision_points_enabled=True)
+    limited = schedule(dispatch_mode=1)
+    assert limited['substep_count'] == 1
+    assert limited['selected_iteration_count'] == 3
+    assert limited['iteration_count'] == 4
+    assert limited['initialize_static_vertices_enabled']
+    assert not limited['layer_collision_points_enabled']
+    assert schedule(dispatch_globals(maximum=1))['iteration_count'] == 2
+
+
+def test_dispatch_loop_does_not_override_per_model_clock_admission():
+    globals_ = dispatch_globals()
+    scene = bytearray(108)
+    struct.pack_into('<e', scene, 94, 1)
+    counts = []
+    for flags2 in (0, 0x8000):
+        frame_ = bytearray(100)
+        struct.pack_into('<I', frame_, 36, flags2)
+        counts.append(sum(select_cloth_base_substep(frame_, scene, globals_, substep_index=index)
+                          is not None for index in range(schedule(globals_)['substep_count'])))
+    assert counts == [2, 4]
+    empty = dispatch_globals(ordinary=0, scaled=0)
+    assert schedule(empty)['substep_count'] == 1
+    assert select_cloth_base_substep(bytes(100), scene, empty, substep_index=0) is None
+
+
+@pytest.mark.parametrize('offset', [808, 816, 820])
+def test_dispatch_enable_uses_each_global_work_counter(offset):
+    data = bytearray(dispatch_globals(active=0))
+    assert not schedule(data)['movement_enabled']
+    struct.pack_into('<I', data, offset, 1)
+    assert schedule(data)['movement_enabled']
+    zero_iterations = schedule(data, solver_iterations=0)
+    assert zero_iterations['iteration_count'] == 0
+    assert zero_iterations['movement_enabled']
+    assert not zero_iterations['constraints_enabled']
+
+
+def test_dispatch_count_summary_preserves_uint32_wrap_without_materializing_work():
+    result = schedule(dispatch_globals(ordinary=0xFFFFFFFF, maximum=0xFFFFFFFF),
+                      solver_iterations=0xFFFFFFFF)
+    assert result['substep_count'] == 0xFFFFFFFF
+    assert result['selected_iteration_count'] == 0xFFFFFFFF
+    assert result['iteration_count'] == 0
+    assert result['constraints_enabled']
+
+
+def test_constraint_dispatch_order_dimensions_and_ping_pong_slots():
+    first = select_cloth_constraint_dispatches(dispatch_globals(), dispatch_mode=0,
+                                               iteration=1, iteration_count=6, enabled=True)
+    assert [row['shader'] for row in first] == [
+        'ComputePbdProcessConstraints', 'ComputeTriangleFrameBeforeADMM',
+        'ComputeTriangleADMMPrimalUpdate', 'ComputeTriangleADMMVertexConsensus',
+        'ComputeTriangleADMMDualUpdate',
+    ]
+    assert [row['category'] for row in first] == [27, 8, 8, 9, 8]
+    assert [row['groups'] for row in first] == [(2, 28, 1), (3, 9, 1), (3, 9, 1),
+                                               (3, 10, 1), (3, 9, 1)]
+    assert all((row['input_slot'], row['output_slot']) == (0, 1) for row in first)
+    second = select_cloth_constraint_dispatches(dispatch_globals(), dispatch_mode=1,
+                                                iteration=2, iteration_count=6, enabled=False)
+    assert [row['category'] for row in second] == [28, 10, 10, 11, 10]
+    assert all(row['groups'][2] == 0 for row in second)
+    assert all((row['input_slot'], row['output_slot']) == (1, 0) for row in second)
+
+
+@pytest.mark.parametrize('mode,expected', [(0, [34, 33, 32, 31, 27, 27]),
+                                         (1, [38, 37, 36, 35, 28, 28])])
+def test_reversed_iterations_change_only_linear_category_and_keep_cpu_parity(mode, expected):
+    globals_ = dispatch_globals(reverse=2)  # CPU tests nonzero, not equality to one.
+    rows = [select_cloth_constraint_dispatches(globals_, dispatch_mode=mode, iteration=i,
+                                              iteration_count=6, enabled=True) for i in range(1, 7)]
+    assert [row[0]['category'] for row in rows] == expected
+    assert [row[0]['input_slot'] for row in rows] == [0, 1, 0, 1, 0, 1]
+    assert all(row[1]['category'] == 8 + 2 * mode for row in rows)
+
+
+def test_dispatch_uint_addition_and_empty_category_do_not_invent_gpu_work():
+    data = bytearray(dispatch_globals())
+    struct.pack_into('<I', data, 320 + 27 * 4, 0xFFFFFFFF)
+    struct.pack_into('<I', data, 160 + 8 * 4, 0)
+    rows = select_cloth_constraint_dispatches(data, dispatch_mode=0, iteration=1,
+                                             iteration_count=2, enabled=True)
+    assert rows[0]['groups'] == (0, 28, 1)
+    assert rows[1]['groups'] == (3, 0, 1)
+
+
+@pytest.mark.parametrize('changes', [
+    {'dispatch_mode': True}, {'dispatch_mode': 2}, {'solver_iterations': -1},
+    {'mode1_iteration_limit': 1.5}, {'mode1_substep_limit': 0x100000000},
+])
+def test_schedule_requires_resolved_stored_inputs(changes):
+    with pytest.raises(ValueError):
+        schedule(**changes)
+
+
+@pytest.mark.parametrize('changes', [
+    {'dispatch_mode': -1}, {'iteration': 0}, {'iteration': 7}, {'iteration_count': 5},
+    {'enabled': 1}, {'dispatch_mode': 1, 'iteration_count': 10, 'iteration': 10},
+])
+def test_constraint_dispatch_rejects_untraced_or_out_of_table_inputs(changes):
+    args = dict(dispatch_mode=0, iteration=1, iteration_count=6, enabled=True)
+    with pytest.raises(ValueError):
+        select_cloth_constraint_dispatches(dispatch_globals(), **(args | changes))
+
+
+def test_dispatch_references_require_complete_global_records():
+    with pytest.raises(ValueError, match='1216-byte'):
+        schedule(bytes(1215))
+    with pytest.raises(ValueError, match='1216-byte'):
+        select_cloth_constraint_dispatches(bytes(1217), dispatch_mode=0,
+                                           iteration=1, iteration_count=2, enabled=True)
 
 
 def collision_mask(keys=(), *, include=(), exclude=(), temporary=()):

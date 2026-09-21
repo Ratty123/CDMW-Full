@@ -1,6 +1,6 @@
 """Decoded CPU cloth parameter updates from build 1.0.0.2944.
 
-These implement selected material-mask, LOD and frame-update stages.
+These implement selected material-mask, LOD, frame-update and dispatch stages.
 Supply actual runtime globals explicitly; initialization defaults do not prove
 live configuration. Python pow rounded to float32 is not bit-exact CRT powf.
 """
@@ -19,6 +19,89 @@ def _integer(value, lower, upper):
     if type(value) is not int or not lower <= value <= upper:
         raise ValueError("Cloth runtime integer is outside its decoded storage range.")
     return value
+
+
+def select_cloth_dispatch_schedule(
+    global_parameters: bytes, *, dispatch_mode: int, solver_iterations: int,
+    mode1_iteration_limit: int, mode1_substep_limit: int,
+) -> dict:
+    """Select the CPU loop bounds at 0x142D46C70, not live scene eligibility.
+
+    The 1216-byte record is the resolved PBD global upload. The three external
+    uint32 values come from 0x146D10AD8, 0x146D10B78 and 0x146D10A88 respectively.
+    Only caller modes 0/1 are traced. Mode1 caps the unscaled clock; mode0 uses
+    both clocks. A minimum CPU substep does not bypass the shader's clock gate.
+    The result is compact even for large stored counts; it does not run a loop.
+    """
+    _record(global_parameters, 1216)
+    _integer(dispatch_mode, 0, 1)
+    for value in (solver_iterations, mode1_iteration_limit, mode1_substep_limit):
+        _integer(value, 0, 0xFFFFFFFF)
+    u32 = lambda offset: struct.unpack_from('<I', global_parameters, offset)[0]
+    enabled = any(u32(offset) for offset in (808, 816, 820))
+    if dispatch_mode == 1:
+        substeps = min(u32(884), mode1_substep_limit)
+        iterations = min(solver_iterations, mode1_iteration_limit)
+    else:
+        substeps = max(u32(884), u32(916))
+        iterations = solver_iterations
+    iterations = min(iterations, u32(824))
+    # INC r15d rounds an odd count, including uint32 wrap. Per-model limits
+    # remain separate frame flags and can skip work inside these dispatches.
+    rounded = (iterations + (iterations & 1)) & 0xFFFFFFFF
+    return {
+        'substep_count': max(1, substeps),
+        'selected_iteration_count': iterations,
+        'iteration_count': rounded,
+        'movement_enabled': enabled,
+        'constraints_enabled': enabled and iterations != 0,
+        'initialize_static_vertices_enabled': enabled and dispatch_mode == 1,
+        'layer_collision_points_enabled': enabled and dispatch_mode == 0,
+    }
+
+
+def select_cloth_constraint_dispatches(
+    global_parameters: bytes, *, dispatch_mode: int, iteration: int,
+    iteration_count: int, enabled: bool,
+) -> tuple[dict, ...]:
+    """Resolve the five ordered constraint/ADMM dispatches for one CPU iteration.
+
+    The caller supplies the rounded count and enable from the schedule above.
+    Iterations are one-based. Reversed iteration changes the linear category,
+    not ping-pong parity or ADMM categories. Returned dimensions are CPU dispatch
+    arguments, not proof of visibility, valid resources or shader participation.
+    Skip-bend/collision constants and shader-specific early exits are separate.
+    """
+    _record(global_parameters, 1216)
+    _integer(dispatch_mode, 0, 1)
+    _integer(iteration_count, 0, 0xFFFFFFFF)
+    _integer(iteration, 1, iteration_count)
+    _boolean(enabled)
+    if iteration_count & 1:
+        raise ValueError("Cloth dispatch requires the CPU's rounded even iteration count.")
+    reverse = struct.unpack_from('<I', global_parameters, 1148)[0] != 0
+    effective = iteration_count + 1 - iteration if reverse else iteration
+    linear_category = 27 + dispatch_mode if effective <= 2 else 28 + 4 * dispatch_mode + effective
+    if linear_category >= 40:
+        raise ValueError("Cloth iteration selects outside the decoded 40-category dispatch tables.")
+    triangle_category = 8 + 2 * dispatch_mode
+    stages = (
+        ('ComputePbdProcessConstraints', linear_category, 6),
+        ('ComputeTriangleFrameBeforeADMM', triangle_category, 5),
+        ('ComputeTriangleADMMPrimalUpdate', triangle_category, 5),
+        ('ComputeTriangleADMMVertexConsensus', triangle_category + 1, 5),
+        ('ComputeTriangleADMMDualUpdate', triangle_category, 5),
+    )
+    result = []
+    for shader, category, shift in stages:
+        elements = struct.unpack_from('<I', global_parameters, 320 + 4 * category)[0]
+        parameters = struct.unpack_from('<I', global_parameters, 160 + 4 * category)[0]
+        groups = ((elements + (1 << shift) - 1) & 0xFFFFFFFF) >> shift
+        result.append({'shader': shader, 'category': category,
+                       'groups': (groups, parameters, int(enabled)),
+                       'input_slot': (iteration - 1) & 1,
+                       'output_slot': iteration & 1})
+    return tuple(result)
 
 
 def _four(values):

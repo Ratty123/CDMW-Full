@@ -1352,6 +1352,49 @@ compares the full selected count before masking. The CPU XML parser rounds odd
 `SolverIterationCount` values upward before this update; the function takes that
 already-parsed value. This stage does not establish the complete dispatch loop.
 
+`select_cloth_dispatch_schedule` now covers the CPU loop bounds in
+`0x142D46C70` using the resolved 1216-byte PBD global record and explicit runtime
+limits. Mode 0 schedules the larger of the ordinary and scaled substep counts
+(offsets 884/916). Mode 1 caps the ordinary count with global `0x146D10A88` and
+caps solver iterations with `0x146D10B78`. Both modes schedule at least one CPU
+substep, clamp iterations from `0x146D10AD8` to record offset 824, then round odd
+iterations upward with uint32 arithmetic. Per-model clock and iteration gates
+still apply inside the shaders: one scheduled CPU substep does not force a model
+with zero clock substeps to simulate. Nonzero counters at 808, 816 or 820 supply
+the movement enable; constraints also require a nonzero selected iteration count.
+These counters describe static initialization and simulation parameter work,
+not visibility or the presence of a valid guide binding.
+
+The traced order within each substep is advanced damping, base movement,
+triangle contact slots, layer collision points, hair SDF collision, the repeated
+constraint stages below, world SDF collision and final movement. Static vertex
+initialization precedes the loop for mode 1; static skinning matrices and result
+updates follow the loop. Each helper still has its own resource/count gates.
+This trace identifies triangle ADMM stages in addition to the existing particle
+constraint reference; their primal, consensus and dual math is not implemented
+by the approximate preview.
+
+`select_cloth_constraint_dispatches` resolves one iteration's five ordered calls:
+
+| CPU helper | Shader | Category in mode 0 / mode 1 | Threads in X |
+| --- | --- | --- | --- |
+| `0x142D4AB90` | `ComputePbdProcessConstraints` | 27 / 28 for effective iterations 1-2; then 28+i / 32+i | 64 |
+| `0x142D4BB40` | `ComputeTriangleFrameBeforeADMM` | 8 / 10 | 32 |
+| `0x142D4C4B0` | `ComputeTriangleADMMPrimalUpdate` | 8 / 10 | 32 |
+| `0x142D4CE30` | `ComputeTriangleADMMVertexConsensus` | 9 / 11 | 32 |
+| `0x142D4D7B0` | `ComputeTriangleADMMDualUpdate` | 8 / 10 | 32 |
+
+Nonzero `_pbdIterationPushedBackward` at offset 1148 changes the linear category's
+effective iteration to `count + 1 - i`. Input/output slots still alternate from
+0 to 1 on the first CPU iteration. X uses the selected maximum-element count at
+`320 + 4*category`, Y uses the parameter count at `160 + 4*category`, and Z is the
+caller enable. Zero dimensions remain zero work; uint32 addition precedes the
+X shift. Inputs selecting beyond the decoded 40-category arrays reject rather
+than borrowing subsequent fields. The reference returns a compact schedule and
+one iteration at a time, not an unbounded allocation for arbitrary stored counts.
+Actual scene admission, clock production, buffer binding, skip-bend/collision
+constants and the triangle solver remain outside these references.
+
 The dynamic-fix mask has a different source: `0x143CE1F00` copies live owner
 `+0x158` to simulation parameter `+168`. PAC guide membership and a material
 name alone do not determine which groups are active. Upstream controller
@@ -1659,7 +1702,9 @@ over the named catalogue lookup; an empty or unresolved name can reach a fallbac
 for the resource's mode. These branches explain why a sidecar assignment alone
 does not establish activation. The editor reports captured assignments, not the
 live result of this selector. The source guide-count, count-limit and default-mode
-producers are decoded above; complete runtime scheduling remains unresolved.
+producers are decoded above. CPU loop bounds and constraint dispatch categories
+are also decoded above; scene admission and complete runtime execution remain
+unresolved.
 
 Creating new guides would require a consistent guide section, bone-palette
 weights, constraint/attachment tables and render-to-guide bindings at every stored
