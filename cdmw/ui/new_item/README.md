@@ -549,7 +549,8 @@ The Model & Placement step puts a tall resident preview beside one resizable ins
 Model selection, import actions, variant selection, preview controls, status and icon
 capture share the right inspector with Placement, Appearance, Dyes and Icon. The viewport
 uses the full left column; Apply placement stays fixed beneath the inspector's scroll area.
-The active tab uses its natural height, and captured icon thumbnails stay in Icon.
+The active tab uses its natural height as sections expand or collapse, keeping spare
+space below the controls. Captured icon thumbnails stay in Icon.
 Controls retain their values when switching tabs or resizing.
 When the two columns cannot fit, the inspector stacks below the preview. Neither widget
 changes parent on resize, preserving the resident renderer and current control values.

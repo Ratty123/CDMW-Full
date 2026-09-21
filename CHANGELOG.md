@@ -35,6 +35,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Create New Item no longer opens a blank gap above the inspector tabs when Dye assignments expands.
 - Create New Item applies an explicit Glow colour to both the surface and emission of selected imported Plain PBR materials, preventing an authored cyan gem from remaining underneath a red glow. Texture detail, alpha and unselected material colours are retained in preview and newly built plans.
 - Create New Item applies template translucency, glow and surface controls to the correct PAC parts even when they share a material. Show the character now stays consistent through cached texture upgrades, template changes and rapid toggling.
 - Create New Item keeps the placement grid horizontal for helmets, armour, weapons and other model shapes. Camera framing adjusts independently without changing mesh placement or attachment alignment; cached previews refresh automatically.

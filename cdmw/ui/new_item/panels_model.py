@@ -85,7 +85,9 @@ class _InspectorTabs(QTabWidget):
 
     def __init__(self) -> None:
         super().__init__()
-        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
+        # Maximum can retain a collapsed page's cached height during expansion.
+        # The inspector's trailing stretch already keeps these tabs compact.
+        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
         self.currentChanged.connect(lambda _index: self.updateGeometry())
 
     def sizeHint(self) -> QSize:

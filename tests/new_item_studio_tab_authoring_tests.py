@@ -973,6 +973,37 @@ class _TabAuthoringMixin:
             self.assertTrue(panel.rect().contains(bounds), f"{width}x{height} {point_size}pt: {bounds}")
             panel.quick_turn_section.toggle.setChecked(False)
 
+    def test_expanding_dye_assignments_keeps_inspector_sections_adjacent(self) -> None:
+        from cdmw.services.new_item_planning import ModelFiles
+
+        tab = self._tab()
+        tab.resize(1280, 720)
+        tab.show()
+        tab.prefill_template(TEMPLATE)
+        tab.show_step(2)
+        panel = tab.model_panel
+        tab.receive_imported_model(
+            tab.controller.template_entries()[0], ModelFiles(pac_data=b"PAC imported")
+        )
+        panel._preview_status("Full textures loaded.")
+        panel.inspector_tabs.setCurrentWidget(panel.dyes)
+        for _ in range(8):
+            self.app.processEvents()
+
+        # Expanding after a resize used the collapsed tab's cached maximum
+        # height, leaving a large gap above the tabs during layout delivery.
+        for width, height in ((1280, 720), (1440, 900), (1280, 720)):
+            tab.resize(width, height)
+            for enabled in (True, False):
+                panel.dyes.setChecked(enabled)
+                for tick in range(6):
+                    self.app.processEvents()
+                    with self.subTest(size=(width, height), enabled=enabled, tick=tick):
+                        gap = panel.inspector_tabs.y() - panel.preview_controls.geometry().bottom() - 1
+                        self.assertEqual(gap, panel.model_icon_content.layout().spacing())
+                        self.assertIs(panel.inspector_tabs.currentWidget(), panel.dyes)
+                self.assertEqual(panel.dyes.contents.isVisibleTo(panel), enabled)
+
     def test_import_appearance_hides_template_specific_controls_when_they_cannot_apply(self) -> None:
         from types import SimpleNamespace
 
