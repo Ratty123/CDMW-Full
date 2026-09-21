@@ -103,11 +103,11 @@ fn hair_presets_create_distinct_geometry_and_keep_references_outside_output() {
         )
         .unwrap();
         assert_eq!(result.state.guides.len(), 256);
-        assert_eq!(result.document.lods[0].submeshes[0].positions.len(), 49_152);
+        assert_eq!(result.document.lods[0].submeshes[0].positions.len(), 141_312);
         let scene = build_scene(&result.document, &result.state, true, None, 1);
         assert_eq!(
             scene.frame.positions.len(),
-            49_152 + state.scalp.positions.len()
+            141_312 + state.scalp.positions.len()
         );
         assert_eq!(result.document.lods[0].submeshes.len(), 1);
         assert!(!shapes.contains(&result.document.lods[0].submeshes[0].positions));
@@ -2342,6 +2342,7 @@ fn hair_physics_brush_paints_partial_rows_and_keeps_fixed_cards_still() {
     let cut_guide = cut.state.locks.iter().find(|lock| lock.id == id).unwrap().guide.unwrap() as usize;
     assert_eq!(cut.state.guides[cut_guide].pinned, guide.pinned[..8]);
     assert_eq!(cut.state.guides[cut_guide].points.len(), 8);
+    assert_eq!(*cut.state.guides[cut_guide].points.last().unwrap(), locks::curve_point(&guide.points, 6, 0.5));
     cut.state.validate().unwrap();
 }
 
@@ -2568,6 +2569,37 @@ fn hair_acknowledgement_does_not_reset_selection_camera_or_newer_edits() {
 }
 
 #[test]
+fn hair_legacy_generated_cards_refine_on_groom_while_imported_topology_stays_intact() {
+    let (mut state, document) = fixture();
+    let root = Attachment { triangle: 0, barycentric: [1.0, 0.0, 0.0] };
+    let start = state.scalp.point(&root).unwrap();
+    state.guides.push(hair::Guide {
+        root, group: 0,
+        points: [[0.0, 0.0, 0.0], [0.0, 0.03, 0.0], [0.02, 0.05, 0.0], [0.06, 0.05, 0.0]]
+            .map(|p| (start + Vec3::from(p)).to_array()).to_vec(),
+        pinned: vec![true, true, false, false],
+    });
+    state.groups[0].mode = GroupMode::Existing;
+    hair::bind_existing(&mut state, 0, &document.lods[0].submeshes[0].positions, &AtomicBool::new(false)).unwrap();
+    let existing = prepare(state.clone(), document.clone(), "Groom imported hair".into(),
+        Preparation::Deform, &AtomicBool::new(false)).unwrap();
+    assert_eq!(existing.document.lods[0].submeshes[0].indices, document.lods[0].submeshes[0].indices);
+    assert_eq!(existing.document.lods[0].submeshes[0].uvs, document.lods[0].submeshes[0].uvs);
+    assert!(existing.state.bindings.iter().all(|b| !b.smooth));
+    state.groups[0].mode = GroupMode::Generated;
+    locks::synchronize_generated(&mut state);
+    let untouched = prepare(state.clone(), document.clone(), "Paint physics".into(),
+        Preparation::Metadata, &AtomicBool::new(false)).unwrap();
+    assert_eq!(untouched.document, document);
+    let refined = prepare(state.clone(), document.clone(), "Groom drawn hair".into(),
+        Preparation::Deform, &AtomicBool::new(false)).unwrap();
+    assert_eq!(refined.state.guides, state.guides, "refinement must preserve shape and physics paint");
+    assert!(refined.state.bindings.iter().all(|b| b.smooth));
+    assert!(refined.document.lods[0].submeshes[0].positions.len() > document.lods[0].submeshes[0].positions.len());
+    refined.state.validate().unwrap();
+}
+
+#[test]
 fn hair_generated_legacy_locks_upgrade_without_regeneration_or_geometry_changes() {
     let (mut app, _) = ready_hair_app();
     let original = app.document.clone();
@@ -2783,6 +2815,15 @@ fn hair_draw_shape_controls_make_smooth_roots_and_exact_templates() {
         await_hair(&mut app);
         assert_eq!(app.hair.state.as_ref().unwrap().guides.len(), 1, "{}", app.hair.feedback);
         app.hair.state.as_ref().unwrap().validate().unwrap();
+        let state = app.hair.state.as_ref().unwrap();
+        assert_eq!(state.guides[0].points.len(), hair::MAX_POINTS);
+        assert!(state.bindings.iter().all(|b| b.smooth));
+        assert!(state.bindings.iter().any(|b| b.t > 0.0 && b.t < 1.0), "cards need rows between physics points");
+        let restored: HairState = serde_json::from_value(serde_json::to_value(state).unwrap()).unwrap();
+        assert_eq!(restored, *state);
+        let mut legacy = serde_json::to_value(&state.bindings[0]).unwrap();
+        legacy.as_object_mut().unwrap().remove("smooth");
+        assert!(!serde_json::from_value::<hair::VertexBinding>(legacy).unwrap().smooth);
     }
 }
 

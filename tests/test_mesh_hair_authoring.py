@@ -253,6 +253,46 @@ def candidate(editor, *, topology=False):
     return {"submeshes": parts, "hair": state}
 
 
+@pytest.mark.parametrize("smooth", ["true", 1, None])
+def test_smooth_card_binding_requires_a_boolean(smooth):
+    value = payload()
+    value["bindings"] = [dict(part=0, vertex=0, guide=0, segment=0,
+                              t=.5, offset=[0, 0, 0], smooth=smooth)]
+    with pytest.raises(ValueError, match="hair vertex binding"):
+        hair_state_from_payload(value)
+
+
+@pytest.mark.parametrize("incremental", [False, True])
+def test_smooth_card_bindings_survive_transaction_history_and_draft(editor, tmp_path, incremental):
+    _, authoring = editor
+    service, sid = authoring.shadow_service, authoring.shadow_session_id
+    before = service.capture_export_snapshot(sid)
+    value = candidate(authoring, topology=True)
+    for i, binding in enumerate(value["hair"]["bindings"]):
+        binding.update(smooth=True, t=i / (len(value["hair"]["bindings"]) - 1))
+    bindings = copy.deepcopy(value["hair"]["bindings"])
+    if incremental:
+        value["hair_update"] = {"version": 2, "reference": value["hair"]["scalp"]["identity"], "parts": [0]}
+        for field in ("scalp", "references", "collisions"):
+            value["hair"].pop(field, None)
+        value["submeshes"] = value["submeshes"][:1]
+    apply_hair_candidate(authoring, value, "Smooth hair cards")
+    after = service.capture_export_snapshot(sid)
+    assert after.hair_state.payload["bindings"] == bindings
+    validate_hair_output(after)
+    service.undo(sid)
+    assert service.capture_export_snapshot(sid).hair_state == before.hair_state
+    service.redo(sid)
+    assert service.capture_export_snapshot(sid).hair_state == after.hair_state
+    live = service._session(sid)
+    project = tmp_path / "smooth/project.json"
+    live.mesh_layer_project_path = project
+    service.retry_mesh_layer_autosave(sid)
+    loaded = load_mesh_layer_project(copy.deepcopy(live.base_mesh), project,
+                                    expected_source_asset_sha256=live.mesh_asset_source_hash)
+    assert loaded["hair_state"].payload["bindings"] == bindings
+
+
 def test_state_is_immutable_and_unbound_head_can_be_saved_until_explicit_rebind():
     value = payload()
     state = hair_state_from_payload(value)

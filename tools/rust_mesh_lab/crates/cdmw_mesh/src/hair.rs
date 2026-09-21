@@ -220,7 +220,10 @@ pub struct VertexBinding {
     pub guide: u32,
     pub segment: u32,
     pub t: f32,
-    /// Offset expressed in the rest segment's stable orthonormal frame.
+    /// Smooth curve coordinates for generated cards; absent in older drafts.
+    #[serde(default)]
+    pub smooth: bool,
+    /// Offset expressed in the segment or sampled curve's orthonormal frame.
     pub offset: [f32; 3],
     #[serde(default)]
     pub normal: [f32; 3],
@@ -716,6 +719,7 @@ pub fn bind_existing(
                             guide: *guide_index as u32,
                             segment: segment as u32,
                             t,
+                            smooth: false,
                             offset: [offset.dot(side), offset.dot(up), offset.dot(tangent)],
                             normal: [0.0; 3],
                         }),
@@ -768,33 +772,26 @@ pub fn generate_cached(
 ) -> Result<Vec<HairGeometry>> {
     let included = |i: usize| selected.is_none_or(|ids| state.locks.iter()
         .any(|l| l.guide == Some(i as u32) && ids.contains(&l.id)));
-    let count: usize = state
-        .groups
-        .iter()
-        .filter(|g| g.mode == GroupMode::Generated)
-        .map(|g| {
-            state
-                .guides
-                .iter()
-                .enumerate()
-                .filter(|(i, guide)| guide.group == g.id && included(*i))
-                .map(|(i, guide)| {
-                    guide.points.len()
-                        * 2
-                        * state
-                            .locks
-                            .iter()
-                            .find(|l| l.guide == Some(i as u32) && l.cards > 0)
-                            .map_or(g.cards_per_guide, |l| l.cards)
-                            as usize
-                })
-                .sum::<usize>()
-        })
-        .sum();
+    let mut count = 0;
+    let mut spans = 0;
+    for group in state.groups.iter().filter(|g| g.mode == GroupMode::Generated) {
+        for (i, guide) in state.guides.iter().enumerate()
+            .filter(|(i, guide)| guide.group == group.id && included(*i))
+        {
+            let edges = 2 * state.locks.iter()
+                .find(|l| l.guide == Some(i as u32) && l.cards > 0)
+                .map_or(group.cards_per_guide, |l| l.cards) as usize;
+            count += guide.points.len() * edges;
+            spans += guide.points.len().saturating_sub(1) * edges;
+        }
+    }
     require(
         count <= MAX_HAIR_VERTICES,
         "generated hair exceeds the vertex budget",
     )?;
+    // Three card sections per simulation segment smooth bends without adding
+    // physics work. Dense older styles can still be edited within their budget.
+    let subdivisions = 1 + ((MAX_HAIR_VERTICES - count) / spans.max(1)).min(2);
     let mut result = Vec::new();
     for group in state
         .groups
@@ -816,10 +813,20 @@ pub fn generate_cached(
             .filter(|(i, g)| g.group == group.id && included(*i))
         {
             require(guide.points.len() >= 2, "a hair guide needs at least two points")?;
-            let frames = locks::frames(&guide.points);
+            let curve = locks::Curve::new(&guide.points);
+            let row_count = (guide.points.len() - 1) * subdivisions + 1;
+            let mut rows = Vec::with_capacity(row_count);
             let mut lengths = vec![0.0];
-            for pair in guide.points.windows(2) {
-                lengths.push(lengths.last().unwrap() + Vec3::from(pair[0]).distance(Vec3::from(pair[1])));
+            let mut previous = Vec3::from(guide.points[0]);
+            for i in 0..row_count {
+                let segment = (i / subdivisions).min(guide.points.len() - 2);
+                let t = if i + 1 == row_count { 1.0 } else { (i % subdivisions) as f32 / subdivisions as f32 };
+                let (point, frame) = curve.sample(segment, t);
+                if i > 0 {
+                    lengths.push(lengths.last().unwrap() + previous.distance(point));
+                }
+                rows.push((segment, t, point, frame));
+                previous = point;
             }
             let length = *lengths.last().unwrap();
             let lock = state.locks.iter().find(|l| l.guide == Some(gi as u32));
@@ -829,7 +836,7 @@ pub fn generate_cached(
                 .map_or(group.cards_per_guide, |l| l.cards);
             let root_normal = scalp.nearest(&state.scalp.positions, scalp_indices,
                 Vec3::from(guide.points[0])).map_or(state.scalp.normal(&guide.root), |(_, n)| n);
-            let (side, up, tangent) = frames[0];
+            let (side, up, tangent) = rows[0].3;
             let flat = tangent.cross(root_normal).try_normalize().unwrap_or(side);
             let root_roll = flat.dot(up).atan2(flat.dot(side));
             for card in 0..density {
@@ -839,14 +846,7 @@ pub fn generate_cached(
                 let first = mesh.positions.len() as u32;
                 let roll = card as f32 * std::f32::consts::PI / density as f32;
                 let spread = ((card as f32 + 0.5) / density as f32 - 0.5) * group.width;
-                for (i, point) in guide.points.iter().enumerate() {
-                    let segment = i.min(guide.points.len() - 2);
-                    let (binding_side, binding_up, binding_tangent) = frames[segment];
-                    let previous = Vec3::from(guide.points[i.saturating_sub(1)]);
-                    let next = Vec3::from(guide.points[(i + 1).min(guide.points.len() - 1)]);
-                    let tangent = (next - previous).try_normalize().unwrap_or(binding_tangent);
-                    let side = (binding_side - tangent * binding_side.dot(tangent)).try_normalize().unwrap_or(binding_side);
-                    let up = tangent.cross(side).normalize_or_zero();
+                for (i, &(segment, along, point, (side, up, tangent))) in rows.iter().enumerate() {
                     let blend = root_blend(lengths[i], group.width * width_scale);
                     let angle = root_roll + roll * blend;
                     let across = side * angle.cos() + up * angle.sin();
@@ -860,11 +860,11 @@ pub fn generate_cached(
                         let p = scalp.contact_with_reach(
                             &state.scalp.positions,
                             scalp_indices,
-                            Vec3::from(*point) + offset,
+                            point + offset,
                             0.0002,
                             group.width * width_scale + 0.0002,
                         );
-                        let offset = p - Vec3::from(*point);
+                        let offset = p - point;
                         mesh.positions.push(p.to_array());
                         mesh.normals.push(normal.to_array());
                         mesh.uvs.push([
@@ -880,9 +880,10 @@ pub fn generate_cached(
                             vertex,
                             guide: gi as u32,
                             segment: segment as u32,
-                            t: if i == segment { 0.0 } else { 1.0 },
-                            offset: [offset.dot(binding_side), offset.dot(binding_up), offset.dot(binding_tangent)],
-                            normal: [normal.dot(binding_side), normal.dot(binding_up), normal.dot(binding_tangent)],
+                            t: along,
+                            smooth: true,
+                            offset: [offset.dot(side), offset.dot(up), offset.dot(tangent)],
+                            normal: [normal.dot(side), normal.dot(up), normal.dot(tangent)],
                         });
                     }
                     if i > 0 {
@@ -907,6 +908,7 @@ pub fn deform(
     positions: &mut [[f32; 3]],
 ) -> Result<()> {
     let frames: Vec<_> = points.iter().map(|g| locks::frames(g)).collect();
+    let curves: Vec<_> = points.iter().map(|g| locks::Curve::new(g)).collect();
     for binding in bindings.iter().filter(|b| b.part == part) {
         let guide = points
             .get(binding.guide as usize)
@@ -916,11 +918,15 @@ pub fn deform(
             .ok_or_else(|| HairError::Invalid("missing simulated segment".into()))?;
         let a = Vec3::from(pair[0]);
         let b = Vec3::from(pair[1]);
-        let (side, up, tangent) = frames[binding.guide as usize][binding.segment as usize];
+        let (center, (side, up, tangent)) = if binding.smooth {
+            curves[binding.guide as usize].sample(binding.segment as usize, binding.t)
+        } else {
+            (a.lerp(b, binding.t), frames[binding.guide as usize][binding.segment as usize])
+        };
         let position = positions
             .get_mut(binding.vertex as usize)
             .ok_or_else(|| HairError::Invalid("deformation vertex no longer exists".into()))?;
-        *position = (a.lerp(b, binding.t)
+        *position = (center
             + side * binding.offset[0]
             + up * binding.offset[1]
             + tangent * binding.offset[2])
@@ -1144,6 +1150,7 @@ impl Simulation {
         let mut widths: Vec<_> = rest.iter().map(|g| vec![0.0_f32; g.len()]).collect();
         let mut margin_scales = Vec::new();
         let frames: Vec<_> = rest.iter().map(|g| locks::frames(g)).collect();
+        let curves: Vec<_> = rest.iter().map(|g| locks::Curve::new(g)).collect();
         let normals: Vec<Vec<_>> = rest.iter().map(|g| g.iter().map(|p|
             surface.nearest(&state.scalp.positions, &scalp_indices, Vec3::from(*p))
                 .map_or(Vec3::Y, |(_, n)| n)).collect()).collect();
@@ -1164,7 +1171,9 @@ impl Simulation {
             let group = state.groups.iter().find(|g| g.id == state.guides[gi].group).unwrap();
             if group.mode == GroupMode::Generated {
                 let row = binding.segment as usize + usize::from(binding.t >= 0.5);
-                let (side, up, tangent) = frames[gi][binding.segment as usize];
+                let (side, up, tangent) = if binding.smooth {
+                    curves[gi].sample(binding.segment as usize, binding.t).1
+                } else { frames[gi][binding.segment as usize] };
                 let offset = side * binding.offset[0] + up * binding.offset[1] + tangent * binding.offset[2];
                 // Flattened roots need only their inward extent. Blend toward
                 // the full radial extent as the follower bundle opens, so card
@@ -1587,7 +1596,7 @@ mod tests {
     fn hair_generated_cards_bind_and_deform_without_changing_uvs() {
         let s = planted();
         let mesh = generate(&s, &AtomicBool::new(false)).unwrap().remove(0);
-        assert_eq!(mesh.positions.len(), 6 * 16 * 2);
+        assert_eq!(mesh.positions.len(), 6 * 46 * 2);
         let mut moved = s
             .guides
             .iter()
@@ -1614,12 +1623,80 @@ mod tests {
         s.guides[0].points = distances.map(|d| (root + Vec3::Y * d).to_array()).to_vec();
         s.groups[0].cards_per_guide = 1;
         let mesh = generate(&s, &AtomicBool::new(false)).unwrap().remove(0);
-        for (i, distance) in distances.iter().enumerate() {
+        for (i, row) in mesh.positions.chunks_exact(2).enumerate() {
+            let binding = &mesh.bindings[i * 2];
+            let segment = binding.segment as usize;
+            let distance = distances[segment] * (1.0 - binding.t) + distances[segment + 1] * binding.t;
             assert!((mesh.uvs[i * 2][1] - distance).abs() < 1e-5);
-            let width = Vec3::from(mesh.positions[i * 2]).distance(Vec3::from(mesh.positions[i * 2 + 1]));
-            let taper = 0.08 + 0.92 * root_blend(*distance, s.groups[0].width);
+            let width = Vec3::from(row[0]).distance(Vec3::from(row[1]));
+            let taper = 0.08 + 0.92 * root_blend(distance, s.groups[0].width);
             assert!((width - s.groups[0].width * taper * (1.0 - distance * 0.94)).abs() < 1e-5);
         }
+    }
+
+    #[test]
+    fn hair_curved_cards_smooth_bends_in_rest_and_motion_without_more_physics_points() {
+        let mut state = planted();
+        state.groups[0].cards_per_guide = 1;
+        state.groups[0].width = 0.003;
+        let root = Vec3::from(state.guides[0].points[0]);
+        state.guides[0].points = [[0.0, 0.0, 0.0], [0.0, 0.03, 0.0],
+            [0.02, 0.05, 0.0], [0.06, 0.05, 0.0]]
+            .map(|p| (root + Vec3::from(p)).to_array()).to_vec();
+        let before = state.clone();
+        let mesh = generate(&state, &AtomicBool::new(false)).unwrap().remove(0);
+        assert_eq!(mesh.positions.len(), 20);
+        assert!(mesh.bindings.iter().all(|b| b.smooth));
+        assert_eq!(state, before);
+        assert_eq!(Simulation::new(&state).unwrap().points[0].len(), 4);
+        let angle = |points: &[Vec3]| points.windows(3).map(|p|
+            (p[1] - p[0]).normalize().dot((p[2] - p[1]).normalize()).clamp(-1.0, 1.0).acos())
+            .fold(0.0_f32, f32::max);
+        let mut moved = state.guides[0].points.clone();
+        moved[1][2] -= 0.01;
+        moved[2][2] += 0.015;
+        moved[3][2] += 0.03;
+        for points in [state.guides[0].points.clone(), moved] {
+            let mut positions = mesh.positions.clone();
+            let mut normals = mesh.normals.clone();
+            deform(&mesh.bindings, &[points.clone()], 0, &mut positions).unwrap();
+            locks::deform_normals(&mesh.bindings, &[points.clone()], 0, &mut normals);
+            let centers: Vec<_> = positions.chunks_exact(2).map(|p|
+                (Vec3::from(p[0]) + Vec3::from(p[1])) * 0.5).collect();
+            let guide: Vec<_> = points.iter().copied().map(Vec3::from).collect();
+            assert!(angle(&centers) < angle(&guide) * 0.7,
+                "card joins should round off guide corners: {} vs {}", angle(&centers), angle(&guide));
+            assert!(centers.last().unwrap().distance(*guide.last().unwrap()) < 1e-6);
+            assert!(normals.iter().all(|n| (Vec3::from(*n).length() - 1.0).abs() < 1e-5));
+            let curve = locks::Curve::new(&points);
+            for i in 1..points.len() - 1 {
+                let (a, (x, y, z)) = curve.sample(i - 1, 1.0 - 1e-5);
+                let (b, (u, v, w)) = curve.sample(i, 1e-5);
+                assert!(a.distance(b) < 1e-5);
+                assert!(x.dot(u) > 0.9999 && y.dot(v) > 0.9999 && z.dot(w) > 0.9999,
+                    "a segment boundary must not introduce a shading seam");
+            }
+        }
+    }
+
+    #[test]
+    fn hair_curves_respect_uneven_root_spacing_and_dense_style_budget() {
+        let points = [[0.0, 0.0, 0.0], [0.001, 0.0, 0.0], [0.001, 0.4, 0.0]];
+        let curve = locks::Curve::new(&points);
+        for i in 0..=100 {
+            let (p, (x, y, z)) = curve.sample(0, i as f32 / 100.0);
+            assert!((0.0..=0.001).contains(&p.x) && p.y.abs() < 0.000001,
+                "a distant tip must not pull the root away from the scalp: {p:?}");
+            assert!(x.is_finite() && y.is_finite() && z.is_finite());
+        }
+        let mut state = planted();
+        let root = Vec3::from(state.guides[0].points[0]);
+        state.guides[0].points = (0..64).map(|i| (root + Vec3::Y * (i as f32 * 0.002)).to_array()).collect();
+        state.guides = vec![state.guides[0].clone(); 100];
+        state.groups[0].cards_per_guide = 32;
+        let mesh = generate(&state, &AtomicBool::new(false)).unwrap().remove(0);
+        assert_eq!(mesh.positions.len(), 409_600, "existing dense styles must still be editable");
+        assert!(mesh.positions.len() <= MAX_HAIR_VERTICES);
     }
 
     #[test]
@@ -1632,7 +1709,7 @@ mod tests {
         }).collect();
         let mesh = generate(&s, &AtomicBool::new(false)).unwrap().remove(0);
         for card in 0..6 {
-            let row = card * 64 * 2;
+            let row = card * 190 * 2;
             let a = Vec3::from(mesh.positions[row]);
             let b = Vec3::from(mesh.positions[row + 1]);
             assert!((a.y - root.y).abs() < 0.0003 && (b.y - root.y).abs() < 0.0003);

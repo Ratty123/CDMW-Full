@@ -165,6 +165,7 @@ def _validated_hair_state(value: object, *, allow_unbound: bool = True):
         if (binding.get("part") != by_id[guide["group"]]["part"] or not integer(binding.get("vertex"), HAIR_MAX_VERTICES)
                 or not integer(binding.get("segment"), len(guide["points"]) - 1) or key in seen
                 or type(binding.get("t")) not in (int, float) or not 0 <= binding["t"] <= 1
+                or type(binding.get("smooth", False)) is not bool
                 or not rows([binding.get("offset")], 3, 1)
                 or not rows([binding.get("normal", [0., 0., 0.])], 3, 1)):
             raise ValueError("Invalid or ambiguous hair vertex binding.")

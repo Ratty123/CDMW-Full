@@ -109,8 +109,8 @@ pub fn extend_mirrored_guides(state: &HairState, guides: &mut BTreeSet<usize>) {
     }
 }
 
-/// Parallel transport prevents side-axis flips along curved cards. All writers,
-/// bindings and deformation use this same frame convention.
+/// Parallel transport prevents side-axis flips. Imported cards and older drafts
+/// retain this segment-frame convention for exact rest-shape reconstruction.
 pub fn frames(points: &[[f32; 3]]) -> Vec<(Vec3, Vec3, Vec3)> {
     let mut result = Vec::with_capacity(points.len().saturating_sub(1));
     let mut previous: Option<(Vec3, Vec3)> = None;
@@ -129,6 +129,70 @@ pub fn frames(points: &[[f32; 3]]) -> Vec<(Vec3, Vec3, Vec3)> {
     result
 }
 
+/// Render curves keep the small editing/physics guide independent of card detail.
+/// Chord-length derivatives handle the tightly spaced scalp-root samples without
+/// the overshoot of a uniformly parameterized spline.
+pub(super) struct Curve {
+    points: Vec<Vec3>,
+    derivatives: Vec<Vec3>,
+    frames: Vec<(Vec3, Vec3, Vec3)>,
+}
+
+impl Curve {
+    pub(super) fn new(points: &[[f32; 3]]) -> Self {
+        let points: Vec<_> = points.iter().copied().map(Vec3::from).collect();
+        if points.len() < 2 {
+            return Self { points, derivatives: vec![], frames: vec![] };
+        }
+        let lengths: Vec<_> = points.windows(2).map(|p| p[0].distance(p[1]).max(1e-8)).collect();
+        let directions: Vec<_> = points.windows(2).map(|p|
+            (p[1] - p[0]).try_normalize().unwrap_or(Vec3::Y)).collect();
+        let mut derivatives = Vec::with_capacity(points.len());
+        let mut frames: Vec<(Vec3, Vec3, Vec3)> = Vec::with_capacity(points.len());
+        for i in 0..points.len() {
+            let derivative = if i == 0 {
+                directions[0]
+            } else if i + 1 == points.len() {
+                directions[i - 1]
+            } else {
+                (directions[i - 1] * lengths[i] + directions[i] * lengths[i - 1])
+                    / (lengths[i - 1] + lengths[i])
+            };
+            let tangent = derivative.try_normalize().unwrap_or(directions[i.min(directions.len() - 1)]);
+            let side = if let Some(&(side, _, old)) = frames.last() {
+                Quat::from_rotation_arc(old, tangent) * side
+            } else {
+                super::segment_frame(Vec3::ZERO, tangent).0
+            };
+            let side = (side - tangent * side.dot(tangent)).normalize_or_zero();
+            derivatives.push(derivative);
+            frames.push((side, tangent.cross(side).normalize_or_zero(), tangent));
+        }
+        Self { points, derivatives, frames }
+    }
+
+    pub(super) fn sample(&self, segment: usize, t: f32) -> (Vec3, (Vec3, Vec3, Vec3)) {
+        let a = self.points[segment];
+        let b = self.points[segment + 1];
+        let chord = b - a;
+        let length = chord.length();
+        let m0 = self.derivatives[segment] * length - chord;
+        let m1 = self.derivatives[segment + 1] * length - chord;
+        let position = a.lerp(b, t) + m0 * (t * (1.0 - t).powi(2)) - m1 * (t * t * (1.0 - t));
+        let (side, _, old) = self.frames[segment];
+        let tangent = (chord + m0 * (1.0 - 4.0 * t + 3.0 * t * t)
+            + m1 * (3.0 * t * t - 2.0 * t)).try_normalize().unwrap_or(old);
+        let side = Quat::from_rotation_arc(old, tangent) * side;
+        let side = (side - tangent * side.dot(tangent)).normalize_or_zero();
+        (position, (side, tangent.cross(side).normalize_or_zero(), tangent))
+    }
+}
+
+/// Position under a cut on a generated card, in the guide's original coordinates.
+pub fn curve_point(points: &[[f32; 3]], segment: usize, t: f32) -> [f32; 3] {
+    Curve::new(points).sample(segment, t).0.to_array()
+}
+
 pub fn deform_normals(
     bindings: &[VertexBinding],
     points: &[Vec<[f32; 3]>],
@@ -136,12 +200,16 @@ pub fn deform_normals(
     normals: &mut [[f32; 3]],
 ) {
     let frames: Vec<_> = points.iter().map(|g| frames(g)).collect();
+    let curves: Vec<_> = points.iter().map(|g| Curve::new(g)).collect();
     for b in bindings.iter().filter(|b| b.part == part) {
         if let Some(normal) = normals.get_mut(b.vertex as usize) {
             if let Some(&(x, y, z)) = frames
                 .get(b.guide as usize)
                 .and_then(|f| f.get(b.segment as usize))
             {
+                let (x, y, z) = if b.smooth {
+                    curves[b.guide as usize].sample(b.segment as usize, b.t).1
+                } else { (x, y, z) };
                 let local = Vec3::from(b.normal);
                 if local.length_squared() > 0.1 {
                     *normal = (x * local.x + y * local.y + z * local.z)
@@ -325,6 +393,7 @@ pub fn bind_lock(
             guide: gi,
             segment: best.1 as u32,
             t: best.2,
+            smooth: false,
             offset: [best.3.dot(x), best.3.dot(y), best.3.dot(z)],
             normal: [n.dot(x), n.dot(y), n.dot(z)],
         });

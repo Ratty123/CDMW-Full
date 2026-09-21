@@ -13,6 +13,7 @@ The format is intentionally simple:
 
 ### Changed
 
+- Hair Tools draws and bends smoother hair cards with extra curve subdivisions and continuous shading, without adding physics guide points. Detail stays within the vertex budget, and older drawn hair is refined on its next grooming edit.
 - Hair Tools starts new hairstyles empty and removes the procedural hairstyle presets. Existing saved hair keeps its authored geometry.
 - Create New Item moves model selection, import and preview controls into the right inspector so Model & Placement can use the full viewport height. Distribution's Item groups list fills the available page space.
 

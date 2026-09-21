@@ -176,6 +176,12 @@ the grabbed point, with a smooth falloff and fixed roots. **Draw** offers
 **Freehand**, **Straight**, **Arc** and **Circle**. Drag the endpoints of a line or
 arc, or the diameter of a circle. **Bend** adjusts an arc's direction and depth;
 **Stroke smoothing** reduces freehand jitter without trailing behind the pointer.
+Drawn cards follow smooth curves with up to three sections per guide segment and
+continuous shading through bends, including during grooming and motion. Extra
+card detail does not add physics points and stays within the existing vertex
+budget. Older drawn hair gains this detail on its next grooming edit or geometry
+rebuild; imported hair keeps its original topology. Drafts and output retain the
+refined geometry.
 
 **Follow scalp** starts enabled for Freehand; the shape tools start in the view
 plane. Toggle it to choose surface following, or hold **Ctrl** temporarily to draw

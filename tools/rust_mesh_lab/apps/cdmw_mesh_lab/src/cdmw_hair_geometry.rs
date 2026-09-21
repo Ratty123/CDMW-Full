@@ -206,7 +206,9 @@ pub(super) fn prepare(
     let rebuild = !matches!(
         operation,
         Preparation::Deform | Preparation::Metadata | Preparation::Analyze | Preparation::Bind(_)
-    );
+    ) || (matches!(operation, Preparation::Deform) && state.bindings.iter().any(|binding|
+        !binding.smooth && state.groups.iter().any(|group|
+            group.part == binding.part && group.mode == GroupMode::Generated)));
     if rebuild {
         let generated: BTreeSet<_> = state
             .groups
@@ -364,9 +366,11 @@ fn cut_lock(
     let guide = &state.guides[gi as usize];
     let segment = (segment as usize).min(guide.points.len() - 2);
     let t = t.clamp(0.01, 1.0);
-    let tip = Vec3::from(guide.points[segment])
-        .lerp(Vec3::from(guide.points[segment + 1]), t)
-        .to_array();
+    let tip = if state.bindings.iter().any(|b| b.guide == gi && b.smooth) {
+        locks::curve_point(&guide.points, segment, t)
+    } else {
+        Vec3::from(guide.points[segment]).lerp(Vec3::from(guide.points[segment + 1]), t).to_array()
+    };
     let remove: BTreeSet<_> = state
         .bindings
         .iter()
