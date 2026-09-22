@@ -283,6 +283,17 @@ struct PreviewState {
     theme: Value,
 }
 
+impl PreviewState {
+    fn needs_animated_frame(&self, visible: bool, material_animation: bool) -> bool {
+        let display = &self.presentation["display"];
+        let particles = display["effect_particles_visible"].as_bool().unwrap_or(true)
+            && self.scene["effects_overlay"]["emitters"].as_array()
+                .is_some_and(|emitters| !emitters.is_empty());
+        visible && (particles || material_animation)
+            && !display["effect_particles_paused"].as_bool().unwrap_or(false)
+    }
+}
+
 #[derive(Debug, Clone)]
 struct GizmoDrag {
     tool: String,
@@ -1316,31 +1327,6 @@ impl PreviewApplication {
             self.effect_clock.last_tick = Instant::now();
         }
         self.effect_clock.sample(paused)
-    }
-
-    fn has_dynamic_effects(&self) -> bool {
-        self.visible
-            && self
-                .state
-                .presentation
-                .get("display")
-                .and_then(|display| display.get("effect_particles_visible"))
-                .and_then(Value::as_bool)
-                .unwrap_or(true)
-            && self
-                .state
-                .scene
-                .get("effects_overlay")
-                .and_then(|effects| effects.get("emitters"))
-                .and_then(Value::as_array)
-                .is_some_and(|emitters| !emitters.is_empty())
-            && !self
-                .state
-                .presentation
-                .get("display")
-                .and_then(|display| display.get("effect_particles_paused"))
-                .and_then(Value::as_bool)
-                .unwrap_or(false)
     }
 
     fn submesh_model_matrix(&self, source_submesh: u32) -> Mat4 {
@@ -2772,6 +2758,7 @@ impl ApplicationHandler for PreviewApplication {
                 self.refresh_scene_overlays(effect_time);
                 let camera = self.camera.view_projection(self.viewport_rect());
                 if let Some(renderer) = &mut self.renderer {
+                    renderer.set_material_time(effect_time);
                     renderer.set_view_mode(self.view_mode);
                     renderer.set_camera_with_basis(camera, self.camera.right(), self.camera.up());
                     renderer.set_mesh_viewport(None);
@@ -2802,7 +2789,8 @@ impl ApplicationHandler for PreviewApplication {
                         }
                     }
                 }
-                if self.render_failures == 0 && self.has_dynamic_effects() {
+                if self.render_failures == 0 && self.state.needs_animated_frame(
+                    self.visible, self.renderer.as_ref().is_some_and(WindowRenderer::has_material_animation)) {
                     self.next_frame = Some(Instant::now() + Duration::from_millis(16));
                 }
             }
@@ -2900,6 +2888,16 @@ fn apply_preview_material_parameters(
             },
             emissive_color: color3(group.get("emissive_color")),
             emissive_intensity: optional_f32(group, "emissive_intensity"),
+            emission_reveal: match group.get("emission_reveal").filter(|v| !v.is_null()) {
+                Some(value) => Some(serde_json::from_value::<[f32; 4]>(value.clone())
+                    .map_err(|_| "RGB glow reveal requires four numbers".to_owned())?),
+                None => None,
+            },
+            emission_animation: match group.get("emission_animation").filter(|v| !v.is_null()) {
+                Some(value) => Some(serde_json::from_value::<[f32; 4]>(value.clone())
+                    .map_err(|_| "Emission animation requires four numbers".to_owned())?),
+                None => None,
+            },
             translucency: match group.get("translucency").filter(|value| !value.is_null()) {
                 Some(value) => Some(serde_json::from_value::<[f32; 2]>(value.clone())
                     .map_err(|_| "Translucency requires thickness and extinction numbers".to_owned())?),
@@ -3812,6 +3810,53 @@ mod tests {
     }
 
     #[test]
+    fn glow_animation_updates_validate_and_restore_authored_settings() {
+        for (field, value, valid) in [
+            ("emission_animation", json!([0.5, 0.25, 2.0, 0.1]), true),
+            ("emission_animation", json!([0, 0, 0, 0]), true),
+            ("emission_animation", Value::Null, true),
+            ("emission_animation", json!([11, 0, 0, 0]), false),
+            ("emission_animation", json!([0, 0, 1, 2]), false),
+            ("emission_animation", json!([true, 0, 0, 0]), false),
+            ("emission_animation", json!([0, 0, 0]), false),
+            ("emission_reveal", json!([0.5, 0.1, 1.0, 0.7]), true),
+            ("emission_reveal", json!([0, 1, 0, -1]), true),
+            ("emission_reveal", Value::Null, true),
+            ("emission_reveal", json!([1, 0, 0, 1]), false),
+            ("emission_reveal", json!([1, 0.1, 0.5, 1]), false),
+            ("emission_reveal", json!([1, 0.1, 0, 2]), false),
+            ("emission_reveal", json!([1, 0.1, 0]), false),
+        ] {
+            let mut group = json!({"source_submesh_indices": [0]});
+            group[field] = value;
+            let parameters = json!({"groups": [group]});
+            assert_eq!(apply_preview_material_parameters(None, &[], &parameters, 1, 0).is_ok(), valid,
+                "{parameters}");
+        }
+        let ownership = vec![vec![0_u32]];
+        let authored = vec![(MaterialPreviewFactors {
+            emission_animation: Some([0.5, 0.25, 2.0, 0.1]),
+            emission_reveal: Some([0.5, 0.1, 1.0, 0.7]),
+            roughness: Some(0.7), ..Default::default()
+        }, ownership.clone())];
+        let static_mono = vec![(MaterialPreviewFactors {
+            emission_animation: Some([0.0; 4]),
+            emission_reveal: Some([0.0, 1.0, 0.0, -1.0]), ..Default::default()
+        }, ownership)];
+        let stopped = cdmw_render_wgpu::preview_material_factors(&authored, &static_mono, 0).unwrap();
+        assert_eq!(stopped[0].0.emission_animation, static_mono[0].0.emission_animation);
+        assert_eq!(stopped[0].0.emission_reveal, static_mono[0].0.emission_reveal);
+        assert_eq!(stopped[0].0.roughness, Some(0.7));
+        let restored = cdmw_render_wgpu::preview_material_factors(&authored, &[], 0).unwrap();
+        assert_eq!(restored, authored);
+        let conflict = json!({"groups": [
+            {"source_submesh_indices": [0], "emission_animation": [1, 0, 0, 0]},
+            {"source_submesh_indices": [0], "emission_animation": [0, 0, 0, 0]}
+        ]});
+        assert!(apply_preview_material_parameters(None, &[], &conflict, 1, 0).is_err());
+    }
+
+    #[test]
     fn translucency_updates_validate_ranges_and_restore_authored_materials() {
         let ownership = vec![vec![0_u32]];
         let authored = vec![(MaterialPreviewFactors {
@@ -3924,6 +3969,22 @@ mod tests {
         let resumed = clock.sample(false);
         assert!(resumed > held);
         assert!(resumed - held < 0.05);
+    }
+
+    #[test]
+    fn glow_animation_requests_frames_without_particles_and_stops_when_paused_or_hidden() {
+        let mut state = PreviewState::default();
+        assert!(state.needs_animated_frame(true, true));
+        assert!(!state.needs_animated_frame(true, false));
+        assert!(!state.needs_animated_frame(false, true));
+        state.presentation = json!({"display": {"effect_particles_paused": true}});
+        assert!(!state.needs_animated_frame(true, true));
+        state.presentation = json!({"display": {"effect_particles_visible": false}});
+        assert!(state.needs_animated_frame(true, true));
+        state.scene = json!({"effects_overlay": {"emitters": [{}]}});
+        assert!(!state.needs_animated_frame(true, false));
+        state.presentation = json!({});
+        assert!(state.needs_animated_frame(true, false));
     }
 
     #[test]

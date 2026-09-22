@@ -583,9 +583,8 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self.glow_box.setCheckable(True)
         self.glow_box.setChecked(False)
         self.glow_box.setToolTip(
-            "Make parts of the item give off light. The game's emissive is one colour and one strength per part, so a part "
-            "either glows or it does not; pick the parts, the colour and how strongly. Off, the item glows only where your "
-            "own model brought an emissive map."
+            "Choose glowing parts, colour, strength and animation. Source glow maps are retained; "
+            "parts without a glow map use a solid map. Off restores the source emission."
         )
         glow_layout = QVBoxLayout(self.glow_box)
         glow_layout.setContentsMargins(8, 6, 8, 6)
@@ -616,11 +615,17 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         glow_row.addWidget(self.glow_intensity)
         glow_row.addStretch(1)
         glow_layout.addLayout(glow_row)
+        from cdmw.ui.new_item.glow_animation_editor import GlowAnimationEditor
+        self.glow_animation = GlowAnimationEditor(self.glow_box)
+        self.glow_animation.refresh(self._controller.draft.glow_animation, self._controller.draft.glow_rgb)
+        self.glow_animation.changed.connect(self._glow_changed)
+        glow_layout.addWidget(self.glow_animation)
         self._glow_detail_widgets = (
             self.glow_parts,
             self.glow_color_button,
             self.glow_strength_label,
             self.glow_intensity,
+            self.glow_animation,
         )
         self.glow_box.toggled.connect(self._set_glow_details_visible)
         self.glow_box.toggled.connect(lambda _on: self._glow_changed())
@@ -881,6 +886,11 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         """Fill the part list from the chosen template, keeping what was already ticked."""
 
         chosen = set(self._controller.draft.glow_parts)
+        self.glow_animation.refresh(self._controller.draft.glow_animation, self._controller.draft.glow_rgb)
+        self.glow_intensity.blockSignals(True)
+        self.glow_intensity.setValue(self._controller.draft.glow_intensity)
+        self.glow_intensity.blockSignals(False)
+        self._set_glow_swatch()
         parts = self._controller.material_parts()
         self.translucency_editor.refresh(parts, self._controller.draft.translucency)
         self.glow_parts.blockSignals(True)
@@ -921,6 +931,8 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         draft = self._controller.draft
         draft.glow_parts = self._ticked_glow_parts() if self.glow_box.isChecked() else ()
         draft.glow_intensity = float(self.glow_intensity.value())
+        draft.glow_animation = self.glow_animation.value()
+        draft.glow_rgb = self.glow_animation.rgb_value()
         self._controller.invalidate_plan()
         self._sync_glow_preview()
 

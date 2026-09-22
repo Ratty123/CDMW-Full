@@ -165,6 +165,10 @@ def prepare_template_model(snapshot, paths, *, glow=None, translucency=None, tra
             if name in selected_glow:
                 found_glow.add(name)
                 texture = row.textures.get("_emissiveIntensityTexture", "")
+                if not texture and glow.rgb is not None:
+                    texture = row.textures.get("_emissiveProgressTexture", "")
+                    if not texture:
+                        raise NewItemPlanError(f"{row.submesh_name}: RGB glow needs a source glow texture.")
                 if not texture:
                     if solid is None:
                         solid = encode_emissive_solid()
@@ -182,7 +186,12 @@ def prepare_template_model(snapshot, paths, *, glow=None, translucency=None, tra
             side.update(textures)
             notes.extend(baked_notes)
         if emission:
+            from cdmw.core.pac_xml_emission import rewrite_emission_animation
+            # Validate against the source shader before switching it.
+            text = rewrite_emission_animation(text, {name: glow.animation for name in emission})
             text = rewrite_emission(text, emission)
+            from cdmw.core.pac_xml_emission import rewrite_rgb_emission
+            text = rewrite_rgb_emission(text, {name: (glow.rgb, glow.hex_color()) for name in emission})
         if glass:
             from cdmw.services.translucency_surface import apply_translucency_surface
 

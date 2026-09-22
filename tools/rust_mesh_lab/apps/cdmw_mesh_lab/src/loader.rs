@@ -69,6 +69,8 @@ pub struct LoadedMaterialFactors {
     pub sidecar_label: String,
     pub emissive_color: Option<[f32; 3]>,
     pub emissive_intensity: Option<f32>,
+    pub emission_animation: Option<[f32; 4]>,
+    pub emission_reveal: Option<[f32; 4]>,
     pub roughness: Option<f32>,
     pub metalness: Option<f32>,
     pub specular: Option<f32>,
@@ -1546,6 +1548,7 @@ fn resolve_material_parameters(
                         ]
                     }),
                     emissive_intensity: intensity.map(f32::from_bits),
+                    emission_animation: None, emission_reveal: None,
                     roughness: roughness.map(f32::from_bits),
                     metalness: metalness.map(f32::from_bits),
                     specular: specular.map(f32::from_bits),

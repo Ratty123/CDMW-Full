@@ -12,6 +12,7 @@ from .cloth import PacClothRule
 from .cloth_guides import PacClothGuideRule
 from .jiggle import PacJiggleRule
 from .physics_profile import PacPhysicsProfileRule
+from .emission import EmissionChoice
 
 if TYPE_CHECKING:
     from cdmw.modding.mesh_neutral_appearance import NeutralMeshAppearance
@@ -42,6 +43,7 @@ class ReplacementPart:
     translucency: tuple[float, float] | None = None
     cloth_guides: PacClothGuideRule | None = None
     translucency_surface: tuple[float | None, float | None] | None = None
+    emission: EmissionChoice | None = None
 
 
 @dataclass(frozen=True, slots=True)

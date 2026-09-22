@@ -6,6 +6,25 @@ Particle BC4/R8 masks use linear sampling; RGB mask coverage is converted back f
 sRGB only when the uploaded view actually uses sRGB. The synthetic particle pixel
 check covers BC4 half-intensity and authored colour alongside the existing RGBA cases.
 
+Material presentations and live parameter groups accept optional `emission_animation`
+`[flow_u, flow_v, pulse_frequency, pulse_floor]` and `emission_reveal`
+`[reveal, softness, inverse, rgb_strength]`. A reveal strength of -1 explicitly
+restores ordinary glow; null restores authored parameters. RGB emission samples the
+same glow texture's RGB/alpha and its red channel as a linear reveal mask. The shader
+scrolls emission UVs independently of the base texture and applies the decoded sine
+pulse after emission masking. The material clock uses camera-uniform padding without
+changing the camera buffer size. The material uniform is now 160 bytes.
+
+Animated materials request another frame after 16 ms while the window is visible;
+static materials retain event-driven repainting. The resident New Item preview uses
+its existing playback clock, including Pause, speed and Seek in Perks & Effects.
+Mesh Editor's Parts panel sends
+`replacement_emission` with selected part IDs and validated emission settings, or
+`reset: true`. Python owns Undo/Redo, draft version 11 and material sidecar output.
+Focused control tests and the existing synthetic D3D12 pixel gate verify scrolling,
+pulse peaks/floors, RGB reveal, inversion and zero alpha. These are source/test-target
+checks and do not establish packaged-helper or game appearance parity.
+
 `cdmw_mesh_lab.exe` has standalone diagnostic and CDMW-managed modes. The default standalone
 **Rust Mesh Lab** is a Windows-first diagnostic application for testing the
 native Rust archive, mesh, editing, and `wgpu` architecture. In CDMW-managed

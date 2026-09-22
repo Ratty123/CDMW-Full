@@ -7724,6 +7724,7 @@ fn inspector_paints_loaded_texture_relationship_provenance() -> TestResult {
             sidecar_label: "character/modelproperty/body.pam_xml".to_owned(),
             emissive_color: Some([32.0 / 255.0, 64.0 / 255.0, 96.0 / 255.0]),
             emissive_intensity: Some(2.5),
+            emission_animation: None, emission_reveal: None,
             roughness: Some(0.75),
             metalness: Some(0.5),
             specular: Some(0.9),
@@ -7866,6 +7867,41 @@ fn translucency_controls_send_selected_parts_and_restore_without_changing_geomet
     ui.application.cdmw_pending_request = None;
     ui.click("None")?;
     assert!(!has_host_command(&ui.actions_from_click("Apply translucency")?, "replacement_translucency"));
+    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), before);
+    Ok(())
+}
+
+#[test]
+fn emission_controls_send_selected_parts_and_restore() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(two_part_application()?, egui::vec2(1440.0, 1600.0));
+    let before = ui.application.mesh.as_ref().unwrap().draw_snapshot();
+    let emission = json!({"color": [1.0, 0.5, 0.25], "intensity": 6.0,
+        "animation": {"flow_u": 0.5, "flow_v": 0.25, "pulse_frequency": 2.0, "pulse_minimum": 0.25},
+        "rgb": null});
+    ui.application.cdmw_state["emission"] = json!({"available": true, "parts": [
+        {"index": 0, "id": "a", "emission": null}, {"index": 1, "id": "b", "emission": emission}]});
+    ui.settle_layout();
+    ui.click("1: Part B")?;
+    ui.click("Glow (experimental)")?;
+    ui.settle_layout();
+    let actions = ui.actions_from_click("Apply glow")?;
+    let actual = actions.iter().find_map(|action| match action {
+        UiAction::CdmwCommand { command: "replacement_emission", arguments, .. } => Some(arguments.clone()),
+        _ => None,
+    });
+    assert_eq!(actual, Some(json!({"part_ids": ["b"], "emission": emission})));
+    ui.application.cdmw_pending_request = None;
+    ui.click("Use RGB glow map")?;
+    let actions = ui.actions_from_click("Apply glow")?;
+    assert!(actions.iter().any(|action| matches!(action, UiAction::CdmwCommand { command: "replacement_emission", arguments, .. }
+        if arguments["emission"]["rgb"]["reveal"] == json!(1.0) && arguments["part_ids"] == json!(["b"]))));
+    ui.application.cdmw_pending_request = None;
+    let actions = ui.actions_from_click("Restore glow")?;
+    assert!(actions.iter().any(|action| matches!(action, UiAction::CdmwCommand { command: "replacement_emission", arguments, .. }
+        if arguments == &json!({"part_ids": ["b"], "reset": true}))));
+    ui.application.cdmw_pending_request = None;
+    ui.click("None")?;
+    assert!(!has_host_command(&ui.actions_from_click("Apply glow")?, "replacement_emission"));
     assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), before);
     Ok(())
 }

@@ -9,6 +9,7 @@ mod cdmw_preview;
 mod cdmw_rig;
 mod cdmw_session;
 mod cdmw_ui;
+mod cdmw_emission;
 mod cdmw_vertex_inspector;
 mod control_contract;
 #[cfg(test)]
@@ -1880,6 +1881,8 @@ fn cdmw_material_preview_factors(
     MaterialPreviewFactors {
         emissive_color: presentation.emissive_color,
         emissive_intensity: presentation.emissive_intensity,
+        emission_animation: presentation.emission_animation,
+        emission_reveal: presentation.emission_reveal,
         roughness: presentation.roughness,
         metalness: presentation.metalness,
         specular: presentation.specular,
@@ -1942,6 +1945,8 @@ fn loaded_cdmw_material_factor(
         ),
         emissive_color: presentation.emissive_color,
         emissive_intensity: presentation.emissive_intensity,
+        emission_animation: presentation.emission_animation,
+        emission_reveal: presentation.emission_reveal,
         roughness: presentation.roughness,
         metalness: presentation.metalness,
         specular: presentation.specular,
@@ -2002,6 +2007,7 @@ struct LabApplication {
     embedded_parent_hwnd: Option<u64>,
     renderer: Option<WindowRenderer>,
     gpu_recovery: cdmw_render_wgpu::GpuRecovery,
+    material_redraw_deadline: Option<Instant>,
     egui_context: egui::Context,
     pending_egui_textures: egui::TexturesDelta,
     egui_state: Option<egui_winit::State>,
@@ -2170,6 +2176,7 @@ impl LabApplication {
             embedded_parent_hwnd: None,
             renderer: None,
             gpu_recovery: cdmw_render_wgpu::GpuRecovery::default(),
+            material_redraw_deadline: None,
             egui_context: egui::Context::default(),
             pending_egui_textures: egui::TexturesDelta::default(),
             egui_state: None,
@@ -3586,6 +3593,8 @@ impl LabApplication {
                     MaterialPreviewFactors {
                         emissive_color: factors.emissive_color,
                         emissive_intensity: factors.emissive_intensity,
+                        emission_animation: factors.emission_animation,
+                        emission_reveal: factors.emission_reveal,
                         roughness: factors.roughness,
                         metalness: factors.metalness,
                         specular: factors.specular,
@@ -6413,6 +6422,10 @@ impl LabApplication {
         let wire_colour = renderer_colour(self.overlay_wire_colour);
         let point_colour = renderer_colour(self.overlay_vertex_colour);
         let render_error = if let Some(renderer) = &mut self.renderer {
+            renderer.set_material_time(context.input(|input| input.time) as f32);
+            self.material_redraw_deadline = (renderer.has_material_animation()
+                && window.is_visible() != Some(false) && window.is_minimized() != Some(true))
+                .then(|| Instant::now() + std::time::Duration::from_millis(16));
             renderer.set_view_mode(view_mode);
             renderer.set_overlays(show_normals, show_bounds);
             renderer.set_overlay_colours(wire_colour, point_colour);
@@ -6443,6 +6456,7 @@ impl LabApplication {
             None
         };
         if let Some(error) = render_error {
+            self.material_redraw_deadline = None;
             error!("frame failed: {error}");
             if matches!(error, cdmw_render_wgpu::RenderError::GpuFault(_)) {
                 self.renderer = None;
@@ -6933,11 +6947,12 @@ impl ApplicationHandler for LabApplication {
                 Err(error) => self.renderer_failed(error),
             }
         }
-        event_loop.set_control_flow(
-            self.gpu_recovery
-                .deadline()
-                .map_or(ControlFlow::Wait, ControlFlow::WaitUntil),
-        );
+        if self.material_redraw_deadline.is_some_and(|deadline| deadline <= Instant::now()) {
+            self.material_redraw_deadline = None;
+            if let Some(window) = &self.window { window.request_redraw(); }
+        }
+        let deadline = self.gpu_recovery.deadline().into_iter().chain(self.material_redraw_deadline).min();
+        event_loop.set_control_flow(deadline.map_or(ControlFlow::Wait, ControlFlow::WaitUntil));
         if changed && let Some(window) = &self.window {
             window.request_redraw();
         }

@@ -10,9 +10,27 @@ it does not replace the active Mesh Editor session.
 The current product boundary is geometry authoring: selection, topology,
 transforms, normals/tangents, rigging, Morph & Refit, UV-coordinate editing,
 history, original-vs-edited review, validation, and read-only textured display.
-Replacement imports, reversible output inclusion and experimental translucency
-extend that foundation in the existing Parts panel. General material assignment, recolour/glow authoring,
+Replacement imports, reversible output inclusion, experimental translucency and glow
+extend that foundation in the existing Parts panel. General material assignment, recolouring and
 in-game swaps remain separate workflows. Hair Appearance has a scoped DDS handoff.
+
+### Glow on parts
+
+Select parts and expand **Glow (experimental)** for colour, strength, emission UV
+scrolling and pulsing. **Apply glow** stages an undoable edit; **Restore glow**
+returns to the captured source material. **Use RGB glow map** retains source RGB
+and alpha, with red-channel reveal, softness, inversion and a separate RGB strength.
+See [Create New Item's glow controls](../new_item/README.md) for the shared semantics
+and shader limitations. RGB glow needs a source glow map. Animated/RGB glow and
+translucency cannot share a part; unsupported shader switches report a reason.
+
+These edits work on original PAC parts and replacement parts with their captured
+material sidecar. Shared materials require matching settings on all their parts.
+The viewport reuses loaded textures; only material parameters change. Edits survive
+Undo/Redo, Finish, Build Mod and saved drafts (replacement draft version 11 when
+glow is present). Material-only output keeps PAC geometry bytes unchanged and
+patches only selected material wrappers plus a solid glow DDS if needed. Restore
+uses the original inputs rather than attempting to invert an already modified XML.
 
 ### Translucency on parts
 

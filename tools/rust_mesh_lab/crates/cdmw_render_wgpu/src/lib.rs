@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 mod gpu_lifecycle;
+mod glow_proof;
 use gpu_lifecycle::GpuFaults;
 pub use gpu_lifecycle::GpuRecovery;
 
@@ -29,7 +30,7 @@ struct CameraUniform {
     view_mode: u32,
     output_is_srgb: u32,
     lighting_preset: u32,
-    _padding_2: u32,
+    material_time: f32,
     wire_colour: vec4<f32>,
     point_colour: vec4<f32>,
     view_direction: vec4<f32>,
@@ -61,6 +62,8 @@ struct MaterialUniform {
     glow_surface_color: vec4<f32>,
     translucency_factors: vec4<f32>,
     translucency_surface: vec4<f32>,
+    emission_animation: vec4<f32>,
+    emission_reveal: vec4<f32>,
 };
 
 @group(0) @binding(0) var base_texture: texture_2d<f32>;
@@ -1115,17 +1118,40 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool) 
             * pow(1.0 - ndotv, 2.0)
             * category_feedback,
         is_glass);
-    var emissive = material.emissive_color_and_intensity.rgb
-        * material.emissive_color_and_intensity.a * select(2.2, 1.0, gltf_pbr);
+    var emission_colour = material.emissive_color_and_intensity.rgb;
+    var emission_strength = material.emissive_color_and_intensity.a;
     if (material.flags & MATERIAL_EMISSIVE) != 0u {
         let emissive_sample = textureSampleBias(
-            emissive_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS);
+            emissive_texture, material_sampler, sample_uv + camera.material_time * material.emission_animation.xy, MATERIAL_MIP_LOD_BIAS);
         let emissive_rgb = select(
             emissive_sample.rgb,
             emissive_sample.rrr,
             (material.flags & MATERIAL_EMISSIVE_INTENSITY_MASK) != 0u);
-        emissive *= emissive_rgb;
+        if (material.flags & MATERIAL_EMISSIVE_INTENSITY_MASK) != 0u {
+            emission_strength *= emissive_sample.r;
+        } else {
+            emission_colour *= emissive_rgb;
+        }
+        if material.emission_reveal.w >= 0.0 {
+            // RGB uses an sRGB view; the reveal mask reads the same file as linear data in game.
+            let red = select(linear_to_srgb_scalar(emissive_sample.r), emissive_sample.r,
+                (material.flags & MATERIAL_EMISSIVE_INTENSITY_MASK) != 0u);
+            let mask = select(red, 1.0 - red, material.emission_reveal.z > 0.5);
+            let progress = material.emission_reveal.x;
+            let x = clamp((progress - 1.0 + mask) / material.emission_reveal.y, 0.0, 1.0);
+            var reveal = x * x * (3.0 - 2.0 * x);
+            if progress <= 0.0 { reveal = 0.0; }
+            if progress >= 1.0 { reveal = 1.0; }
+            emission_colour = material.emissive_color_and_intensity.rgb * emissive_rgb;
+            emission_strength = emissive_sample.a * material.emission_reveal.w * reveal;
+        }
     }
+    if material.emission_animation.z > 0.0 {
+        // The shipped shader floors scalar intensity, preserving the glow's hue.
+        let floor = min(emission_strength, material.emission_animation.w);
+        emission_strength = floor + (emission_strength - floor) * (0.5 + 0.5 * sin(3.14159265359 * material.emission_animation.z * camera.material_time));
+    }
+    let emissive = emission_colour * emission_strength * select(2.2, 1.0, gltf_pbr);
     let showcase_warmth = select(vec3<f32>(1.0), vec3<f32>(1.08, 0.99, 0.90), showcase);
     let exposure = select(select(0.90, 1.0, showcase), 1.06, game_outdoor);
     if material.translucency_factors.z > 0.5 {
@@ -1296,7 +1322,7 @@ struct CameraUniform {
     view_mode: u32,
     output_is_srgb: u32,
     lighting_preset: u32,
-    _padding: u32,
+    material_time: f32,
     wire_colour: [f32; 4],
     point_colour: [f32; 4],
     view_direction: [f32; 4],
@@ -1320,6 +1346,8 @@ struct MaterialUniform {
     glow_surface_color: [f32; 4],
     translucency_factors: [f32; 4],
     translucency_surface: [f32; 4],
+    emission_animation: [f32; 4],
+    emission_reveal: [f32; 4],
 }
 
 const MATERIAL_BASE_COLOR: u32 = 1;
@@ -1358,7 +1386,7 @@ impl CameraUniform {
             view_mode: 0,
             output_is_srgb: u32::from(output_is_srgb),
             lighting_preset: 0,
-            _padding: 0,
+            material_time: 0.0,
             wire_colour: srgb_rgba_to_linear([0.72, 0.78, 0.88, 1.0]),
             point_colour: srgb_rgba_to_linear([0.92, 0.94, 1.0, 1.0]),
             view_direction: [0.0, 0.0, -1.0, 0.0],
@@ -1538,6 +1566,8 @@ pub struct MeshUploadStats {
 pub struct MaterialPreviewFactors {
     pub emissive_color: Option<[f32; 3]>,
     pub emissive_intensity: Option<f32>,
+    pub emission_animation: Option<[f32; 4]>,
+    pub emission_reveal: Option<[f32; 4]>,
     pub roughness: Option<f32>,
     pub metalness: Option<f32>,
     pub specular: Option<f32>,
@@ -2642,6 +2672,18 @@ pub struct WindowRenderer {
 }
 
 impl WindowRenderer {
+    pub fn has_material_animation(&self) -> bool {
+        self.material_factors.iter().any(|owned| owned.factors.emission_animation
+            .is_some_and(|values| values[..3].iter().any(|v| *v > 0.0)))
+    }
+
+    pub fn set_material_time(&mut self, time: f32) {
+        if time.is_finite() {
+            self.camera_uniform.material_time = time;
+            self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&self.camera_uniform));
+        }
+    }
+
     pub fn texture_upload_count(&self) -> u64 {
         self.texture_uploads
     }
@@ -4025,6 +4067,8 @@ fn validate_material_factor_ownership(
     }
     if factors.emissive_color.is_none()
         && factors.emissive_intensity.is_none()
+        && factors.emission_animation.is_none()
+        && factors.emission_reveal.is_none()
         && factors.roughness.is_none()
         && factors.metalness.is_none()
         && factors.specular.is_none()
@@ -4081,6 +4125,18 @@ fn validate_material_factor_ownership(
         return Err(RenderError::Texture(
             "material factors contain a non-finite or out-of-range value".to_owned(),
         ));
+    }
+    if factors.emission_reveal.is_some_and(|v| {
+        v.into_iter().any(|v| !v.is_finite()) || !(0.0..=1.0).contains(&v[0])
+            || !(0.001..=1.0).contains(&v[1]) || !(v[2] == 0.0 || v[2] == 1.0)
+            || !(v[3] == -1.0 || (0.0..=1.0).contains(&v[3]))
+    }) {
+        return Err(RenderError::Texture("invalid RGB glow reveal factors".to_owned()));
+    }
+    if factors.emission_animation.is_some_and(|values| {
+        values.into_iter().zip([10.0, 10.0, 10.0, 1.0]).any(|(v, max)| !v.is_finite() || !(0.0..=max).contains(&v))
+    }) {
+        return Err(RenderError::Texture("invalid emission animation factors".to_owned()));
     }
     if factors.translucency.is_some_and(|values| {
         values.into_iter().any(|value| !value.is_finite() || !(0.0..=1.0).contains(&value))
@@ -5050,6 +5106,14 @@ async fn run_headless_render_smoke_internal(
     // Pipeline construction alone missed particles disappearing on D3D12.
     // Assert actual pixels through the production bindings and vertex layout.
     effect_particle_proof::verify(&device, &queue)?;
+    glow_proof::verify(&device, &queue, format, &pipelines, &camera_bind_group,
+        &mut camera_uniform, &camera_buffer, &default_material_binding.bind_group, |bytes, factors| {
+            let uploaded = upload_dds_texture(&device, &queue, bytes, TextureRole::Emissive)?;
+            let textures = [GpuMaterialTexture { texture: uploaded.texture, view_format: uploaded.view_format,
+                role: TextureRole::Emissive, single_channel: uploaded.single_channel, material_indices_by_lod: vec![vec![0]] }];
+            Ok(create_material_bind_group(&device, &texture_layout, &material_sampler, &default_material_textures,
+                &textures, MaterialTextureIndices { emissive: Some(0), ..Default::default() }, factors))
+        })?;
     material_transparency::verify(
         &device,
         &queue,
@@ -7957,6 +8021,12 @@ pub fn preview_material_factors(
         if changes.emissive_color.is_some() {
             target.emissive_color = changes.emissive_color;
         }
+        if changes.emission_reveal.is_some() {
+            target.emission_reveal = changes.emission_reveal;
+        }
+        if changes.emission_animation.is_some() {
+            target.emission_animation = changes.emission_animation;
+        }
         if changes.emissive_intensity.is_some() {
             target.emissive_intensity = changes.emissive_intensity;
         }
@@ -8089,6 +8159,18 @@ fn resolve_material_factors<'a>(
                     )));
                 }
                 resolved.glow_surface_color = Some(color);
+            }
+            if let Some(reveal) = factors.emission_reveal {
+                if resolved.emission_reveal.is_some_and(|existing| existing != reveal) {
+                    return Err(RenderError::Texture(format!("material {material} has conflicting RGB glow reveal")));
+                }
+                resolved.emission_reveal = Some(reveal);
+            }
+            if let Some(animation) = factors.emission_animation {
+                if resolved.emission_animation.is_some_and(|existing| existing != animation) {
+                    return Err(RenderError::Texture(format!("material {material} has conflicting emission animations")));
+                }
+                resolved.emission_animation = Some(animation);
             }
             if let Some(intensity) = factors.emissive_intensity {
                 if resolved
@@ -8977,6 +9059,8 @@ fn create_material_bind_group(
         flags |= MATERIAL_TEXTURE_TINT;
     }
     let uniform = MaterialUniform {
+        emission_animation: factors.emission_animation.unwrap_or([0.0; 4]),
+        emission_reveal: factors.emission_reveal.unwrap_or([0.0, 1.0, 0.0, -1.0]),
         flags,
         glow_surface_color: factors.glow_surface_color.map_or([0.0; 4], |c| [c[0], c[1], c[2], 1.0]),
         skin_detail_scale: factors.skin_detail_scale.unwrap_or(1.0),
@@ -9981,7 +10065,7 @@ mod tests {
 
     #[test]
     fn material_uniform_and_vertex_match_the_wgsl_layout_contracts() {
-        assert_eq!(std::mem::size_of::<MaterialUniform>(), 128);
+        assert_eq!(std::mem::size_of::<MaterialUniform>(), 160);
         assert_eq!(std::mem::size_of::<GpuVertex>(), 68);
         assert_eq!(GpuVertex::ATTRIBUTES[5].shader_location, 5);
         assert_eq!(GpuVertex::ATTRIBUTES[5].format, wgpu::VertexFormat::Uint32);
@@ -10281,7 +10365,7 @@ mod tests {
 
     #[test]
     fn skin_detail_uses_authored_scale_mask_channel_and_support_maps() {
-        assert_eq!(std::mem::size_of::<MaterialUniform>(), 128);
+        assert_eq!(std::mem::size_of::<MaterialUniform>(), 160);
         assert_eq!(MATERIAL_SKIN_DETAIL_MASK, 524_288);
         assert_eq!(MATERIAL_SKIN_DETAIL_NORMAL, 1_048_576);
         assert_eq!(MATERIAL_SKIN_DETAIL_MATERIAL, 2_097_152);

@@ -143,6 +143,7 @@ class Placement:
 
 from cdmw.domain.new_item.effect_authoring import EffectLook, EffectLayer
 from cdmw.domain.new_item.translucency import TranslucencyChoice
+from cdmw.domain.mesh.emission import GlowAnimation, RgbGlow
 
 
 @dataclass(frozen=True, slots=True)
@@ -151,8 +152,8 @@ class GlowChoice:
 
     `parts` are material submesh names as the `.pac_xml` writes them
     (`cd_phm_02_sword_handle_0040`), because that is what a material wrapper is keyed by.
-    The game's emissive is one intensity map times one colour times one number, so a part
-    that glows takes a solid map and these two values.
+    Source emission maps are retained. Animation changes only the emission UVs and
+    brightness, using the equipment emissive shader's material-local controls.
     """
 
     parts: Tuple[str, ...] = ()
@@ -160,6 +161,8 @@ class GlowChoice:
     color: Tuple[float, float, float] = (1.0, 1.0, 1.0)
     #: the shipped materials run 1 to 10 and the game's own authority caps at 20
     intensity: float = 4.0
+    animation: GlowAnimation = GlowAnimation()
+    rgb: RgbGlow | None = None
 
     @property
     def wanted(self) -> bool:

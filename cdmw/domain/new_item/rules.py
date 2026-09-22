@@ -178,6 +178,17 @@ def validate_spec(spec: NewItemSpec) -> Tuple[ValidationIssue, ...]:
 
     issues: list[ValidationIssue] = []
     name = str(spec.internal_name or "")
+    if spec.glow is not None:
+        from cdmw.domain.mesh.emission import EmissionChoice
+        try:
+            EmissionChoice(spec.glow.color, spec.glow.intensity, spec.glow.animation, spec.glow.rgb).validate()
+            if spec.glow.animation.active or spec.glow.rgb is not None:
+                if spec.model_source is ModelSource.IMPORTED and spec.material_route is not MaterialRoute.PLAIN_PBR:
+                    raise ValueError("Animated glow requires Plain PBR materials for imported models.")
+                if spec.translucency is not None and set(map(str.casefold, spec.glow.parts)) & set(map(str.casefold, spec.translucency.parts)):
+                    raise ValueError("Animated glow cannot share a part with translucency.")
+        except ValueError as exc:
+            issues.append(_issue("glow.invalid", "glow", str(exc)))
     if spec.translucency is not None:
         try:
             spec.translucency.validate()

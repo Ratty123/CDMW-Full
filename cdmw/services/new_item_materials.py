@@ -465,6 +465,34 @@ def encode_emissive_solid(*, on_log: Optional[Callable[[str], None]] = None) -> 
         return produced.read_bytes()
 
 
+def encode_rgb_emissive(path, *, on_log=None, stop_event=None):
+    """Retain authored DDS bytes; encode other RGB/alpha inputs without greyscaling."""
+    from cdmw.core.common import raise_if_cancelled
+    from cdmw.core.texture_native import encode_dds_with_directxtex
+    from cdmw.domain.textures.output import max_mips_for_size
+    from PIL import Image
+
+    raise_if_cancelled(stop_event)
+    path = Path(path)
+    if path.suffix.casefold() == ".dds":
+        from cdmw.core.dds_native import inspect_dds_native_path
+        info = inspect_dds_native_path(path)
+        if not info.mip_levels:
+            raise NewItemPlanError(f"Invalid RGB glow DDS: {path.name}: {info.reason}")
+        return path.read_bytes()
+    with Image.open(path) as image:
+        rgba = image.convert("RGBA")
+    with tempfile.TemporaryDirectory(prefix="cdmw_rgb_glow_") as temp:
+        source, output = Path(temp) / "glow.png", Path(temp) / "glow.dds"
+        rgba.save(source)
+        report = encode_dds_with_directxtex(source, output, dds_format="BC7_UNORM",
+            width=rgba.width, height=rgba.height, mip_count=max_mips_for_size(*rgba.size), on_log=on_log)
+        raise_if_cancelled(stop_event)
+        if not report or not output.is_file():
+            raise NewItemPlanError(f"The DDS encoder produced no RGB glow map for {path.name}.")
+        return output.read_bytes()
+
+
 def appearance_preview_part_names(part: object) -> tuple[str, ...]:
     """Native template edits target a wrapper, even when its material is shared."""
     wrapper = str(getattr(part, "cdmw_native_source_submesh_name", "") or "")
@@ -525,6 +553,11 @@ def glow_preview_parameter_groups(mesh: object, glow: object = None) -> Tuple[Di
         # Imported parts also replace the underlying hue, preserving value/alpha.
         values["glow_surface_color"] = list(color) if wants_glow and not getattr(
             submesh, "cdmw_native_source_submesh_name", "") else None
+        values["emission_animation"] = list(glow.animation.factors()) if wants_glow else None
+        rgb = getattr(glow, "rgb", None) if wants_glow else None
+        values["emission_reveal"] = list(rgb.factors()) if rgb is not None else ([0.0, 1.0, 0.0, -1.0] if wants_glow else None)
+        if rgb is not None:
+            values["glow_surface_color"] = None
         key = tuple((name, repr(value)) for name, value in sorted(values.items()))
         if key not in buckets:
             buckets[key] = (values, [])
@@ -547,7 +580,7 @@ def glow_preview_mesh(mesh: object, glow: object = None) -> object:
     if glow is None or not tuple(getattr(glow, "parts", ()) or ()):
         return mesh
     updates: Dict[int, Dict[str, object]] = {}
-    parameter_names = ("emissive_intensity", "emissive_color", "emissive_color_authoritative", "glow_surface_color")
+    parameter_names = ("emissive_intensity", "emissive_color", "emissive_color_authoritative", "glow_surface_color", "emission_animation", "emission_reveal")
     for group in glow_preview_parameter_groups(mesh, glow):
         values = {name: group.get(name) for name in parameter_names}
         for index in group["source_submesh_indices"]:
@@ -670,12 +703,18 @@ def route_plain_pbr(
     sources = dict(sources or {})
     from cdmw.services.new_item_translucency import encode_translucent_base, selected_translucency, source_translucency
     from cdmw.services.new_item_glow_surface import encode_glow_surface, glow_surface_regions
+    from cdmw.domain.mesh.emission import GlowAnimation
 
     if translucency is not None:
         translucency.validate()
     translucent_matches: set[str] = set()
     surface_settings = {}
     absorption_settings = {}
+    animation_settings = {}
+    rgb_settings = {}
+    rgb = getattr(glow, "rgb", None)
+    animation = getattr(glow, "animation", GlowAnimation())
+    animation.validate()
     glow_parts = {str(name).casefold() for name in tuple(getattr(glow, "parts", ()) or ())}
     glow_color = str(getattr(glow, "hex_color", lambda: "#FFFFFFFF")() or "#FFFFFFFF")
     glow_intensity = float(getattr(glow, "intensity", 1.0))
@@ -707,6 +746,12 @@ def route_plain_pbr(
             surface_settings[wrapper.submesh_name] = translucency.surface_for(*matches)
             absorption_settings[wrapper.submesh_name] = absorption
         is_atlas = source is not None and source.atlas_section is not None
+        if is_atlas and (animation.active or rgb is not None) and glow_parts & {
+            wrapper.submesh_name.casefold(), source.name.casefold(),
+            str(source.atlas_section.target_submesh_name).casefold(),
+            *(part.name.casefold() for part in source.atlas_sources),
+        }:
+            raise NewItemPlanError(f"{source.name}: animated/RGB glow requires a separate material part; split this atlas before applying it.")
         if source is not None and not is_atlas and source.normal is None:
             normal = ""
         source_name = source.name if source is not None else wrapper.submesh_name
@@ -781,6 +826,12 @@ def route_plain_pbr(
         wants_glow = wrapper.submesh_name.casefold() in glow_parts or (
             source is not None and str(source.name or "").casefold() in glow_parts
         )
+        if wants_glow and (animation.active or rgb is not None):
+            animation_settings[wrapper.submesh_name] = animation
+        if wants_glow and rgb is not None:
+            if source is None or source.emissive is None:
+                raise NewItemPlanError(f"{source_name}: RGB glow needs a source glow texture.")
+            rgb_settings[wrapper.submesh_name] = (rgb, glow_color)
         factor_glow = (
             source is not None and source.emissive is None
             and bool(source.emissive_color) and source.emissive_color[:7] != "#000000" and source.emissive_intensity > 0.0
@@ -836,11 +887,15 @@ def route_plain_pbr(
             emissive, color, intensity = "", "#FFFFFFFF", 1.0
         elif source is not None and source.emissive is not None:
             emissive = _emi_path_for(base, source_name)
+            if wants_glow and rgb is not None:
+                emissive = emissive.removesuffix(".dds") + "_rgb.dds"
             key = emissive.replace("\\", "/").casefold()
             if key not in emissive_done:
                 if on_log:
-                    on_log(f"Encoding {source.emissive.name} -> {emissive.rsplit('/', 1)[-1]} (BC4 intensity, colour from the source)")
-                data, color = _encode_source_emissive(source, encode_emissive)
+                    format_note = "RGB and alpha retained" if wants_glow and rgb is not None else "BC4 intensity, colour from the source"
+                    on_log(f"Encoding {source.emissive.name} -> {emissive.rsplit('/', 1)[-1]} ({format_note})")
+                data, color = ((encode_rgb_emissive(source.emissive, on_log=on_log, stop_event=stop_event), glow_color)
+                               if wants_glow and rgb is not None else _encode_source_emissive(source, encode_emissive))
                 new_files[emissive] = data
                 encoded.append(emissive)
                 emissive_done[key] = (emissive, color)
@@ -850,7 +905,7 @@ def route_plain_pbr(
                 # the source glows and the reader also said how: the map is the source's,
                 # the colour and the strength are theirs
                 color, intensity = glow_color, glow_intensity
-        regions = glow_surface_regions(source, wrapper.submesh_name, glow_parts)
+        regions = () if wants_glow and rgb is not None else glow_surface_regions(source, wrapper.submesh_name, glow_parts)
         if regions:
             payload = new_files.get(base)
             if payload is None:
@@ -895,6 +950,16 @@ def route_plain_pbr(
         warnings=warnings,
         encoded=encoded,
     )
+    if animation_settings:
+        from cdmw.core.pac_xml_emission import rewrite_emission_animation
+        side = dict(result.files.side_files)
+        side[xml_key] = rewrite_emission_animation(side[xml_key].decode("utf-8-sig"), animation_settings).encode("utf-8")
+        result = replace(result, files=replace(result.files, side_files=side))
+    if rgb_settings:
+        from cdmw.core.pac_xml_emission import rewrite_rgb_emission
+        side = dict(result.files.side_files)
+        side[xml_key] = rewrite_rgb_emission(side[xml_key].decode("utf-8-sig"), rgb_settings).encode("utf-8")
+        result = replace(result, files=replace(result.files, side_files=side))
     if surface_settings:
         from cdmw.services.translucency_surface import apply_translucency_surface
 
@@ -933,6 +998,8 @@ def route_model_files(
                                on_log=on_log, stop_event=stop_event).files
     if translucency is not None:
         raise NewItemPlanError("Enable Plain PBR materials to export translucency.")
+    if getattr(getattr(glow, "animation", None), "active", False) or getattr(glow, "rgb", None) is not None:
+        raise NewItemPlanError("Enable Plain PBR materials to export animated or RGB glow.")
     return ModelFiles(
         pac_data=files.pac_data, side_files=files.side_files, material_route=MaterialRoute.BUILDER.value,
         notes=(*files.notes, "the Builder's material sidecar as it came (Material Authority)"), warnings=files.warnings,

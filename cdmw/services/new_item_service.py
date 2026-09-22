@@ -15,6 +15,8 @@ import os
 import shutil
 import tempfile
 import threading
+from cdmw.domain.mesh.emission import GlowAnimation
+
 from dataclasses import dataclass, field, replace
 from pathlib import Path, PurePosixPath
 from typing import Callable, Iterable, Mapping, Optional, Sequence, Tuple
@@ -264,7 +266,9 @@ class NewItemService:
             appearance = VariantAppearance(part.prefab_path,path,custom_model=True,
                 material_route=spec.material_route.value,keep_template_physics=spec.keep_template_physics,
                 glow_parts=glow.parts if glow else (),glow_color=glow.color if glow else (1.0,1.0,1.0),
-                glow_intensity=glow.intensity if glow else 4.0,translucency=spec.translucency)
+                glow_intensity=glow.intensity if glow else 4.0,
+                glow_animation=glow.animation if glow else GlowAnimation(),glow_rgb=glow.rgb if glow else None,
+                translucency=spec.translucency)
             spec = replace(spec,variants=(appearance,))
         if snapshot.provenance:
             snapshot.provenance.capture().validate(stop_event)

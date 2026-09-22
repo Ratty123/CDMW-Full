@@ -7,6 +7,8 @@ template's own ladder, so only what the reader changed becomes an edit.
 
 from __future__ import annotations
 
+from cdmw.domain.mesh.emission import GlowAnimation, RgbGlow
+
 from dataclasses import dataclass, field, replace
 from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 from cdmw.domain.new_item.authoring import (
@@ -187,6 +189,8 @@ class NewItemDraft:
     glow_parts: Tuple[str, ...] = ()
     glow_color: Tuple[float, float, float] = (1.0, 1.0, 1.0)
     glow_intensity: float = 4.0
+    glow_animation: GlowAnimation = GlowAnimation()
+    glow_rgb: RgbGlow | None = None
     icon: IconSource = IconSource.TEMPLATE
     icon_source_path: str = ""
     #: level -> column index -> value; None means "as the template".
@@ -388,6 +392,7 @@ def glow_choice(draft: NewItemDraft) -> Optional[GlowChoice]:
         return None
     return GlowChoice(
         parts=tuple(draft.glow_parts), color=tuple(draft.glow_color), intensity=float(draft.glow_intensity),
+        animation=draft.glow_animation, rgb=draft.glow_rgb,
     )
 
 

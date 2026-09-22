@@ -14,6 +14,8 @@ def build_translucency_files(state, original, companion_files, *, stop_event=Non
         name = (source.material or source.name).casefold()
         value = translucency_values(part.translucency) if part.translucency is not None else None
         surface = translucency_surface_values(part.translucency_surface)
+        if value is not None and part.emission is not None and (part.emission.animation.active or part.emission.rgb is not None):
+            raise ValueError("Animated glow cannot share a part with translucency.")
         if surface is not None and value is None:
             raise ValueError("Surface overrides require translucency on the same part.")
         if name in settings and (settings[name] != value or surfaces[name] != surface):

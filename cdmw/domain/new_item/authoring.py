@@ -1,4 +1,6 @@
 """Typed optional authoring choices. None inherits; an empty tuple clears."""
+from cdmw.domain.mesh.emission import GlowAnimation, RgbGlow
+
 from dataclasses import dataclass
 from cdmw.domain.new_item.translucency import TranslucencyChoice
 
@@ -84,13 +86,15 @@ class VariantAppearance:
     glow_parts: tuple[str, ...] = ()
     glow_color: tuple[float, float, float] = (1.0, 1.0, 1.0)
     glow_intensity: float = 4.0
+    glow_animation: GlowAnimation = GlowAnimation()
+    glow_rgb: RgbGlow | None = None
 
     translucency: "TranslucencyChoice | None" = None
     template_transform: tuple[float, ...] = ()
 
     def glow_choice(self):
         from cdmw.domain.new_item.spec import GlowChoice
-        return GlowChoice(self.glow_parts, self.glow_color, self.glow_intensity) if self.glow_parts else None
+        return GlowChoice(self.glow_parts, self.glow_color, self.glow_intensity, self.glow_animation, self.glow_rgb) if self.glow_parts else None
 
     @property
     def identity(self):

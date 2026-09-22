@@ -260,7 +260,11 @@ def rewrite_emission(text: str, settings: Mapping[str, Tuple[str, str, float]]) 
             continue
         found.add(name)
         texture, color, strength = settings[name]
-        material = PlainMaterial(base=wrapper.textures.get("_baseColorTexture", ""),
+        from cdmw.core.pac_xml_emission import validate_emission_shader, append_emission_parameter
+        validate_emission_shader(wrapper)
+        # Only the three emission parameter rows below are copied from this helper
+        # block. Layered source shaders need not declare a plain base texture.
+        material = PlainMaterial(base="emission-parameter-template",
                                  emissive_texture=texture, emissive_color=color, emissive_intensity=strength)
         generated = plain_material_xml(material)
         block = text[wrapper.start:wrapper.end]
@@ -275,10 +279,7 @@ def rewrite_emission(text: str, settings: Mapping[str, Tuple[str, str, float]]) 
             row = re.search(pattern, generated, flags=re.S).group(0)
             used = [int(index) for index in re.findall(r'\bIndex="(\d+)"', block)]
             row = re.sub(r'\bIndex="\d+"', f'Index="{max(used, default=-1) + 1}"', row, count=1)
-            position = block.rfind("</Vector>")
-            if position < 0:
-                raise PacXmlMaterialError("The material has no editable parameter vector.")
-            block = block[:position] + row + _newline_of(block) + block[position:]
+            block = append_emission_parameter(block, row)
         edits.append((wrapper.start, wrapper.end, block))
     if settings.keys() - found:
         raise PacXmlMaterialError("Glow material bindings were not found: " + ", ".join(sorted(settings.keys() - found)))

@@ -25,6 +25,12 @@ def test_combined_template_retains_browse_archives_material_graph(tmp_path, monk
                diffuse_source="detail.dds", mask_source="mask.dds", tint=(0.2, 0.3, 0.4, 1.0)),
     ]
     _write_preview_core_package(native, layers=layers)
+    # New Item selects PAC wrapper names, carried by Preview Core's slot table.
+    # The generic material-oracle fixture contains batches only.
+    manifest_path = native / "manifest.json"
+    source_manifest = json.loads(manifest_path.read_text())
+    source_manifest["material_slots"] = [{"batch_index": 0, "submesh_name": "TemplatePart"}]
+    manifest_path.write_text(json.dumps(source_manifest))
     archive = build_rust_preview_package_from_preview_core(native, output_root=tmp_path / "archive")
     template = decode_dotnet_native_preview_package(native)
     from cdmw.services.effect_placement_preview import mesh_names_textures
@@ -39,7 +45,7 @@ def test_combined_template_retains_browse_archives_material_graph(tmp_path, monk
         from cdmw.services.new_item_materials import glow_preview_mesh
         from cdmw.services.new_item_translucency import translucency_preview_mesh
 
-        parts = (template.submeshes[0].material,)
+        parts = (template.submeshes[0].cdmw_native_source_submesh_name,)
         template = glow_preview_mesh(template, GlowChoice(parts, (0.0, 0.0, 1.0), 6.0))
         template = translucency_preview_mesh(template, TranslucencyChoice(parts, 0.1, 0.3,
             surface_settings=((parts[0], 0.9, 0.0),)))
@@ -86,6 +92,11 @@ def test_combined_template_retains_browse_archives_material_graph(tmp_path, monk
         assert presentation["emissive_color"] == [0.0, 0.0, 1.0]
         assert presentation["translucency"] == [0.1, 0.3]
         assert presentation["translucency_surface"] == [0.9, 0.0]
+        assert presentation["glow_surface_color"] is None
+        assert presentation["emission_animation"] == [0.0, 0.0, 0.0, 0.0]
+        assert presentation["emission_reveal"] == [0.0, 1.0, 0.0, -1.0]
+        expected["emission_animation"] = [0.0, 0.0, 0.0, 0.0]
+        expected["emission_reveal"] = [0.0, 1.0, 0.0, -1.0]
         for field in ("emissive_intensity", "emissive_color", "translucency", "translucency_surface"):
             expected[field] = presentation[field]
     for row in (presentation, expected):

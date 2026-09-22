@@ -190,6 +190,8 @@ pub struct SessionMaterialPresentation {
     pub specular: Option<f32>,
     pub emissive_color: Option<[f32; 3]>,
     pub emissive_intensity: Option<f32>,
+    pub emission_animation: Option<[f32; 4]>,
+    pub emission_reveal: Option<[f32; 4]>,
     pub height_scale: Option<f32>,
     pub texture_tint: Option<[f32; 3]>,
     pub base_tint_strength: Option<f32>,
@@ -2045,6 +2047,18 @@ fn validate_material_presentations(
         validate_optional_factor(row.metalness, 0.0, 1.0, "metalness")?;
         validate_optional_factor(row.specular, 0.0, 1.0, "specular")?;
         validate_optional_factor(row.emissive_intensity, 0.0, 32.0, "emissive intensity")?;
+        if let Some(v) = row.emission_reveal {
+            validate_optional_factor(Some(v[0]), 0.0, 1.0, "RGB glow reveal")?;
+            validate_optional_factor(Some(v[1]), 0.001, 1.0, "RGB glow softness")?;
+            if !(v[2] == 0.0 || v[2] == 1.0) || !(v[3] == -1.0 || (0.0..=1.0).contains(&v[3])) {
+                return Err(SessionError::InvalidManifest("Invalid RGB glow reveal".to_owned()));
+            }
+        }
+        if let Some(values) = row.emission_animation {
+            for (value, max) in values.into_iter().zip([10.0, 10.0, 10.0, 1.0]) {
+                validate_optional_factor(Some(value), 0.0, max, "emission animation")?;
+            }
+        }
         validate_optional_factor(row.height_scale, 0.0, 1.0, "height scale")?;
         validate_optional_factor(row.base_tint_strength, 0.0, 1.0, "base tint strength")?;
         if let Some(color) = row.glow_surface_color {
@@ -3331,6 +3345,7 @@ mod tests {
             specular: Some(0.73),
             emissive_color: Some([0.1, 0.2, 0.3]),
             emissive_intensity: Some(2.5),
+            emission_animation: None, emission_reveal: None,
             height_scale: Some(0.08),
             texture_tint: Some([0.73, 0.44, 0.24]),
             base_tint_strength: Some(0.85),

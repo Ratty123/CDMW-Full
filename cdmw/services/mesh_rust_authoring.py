@@ -5789,6 +5789,12 @@ def _append_rust_material_presentation(rows, source, fallback_index, submeshes, 
     if "translucency" not in factor_parameters:
         from cdmw.domain.mesh.translucency import authored_translucency
         factor_parameters = {**factor_parameters, "translucency": authored_translucency(submeshes[material_index])}
+    if factor_parameters.get("emission_animation") is None:
+        from cdmw.domain.mesh.emission import authored_glow_animation
+        factor_parameters = {**factor_parameters, "emission_animation": authored_glow_animation(submeshes[material_index])}
+    if factor_parameters.get("emission_reveal") is None:
+        from cdmw.domain.mesh.emission import authored_rgb_glow_factors
+        factor_parameters = {**factor_parameters, **authored_rgb_glow_factors(submeshes[material_index])}
     skin_detail_scale, skin_detail_opacity = _rust_skin_detail_factors(
         submeshes[material_index]
     )
@@ -5839,6 +5845,8 @@ def _append_rust_material_presentation(rows, source, fallback_index, submeshes, 
             "gltf_metallic_roughness": factor_parameters.get("gltf_metallic_roughness") is True,
             "translucency": factor_parameters.get("translucency"),
             "translucency_surface": factor_parameters.get("translucency_surface"),
+            "emission_animation": factor_parameters.get("emission_animation"),
+            "emission_reveal": factor_parameters.get("emission_reveal"),
             "opacity": _rust_material_optional_scalar(
                 factor_parameters,
                 "opacity",
@@ -7987,6 +7995,8 @@ class RustMeshAuthoringSession:
         state["replacement"] = replacement_ui_state(self)
         from cdmw.services.mesh_translucency import translucency_ui_state
         state["translucency"] = translucency_ui_state(self, state["replacement"])
+        from cdmw.services.mesh_emission import emission_ui_state
+        state["emission"] = emission_ui_state(self, state["replacement"])
         from cdmw.services.mesh_rust_cloth import cloth_ui_state
         state["cloth"] = cloth_ui_state(self, state["replacement"])
         from cdmw.services.mesh_rust_cloth_guides import guide_authoring_ui_state

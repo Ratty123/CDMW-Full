@@ -201,8 +201,8 @@ restores its authored colours in preview and when rebuilding the plan. This does
 remove lighting, metallic reflections or the experimental glass approximation.
 Source glow strength takes precedence over the template, faint emission keeps
 its colour, and an unavailable declared emissive texture blocks export.
-The game's single emissive colour and intensity map
-cannot represent every multicoloured emissive image exactly.
+The default single-colour glow route reduces multicoloured emission to an
+intensity map and tint. **Use RGB glow map**, described below, keeps the source RGB.
 Blend and mask textures retain opacity precision in alpha-capable DDS output.
 For imported Plain PBR parts using translucency, Build plan encodes base colour
 directly from the source images as BC7 with full mipmaps. This reduces colour
@@ -234,6 +234,33 @@ Glow retains an existing emission mask or supplies a solid mask for the selected
 the layered shader uses its emissive variant. Discard clears the imported appearance
 and placement, and changing the preview source clears live material overrides before
 the template is loaded.
+
+**Glow > Animation (experimental)** adds **Scroll U**, **Scroll V**, **Pulse speed**
+and **Pulse floor** to templates and separate imported Plain PBR material parts.
+Zero speed is static. Scrolling changes only emission UVs, so it needs a patterned
+glow map to be visible. Pulse speed is the shader's raw frequency, not calibrated Hz;
+the preview uses `0.5 + 0.5 * sin(pi * speed * time)`. The floor is capped by each
+pixel's emission before pulsing, so unlit pixels stay dark.
+
+**Use RGB glow map** uses the existing source emission texture. RGB supplies colour,
+alpha masks intensity, and its red channel acts as the reveal mask. **RGB strength**
+uses the shader's 0..1 progress intensity instead of the ordinary Strength field;
+the Colour button supplies a tint. **Reveal** 0 is off and 1 shows all glow.
+**Reveal softness** and **Invert reveal mask** control the transition. Softness has
+a 0.001 minimum to avoid undefined division in the game shader. This route preserves
+authored DDS bytes and encodes other source images as BC7 with alpha and mipmaps.
+It leaves the base surface hue unchanged. A part without a source glow texture
+reports an error; split atlased materials before animating their emission.
+
+Both options follow the selected variant, Model & Placement, Perks & Effects and
+Build plan. The export uses the matching `SkinnedMeshEmissive` variant and retains
+other material inputs. Shader combinations that would drop wrinkle inputs, and
+animated/RGB glow on the same part as translucency, are rejected. Switching to
+ordinary static glow explicitly disables a donor's pulse, scroll and RGB progress;
+unticking the part restores its authored material. Viewport timing and brightness
+are approximations of decoded shader behavior; this feature has synthetic GPU and
+export tests, not game calibration. Mesh Editor has the same controls in Parts.
+
 The Appearance page offers **Translucency (experimental)** for both template and imported models.
 Enable it and tick the material parts to change. Highlight a checked part to edit
 its own settings without changing the other checked parts. **Absorption preset**

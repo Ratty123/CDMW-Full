@@ -76,6 +76,17 @@ def validate_authoring(spec):
         if (len(variant.glow_color) != 3 or any(not 0 <= value <= 1 for value in variant.glow_color)
                 or not 0 <= variant.glow_intensity <= 20):
             issues.append(_issue("variant.glow", "variants", "Variant glow needs three color components and a supported intensity."))
+        try:
+            variant.glow_animation.validate()
+            if variant.glow_rgb is not None:
+                variant.glow_rgb.validate()
+            if variant.glow_parts and (variant.glow_animation.active or variant.glow_rgb is not None):
+                if variant.custom_model and variant.material_route != "plain_pbr":
+                    raise ValueError("Animated glow requires Plain PBR materials for imported models.")
+                if variant.translucency is not None and set(map(str.casefold, variant.glow_parts)) & set(map(str.casefold, variant.translucency.parts)):
+                    raise ValueError("Animated glow cannot share a part with translucency.")
+        except ValueError as exc:
+            issues.append(_issue("variant.glow", "variants", str(exc)))
         if variant.dyes is not None and any(len(value.slots) != 3 or any(not -1 <= slot <= 11 for slot in value.slots)
                 or not value.target_submesh or not value.source_submesh for value in variant.dyes):
             issues.append(_issue("variant.dye", "variants", "Dye assignments need exact names and three supported slot indices."))
