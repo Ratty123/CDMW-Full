@@ -86,11 +86,12 @@ class PreviewTests(unittest.TestCase):
         # the preset's emissive brightness (0.05) is read where the emitter leaves it to the preset;
         # the trail's own render data carries 0.1 so that one stays
         self.assertAlmostEqual(with_preset.emitters[0].brightness, 0.1, places=5)
-        self.assertEqual(len(without.notes), 1, "the firefly emitter file is not a fixture, and the preview says so")
-        self.assertIn("cdem_material_firefly_alpha_uberstandard.paem is not in the archives", without.notes[0])
-        self.assertIn("what a shipped emitter typically does", without.notes[0], "and what it stands in with")
+        missing = [note for note in without.notes if "is not in the archives" in note]
+        self.assertEqual(len(missing), 1, without.notes)
+        self.assertIn("cdem_material_firefly_alpha_uberstandard.paem is not in the archives", missing[0])
+        self.assertIn("what a shipped emitter typically does", missing[0], "and what it stands in with")
         alone = build_effect_preview("x", decode_effect_binary(EFFECT.read_bytes()))
-        self.assertEqual(len(alone.notes), 2, "both emitter files missing are said")
+        self.assertEqual(sum("is not in the archives" in note for note in alone.notes), 2, "both emitter files missing are said")
 
     def test_the_optional_arguments_default_to_mappings(self) -> None:
         """They defaulted to a tuple, which answers a truth question the way an empty

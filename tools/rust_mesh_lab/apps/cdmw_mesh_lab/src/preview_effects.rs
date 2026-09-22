@@ -80,37 +80,6 @@ fn color_curve_sample(value: Option<&Value>, progress: f32) -> Vec3 {
         .max(Vec3::ZERO)
 }
 
-fn effect_preview_colour(
-    emitter: &Value,
-    progress: f32,
-    alpha: f32,
-    brightness: f32,
-    blend: &str,
-) -> [f32; 4] {
-    let life_colour = color_curve_sample(emitter.get("color_over_life"), progress);
-    let emissive = vec3_value(emitter.get("emissive_color"), Vec3::ONE).max(Vec3::ZERO);
-    let mut colour = life_colour * emissive * brightness.max(0.15).sqrt();
-    let peak = colour.max_element();
-    if peak > 1.0 {
-        colour /= peak;
-    } else if peak < 0.08 {
-        // Black smoke and incomplete material records still need a visible guide
-        // against the dark Preview background.
-        colour = Vec3::splat(0.42);
-    }
-    let preview_alpha = if blend.eq_ignore_ascii_case("additive") {
-        alpha.max(0.72)
-    } else {
-        alpha.max(0.38)
-    };
-    [
-        colour.x.clamp(0.04, 1.0),
-        colour.y.clamp(0.04, 1.0),
-        colour.z.clamp(0.04, 1.0),
-        preview_alpha.clamp(0.0, 1.0),
-    ]
-}
-
 fn effect_billboard_colour(
     emitter: &Value,
     progress: f32,
@@ -197,16 +166,6 @@ pub(crate) fn particle_kinematics(
     }
 }
 
-fn effect_scale(emitter: &Value, seed: f32) -> f32 {
-    let Some(values) = emitter.get("scale").and_then(Value::as_array) else {
-        return 0.04;
-    };
-    let low = vec3_value(values.first(), Vec3::splat(0.04)).abs();
-    let high = vec3_value(values.get(1), low).abs();
-    let selected = low.lerp(high, seed_unit(seed + 0.91));
-    selected.max_element().max(0.002)
-}
-
 fn effect_sequence_uv(emitter: &Value, progress: f32) -> [f32; 4] {
     let values = emitter.get("sequence").and_then(Value::as_array);
     let columns = values
@@ -272,7 +231,24 @@ pub(crate) fn effect_emitter_billboards_with_limit(
     particle_limit: usize,
 ) -> Vec<EffectBillboardInstance> {
     let max_particles_per_emitter = particle_limit.clamp(64, 2048);
-    let max_instances_per_emitter = max_particles_per_emitter * 8;
+    let kind = emitter
+        .get("kind")
+        .and_then(Value::as_str)
+        .unwrap_or("billboard");
+    let faces = if kind == "mesh" {
+        emitter
+            .get("particle_faces")
+            .and_then(Value::as_array)
+            .map_or(0, Vec::len)
+    } else {
+        1
+    };
+    // Never substitute crosses or sprites for unavailable mesh geometry. A
+    // complete shipped lightning pack must fit even at the lowest quality.
+    if faces == 0 || faces > 8192 {
+        return Vec::new();
+    }
+    let max_instances_per_emitter = (max_particles_per_emitter * 8).max(faces);
     let simulation_speed = emitter
         .get("simulation_speed")
         .and_then(Value::as_f64)
@@ -312,6 +288,14 @@ pub(crate) fn effect_emitter_billboards_with_limit(
     };
     let (life_low, life_high) = value_pair(emitter.get("life"), (1.0, 1.0));
     let longest_life = life_high.clamp(0.01, 120.0);
+    let infinite_life = emitter
+        .get("infinite_life")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let repeat_curves = emitter
+        .get("repeat_curves")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
     let looping = emitter.get("loop").and_then(Value::as_bool).unwrap_or(true);
     let spawn_time = emitter
         .get("spawn_time")
@@ -331,13 +315,16 @@ pub(crate) fn effect_emitter_billboards_with_limit(
     } else {
         simulation_time.min(spawn_time)
     };
-    let newest_burst = (last_birth / interval).floor() as i64;
-    let burst_history =
-        ((longest_life / interval).ceil() as usize + 1).min(max_particles_per_emitter);
-    let kind = emitter
-        .get("kind")
-        .and_then(Value::as_str)
-        .unwrap_or("billboard");
+    let mut newest_burst = (last_birth / interval).floor() as i64;
+    let burst_history = if infinite_life {
+        // Infinite particles retain their original births and random seeds;
+        // they do not continuously respawn when their curve period expires.
+        let capacity_bursts = maximum.div_ceil(burst).max(1);
+        newest_burst = newest_burst.min(capacity_bursts.saturating_sub(1) as i64);
+        capacity_bursts
+    } else {
+        ((longest_life / interval).ceil() as usize + 1).min(max_particles_per_emitter)
+    };
     let damping = emitter
         .get("damping")
         .and_then(Value::as_f64)
@@ -399,7 +386,7 @@ pub(crate) fn effect_emitter_billboards_with_limit(
             continue;
         }
         let age = simulation_time - birth;
-        if age < 0.0 || age > longest_life {
+        if age < 0.0 || (!infinite_life && age > longest_life) {
             continue;
         }
         let minimum_burst = emitter
@@ -415,6 +402,9 @@ pub(crate) fn effect_emitter_billboards_with_limit(
             if emitted >= maximum || instances.len() >= max_instances_per_emitter {
                 break 'bursts;
             }
+            if faces > max_instances_per_emitter.saturating_sub(instances.len()) {
+                break 'bursts;
+            }
             let seed =
                 emitter_index as f32 * 173.17 + burst_index as f32 * 19.91 + particle as f32 * 7.13;
             if seed_unit(seed + 43.7) >= keep_fraction {
@@ -422,10 +412,14 @@ pub(crate) fn effect_emitter_billboards_with_limit(
             }
             let life =
                 (life_low + (life_high - life_low) * seed_unit(seed + 3.73)).clamp(0.01, 120.0);
-            if age > life {
+            if !infinite_life && age > life {
                 continue;
             }
-            let progress = (age / life).clamp(0.0, 1.0);
+            let progress = if infinite_life && repeat_curves {
+                (age / life).fract()
+            } else {
+                (age / life).clamp(0.0, 1.0)
+            };
             let origin = effect_spawn_position(emitter, seed);
             let acceleration = effect_force(emitter, seed);
             let initial_velocity = effect_range(emitter.get("velocity"), seed + 11.1, Vec3::ZERO);
@@ -469,6 +463,13 @@ pub(crate) fn effect_emitter_billboards_with_limit(
                     (seed_unit(seed + 37.1) * 4.0).floor().min(3.0) as i32
                 } else if emitter.get("texture_is_mask").and_then(Value::as_bool) == Some(true) {
                     0
+                } else if kind == "mesh"
+                    && emitter
+                        .get("texture")
+                        .and_then(Value::as_str)
+                        .is_none_or(str::is_empty)
+                {
+                    -2 // An untextured mesh is opaque white, not a soft sprite.
                 } else {
                     -1
                 };
@@ -601,253 +602,6 @@ pub(crate) fn effect_emitter_billboards_with_limit(
     instances
 }
 
-pub(crate) fn effect_emitter_lines(
-    emitter: &Value,
-    emitter_index: usize,
-    time: f32,
-    minimum_radius: f32,
-) -> Vec<EffectLineVertex> {
-    const MAX_PARTICLES_PER_EMITTER: usize = 256;
-    const MAX_LINE_VERTICES_PER_EMITTER: usize = MAX_PARTICLES_PER_EMITTER * 20;
-
-    let simulation_speed = emitter
-        .get("simulation_speed")
-        .and_then(Value::as_f64)
-        .map(|value| value as f32)
-        .filter(|value| value.is_finite())
-        .unwrap_or(1.0)
-        .clamp(0.0, 20.0);
-    let simulation_time = time.max(0.0) * simulation_speed;
-    let burst = emitter
-        .get("burst")
-        .and_then(Value::as_u64)
-        .and_then(|value| usize::try_from(value).ok())
-        .unwrap_or(1)
-        .clamp(1, 64);
-    let maximum = emitter
-        .get("max_particles")
-        .and_then(Value::as_u64)
-        .and_then(|value| usize::try_from(value).ok())
-        .unwrap_or(burst)
-        .clamp(1, MAX_PARTICLES_PER_EMITTER);
-    let bursts_per_second = emitter
-        .get("bursts_per_second")
-        .and_then(Value::as_f64)
-        .map(|value| value as f32)
-        .filter(|value| value.is_finite())
-        .unwrap_or(1.0)
-        .clamp(0.01, 120.0);
-    let interval = bursts_per_second.recip();
-    let (life_low, life_high) = value_pair(emitter.get("life"), (1.0, 1.0));
-    let longest_life = life_high.clamp(0.01, 120.0);
-    let looping = emitter.get("loop").and_then(Value::as_bool).unwrap_or(true);
-    let spawn_time = emitter
-        .get("spawn_time")
-        .and_then(Value::as_f64)
-        .map(|value| value as f32)
-        .filter(|value| value.is_finite())
-        .unwrap_or(0.0)
-        .max(0.0);
-    let newest_burst = (simulation_time / interval).floor() as i64;
-    let burst_history =
-        ((longest_life / interval).ceil() as usize + 1).min(MAX_PARTICLES_PER_EMITTER);
-    let kind = emitter
-        .get("kind")
-        .and_then(Value::as_str)
-        .unwrap_or("billboard");
-    let damping = emitter
-        .get("damping")
-        .and_then(Value::as_f64)
-        .map(|value| value as f32)
-        .filter(|value| value.is_finite())
-        .unwrap_or(0.0)
-        .clamp(0.0, 100.0);
-    let speed_limit = emitter
-        .get("speed_limit")
-        .and_then(Value::as_f64)
-        .map(|value| value as f32)
-        .filter(|value| value.is_finite())
-        .unwrap_or(0.0)
-        .max(0.0);
-    let (rotation_low, rotation_high) = value_pair(emitter.get("rotation"), (0.0, 0.0));
-    let velocity_stretch = emitter
-        .get("velocity_stretch")
-        .and_then(Value::as_f64)
-        .map(|value| value as f32)
-        .filter(|value| value.is_finite())
-        .unwrap_or(0.0)
-        .max(0.0);
-    let brightness = emitter
-        .get("brightness")
-        .and_then(Value::as_f64)
-        .map(|value| value as f32)
-        .filter(|value| value.is_finite())
-        .unwrap_or(1.0)
-        .max(0.0);
-    let emissive_luma = vec3_value(emitter.get("emissive_color"), Vec3::ONE)
-        .max(Vec3::ZERO)
-        .dot(Vec3::new(0.2126, 0.7152, 0.0722))
-        .max(0.05);
-    let sequence_cells = emitter
-        .get("sequence")
-        .and_then(Value::as_array)
-        .map(|values| {
-            values
-                .iter()
-                .take(2)
-                .filter_map(Value::as_u64)
-                .product::<u64>()
-                .max(1) as f32
-        })
-        .unwrap_or(1.0);
-    // Texture identity remains in the package for a future sprite pass. The
-    // line preview below preserves the authored blend and colour meanwhile.
-    let _sprite_identity = emitter.get("texture").and_then(Value::as_str).unwrap_or("");
-    let blend = emitter
-        .get("blend")
-        .and_then(Value::as_str)
-        .unwrap_or("alpha");
-
-    let mut lines = Vec::new();
-    let mut emitted = 0_usize;
-    'bursts: for history in 0..burst_history {
-        let burst_index = newest_burst - history as i64;
-        if burst_index < 0 {
-            continue;
-        }
-        let birth = burst_index as f32 * interval;
-        if !looping
-            && ((spawn_time <= 0.0 && burst_index > 0) || (spawn_time > 0.0 && birth > spawn_time))
-        {
-            continue;
-        }
-        let age = simulation_time - birth;
-        if age < 0.0 || age > longest_life {
-            continue;
-        }
-        for particle in 0..burst {
-            if emitted >= maximum || lines.len() + 20 > MAX_LINE_VERTICES_PER_EMITTER {
-                break 'bursts;
-            }
-            let seed =
-                emitter_index as f32 * 173.17 + burst_index as f32 * 19.91 + particle as f32 * 7.13;
-            let life =
-                (life_low + (life_high - life_low) * seed_unit(seed + 3.73)).clamp(0.01, 120.0);
-            if age > life {
-                continue;
-            }
-            let progress = (age / life).clamp(0.0, 1.0);
-            let origin = effect_spawn_position(emitter, seed);
-            let acceleration = effect_force(emitter, seed);
-            let initial_direction = Vec3::new(
-                seed_signed(seed + 11.1),
-                seed_signed(seed + 13.7),
-                seed_signed(seed + 17.9),
-            )
-            .normalize_or(Vec3::Y);
-            let initial_speed = vec3_value(emitter.get("spread"), Vec3::splat(0.1))
-                .abs()
-                .max_element()
-                .max(0.01);
-            let initial_velocity = initial_direction * initial_speed;
-            let (center, mut velocity) =
-                particle_kinematics(origin, initial_velocity, acceleration, damping, age);
-            if speed_limit > 0.0 && velocity.length() > speed_limit {
-                velocity = velocity.normalize_or_zero() * speed_limit;
-            }
-            let alpha = curve_sample(emitter.get("alpha_over_life"), progress, 1.0).clamp(0.0, 1.0);
-            if alpha <= 0.001 {
-                continue;
-            }
-            let scale_curve = curve_sample(emitter.get("scale_over_life"), progress, 1.0).max(0.0);
-            let color_luma = color_curve_sample(emitter.get("color_over_life"), progress)
-                .dot(Vec3::new(0.2126, 0.7152, 0.0722))
-                .max(0.05);
-            let flipbook_pulse = 0.9
-                + 0.1
-                    * (progress * sequence_cells * std::f32::consts::TAU)
-                        .sin()
-                        .abs();
-            let radius = (effect_scale(emitter, seed)
-                * scale_curve
-                * alpha.sqrt()
-                * (brightness * emissive_luma * color_luma)
-                    .clamp(0.25, 4.0)
-                    .sqrt()
-                * flipbook_pulse)
-                .max(minimum_radius);
-            let colour = effect_preview_colour(emitter, progress, alpha, brightness, blend);
-            let angle = (rotation_low + (rotation_high - rotation_low) * seed_unit(seed + 23.3))
-                .to_radians();
-            let right = Vec3::new(angle.cos(), angle.sin(), 0.0) * radius;
-            let mut up = Vec3::new(-angle.sin(), angle.cos(), 0.0) * radius;
-            if velocity_stretch > 0.0 && velocity.length_squared() > 1.0e-8 {
-                up += velocity.normalize() * radius * velocity_stretch.min(20.0);
-            }
-            if kind == "beam" {
-                let axis = vec3_value(emitter.get("beam_axis"), Vec3::Y).normalize_or(Vec3::Y);
-                let length = emitter
-                    .get("beam_length")
-                    .and_then(Value::as_f64)
-                    .map(|value| value as f32)
-                    .filter(|value| value.is_finite())
-                    .unwrap_or(0.0)
-                    .abs();
-                let width = emitter
-                    .get("beam_width")
-                    .and_then(Value::as_f64)
-                    .map(|value| value as f32)
-                    .filter(|value| value.is_finite())
-                    .unwrap_or(radius)
-                    .abs()
-                    .max(minimum_radius * 0.5);
-                let jitter = emitter
-                    .get("beam_jitter")
-                    .and_then(Value::as_f64)
-                    .map(|value| value as f32)
-                    .filter(|value| value.is_finite())
-                    .unwrap_or(0.0)
-                    .abs();
-                let side = axis.cross(Vec3::Y).normalize_or(Vec3::X);
-                let segments = 6;
-                let mut previous = center;
-                for segment in 1..=segments {
-                    let fraction = segment as f32 / segments as f32;
-                    let point = center
-                        + axis * length * fraction
-                        + side * seed_signed(seed + segment as f32 * 5.19) * length * jitter;
-                    push_effect_line(&mut lines, previous, point, colour);
-                    previous = point;
-                }
-                push_effect_line(
-                    &mut lines,
-                    center - side * width,
-                    center + side * width,
-                    colour,
-                );
-            } else {
-                push_effect_line(&mut lines, center - right, center + right, colour);
-                push_effect_line(&mut lines, center - up, center + up, colour);
-                if kind == "mesh" {
-                    let forward = right.cross(up).normalize_or(Vec3::Z) * radius;
-                    push_effect_line(&mut lines, center - forward, center + forward, colour);
-                }
-            }
-            emitted += 1;
-        }
-    }
-    if lines.is_empty() {
-        // At time zero many authored alpha curves intentionally start at zero.
-        // Keep the emitter discoverable instead of presenting an empty preview.
-        let radius = minimum_radius.max(0.003);
-        let colour = effect_preview_colour(emitter, 0.5, 0.7, brightness, blend);
-        for axis in [Vec3::X, Vec3::Y, Vec3::Z] {
-            push_effect_line(&mut lines, -axis * radius, axis * radius, colour);
-        }
-    }
-    lines
-}
-
 fn effect_range(value: Option<&Value>, seed: f32, fallback: Vec3) -> Vec3 {
     let values = value.and_then(Value::as_array);
     let low = vec3_value(values.and_then(|v| v.first()), fallback);
@@ -901,12 +655,7 @@ fn append_particle_mesh(
             .collect::<Vec<_>>();
         let edge1 = points[1] - points[0];
         let edge2 = points[2] - points[0];
-        let normal = edge1.cross(edge2).normalize_or_zero();
-        let light = 0.4 + 0.6 * normal.dot(Vec3::new(0.3, 0.8, 0.5).normalize()).abs();
-        let mut shaded = colour;
-        for c in &mut shaded[..3] {
-            *c *= light;
-        }
+
         let read_uv = |i: usize| -> [f32; 2] {
             let value = uvs.and_then(|v| v.get(i)).and_then(Value::as_array);
             [0, 1].map(|axis| {
@@ -921,7 +670,7 @@ fn append_particle_mesh(
             center: points[0].to_array(),
             axis_right: edge1.to_array(),
             axis_up: edge2.to_array(),
-            colour: shaded,
+            colour,
             uv_rect: [0., 0., 1., 1.],
             texture_index,
             texture_channel,
@@ -1068,8 +817,6 @@ mod tests {
         e["force"] = json!([[0., 0.5, 0.], [0., 0.5, 0.]]);
         e["life"] = json!([1.4, 1.4]);
         e["mass"] = json!(1.);
-        let reference_lines = effect_emitter_lines(&e, 0, 0.7, 0.01);
-        assert!(!reference_lines.is_empty());
         for mass in [0.011, 0.041, 1., 8.] {
             e["mass"] = json!(mass);
             let p = draw(&e, 0.7);
@@ -1077,7 +824,6 @@ mod tests {
             // The game's standard updater adds force * dt to velocity;
             // 0.5 m/s^2 travels 0.1225 m after 0.7 s, whatever the mass.
             assert!((p[0].center[1] - 0.1225).abs() < 1.0e-6, "mass {mass}");
-            assert_eq!(effect_emitter_lines(&e, 0, 0.7, 0.01), reference_lines);
         }
     }
     #[test]
@@ -1092,6 +838,35 @@ mod tests {
         let e = emitter();
         assert_eq!(draw(&e, 1.).len(), 1);
         assert!(draw(&e, 2.01).is_empty());
+    }
+    #[test]
+    fn infinite_particles_keep_their_birth_and_repeat_only_their_curves() {
+        let mut e = emitter();
+        e["infinite_life"] = json!(true);
+        e["velocity"] = json!([[1., 0., 0.], [1., 0., 0.]]);
+        e["alpha_over_life"] = json!([0., 1., 0.]);
+        assert!(draw(&e, 5.).is_empty());
+        e["repeat_curves"] = json!(true);
+        let p = draw(&e, 5.);
+        assert_eq!(p.len(), 1);
+        assert_eq!(p[0].center, [5., 0., 0.]);
+        assert_eq!(p[0].colour[3], 1.);
+    }
+
+    #[test]
+    fn lightning_mesh_budget_keeps_complete_coloured_geometry() {
+        let mut e = emitter();
+        e["kind"] = json!("mesh");
+        assert!(draw(&e, 0.5).is_empty());
+        e["particle_vertices"] = json!([[0., 0., 0.], [1., 0., 0.], [0., 1., 0.]]);
+        e["particle_faces"] = json!(vec![[0, 1, 2]; 3338]);
+        e["color_over_life"] = json!([[0.02, 0., 0.]]);
+        let p = draw(&e, 0.5);
+        assert_eq!(p.len(), 3338);
+        assert!(p.iter().all(|p| p.triangle_uvs.is_some()
+            && p.colour == [0.02, 0., 0., 1.]
+            && p.texture_channel == -2));
+        assert!(draw(&e, 3.).is_empty());
     }
     #[test]
     fn particle_budget_keeps_a_range_of_ages_and_is_deterministic() {

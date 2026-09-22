@@ -601,6 +601,15 @@ vector fields, multi-texture shader graphs, distortion and injected lights are n
 reproduced. Custom graphs use verified typed fields and existing emitter templates;
 arbitrary game shader authoring is not provided. Binary readback and synthetic GPU tests
 do not establish in-game appearance or acceptance of a newly authored composition.
+Inherited curves and material parameters resolve by stable binary collection keys;
+removed parent curves are not restored by preview or recipe compilation. The emitter
+inspector exposes infinite particle life and repeated lifetime curves independently
+of emitter looping. Scalar brightness, including a declared omitted unit default on
+an unpreset emitter, is editable through the checked writer. Export resolves effect
+namespaces from the active game registries and keeps that suffix on edited clones.
+Mesh particles keep complete supported geometry; unavailable geometry no longer draws
+an invented gray marker. Untextured particles use mesh coverage, and every reported
+limitation remains visible through the approximation notice.
 For an imported item, Effects always derives its placed preview from the live import
 source before and after **Apply placement**, so its PBR rows are the same authority that
 Model & Placement displays. The rebuilt PAC remains output authority but its borrowed template

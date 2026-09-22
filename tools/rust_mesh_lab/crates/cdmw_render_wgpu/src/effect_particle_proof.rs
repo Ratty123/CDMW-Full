@@ -223,6 +223,17 @@ fn verify_samples(
         }
     };
     let red = render(base, white)?;
+    let untextured = render(
+        GpuEffectBillboardInstance {
+            sprite_options: [-2., 0., 0., 0.],
+            ..base
+        },
+        [0; 16],
+    )?;
+    require(
+        center(&untextured) == center(&red),
+        "untextured geometry was masked by the fallback sprite",
+    )?;
     let plane_depth = |z| {
         let clip =
             Mat4::from_cols_array_2d(&camera.view_projection) * Vec3::new(0., 0., z).extend(1.);

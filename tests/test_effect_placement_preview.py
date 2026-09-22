@@ -435,12 +435,12 @@ class ViewerParticleLayerContractTests(unittest.TestCase):
         # Mass metadata does not scale authored force; Rust's low-mass torch test owns that behavior.
         for key in ("bursts_per_second", "life", "spawn", "spread", "points", "force", "damping", "speed_limit", "scale", "rotation",
                     "scale_over_life", "alpha_over_life", "color_over_life", "emissive_color", "beam_width", "beam_length", "beam_axis",
-                    "simulation_speed", "sequence", "velocity_stretch", "texture", "blend"):
+                    "simulation_speed", "sequence", "velocity_stretch", "texture", "blend", "infinite_life", "repeat_curves"):
             self.assertTrue(f'"{key}"' in simulation, key)
-        self.assertTrue("fn effect_emitter_lines" in simulation)
+        self.assertTrue("fn effect_emitter_billboards_with_limit" in simulation)
         self.assertIn('"effect_particle_preview_v1"', runtime)
-        self.assertTrue("MAX_PARTICLES_PER_EMITTER" in simulation)
-        self.assertTrue("MAX_LINE_VERTICES_PER_EMITTER" in simulation)
+        self.assertTrue("max_particles_per_emitter" in simulation)
+        self.assertTrue("max_instances_per_emitter" in simulation)
 
     def test_effect_output_is_deterministic_and_resource_bounded_in_rust(self) -> None:
         runtime = (self.ROOT / "cdmw_preview.rs").read_text(encoding="utf-8")
@@ -449,7 +449,7 @@ class ViewerParticleLayerContractTests(unittest.TestCase):
             runtime,
         )
         self.assertIn("assert_eq!(first, repeated)", runtime)
-        self.assertIn("first.len() <= 256 * 20", runtime)
+        self.assertTrue("first.len() <= 256" in runtime)
 
     def test_the_simulation_can_be_held_where_it_is(self) -> None:
         """Pausing is not hiding: the particles stay drawn and stop moving, which is the

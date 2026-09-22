@@ -1,9 +1,10 @@
-"""Edit a shipped effect's look, in place, and give it a stem of its own.
+"""Edit a shipped effect's look and give it a stem of its own.
 
 An effect binary and the emitters it instances are self-describing graphs
 (:mod:`cdmw.core.effect_binary`), and every inline value knows its offset. This
 module applies a "look" (the studio's :class:`~cdmw.domain.new_item.spec.EffectLook`,
-or anything with the same five attributes) to those values without moving a byte:
+or anything with the same five attributes) to existing values in place. An omitted
+scalar brightness default is made explicit through the checked graph writer:
 
 * colour: `EmitterRenderData._emissiveColor` and `_color` (float3) become the chosen
   colour scaled to the old colour's peak component, so a dim ember stays dim and a
@@ -16,10 +17,10 @@ or anything with the same five attributes) to those values without moving a byte
   exactly those two places. Both are recoloured too: every sample and every ramp point
   keeps its brightness (the peak channel) and takes the chosen hue, the temperature
   channel is left alone. An effect overrides an emitter's curves and material
-  parameters by position (an override record carries no `_splineID` or `_name`), so
-  a caller that has the emitter files passes their :class:`EmitterLayout` and the
-  positional overrides are recoloured as well;
-* intensity: `_emissiveBrightness` and `_brightness` (float3) are multiplied, and the
+  parameters by stable collection keys (an override can omit `_splineID` or `_name`).
+  A caller passes the base emitter's :class:`EmitterLayout` to resolve unnamed
+  material keys; legacy records without keys retain positional lookup;
+* intensity: `_emissiveBrightness` and `_brightness` (float or float3) are multiplied, and the
   material's `_temperatureBrightness` (what a temperature-driven fire's ramp is scaled by);
 * size: `EmitterSimulationData._scaleMin/_scaleMax` and `EmitterData._particleScaleMax`
   (float3) are multiplied, and the effect's bounding boxes with them;
@@ -121,12 +122,53 @@ class EffectEditReport:
 
 @dataclass(frozen=True, slots=True)
 class EmitterLayout:
-    """What an emitter file keeps at each position: the `_splineID` of every
-    `_curveEntryDataList` entry and the `_name` of every material parameter. An effect's
-    embedded override of that emitter names neither, only positions."""
+    """Base curve IDs and material names/keys for resolving inherited entries.
+
+    Positions are only a compatibility fallback for records without stable keys.
+    """
 
     curve_ids: Tuple[Optional[int], ...] = ()
     parameter_names: Tuple[Optional[str], ...] = ()
+    parameter_keys: Tuple[Optional[int], ...] = ()
+
+
+def collection_key(node: ReflectNode) -> Optional[int]:
+    """Stable inherited element identity, distinct from its current list position."""
+    key = node.wire.get("owner")
+    return key if isinstance(key, int) and 0 <= key < 0xffffffffffffffff else None
+
+
+def curve_id_of(entry: ReflectNode, index: int, layout: EmitterLayout) -> Optional[int]:
+    value = entry.value("_splineID")
+    if value is not None and isinstance(value.value, int):
+        return int(value.value)
+    key = collection_key(entry)
+    if key is not None:
+        return key
+    return layout.curve_ids[index] if index < len(layout.curve_ids) else None
+
+
+def parameter_name_of(parameter: ReflectNode, index: int, layout: EmitterLayout) -> Optional[str]:
+    value = parameter.value("_name")
+    if value is not None and value.kind == 1:
+        return str(value.value)
+    key = collection_key(parameter)
+    if key is not None and layout.parameter_keys:
+        try:
+            index = layout.parameter_keys.index(key)
+        except ValueError:
+            return None
+    return layout.parameter_names[index] if index < len(layout.parameter_names) else None
+
+
+def curve_is_removed(node: ReflectNode, curve_id: int) -> bool:
+    """Keyed curve collections record removed parent identities as uint64 keys.
+
+    For example Aftertaa removes 15/5/14/21, inserts 7/8/18/19, and retains
+    2/0/16/17. Falling through to the base would resurrect its removed colours.
+    """
+    keys = node.wire.get("_curveEntryDataList", {}).get("pairs", b"")
+    return any(key == curve_id for (key,) in struct.iter_unpack("<Q", keys))
 
 
 def emitter_layout_of(document: EffectDocument) -> EmitterLayout:
@@ -147,7 +189,8 @@ def _layout_of_node(node: ReflectNode) -> EmitterLayout:
     for parameter in parameters if isinstance(parameters, tuple) else ():
         name = parameter.value("_name")
         names.append(str(name.value) if name is not None and name.kind == 1 else None)
-    return EmitterLayout(tuple(curve_ids), tuple(names))
+    keys = tuple(collection_key(p) for p in parameters) if isinstance(parameters, tuple) else ()
+    return EmitterLayout(tuple(curve_ids), tuple(names), keys)
 
 
 def same_length_stem(stem: str, tag: str, *, taken: Iterable[str] = ()) -> str:
@@ -306,14 +349,42 @@ def apply_effect_look(
         report.count(value.name)
     if look.color is not None or abs(look.intensity - 1.0) > 1e-9:
         out = _edit_curves_and_material_parameters(out, document, look, report, emitter_layouts or {})
+    if abs(look.intensity - 1.0) > 1e-9:
+        out = _explicit_default_brightness(out, float(look.intensity), report)
     return out, report
+
+
+def _explicit_default_brightness(data: bytes, intensity: float, report: EffectEditReport) -> bytes:
+    """Make the scalar unit default editable on complete, unpreset emitters.
+
+    Inherited overrides leave this to their cloned base emitter or preset. Only
+    a declared scalar field can be inserted; the graph writer relocates it.
+    """
+    from cdmw.core.effect_writer import serialize_effect, set_typed_value
+    document = decode_effect_binary(data)
+    changed = False
+    for node in document.root.walk():
+        if node.type_name != "EmitterData" or node.override:
+            continue
+        preset = node.value("_renderGroupPreset")
+        if preset is not None and preset.value:
+            continue
+        render = node.child("_renderData")
+        if not isinstance(render, ReflectNode) or render.value("_emissiveBrightness") is not None:
+            continue
+        declaration = next((t for t in document.types if t.type_name == render.type_name), None)
+        member = next((m for m in declaration.members if m.name == "_emissiveBrightness"), None) if declaration else None
+        if member is not None and member.type_name == "float" and set_typed_value(document, render, "_emissiveBrightness", intensity):
+            changed = True
+            report.count("_emissiveBrightness")
+    return serialize_effect(data, document) if changed else data
 
 
 def _edit_curves_and_material_parameters(out: bytes, document: EffectDocument, look: "LookLike", report: EffectEditReport, layouts: Mapping[str, EmitterLayout]) -> bytes:
     """The edits that go by curve id and material parameter name: a colour recolours
     every colour-over-life curve and temperature ramp the graph carries, an intensity
     multiplies `_temperatureBrightness`; an emitter file's own (ids and names present)
-    and an effect's embedded overrides (by position, through `layouts`)."""
+    and an effect's embedded overrides (by stable identity, through `layouts`)."""
 
     color = look.color
     intensity = float(look.intensity)
@@ -328,8 +399,7 @@ def _edit_curves_and_material_parameters(out: bytes, document: EffectDocument, l
             continue
         curves = node.child("_curveEntryDataList")
         for index, entry in enumerate(curves if isinstance(curves, tuple) else ()):
-            sid = entry.value("_splineID")
-            curve_id = int(sid.value) if sid is not None and isinstance(sid.value, int) else (layout.curve_ids[index] if index < len(layout.curve_ids) else None)
+            curve_id = curve_id_of(entry, index, layout)
             if color is None or curve_id != COLOR_CURVE_ID:
                 continue
             samples = entry.value("_splineData")
@@ -340,8 +410,7 @@ def _edit_curves_and_material_parameters(out: bytes, document: EffectDocument, l
         material = node.child("_effectMaterialData2")
         parameters = material.child("_parameters") if isinstance(material, ReflectNode) else None
         for index, parameter in enumerate(parameters if isinstance(parameters, tuple) else ()):
-            name = parameter.value("_name")
-            parameter_name = str(name.value) if name is not None and name.kind == 1 else (layout.parameter_names[index] if index < len(layout.parameter_names) else None)
+            parameter_name = parameter_name_of(parameter, index, layout)
             if color is not None and parameter_name == TEMPERATURE_RAMP:
                 out = _recolor_ramp(out, parameter, color, report)
             elif abs(intensity - 1.0) > 1e-9 and parameter_name == TEMPERATURE_BRIGHTNESS:
@@ -437,6 +506,8 @@ def _replacement_for(value: ReflectValue, look: "LookLike") -> Optional[bytes]:
         return bytes([1])
     if abs(look.intensity - 1.0) > 1e-9 and name in BRIGHTNESS_MEMBERS and value.type_name == "float3" and value.size == 12:
         return _multiplied_float3(value.raw, look.intensity)
+    if abs(look.intensity - 1.0) > 1e-9 and name in BRIGHTNESS_MEMBERS and value.type_name == "float" and value.size == 4:
+        return _multiplied_float(value.raw, look.intensity)
     if abs(look.size - 1.0) > 1e-9 and value.type_name == "float3" and value.size == 12 and (name in SIZE_MEMBERS or name in BOX_MEMBERS):
         return _multiplied_float3(value.raw, look.size)
     if abs(look.rate - 1.0) > 1e-9 and name in RATE_MEMBERS and value.type_name in ("uint", "uint32") and value.size == 4:

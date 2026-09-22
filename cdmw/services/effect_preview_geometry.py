@@ -7,8 +7,10 @@ from dataclasses import replace
 
 from cdmw.domain.cancellation import RunCancelled
 
-MAX_VERTICES = 4096
-MAX_FACES = 2048
+# Shipped lightning packs exceed 2,048 triangles (Aftertaa uses 3,338).
+# Keep complete geometry; the renderer budgets whole mesh instances separately.
+MAX_VERTICES = 16384
+MAX_FACES = 8192
 
 
 def sample_spawn_surface(parsed, count, check_cancelled=lambda: None):
@@ -101,7 +103,5 @@ def load_particle_geometry(preview, snapshot, parser, check_cancelled):
         geometry = cache[path]
         if geometry is not None:
             emitter = replace(emitter, particle_vertices=geometry[0], particle_uvs=geometry[1], particle_faces=geometry[2])
-        elif emitter.texture:
-            emitter = replace(emitter, kind="billboard")
         emitters.append(emitter)
     return replace(preview, emitters=tuple(emitters), notes=tuple(notes))

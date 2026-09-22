@@ -233,21 +233,12 @@ class EffectPlacementWorkspace(
 
         preview = self._effect_preview
         notes = tuple(getattr(preview, "notes", ()) or ()) if preview is not None else ()
-        spawn_meshes = sorted({
-            note.split("spawn mesh ", 1)[1].split(" ", 1)[0]
-            for note in notes if "spawn mesh " in note and "was not read" in note
-        })
-        if not spawn_meshes:
+        if not notes:
             self.caveat.setVisible(False)
             return
-        # short by design: the detail is in the tooltip, and a paragraph here pushed the
-        # controls above it off the panel
-        self.caveat.setText(f"{spawn_meshes[0]} is not in the archives, so the particles scatter here. The game draws its own shape.")
-        self.caveat.setToolTip(
-            "An emitter can spawn its particles on the surface of a mesh. This effect names one the archives do not "
-            "carry, so the preview scatters them around the anchor instead: the anchor is where the effect starts "
-            "either way, but the shape around it is a stand-in."
-        )
+        # All decoder/render limitations matter, not only missing spawn meshes.
+        self.caveat.setText(f"Approximate preview: {len(notes)} limitation(s). See emitter details before exporting.")
+        self.caveat.setToolTip("\n".join(notes))
         self.caveat.setVisible(True)
 
     def _apply_scene_visibility(self) -> None:

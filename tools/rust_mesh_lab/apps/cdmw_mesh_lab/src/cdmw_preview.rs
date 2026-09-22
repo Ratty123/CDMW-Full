@@ -1,9 +1,7 @@
 #![forbid(unsafe_code)]
 #[cfg(test)]
 use crate::preview_effects::{effect_emitter_billboards, particle_kinematics};
-use crate::preview_effects::{
-    effect_emitter_billboards_with_limit, effect_emitter_lines, push_effect_line,
-};
+use crate::preview_effects::{effect_emitter_billboards_with_limit, push_effect_line};
 
 use crate::camera::{OrbitCamera, StandardView};
 use crate::cdmw_material_preview_factors;
@@ -1610,7 +1608,7 @@ impl PreviewApplication {
             );
         }
 
-        let mut effect_lines = emphasis_lines;
+        let effect_lines = emphasis_lines;
         let mut effect_particles = Vec::new();
         if display
             .get("effect_particles_visible")
@@ -1689,17 +1687,7 @@ impl PreviewApplication {
                         .and_then(Value::as_array)
                         .is_none_or(|v| v.is_empty())
                 {
-                    for mut vertex in
-                        effect_emitter_lines(emitter, seeded_index, time, minimum_radius)
-                    {
-                        if effect_lines.len() >= MAX_EFFECT_LINE_VERTICES {
-                            break;
-                        }
-                        vertex.position = effect_matrix
-                            .transform_point3(Vec3::from_array(vertex.position))
-                            .to_array();
-                        effect_lines.push(vertex);
-                    }
+                    continue; // Unavailable geometry has no faithful particle representation.
                 } else {
                     let texture_index = emitter
                         .get("texture")
@@ -4091,17 +4079,29 @@ mod tests {
             "sequence": [4, 4],
             "velocity_stretch": 0.7
         });
-        let first = effect_emitter_lines(&emitter, 2, 0.65, 0.01);
-        let repeated = effect_emitter_lines(&emitter, 2, 0.65, 0.01);
-        let later = effect_emitter_lines(&emitter, 2, 0.72, 0.01);
+        let draw = |time| {
+            effect_emitter_billboards(
+                &emitter,
+                2,
+                time,
+                0.01,
+                0,
+                Mat4::IDENTITY,
+                Vec3::X,
+                Vec3::Y,
+                -Vec3::Z,
+            )
+        };
+        let first = draw(0.65);
+        let repeated = draw(0.65);
+        let later = draw(0.72);
         assert!(!first.is_empty());
         assert_eq!(first, repeated);
         assert_ne!(first, later);
-        assert!(first.len() <= 256 * 20);
-        assert!(first.len().is_multiple_of(2));
+        assert!(first.len() <= 256);
         assert!(first.iter().all(|vertex| {
             vertex
-                .position
+                .center
                 .iter()
                 .chain(vertex.colour.iter())
                 .all(|value| value.is_finite())
@@ -4110,7 +4110,7 @@ mod tests {
             vertex
                 .colour
                 .iter()
-                .all(|value| (0.0..=1.0).contains(value))
+                .all(|value| (0.0..=64.0).contains(value))
         }));
         assert!(
             first
@@ -4120,22 +4120,25 @@ mod tests {
     }
 
     #[test]
-    fn zero_alpha_effect_still_has_a_bounded_visible_emitter_marker() {
+    fn zero_alpha_effect_does_not_fabricate_a_visible_marker() {
         let emitter = json!({
-            "kind": "billboard",
-            "alpha_over_life": [0.0, 0.0],
-            "color_over_life": [[0.1, 0.4, 1.0]],
-            "emissive_color": [0.2, 0.8, 1.0],
-            "brightness": 2.0
+            "alpha_over_life": [0.0], "kind": "mesh",
+            "particle_vertices": [[0., 0., 0.], [1., 0., 0.], [0., 1., 0.]],
+            "particle_faces": [[0, 1, 2]]
         });
-        let marker = effect_emitter_lines(&emitter, 0, 0.0, 0.025);
-        assert_eq!(marker.len(), 6);
-        assert!(marker.iter().all(|vertex| vertex.colour[3] >= 0.38));
-        let maximum_extent = marker
-            .iter()
-            .flat_map(|vertex| vertex.position)
-            .map(f32::abs)
-            .fold(0.0_f32, f32::max);
-        assert!(maximum_extent >= 0.025);
+        assert!(
+            effect_emitter_billboards(
+                &emitter,
+                0,
+                0.0,
+                0.025,
+                0,
+                Mat4::IDENTITY,
+                Vec3::X,
+                Vec3::Y,
+                -Vec3::Z
+            )
+            .is_empty()
+        );
     }
 }

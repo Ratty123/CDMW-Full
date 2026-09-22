@@ -1578,7 +1578,7 @@ pub struct EffectBillboardInstance {
     pub axis_up: [f32; 3],
     pub colour: [f32; 4],
     pub uv_rect: [f32; 4],
-    /// -1 for colour, 0..3 for the selected packed coverage channel.
+    /// -2 for an untextured mesh, -1 for colour, 0..3 for packed coverage.
     pub texture_channel: i32,
     pub frame_blend: f32,
     /// Mesh triangles share the instanced stream. The second quad triangle is
@@ -3541,7 +3541,7 @@ impl WindowRenderer {
         if instances.iter().any(|instance| {
             instance.texture_index >= self.effect_textures.len()
                 || !instance.depth.is_finite()
-                || !(-1..=3).contains(&instance.texture_channel)
+                || !(-2..=3).contains(&instance.texture_channel)
                 || !instance.frame_blend.is_finite()
                 || !(0.0..=1.0).contains(&instance.frame_blend)
                 || instance

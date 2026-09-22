@@ -102,6 +102,41 @@ def test_disabled_emitter_remains_in_inspector_but_not_render_list():
     assert preview.editor_emitters[0]['enabled'] is False
 
 
+@pytest.mark.parametrize('enabled', [0., 1.])
+def test_infinite_life_and_repeat_curves_survive_recipe_binary_and_preview(enabled):
+    snapshot = Snapshot()
+    source = snapshot.payload(f'effect/binary__/releasebin/{STEM}.pae')
+    fields = (('_isInfiniteParticle', (enabled,)), ('_useCureveRepeat', (enabled,)))
+    look = EffectLook(emitter_order=(0,), emitters=(EmitterEdit(0, values=fields),))
+    restored = read_recipe(recipe_json((EffectLayer(STEM, look=look),)))[0].look
+    result = decode_effect_binary(compile_effect_recipe(snapshot, source, restored))
+    spawn = result.root.child('_emitterVariationDataArray')[0].child('_internalEmitterData').child('_spawnData')
+    for key, _ in fields:
+        assert spawn.value(key).value is bool(enabled)
+    preview = preview_effect_from_snapshot(snapshot, STEM, restored)
+    assert preview.emitters[0].infinite_life is bool(enabled)
+    assert preview.emitters[0].repeat_curves is bool(enabled)
+
+
+def test_infinite_life_requires_a_boolean_integer():
+    from cdmw.domain.new_item.effect_authoring import validate_emitter_edits
+    with pytest.raises(ValueError, match='whole number'):
+        validate_emitter_edits(EffectLook(emitters=(EmitterEdit(0, values=(('_isInfiniteParticle', (.5,)),)),)))
+
+
+def test_recipe_flattens_keyed_inheritance_without_reviving_removed_curves():
+    snapshot = Snapshot()
+    source = snapshot.payload(f'effect/binary__/releasebin/{STEM}.pae')
+    look = EffectLook(emitter_order=(0,), emitters=(EmitterEdit(0, values=(('_isInfiniteParticle', (1.,)),)),))
+    result = decode_effect_binary(compile_effect_recipe(snapshot, source, look))
+    curves = result.root.child('_emitterVariationDataArray')[0].child('_internalEmitterData').child('_curveEntryDataList')
+    ids = [c.value('_splineID').value for c in curves]
+    assert ids == [2, 8, 15, 0, 5, 19, 14, 16, 17, 21, 22]
+    base = decode_effect_binary(snapshot.payload('effect/binary__/emitter/cdem_last_fire_circle_trail_001a.paem'))
+    alpha = next(c for c in base.root.child('_curveEntryDataList') if c.value('_splineID').value == 2)
+    assert curves[0].value('_splineData').raw == alpha.value('_splineData').raw
+
+
 def test_layer_recipe_and_draft_roundtrip(tmp_path):
     layers = (EffectLayer(STEM, name='Flame'), EffectLayer(STEM, name='Sparks', offset=(1.,2.,3.), look=EffectLook(emitters=(EmitterEdit(0, rate=2),), emitter_order=(0,0))))
     text = recipe_json(layers)

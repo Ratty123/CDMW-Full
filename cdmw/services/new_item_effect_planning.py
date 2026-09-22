@@ -26,6 +26,11 @@ class EffectPlanningMixin:
             return None
         records = []
         for index, layer in enumerate(layers):
+            from cdmw.services.effect_reference import resolve_effect_reference
+            reference = resolve_effect_reference(self.snapshot, layer.reference)
+            if reference != layer.reference:
+                self.summary.append(f"effect reference: {layer.reference} resolved to shipped {reference}")
+                layer = replace(layer, kind=reference.split(".")[1])
             spec = replace(self.spec, effect=layer.reference, effect_scale=layer.scale, effect_offset=layer.offset, effect_rotation_degrees=layer.rotation, effect_look=layer.look, effect_layers=None)
             compatibility = inspect_effect_targets(self.snapshot, spec)
             if not compatibility.supported:
@@ -104,9 +109,8 @@ class EffectPlanningMixin:
                 renamed = rename_string_values(renamed, preset_renames)
             return renamed
 
-        # the effect overrides its emitters' curves and material parameters by position:
-        # the emitters' layouts (under the clones' paths, which the renamed effect names)
-        # let a colour reach those overrides too
+        # Base layouts resolve unnamed material identities under the cloned paths;
+        # curve identities come directly from each retained collection entry.
         layouts = {
             _emitter_file(new_emitter): emitter_layout_of(decode_effect_binary(emitter_sources[emitter_path]))
             for emitter_path, _old, new_emitter in emitter_clones

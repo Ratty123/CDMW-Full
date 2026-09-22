@@ -122,6 +122,11 @@ fn fs_effect_particle(input: EffectParticleOut, @builtin(sample_index) sample_in
     let next_origin = vec2<f32>(next_frame % columns, floor(next_frame / columns)) * cell;
     var sprite = mix(textureSample(effect_sprite, effect_sampler, origin + local_uv),
         textureSample(effect_sprite, effect_sampler, next_origin + local_uv), input.sprite_options.y);
+    if input.sprite_options.x < -1.5 {
+        // Mesh-only materials have no sprite coverage. Sampling the procedural
+        // fallback at their UVs used to erase otherwise valid lightning triangles.
+        sprite = vec4<f32>(1.0);
+    }
     if input.sprite_options.x >= 0.0 {
         // Only colour views applied an sRGB conversion. Scalar BC4/R8 masks
         // already contain linear coverage, as does the alpha channel.

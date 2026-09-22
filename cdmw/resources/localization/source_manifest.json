@@ -1026,7 +1026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 573,
+          "line": 564,
           "sink": "setText"
         }
       ]
@@ -6977,16 +6977,6 @@
       ]
     },
     {
-      "key": "An emitter can spawn its particles on the surface of a mesh. This effect names one the archives do not carry, so the preview scatters them around the anchor instead: the anchor is where the effect starts either way, but the shape around it is a stand-in.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 246,
-          "sink": "setToolTip"
-        }
-      ]
-    },
-    {
       "key": "An event socket frame is unavailable in this preview state",
       "origins": [],
       "manual": true
@@ -7966,7 +7956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1137,
+          "line": 1139,
           "sink": "set_note"
         },
         {
@@ -8041,7 +8031,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 715,
+          "line": 706,
           "sink": "setText"
         },
         {
@@ -8608,6 +8598,16 @@
           "path": "cdmw/workers/mesh_editor_workers.py",
           "line": 505,
           "sink": "emit"
+        }
+      ]
+    },
+    {
+      "key": "Approximate preview: {value_0} limitation(s). See emitter details before exporting.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 240,
+          "sink": "setText"
         }
       ]
     },
@@ -23486,7 +23486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1067,
+          "line": 1069,
           "sink": "setText"
         },
         {
@@ -33362,6 +33362,16 @@
       ]
     },
     {
+      "key": "Effect registry exceeds 8 MB: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/effect_reference.py",
+          "line": 37,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Effective NCNN: {value_0}",
       "origins": [
         {
@@ -40106,7 +40116,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1095,
+          "line": 1097,
           "sink": "setText"
         }
       ]
@@ -47907,6 +47917,11 @@
       ]
     },
     {
+      "key": "Infinite particle life (0/1)",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Inflate",
       "origins": [
         {
@@ -48862,6 +48877,16 @@
         {
           "path": "cdmw/services/effect_library_store.py",
           "line": 64,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Invalid effect reference: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/effect_reference.py",
+          "line": 26,
           "sink": "ValueError"
         }
       ]
@@ -65171,12 +65196,12 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1106,
+          "line": 1108,
           "sink": "set_note"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1107,
+          "line": 1109,
           "sink": "setText"
         }
       ]
@@ -67631,7 +67656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1139,
+          "line": 1141,
           "sink": "set_note"
         },
         {
@@ -75086,7 +75111,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 302,
+          "line": 293,
           "sink": "setText"
         },
         {
@@ -75121,7 +75146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 302,
+          "line": 293,
           "sink": "setText"
         }
       ]
@@ -75951,7 +75976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 705,
+          "line": 696,
           "sink": "setWindowTitle"
         }
       ]
@@ -75961,7 +75986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1135,
+          "line": 1137,
           "sink": "setToolTip"
         }
       ]
@@ -75971,7 +75996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1135,
+          "line": 1137,
           "sink": "setToolTip"
         }
       ]
@@ -83181,7 +83206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 493,
+          "line": 484,
           "sink": "setToolTip"
         }
       ]
@@ -83646,7 +83671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 573,
+          "line": 564,
           "sink": "setText"
         }
       ]
@@ -88252,6 +88277,11 @@
       ]
     },
     {
+      "key": "Repeat lifetime curves (0/1)",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Repeatable random seed for comparing effects.",
       "origins": [
         {
@@ -89991,7 +90021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1095,
+          "line": 1097,
           "sink": "setText"
         }
       ]
@@ -110551,7 +110581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1057,
+          "line": 1059,
           "sink": "getColor"
         }
       ]
@@ -110816,7 +110846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 576,
+          "line": 567,
           "sink": "setToolTip"
         }
       ]
@@ -111016,7 +111046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 512,
+          "line": 503,
           "sink": "setToolTip"
         },
         {
@@ -111906,7 +111936,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_package.py",
-          "line": 306,
+          "line": 307,
           "sink": "setText"
         }
       ]
@@ -114046,7 +114076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_package.py",
-          "line": 357,
+          "line": 358,
           "sink": "setText"
         }
       ]
@@ -114701,7 +114731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 489,
+          "line": 480,
           "sink": "addItem"
         }
       ]
@@ -120436,7 +120466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 963,
+          "line": 965,
           "sink": "set_note"
         }
       ]
@@ -120456,7 +120486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 963,
+          "line": 965,
           "sink": "set_note"
         }
       ]
@@ -123936,12 +123966,12 @@
       "origins": [
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 532,
+          "line": 525,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 533,
+          "line": 526,
           "sink": "_read"
         }
       ]
@@ -123951,87 +123981,17 @@
       "origins": [
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 502,
+          "line": 495,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 504,
+          "line": 497,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 505,
-          "sink": "_read"
-        },
-        {
-          "path": "cdmw/services/effect_preview_model.py",
-          "line": 522,
-          "sink": "_read"
-        },
-        {
-          "path": "cdmw/services/effect_preview_model.py",
-          "line": 525,
-          "sink": "_read"
-        },
-        {
-          "path": "cdmw/services/effect_preview_model.py",
-          "line": 526,
-          "sink": "_read"
-        },
-        {
-          "path": "cdmw/services/effect_preview_model.py",
-          "line": 558,
-          "sink": "_read"
-        },
-        {
-          "path": "cdmw/services/effect_preview_model.py",
-          "line": 562,
-          "sink": "_read"
-        },
-        {
-          "path": "cdmw/services/effect_preview_model.py",
-          "line": 563,
-          "sink": "_read"
-        }
-      ]
-    },
-    {
-      "key": "_simulationData",
-      "origins": [
-        {
-          "path": "cdmw/services/effect_preview_model.py",
-          "line": 500,
-          "sink": "_read"
-        },
-        {
-          "path": "cdmw/services/effect_preview_model.py",
-          "line": 501,
-          "sink": "_read"
-        },
-        {
-          "path": "cdmw/services/effect_preview_model.py",
-          "line": 508,
-          "sink": "_read"
-        },
-        {
-          "path": "cdmw/services/effect_preview_model.py",
-          "line": 509,
-          "sink": "_read"
-        },
-        {
-          "path": "cdmw/services/effect_preview_model.py",
-          "line": 511,
-          "sink": "_read"
-        },
-        {
-          "path": "cdmw/services/effect_preview_model.py",
-          "line": 512,
-          "sink": "_read"
-        },
-        {
-          "path": "cdmw/services/effect_preview_model.py",
-          "line": 514,
+          "line": 498,
           "sink": "_read"
         },
         {
@@ -124051,12 +124011,82 @@
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 608,
+          "line": 561,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 609,
+          "line": 565,
+          "sink": "_read"
+        },
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 566,
+          "sink": "_read"
+        }
+      ]
+    },
+    {
+      "key": "_simulationData",
+      "origins": [
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 493,
+          "sink": "_read"
+        },
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 494,
+          "sink": "_read"
+        },
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 501,
+          "sink": "_read"
+        },
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 502,
+          "sink": "_read"
+        },
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 504,
+          "sink": "_read"
+        },
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 505,
+          "sink": "_read"
+        },
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 507,
+          "sink": "_read"
+        },
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 508,
+          "sink": "_read"
+        },
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 511,
+          "sink": "_read"
+        },
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 512,
+          "sink": "_read"
+        },
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 615,
+          "sink": "_read"
+        },
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 616,
           "sink": "_read"
         }
       ]
@@ -124066,7 +124096,27 @@
       "origins": [
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 488,
+          "line": 481,
+          "sink": "_read"
+        },
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 482,
+          "sink": "_read"
+        },
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 483,
+          "sink": "_read"
+        },
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 486,
+          "sink": "_read"
+        },
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 487,
           "sink": "_read"
         },
         {
@@ -124081,42 +124131,37 @@
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 493,
+          "line": 492,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 494,
+          "line": 541,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 496,
+          "line": 599,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 497,
+          "line": 600,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 499,
+          "line": 602,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 595,
+          "line": 603,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 596,
-          "sink": "_read"
-        },
-        {
-          "path": "cdmw/services/effect_preview_model.py",
-          "line": 596,
+          "line": 603,
           "sink": "_read"
         }
       ]
@@ -128121,7 +128166,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_effect_planning.py",
-          "line": 116,
+          "line": 121,
           "sink": "add"
         }
       ]
@@ -128186,7 +128231,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_effect_planning.py",
-          "line": 121,
+          "line": 126,
           "sink": "add"
         }
       ]
@@ -131846,7 +131891,7 @@
       "origins": [
         {
           "path": "cdmw/services/effect_preview_geometry.py",
-          "line": 90,
+          "line": 92,
           "sink": "ValueError"
         }
       ]
@@ -134086,7 +134131,7 @@
       "origins": [
         {
           "path": "cdmw/services/effect_preview_geometry.py",
-          "line": 57,
+          "line": 59,
           "sink": "ValueError"
         }
       ]
@@ -134096,7 +134141,7 @@
       "origins": [
         {
           "path": "cdmw/services/effect_preview_geometry.py",
-          "line": 64,
+          "line": 66,
           "sink": "ValueError"
         }
       ]
@@ -134106,7 +134151,7 @@
       "origins": [
         {
           "path": "cdmw/services/effect_preview_geometry.py",
-          "line": 69,
+          "line": 71,
           "sink": "ValueError"
         }
       ]
@@ -134116,7 +134161,7 @@
       "origins": [
         {
           "path": "cdmw/services/effect_preview_geometry.py",
-          "line": 72,
+          "line": 74,
           "sink": "ValueError"
         }
       ]
@@ -134536,7 +134581,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_effect_planning.py",
-          "line": 126,
+          "line": 131,
           "sink": "add"
         }
       ]
@@ -139411,7 +139456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 489,
+          "line": 480,
           "sink": "addItem"
         }
       ]
@@ -141301,7 +141346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1134,
+          "line": 1136,
           "sink": "setText"
         }
       ]
@@ -141311,7 +141356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1125,
+          "line": 1127,
           "sink": "setText"
         }
       ]
@@ -143467,16 +143512,6 @@
       ]
     },
     {
-      "key": "{value_0} is not in the archives, so the particles scatter here. The game draws its own shape.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 245,
-          "sink": "setText"
-        }
-      ]
-    },
-    {
       "key": "{value_0} is not there to convert.",
       "origins": [
         {
@@ -144296,7 +144331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_package.py",
-          "line": 357,
+          "line": 358,
           "sink": "setText"
         }
       ]
@@ -144371,7 +144406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 517,
+          "line": 508,
           "sink": "setText"
         }
       ]
@@ -145931,7 +145966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1136,
+          "line": 1138,
           "sink": "note"
         }
       ]
@@ -146411,7 +146446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1124,
+          "line": 1126,
           "sink": "note"
         }
       ]

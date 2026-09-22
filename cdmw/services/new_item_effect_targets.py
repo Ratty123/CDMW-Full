@@ -94,6 +94,8 @@ def inspect_effect_targets(snapshot: NewItemSnapshot, spec: NewItemSpec, *, stop
         )
     try:
         donor = snapshot.payload(EFFECT_DONOR_PREFAB)
+        from cdmw.services.effect_reference import resolve_effect_reference
+        reference = resolve_effect_reference(snapshot, str(spec.effect))
     except Exception as exc:  # noqa: BLE001 - preflight reports the archive read failure
         return EffectTargetCompatibility(False, targets, (f"The visual-effect donor prefab could not be read: {exc}",))
     errors: list[str] = []
@@ -105,7 +107,7 @@ def inspect_effect_targets(snapshot: NewItemSnapshot, spec: NewItemSpec, *, stop
                 source,
                 donor,
                 component_type="EffectComponent",
-                path_replacements={EFFECT_DONOR_PATH: str(spec.effect)},
+                path_replacements={EFFECT_DONOR_PATH: reference},
                 offset_transform=encode_transform(),
             )
         except (PrefabEditError, KeyError, OSError, RuntimeError, ValueError) as exc:

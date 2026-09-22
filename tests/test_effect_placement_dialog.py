@@ -506,15 +506,25 @@ class DialogTests(_DialogPresentationMixin, _DialogTestCase):
         dialog = self._dialog(effect_preview=preview)
         dialog._show_caveats()
         self.assertFalse(dialog.caveat.isHidden())
-        self.assertIn("pafx_m_ds_firesword_trail_002a.pam", dialog.caveat.text())
+        self.assertIn("Approximate preview", dialog.caveat.text())
         # the line stays short; the detail moved to its tooltip, because a paragraph here
         # pushed the controls above it off a short panel
         self.assertLess(len(dialog.caveat.text()), 160, dialog.caveat.text())
-        self.assertIn("stand-in", dialog.caveat.toolTip())
+        self.assertIn("pafx_m_ds_firesword_trail_002a.pam", dialog.caveat.toolTip())
 
         quiet = self._dialog(effect_preview=SimpleNamespace(emitters=(), notes=()))
         quiet._show_caveats()
         self.assertTrue(quiet.caveat.isHidden())
+
+    def test_geometry_and_shader_limitations_are_visible_without_a_missing_spawn_mesh(self) -> None:
+        from types import SimpleNamespace
+
+        notes = ("lightning: particle geometry unavailable", "lightning: procedural deformation is not reproduced")
+        dialog = self._dialog(effect_preview=SimpleNamespace(emitters=(), notes=notes))
+        dialog._show_caveats()
+        self.assertFalse(dialog.caveat.isHidden())
+        self.assertIn("2 limitation(s)", dialog.caveat.text())
+        self.assertEqual(dialog.caveat.toolTip(), "\n".join(notes))
 
     def test_the_numbers_stay_the_item_s_while_the_picture_is_the_character_s(self) -> None:
         """The scene is the character standing upright, which is a turn away from the item's

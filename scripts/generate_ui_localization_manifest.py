@@ -47,6 +47,9 @@ PYTHON_SOURCE_ROOTS = (
 )
 MANUAL_SOURCE_KEYS = frozenset(
     {
+        # Effect emitter controls are labels in the typed domain field table.
+        "Infinite particle life (0/1)",
+        "Repeat lifetime curves (0/1)",
         # New Item virtual rows and worker-prepared review text have no widget sink.
         "Change", "Built for: {value_0}", "Current game: {value_0}",
         "Compared files:", "Required review:",

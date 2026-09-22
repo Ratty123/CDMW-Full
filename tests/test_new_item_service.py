@@ -801,6 +801,7 @@ class PlanTests(_PackageCase):
 
         fixtures = Path(__file__).parent / "fixtures" / "effects"
         files = synthetic_files()
+        files["effect/effect_action.xml"] = b'<Effect Name="fx_real_fire.action.effect"/>'
         files["effect/binary__/releasebin/fx_real_fire.pae"] = (fixtures / "fx_hit_common_fire_attach_a_loop.pae").read_bytes()
         files["effect/binary__/emitter/cdem_last_fire_circle_trail_001a.paem"] = (fixtures / "cdem_last_fire_circle_trail_001a.paem").read_bytes()
         files["effect/binary__/renderpreset/fx_fire_uber_ember_01.parg"] = (fixtures / "fx_fire_uber_ember_01.parg").read_bytes()
@@ -836,10 +837,10 @@ class PlanTests(_PackageCase):
         self.assertTrue(preset.walk_complete, preset.walk_note)
         # the graft names the clone, and the manifest says what was edited
         prefab = decode_prefab_binary(added[f"character/bin__/prefab/{FOLDER}/{plan.spec.stem}_r.prefab"].payload_data)
-        self.assertIn(f"{effect_stem}.level.effect", [r.text for r in prefab.resource_strings()])
-        self.assertEqual(plan.manifest["effect"]["path"], f"{effect_stem}.level.effect")
+        self.assertIn(f"{effect_stem}.action.effect", [r.text for r in prefab.resource_strings()])
+        self.assertEqual(plan.manifest["effect"]["path"], f"{effect_stem}.action.effect")
         look_manifest = plan.manifest["effect"]["look"]
-        self.assertEqual(look_manifest["source"], "fx_real_fire.level.effect")
+        self.assertEqual(look_manifest["source"], "fx_real_fire.action.effect")
         self.assertEqual(look_manifest["color"], [0.2, 0.4, 1.0])
         self.assertGreater(look_manifest["edited"].get("_spawnCountMin", 0), 0)
         self.assertTrue(any(line.startswith("effect look: fx_real_fire cloned as") for line in plan.summary_lines))
@@ -849,6 +850,8 @@ class PlanTests(_PackageCase):
         plain = self.service.plan(self._spec(model_source=ModelSource.TEMPLATE, effect="fx_real_fire.level.effect"), snapshot)
         self.assertFalse(any(path.startswith("effect/") for path in (r.path for r in plain.additions)))
         self.assertIsNone(plain.manifest["effect"]["look"])
+        self.assertEqual(plain.manifest["effect"]["path"], "fx_real_fire.action.effect")
+        self.assertTrue(any("resolved to shipped" in line for line in plain.summary_lines))
 
         from cdmw.domain.new_item.effect_authoring import EffectLayer, EmitterEdit
         layers = tuple(EffectLayer('fx_real_fire', name=f'Layer {count}', look=EffectLook(emitter_order=(0,), emitters=(EmitterEdit(0, values=(('_spawnCountMax',(float(count),)),)),))) for count in (4,8))

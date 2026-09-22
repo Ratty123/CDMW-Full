@@ -8,8 +8,8 @@ import pytest
 from cdmw.core.effect_binary import ReflectNode, ReflectValue, decode_effect_binary
 from cdmw.core.effect_edit import EmitterLayout
 from cdmw.domain.cancellation import RunCancelled
-from cdmw.services.effect_preview_geometry import load_particle_geometry, particle_geometry
-from cdmw.services.effect_preview_model import _Source, _emitter_preview, build_effect_preview
+from cdmw.services.effect_preview_geometry import MAX_VERTICES, load_particle_geometry, particle_geometry
+from cdmw.services.effect_preview_model import EffectPreview, _Source, _emitter_preview, build_effect_preview
 from tests.test_effect_preview_model import EFFECT
 
 
@@ -108,7 +108,7 @@ def test_geometry_preserves_triangles_and_uvs_across_submeshes():
     assert faces == ((0, 1, 2), (3, 4, 5))
 
 
-@pytest.mark.parametrize("vertices,faces", [([(float("nan"), 0, 0)] * 3, [(0, 1, 2)]), ([(0, 0, 0)] * 3, [(0, 1, 9)]), ([(0, 0, 0)] * 4097, [(0, 1, 2)])])
+@pytest.mark.parametrize("vertices,faces", [([(float("nan"), 0, 0)] * 3, [(0, 1, 2)]), ([(0, 0, 0)] * 3, [(0, 1, 9)]), ([(0, 0, 0)] * (MAX_VERTICES + 1), [(0, 1, 2)])])
 def test_invalid_or_oversized_mesh_is_rejected(vertices, faces):
     with pytest.raises(ValueError):
         particle_geometry(SimpleNamespace(submeshes=[SimpleNamespace(vertices=vertices, faces=faces, uvs=[])]))
@@ -120,3 +120,59 @@ def test_particle_mesh_load_observes_cancellation_before_archive_reads():
     snapshot = SimpleNamespace(has_entry=lambda path: pytest.fail("read after cancellation"))
     with pytest.raises(RunCancelled):
         load_particle_geometry(SimpleNamespace(emitters=[preview(node("EmitterData"))], notes=()), snapshot, None, cancel)
+
+
+def test_lightning_sized_mesh_retains_every_triangle():
+    sub = SimpleNamespace(vertices=[(0., 0., 0.), (1., 0., 0.), (0., 1., 0.)],
+                          faces=[(0, 1, 2)] * 3338, uvs=[(0., 0.)] * 3)
+    _vertices, _uvs, faces = particle_geometry(SimpleNamespace(submeshes=[sub]))
+    assert len(faces) == 3338
+
+
+def test_missing_particle_mesh_is_not_replaced_with_a_sprite():
+    emitter = replace(preview(node("EmitterData")), kind="mesh", mesh="missing.pam", texture="glow.dds")
+    result = load_particle_geometry(EffectPreview("missing", (emitter,), (0.,) * 3, (1.,) * 3),
+                                    SimpleNamespace(has_entry=lambda _: False), None, lambda: None)
+    assert result.emitters[0].kind == "mesh"
+    assert not result.emitters[0].particle_faces
+    assert "particle geometry unavailable" in result.notes[0]
+
+
+def test_additive_emission_is_independent_of_base_opacity_and_reads_lifetime_flags():
+    source = node("EmitterData", children=[
+        ("_effectMaterialData2", material("_textureEmissive", "glow.dds")),
+        ("_renderData", node("EmitterRenderData", [("_opacity", 0.0)])),
+        ("_spawnData", node("EmitterSpawnData", [("_isInfiniteParticle", True), ("_useCureveRepeat", True)])),
+    ])
+    result = preview(source)
+    assert result.blend == "additive"
+    assert max(result.alpha_over_life) > 0
+    assert result.infinite_life and result.repeat_curves
+
+
+def test_reordered_scalar_curve_cannot_supply_rgb_and_removed_colour_stays_removed():
+    from cdmw.services.effect_preview_model import _curve_from
+    from cdmw.core.effect_edit import COLOR_CURVE_ID
+    progress = node("Curve", [("_componentCount", 1)])
+    progress.wire["owner"] = 16
+    progress.values.append(ReflectValue("_splineData", "uint16", 3, struct.pack("<8e", *([.5] * 8)), 0))
+    override = node("EmitterData", children=[("_curveEntryDataList", (progress,))])
+    colour = node("Curve", [("_splineID", COLOR_CURVE_ID), ("_componentCount", 4)])
+    colour.values[0] = ReflectValue("_splineID", "int", 0, struct.pack("<i", COLOR_CURVE_ID), 0)
+    colour.values.append(ReflectValue("_splineData", "uint16", 3, struct.pack("<8e", *([0., 0., 1., 0.] * 2)), 0))
+    base = node("EmitterData", children=[("_curveEntryDataList", (colour,))])
+    sources = [_Source(override, EmitterLayout((COLOR_CURVE_ID,))), _Source(base, EmitterLayout())]
+    assert _curve_from(sources, COLOR_CURVE_ID, 4)[0] == (0., 0., 1., 0.)
+    override.wire["_curveEntryDataList"] = {"pairs": struct.pack("<Q", COLOR_CURVE_ID)}
+    assert _curve_from(sources, COLOR_CURVE_ID, 4) == ()
+    override.children = [("_curveEntryDataList", (progress, colour))]
+    assert _curve_from(sources, COLOR_CURVE_ID, 4)[0] == (0., 0., 1., 0.)
+
+
+def test_reordered_inherited_material_parameters_follow_their_stable_keys():
+    from cdmw.services.effect_preview_model import _read_material
+    parameter = node("Parameter", [("_value", 2.)])
+    parameter.wire["owner"] = 22
+    source = node("Material", children=[("_parameters", (parameter,))])
+    layout = EmitterLayout(parameter_names=("_temperatureColorSpline", "_temperatureBrightness"), parameter_keys=(11, 22))
+    assert _read_material(source, layout).temperature_brightness == 2.

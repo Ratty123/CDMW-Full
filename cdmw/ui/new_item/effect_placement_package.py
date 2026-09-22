@@ -290,6 +290,7 @@ class EffectPlacementPackageMixin:
                 self._remove_owned_package(retired)
         self._retired_previews = []
         self.status.setText("")
+        self._show_caveats()
         self._sync_host()
         self._apply_scene_visibility()
         restore_view = getattr(self.host, "restore_view_state", None)

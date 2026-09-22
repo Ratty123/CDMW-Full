@@ -21,13 +21,18 @@ def test_real_emitter_controls_show_inherited_values_and_route_overrides():
     panel.changed.connect(received.append)
     panel.changed.connect(panel.set_state)
     panel.set_state(EffectWorkspaceState.from_layers((EffectLayer('fx_fire'),)))
-    preview = SimpleNamespace(editor_emitters=({'index':0,'name':'Sparks','enabled':True,'resolved':True,'fields':('_spawnCountMin','_spawnCountMax'), 'values':{'_spawnCountMin':(3,), '_spawnCountMax':(4,)}},))
+    preview = SimpleNamespace(editor_emitters=({'index':0,'name':'Sparks','enabled':True,'resolved':True,'fields':('_spawnCountMin','_spawnCountMax','_isInfiniteParticle','_useCureveRepeat'), 'values':{'_spawnCountMin':(3,), '_spawnCountMax':(4,), '_isInfiniteParticle':(1,), '_useCureveRepeat':(1,)}},))
     panel.set_preview(preview)
     check, spins = panel._fields['_spawnCountMax']
     assert spins[0].value() == 4
     assert check.checkState() == Qt.CheckState.Unchecked
     spins[0].setValue(8)
     assert dict(received[-1].look.emitters[0].values)['_spawnCountMax'] == (8.,)
+    assert check.checkState() == Qt.CheckState.Checked
+    check, spins = panel._fields['_isInfiniteParticle']
+    assert spins[0].value() == 1 and spins[0].decimals() == 0
+    spins[0].setValue(0)
+    assert dict(received[-1].look.emitters[0].values)['_isInfiniteParticle'] == (0.,)
     assert check.checkState() == Qt.CheckState.Checked
     panel.emitter_enabled.setChecked(False)
     assert received[-1].look.emitters[0].enabled is False

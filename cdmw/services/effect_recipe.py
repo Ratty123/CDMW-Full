@@ -6,26 +6,40 @@ import struct
 from dataclasses import replace
 
 from cdmw.core.effect_binary import EffectBinaryError, ReflectNode, ReflectValue, decode_effect_binary
-from cdmw.core.effect_edit import apply_effect_look, preset_path
+from cdmw.core.effect_edit import apply_effect_look, collection_key, preset_path
 from cdmw.core.effect_writer import serialize_effect, set_typed_value
 from cdmw.core.prefab_component_graft import encode_prefab_type
 from cdmw.domain.new_item.effect_authoring import EffectLook, validate_emitter_edits
 
 
 def _merge(base: ReflectNode, override: ReflectNode) -> ReflectNode:
-    """Resolve positional override collections against their own base layout."""
+    """Resolve keyed override collections, retaining legacy positional support."""
     out = copy.deepcopy(base)
     out.override = 0
     values = {v.name: v for v in out.values}
-    values.update({v.name: copy.deepcopy(v) for v in override.values})
+    values.update({v.name: copy.deepcopy(v) for v in override.values
+                   if not (override.override and override.wire.get(v.name, {}).get('null'))})
     out.values = list(values.values())
     children = dict(out.children)
     for key, child in override.children:
         previous = children.get(key)
         if isinstance(child, ReflectNode) and isinstance(previous, ReflectNode):
             children[key] = _merge(previous, child)
-        elif isinstance(child, tuple) and isinstance(previous, tuple) and override.override:
-            children[key] = tuple(_merge(previous[i], item) if i < len(previous) else copy.deepcopy(item) for i, item in enumerate(child)) + copy.deepcopy(previous[len(child):])
+        elif isinstance(child, tuple) and isinstance(previous, tuple):
+            inherited = {collection_key(item): item for item in previous}
+            if None not in inherited and all(collection_key(item) is not None for item in child):
+                # The serialized collection is the resulting ordered list.
+                # Resolve retained entries by identity, never by shifted position;
+                # omitted/removed base entries must not be appended again.
+                children[key] = tuple(
+                    _merge(inherited[collection_key(item)], item)
+                    if item.override and collection_key(item) in inherited else copy.deepcopy(item)
+                    for item in child
+                )
+            elif override.override:
+                children[key] = tuple(_merge(previous[i], item) if i < len(previous) else copy.deepcopy(item) for i, item in enumerate(child)) + copy.deepcopy(previous[len(child):])
+            else:
+                children[key] = copy.deepcopy(child)
         elif child is not None or not override.override:
             children[key] = copy.deepcopy(child)
     out.children = list(children.items())

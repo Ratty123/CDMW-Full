@@ -14,8 +14,8 @@ already-edited bytes (:func:`cdmw.core.effect_edit.apply_effect_look`) so the pr
 follows the look.
 
 Values come from three places in this order: the effect's embedded override of the
-emitter (an effect changes what its emitter does, by position for the entries the
-override leaves unnamed), the emitter file itself, and the render preset the embedded
+emitter (unnamed inherited entries resolve through their stable collection keys),
+the emitter file itself, and the render preset the embedded
 emitter names (a blue look edited only the effect's and the emitter's ramps and drew
 blue in game, so the preset's material does not win over theirs; its emissive colour
 does unless `_overridePresetColor` is set). Curve ids other than 21 have no
@@ -36,6 +36,7 @@ from typing import Callable, Iterable, List, Mapping, Optional, Protocol, Sequen
 
 from cdmw.core.effect_binary import EffectDocument, ReflectNode, half_floats
 from cdmw.core.effect_edit import COLOR_CURVE_ID, TEMPERATURE_BRIGHTNESS, TEMPERATURE_RAMP, EmitterLayout, LookLike, emitter_paths_of
+from cdmw.core.effect_edit import curve_id_of, curve_is_removed, parameter_name_of
 from cdmw.domain.cancellation import RunCancelled
 
 __all__ = [
@@ -125,6 +126,8 @@ class EmitterPreview:
     loop_count: int = 0
     layer_transform: Tuple[float, ...] = ()
     source_index: int = 0
+    infinite_life: bool = False
+    repeat_curves: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -220,13 +223,7 @@ def _named_parameters(material: Optional[ReflectNode], layout: EmitterLayout) ->
         return
     parameters = material.child("_parameters")
     for index, parameter in enumerate(parameters if isinstance(parameters, tuple) else ()):
-        name = parameter.value("_name")
-        if name is not None and name.kind == 1:
-            label = str(name.value)
-        elif index < len(layout.parameter_names):
-            label = str(layout.parameter_names[index] or "")
-        else:
-            label = ""
+        label = parameter_name_of(parameter, index, layout)
         if label:
             yield label, parameter
 
@@ -367,7 +364,7 @@ _MISSING_EMITTER_DEFAULTS: Mapping[str, float] = {
 @dataclass
 class _Source:
     """One place an emitter's values can come from, in priority order: the effect's
-    embedded override (values by position through `layout`), the render preset the
+    embedded override (inherited identities through `layout`), the render preset the
     embedded emitter names, the emitter file itself."""
 
     node: ReflectNode
@@ -402,20 +399,14 @@ def _read(sources: Sequence[_Source], group: str, name: str, default, reader):
 
 
 def _curve_from(sources: Sequence[_Source], curve_id: int, assumed_components: int) -> Tuple[Tuple[float, ...], ...]:
-    """The first source carrying curve `curve_id` with data: by its own `_splineID`, or by
-    position through the source's layout when the entry has none. The component count is
+    """The first source carrying curve `curve_id` with data, respecting inherited keys
+    and removals. Keyless legacy records use the base layout. The component count is
     the entry's `_componentCount` when it says, else `assumed_components`."""
 
     for source in sources:
         entries = source.node.child("_curveEntryDataList")
         for index, entry in enumerate(entries if isinstance(entries, tuple) else ()):
-            sid = entry.value("_splineID")
-            if sid is not None and isinstance(sid.value, int):
-                found = int(sid.value)
-            elif index < len(source.layout.curve_ids):
-                found = source.layout.curve_ids[index]
-            else:
-                found = None
+            found = curve_id_of(entry, index, source.layout)
             if found != curve_id:
                 continue
             samples = entry.value("_splineData")
@@ -424,6 +415,8 @@ def _curve_from(sources: Sequence[_Source], curve_id: int, assumed_components: i
             count_value = entry.value("_componentCount")
             components = int(count_value.value) if count_value is not None and isinstance(count_value.value, int) and count_value.value > 0 else assumed_components
             return curve_samples(samples.raw, components)
+        if curve_is_removed(source.node, curve_id):
+            return ()
     return ()
 
 
@@ -543,8 +536,18 @@ def _emitter_preview(
     mesh_name = _string_from(sources, "_spawnMeshSurfaceFileName")
     points = _sample_surface(mesh_name, meshes, SURFACE_POINTS) if mesh_name else ()
     if mesh_name and not points:
-        notes.append(f"{name}: spawn mesh {mesh_name.rsplit('/', 1)[-1]} was not read; particles spawn in a spread instead")
+        notes.append(f"{name}: spawn mesh {mesh_name.rsplit('/', 1)[-1]} was not read; the preview uses the placed origin")
     particle_mesh = _string_from(sources, "_meshObjectFileName")
+    spawn_volume = int(_read(sources, "_spawnData", "_spawnVolumeType", 0, _number))
+    if spawn_volume and not points:
+        notes.append(f"{name}: spawn volume type {spawn_volume} is not simulated; the preview uses the placed origin, so particle distribution can differ in game.")
+    for source in sources:
+        material = _first_child(source.node, "_effectMaterialData2")
+        material_name = material.value("_materialName") if material is not None else None
+        if material_name is not None and material_name.value:
+            if "lightning" in str(material_name.value).lower():
+                notes.append(f"{name}: {material_name.value} procedural deformation and shader masks are not reproduced; this is a static mesh approximation.")
+            break
 
     scale_curve = _curve_from(sources, SCALE_CURVE_ID, 3)
     alpha_curve = _curve_from(sources, ALPHA_CURVE_ID, 1)
@@ -561,6 +564,8 @@ def _emitter_preview(
         color_over_life = tuple(base for _ in range(CURVE_SAMPLES))
         brightness = float(_read(sources, "_renderData", "_brightness", 1.0, _brightness))
     opacity = max(0.0, min(1.0, float(_read(sources, "_renderData", "_opacity", 1.0, _number))))
+    # Base opacity is separate from emissive output: shipped additive fire has
+    # zero base opacity and still emits light. Curve 2 controls its coverage.
     if blend == "alpha":
         alpha_over_life = tuple(a * opacity for a in alpha_over_life)
 
@@ -591,6 +596,8 @@ def _emitter_preview(
 
     return EmitterPreview(
         name=name, kind=kind, texture=texture, blend=blend,
+        infinite_life=bool(_read(sources, "_spawnData", "_isInfiniteParticle", 0, _number)),
+        repeat_curves=bool(_read(sources, "_spawnData", "_useCureveRepeat", 0, _number)),
         loop_count=loop_count,
         burst_min=max(0, int(_read(sources, '_spawnData', '_spawnCountMin', burst, _number))),
         start_delay=(float(_read(sources, '_spawnData', '_spawnDelayMin', 0.0, _number)), float(_read(sources, '_spawnData', '_spawnDelayMax', 0.0, _number))),
@@ -720,7 +727,7 @@ def build_effect_preview(
     box_max = _vec3(document.root, "_boundingBoxMax", (0.5, 0.5, 0.5))
     if not emitters and not paths:
         notes.append("the effect names no emitters")
-    return EffectPreview(stem=stem, emitters=tuple(emitters), box_min=box_min, box_max=box_max, notes=tuple(notes), editor_emitters=tuple(editor_emitters))
+    return EffectPreview(stem=stem, emitters=tuple(emitters), box_min=box_min, box_max=box_max, notes=tuple(dict.fromkeys(notes)), editor_emitters=tuple(editor_emitters))
 
 
 class _SnapshotLike(Protocol):

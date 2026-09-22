@@ -19,6 +19,8 @@ EMITTER_FIELDS = (
     ("_spawnDelayMax", "Start delay maximum (s)", 0.0, 120.0, 0.0),
     ("_lifeTimeMin", "Lifetime minimum (s)", 0.01, 120.0, 1.0),
     ("_lifeTimeMax", "Lifetime maximum (s)", 0.01, 120.0, 1.0),
+    ("_isInfiniteParticle", "Infinite particle life (0/1)", 0.0, 1.0, 0.0),
+    ("_useCureveRepeat", "Repeat lifetime curves (0/1)", 0.0, 1.0, 0.0),
     ("_sequenceCountX", "Atlas columns", 1.0, 64.0, 1.0),
     ("_sequenceCountY", "Atlas rows", 1.0, 64.0, 1.0),
     ("_maxParticleCount", "Particle limit", 1.0, 100000.0, 200.0),
@@ -37,7 +39,7 @@ VECTOR_FIELDS = (
     ("_rotationMin", "Rotation minimum"),
     ("_rotationMax", "Rotation maximum"),
 )
-INTEGER_FIELDS = frozenset(('_spawnCountMin', '_spawnCountMax', '_maxParticleCount', '_loopCount', '_sequenceCountX', '_sequenceCountY'))
+INTEGER_FIELDS = frozenset(('_spawnCountMin', '_spawnCountMax', '_maxParticleCount', '_loopCount', '_sequenceCountX', '_sequenceCountY', '_isInfiniteParticle', '_useCureveRepeat'))
 
 
 @dataclass(frozen=True, slots=True)

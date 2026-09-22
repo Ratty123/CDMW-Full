@@ -52,7 +52,7 @@ MAX_SHIPPED_SOCKET_SLOTS = 5
 _INTERNAL_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,63}$")
 _STEM_RE = re.compile(r"^[a-z0-9][a-z0-9_]{0,63}$")
 _LOC_KEY_RE = re.compile(r"^[A-Za-z0-9_]{1,64}$")
-_EFFECT_RE = re.compile(r"^[A-Za-z0-9_\-]{1,128}\.(level|action)\.effect$")
+_EFFECT_RE = re.compile(r"^[A-Za-z0-9_\-]{1,128}\.(level|action|gimmick|system|sequencer)\.effect$")
 _U32_MAX = 0xFFFFFFFF
 _I32_MIN, _I32_MAX = -0x80000000, 0x7FFFFFFF
 
@@ -270,7 +270,7 @@ def validate_spec(spec: NewItemSpec) -> Tuple[ValidationIssue, ...]:
         issues.append(_issue("max_stack.range", "max_stack_count", "Max stack count is a positive 32-bit integer."))
 
     if spec.effect is not None and not _EFFECT_RE.match(str(spec.effect)):
-        issues.append(_issue("effect.shape", "effect", "An effect is named `<stem>.level.effect` (or `.action.effect`), the stem being a shipped `effect/binary__/releasebin/<stem>.pae`."))
+        issues.append(_issue("effect.shape", "effect", "An effect is named `<stem>.<kind>.effect`, with a shipped level, action, gimmick, system or sequencer reference."))
     if spec.effect is not None:
         try:
             scale = float(spec.effect_scale)

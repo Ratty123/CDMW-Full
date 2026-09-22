@@ -134,6 +134,30 @@ class PresetTests(unittest.TestCase):
 
 
 class LookTests(unittest.TestCase):
+    def test_scalar_brightness_and_its_omitted_default_are_editable(self) -> None:
+        from dataclasses import replace
+        from cdmw.core.effect_binary import ReflectValue
+        from cdmw.core.effect_writer import serialize_effect, set_typed_value
+
+        for existing in (None, .25):
+            with self.subTest(existing=existing):
+                source = EMBER.read_bytes()
+                doc = decode_effect_binary(source)
+                doc = replace(doc, types=tuple(replace(t, members=tuple(
+                    replace(m, type_name="float", value_size=4) if m.name == "_emissiveBrightness" else m
+                    for m in t.members)) if t.type_name == "EmitterRenderData" else t for t in doc.types))
+                render = doc.root.child("_renderData")
+                render.values = [v for v in render.values if v.name != "_emissiveBrightness"]
+                if existing is not None:
+                    render.values.append(ReflectValue("_emissiveBrightness", "float", 0, struct.pack("<f", existing), 0))
+                set_typed_value(doc, doc.root, "_renderGroupPreset", "")
+                source = serialize_effect(source, doc)
+                out, report = apply_effect_look(source, EffectLook(intensity=3.))
+                checked = decode_effect_binary(out)
+                self.assertTrue(checked.walk_complete)
+                self.assertEqual(checked.root.child("_renderData").value("_emissiveBrightness").value, 3. * (1. if existing is None else existing))
+                self.assertEqual(report.edited.get("_emissiveBrightness"), 1)
+
     def test_the_default_look_changes_nothing(self) -> None:
         data = EMBER.read_bytes()
         out, report = apply_effect_look(data, EffectLook())
@@ -244,27 +268,32 @@ class LookTests(unittest.TestCase):
 
         self.assertAlmostEqual(brightness(decode_effect_binary(out)), brightness(decode_effect_binary(data)) * 2.5, places=5)
 
-    def test_an_effect_recolours_its_positional_overrides_through_the_layouts(self) -> None:
+    def test_inherited_identity_prevents_a_shifted_size_curve_becoming_colour(self) -> None:
         data = EFFECT.read_bytes()
         trail = "effect/binary__/emitter/cdem_last_fire_circle_trail_001a.paem"
-        # a made-up layout that says the trail's override at curve position 4 is the colour curve
-        layout = EmitterLayout(curve_ids=(2, 8, 15, 0, COLOR_CURVE_ID), parameter_names=())
-        out, report = apply_effect_look(data, EffectLook(color=(1.0, 0.0, 0.0)), emitter_layouts={trail: layout})
+        # Position 4 used to be mistaken for any ID the base layout put there.
+        # Its serialized identity is actually 5 (size), even without _splineID.
+        layout = EmitterLayout(curve_ids=(2, 8, 15, 0, COLOR_CURVE_ID))
+        before = decode_effect_binary(data)
+        out, _ = apply_effect_look(data, EffectLook(color=(1., 0., 0.)), emitter_layouts={trail: layout})
+        after = decode_effect_binary(out)
+        get = lambda d: next(n for n in d.root.walk() if n.type_name.endswith("cdem_last_fire_circle_trail_001a.paem")).child("_curveEntryDataList")[4]
+        self.assertEqual(get(before).wire["owner"], 5)
+        self.assertEqual(get(after).value("_splineData").raw, get(before).value("_splineData").raw)
+
+    def test_colour_curve_identity_survives_an_absent_spline_id(self) -> None:
+        from cdmw.core.effect_writer import serialize_effect
+        source = EMBER.read_bytes()
+        doc = decode_effect_binary(source)
+        entry = next(n for n in doc.root.child("_curveEntryDataList") if n.wire["owner"] == COLOR_CURVE_ID)
+        entry.values = [v for v in entry.values if v.name != "_splineID"]
+        source = serialize_effect(source, doc)
+        out, report = apply_effect_look(source, EffectLook(color=(0., 0., 1.)))
         self.assertGreaterEqual(report.edited.get("_splineData:color", 0), 1)
-        doc = decode_effect_binary(out)
-        self.assertTrue(doc.walk_complete)
-        for node in doc.root.walk():
-            if node.type_name.endswith("cdem_last_fire_circle_trail_001a.paem"):
-                entry = node.child("_curveEntryDataList")[4]
-                samples = half_floats(entry.value("_splineData").raw)
-                self.assertGreater(samples[0], 0.0)
-                self.assertEqual(samples[1], 0.0)
-                self.assertEqual(samples[2], 0.0)
-                break
-        else:
-            self.fail("the trail override was not found")
-        untouched, report = apply_effect_look(data, EffectLook(color=(1.0, 0.0, 0.0)))
-        self.assertEqual(report.edited.get("_splineData:color", 0), 0, "without a layout a positional override is left alone")
+        entry = next(n for n in decode_effect_binary(out).root.child("_curveEntryDataList") if n.wire["owner"] == COLOR_CURVE_ID)
+        values = half_floats(entry.value("_splineData").raw)
+        self.assertTrue(any(values[i + 2] > 0 for i in range(0, len(values), 4)))
+        self.assertTrue(all(values[i] == values[i + 1] == 0 for i in range(0, len(values), 4)))
 
     def test_a_broken_file_is_refused(self) -> None:
         with self.assertRaises((EffectEditError, ValueError)):
