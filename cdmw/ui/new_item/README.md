@@ -99,6 +99,12 @@ only complete results enter the existing metadata cache. The resident placement 
 its serialized latest-wins package lane. Changing the effect, item or reference rig
 cancels obsolete preparation before the selection debounce runs. Already queued
 launches also reject stale generations, while the displayed scene remains usable.
+Effect manifests use compact JSON so dense item/character surfaces do not exceed
+the viewport's 16 MiB manifest limit through formatting whitespace. Preparation
+retains the full geometry without an extra deep copy and checks the serialized
+size before publishing. Oversized packages fail on the worker without replacing
+the current scene; rejected host loads retain their package and camera state for
+Retry until a replacement is acknowledged or the workspace closes.
 Mod-folder and icon-folder scans are part of that planning
 worker, never UI callbacks. Shutdown requests cancellation and leaves live
 threads discoverable to the shell close sweep; no New Item widget waits on its

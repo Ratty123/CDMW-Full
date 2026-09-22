@@ -311,6 +311,113 @@ class DialogTests(_DialogPresentationMixin, _DialogTestCase):
         self.assertTrue(dialog._content_failed, "a rejected package must remain retryable")
         self.assertIs(dialog._preview, resident)
 
+    def test_dense_surface_effect_loads_through_the_worker_and_real_host(self) -> None:
+        import json
+        from dataclasses import replace
+
+        from cdmw.services.mesh_rust_preview_package import validate_rust_preview_package
+        from cdmw.ui.preview.dotnet_host import RustPreviewHostFrame
+        from tests.test_effect_placement_preview import _fire_preview
+
+        mesh = _blade()
+        part = mesh.submeshes[0]
+        vertices, faces = part.vertices, part.faces
+        copies = 9_000
+        part.vertices = vertices * copies
+        part.normals *= copies
+        part.uvs *= copies
+        part.faces = [tuple(i + k * len(vertices) for i in face) for k in range(copies) for face in faces]
+        part.vertex_count, part.face_count = len(part.vertices), len(part.faces)
+        mesh.total_vertices, mesh.total_faces = part.vertex_count, part.face_count
+        effect = _fire_preview()
+        effect = replace(effect, emitters=tuple(replace(emitter, spawn_volume_type=6) for emitter in effect.emitters))
+        folder = tempfile.TemporaryDirectory(prefix="cdmw_effect_dense_surface_")
+        self.addCleanup(folder.cleanup)
+        workspace = EffectPlacementWorkspace(
+            item_mesh=mesh, box_min=(-1.0, -1.0, -1.0), box_max=(1.0, 1.0, 1.0),
+            output_root=Path(folder.name), effect_preview=effect,
+            character_builder=lambda **_kwargs: SimpleNamespace(mesh=mesh, item_rotation=None),
+            host_factory=RustPreviewHostFrame,
+        )
+        self.addCleanup(self._shutdown_workspace, workspace)
+        controller = workspace.host.controller
+        controller.set_visible(False)
+        failures = []
+        controller.package_failed.connect(lambda *args: failures.append(args))
+        workspace._start_package()
+        self._settle(lambda: workspace._thread is None)
+
+        self.assertIsNone(workspace._thread)
+        self.assertEqual(failures, [], "surface geometry must fit the real preview manifest contract")
+        self.assertFalse(workspace._content_failed, workspace.status.text())
+        package = Path(controller.desired_package_path)
+        self.assertEqual(validate_rust_preview_package(package), ())
+        manifest = json.loads((package / "manifest.json").read_text(encoding="utf-8"))
+        self.assertGreater(len(json.dumps(manifest, indent=2).encode()), 16 * 1024 * 1024)
+        surfaces = workspace.host._scene_state["effects_overlay"]["spawn_surfaces"]
+        for surface in (surfaces["item"], surfaces["character"]):
+            self.assertEqual(surface["vertices"], [list(value) for value in part.vertices])
+            self.assertEqual(surface["normals"], [list(value) for value in part.normals])
+            self.assertEqual(surface["faces"], [list(value) for value in part.faces])
+            self.assertEqual(len(surface["areas"]), len(part.faces))
+        self.assertIsNone(controller.process, "this is a headless host-loading test")
+
+    def test_oversized_effect_package_fails_before_viewport_handoff(self) -> None:
+        from tests.test_effect_placement_preview import _fire_preview
+
+        folder = tempfile.TemporaryDirectory(prefix="cdmw_effect_manifest_limit_")
+        self.addCleanup(folder.cleanup)
+        root = Path(folder.name)
+        marker = root / "keep.txt"
+        marker.write_text("unrelated", encoding="utf-8")
+        workspace = self._dialog(output_root=root, effect_preview=_fire_preview()).workspace
+        resident = workspace._preview
+        with patch("cdmw.services.mesh_rust_preview_package._PREVIEW_MANIFEST_MAX_BYTES", 1024):
+            workspace._start_package()
+            self._settle(lambda: workspace._thread is None)
+
+        self.assertIsNone(workspace._thread)
+        self.assertTrue(workspace._content_failed)
+        self.assertIn("preview manifest exceeds its size limit", workspace.status.text())
+        self.assertIs(workspace._preview, resident)
+        self.assertIsNone(workspace.host.loaded)
+        self.assertEqual(list(root.iterdir()), [marker], "an invalid build must leave no published or staging package")
+
+    def test_rejected_package_survives_for_retry_and_retires_on_shutdown(self) -> None:
+        from cdmw.services.effect_placement_preview import build_effect_placement_package
+        from cdmw.ui.preview.dotnet_host import RustPreviewHostFrame
+
+        folder = tempfile.TemporaryDirectory(prefix="cdmw_effect_retry_")
+        self.addCleanup(folder.cleanup)
+        root = Path(folder.name)
+        preview = build_effect_placement_package(_blade(), (-1, -1, -1), (1, 1, 1), output_root=root)
+        workspace = EffectPlacementWorkspace(
+            item_mesh=_blade(), box_min=(-1.0, -1.0, -1.0), box_max=(1.0, 1.0, 1.0),
+            output_root=root, host_factory=RustPreviewHostFrame,
+        )
+        self.addCleanup(self._shutdown_workspace, workspace)
+        controller = workspace.host.controller
+        controller.set_visible(False)
+        failures = []
+        controller.package_failed.connect(lambda *args: failures.append(args))
+        with patch.object(controller, "_with_preview_runtime_output", side_effect=OSError("temporary output unavailable")):
+            workspace._package_ready((0, preview, (), False))
+        self._settle(lambda: not workspace.iter_shutdown_workers())
+        self.assertTrue(workspace._content_failed)
+        self.assertEqual(len(failures), 1)
+        self.assertTrue((preview.package_dir / "manifest.json").is_file(), "Retry still owns this input")
+        self.assertIs(workspace._loading_preview, preview)
+
+        self.assertTrue(controller.load_package(controller._invalid_retry_package_path))
+        controller.package_applied.emit(str(preview.package_dir), 1)
+        self.assertEqual(len(failures), 1)
+        self.assertIs(workspace._preview, preview)
+        self.assertFalse(workspace._content_failed)
+        self.assertEqual(workspace.status.text(), "")
+        workspace.request_shutdown()
+        self._settle(lambda: not workspace.iter_shutdown_workers())
+        self.assertFalse(preview.package_dir.exists())
+
     def test_preview_uses_one_neutral_lighting_without_a_mode_selector(self) -> None:
         changes = []
         dialog = self._dialog(

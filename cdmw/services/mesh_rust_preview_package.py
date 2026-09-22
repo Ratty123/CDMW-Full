@@ -65,6 +65,7 @@ _PREVIEW_CORE_MATERIAL_RESOURCE_BYTES = 512 * 1024 * 1024
 _EFFECT_TEXTURE_RESOURCE_LIMIT = 128
 _EFFECT_TEXTURE_FILE_BYTES = 64 * 1024 * 1024
 _EFFECT_TEXTURE_TOTAL_BYTES = 512 * 1024 * 1024
+_PREVIEW_MANIFEST_MAX_BYTES = 16 * 1024 * 1024
 
 
 def _write_effect_texture_resources(
@@ -1456,7 +1457,9 @@ def _populate_preview_scene_overlays(
                 scene_payload[target_key] = dict(value)
     effect_texture_references: list[dict[str, object]] = []
     if isinstance(effects_overlay, Mapping):
-        effect_payload = copy.deepcopy(dict(effects_overlay))
+        # Only texture_files changes here. Avoid copying every surface vertex,
+        # normal and triangle a second time while preparing the same package.
+        effect_payload = dict(effects_overlay)
         if effect_texture_resources:
             texture_files, effect_texture_references = _write_effect_texture_resources(
                 package_dir,
@@ -1730,7 +1733,13 @@ def build_rust_preview_package(
                 },
             }
     manifest_path = package_dir / "manifest.json"
-    atomic_write_text(manifest_path, json.dumps(manifest, indent=2, sort_keys=True))
+    # Dense effect surfaces can exceed the shared Python/Rust 16 MiB limit
+    # from indentation alone. Keep every value, and reject genuinely oversized
+    # inputs on this worker before atomic publication or viewport handoff.
+    manifest_json = json.dumps(manifest, separators=(",", ":"), sort_keys=True)
+    if len(manifest_json) > _PREVIEW_MANIFEST_MAX_BYTES:  # ensure_ascii keeps bytes == characters
+        raise ValueError("preview manifest exceeds its size limit")
+    atomic_write_text(manifest_path, manifest_json)
     return RustPreviewPackage(
         package_dir=package_dir,
         manifest_path=manifest_path,
@@ -1750,7 +1759,7 @@ def _read_preview_manifest(path: Path | str) -> tuple[Path, dict]:
     if package_dir.is_file():
         package_dir = package_dir.parent
     manifest_path = package_dir / "manifest.json"
-    if manifest_path.stat().st_size > 16 * 1024 * 1024:
+    if manifest_path.stat().st_size > _PREVIEW_MANIFEST_MAX_BYTES:
         raise ValueError("preview manifest exceeds its size limit")
     payload = json.loads(manifest_path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):

@@ -262,9 +262,8 @@ class EffectPlacementPackageMixin:
                 self._package_load_applied(str(result.package_dir), 0)
         else:
             self._content_failed = True
-            self._loading_preview = None
-            self._loading_view_state = None
-            self._remove_owned_package(result)
+            # The host's Retry action retains this path. Keep its input and
+            # camera snapshot until a successful replacement or shutdown.
             self.status.setText("The resident viewport rejected the placement package.")
 
     def _package_load_applied(self, package_path: object, _generation: object = 0) -> None:
@@ -273,6 +272,7 @@ class EffectPlacementPackageMixin:
             return
         if Path(str(package_path)).resolve(strict=False) != Path(loading.package_dir).resolve(strict=False):
             return
+        self._content_failed = False
         previous = self._preview
         if previous is not None and previous is not loading:
             self._retired_previews.append(previous)

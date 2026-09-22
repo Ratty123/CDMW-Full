@@ -44,6 +44,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Effects with dense item or character surfaces load from smaller, faster-to-prepare preview manifests without losing geometry. Oversized builds fail before replacing the current scene, and Retry keeps its package available instead of reporting a missing `manifest.json`.
 - Material Glow preview no longer clips strength 1 and 4 to the same solid white. Reduced bloom, bounded compositing and lower archive-material emission exposure preserve more surface detail. Dark mode retains dim fill lighting so textures remain readable at moderate glow strengths. Exported glow values are unchanged.
 - Mesh surface effects use the decoded birth random sequence, tracking inputs, rotation order, half-precision lifetime and size, directional density and area scaling. Lightning noise follows particle IDs. Rejected infinite births retain their reserved slots, and draw quality no longer changes those attempted births. Live game seeds use a stable preview substitute; animated targets and game frame allocation remain approximate.
 - Supported untextured additive lightning previews the decoded moving visibility pulse and emissive perimeter, curve and brightness limits. Hidden portions no longer remain lit, and brightness limits preserve the authored hue.
