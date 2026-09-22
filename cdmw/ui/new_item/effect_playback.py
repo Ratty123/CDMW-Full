@@ -44,7 +44,12 @@ class EffectPlaybackControls(QWidget):
         self.quality.setCurrentIndex(1)
         self.quality.setToolTip('Preview particle limit per emitter; the whole scene remains limited to 32,768 drawing instances.')
         self.quality.currentIndexChanged.connect(lambda _: self.send(quality=self.quality.currentData()))
-        self._controls = (restart, self.speed, seek, self.seed, self.quality)
+        self.surface = QComboBox()
+        for title, target in (('Surface: Item', 0), ('Surface: Character', 1), ('Surface: None', 2)):
+            self.surface.addItem(title, target)
+        self.surface.setToolTip('Preview surface for attached particles. A missing surface produces no particles. This selection does not change the exported game target binding.')
+        self.surface.currentIndexChanged.connect(lambda _: self.send(surface_target=self.surface.currentData()))
+        self._controls = (restart, self.speed, seek, self.seed, self.quality, self.surface)
         self._columns = 0
         for control in self._controls:
             control.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)

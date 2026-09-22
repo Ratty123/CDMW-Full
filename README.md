@@ -196,12 +196,16 @@ reference. The preview does not reproduce the game's GPU vector fields, post
 effects, animation clipping, or final gameplay appearance.
 Colour edits include cloned render-preset temperature ramps. Billboard particle
 size represents its full dimensions, with placement scale applied once.
-Surface-dependent effects such as Aftertaa need a game-provided target mesh;
-placing their preview at an item offset does not establish that binding. The
-emitter diagnostics identify this requirement. Supported `EffectTest_Lightning`
-materials now use decoded Bezier/linear curves, packed branch controls, stepped
-bending, and small/large pivot noise in the viewport. Surface spawning, particle
-counts, shader masks and final emissive response remain under investigation.
+Surface-dependent effects such as Aftertaa need a game-provided target mesh.
+The preview's **Surface** control samples the item or the real character mesh;
+missing targets and out-of-volume samples produce no particles. Synthetic body
+stand-ins are excluded. This preview selection does not establish the game's
+attachment binding. The emitter inspector edits spawn type, surface density and
+volume values; for type 6, X is the normal offset, Y the triangle spread, Z the
+outer radius (0 = unlimited) and W the inner radius. Point mode removes the
+surface requirement. Supported lightning previews decoded branch thickness,
+bending and pivot noise with its authored material curves. Particle counts remain
+limited by preview quality; final shader masks and emissive response are approximate.
 
 Output can be a manager package or a CDMW-owned archive-group overlay. New Item
 installs through overlays only. **Output → Merge mods** combines compatible mod

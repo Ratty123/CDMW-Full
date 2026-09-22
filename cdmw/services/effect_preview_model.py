@@ -1,17 +1,10 @@
 """An approximate, honest simulation description of a shipped effect for the resident viewport.
 
-The game simulates its particles on the GPU with vector fields, presets and post effects
-of its own; none of that is reproduced. What this module reads out of a decoded effect
-(:mod:`cdmw.core.effect_binary`) is enough for "fire that looks like that fire, roughly
-where it will be": per emitter, how many particles spawn how often and for how long, where
-they spawn (a point spread, or points sampled on the effect's spawn mesh), the force
-that moves them, damping and speed limit, their size and its curve over life, their
-colour over life (the colour curve the game reads, id 21, and the temperature ramp are
-what a look edit changes, so an edited effect previews edited), an alpha curve, the
-sprite texture (an archive path; the package copies the DDS next to the mesh) and the
-blend mode, plus the beam width and colour for the lightning-style emitters. Read on the
-already-edited bytes (:func:`cdmw.core.effect_edit.apply_effect_look`) so the preview
-follows the look.
+The descriptor retains authored timing, forces, curves, particle geometry and material
+inputs for the Rust viewport. Supported lightning deformation and static surface
+spawning follow decoded shader arithmetic. Target binding, animated surface motion,
+particle scheduling and final shading are still limited; diagnostics describe those
+boundaries. Previewing edited bytes keeps supported controls consistent with export.
 
 Values come from three places in this order: the effect's embedded override of the
 emitter (unnamed inherited entries resolve through their stable collection keys),
@@ -134,9 +127,12 @@ class EmitterPreview:
     spawn_volume_data: Tuple[float, ...] = ()
     spawn_volume_transform: Tuple[float, ...] = ()
     spawn_volume_additional_data: Tuple[float, ...] = ()
-    spawn_surface_density: Optional[float] = None
-    spawn_uniform_surface_density: Optional[bool] = None
-    spawn_normal_alignment: Optional[bool] = None
+    # EmitterSpawnData constructor defaults, verified in the native factory.
+    spawn_surface_density: float = 10000.0
+    spawn_uniform_surface_density: bool = False
+    spawn_normal_alignment: bool = False
+    spawn_surface: dict = field(default_factory=dict)
+    spawn_mesh: str = ""
     #: EffectVertex normals and BGRA-authored branch controls, not display tint.
     particle_normals: Tuple[Vec3, ...] = ()
     particle_tangents: Tuple[Tuple[float, ...], ...] = ()
@@ -614,11 +610,11 @@ def _emitter_preview(
     mesh_name = _string_from(sources, "_spawnMeshSurfaceFileName")
     points = _sample_surface(mesh_name, meshes, SURFACE_POINTS) if mesh_name else ()
     if mesh_name and not points:
-        notes.append(f"{name}: spawn mesh {mesh_name.rsplit('/', 1)[-1]} was not read; the preview uses the placed origin")
+        notes.append(f"{name}: spawn mesh {mesh_name.rsplit('/', 1)[-1]} was not read; choose an item or character surface for the preview")
     particle_mesh = _string_from(sources, "_meshObjectFileName")
     spawn_volume = int(_read(sources, "_spawnData", "_spawnVolumeType", 0, _number))
     if spawn_volume in (5, 6) and not points:
-        notes.append(f"{name}: spawn type {spawn_volume} requires a target mesh surface. An empty game surface produces no particles; the preview currently shows particles at the placed origin and does not verify that target binding.")
+        notes.append(f"{name}: spawn type {spawn_volume} requires a target mesh surface. An empty surface produces no particles; the preview requires an item or character surface selected in the Surface control. That preview selection does not verify the game target binding.")
     elif spawn_volume and not points:
         notes.append(f"{name}: spawn volume type {spawn_volume} is not simulated; the preview uses the placed origin, so particle distribution can differ in game.")
     shader_material = _shader_material(sources)
@@ -630,7 +626,7 @@ def _emitter_preview(
                      and all(not spline["components"] and not spline["preset"] or all(len(samples) == 128 for samples in spline["samples"])
                              for spline in shader_material.get("splines", {}).values()))
         if supported:
-            notes.append(f"{name}: lightning previews decoded branch thickness, bending and pivot noise when packed vertex controls are available. Particle counts, spawning, shader masks and emissive response remain approximate.")
+            notes.append(f"{name}: lightning previews decoded branch thickness, bending and pivot noise when packed vertex controls are available. Particle counts are limited by preview quality; shader masks and emissive response remain approximate.")
         else:
             notes.append(f"{name}: this lightning material variant has unsupported deformation inputs; it is shown as a static mesh. Shader masks and emissive response remain approximate.")
 
@@ -684,12 +680,13 @@ def _emitter_preview(
         infinite_life=bool(_read(sources, "_spawnData", "_isInfiniteParticle", 0, _number)),
         repeat_curves=bool(_read(sources, "_spawnData", "_useCureveRepeat", 0, _number)),
         spawn_volume_type=spawn_volume,
+        spawn_mesh=mesh_name,
         spawn_volume_data=_read(sources, "_emitterDynamicData", "_spawnVolumeData", (0.0,) * 4, _float_tuple),
         spawn_volume_transform=_read(sources, "_emitterDynamicData", "_spawnVolumeTransform", (1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0), _float_tuple),
         spawn_volume_additional_data=_read(sources, "_spawnData", "_spawnVolumeAdditionalData", (0.0,) * 4, _float_tuple),
-        spawn_surface_density=_read(sources, "_spawnData", "_surfaceDensity", None, _number),
-        spawn_uniform_surface_density=_read(sources, "_spawnData", "_useUniformSurfaceDensity", None, _optional_flag),
-        spawn_normal_alignment=_read(sources, "_spawnData", "_particleLookAtSpawnNormal", None, _optional_flag),
+        spawn_surface_density=_read(sources, "_spawnData", "_surfaceDensity", 10000.0, _number),
+        spawn_uniform_surface_density=_read(sources, "_spawnData", "_useUniformSurfaceDensity", False, _optional_flag),
+        spawn_normal_alignment=_read(sources, "_spawnData", "_particleLookAtSpawnNormal", False, _optional_flag),
         material=shader_material,
         loop_count=loop_count,
         burst_min=max(0, int(_read(sources, '_spawnData', '_spawnCountMin', burst, _number))),
@@ -804,7 +801,8 @@ def build_effect_preview(
             if holder is not None:
                 reachable = {n.type_name for source in sources for n in source.node.walk()}
                 field_names.update(m.name for t in holder.types if t.type_name in reachable for m in t.members)
-        field_values = {}
+        field_values = {"_surfaceDensity": (10000.0,), "_useUniformSurfaceDensity": (0,),
+                        "_particleLookAtSpawnNormal": (0,)}
         for source in reversed(sources):
             for value in source.node.all_values():
                 if value.kind not in (0, 2):
@@ -904,6 +902,7 @@ def preview_effect_from_snapshot(
             data, _report = apply_effect_look(data, look)
         preset_documents[name] = decode_effect_binary(data)
     meshes: dict = {}
+    surfaces: dict = {}
     parser = parse_mesh
     if parser is None:
         from cdmw.modding.mesh_parser import parse_mesh as _parse_mesh
@@ -922,6 +921,8 @@ def preview_effect_from_snapshot(
                 check_cancelled()
                 parsed = parser(snapshot.payload(path), path.rsplit("/", 1)[-1])
                 check_cancelled()
+                from cdmw.services.effect_spawn_surface import spawn_surface_geometry
+                surfaces[path] = spawn_surface_geometry(parsed, check_cancelled)
                 from cdmw.services.effect_preview_geometry import sample_spawn_surface
                 vertices = sample_spawn_surface(parsed, SURFACE_POINTS, check_cancelled)
                 if not vertices:
@@ -934,6 +935,9 @@ def preview_effect_from_snapshot(
                 meshes[path] = vertices
     check_cancelled()
     preview = build_effect_preview(stem, document, emitter_documents=emitter_documents, layouts=layouts, preset_documents=preset_documents, meshes=meshes)
+    from dataclasses import replace
+    preview = replace(preview, emitters=tuple(replace(emitter, spawn_surface=surfaces.get(
+        emitter.spawn_mesh, {})) for emitter in preview.emitters))
     from cdmw.services.effect_preview_geometry import load_particle_geometry
 
     return load_particle_geometry(preview, snapshot, parser, check_cancelled)

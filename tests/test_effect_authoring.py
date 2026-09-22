@@ -192,3 +192,29 @@ def test_spawn_mesh_sampling_uses_triangle_area_and_is_repeatable():
 def test_invalid_recipes_fail_before_serialization(edit):
     with pytest.raises((ValueError,TypeError)):
         read_recipe(json.dumps({'schema':1,'layers':[{'stem':STEM,'look':{'emitters':[__import__('dataclasses').asdict(edit)]}}]}))
+
+
+def test_surface_spawn_edits_round_trip_enum_volume_and_density_into_preview():
+    snapshot = Snapshot()
+    source = snapshot.payload(f'effect/binary__/releasebin/{STEM}.pae')
+    values = (('_spawnVolumeType', (6.,)), ('_surfaceDensity', (25.,)),
+              ('_useUniformSurfaceDensity', (1.,)), ('_spawnVolumeData', (.02, .5, .3, .1)))
+    look = EffectLook(emitter_order=(0,), emitters=(EmitterEdit(0, values=values),))
+    edited = compile_effect_recipe(snapshot, source, look)
+    document = decode_effect_binary(edited)
+    emitter = document.root.child('_emitterVariationDataArray')[0].child('_internalEmitterData')
+    spawn = emitter.child('_spawnData')
+    enum = spawn.value('_spawnVolumeType')
+    assert enum.kind == 2 and enum.value == 6
+    assert spawn.value('_surfaceDensity').value == 25.
+    assert spawn.value('_useUniformSurfaceDensity').value is True
+    decoded = preview_effect_from_snapshot(snapshot, STEM, look).emitters[0]
+    assert decoded.spawn_volume_type == 6
+    assert decoded.spawn_surface_density == 25.
+    assert decoded.spawn_uniform_surface_density is True
+    assert decoded.spawn_volume_data == pytest.approx((.02, .5, .3, .1))
+    point = replace(look, emitters=(EmitterEdit(0, values=(('_spawnVolumeType', (0.,)),)),))
+    assert preview_effect_from_snapshot(snapshot, STEM, point).emitters[0].spawn_volume_type == 0
+    for invalid in (-1, 1.5, float("nan"), float("inf"), 1 << (8 * len(enum.raw))):
+        with pytest.raises(EffectBinaryError, match='enum'):
+            set_typed_value(document, spawn, '_spawnVolumeType', invalid)

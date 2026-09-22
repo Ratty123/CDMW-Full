@@ -43,6 +43,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Surface-dependent effects now sample the selected item or real character mesh with decoded density, normal offset and volume clipping; missing surfaces produce no particles. The emitter inspector can edit and export spawn type, density and surface-volume values. Preview target selection remains separate from game attachment binding.
 - Supported lightning mesh particles now animate their decoded branch thickness, bending and pivot noise, using authored Bezier/linear material curves and packed vertex controls. Unsupported variants remain explicit; surface spawning and final game shading are still approximate.
 - Ready-mod texture export, targeted classification review, empty-layer texture crops, percent-encoded glTF buffers, material base-colour checks and mesh companion summaries no longer fail on missing runtime dependencies. glTF data URIs retain arbitrary binary bytes.
 - Recolor invalidates completed analysis when its source package changes and checks source identity before building. Editable texture filters and chaiNNer overrides retain their full text and Undo history.

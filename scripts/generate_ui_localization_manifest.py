@@ -50,6 +50,17 @@ MANUAL_SOURCE_KEYS = frozenset(
         # Effect emitter controls are labels in the typed domain field table.
         "Infinite particle life (0/1)",
         "Repeat lifetime curves (0/1)",
+        "Spawn type (0 = point)",
+        "Surface density",
+        "Uniform surface density (0/1)",
+        "Surface volume (types 5/6)",
+        "Surface: Item",
+        "Surface: Character",
+        "Surface: None",
+        "Preview surface for attached particles. A missing surface produces no particles. This selection does not change the exported game target binding.",
+        "For surface spawning: X offsets along the normal, Y controls triangle spread (0-1), Z is the outer radius (0 = unlimited), W is the inner radius. Radii apply to type 6.",
+        "0 spawns at the origin. 5 samples a mesh surface. 6 samples a target surface inside the volume. Changing this edits the exported effect.",
+
         # New Item virtual rows and worker-prepared review text have no widget sink.
         "Change", "Built for: {value_0}", "Current game: {value_0}",
         "Compared files:", "Required review:",

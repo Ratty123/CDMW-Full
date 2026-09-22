@@ -20,6 +20,7 @@ pub struct LoadedPreview {
     pub roles: Option<Vec<u32>>,
     pub snapshot: DrawSnapshot,
     pub geometry: PreviewGeometry,
+    pub effect_surfaces: crate::preview_effect_spawn::EffectSurfaces,
 }
 #[derive(Debug)]
 pub struct LoadRequest {
@@ -97,6 +98,7 @@ impl PreviewLoader {
                             &package.manifest().interaction_profile,
                             request.revision,
                         );
+                        let effect_surfaces = crate::preview_effect_spawn::EffectSurfaces::read(scene, &cancelled)?;
                         let document = package.document().clone();
                         Ok(LoadedPreview {
                             package,
@@ -105,6 +107,7 @@ impl PreviewLoader {
                             geometry,
                             document,
                             roles,
+                            effect_surfaces,
                         })
                     })();
                     let _publication = worker_pending.lock().expect("preview request lock");

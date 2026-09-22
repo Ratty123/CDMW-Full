@@ -2,6 +2,7 @@
 use cdmw_render_wgpu::{EffectBillboardInstance, EffectBlendMode, EffectLineVertex};
 use glam::{EulerRot, Mat4, Quat, Vec3};
 use serde_json::Value;
+use crate::preview_effect_spawn::Surface;
 use crate::preview_effect_lightning::{LightningMaterial, LightningParticle, LightningView};
 
 fn vec3_value(value: Option<&Value>, fallback: Vec3) -> Vec3 {
@@ -115,6 +116,13 @@ pub(crate) fn push_effect_line(
 }
 
 fn effect_spawn_position(emitter: &Value, seed: f32) -> Vec3 {
+    if emitter["spawn_volume_type"].as_u64() == Some(0) {
+        // Explicit point mode must not keep an inherited surface point cloud.
+        let transform = emitter["spawn_volume_transform"].as_array();
+        return transform.filter(|v| v.len() == 16).map(|v| Vec3::new(
+            v[12].as_f64().unwrap_or(0.) as f32, v[13].as_f64().unwrap_or(0.) as f32,
+            v[14].as_f64().unwrap_or(0.) as f32)).filter(|v| v.is_finite()).unwrap_or(Vec3::ZERO);
+    }
     if emitter.get("spawn").and_then(Value::as_str) == Some("points")
         && let Some(points) = emitter.get("points").and_then(Value::as_array)
         && !points.is_empty()
@@ -217,6 +225,7 @@ pub(crate) fn effect_emitter_billboards(
         camera_forward,
         256,
         LightningView { eye: Vec3::Z * 5., vertical_fov: 45_f32.to_radians(), height: 512. },
+        None,
     )
 }
 
@@ -232,8 +241,13 @@ pub(crate) fn effect_emitter_billboards_with_limit(
     camera_forward: Vec3,
     particle_limit: usize,
     lightning_view: LightningView,
+    spawn_surface: Option<(&Surface, bool)>,
 ) -> Vec<EffectBillboardInstance> {
     let max_particles_per_emitter = particle_limit.clamp(64, 2048);
+    let surface_spawn = matches!(emitter["spawn_volume_type"].as_u64(), Some(5 | 6));
+    if surface_spawn && spawn_surface.is_none() {
+        return Vec::new();
+    }
     let kind = emitter
         .get("kind")
         .and_then(Value::as_str)
@@ -270,7 +284,7 @@ pub(crate) fn effect_emitter_billboards_with_limit(
         .and_then(Value::as_u64)
         .and_then(|value| usize::try_from(value).ok())
         .unwrap_or(1)
-        .clamp(1, 64);
+        .clamp(1, if surface_spawn { 10000 } else { 64 });
     let maximum = emitter
         .get("max_particles")
         .and_then(Value::as_u64)
@@ -411,7 +425,7 @@ pub(crate) fn effect_emitter_billboards_with_limit(
             }
             let seed =
                 emitter_index as f32 * 173.17 + burst_index as f32 * 19.91 + particle as f32 * 7.13;
-            if seed_unit(seed + 43.7) >= keep_fraction {
+            if !surface_spawn && seed_unit(seed + 43.7) >= keep_fraction {
                 continue;
             }
             let life =
@@ -424,7 +438,16 @@ pub(crate) fn effect_emitter_billboards_with_limit(
             } else {
                 (age / life).clamp(0.0, 1.0)
             };
-            let origin = effect_spawn_position(emitter, seed);
+            let origin = if surface_spawn {
+                let (surface, world_space) = spawn_surface.expect("surface admitted above");
+                let slot = (burst_index as u32).wrapping_mul(burst as u32).wrapping_add(particle as u32);
+                let Some(position) = surface.sample(emitter, model_matrix, world_space, slot, emitter_index as u32) else {
+                    continue;
+                };
+                position
+            } else {
+                effect_spawn_position(emitter, seed)
+            };
             let acceleration = effect_force(emitter, seed);
             let initial_velocity = effect_range(emitter.get("velocity"), seed + 11.1, Vec3::ZERO);
             let (local_center, velocity) = limited_particle_kinematics(
@@ -788,6 +811,7 @@ mod tests {
                 -Vec3::Z,
                 budget,
                 LightningView { eye: Vec3::Z * 5., vertical_fov: 45_f32.to_radians(), height: 512. },
+                None,
             )
         };
         let draft = render(64, 0);

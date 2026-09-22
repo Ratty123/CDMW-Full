@@ -401,6 +401,7 @@ pub struct PreviewApplication {
     textures: Vec<CdmwTextureResource>,
     effect_textures: Vec<CdmwEffectTextureResource>,
     effect_texture_indices: HashMap<String, usize>,
+    effect_surfaces: crate::preview_effect_spawn::EffectSurfaces,
     presentations: Vec<SessionMaterialPresentation>,
     camera: OrbitCamera,
     view_mode: ViewMode,
@@ -451,6 +452,8 @@ impl PreviewApplication {
             .get("preview_scene")
             .cloned()
             .unwrap_or(Value::Null);
+        let effect_surfaces = crate::preview_effect_spawn::EffectSurfaces::read(&scene, &|| false)
+            .map_err(anyhow::Error::msg)?;
         let bridge = PreviewBridge::new(
             package.manifest().session_id.clone(),
             package.manifest().process_generation,
@@ -474,6 +477,7 @@ impl PreviewApplication {
             textures,
             effect_textures,
             effect_texture_indices: HashMap::new(),
+            effect_surfaces,
             presentations,
             camera,
             view_mode: ViewMode::TexturedSolid,
@@ -715,6 +719,7 @@ impl PreviewApplication {
                 let old_document = std::mem::replace(&mut self.document, loaded.document);
                 let old_mesh = std::mem::replace(&mut self.mesh, loaded.mesh);
                 let old_geometry = std::mem::replace(&mut self.geometry, loaded.geometry);
+                let old_effect_surfaces = std::mem::replace(&mut self.effect_surfaces, loaded.effect_surfaces);
                 let old_snapshot = std::mem::replace(&mut self.snapshot, loaded.snapshot);
                 let old_roles = std::mem::replace(&mut self.snapshot_scene_roles, loaded.roles);
                 let old_textures =
@@ -755,6 +760,7 @@ impl PreviewApplication {
                     self.document = old_document;
                     self.mesh = old_mesh;
                     self.geometry = old_geometry;
+                    self.effect_surfaces = old_effect_surfaces;
                     self.snapshot = old_snapshot;
                     self.snapshot_scene_roles = old_roles;
                     self.textures = old_textures;
@@ -1712,6 +1718,9 @@ impl PreviewApplication {
                             vertical_fov: self.camera.vertical_field_of_view(),
                             height: self.viewport_rect().height(),
                         },
+                        self.effect_surfaces.select(emitter_index,
+                            emitter["spawn_volume_type"].as_u64().unwrap_or(0),
+                            control("effect_surface_target", 0)),
                     );
                     let faces_per_particle = if kind == "mesh" {
                         emitter

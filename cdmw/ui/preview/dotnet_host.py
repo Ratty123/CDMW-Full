@@ -703,7 +703,7 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
         self._presentation_state["display"] = display
         return self._remember_presentation_state({"display": {"effect_particles_paused": bool(paused)}})
 
-    def set_effect_preview_controls(self, *, speed=None, time_seconds=None, seed=None, quality=None, solo_layer=None, solo_emitter=None, active_layer=None) -> bool:
+    def set_effect_preview_controls(self, *, speed=None, time_seconds=None, seed=None, quality=None, solo_layer=None, solo_emitter=None, active_layer=None, surface_target=None) -> bool:
         """Preview-only playback and inspection; no package or camera replacement."""
         import math
         patch = {}
@@ -714,6 +714,7 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
             ("effect_solo_layer", solo_layer, -1, 15),
             ("effect_solo_emitter", solo_emitter, -1, 127),
             ("effect_active_layer", active_layer, 0, 15),
+            ("effect_surface_target", surface_target, 0, 2),
         ):
             if value is not None:
                 number = float(value)

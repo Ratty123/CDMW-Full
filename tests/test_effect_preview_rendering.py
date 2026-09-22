@@ -280,5 +280,8 @@ def test_surface_spawn_preserves_authored_volume_and_explains_required_mesh():
     assert result.spawn_volume_transform == pytest.approx(transform)
     assert result.spawn_surface_density == 100.
     assert result.spawn_uniform_surface_density
-    assert result.spawn_normal_alignment is None  # Omitted engine defaults are not evidence of false.
+    assert result.spawn_normal_alignment is False  # Verified native EmitterSpawnData constructor.
     assert "requires a target mesh surface" in notes[0]
+    default = preview(node("EmitterData"))
+    assert default.spawn_surface_density == 10000.
+    assert default.spawn_uniform_surface_density is False

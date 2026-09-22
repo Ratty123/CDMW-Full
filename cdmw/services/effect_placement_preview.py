@@ -715,6 +715,24 @@ def build_effect_placement_package(
     missing: Tuple[str, ...] = ()
     if effect_preview is not None:
         effect_payload = json.loads(effect_preview_json(effect_preview))
+        if any(emitter.spawn_volume_type in (5, 6) for emitter in effect_preview.emitters):
+            from cdmw.services.effect_spawn_surface import spawn_surface_geometry
+            from cdmw.domain.cancellation import RunCancelled
+
+            def check_surface_cancelled():
+                if cancelled is not None and cancelled():
+                    raise RunCancelled("Effect surface preparation cancelled")
+
+            surfaces = {}
+            # Item and real character geometry stay in the scene frame. The
+            # editable anchor moves the sampling volume, never the target mesh.
+            for key, mesh in (("item", item_mesh), ("character", character_mesh)):
+                if mesh is not None and getattr(mesh, "format", "") != "body":
+                    try:
+                        surfaces[key] = spawn_surface_geometry(mesh, check_surface_cancelled)
+                    except ValueError as exc:
+                        effect_payload["notes"].append(f"{key}: spawn surface unavailable ({exc})")
+            effect_payload["spawn_surfaces"] = surfaces
         if rotation is not None:
             r = rotation
             effect_payload["base_transform"] = [r[0],r[1],r[2],0,r[3],r[4],r[5],0,r[6],r[7],r[8],0,0,0,0,1]

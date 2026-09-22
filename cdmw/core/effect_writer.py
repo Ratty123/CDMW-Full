@@ -6,6 +6,7 @@ collection lookup tables may round-trip, but cannot be resized speculatively.
 from __future__ import annotations
 
 import struct
+import math
 
 from cdmw.core.effect_binary import (
     ATTR_NOT_SERIALISED, CONTAINER_KINDS, EffectBinaryError, EffectDocument,
@@ -177,6 +178,10 @@ def set_typed_value(document: EffectDocument, node: ReflectNode, name: str, valu
     formats = {"float": "f", "float2": "2f", "float3": "3f", "float4": "4f", "bool": "?", "int": "i", "int32": "i", "uint": "I", "uint32": "I"}
     if member.flags == 1:
         raw = str(value).encode("utf-8")
+    elif member.flags == 2 and member.value_size in (1, 2, 4):
+        if not isinstance(value, (int, float)) or not math.isfinite(value) or value != int(value) or not 0 <= value < 1 << (8 * member.value_size):
+            raise EffectBinaryError(f"Invalid enum value for {name}.")
+        raw = int(value).to_bytes(member.value_size, "little")
     elif member.type_name in formats:
         args = value if isinstance(value, (tuple, list)) else (value,)
         if member.type_name in ("int", "int32", "uint", "uint32"):

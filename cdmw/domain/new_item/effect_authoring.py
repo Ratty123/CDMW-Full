@@ -23,6 +23,9 @@ EMITTER_FIELDS = (
     ("_useCureveRepeat", "Repeat lifetime curves (0/1)", 0.0, 1.0, 0.0),
     ("_sequenceCountX", "Atlas columns", 1.0, 64.0, 1.0),
     ("_sequenceCountY", "Atlas rows", 1.0, 64.0, 1.0),
+    ("_spawnVolumeType", "Spawn type (0 = point)", 0.0, 255.0, 0.0),
+    ("_surfaceDensity", "Surface density", 0.0, 1000000.0, 10000.0),
+    ("_useUniformSurfaceDensity", "Uniform surface density (0/1)", 0.0, 1.0, 0.0),
     ("_maxParticleCount", "Particle limit", 1.0, 100000.0, 200.0),
     ("_loopCount", "Repeats (-1 = forever)", -1.0, 1000.0, 0.0),
     ("_simulationSpeed", "Simulation speed", 0.01, 20.0, 1.0),
@@ -32,6 +35,7 @@ EMITTER_FIELDS = (
     ("_velocityStretch", "Velocity stretch", 0.0, 20.0, 0.0),
 )
 VECTOR_FIELDS = (
+    ("_spawnVolumeData", "Surface volume (types 5/6)"),
     ("_velocityMin", "Initial velocity minimum"),
     ("_velocityMax", "Initial velocity maximum"),
     ("_forceMin", "Force minimum"),
@@ -39,7 +43,8 @@ VECTOR_FIELDS = (
     ("_rotationMin", "Rotation minimum"),
     ("_rotationMax", "Rotation maximum"),
 )
-INTEGER_FIELDS = frozenset(('_spawnCountMin', '_spawnCountMax', '_maxParticleCount', '_loopCount', '_sequenceCountX', '_sequenceCountY', '_isInfiniteParticle', '_useCureveRepeat'))
+VECTOR_COMPONENTS = {"_spawnVolumeData": 4}
+INTEGER_FIELDS = frozenset(('_spawnVolumeType', '_useUniformSurfaceDensity', '_spawnCountMin', '_spawnCountMax', '_maxParticleCount', '_loopCount', '_sequenceCountX', '_sequenceCountY', '_isInfiniteParticle', '_useCureveRepeat'))
 
 
 @dataclass(frozen=True, slots=True)
@@ -115,7 +120,7 @@ def validate_emitter_edits(look: EffectLook) -> None:
             low, high = limits.get(key, (-1000.0, 1000.0))
             if key not in limits and key not in vectors:
                 raise ValueError(f"Unsupported emitter field: {key}")
-            if len(values) != (3 if key in vectors else 1) or any(not math.isfinite(v) or not low <= v <= high for v in values):
+            if len(values) != (VECTOR_COMPONENTS.get(key, 3) if key in vectors else 1) or any(not math.isfinite(v) or not low <= v <= high for v in values):
                 raise ValueError(f"Invalid value for emitter field {key}.")
             if key in INTEGER_FIELDS and any(v != int(v) for v in values):
                 raise ValueError(f'{key} requires a whole number.')

@@ -2072,6 +2072,16 @@
       ]
     },
     {
+      "key": "0 spawns at the origin. 5 samples a mesh surface. 6 samples a target surface inside the volume. Changing this edits the exported effect.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_recipe_panel.py",
+          "line": 325,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "0 visible replacement mesh part(s).",
       "origins": [
         {
@@ -40808,6 +40818,16 @@
           "path": "tools/placement_studio/constraints.py",
           "line": 455,
           "sink": "Section"
+        }
+      ]
+    },
+    {
+      "key": "For surface spawning: X offsets along the normal, Y controls triangle spread (0-1), Z is the outer radius (0 = unlimited), W is the inner radius. Radii apply to type 6.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_recipe_panel.py",
+          "line": 325,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -81937,6 +81957,16 @@
       ]
     },
     {
+      "key": "Preview surface for attached particles. A missing surface produces no particles. This selection does not change the exported game target binding.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_playback.py",
+          "line": 50,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Preview target chain. This is read-only evidence; binary placement writes remain gated.",
       "origins": [
         {
@@ -104567,6 +104597,11 @@
       ]
     },
     {
+      "key": "Spawn type (0 = point)",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Spawn-rate multiplier:",
       "origins": [
         {
@@ -106832,6 +106867,11 @@
       ]
     },
     {
+      "key": "Surface density",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Surface overrides require translucency on the same part.",
       "origins": [
         {
@@ -106858,6 +106898,41 @@
           "path": "cdmw/ui/new_item/translucency_editor.py",
           "line": 67,
           "sink": "addRow"
+        }
+      ]
+    },
+    {
+      "key": "Surface volume (types 5/6)",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Surface: Character",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_playback.py",
+          "line": 49,
+          "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "Surface: Item",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_playback.py",
+          "line": 49,
+          "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "Surface: None",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_playback.py",
+          "line": 49,
+          "sink": "addItem"
         }
       ]
     },
@@ -116175,6 +116250,11 @@
           "sink": "setTabToolTip"
         }
       ]
+    },
+    {
+      "key": "Uniform surface density (0/1)",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Unique assets",

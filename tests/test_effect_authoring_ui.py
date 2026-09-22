@@ -105,7 +105,8 @@ def test_effect_controls_update_live_patch_and_replay_state():
     patches = []
     host = SimpleNamespace(_presentation_state={'display':{'grid_visible':True}}, _remember_presentation_state=lambda value: patches.append(value) or True)
     method = RustPreviewHostFrame.set_effect_preview_controls
-    method(host, speed=.5, time_seconds=2, seed=7, quality=1024, solo_layer=1)
+    method(host, speed=.5, time_seconds=2, seed=7, quality=1024, solo_layer=1, surface_target=1)
+    assert host._presentation_state['display']['effect_surface_target'] == 1
     assert host._presentation_state['display']['effect_seek_seconds'] == 2
     assert host._presentation_state['display']['grid_visible'] is True
     serial = patches[-1]['display']['effect_seek_serial']
@@ -113,3 +114,38 @@ def test_effect_controls_update_live_patch_and_replay_state():
     assert patches[-1]['display']['effect_seek_serial'] == serial + 1
     with pytest.raises(ValueError):
         method(host, speed=float('nan'))
+
+
+def test_surface_volume_controls_keep_four_components_and_export_them():
+    panel = EffectRecipePanel(EffectUserLibrary())
+    received = []
+    panel.changed.connect(received.append)
+    panel.changed.connect(panel.set_state)
+    panel.set_state(EffectWorkspaceState.from_layers((EffectLayer('fx_lightning'),)))
+    panel.set_preview(SimpleNamespace(editor_emitters=({'index':0,'name':'Surface','enabled':True,'resolved':True,
+        'fields':('_spawnVolumeType','_spawnVolumeData','_surfaceDensity'),
+        'values':{'_spawnVolumeType':(8,), '_spawnVolumeData':(.01,.1,.2,0.)}},)))
+    assert panel._fields['_spawnVolumeType'][1][0].value() == 8
+    check, spins = panel._fields['_spawnVolumeData']
+    assert len(spins) == 4 and spins[2].value() == .2
+    spins[2].setValue(.5)
+    assert dict(received[-1].look.emitters[0].values)['_spawnVolumeData'] == (.01,.1,.5,0.)
+    assert check.checkState() == Qt.CheckState.Checked
+    assert panel._fields['_surfaceDensity'][1][0].value() == 10000.
+    panel.close()
+    shiboken6.delete(panel)
+
+
+def test_playback_surface_selector_sends_preview_only_target():
+    from PySide6.QtWidgets import QWidget
+    from cdmw.ui.new_item.effect_playback import EffectPlaybackControls
+    calls = []
+    placement = QWidget()
+    placement.host = SimpleNamespace(set_effect_preview_controls=lambda **kwargs: calls.append(kwargs))
+    controls = EffectPlaybackControls(placement)
+    assert controls.surface.currentData() == 0
+    controls.surface.setCurrentIndex(1)
+    assert calls[-1] == {'surface_target': 1}
+    controls.surface.setCurrentIndex(2)
+    assert calls[-1] == {'surface_target': 2}
+    shiboken6.delete(placement)

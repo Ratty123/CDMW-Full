@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
     QPushButton, QComboBox, QCheckBox, QDoubleSpinBox, QTableWidget, QHeaderView,
     QTableWidgetItem, QLineEdit, QLabel, QColorDialog, QInputDialog, QMessageBox, QFileDialog, QApplication,
 )
-from cdmw.domain.new_item.effect_authoring import EMITTER_FIELDS, INTEGER_FIELDS, VECTOR_FIELDS, EffectLayer, EmitterEdit
+from cdmw.domain.new_item.effect_authoring import EMITTER_FIELDS, INTEGER_FIELDS, VECTOR_FIELDS, VECTOR_COMPONENTS, EffectLayer, EmitterEdit
 from cdmw.services.effect_library_store import recipe_json, read_recipe
 from cdmw.ui.new_item.state import EffectWorkspaceState
 
@@ -305,7 +305,7 @@ class EffectRecipePanel(QWidget):
         self._fields.clear()
         values = dict(edit.values)
         descriptions = [(k,l,lo,hi,d,1) for k,l,lo,hi,d in EMITTER_FIELDS]
-        descriptions += [(k,l,-1000.,1000.,0.,3) for k,l in VECTOR_FIELDS]
+        descriptions += [(k,l,-1000.,1000.,0.,VECTOR_COMPONENTS.get(k, 3)) for k,l in VECTOR_FIELDS]
         descriptions += [(k, label, .05,20.,1.,1) for k,label in (('intensity','Brightness factor'), ('size','Size factor'), ('rate','Spawn factor'), ('lifetime','Lifetime factor'))]
         for key, label, low, high, default, dimensions in descriptions:
             row = self.parameters.rowCount()
@@ -322,7 +322,11 @@ class EffectRecipePanel(QWidget):
             self.parameters.setItem(row,0,check)
             item = QTableWidgetItem(label)
             item.setFlags(Qt.ItemFlag.ItemIsEnabled)
-            item.setToolTip(label)
+            item.setToolTip(
+                'For surface spawning: X offsets along the normal, Y controls triangle spread (0-1), Z is the outer radius (0 = unlimited), W is the inner radius. Radii apply to type 6.'
+                if key == '_spawnVolumeData' else
+                '0 spawns at the origin. 5 samples a mesh surface. 6 samples a target surface inside the volume. Changing this edits the exported effect.'
+                if key == '_spawnVolumeType' else label)
             self.parameters.setItem(row,1,item)
             holder = QWidget()
             line = QVBoxLayout(holder) if dimensions > 1 else QHBoxLayout(holder)
@@ -334,7 +338,7 @@ class EffectRecipePanel(QWidget):
                 spin.setRange(low,high)
                 spin.setDecimals(0 if key in INTEGER_FIELDS else 3)
                 if dimensions > 1:
-                    spin.setPrefix(('X ', 'Y ', 'Z ')[axis])
+                    spin.setPrefix(('X ', 'Y ', 'Z ', 'W ')[axis])
                 inherited = slot.get('values', {}).get(key, ())
                 spin.setValue(current[axis] if current else (inherited[axis] if axis < len(inherited) else default))
                 spin.setEnabled(supported)

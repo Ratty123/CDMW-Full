@@ -495,6 +495,11 @@ impl ApplicationHandler for EffectProbe {
                     serde_json::from_slice(&std::fs::read(dir.join("effect.json"))?)?;
                 let inputs: serde_json::Value =
                     serde_json::from_slice(&std::fs::read(dir.join("inputs.json"))?)?;
+                let effect_surfaces = crate::preview_effect_spawn::EffectSurfaces::read(
+                    &serde_json::json!({"effects_overlay": &effect}), &|| false).map_err(anyhow::Error::msg)?;
+                let offset = inputs["offset"].as_array().map(|v| Vec3::new(
+                    v[0].as_f64().unwrap() as f32, v[1].as_f64().unwrap() as f32, v[2].as_f64().unwrap() as f32)).unwrap_or(Vec3::ZERO);
+                let model = Mat4::from_translation(offset);
                 renderer.reset_effect_textures();
                 let mut textures = std::collections::HashMap::new();
                 for (name, path) in inputs["textures"].as_object().expect("texture map") {
@@ -514,16 +519,19 @@ impl ApplicationHandler for EffectProbe {
                         .iter()
                         .enumerate()
                     {
-                        for p in crate::preview_effects::effect_emitter_billboards(
+                        for p in crate::preview_effects::effect_emitter_billboards_with_limit(
                             emitter,
                             index,
                             time,
                             0.001,
                             0,
-                            Mat4::IDENTITY,
+                            model,
                             Vec3::X,
                             Vec3::Y,
                             -Vec3::Z,
+                            256,
+                            crate::preview_effect_lightning::LightningView { eye: Vec3::Z * 5., vertical_fov: 45_f32.to_radians(), height: 480. },
+                            effect_surfaces.select(index, emitter["spawn_volume_type"].as_u64().unwrap_or(0), inputs["surface_target"].as_i64().unwrap_or(0)),
                         ) {
                             let center = Vec3::from_array(p.center);
                             let radius = Vec3::from_array(p.axis_right).abs()
@@ -569,16 +577,19 @@ impl ApplicationHandler for EffectProbe {
                             .get(emitter["texture"].as_str().unwrap_or(""))
                             .copied()
                             .unwrap_or(0);
-                        particles.extend(crate::preview_effects::effect_emitter_billboards(
+                        particles.extend(crate::preview_effects::effect_emitter_billboards_with_limit(
                             emitter,
                             index,
                             time,
                             extent * 0.006,
                             texture,
-                            Mat4::IDENTITY,
+                            model,
                             Vec3::X,
                             Vec3::Y,
                             -Vec3::Z,
+                            256,
+                            crate::preview_effect_lightning::LightningView { eye, vertical_fov: 45_f32.to_radians(), height: 480. },
+                            effect_surfaces.select(index, emitter["spawn_volume_type"].as_u64().unwrap_or(0), inputs["surface_target"].as_i64().unwrap_or(0)),
                         ));
                     }
                     for p in &mut particles {
