@@ -5,14 +5,17 @@ from pathlib import PurePosixPath
 from cdmw.core.common import raise_if_cancelled
 from cdmw.core.material_shader_controls import rewrite_shader_controls
 from cdmw.domain.mesh.shader_controls import ShaderControls, catalogue_payload, family_for
-from cdmw.services.mesh_replacement_materials import _sidecar_text
+from cdmw.services.mesh_replacement_materials import _sidecar_text, material_binding_name, material_binding_names
 
 
 def shader_settings(state, original):
+    if not any(part.shader_controls is not None for part in state.parts):
+        return ()
+    names = material_binding_names(state)
     settings = {}
     for part in state.parts:
         source = original.submeshes[part.target_index]
-        name = (source.material or source.name).casefold()
+        name = material_binding_name(source, names)
         if name in settings and settings[name] != part.shader_controls:
             raise ValueError("Select all parts sharing this material and use the same shader controls.")
         if part.shader_controls is not None:

@@ -5,7 +5,7 @@ from pathlib import PurePosixPath
 from cdmw.core.common import raise_if_cancelled
 from cdmw.domain.mesh.emission import EmissionChoice
 from cdmw.domain.mesh.replacement import ReplacementFile
-from cdmw.services.mesh_replacement_materials import _sidecar_text
+from cdmw.services.mesh_replacement_materials import _sidecar_text, material_binding_name, material_binding_names
 
 
 def build_emission_files(state, original, companion_files, *, stop_event=None):
@@ -13,10 +13,13 @@ def build_emission_files(state, original, companion_files, *, stop_event=None):
     from cdmw.core.pac_xml_emission import rewrite_emission_animation
     from cdmw.services.new_item_materials import encode_emissive_solid
 
+    if not any(part.emission is not None for part in state.parts):
+        return tuple(companion_files)
+    names = material_binding_names(state)
     settings = {}
     for part in state.parts:
         source = original.submeshes[part.target_index]
-        name = (source.material or source.name).casefold()
+        name = material_binding_name(source, names)
         if name in settings and settings[name] != part.emission:
             raise ValueError("Select all parts sharing this material and use the same glow settings.")
         if part.emission is not None:

@@ -59,6 +59,62 @@ def test_wheel_guard_consumes_wheel_events_for_value_controls() -> None:
     )
 
 
+def test_material_controls_accept_wheel_only_after_focus_and_emit_edits() -> None:
+    _run_clean_import("""
+import os
+os.environ['QT_QPA_PLATFORM'] = 'offscreen'
+from PySide6.QtCore import QPoint, QPointF, Qt
+from PySide6.QtGui import QWheelEvent
+from PySide6.QtWidgets import QApplication, QWidget, QVBoxLayout, QDoubleSpinBox
+from cdmw.ui.wheel_guard import ensure_app_wheel_guard
+from cdmw.ui.new_item.glow_animation_editor import GlowAnimationEditor
+from cdmw.ui.new_item.translucency_editor import TranslucencyEditor
+from cdmw.ui.new_item.shader_controls_editor import ShaderControlsEditor
+from cdmw.domain.new_item.translucency import TranslucencyChoice
+from cdmw.domain.mesh.shader_controls import ShaderControls
+app = QApplication([])
+ensure_app_wheel_guard(app)
+window = QWidget()
+layout = QVBoxLayout(window)
+ordinary = QDoubleSpinBox()
+layout.addWidget(ordinary)
+glow, glass, shader = GlowAnimationEditor(), TranslucencyEditor(), ShaderControlsEditor()
+for editor in (glow, glass, shader): layout.addWidget(editor)
+glass.refresh((('Blade', 'Blade'),), TranslucencyChoice(('Blade',), .2, .3))
+glass.advanced.setChecked(True)
+shader.refresh((('Blade', 'Blade'),), (('Blade', ShaderControls('SkinnedMeshWing', (('_wingFlowProgress', (.5,)),))),))
+edits = []
+for editor in (glow, glass, shader): editor.changed.connect(lambda *args: edits.append(args))
+window.show()
+window.activateWindow()
+app.processEvents()
+def wheel(widget):
+    point = QPointF(widget.rect().center())
+    event = QWheelEvent(point, point, QPoint(), QPoint(0, 120), Qt.NoButton, Qt.NoModifier, Qt.ScrollUpdate, False)
+    app.sendEvent(widget, event)
+    app.processEvents()
+for widget in (glow.spins['flow_u'], glass.thickness, shader._rows[0][2][0], glass.absorption):
+    ordinary.setFocus()
+    app.processEvents()
+    before = widget.value()
+    wheel(widget)
+    assert widget.value() == before, 'unfocused scroll changed material'
+    widget.setFocus(Qt.TabFocusReason)
+    app.processEvents()
+    assert widget.hasFocus(), (widget.objectName(), type(widget).__name__, widget.isEnabled(), widget.isVisible(), app.focusWidget())
+    before, count = widget.value(), len(edits)
+    wheel(widget)
+    assert widget.value() > before, (type(widget).__name__, before, widget.value())
+    assert len(edits) > count, 'wheel failed to emit appearance edit'
+ordinary.setFocus()
+app.processEvents()
+wheel(ordinary)
+assert ordinary.value() == 0, 'global protection for ordinary controls changed'
+window.close()
+app.shutdown()
+""")
+
+
 def test_shell_startup_uses_explicit_settings_path() -> None:
     _run_clean_import(
         "import os, tempfile; from pathlib import Path; from unittest.mock import patch; "

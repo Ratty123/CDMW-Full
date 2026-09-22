@@ -3,15 +3,18 @@
 from dataclasses import replace
 
 from cdmw.domain.mesh.translucency import translucency_values, translucency_surface_values
-from cdmw.services.mesh_replacement_materials import _sidecar_text
+from cdmw.services.mesh_replacement_materials import _sidecar_text, material_binding_name, material_binding_names
 
 
 def build_translucency_files(state, original, companion_files, *, stop_event=None):
     """Preserve source data; export selected absorption and optional surface maps."""
+    if not any(part.translucency is not None or part.translucency_surface is not None for part in state.parts):
+        return tuple(companion_files)
+    names = material_binding_names(state)
     settings, surfaces = {}, {}
     for part in state.parts:
         source = original.submeshes[part.target_index]
-        name = (source.material or source.name).casefold()
+        name = material_binding_name(source, names)
         value = translucency_values(part.translucency) if part.translucency is not None else None
         surface = translucency_surface_values(part.translucency_surface)
         if value is not None and part.shader_controls is not None:
@@ -45,7 +48,14 @@ def build_translucency_files(state, original, companion_files, *, stop_event=Non
         file = files.get(key, sources.get(key))
         return file.data if file is not None else None
 
-    text, generated = apply_translucency_surface(_sidecar_text(source.data), settings, surfaces,
+    from types import SimpleNamespace
+    from cdmw.services.new_item_template_materials import bake_template_translucency
+    captured = SimpleNamespace(has_entry=lambda path: read_texture(path) is not None, payload=read_texture)
+    text, baked, _ = bake_template_translucency(captured, _sidecar_text(source.data), state.target_path,
+                                               settings, stop_event=stop_event)
+    for key, data in baked.items():
+        files[key.casefold()] = ReplacementFile(key, data)
+    text, generated = apply_translucency_surface(text, settings, surfaces,
                                                state.target_path, read_texture, stop_event=stop_event)
     for key, data in generated.items():
         files[key.casefold()] = ReplacementFile(key, data)

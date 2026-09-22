@@ -603,7 +603,8 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         glow_row.addWidget(self.glow_color_button)
         self.glow_strength_label = QLabel("Strength")
         glow_row.addWidget(self.glow_strength_label)
-        self.glow_intensity = QDoubleSpinBox()
+        from cdmw.ui.wheel_guard import enable_focused_wheel
+        self.glow_intensity = enable_focused_wheel(QDoubleSpinBox())
         self.glow_intensity.setRange(0.1, 20.0)
         self.glow_intensity.setSingleStep(0.5)
         self.glow_intensity.setDecimals(1)

@@ -21,6 +21,34 @@ def _sidecar_text(data):
     return text
 
 
+def material_binding_names(state):
+    """Exact wrapper identities from the target's captured material documents."""
+    from cdmw.core.material_shader_controls import control_material_sources
+    from cdmw.core.pac_xml_standard_material import find_material_wrappers
+    target = state.target_path.replace("\\", "/").casefold()
+    pac_xml = target.replace("/model/", "/modelproperty/", 1) + "_xml"
+    files = {file.path.replace("\\", "/").casefold(): file
+             for file in (*state.dependencies, *state.companion_files)}
+    names = set()
+    for path, file in files.items():
+        if path == pac_xml or (not target.endswith(".pac") and path.endswith(".pami")):
+            text = _sidecar_text(file.data)
+            if path.endswith(".pac_xml"):
+                names.update(row.submesh_name.casefold() for row in find_material_wrappers(text))
+            else:
+                names.update(control_material_sources(text, static=True))
+    return names
+
+
+def material_binding_name(part, names):
+    """PAC wrappers bind the part name, not a possibly unrelated texture label."""
+    for value in (part.name, part.material):
+        if value and value.casefold() in names:
+            return value.casefold()
+    # Retain an unmatched identity so the strict writer reports the missing part.
+    return (part.name or part.material).casefold()
+
+
 def _merge_material_rows(current, donor, names):
     from cdmw.modding.material_sidecar_patching import _find_sidecar_material_wrapper_exact
     edits = []

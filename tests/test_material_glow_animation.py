@@ -106,6 +106,7 @@ def test_glow_draft_round_trip_and_shared_part_rejection(editor, tmp_path, rgb):
     restored = replace(state, parts=tuple(replace(p, emission=None) for p in state.parts))
     assert build_emission_files(restored, snapshot.mesh, ()) == ()
     shared = copy.deepcopy(snapshot.mesh)
+    shared.submeshes[1].name = shared.submeshes[0].name
     shared.submeshes[1].material = shared.submeshes[0].material
     with pytest.raises(ValueError, match="sharing"):
         build_emission_files(state, shared, ())

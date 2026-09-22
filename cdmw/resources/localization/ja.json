@@ -11867,6 +11867,7 @@
     "{value_0} No fallback preview renderer is available.": "{value_0} 使用可能なフォールバック プレビュー レンダラーはありません。",
     "{value_0} PAC link(s), {value_1} icon path(s), {value_2} grouped variant(s).": "{value_0} PAC リンク、{value_1} アイコン パス、{value_2} グループ化されたバリアント。",
     "{value_0} Retrying automatically.": "{value_0} 自動的に再試行します。",
+    "{value_0} Return to Model & Placement > Appearance and restore shader controls for the affected part.": "{value_0} モデルと配置 > 外観に戻り、該当するパーツのシェーダー設定を元に戻してください。",
     "{value_0} Showing the current run's targeted DDS files. 'Current' can be inferred from Research; 'Local' is what Texture Workflow requires.": "{value_0} 現在の実行のターゲット DDS ファイルを表示しています。 「現在」はリサーチから推測できます。 「ローカル」はテクスチャ ワークフローに必要なものです。",
     "{value_0} The next item is planned on its tables, so the folder will hold both.": "{value_0} 次のアイテムはそのテーブルを土台に作られるので、フォルダーには両方が入ります。",
     "{value_0} UV island(s) on {value_1}": "{value_0} {value_1} 上の UV アイランド",

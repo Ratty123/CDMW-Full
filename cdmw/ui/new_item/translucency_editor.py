@@ -4,6 +4,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QSlider, QVBoxLayout, QWidget
 
 from cdmw.domain.new_item.translucency import TranslucencyChoice
+from cdmw.ui.wheel_guard import enable_focused_wheel
 
 
 class TranslucencyEditor(QGroupBox):
@@ -37,7 +38,7 @@ class TranslucencyEditor(QGroupBox):
         presets = QFormLayout()
         presets.addRow("Absorption preset", self.preset)
         controls.addLayout(presets)
-        self.absorption = QSlider(Qt.Orientation.Horizontal)
+        self.absorption = enable_focused_wheel(QSlider(Qt.Orientation.Horizontal))
         self.absorption.setAccessibleName("Absorption strength")
         self.absorption.setRange(0, 1000)
         self.absorption.setSingleStep(5)
@@ -56,7 +57,7 @@ class TranslucencyEditor(QGroupBox):
         surface_form.addRow("Surface preset", self.surface_preset)
         self.surface_fields = []
         for label, default in (("Roughness", 0.9), ("Metallic", 0.0)):
-            enabled, spin = QCheckBox(label), QDoubleSpinBox()
+            enabled, spin = QCheckBox(label), enable_focused_wheel(QDoubleSpinBox())
             enabled.setToolTip("Override this channel on the highlighted part. Uncheck to keep its source texture.")
             spin.setRange(0, 1)
             spin.setDecimals(3)
@@ -80,8 +81,8 @@ class TranslucencyEditor(QGroupBox):
         advanced_layout.addWidget(self.advanced_fields)
         form = QFormLayout()
         self.advanced_fields.setLayout(form)
-        self.thickness = QDoubleSpinBox()
-        self.extinction = QDoubleSpinBox()
+        self.thickness = enable_focused_wheel(QDoubleSpinBox())
+        self.extinction = enable_focused_wheel(QDoubleSpinBox())
         for spin, value in ((self.thickness, 0.1), (self.extinction, 0.3)):
             spin.setRange(0.0, 1.0)
             spin.setDecimals(3)

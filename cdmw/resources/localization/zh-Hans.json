@@ -11867,6 +11867,7 @@
     "{value_0} No fallback preview renderer is available.": "{value_0} 没有可用的后备预览渲染器。",
     "{value_0} PAC link(s), {value_1} icon path(s), {value_2} grouped variant(s).": "{value_0} PAC 链接、{value_1} 图标路径、{value_2} 分组变体。",
     "{value_0} Retrying automatically.": "{value_0} 自动重试。",
+    "{value_0} Return to Model & Placement > Appearance and restore shader controls for the affected part.": "{value_0} 请返回模型和布局 > 外观，恢复受影响部件的着色器设置。",
     "{value_0} Showing the current run's targeted DDS files. 'Current' can be inferred from Research; 'Local' is what Texture Workflow requires.": "{value_0} 显示当前运行的目标 DDS 文件。 “当前”可以从研究中推断出来； “本地”是纹理工作流程所需要的。",
     "{value_0} The next item is planned on its tables, so the folder will hold both.": "{value_0} 下一件物品会以它的表为基础，文件夹将同时容纳两件。",
     "{value_0} UV island(s) on {value_1}": "{value_0} {value_1} 上的 UV 岛",

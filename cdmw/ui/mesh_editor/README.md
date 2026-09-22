@@ -29,7 +29,10 @@ and shader limitations. RGB glow needs a source glow map. Animated/RGB glow and
 translucency cannot share a part; unsupported shader switches report a reason.
 
 These edits work on original PAC parts and replacement parts with their captured
-material sidecar. Shared materials require matching settings on all their parts.
+material sidecar. Edits resolve the PAC part's exact material wrapper before its
+fallback material label; sharing a texture label does not tie independent parts
+together. Parts bound to the same wrapper require matching settings.
+Glow, translucency and shader experiment numbers have sliders and editable values.
 The viewport reuses loaded textures; only material parameters change. Edits survive
 Undo/Redo, Finish, Build Mod and saved drafts (replacement draft version 11 when
 glow is present). Material-only output keeps PAC geometry bytes unchanged and
@@ -59,9 +62,13 @@ emission. Export changes the selected PAC XML material to `SkinnedMeshTranslucen
 with the two absorption parameters. Explicit surface overrides export a private
 `_materialTexture` DDS with roughness in green and metallic in blue, preserving
 unedited channels and complete mipmaps. Other parameters, colour, normal and glow
-paths stay intact; shared source DDS are never overwritten. Material-only edits keep the PAC bytes unchanged. Shared materials require
-the same settings on all their parts; missing sidecars, unmatched wrappers and
-materials without an explicit base colour texture report an error before applying.
+paths stay intact; shared source DDS are never overwritten. Material-only edits keep
+the PAC bytes unchanged. Layered materials without a usable base map use New Item's
+shared texture preparation, baking colour and surface maps up to 2048px. Baked dye
+colours become fixed; missing declared textures or unusable colour inputs stop the
+edit before it is committed. Prepared maps are reused for absorption adjustments.
+Shared wrappers require the same settings on all their parts; missing sidecars and
+unmatched wrappers report an error before applying.
 Free Edit meshes without the original PAC binding are outside this export route.
 Authored `SkinnedMeshTranslucent` sidecars also supply absorption on reopening.
 Existing renderer packages rebuild once to pick up this interpretation; source

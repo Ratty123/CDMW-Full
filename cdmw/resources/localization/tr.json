@@ -11867,6 +11867,7 @@
     "{value_0} No fallback preview renderer is available.": "{value_0} Geri dönüş önizleme oluşturucusu mevcut değil.",
     "{value_0} PAC link(s), {value_1} icon path(s), {value_2} grouped variant(s).": "{value_0} PAC bağlantıları, {value_1} simge yolları, {value_2} gruplandırılmış varyantları.",
     "{value_0} Retrying automatically.": "{value_0} Otomatik olarak yeniden deneniyor.",
+    "{value_0} Return to Model & Placement > Appearance and restore shader controls for the affected part.": "{value_0} Model ve Yerleştirme > Görünüm bölümüne dönün ve ilgili parçanın gölgelendirici ayarlarını geri yükleyin.",
     "{value_0} Showing the current run's targeted DDS files. 'Current' can be inferred from Research; 'Local' is what Texture Workflow requires.": "{value_0} Geçerli çalıştırmanın hedeflenen DDS dosyalarını gösteriyor. 'Akım' Araştırmadan çıkarılabilir; 'Yerel', Doku İş Akışının gerektirdiği şeydir.",
     "{value_0} The next item is planned on its tables, so the folder will hold both.": "{value_0} Sonraki öğe onun tabloları üzerine planlanır, böylece klasörde ikisi de olur.",
     "{value_0} UV island(s) on {value_1}": "{value_1}'deki {value_0} UV adaları",

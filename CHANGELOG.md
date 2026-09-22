@@ -13,6 +13,7 @@ The format is intentionally simple:
 
 ### Changed
 
+- Mesh Editor's glow, translucency and shader experiment numbers have sliders with editable values. Create New Item's material numbers and absorption slider accept mouse-wheel adjustments while focused, keeping unfocused page scrolling from changing a material.
 - Create New Item's Output keeps the activity log visible on the right, with an adjustable divider and the workflow on the left. Draft tools is now Mod management, beside the output action below the plan review.
 - Shortened the Build Plan progress message in Create New Item.
 - Hair Tools draws and bends smoother hair cards with extra curve subdivisions and continuous shading, without adding physics guide points. Detail stays within the vertex budget, and older drawn hair is refined on its next grooming edit.
@@ -38,6 +39,8 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Mesh Editor resolves glow, translucency and shader edits against the selected PAC part's material wrapper, including parts whose texture labels differ or are shared. Lower LOD previews keep the same ownership. Layered translucency now prepares colour and surface maps through the same path as New Item instead of rejecting a missing base map.
+- Perks & Effects explains where to restore an incompatible shader choice left by an older draft.
 - Create New Item disables incompatible shader experiments for template parts and explains their source shader, preventing an unsupported choice from blocking later Glow and Translucency preview updates. Compatibility follows the selected model variant and is prepared in the background.
 - Perks & Effects library buttons show hover, pressed and selected states, and the favourite star updates immediately. Thumbnail capture reports progress and failures, refreshes saved images and opens the larger thumbnail view after saving.
 - Create New Item reuses completed layered template textures when rebuilding a plan or adjusting translucency strength. Output shows material preparation stages, completed materials and elapsed time while retaining full texture quality.

@@ -11869,6 +11869,7 @@
     "{value_0} No fallback preview renderer is available.": "{value_0} Kein Fallback-Vorschau-Renderer verfügbar.",
     "{value_0} PAC link(s), {value_1} icon path(s), {value_2} grouped variant(s).": "{value_0} PAC Link(s), {value_1} Symbolpfad(e), {value_2} gruppierte Variante(n).",
     "{value_0} Retrying automatically.": "{value_0} Automatischer Wiederholungsversuch.",
+    "{value_0} Return to Model & Placement > Appearance and restore shader controls for the affected part.": "{value_0} Kehren Sie zu Modell und Platzierung > Darstellung zurück und setzen Sie die Shader-Steuerung für den betroffenen Teil zurück.",
     "{value_0} Showing the current run's targeted DDS files. 'Current' can be inferred from Research; 'Local' is what Texture Workflow requires.": "{value_0} Zeigt die Ziel-DDS-Dateien des aktuellen Laufs an. „Aktuell“ kann aus der Forschung abgeleitet werden; „Lokal“ ist das, was Texture Workflow erfordert.",
     "{value_0} The next item is planned on its tables, so the folder will hold both.": "{value_0} Der nächste Gegenstand wird auf seinen Tabellen geplant, der Ordner enthält dann beide.",
     "{value_0} UV island(s) on {value_1}": "{value_0} UV-Insel(n) auf {value_1}",

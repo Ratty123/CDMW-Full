@@ -6,7 +6,7 @@ from cdmw.core.common import raise_if_cancelled
 from cdmw.core.material_shader_controls import control_material_sources
 from cdmw.domain.mesh.replacement import bound_part_indices
 from cdmw.domain.mesh.shader_controls import family_for, preview_factors
-from cdmw.services.mesh_replacement_materials import _sidecar_text
+from cdmw.services.mesh_replacement_materials import _sidecar_text, material_binding_name, material_binding_names
 from cdmw.services.shader_controls_preview import EFFECT_NORMAL_PARAMETER, publish_preview_texture, attach_source_masks, shader_control_diagnostic
 
 
@@ -18,6 +18,7 @@ def stage_shader_preview(authoring, mesh, state, payload, presentations, stop_ev
     session = authoring.shadow_service._session(authoring.shadow_session_id)
     original = parse_mesh(session.original_data, state.target_path)
     selected_names = dict(shader_settings(state, original))
+    source_names = material_binding_names(state)
     files = {file.path.replace("\\", "/").casefold(): file for file in state.dependencies}
     files.update({file.path.replace("\\", "/").casefold(): file
                   for file in build_shader_control_files(state, original, state.companion_files, stop_event=stop_event)})
@@ -32,20 +33,20 @@ def stage_shader_preview(authoring, mesh, state, payload, presentations, stop_ev
                 materials[name] = value
     indices = bound_part_indices(mesh, state)
     selected = {indices[part.part_id]: part for part in state.parts if part.shader_controls is not None}
-    names = {(mesh.submeshes[index].material or mesh.submeshes[index].name).casefold(): part
+    names = {material_binding_name(mesh.submeshes[index], source_names): part
              for index, part in selected.items()}
     lods = _mesh_lods(mesh)
     bindings, resources, diagnostics = {}, {}, {}
     touched = set()
     for lod_index, level in enumerate(lods):
         for index, part in enumerate(level):
-            rule = selected.get(index) if lod_index == 0 else names.get((part.material or part.name).casefold())
+            rule = selected.get(index) if lod_index == 0 else names.get(material_binding_name(part, source_names))
             if rule is None:
                 continue
             source = original.submeshes[rule.target_index]
             if len(getattr(part, "shader_masks", ())) != len(part.vertices):
                 attach_source_masks(part, source)
-            name = (source.material or source.name).casefold()
+            name = material_binding_name(source, source_names)
             _, authored, textures = materials[name]
             controls = rule.shader_controls
             if lod_index == 0:

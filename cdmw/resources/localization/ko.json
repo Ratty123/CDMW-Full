@@ -11867,6 +11867,7 @@
     "{value_0} No fallback preview renderer is available.": "{value_0} 사용 가능한 대체 미리 보기 렌더러가 없습니다.",
     "{value_0} PAC link(s), {value_1} icon path(s), {value_2} grouped variant(s).": "{value_0} PAC 링크, {value_1} 아이콘 경로, {value_2} 그룹화된 변형.",
     "{value_0} Retrying automatically.": "{value_0} 자동으로 다시 시도 중입니다.",
+    "{value_0} Return to Model & Placement > Appearance and restore shader controls for the affected part.": "{value_0} 모델 및 배치 > 외관으로 돌아가 해당 부품의 셰이더 설정을 복원하세요.",
     "{value_0} Showing the current run's targeted DDS files. 'Current' can be inferred from Research; 'Local' is what Texture Workflow requires.": "{value_0} 현재 실행의 대상 DDS 파일을 표시합니다. '현재'는 연구를 통해 추론할 수 있습니다. '로컬'은 텍스처 작업 흐름에 필요한 것입니다.",
     "{value_0} The next item is planned on its tables, so the folder will hold both.": "{value_0} 다음 아이템은 그 테이블 위에서 계획되므로 폴더에 둘 다 들어갑니다.",
     "{value_0} UV island(s) on {value_1}": "{value_0} {value_1}의 UV 아일랜드",

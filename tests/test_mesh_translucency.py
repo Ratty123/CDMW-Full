@@ -68,12 +68,13 @@ def test_missing_base_missing_wrapper_shared_material_and_downgraded_draft_are_r
     state = replace(state, parts=(replace(state.parts[0], translucency=(.1, .3)), state.parts[1]))
     for altered, message in [
         (replace(state, dependencies=()), "matching PAC XML"),
-        (replace(state, dependencies=(replace(source, data=source.data.replace(b'_baseColorTexture', b'_otherTexture')),)), "no base colour"),
+        (replace(state, dependencies=(replace(source, data=source.data.replace(b'_baseColorTexture', b'_otherTexture')),)), "missing texture"),
         (replace(state, dependencies=(replace(source, data=source.data.replace(b'_subMeshName=', b'_otherName=')),)), "bindings were not found"),
     ]:
         with pytest.raises(ValueError, match=message):
             build_translucency_files(altered, snapshot.mesh, ())
     shared = copy.deepcopy(snapshot.mesh)
+    shared.submeshes[1].name = shared.submeshes[0].name
     shared.submeshes[1].material = shared.submeshes[0].material
     with pytest.raises(ValueError, match="sharing this material"):
         build_translucency_files(state, shared, ())

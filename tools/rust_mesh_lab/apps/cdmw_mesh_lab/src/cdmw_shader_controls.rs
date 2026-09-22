@@ -61,9 +61,11 @@ impl LabApplication {
                                     for number in values {
                                         let mut n = number.as_f64().unwrap_or(0.0);
                                         let integer = field["integer"].as_bool().unwrap_or(false);
-                                        ui.add(egui::DragValue::new(&mut n)
-                                            .range(field["minimum"].as_f64().unwrap_or(0.0)..=field["maximum"].as_f64().unwrap_or(1.0))
-                                            .speed(if integer { 1.0 } else { 0.01 }).fixed_decimals(if integer { 0 } else { 4 }));
+                                        let mut slider = egui::Slider::new(&mut n,
+                                            field["minimum"].as_f64().unwrap_or(0.0)..=field["maximum"].as_f64().unwrap_or(1.0))
+                                            .fixed_decimals(if integer { 0 } else { 4 });
+                                        if integer { slider = slider.step_by(1.0); }
+                                        ui.add(slider);
                                         *number = json!(if integer { n.round() } else { n });
                                     }
                                 }

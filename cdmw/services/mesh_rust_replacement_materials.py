@@ -209,11 +209,13 @@ def stage_replacement_materials(authoring, mesh, state, stop_event=None):
         rules = {indices[part.part_id]: (part.translucency, part.translucency_surface, part.emission, part.shader_controls)
                  for part in state.parts if part.translucency is not None or part.emission is not None or part.shader_controls is not None}
         presentations = {(row["lod_index"], row["material_index"]): row for row in payload["material_presentations"]}
-        names = {(mesh.submeshes[index].material or mesh.submeshes[index].name).casefold(): value
+        from cdmw.services.mesh_replacement_materials import material_binding_name, material_binding_names
+        bindings = material_binding_names(state)
+        names = {material_binding_name(mesh.submeshes[index], bindings): value
                  for index, value in rules.items()}
         for lod_index, level in enumerate(_mesh_lods(mesh)):
             for index, part in enumerate(level):
-                value = rules.get(index) if lod_index == 0 else names.get((part.material or part.name).casefold())
+                value = rules.get(index) if lod_index == 0 else names.get(material_binding_name(part, bindings))
                 if value is not None:
                     row = presentations.setdefault((lod_index, index), {"lod_index": lod_index, "material_index": index})
                     if value[0] is not None:

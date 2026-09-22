@@ -5,6 +5,9 @@
 part and experiment, then check the fields to override. Unchecked fields retain
 authored values; disabled numbers show defaults, not source readback. Restore
 removes the experiment. Mesh Editor supports Undo/Redo and replacement drafts.
+Mesh Editor numbers offer sliders as well as typed values. New Item numbers accept
+wheel adjustment when focused. An incompatible choice saved by an older build must
+be restored in Model & Placement → Appearance before Perks & Effects can prepare it.
 
 | Experiment | Supported source | Behaviour |
 | --- | --- | --- |
@@ -75,4 +78,8 @@ The two shader preview services prepare resources off the UI thread.
 drafts, undo, cancellation, cache reuse and Qt controls. Rust tests cover optional
 mask transport, material ownership and headless interactions. The synthetic D3D12
 gate exercises cutouts, UV motion, detail normals, glow sweeps and object clipping.
+`tests/test_material_edit_bindings.py` checks distinct PAC part/material names,
+shared wrapper ownership, lower-LOD isolation, all three appearance commands,
+and both New Item preview stages. Headless wheel and slider tests exercise value
+changes through their actual widgets and commands.
 These checks do not prove packaged-helper, visible-session or in-game parity.

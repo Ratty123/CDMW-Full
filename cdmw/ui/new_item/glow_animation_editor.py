@@ -3,6 +3,7 @@ from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QCheckBox, QDoubleSpinBox, QFormLayout, QGroupBox, QLabel
 
 from cdmw.domain.mesh.emission import GlowAnimation, RgbGlow
+from cdmw.ui.wheel_guard import enable_focused_wheel
 
 
 class GlowAnimationEditor(QGroupBox):
@@ -16,7 +17,7 @@ class GlowAnimationEditor(QGroupBox):
             ("flow_u", "Scroll U", 10), ("flow_v", "Scroll V", 10),
             ("pulse_frequency", "Pulse speed", 10), ("pulse_minimum", "Pulse floor", 1),
         ):
-            spin = QDoubleSpinBox()
+            spin = enable_focused_wheel(QDoubleSpinBox())
             spin.setRange(0, maximum)
             spin.setDecimals(3)
             spin.setSingleStep(0.05)
@@ -36,7 +37,7 @@ class GlowAnimationEditor(QGroupBox):
         self.rgb_spins = {}
         for name, label, minimum, value in (("intensity", "RGB strength", 0, 1),
             ("reveal", "Reveal", 0, 1), ("softness", "Reveal softness", .001, .1)):
-            spin = QDoubleSpinBox()
+            spin = enable_focused_wheel(QDoubleSpinBox())
             spin.setRange(minimum, 1)
             spin.setDecimals(3)
             spin.setSingleStep(.05)

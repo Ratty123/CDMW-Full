@@ -11873,6 +11873,7 @@
     "{value_0} No fallback preview renderer is available.": "{value_0} Резервный модуль предварительного просмотра недоступен.",
     "{value_0} PAC link(s), {value_1} icon path(s), {value_2} grouped variant(s).": "{value_0} Ссылки PAC, пути к значкам {value_1}, сгруппированные варианты {value_2}.",
     "{value_0} Retrying automatically.": "{value_0} Повторная попытка автоматически.",
+    "{value_0} Return to Model & Placement > Appearance and restore shader controls for the affected part.": "{value_0} Вернитесь в Модель и размещение > Внешний вид и восстановите настройки шейдера затронутой части.",
     "{value_0} Showing the current run's targeted DDS files. 'Current' can be inferred from Research; 'Local' is what Texture Workflow requires.": "{value_0} Показаны целевые файлы DDS текущего запуска. «Текущее» можно вывести из исследований; «Локальный» — это то, что требуется для рабочего процесса текстуры.",
     "{value_0} The next item is planned on its tables, so the folder will hold both.": "{value_0} Следующий предмет планируется на его таблицах, и в папке окажутся оба.",
     "{value_0} UV island(s) on {value_1}": "{value_0} УФ-острова на {value_1}",

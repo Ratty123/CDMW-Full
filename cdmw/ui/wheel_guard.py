@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from PySide6.QtCore import QEvent, QObject
+from PySide6.QtCore import QEvent, QObject, Qt
 from PySide6.QtWidgets import QApplication, QAbstractSpinBox, QComboBox, QSlider
 
 try:
@@ -43,6 +43,10 @@ class NonIntrusiveWheelGuard(QObject):
         if not self._watched_is_valid(watched):
             return False
         try:
+            if (isinstance(watched, (QAbstractSpinBox, QSlider))
+                    and watched.property("cdmwWheelAdjustment") is True
+                    and watched.hasFocus()):
+                return False
             if isinstance(watched, QComboBox):
                 event.ignore()
                 return True
@@ -58,6 +62,13 @@ class NonIntrusiveWheelGuard(QObject):
 
 
 _wheel_guard: Optional[NonIntrusiveWheelGuard] = None
+
+
+def enable_focused_wheel(widget):
+    """Opt an editor into click-then-wheel adjustment without changing page scrolling."""
+    widget.setProperty("cdmwWheelAdjustment", True)
+    widget.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+    return widget
 
 
 def ensure_app_wheel_guard(app: Optional[QApplication]) -> None:

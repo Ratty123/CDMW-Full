@@ -4406,7 +4406,7 @@ impl LabApplication {
                         for (name, value) in ["Thickness", "Extinction"].into_iter().zip(values.iter_mut()) {
                             ui.horizontal(|ui| {
                                 ui.label(name);
-                                ui.add(egui::DragValue::new(value).range(0.0..=1.0).speed(0.005).fixed_decimals(3));
+                                ui.add(egui::Slider::new(value, 0.0..=1.0).fixed_decimals(3));
                             });
                         }
                     });

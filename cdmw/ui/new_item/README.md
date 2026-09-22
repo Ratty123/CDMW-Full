@@ -241,6 +241,9 @@ the template is loaded.
 
 **Glow > Animation (experimental)** adds **Scroll U**, **Scroll V**, **Pulse speed**
 and **Pulse floor** to templates and separate imported Plain PBR material parts.
+Focus a material number, then use the mouse wheel to adjust it. This also works for
+translucency and shader experiment fields; scrolling over an unfocused control
+continues to scroll the page without changing its value.
 Zero speed is static. Scrolling changes only emission UVs, so it needs a patterned
 glow map to be visible. Pulse speed is the shader's raw frequency, not calibrated Hz;
 the preview uses `0.5 + 0.5 * sin(pi * speed * time)`. The floor is capped by each

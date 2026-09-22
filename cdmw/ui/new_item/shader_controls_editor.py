@@ -4,6 +4,7 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout
                               QGroupBox, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget)
 
 from cdmw.domain.mesh.shader_controls import FAMILIES, ShaderControls, family_for
+from cdmw.ui.wheel_guard import enable_focused_wheel
 
 
 class ShaderControlsEditor(QGroupBox):
@@ -100,7 +101,7 @@ class ShaderControlsEditor(QGroupBox):
                 holder.setLayout(row)
                 spins = []
                 for value in values.get(field.name, field.default):
-                    spin = QDoubleSpinBox()
+                    spin = enable_focused_wheel(QDoubleSpinBox())
                     spin.setRange(field.minimum, field.maximum)
                     spin.setDecimals(0 if field.integer else 4)
                     spin.setSingleStep(1 if field.integer else .01)

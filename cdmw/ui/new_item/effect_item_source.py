@@ -123,7 +123,10 @@ class PlannedEffectItemSource:
             preview, self.translucency, source_transmission=self.material_route is MaterialRoute.PLAIN_PBR,
         )
         from cdmw.services.shader_controls_preview import shader_preview_mesh
-        preview = shader_preview_mesh(preview, self.shader_controls, snapshot=self.snapshot, stop_event=stop_event)
+        try:
+            preview = shader_preview_mesh(preview, self.shader_controls, snapshot=self.snapshot, stop_event=stop_event)
+        except ValueError as exc:
+            raise ValueError(f"{exc} Return to Model & Placement > Appearance and restore shader controls for the affected part.") from exc
         if template_transform is not None:
             from cdmw.services.new_item_template_model import transform_template_mesh
             preview = transform_template_mesh(preview, template_transform)

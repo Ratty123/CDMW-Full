@@ -7841,6 +7841,15 @@ fn translucency_controls_send_selected_parts_and_restore_without_changing_geomet
         if arguments == &json!({"part_ids": ["b"], "translucency": [0.25, 0.75], "translucency_surface": null})
     )));
     ui.application.cdmw_pending_request = None;
+    ui.click("Advanced")?;
+    let track = ui.reveal("Thickness")?;
+    ui.click_at(egui::pos2(track.right() + 55.0, track.center().y));
+    let actions = ui.actions_from_click("Apply translucency")?;
+    assert!(actions.iter().any(|action| matches!(action,
+        UiAction::CdmwCommand { command: "replacement_translucency", arguments, .. }
+        if arguments["translucency"][0].as_f64().is_some_and(|n| (0.0..=1.0).contains(&n) && n != 0.25)
+    )));
+    ui.application.cdmw_pending_request = None;
     ui.click("Custom")?;
     ui.click("Dense absorption")?;
     let actions = ui.actions_from_click("Apply translucency")?;
@@ -7876,7 +7885,7 @@ fn translucency_controls_send_selected_parts_and_restore_without_changing_geomet
 fn emission_controls_send_selected_parts_and_restore() -> TestResult {
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(two_part_application()?, egui::vec2(1440.0, 1600.0));
     let before = ui.application.mesh.as_ref().unwrap().draw_snapshot();
-    let emission = json!({"color": [1.0, 0.5, 0.25], "intensity": 6.0,
+    let emission = json!({"color": [1.0, 0.5, 0.25], "intensity": 6.125,
         "animation": {"flow_u": 0.5, "flow_v": 0.25, "pulse_frequency": 2.0, "pulse_minimum": 0.25},
         "rgb": null});
     ui.application.cdmw_state["emission"] = json!({"available": true, "parts": [
@@ -7891,6 +7900,14 @@ fn emission_controls_send_selected_parts_and_restore() -> TestResult {
         _ => None,
     });
     assert_eq!(actual, Some(json!({"part_ids": ["b"], "emission": emission})));
+    ui.application.cdmw_pending_request = None;
+    let track = ui.reveal("Strength")?;
+    ui.click_at(egui::pos2(track.right() + 55.0, track.center().y));
+    let actions = ui.actions_from_click("Apply glow")?;
+    assert!(actions.iter().any(|action| matches!(action,
+        UiAction::CdmwCommand { command: "replacement_emission", arguments, .. }
+        if arguments["emission"]["intensity"].as_f64().is_some_and(|n| (0.0..=20.0).contains(&n) && n != 6.125)
+    )));
     ui.application.cdmw_pending_request = None;
     ui.click("Use RGB glow map")?;
     let actions = ui.actions_from_click("Apply glow")?;
@@ -7928,6 +7945,15 @@ fn shader_controls_send_selected_parts_and_restore() -> TestResult {
     assert!(actions.iter().any(|action| matches!(action,
         UiAction::CdmwCommand { command: "replacement_shader_controls", arguments, .. }
         if arguments == &json!({"part_ids": ["b"], "shader_controls": controls}))));
+    ui.application.cdmw_pending_request = None;
+    let track = ui.reveal("Reveal progress")?;
+    ui.click_at(egui::pos2(track.right() + 65.0, track.center().y));
+    let actions = ui.actions_from_click("Apply shader controls")?;
+    assert!(actions.iter().any(|action| matches!(action,
+        UiAction::CdmwCommand { command: "replacement_shader_controls", arguments, .. }
+        if arguments["shader_controls"]["values"]["_wingFlowProgress"][0].as_f64()
+            .is_some_and(|n| (-1.0..=2.0).contains(&n) && n != 0.5)
+    )));
     ui.application.cdmw_pending_request = None;
     let actions = ui.actions_from_click("Restore shader controls")?;
     assert!(actions.iter().any(|action| matches!(action,
