@@ -38,6 +38,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Create New Item disables incompatible shader experiments for template parts and explains their source shader, preventing an unsupported choice from blocking later Glow and Translucency preview updates. Compatibility follows the selected model variant and is prepared in the background.
 - Perks & Effects library buttons show hover, pressed and selected states, and the favourite star updates immediately. Thumbnail capture reports progress and failures, refreshes saved images and opens the larger thumbnail view after saving.
 - Create New Item reuses completed layered template textures when rebuilding a plan or adjusting translucency strength. Output shows material preparation stages, completed materials and elapsed time while retaining full texture quality.
 - Create New Item no longer opens a blank gap above the inspector tabs when Dye assignments expands.

@@ -9,12 +9,12 @@ from cdmw.domain.cancellation import RunCancelled, raise_if_cancelled
 
 def prepare_template(snapshot, key, stop_event):
     from cdmw.services.new_item_snapshot import build_context
-    from cdmw.services.new_item_template_model import template_material_parts
+    from cdmw.services.new_item_template_model import template_material_facts
 
     raise_if_cancelled(stop_event)
     build_context(snapshot, key)
     raise_if_cancelled(stop_event)
-    parts = template_material_parts(snapshot, key, stop_event=stop_event)
+    parts = template_material_facts(snapshot, key, stop_event=stop_event)
     raise_if_cancelled(stop_event)
     return parts
 

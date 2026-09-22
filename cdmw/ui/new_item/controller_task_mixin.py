@@ -108,6 +108,7 @@ class NewItemTaskControllerMixin:
                     dependencies.cancel()
                 self._template_request = None
                 self._template_parts = {}
+                self._template_shader_options = {}
                 self.snapshot = result
                 self.invalidate_plan()
                 # a different install can have different bodies and rigs

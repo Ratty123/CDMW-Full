@@ -13,6 +13,7 @@ class ShaderControlsEditor(QGroupBox):
         super().__init__("Shader experiments", parent)
         self._loading = False
         self._choices = {}
+        self._source_options = None
         layout = QVBoxLayout(self)
         self.part = QComboBox()
         layout.addWidget(self.part)
@@ -37,10 +38,11 @@ class ShaderControlsEditor(QGroupBox):
         self.family.currentIndexChanged.connect(self._family_changed)
         self.reset.clicked.connect(self._reset)
 
-    def refresh(self, parts, choices):
+    def refresh(self, parts, choices, source_options=None):
         old = self.part.currentData()
         self._loading = True
         self._choices = dict(choices)
+        self._source_options = source_options
         self.part.clear()
         for name, label in parts:
             self.part.addItem(label, name)
@@ -50,11 +52,33 @@ class ShaderControlsEditor(QGroupBox):
         self._loading = False
         self._show_part()
 
+    def _source_note(self):
+        if self._source_options is None:
+            return ""
+        shader, supported = self._source_options.get(str(self.part.currentData()).casefold(), ("", ()))
+        if not shader:
+            return "Source material information is unavailable; shader experiments are disabled."
+        note = f"Source shader: {shader}."
+        if not supported:
+            note += " No compatible shader experiments. Glow and translucency have separate controls."
+        return note
+
+    def _update_available_families(self):
+        options = self._source_options
+        _shader, supported = (options.get(str(self.part.currentData()).casefold(), ("", ()))
+                              if options is not None else ("", ()))
+        for index in range(1, self.family.count()):
+            item = self.family.model().item(index)
+            available = options is None or self.family.itemData(index) in supported
+            item.setEnabled(available)
+            item.setToolTip("" if available else "Unavailable for this part's source material.")
+
     def _show_part(self, *_args):
         if self._loading:
             return
         self._loading = True
         try:
+            self._update_available_families()
             choice = self._choices.get(self.part.currentData())
             self.family.setCurrentIndex(max(0, self.family.findData(choice.shader if choice else "")))
             while self.form.rowCount():
@@ -62,10 +86,10 @@ class ShaderControlsEditor(QGroupBox):
             self._rows = []
             self.reset.setEnabled(choice is not None)
             if choice is None:
-                self.note.setText("Choose a compatible shader experiment for this part. Unchecked fields keep source values. Object dissolve is available for static objects in Mesh Editor.")
+                self.note.setText(self._source_note() or "Choose a compatible shader experiment for this part. Unchecked fields keep source values. Object dissolve is available for static objects in Mesh Editor.")
                 return
             family = family_for(choice.shader)
-            self.note.setText(family.note)
+            self.note.setText(" ".join(value for value in (self._source_note(), family.note) if value))
             values = dict(choice.values)
             for field in family.fields:
                 enabled = QCheckBox(field.label)
@@ -97,6 +121,10 @@ class ShaderControlsEditor(QGroupBox):
             return
         shader = self.family.currentData()
         name = self.part.currentData()
+        if shader and not self.family.model().item(self.family.currentIndex()).isEnabled():
+            # Programmatic selection must obey the same gate as the dropdown.
+            self._show_part()
+            return
         if shader:
             values = (("_wingFlowProgress", (2.,)),) if shader == "SkinnedMeshWing" else ()
             self._choices[name] = ShaderControls(shader, values)

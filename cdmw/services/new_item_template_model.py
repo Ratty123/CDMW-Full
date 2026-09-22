@@ -1,27 +1,37 @@
 """Owned template copies: preserve geometry/material inputs except explicit edits."""
 
 from pathlib import PurePosixPath
+from dataclasses import dataclass, field
 
 from cdmw.domain.cancellation import raise_if_cancelled
 
 
-def template_material_parts(snapshot, key, *, stop_event=None):
+@dataclass
+class TemplateMaterialFacts:
+    parts: dict = field(default_factory=dict)
+    shader_options: dict = field(default_factory=dict)
+
+
+def template_material_facts(snapshot, key, *, stop_event=None):
     from cdmw.core.pac_xml_standard_material import find_material_wrappers
+    from cdmw.core.material_shader_controls import equipment_shader_options
     from cdmw.services.new_item_variants import xml_path
 
     try:
         family = snapshot.family(key)
     except ValueError:
-        return {}
-    parts = {}
+        return TemplateMaterialFacts()
+    facts = TemplateMaterialFacts()
     for item in family.files_for("pac"):
         raise_if_cancelled(stop_event)
         path = xml_path(item.path)
         if item.exists and snapshot.has_entry(path):
             text = snapshot.payload(path).decode("utf-8-sig")
-            parts[item.path.casefold()] = tuple((row.submesh_name, row.submesh_name)
-                                               for row in find_material_wrappers(text))
-    return parts
+            facts.parts[item.path.casefold()] = tuple((row.submesh_name, row.submesh_name)
+                                                     for row in find_material_wrappers(text))
+            raise_if_cancelled(stop_event)
+            facts.shader_options[item.path.casefold()] = equipment_shader_options(text)
+    return facts
 
 
 def transform_template_mesh(mesh, matrix):

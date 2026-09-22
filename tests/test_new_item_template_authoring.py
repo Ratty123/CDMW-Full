@@ -170,6 +170,78 @@ def test_first_template_edit_targets_the_binding_already_shown_by_the_selector(t
     controller.shutdown()
 
 
+def test_template_rejects_incompatible_experiment_and_still_previews_glow_and_glass(template_game, tmp_path, monkeypatch):
+    import json
+    from PySide6.QtCore import Qt
+    from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+    from cdmw.ui.new_item.controller_preview_mixin import _template_progressive_source
+    from cdmw.ui.new_item.item_preview import build_item_preview_package
+    from cdmw.ui.new_item.panels_model import ModelPanel
+    from cdmw.ui.new_item.state import glow_choice
+
+    app = QApplication.instance() or QApplication([])
+    _, snapshot, _, _ = template_game
+    # Keep the headless panel from starting a native viewport. Exercise its real
+    # signals and then the material package consumed by that viewport below.
+    requests = []
+    monkeypatch.setattr(ModelPanel, "refresh_preview", lambda self: requests.append(self._controller.draft.shader_controls))
+    controller = NewItemStudioController(synchronous=True)
+    controller.snapshot = snapshot
+    panel = ModelPanel(controller)
+    try:
+        controller.set_template(TEMPLATE)
+        selected = controller.current_variant_identity()[1]
+        wrapper = find_material_wrappers(snapshot.payload(xml_path(selected)).decode("utf-8"))[0]
+        # Once the worker has prepared these facts, editing must not read assets.
+        monkeypatch.setattr(type(snapshot), "payload", lambda *_: pytest.fail("material controls read archives on the UI thread"))
+        editor = panel.shader_controls_editor
+        editor.part.setCurrentIndex(editor.part.findData(wrapper.submesh_name))
+        assert wrapper.shader in editor.note.text()
+        torn = editor.family.findData("SkinnedMeshTornCloth_Ver2")
+        assert not editor.family.model().item(torn).isEnabled()
+        count = len(requests)
+        editor.family.setCurrentIndex(torn)
+        assert editor.family.currentIndex() == 0
+        assert controller.draft.shader_controls == () and len(requests) == count
+
+        panel.glow_box.setChecked(True)
+        for index in range(panel.glow_parts.count()):
+            row = panel.glow_parts.item(index)
+            if row.data(Qt.ItemDataRole.UserRole) == wrapper.submesh_name:
+                row.setCheckState(Qt.CheckState.Checked)
+        panel.glow_intensity.setValue(6)
+        glass = TranslucencyChoice((wrapper.submesh_name,), 0.1, 0.3)
+        panel.translucency_editor.changed.emit(glass)
+        assert controller.draft.translucency == glass
+        assert glow_choice(controller.draft).parts == (wrapper.submesh_name,)
+        assert len(requests) > count
+
+        part = SubMesh(name=wrapper.submesh_name, material=wrapper.submesh_name,
+                       vertices=[(0., 0., 0.), (1., 0., 0.), (0., 1., 0.)], faces=[(0, 1, 2)])
+        part.cdmw_native_source_submesh_name = wrapper.submesh_name
+        template = ParsedMesh(path=selected, format="pac", submeshes=[part])
+        token, source = _template_progressive_source(
+            ("template", TEMPLATE), TEMPLATE, lambda _: template, lambda _: template,
+            False, lambda _: None, glow_choice(controller.draft), glass,
+            controller.draft.shader_controls, snapshot,
+        )
+        stop = threading.Event()
+        scene = source.materials(stop)
+        package = build_item_preview_package(scene, token=token, output_root=tmp_path / "preview",
+                                             stop_event=stop, include_material_resources=True)
+        manifest = json.loads((package / "manifest.json").read_text(encoding="utf-8"))
+        presentation = manifest["material_presentations"][0]
+        assert presentation["emissive_intensity"] == 6
+        assert presentation["translucency"] == [0.1, 0.3]
+        assert not getattr(part, "preview_native_material_overrides", {})
+    finally:
+        panel.preview.shutdown()
+        controller.request_shutdown()
+        panel.deleteLater()
+        controller.deleteLater()
+        app.processEvents()
+
+
 def _events_until(app, condition, timeout=3):
     deadline = time.monotonic() + timeout
     while not condition() and time.monotonic() < deadline:

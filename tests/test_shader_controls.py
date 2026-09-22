@@ -32,6 +32,33 @@ def choice(shader="SkinnedMeshWing", **values):
     return ShaderControls(shader, tuple((name, (value,) if isinstance(value, (int, float)) else value) for name, value in values.items()))
 
 
+@pytest.mark.parametrize("shader,extra,supported", [
+    ("SkinnedMeshStandard", "", ("SkinnedMeshWing",)),
+    ("SkinnedMeshEmissive", "", ("SkinnedMeshWing",)),
+    ("SkinnedMeshStandard", field("_overlayWeight", "1"), ()),
+    ("SkinnedMeshStandard_Ver2", "", ()),
+    ("SkinnedMeshHair", "", ()),
+    ("SkinnedMeshTranslucent", "", ()),
+    *[(family.shader, "", (family.shader,)) for family in FAMILIES if family.shader != "Dissolve"],
+])
+def test_equipment_shader_options_follow_output_compatibility(shader, extra, supported):
+    from cdmw.core.material_shader_controls import equipment_shader_options
+    text = material(shader, extra)
+    assert equipment_shader_options(text) == {"blade": (shader, supported)}
+    for family in FAMILIES:
+        if family.shader in supported:
+            rewrite_shader_controls(text, (("Blade", choice(family.shader)),))
+        else:
+            with pytest.raises(ValueError):
+                rewrite_shader_controls(text, (("Blade", choice(family.shader)),))
+
+
+def test_equipment_shader_options_disable_ambiguous_materials():
+    from cdmw.core.material_shader_controls import equipment_shader_options
+    for text in (material() * 2, material(extra=field("_normalScale", "1") * 2)):
+        assert equipment_shader_options(text)["blade"][1] == ()
+
+
 def test_wing_conversion_preserves_unselected_and_authored_maps():
     before = material() + material(name="Handle")
     controls = choice(_wingFlowProgress=.4, _wingFlowInverse=1)
@@ -209,6 +236,42 @@ def test_real_qt_editor_emits_only_enabled_fields_and_restores():
     assert changes[-1] == ()
     widget.close()
     app.processEvents()
+
+
+def test_template_shader_options_follow_variant_and_clear_for_import(monkeypatch):
+    from PySide6.QtWidgets import QApplication
+    from cdmw.ui.new_item.controller import NewItemStudioController
+    from cdmw.ui.new_item.shader_controls_editor import ShaderControlsEditor
+    app = QApplication.instance() or QApplication([])
+    controller = NewItemStudioController(synchronous=True)
+    widget = ShaderControlsEditor()
+    changes = []
+    widget.changed.connect(changes.append)
+    controller._template_shader_options = {
+        "plain.pac": {"blade": ("SkinnedMeshStandard", ("SkinnedMeshWing",))},
+        "cloth.pac": {"blade": ("SkinnedMeshTornCloth_Ver2", ("SkinnedMeshTornCloth_Ver2",))},
+    }
+    selected = ["PLAIN.PAC"]
+    monkeypatch.setattr(controller, "current_variant_identity", lambda: ("prefab", selected[0]))
+    try:
+        for path, shader in (("PLAIN.PAC", "SkinnedMeshWing"), ("cloth.pac", "SkinnedMeshTornCloth_Ver2")):
+            selected[0] = path
+            widget.refresh((("Blade", "Blade"),), (), controller.material_shader_options())
+            available = [widget.family.itemData(i) for i in range(1, widget.family.count())
+                         if widget.family.model().item(i).isEnabled()]
+            assert available == [shader]
+            assert not changes
+            widget.family.setCurrentIndex(widget.family.findData(shader))
+            assert changes.pop()[0][1].shader == shader
+        controller.model_import = object()
+        widget.refresh((("Imported", "Imported"),), (), controller.material_shader_options())
+        assert all(widget.family.model().item(i).isEnabled() for i in range(widget.family.count()))
+        assert not changes
+    finally:
+        controller.model_import = None
+        controller.shutdown()
+        widget.close()
+        app.processEvents()
 
 
 def test_import_bindings_map_renamed_parts_and_clones_without_touching_other_materials():

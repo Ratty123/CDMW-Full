@@ -1032,6 +1032,16 @@
       ]
     },
     {
+      "key": " No compatible shader experiments. Glow and translucency have separate controls.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/shader_controls_editor.py",
+          "line": 64,
+          "sink": "python-return:_source_note"
+        }
+      ]
+    },
+    {
       "key": " Placement workspace has {value_0} prefab/socket chain(s).",
       "origins": [
         {
@@ -3681,7 +3691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 789,
+          "line": 790,
           "sink": "setToolTip"
         }
       ]
@@ -6306,7 +6316,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 860,
+          "line": 861,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -6996,7 +7006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 319,
+          "line": 320,
           "sink": "on_error"
         }
       ]
@@ -7966,7 +7976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1090,
+          "line": 1092,
           "sink": "set_note"
         },
         {
@@ -14001,7 +14011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 860,
+          "line": 861,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -15626,12 +15636,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 262,
+          "line": 263,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 276,
+          "line": 277,
           "sink": "emit"
         },
         {
@@ -16171,7 +16181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 335,
+          "line": 337,
           "sink": "log"
         }
       ]
@@ -17726,7 +17736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 385,
+          "line": 386,
           "sink": "emit"
         },
         {
@@ -17896,7 +17906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 727,
+          "line": 728,
           "sink": "setToolTip"
         }
       ]
@@ -19796,7 +19806,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7232,
+          "line": 7237,
           "sink": "report"
         }
       ]
@@ -20571,7 +20581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 65,
+          "line": 89,
           "sink": "setText"
         }
       ]
@@ -20911,7 +20921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 188,
+          "line": 190,
           "sink": "emit"
         }
       ]
@@ -20931,7 +20941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 921,
+          "line": 923,
           "sink": "setToolTip"
         }
       ]
@@ -21146,7 +21156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 210,
+          "line": 211,
           "sink": "emit"
         }
       ]
@@ -21261,7 +21271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 745,
+          "line": 746,
           "sink": "QPushButton"
         }
       ]
@@ -21566,7 +21576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 860,
+          "line": 861,
           "sink": "getOpenFileName"
         }
       ]
@@ -23436,7 +23446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1020,
+          "line": 1022,
           "sink": "setText"
         },
         {
@@ -30096,7 +30106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 269,
+          "line": 270,
           "sink": "emit"
         }
       ]
@@ -30511,7 +30521,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 696,
+          "line": 697,
           "sink": "QPushButton"
         },
         {
@@ -30561,7 +30571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 697,
+          "line": 698,
           "sink": "setToolTip"
         }
       ]
@@ -32231,7 +32241,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 9492,
+          "line": 9497,
           "sink": "RuntimeError"
         }
       ]
@@ -37726,7 +37736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 746,
+          "line": 747,
           "sink": "setToolTip"
         }
       ]
@@ -37736,7 +37746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 760,
+          "line": 761,
           "sink": "setText"
         }
       ]
@@ -37746,7 +37756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 847,
+          "line": 848,
           "sink": "setText"
         }
       ]
@@ -37756,7 +37766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 881,
+          "line": 882,
           "sink": "emit"
         }
       ]
@@ -39726,7 +39736,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_shader_controls.py",
-          "line": 65,
+          "line": 70,
           "sink": "python-return:shader_controls_ui_state"
         }
       ]
@@ -40016,7 +40026,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1048,
+          "line": 1050,
           "sink": "setText"
         }
       ]
@@ -40246,7 +40256,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 646,
+          "line": 647,
           "sink": "QCheckBox"
         }
       ]
@@ -40671,7 +40681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 849,
+          "line": 850,
           "sink": "setText"
         }
       ]
@@ -40776,7 +40786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 754,
+          "line": 755,
           "sink": "QPushButton"
         }
       ]
@@ -46166,7 +46176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 323,
+          "line": 325,
           "sink": "emit"
         }
       ]
@@ -46241,7 +46251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 712,
+          "line": 713,
           "sink": "setText"
         }
       ]
@@ -46301,7 +46311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 688,
+          "line": 689,
           "sink": "QPushButton"
         }
       ]
@@ -46661,7 +46671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 680,
+          "line": 681,
           "sink": "QRadioButton"
         }
       ]
@@ -46671,7 +46681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
-          "line": 104,
+          "line": 109,
           "sink": "RunCancelled"
         }
       ]
@@ -48246,7 +48256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 211,
+          "line": 213,
           "sink": "report"
         }
       ]
@@ -49131,7 +49141,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_shader_controls.py",
-          "line": 86,
+          "line": 92,
           "sink": "ValueError"
         }
       ]
@@ -50621,7 +50631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 20,
+          "line": 21,
           "sink": "addItem"
         }
       ]
@@ -56846,12 +56856,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 478,
+          "line": 480,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 479,
+          "line": 481,
           "sink": "emit"
         }
       ]
@@ -60221,12 +60231,12 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 667,
+          "line": 668,
           "sink": "QGroupBox"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 669,
+          "line": 670,
           "sink": "setAccessibleName"
         },
         {
@@ -60641,7 +60651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 219,
+          "line": 221,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -60801,7 +60811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 249,
+          "line": 251,
           "sink": "progress"
         }
       ]
@@ -61366,7 +61376,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8823,
+          "line": 8828,
           "sink": "RuntimeError"
         }
       ]
@@ -61446,7 +61456,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8753,
+          "line": 8758,
           "sink": "RuntimeError"
         }
       ]
@@ -61456,7 +61466,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8749,
+          "line": 8754,
           "sink": "RuntimeError"
         }
       ]
@@ -61466,7 +61476,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8724,
+          "line": 8729,
           "sink": "RuntimeError"
         }
       ]
@@ -64846,7 +64856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 256,
+          "line": 257,
           "sink": "emit"
         },
         {
@@ -64956,22 +64966,22 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 704,
+          "line": 705,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 710,
+          "line": 711,
           "sink": "NoteLabel"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1059,
+          "line": 1061,
           "sink": "set_note"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1060,
+          "line": 1062,
           "sink": "setText"
         }
       ]
@@ -67426,7 +67436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1092,
+          "line": 1094,
           "sink": "set_note"
         },
         {
@@ -69546,12 +69556,12 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 719,
+          "line": 720,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 834,
+          "line": 835,
           "sink": "setText"
         }
       ]
@@ -69886,7 +69896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 403,
+          "line": 405,
           "sink": "emit"
         },
         {
@@ -69906,7 +69916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 720,
+          "line": 721,
           "sink": "setToolTip"
         }
       ]
@@ -70566,22 +70576,22 @@
         },
         {
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
-          "line": 542,
+          "line": 539,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
-          "line": 584,
+          "line": 581,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 404,
+          "line": 405,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 415,
+          "line": 416,
           "sink": "emit"
         },
         {
@@ -72411,7 +72421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 73,
+          "line": 97,
           "sink": "setToolTip"
         }
       ]
@@ -73841,12 +73851,12 @@
       "origins": [
         {
           "path": "cdmw/services/shader_controls_preview.py",
-          "line": 40,
+          "line": 62,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/shader_controls_preview.py",
-          "line": 111,
+          "line": 134,
           "sink": "ValueError"
         }
       ]
@@ -73856,7 +73866,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_shader_controls.py",
-          "line": 38,
+          "line": 43,
           "sink": "ValueError"
         }
       ]
@@ -75531,7 +75541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 689,
+          "line": 690,
           "sink": "setToolTip"
         }
       ]
@@ -75751,7 +75761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1088,
+          "line": 1090,
           "sink": "setToolTip"
         }
       ]
@@ -75761,7 +75771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1088,
+          "line": 1090,
           "sink": "setToolTip"
         }
       ]
@@ -76036,7 +76046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 355,
+          "line": 357,
           "sink": "emit"
         }
       ]
@@ -76351,7 +76361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 771,
+          "line": 772,
           "sink": "QCheckBox"
         }
       ]
@@ -77851,7 +77861,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7230,
+          "line": 7235,
           "sink": "report"
         }
       ]
@@ -77871,7 +77881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 374,
+          "line": 376,
           "sink": "log"
         },
         {
@@ -78331,7 +78341,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7785,
+          "line": 7790,
           "sink": "progress"
         }
       ]
@@ -78341,7 +78351,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7096,
+          "line": 7101,
           "sink": "report"
         }
       ]
@@ -78351,7 +78361,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7120,
+          "line": 7125,
           "sink": "report"
         }
       ]
@@ -78691,7 +78701,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_template_model.py",
-          "line": 154,
+          "line": 164,
           "sink": "on_log"
         }
       ]
@@ -78711,7 +78721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 422,
+          "line": 424,
           "sink": "log"
         },
         {
@@ -83511,7 +83521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 193,
+          "line": 194,
           "sink": "emit"
         },
         {
@@ -84221,7 +84231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 216,
+          "line": 218,
           "sink": "report"
         }
       ]
@@ -89786,7 +89796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1048,
+          "line": 1050,
           "sink": "setText"
         }
       ]
@@ -91261,7 +91271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 34,
+          "line": 35,
           "sink": "QPushButton"
         }
       ]
@@ -91481,7 +91491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 675,
+          "line": 676,
           "sink": "setToolTip"
         }
       ]
@@ -91806,7 +91816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 834,
+          "line": 835,
           "sink": "setText"
         }
       ]
@@ -98041,7 +98051,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_shader_controls.py",
-          "line": 84,
+          "line": 90,
           "sink": "ValueError"
         }
       ]
@@ -100036,7 +100046,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_shader_controls.py",
-          "line": 35,
+          "line": 40,
           "sink": "ValueError"
         }
       ]
@@ -100056,7 +100066,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_shader_controls.py",
-          "line": 133,
+          "line": 139,
           "sink": "ValueError"
         }
       ]
@@ -100086,7 +100096,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_shader_controls.py",
-          "line": 46,
+          "line": 51,
           "sink": "ValueError"
         }
       ]
@@ -101536,7 +101546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 782,
+          "line": 783,
           "sink": "setToolTip"
         }
       ]
@@ -102486,7 +102496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 773,
+          "line": 774,
           "sink": "setToolTip"
         }
       ]
@@ -103932,6 +103942,16 @@
       ]
     },
     {
+      "key": "Source material information is unavailable; shader experiments are disabled.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/shader_controls_editor.py",
+          "line": 60,
+          "sink": "python-return:_source_note"
+        }
+      ]
+    },
+    {
       "key": "Source material sidecar copied from {value_0}",
       "origins": [
         {
@@ -104028,6 +104048,16 @@
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_source_mix_callbacks.py",
           "line": 235,
           "sink": "warning"
+        }
+      ]
+    },
+    {
+      "key": "Source shader: {value_0}.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/shader_controls_editor.py",
+          "line": 64,
+          "sink": "python-return:_source_note"
         }
       ]
     },
@@ -105756,7 +105786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 311,
+          "line": 312,
           "sink": "emit"
         }
       ]
@@ -106496,7 +106526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 681,
+          "line": 682,
           "sink": "setToolTip"
         }
       ]
@@ -107766,7 +107796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 788,
+          "line": 789,
           "sink": "QCheckBox"
         }
       ]
@@ -107796,7 +107826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 674,
+          "line": 675,
           "sink": "QRadioButton"
         }
       ]
@@ -107826,7 +107856,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_template_model.py",
-          "line": 85,
+          "line": 95,
           "sink": "ValueError"
         }
       ]
@@ -107836,7 +107866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
-          "line": 400,
+          "line": 397,
           "sink": "RunCancelled"
         }
       ]
@@ -108041,7 +108071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 31,
+          "line": 32,
           "sink": "QLabel"
         }
       ]
@@ -109576,22 +109606,22 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 414,
-          "sink": "RuntimeError"
-        },
-        {
-          "path": "cdmw/ui/new_item/controller_model_mixin.py",
           "line": 416,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 421,
+          "line": 418,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 452,
+          "line": 423,
+          "sink": "RuntimeError"
+        },
+        {
+          "path": "cdmw/ui/new_item/controller_model_mixin.py",
+          "line": 454,
           "sink": "RuntimeError"
         },
         {
@@ -110271,7 +110301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1010,
+          "line": 1012,
           "sink": "getColor"
         }
       ]
@@ -110846,7 +110876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 214,
+          "line": 215,
           "sink": "emit"
         },
         {
@@ -111136,7 +111166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 256,
+          "line": 257,
           "sink": "emit"
         }
       ]
@@ -111176,12 +111206,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 282,
+          "line": 284,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 283,
+          "line": 285,
           "sink": "emit"
         }
       ]
@@ -111211,7 +111241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 257,
+          "line": 259,
           "sink": "emit"
         }
       ]
@@ -111241,7 +111271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
-          "line": 652,
+          "line": 668,
           "sink": "emit"
         }
       ]
@@ -111596,17 +111626,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 359,
-          "sink": "emit"
-        },
-        {
-          "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 360,
-          "sink": "emit"
-        },
-        {
-          "path": "cdmw/ui/new_item/controller_model_mixin.py",
           "line": 361,
+          "sink": "emit"
+        },
+        {
+          "path": "cdmw/ui/new_item/controller_model_mixin.py",
+          "line": 362,
+          "sink": "emit"
+        },
+        {
+          "path": "cdmw/ui/new_item/controller_model_mixin.py",
+          "line": 363,
           "sink": "emit"
         }
       ]
@@ -111661,7 +111691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 246,
+          "line": 247,
           "sink": "emit"
         }
       ]
@@ -112241,7 +112271,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_shader_controls.py",
-          "line": 129,
+          "line": 135,
           "sink": "ValueError"
         }
       ]
@@ -112251,7 +112281,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_shader_controls_preview.py",
-          "line": 62,
+          "line": 64,
           "sink": "ValueError"
         }
       ]
@@ -112281,7 +112311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 122,
+          "line": 123,
           "sink": "emit"
         }
       ]
@@ -112436,7 +112466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 875,
+          "line": 876,
           "sink": "emit"
         }
       ]
@@ -112516,7 +112546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
-          "line": 607,
+          "line": 604,
           "sink": "emit"
         }
       ]
@@ -115532,6 +115562,16 @@
       ]
     },
     {
+      "key": "Unavailable for this part's source material.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/shader_controls_editor.py",
+          "line": 74,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Unavailable until the resident .NET material-parameter channel is Ready.",
       "origins": [
         {
@@ -117446,7 +117486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 726,
+          "line": 727,
           "sink": "QPushButton"
         }
       ]
@@ -117876,7 +117916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 780,
+          "line": 781,
           "sink": "QCheckBox"
         }
       ]
@@ -127386,7 +127426,7 @@
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7378,
+          "line": 7383,
           "sink": "open_edit_session"
         },
         {
@@ -128466,7 +128506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 265,
+          "line": 266,
           "sink": "_run"
         }
       ]
@@ -129451,7 +129491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 647,
+          "line": 648,
           "sink": "setToolTip"
         }
       ]
@@ -129671,7 +129711,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 4036,
+          "line": 4041,
           "sink": "ValueError"
         }
       ]
@@ -130306,7 +130346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 284,
+          "line": 285,
           "sink": "_run"
         }
       ]
@@ -131186,7 +131226,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3677,
+          "line": 3682,
           "sink": "ValueError"
         }
       ]
@@ -131196,7 +131236,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3666,
+          "line": 3671,
           "sink": "ValueError"
         }
       ]
@@ -131206,7 +131246,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3649,
+          "line": 3654,
           "sink": "ValueError"
         }
       ]
@@ -131916,12 +131956,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 6694,
+          "line": 6699,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 6792,
+          "line": 6797,
           "sink": "RuntimeError"
         }
       ]
@@ -133531,12 +133571,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 290,
+          "line": 291,
           "sink": "_run"
         },
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 296,
+          "line": 297,
           "sink": "_run"
         },
         {
@@ -134016,7 +134056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 258,
+          "line": 259,
           "sink": "_run"
         }
       ]
@@ -137616,7 +137656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 124,
+          "line": 125,
           "sink": "_run"
         }
       ]
@@ -140961,7 +141001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1087,
+          "line": 1089,
           "sink": "setText"
         }
       ]
@@ -140971,7 +141011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1078,
+          "line": 1080,
           "sink": "setText"
         }
       ]
@@ -143081,7 +143121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 878,
+          "line": 879,
           "sink": "emit"
         }
       ]
@@ -144741,7 +144781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 522,
+          "line": 523,
           "sink": "python-return:_perk_label"
         },
         {
@@ -144971,7 +145011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 541,
+          "line": 542,
           "sink": "python-return:perk_details"
         }
       ]
@@ -145571,7 +145611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1089,
+          "line": 1091,
           "sink": "note"
         }
       ]
@@ -145591,7 +145631,7 @@
       "origins": [
         {
           "path": "cdmw/services/shader_controls_preview.py",
-          "line": 147,
+          "line": 170,
           "sink": "ValueError"
         }
       ]
@@ -146051,7 +146091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1077,
+          "line": 1079,
           "sink": "note"
         }
       ]
@@ -146351,7 +146391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 303,
+          "line": 304,
           "sink": "python-return:suggest_internal_name"
         }
       ]
@@ -146361,7 +146401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 303,
+          "line": 304,
           "sink": "python-return:suggest_internal_name"
         }
       ]

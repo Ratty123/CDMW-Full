@@ -21,6 +21,13 @@ equipment. Restore Glow/Translucency overrides before choosing another experimen
 on the same part. Authored glow maps and unrelated parameters remain; their game
 shader support still needs testing.
 
+For template models, New Item reads shader compatibility while preparing the
+template in the background. The experiment selector enables only compatible
+families for the selected part and variant, and shows the source shader. An
+unsupported experiment cannot enter the draft and block later Glow or Translucency
+preview updates. This does not add TornCloth support to ordinary armour. Restore
+source shader controls to clear an incompatible choice made in an older build.
+
 Existing mask/normal bindings are retained. Default Wing, TornCloth, Poster and
 Dissolve masks become explicit dependencies when absent. Anisotropy needs its
 authored detail mask and normal. These controls do not paint vertex masks,

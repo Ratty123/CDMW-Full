@@ -78,17 +78,19 @@ class NewItemModelControllerMixin:
         if template_key is None:
             self._template_request = None
             self._template_parts = {}
+            self._template_shader_options = {}
             self._template_selection_lane.cancel()
             self._commit_template(None)
         else:
             self._template_request = (self.snapshot, template_key)
             self._template_selection_lane.request(self.snapshot, template_key)
 
-    def _template_prepared(self, snapshot, key, parts) -> None:
+    def _template_prepared(self, snapshot, key, facts) -> None:
         if snapshot is not self.snapshot or self._shutdown_requested:
             return
         self._template_request = None
-        self._template_parts = parts
+        self._template_parts = facts.parts
+        self._template_shader_options = facts.shader_options
         self._commit_template(key)
 
     def _template_failed(self, message) -> None:

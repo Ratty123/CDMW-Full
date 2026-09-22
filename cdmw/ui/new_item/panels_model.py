@@ -640,7 +640,8 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         model_layout.addWidget(self.translucency_editor)
         from cdmw.ui.new_item.shader_controls_editor import ShaderControlsEditor
         self.shader_controls_editor = ShaderControlsEditor(self)
-        self.shader_controls_editor.refresh(self._controller.material_parts(), self._controller.draft.shader_controls)
+        self.shader_controls_editor.refresh(self._controller.material_parts(), self._controller.draft.shader_controls,
+                                            self._controller.material_shader_options())
         self.shader_controls_editor.changed.connect(self._shader_controls_changed)
         model_layout.addWidget(self.shader_controls_editor)
         self.flip_texture_v = QCheckBox("Flip texture V")
@@ -898,7 +899,8 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self._set_glow_swatch()
         parts = self._controller.material_parts()
         self.translucency_editor.refresh(parts, self._controller.draft.translucency)
-        self.shader_controls_editor.refresh(parts, self._controller.draft.shader_controls)
+        self.shader_controls_editor.refresh(parts, self._controller.draft.shader_controls,
+                                            self._controller.material_shader_options())
         self.glow_parts.blockSignals(True)
         self.glow_parts.clear()
         for name, label in parts:

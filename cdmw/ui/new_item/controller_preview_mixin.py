@@ -620,6 +620,25 @@ class NewItemPreviewControllerMixin:
         self._held_character = (template, context, held)
         return held
 
+    def material_shader_options(self):
+        """Worker-prepared compatibility for the selected template variant only."""
+        if self.model_import is not None or self.model_result is not None:
+            return None
+        identity = self.current_variant_identity()
+        selected = identity[1].casefold() if identity else None
+        options = {}
+        for path, parts in self._template_shader_options.items():
+            if selected is not None and path != selected:
+                continue
+            for name, (shader, supported) in parts.items():
+                if name in options:
+                    previous_shader, previous = options[name]
+                    supported = tuple(value for value in supported if value in previous)
+                    if shader != previous_shader:
+                        shader = " / ".join(dict.fromkeys((previous_shader, shader)))
+                options[name] = shader, supported
+        return options
+
     def material_parts(self) -> Tuple[Tuple[str, str], ...]:
         """Current imported materials or the template's worker-prepared bindings."""
 

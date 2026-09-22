@@ -7,7 +7,7 @@ from xml.sax.saxutils import escape
 
 from cdmw.core.pac_xml_emission import append_emission_parameter
 from cdmw.core.pac_xml_standard_material import find_material_wrappers
-from cdmw.domain.mesh.shader_controls import family_for, validate_choices
+from cdmw.domain.mesh.shader_controls import FAMILIES, ShaderControls, family_for, validate_choices
 
 
 def _parameter_rows(block):
@@ -63,6 +63,30 @@ def validate_source(shader, controls, parameters, *, static=False):
         raw = dye.get("_value", "") if dye is not None else ""
         if not re.fullmatch(r"#[0-9a-fA-F]{8}", raw) or int(raw[-2:], 16) == 0:
             raise ValueError("Dye roughness is inactive because the source hair dye alpha is zero. This edit will not enable dye or change its colour.")
+
+
+def equipment_shader_options(text):
+    """Source shader and compatible experiments, using the output writer's rules."""
+    result = {}
+    for wrapper in find_material_wrappers(text):
+        key = wrapper.submesh_name.casefold()
+        supported = []
+        try:
+            parameters = _parameter_rows(text[wrapper.start:wrapper.end])
+        except (ValueError, ET.ParseError):
+            parameters = None
+        if key not in result and parameters is not None:
+            for family in FAMILIES:
+                if family.shader == "Dissolve":
+                    continue
+                try:
+                    validate_source(wrapper.shader, ShaderControls(family.shader), parameters)
+                except ValueError:
+                    continue
+                supported.append(family.shader)
+        # Ambiguous or malformed wrappers cannot safely accept an experiment.
+        result[key] = (wrapper.shader, tuple(supported))
+    return result
 
 
 def _write_parameter(block, name, kind, value, item_id, *, static):
