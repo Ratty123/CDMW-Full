@@ -30,7 +30,7 @@ import json
 import math
 import random
 import struct
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from types import MappingProxyType
 from typing import Callable, Iterable, List, Mapping, Optional, Protocol, Sequence, Tuple
 
@@ -128,6 +128,20 @@ class EmitterPreview:
     source_index: int = 0
     infinite_life: bool = False
     repeat_curves: bool = False
+    #: Authored GPU spawn inputs. Type 6 samples a target mesh inside a volume;
+    #: it is not a point or a box that creates positions without a mesh.
+    spawn_volume_type: int = 0
+    spawn_volume_data: Tuple[float, ...] = ()
+    spawn_volume_transform: Tuple[float, ...] = ()
+    spawn_volume_additional_data: Tuple[float, ...] = ()
+    spawn_surface_density: Optional[float] = None
+    spawn_uniform_surface_density: Optional[bool] = None
+    spawn_normal_alignment: Optional[bool] = None
+    #: EffectVertex normals and BGRA-authored branch controls, not display tint.
+    particle_normals: Tuple[Vec3, ...] = ()
+    particle_tangents: Tuple[Tuple[float, ...], ...] = ()
+    particle_colors: Tuple[Tuple[float, ...], ...] = ()
+    material: dict = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -180,12 +194,25 @@ def _vec3(node: Optional[ReflectNode], name: str, default: Vec3) -> Vec3:
     return default
 
 
+def _float_tuple(node: Optional[ReflectNode], name: str, default: tuple) -> tuple:
+    value = node.value(name) if node is not None else None
+    raw = value.value if value is not None else None
+    if isinstance(raw, tuple) and len(raw) == len(default) and all(isinstance(v, (int, float)) and math.isfinite(v) for v in raw):
+        return tuple(float(v) for v in raw)
+    return default
+
+
 def _number(node: Optional[ReflectNode], name: str, default: float) -> float:
     value = node.value(name) if node is not None else None
     if value is None:
         return default
     raw = value.value
     return float(raw) if isinstance(raw, (int, float)) else default
+
+
+def _optional_flag(node: Optional[ReflectNode], name: str, default):
+    value = node.value(name) if node is not None else None
+    return bool(value.value) if value is not None and isinstance(value.value, (int, float)) else default
 
 
 def _brightness(node: Optional[ReflectNode], name: str, default: float) -> float:
@@ -282,6 +309,52 @@ def _read_material(material: Optional[ReflectNode], layout: EmitterLayout) -> _M
         if name is not None and name.value == "USE_4CHANNEL":
             out.packed_channels = bool(value.value) if value is not None else False
     return out
+
+
+def _shader_material(sources: Sequence[_Source]) -> dict:
+    """Retain the material inputs needed by procedural particle shaders.
+
+    Resolve partial spline/parameter overrides before reading them. Keep authored
+    interpolation and tangents; converting these to a linear ramp loses data.
+    This descriptor does not claim that the renderer implements every material.
+    """
+    from cdmw.services.effect_recipe import _merge
+
+    resolved = None
+    for source in reversed(sources):
+        material = _first_child(source.node, "_effectMaterialData2")
+        if material is not None:
+            resolved = _merge(resolved, material) if resolved is not None else material
+    if resolved is None:
+        return {}
+    name = resolved.value("_materialName")
+    numeric, splines = {}, {}
+    for label, parameter in _named_parameters(resolved, EmitterLayout()):
+        value = parameter.value("_value")
+        raw = value.value if value is not None else None
+        if isinstance(raw, (int, float)) and math.isfinite(raw):
+            numeric[label] = raw
+        elif isinstance(raw, tuple) and len(raw) <= 4 and all(isinstance(v, (int, float)) and math.isfinite(v) for v in raw):
+            numeric[label] = raw
+        reference = _first_child(parameter, "_value")
+        if reference is None or reference.type_name != "SplineRef":
+            continue
+        instance = _first_child(reference, "_splineDataInstance")
+        components = instance.child("_dataForSerialize") if instance is not None else None
+        curves = []
+        for component in components if isinstance(components, tuple) else ():
+            points = component.child("_pointListForSerialize")
+            curves.append(tuple({
+                "position": _float_tuple(point, "_position", (0.0, 0.0)),
+                "interpolation": int(_number(point, "_interpolateType", 0)),
+                "inner_tangent": _number(point, "_innerTangent", 0.0),
+                "outer_tangent": _number(point, "_outterTangent", 0.0),
+            } for point in points if isinstance(point, ReflectNode)) if isinstance(points, tuple) else ())
+        preset = reference.value("_splinePresetName")
+        if preset is None and instance is not None:
+            preset = instance.value("_presetName")
+        splines[label] = {"preset": str(preset.value or "") if preset is not None else "", "components": tuple(curves)}
+    return {"name": str(name.value or "") if name is not None else "", "values": numeric, "splines": splines}
 
 
 def _evaluate_points(points: Sequence[Tuple[float, float]], x: float) -> float:
@@ -539,7 +612,9 @@ def _emitter_preview(
         notes.append(f"{name}: spawn mesh {mesh_name.rsplit('/', 1)[-1]} was not read; the preview uses the placed origin")
     particle_mesh = _string_from(sources, "_meshObjectFileName")
     spawn_volume = int(_read(sources, "_spawnData", "_spawnVolumeType", 0, _number))
-    if spawn_volume and not points:
+    if spawn_volume in (5, 6) and not points:
+        notes.append(f"{name}: spawn type {spawn_volume} requires a target mesh surface. An empty game surface produces no particles; the preview currently shows particles at the placed origin and does not verify that target binding.")
+    elif spawn_volume and not points:
         notes.append(f"{name}: spawn volume type {spawn_volume} is not simulated; the preview uses the placed origin, so particle distribution can differ in game.")
     for source in sources:
         material = _first_child(source.node, "_effectMaterialData2")
@@ -598,6 +673,14 @@ def _emitter_preview(
         name=name, kind=kind, texture=texture, blend=blend,
         infinite_life=bool(_read(sources, "_spawnData", "_isInfiniteParticle", 0, _number)),
         repeat_curves=bool(_read(sources, "_spawnData", "_useCureveRepeat", 0, _number)),
+        spawn_volume_type=spawn_volume,
+        spawn_volume_data=_read(sources, "_emitterDynamicData", "_spawnVolumeData", (0.0,) * 4, _float_tuple),
+        spawn_volume_transform=_read(sources, "_emitterDynamicData", "_spawnVolumeTransform", (1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0), _float_tuple),
+        spawn_volume_additional_data=_read(sources, "_spawnData", "_spawnVolumeAdditionalData", (0.0,) * 4, _float_tuple),
+        spawn_surface_density=_read(sources, "_spawnData", "_surfaceDensity", None, _number),
+        spawn_uniform_surface_density=_read(sources, "_spawnData", "_useUniformSurfaceDensity", None, _optional_flag),
+        spawn_normal_alignment=_read(sources, "_spawnData", "_particleLookAtSpawnNormal", None, _optional_flag),
+        material=_shader_material(sources),
         loop_count=loop_count,
         burst_min=max(0, int(_read(sources, '_spawnData', '_spawnCountMin', burst, _number))),
         start_delay=(float(_read(sources, '_spawnData', '_spawnDelayMin', 0.0, _number)), float(_read(sources, '_spawnData', '_spawnDelayMax', 0.0, _number))),

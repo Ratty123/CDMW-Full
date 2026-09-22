@@ -196,6 +196,10 @@ reference. The preview does not reproduce the game's GPU vector fields, post
 effects, animation clipping, or final gameplay appearance.
 Colour edits include cloned render-preset temperature ramps. Billboard particle
 size represents its full dimensions, with placement scale applied once.
+Surface-dependent effects such as Aftertaa need a game-provided target mesh;
+placing their preview at an item offset does not establish that binding. The
+emitter diagnostics identify this requirement. Procedural lightning deformation
+and its surface spawning remain under investigation.
 
 Output can be a manager package or a CDMW-owned archive-group overlay. New Item
 installs through overlays only. **Output → Merge mods** combines compatible mod

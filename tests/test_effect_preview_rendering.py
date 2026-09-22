@@ -8,7 +8,7 @@ import pytest
 from cdmw.core.effect_binary import ReflectNode, ReflectValue, decode_effect_binary
 from cdmw.core.effect_edit import EmitterLayout
 from cdmw.domain.cancellation import RunCancelled
-from cdmw.services.effect_preview_geometry import MAX_VERTICES, load_particle_geometry, particle_geometry
+from cdmw.services.effect_preview_geometry import MAX_VERTICES, decode_effect_vertex, load_particle_geometry, particle_geometry, particle_shader_attributes
 from cdmw.services.effect_preview_model import EffectPreview, _Source, _emitter_preview, build_effect_preview
 from tests.test_effect_preview_model import EFFECT
 
@@ -176,3 +176,108 @@ def test_reordered_inherited_material_parameters_follow_their_stable_keys():
     source = node("Material", children=[("_parameters", (parameter,))])
     layout = EmitterLayout(parameter_names=("_temperatureColorSpline", "_temperatureBrightness"), parameter_keys=(11, 22))
     assert _read_material(source, layout).temperature_brightness == 2.
+
+
+@pytest.mark.parametrize("sign_bits,normal_z,tangent_sign", [(0, -1., -1.), (1, -1., 1.), (2, 1., 1.), (3, 1., -1.)])
+def test_effect_vertex_matches_shader_packing_and_bgra_channel_order(sign_bits, normal_z, tangent_sign):
+    # Shader decode: XY=511 maps to zero; the two high bits encode normal Z
+    # and tangent handedness. The unrelated position words must not enter it.
+    packed = 511 | (511 << 10) | (511 << 20) | (sign_bits << 30)
+    data = struct.pack("<4H2eII", 100, 200, 300, 511 | 0x8000, .25, .75, packed, 0x80402010)
+    normal, tangent, colour = decode_effect_vertex(data, 0)
+    assert normal == pytest.approx((0., 0., normal_z))
+    assert tangent == pytest.approx((0., 0., 1., tangent_sign))
+    assert colour == pytest.approx((64/255., 32/255., 16/255., 128/255.))
+    negative_tangent = bytearray(data)
+    struct.pack_into("<H", negative_tangent, 6, 511)
+    assert decode_effect_vertex(negative_tangent, 0)[1][2] == -1.
+
+
+def test_effect_vertex_does_not_guess_unknown_layouts_or_read_truncated_records():
+    sub = SimpleNamespace(vertices=[(0., 0., 0.)] * 3, source_vertex_offsets=[0, 20, 40])
+    parsed = SimpleNamespace(format="pam", submeshes=[sub])
+    assert len(particle_shader_attributes(parsed, bytes(60))[0]) == 3
+    parsed.format = "pac"
+    assert particle_shader_attributes(parsed, bytes(60)) == ((), (), ())
+    parsed.format = "pam"
+    sub.source_vertex_offsets = [0, 40, 80]
+    assert particle_shader_attributes(parsed, bytes(100)) == ((), (), ())
+    with pytest.raises(ValueError, match="truncated EffectVertex"):
+        decode_effect_vertex(bytes(19), 0)
+    with pytest.raises(ValueError, match="truncated EffectVertex"):
+        decode_effect_vertex(bytes(20), -1)
+
+
+def test_particle_vertex_inputs_survive_real_preview_serialization():
+    import json
+    from cdmw.services.effect_preview_model import effect_preview_json
+
+    packed = 511 | (1022 << 10) | (511 << 20)
+    vertex = struct.pack("<4H2eII", 0, 0, 0, 511, 0., 1., packed, 0xff11ff80)
+    sub = SimpleNamespace(vertices=[(0., 0., 0.), (1., 0., 0.), (0., 1., 0.)],
+                          uvs=[(0., 1.)] * 3, faces=[(0, 1, 2)], source_vertex_offsets=[0, 20, 40],
+                          normals=[(0., 1., 0.)] * 3)
+    emitter = replace(preview(node("EmitterData")), kind="mesh", mesh="lightning.pam")
+    result = load_particle_geometry(EffectPreview("test", (emitter, emitter), (0.,) * 3, (1.,) * 3),
+                                    SimpleNamespace(has_entry=lambda _: True, payload=lambda _: vertex * 3),
+                                    lambda *_: SimpleNamespace(format="pam", submeshes=[sub]), lambda: None)
+    serialized = json.loads(effect_preview_json(result))["emitters"][0]
+    assert serialized["particle_normals"][0] == pytest.approx([1., 0., 0.])
+    assert serialized["particle_colors"][0] == pytest.approx([17/255., 1., 128/255., 1.])
+    assert len(serialized["particle_tangents"]) == len(serialized["particle_vertices"]) == 3
+
+
+def test_procedural_material_preserves_keyed_values_and_partial_spline_overrides():
+    from cdmw.services.effect_preview_model import _shader_material
+
+    point = node("SplinePoint", [("_position", (.4, .8)), ("_outterTangent", .7)])
+    point.wire["owner"] = 17
+    curve = node("SplineData", children=[("_pointListForSerialize", (point,))])
+    curve.wire["owner"] = 0
+    instance = node("SplineDataInstance", children=[("_dataForSerialize", (curve,))])
+    parameter = node("MaterialParameterSplineRef", [("_name", "_progressSpline")],
+                     [("_value", node("SplineRef", children=[("_splineDataInstance", instance)]))])
+    parameter.wire["owner"] = 11
+    thickness = node("MaterialParameterFloat2", [("_name", "_mainBranchThickness"), ("_value", (.1, .2))])
+    thickness.wire["owner"] = 22
+    base = node("EmitterData", children=[("_effectMaterialData2", node("Material", [("_materialName", "EffectTest_Lightning")], [("_parameters", (parameter, thickness))]))])
+    changed = node("MaterialParameterFloat2", [("_value", (.3, .4))])
+    changed.wire["owner"] = 22
+    changed.override = 1
+    moved_point = node("SplinePoint", [("_position", (.5, .9))])
+    moved_point.wire["owner"] = 17
+    moved_point.override = 1
+    changed_curve = node("SplineData", children=[("_pointListForSerialize", (moved_point,))])
+    changed_curve.wire["owner"] = 0
+    changed_curve.override = 1
+    changed_instance = node("SplineDataInstance", children=[("_dataForSerialize", (changed_curve,))])
+    inherited = node("MaterialParameterSplineRef", children=[("_value", node("SplineRef", children=[("_splineDataInstance", changed_instance)]))])
+    inherited.wire["owner"] = 11
+    inherited.override = 1
+    override = node("EmitterData", children=[("_effectMaterialData2", node("Material", children=[("_parameters", (changed, inherited))]))])
+    material = _shader_material([_Source(override, EmitterLayout()), _Source(base, EmitterLayout())])
+    assert material["name"] == "EffectTest_Lightning"
+    assert material["values"]["_mainBranchThickness"] == pytest.approx((.3, .4))
+    decoded = material["splines"]["_progressSpline"]["components"][0][0]
+    assert decoded["position"] == pytest.approx((.5, .9))
+    assert decoded["outer_tangent"] == pytest.approx(.7)
+    assert thickness.value("_value").value == pytest.approx((.1, .2))
+
+
+def test_surface_spawn_preserves_authored_volume_and_explains_required_mesh():
+    transform = (1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., -.1, 0., -.15, 1.)
+    dynamic = node("EmitterDynamicData", [("_spawnVolumeData", (.01, .1, .2, 0.))])
+    dynamic.values.append(ReflectValue("_spawnVolumeTransform", "float4x4", 0, struct.pack("<16f", *transform), 0))
+    source = node("EmitterData", children=[
+        ("_spawnData", node("EmitterSpawnData", [("_spawnVolumeType", 6.), ("_surfaceDensity", 100.), ("_useUniformSurfaceDensity", True)])),
+        ("_emitterDynamicData", dynamic),
+    ])
+    notes = []
+    result = _emitter_preview("surface", [_Source(source, EmitterLayout())], {}, notes)
+    assert result.spawn_volume_type == 6
+    assert result.spawn_volume_data == pytest.approx((.01, .1, .2, 0.))
+    assert result.spawn_volume_transform == pytest.approx(transform)
+    assert result.spawn_surface_density == 100.
+    assert result.spawn_uniform_surface_density
+    assert result.spawn_normal_alignment is None  # Omitted engine defaults are not evidence of false.
+    assert "requires a target mesh surface" in notes[0]

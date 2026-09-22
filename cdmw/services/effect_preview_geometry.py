@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import math
 import random
+import struct
 from dataclasses import replace
 
 from cdmw.domain.cancellation import RunCancelled
@@ -11,6 +12,61 @@ from cdmw.domain.cancellation import RunCancelled
 # Keep complete geometry; the renderer budgets whole mesh instances separately.
 MAX_VERTICES = 16384
 MAX_FACES = 8192
+
+
+def decode_effect_vertex(payload: bytes, offset: int):
+    """Decode the 20-byte EffectVertex's authored normal, tangent and RGBA.
+
+    RenderGPUParticles_VS reads tangent X from position.w, tangent Y and normal
+    XY from the next packed word, and BGRA from the final word. Normals computed
+    from triangles are not equivalent: lightning uses these as expansion axes.
+    Positions and half-float UVs remain owned by the PAM parser.
+    """
+    if offset < 0 or offset + 20 > len(payload):
+        raise ValueError("truncated EffectVertex")
+    tangent_bits = struct.unpack_from("<H", payload, offset + 6)[0]
+    packed, colour = struct.unpack_from("<II", payload, offset + 12)
+
+    def signed(component):
+        return min(1.0, component * (2.0 / 1022.0) - 1.0)
+
+    tx, ty = signed(tangent_bits & 1023), signed(packed & 1023)
+    tz = math.sqrt(max(0.0, 1.0 - tx * tx - ty * ty))
+    if not tangent_bits & 0x8000:
+        tz = -tz
+    nx, ny = signed((packed >> 10) & 1023), signed((packed >> 20) & 1023)
+    nz = math.sqrt(max(0.0, 1.0 - nx * nx - ny * ny))
+    signs = packed >> 30
+    if signs < 2:
+        nz = -nz
+    tangent_sign = 1.0 if signs in (1, 2) else -1.0
+    rgba = tuple(((colour >> shift) & 255) / 255.0 for shift in (16, 8, 0, 24))
+    return (nx, ny, nz), (tx, ty, tz, tangent_sign), rgba
+
+
+def particle_shader_attributes(parsed, payload: bytes):
+    """Read only an admitted EffectVertex layout; unknown layouts stay explicit.
+
+    The PAM parser retains source offsets but older callers do not expose stride.
+    Accept its dense 20-byte record layout (including all source vertices), or an
+    explicit stride. Never reinterpret PAC, position-only or sparse unknown data.
+    """
+    if getattr(parsed, "format", "") != "pam":
+        return (), (), ()
+    normals, tangents, colours = [], [], []
+    for submesh in getattr(parsed, "submeshes", ()):
+        offsets = tuple(getattr(submesh, "source_vertex_offsets", ()))
+        vertices = getattr(submesh, "vertices", ())
+        stride = getattr(submesh, "source_vertex_stride", 0)
+        dense = len(offsets) >= 3 and all(b - a == 20 for a, b in zip(offsets, offsets[1:]))
+        if len(offsets) != len(vertices) or not offsets or (stride != 20 and (stride != 0 or not dense)):
+            return (), (), ()
+        for offset in offsets:
+            normal, tangent, colour = decode_effect_vertex(payload, offset)
+            normals.append(normal)
+            tangents.append(tangent)
+            colours.append(colour)
+    return tuple(normals), tuple(tangents), tuple(colours)
 
 
 def sample_spawn_surface(parsed, count, check_cancelled=lambda: None):
@@ -94,7 +150,7 @@ def load_particle_geometry(preview, snapshot, parser, check_cancelled):
                 check_cancelled()
                 parsed = parser(payload, path.rsplit("/", 1)[-1])
                 check_cancelled()
-                cache[path] = particle_geometry(parsed)
+                cache[path] = particle_geometry(parsed) + particle_shader_attributes(parsed, payload)
             except RunCancelled:
                 raise
             except Exception as exc:  # A missing mesh must not hide other emitters.
@@ -102,6 +158,7 @@ def load_particle_geometry(preview, snapshot, parser, check_cancelled):
                 notes.append(f"{emitter.name}: particle geometry unavailable ({exc})")
         geometry = cache[path]
         if geometry is not None:
-            emitter = replace(emitter, particle_vertices=geometry[0], particle_uvs=geometry[1], particle_faces=geometry[2])
+            emitter = replace(emitter, particle_vertices=geometry[0], particle_uvs=geometry[1], particle_faces=geometry[2],
+                              particle_normals=geometry[3], particle_tangents=geometry[4], particle_colors=geometry[5])
         emitters.append(emitter)
     return replace(preview, emitters=tuple(emitters), notes=tuple(notes))
