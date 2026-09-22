@@ -2,7 +2,7 @@
 use cdmw_render_wgpu::{EffectBillboardInstance, EffectBlendMode, EffectLineVertex};
 use glam::{EulerRot, Mat4, Quat, Vec3};
 use serde_json::Value;
-use crate::preview_effect_spawn::Surface;
+use crate::preview_effect_spawn::{BirthSamples, Surface, half_precision, mesh_birth_rotation, preview_random_seed};
 use crate::preview_effect_lightning::{LightningMaterial, LightningParticle, LightningView};
 
 fn vec3_value(value: Option<&Value>, fallback: Vec3) -> Vec3 {
@@ -278,6 +278,8 @@ pub(crate) fn effect_emitter_particles(
         .get("kind")
         .and_then(Value::as_str)
         .unwrap_or("billboard");
+    let native_surface_birth = surface_spawn && kind == "mesh";
+    let native_seed = preview_random_seed(emitter, emitter_index);
     let faces = if kind == "mesh" {
         emitter
             .get("particle_faces")
@@ -301,7 +303,10 @@ pub(crate) fn effect_emitter_particles(
         .unwrap_or(1.0)
         .clamp(0.0, 20.0);
     let (delay_low, delay_high) = value_pair(emitter.get("start_delay"), (0.0, 0.0));
-    let delay = delay_low + (delay_high - delay_low) * seed_unit(emitter_index as f32 + 17.3);
+    let particle_delay_span = if native_surface_birth { (delay_high - delay_low).max(0.) } else { 0. };
+    let delay = if native_surface_birth { delay_low } else {
+        delay_low + (delay_high - delay_low) * seed_unit(emitter_index as f32 + 17.3)
+    };
     let simulation_time = time.max(0.0) * simulation_speed - delay.max(0.0);
     if simulation_time < 0.0 || emitter.get("burst").and_then(Value::as_u64) == Some(0) {
         return EffectEmission::default();
@@ -312,12 +317,13 @@ pub(crate) fn effect_emitter_particles(
         .and_then(|value| usize::try_from(value).ok())
         .unwrap_or(1)
         .clamp(1, if surface_spawn || mesh_index.is_some() { 10000 } else { 64 });
-    let maximum = emitter
+    let authored_maximum = emitter
         .get("max_particles")
         .and_then(Value::as_u64)
         .and_then(|value| usize::try_from(value).ok())
         .unwrap_or(burst)
-        .clamp(1, max_particles_per_emitter);
+        .clamp(1, 10000);
+    let maximum = authored_maximum.min(max_particles_per_emitter);
     let bursts_per_second = emitter
         .get("bursts_per_second")
         .and_then(Value::as_f64)
@@ -363,11 +369,15 @@ pub(crate) fn effect_emitter_particles(
     let burst_history = if infinite_life {
         // Infinite particles retain their original births and random seeds;
         // they do not continuously respawn when their curve period expires.
-        let capacity_bursts = maximum.div_ceil(burst).max(1);
+        // Rejected native surface births retain their slots when life is
+        // infinite (GPUParticleUpdateCS %25411..25446). Draw quality must not
+        // shrink that reservation or change which births were attempted.
+        let capacity = if native_surface_birth { authored_maximum } else { maximum };
+        let capacity_bursts = capacity.div_ceil(burst).max(1);
         newest_burst = newest_burst.min(capacity_bursts.saturating_sub(1) as i64);
         capacity_bursts
     } else {
-        ((longest_life / interval).ceil() as usize + 1).min(max_particles_per_emitter)
+        (((longest_life + particle_delay_span) / interval).ceil() as usize + 1).min(max_particles_per_emitter)
     };
     let damping = emitter
         .get("damping")
@@ -432,7 +442,7 @@ pub(crate) fn effect_emitter_particles(
             continue;
         }
         let age = simulation_time - birth;
-        if age < 0.0 || (!infinite_life && age > longest_life) {
+        if age < 0.0 || (!infinite_life && age > longest_life + particle_delay_span) {
             continue;
         }
         let minimum_burst = emitter
@@ -453,12 +463,19 @@ pub(crate) fn effect_emitter_particles(
             }
             let seed =
                 emitter_index as f32 * 173.17 + burst_index as f32 * 19.91 + particle as f32 * 7.13;
+            let slot = (burst_index as u32).wrapping_mul(burst as u32).wrapping_add(particle as u32);
+            if native_surface_birth && infinite_life && slot as usize >= authored_maximum {
+                break 'bursts;
+            }
+            let birth_samples = native_surface_birth.then(|| BirthSamples::new(emitter, slot, native_seed));
             if !surface_spawn && seed_unit(seed + 43.7) >= keep_fraction {
                 continue;
             }
-            let life =
-                (life_low + (life_high - life_low) * seed_unit(seed + 3.73)).clamp(0.01, 120.0);
-            if !infinite_life && age > life {
+            let life = (life_low + (life_high - life_low)
+                * birth_samples.as_ref().map_or_else(|| seed_unit(seed + 3.73), |v| v.life)).clamp(0.01, 120.0);
+            let life = if native_surface_birth { half_precision(life) } else { life };
+            let age = age - birth_samples.as_ref().map_or(0., |v| v.delay * particle_delay_span);
+            if age < 0. || (!infinite_life && age > life) {
                 continue;
             }
             let progress = if infinite_life && repeat_curves {
@@ -466,15 +483,14 @@ pub(crate) fn effect_emitter_particles(
             } else {
                 (age / life).clamp(0.0, 1.0)
             };
-            let origin = if surface_spawn {
+            let (origin, surface_scale) = if surface_spawn {
                 let (surface, world_space) = spawn_surface.expect("surface admitted above");
-                let slot = (burst_index as u32).wrapping_mul(burst as u32).wrapping_add(particle as u32);
-                let Some(position) = surface.sample(emitter, model_matrix, world_space, slot, emitter_index as u32) else {
+                let Some(sample) = surface.sample(emitter, model_matrix, world_space, slot, native_seed, birth_samples.as_ref()) else {
                     continue;
                 };
-                position
+                (sample.position, sample.scale)
             } else {
-                effect_spawn_position(emitter, seed)
+                (effect_spawn_position(emitter, seed), 1.)
             };
             let acceleration = effect_force(emitter, seed);
             let initial_velocity = effect_range(emitter.get("velocity"), seed + 11.1, Vec3::ZERO);
@@ -504,7 +520,11 @@ pub(crate) fn effect_emitter_particles(
             let scales = emitter.get("scale").and_then(Value::as_array);
             let scale_low = vec3_value(scales.and_then(|v| v.first()), Vec3::splat(0.04)).abs();
             let scale_high = vec3_value(scales.and_then(|v| v.get(1)), scale_low).abs();
-            let size = scale_low.lerp(scale_high, seed_unit(seed + 0.91)) * axes_curve;
+            let initial_scale = (scale_low + (scale_high - scale_low)
+                * birth_samples.as_ref().map_or_else(|| Vec3::splat(seed_unit(seed + 0.91)), |v| v.scale)) * surface_scale;
+            let size = if native_surface_birth {
+                Vec3::from_array(initial_scale.to_array().map(half_precision)) * axes_curve
+            } else { initial_scale * axes_curve };
             if size.x <= 1.0e-6 || size.y <= 1.0e-6 || (mesh_index.is_some() && size.z <= 1.0e-6) {
                 continue;
             }
@@ -534,9 +554,18 @@ pub(crate) fn effect_emitter_particles(
                     .and_then(Value::as_array)
                     .is_some_and(|v| !v.is_empty())
             {
-                let angles = effect_range(emitter.get("rotation_3d"), seed + 23.3, Vec3::ZERO)
-                    * (std::f32::consts::PI / 180.0);
-                let rotation = Quat::from_euler(EulerRot::XYZ, angles.x, angles.y, angles.z);
+                let angles = if let Some(samples) = &birth_samples {
+                    let low = vec3_value(emitter["rotation_3d"].get(0), Vec3::ZERO)
+                        * (std::f32::consts::PI / 180.0);
+                    let high = vec3_value(emitter["rotation_3d"].get(1), Vec3::ZERO)
+                        * (std::f32::consts::PI / 180.0);
+                    Vec3::from_array((low + (high - low) * samples.rotation).to_array().map(half_precision))
+                } else {
+                    effect_range(emitter.get("rotation_3d"), seed + 23.3, Vec3::ZERO)
+                        * (std::f32::consts::PI / 180.0)
+                };
+                let rotation = if native_surface_birth { mesh_birth_rotation(angles) }
+                    else { Quat::from_euler(EulerRot::XYZ, angles.x, angles.y, angles.z) };
                 let transform = model_matrix
                     * Mat4::from_scale_rotation_translation(size, rotation, local_center)
                     * Mat4::from_translation(vec3_value(emitter.get("pivot_offset"), Vec3::ZERO));
@@ -546,7 +575,9 @@ pub(crate) fn effect_emitter_particles(
                         particle: cdmw_render_wgpu::EffectMeshParticle {
                             transform: transform.to_cols_array_2d(), colour,
                             scale_age: [size.x, size.y, size.z, progress],
-                            seed: [seed as u32, 0, 0, 0],
+                            // The native VS reads _particleID at byte 108,
+                            // not the birth generator's evolving random state.
+                            seed: [slot, 0, 0, 0],
                             parent_scale: [model_matrix.x_axis.length(), model_matrix.y_axis.length(), model_matrix.z_axis.length(), 0.],
                             parent_origin: model_matrix.w_axis.to_array(),
                         },
@@ -562,7 +593,7 @@ pub(crate) fn effect_emitter_particles(
                     blend,
                     max_instances_per_emitter,
                     lightning.as_ref().map(|material| (material, LightningParticle {
-                        age: progress, seed: seed as u32, scale: size, parent: model_matrix,
+                        age: progress, seed: slot, scale: size, parent: model_matrix,
                         transform, view: lightning_view,
                     })),
                 );

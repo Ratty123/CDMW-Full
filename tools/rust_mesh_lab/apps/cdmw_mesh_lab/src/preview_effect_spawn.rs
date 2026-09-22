@@ -1,6 +1,6 @@
 //! Static surface spawning decoded from GPUParticleUpdateCS (types 5 and 6).
 //! Target selection is a preview input, not proof of an EffectComponent binding.
-use glam::{Mat4, Vec3, Vec4};
+use glam::{EulerRot, Mat4, Quat, Vec3, Vec4};
 use serde_json::Value;
 
 #[derive(Debug, Default)]
@@ -85,6 +85,103 @@ fn number(emitter: &Value, key: &str, default: f32) -> f32 {
         .unwrap_or(default)
 }
 
+/// Native GPUParticleUpdateCS (e4d77e6c984757f8faa2d870eea9fdc7), ordinary
+/// mesh births: delay/life, four volume draws, XYZ rotation, then scale. A
+/// tracked type-6 surface restarts a separate stream for its volume draws.
+/// These samples do not reproduce the game's frame allocator or global seed.
+pub(crate) struct BirthSamples {
+    pub delay: f32,
+    pub life: f32,
+    pub surface: [f32; 4],
+    pub density: Vec3,
+    pub rotation: Vec3,
+    pub scale: Vec3,
+}
+
+impl BirthSamples {
+    pub(crate) fn new(emitter: &Value, slot: u32, seed: u32) -> Self {
+        let initial = seed ^ slot.wrapping_shl(8);
+        let mut random = SpawnRandom(initial);
+        let delay = random.next();
+        let life = random.next();
+        let tracked = emitter["spawn_volume_type"].as_u64() == Some(6)
+            && number(emitter, "tracking_position_speed", 0.) > 0.;
+        let mut volume = if tracked { SpawnRandom(initial) } else { random };
+        let surface = [volume.next(), volume.next(), volume.next(), volume.next()];
+        if !tracked {
+            random = volume;
+        }
+        // Native upload enables constants flag 64 iff _spawnDensity is nonzero
+        // (0x142fcdc00..2c / 0x142fcdf77..84). Its bias consumes three draws.
+        let density = if vector(&emitter["spawn_direction_density"]).unwrap_or(Vec3::ZERO) != Vec3::ZERO {
+            Vec3::new(random.next(), random.next(), random.next())
+        } else { Vec3::ZERO };
+        let rotation = Vec3::new(random.next(), random.next(), random.next());
+        let scale_x = random.next();
+        let scale = if emitter["use_uniform_scale_random"].as_bool().unwrap_or(true) {
+            Vec3::splat(scale_x)
+        } else {
+            Vec3::new(scale_x, random.next(), random.next())
+        };
+        Self { delay, life, surface, density, rotation, scale }
+    }
+}
+
+pub(crate) fn preview_random_seed(emitter: &Value, emitter_index: usize) -> u32 {
+    let source = emitter["source_index"].as_u64().unwrap_or(emitter_index as u64) as u32;
+    let layer = emitter["layer_index"].as_u64().unwrap_or(0) as u32;
+    let fixed_effect_seed = 0x4344_4d57u32.wrapping_add(layer);
+    let authored = emitter["spawn_random_seed"].as_u64().unwrap_or(0) as u32;
+    let seed = if emitter["spawn_use_effect_random_seed"].as_bool().unwrap_or(false) {
+        authored.wrapping_add(fixed_effect_seed)
+    } else { authored };
+    // Zero requests a live game/frame random seed. Use a stable preview input
+    // so seeking, quality changes and selecting an emitter do not reshuffle it.
+    if seed == 0 { fixed_effect_seed.wrapping_add(source).max(1) } else { seed }
+}
+
+/// The native particle buffer stores birth lifetime, scale and Euler angles as
+/// IEEE half floats. Quantize without adding a runtime dependency.
+pub(crate) fn half_precision(value: f32) -> f32 {
+    let absolute = value.abs();
+    if !value.is_finite() {
+        return value;
+    }
+    if absolute >= 65_520. {
+        return f32::INFINITY.copysign(value);
+    }
+    if absolute < 0.000_061_035_156_25 {
+        return (value * 16_777_216.).round_ties_even() / 16_777_216.;
+    }
+    let bits = value.to_bits();
+    f32::from_bits(bits.wrapping_add(0xfff + ((bits >> 13) & 1)) & !0x1fff)
+}
+
+pub(crate) fn mesh_birth_rotation(angles: Vec3) -> Quat {
+    // Native upload 0x142fce613..671 converts each authored component with
+    // positive PI/180. The kernel's Y-X-Z matrix rows become right/up/front
+    // vectors (DXIL %21643..21677), i.e. columns in glam's transform.
+    Quat::from_euler(EulerRot::YXZ, angles.y, angles.x, angles.z).conjugate()
+}
+
+fn density_bias(position: Vec3, density: Vec3, random: Vec3) -> Vec3 {
+    let radius = position.length();
+    let amount = density.length();
+    if radius <= 0. || amount <= 0. {
+        return position;
+    }
+    let power = 1. / (amount + 1.);
+    let weight = Vec3::from_array(random.to_array().map(|v| v.powf(power)))
+        * (1. - (-amount).exp()).clamp(0., 1.);
+    let direction = position / radius;
+    (direction + (density / amount - direction) * weight).normalize_or(direction) * radius
+}
+
+pub(crate) struct SurfaceSample {
+    pub position: Vec3,
+    pub scale: f32,
+}
+
 #[derive(Debug)]
 pub(crate) struct Surface {
     vertices: Vec<Vec3>,
@@ -165,7 +262,8 @@ impl Surface {
         world_space: bool,
         slot: u32,
         seed: u32,
-    ) -> Option<Vec3> {
+        birth_samples: Option<&BirthSamples>,
+    ) -> Option<SurfaceSample> {
         let kind = emitter["spawn_volume_type"].as_u64()?;
         if !(5..=6).contains(&kind) || !model.is_finite() || model.determinant().abs() < 1e-12 {
             return None;
@@ -182,8 +280,17 @@ impl Surface {
         if !data.is_finite() {
             return None;
         }
-        let mut random = SpawnRandom(seed ^ slot.wrapping_shl(8));
-        let picks = [random.next(), random.next(), random.next(), random.next()];
+        let generated_samples = (birth_samples.is_none() && emitter["kind"].as_str() == Some("mesh"))
+            .then(|| BirthSamples::new(emitter, slot, seed));
+        let birth_samples = birth_samples.or(generated_samples.as_ref());
+        let picks = if let Some(samples) = birth_samples {
+            samples.surface
+        } else {
+            // Other geometry modes retain their approximate sampler until
+            // their birth/stream-header contract is decoded.
+            let mut random = SpawnRandom(seed ^ slot.wrapping_shl(8));
+            [random.next(), random.next(), random.next(), random.next()]
+        };
         let count = self.faces.len() as f32;
         let mut fraction = (picks[0] + slot as f32 / count).fract();
         let mut index = ((fraction * count) as usize).min(self.faces.len() - 1);
@@ -233,17 +340,27 @@ impl Surface {
             if density_rejected || distance < data.w || (data.z > 0. && distance > data.z) {
                 return None;
             }
-            Some(local + normal * data.x)
-        } else if world_space {
-            Some(local + normal * data.x)
-        } else {
-            Some(volume.transform_point3(local + normal * data.x))
         }
+        let mut position = local + normal * data.x;
+        if let Some(samples) = birth_samples {
+            position = density_bias(position,
+                vector(&emitter["spawn_direction_density"]).unwrap_or(Vec3::ZERO), samples.density);
+        }
+        if kind == 5 && !world_space {
+            position = volume.transform_point3(position);
+        }
+        let ratio = number(emitter, "spawn_surface_area_scale_ratio", 0.);
+        let scale = if ratio > 0. {
+            let t = (self.areas[index] / ratio).clamp(0., 1.);
+            (t * t * (3. - 2. * t)).max(0.05)
+        } else { 1. };
+        Some(SurfaceSample { position, scale })
     }
 }
 
 /// GPUParticleUpdateCS advances twice, combines high words, and folds the
 /// resulting float's bits back into the state. A sin hash has a different spread.
+#[derive(Clone, Copy)]
 struct SpawnRandom(u32);
 impl SpawnRandom {
     fn next(&mut self) -> f32 {
@@ -267,13 +384,154 @@ mod tests {
     fn emitter() -> Value {
         json!({"spawn_volume_type":6, "spawn_volume_data":[0.02,1,2,0], "spawn_surface_density":10000})
     }
+
+    #[test]
+    fn mesh_birth_draws_match_the_decoded_native_sequence() {
+        // Scalar evaluation of the shipped DXIL integer/f32 instructions,
+        // initial seed 123 ^ (7 << 8). Values are independent of a sin hash.
+        let mut e = emitter();
+        e["kind"] = json!("mesh");
+        let untracked = BirthSamples::new(&e, 7, 123);
+        assert_eq!(untracked.delay, 0.961_972_8);
+        assert_eq!(untracked.life, 0.869_071_6);
+        assert_eq!(untracked.surface, [0.828_877_5, 0.351_919_68, 0.111_151_81, 0.273_759_4]);
+        assert_eq!(untracked.rotation, Vec3::new(0.345_846_3, 0.620_826_5, 0.249_587_98));
+        assert_eq!(untracked.scale, Vec3::splat(0.084_325_22));
+        e["tracking_position_speed"] = json!(10000.);
+        let tracked = BirthSamples::new(&e, 7, 123);
+        assert_eq!(tracked.life, untracked.life);
+        assert_eq!(tracked.surface, [0.961_972_8, 0.869_071_6, 0.828_877_5, 0.351_919_68]);
+        assert_eq!(tracked.rotation, Vec3::new(0.828_877_5, 0.351_919_68, 0.111_151_81));
+        assert_eq!(tracked.scale, Vec3::splat(0.273_759_4));
+        e["use_uniform_scale_random"] = json!(false);
+        assert_eq!(BirthSamples::new(&e, 7, 123).scale, Vec3::new(0.273_759_4, 0.345_846_3, 0.620_826_5));
+        e["spawn_direction_density"] = json!([8., 0., 0.]);
+        let biased = BirthSamples::new(&e, 7, 123);
+        assert_eq!(biased.density, tracked.rotation);
+        assert_eq!(biased.rotation, Vec3::new(0.273_759_4, 0.345_846_3, 0.620_826_5));
+        // Tracking changes the stream only for target-mesh volumes (type 6).
+        e["spawn_volume_type"] = json!(5);
+        assert_eq!(BirthSamples::new(&e, 7, 123).surface, untracked.surface);
+
+        e["source_index"] = json!(7);
+        let seed = preview_random_seed(&e, 0);
+        assert_eq!(preview_random_seed(&e, 99), seed);
+        e["spawn_random_seed"] = json!(123);
+        assert_eq!(preview_random_seed(&e, 99), 123);
+        e["spawn_use_effect_random_seed"] = json!(true);
+        assert_ne!(preview_random_seed(&e, 99), 123);
+    }
+
+    #[test]
+    fn mesh_surface_uses_tracking_draws_and_authored_area_scale() {
+        let s = Surface::read(&surface(), &|| false).unwrap().unwrap();
+        let mut e = emitter();
+        e["kind"] = json!("mesh");
+        let first = s.sample(&e, Mat4::IDENTITY, true, 7, 123, None).unwrap();
+        assert!(first.position.distance(Vec3::new(0.312_803_18, 0.111_151_81, 0.02)) < 1e-6);
+        assert_eq!(first.scale, 1.);
+        e["tracking_position_speed"] = json!(10000.);
+        e["spawn_surface_area_scale_ratio"] = json!(1.);
+        let tracked = s.sample(&e, Mat4::IDENTITY, true, 7, 123, None).unwrap();
+        assert!(tracked.position.distance(Vec3::new(0.148_717_7, 0.828_877_5, 0.02)) < 1e-6);
+        assert_eq!(tracked.scale, 0.5);
+        e["spawn_surface_area_scale_ratio"] = json!(1000.);
+        assert_eq!(s.sample(&e, Mat4::IDENTITY, true, 7, 123, None).unwrap().scale, 0.05);
+        e["spawn_direction_density"] = json!([8., 0., 0.]);
+        let biased = s.sample(&e, Mat4::IDENTITY, true, 7, 123, None).unwrap().position;
+        assert!((biased.length() - tracked.position.length()).abs() < 1e-6);
+        assert!(biased.x > 0.8 && biased.y < 0.2);
+    }
+
+    #[test]
+    fn native_birth_precision_and_delay_reach_indexed_particles() {
+        assert_eq!(half_precision(0.2), 0.199_951_17);
+        assert_eq!(half_precision(1.000_488_281_25), 1.); // tie, even mantissa
+        assert_eq!(half_precision(1.001_464_843_75), 1.001_953_1);
+        assert_eq!(half_precision(2f32.powi(-25)), 0.);
+        assert_eq!(half_precision(3. * 2f32.powi(-25)), 2f32.powi(-23));
+        assert_eq!(half_precision(-0.2), -0.199_951_17);
+        assert!(half_precision(65_520.).is_infinite());
+        let s = Surface::read(&surface(), &|| false).unwrap().unwrap();
+        let mut e = emitter();
+        e["kind"] = json!("mesh");
+        e["particle_faces"] = json!([[0,1,2]]);
+        e["alpha_over_life"] = json!([1.]);
+        e["scale"] = json!([[0.01,0.01,0.01],[0.04,0.04,0.04]]);
+        e["rotation_3d"] = json!([[20.,-35.,70.],[20.,-35.,70.]]);
+        e["life"] = json!([0.2,0.4]);
+        e["bursts_per_second"] = json!(0.);
+        e["burst"] = json!(8);
+        e["max_particles"] = json!(32);
+        e["spawn_random_seed"] = json!(123);
+        e["tracking_position_speed"] = json!(10000.);
+        let draw = |e: &Value, time| crate::preview_effects::effect_emitter_particles(
+            e, 0, time, 0.001, 0, Mat4::IDENTITY, Vec3::X, Vec3::Y, -Vec3::Z, 256,
+            crate::preview_effect_lightning::LightningView { eye: Vec3::Z * 5., vertical_fov: 0.7, height: 480. },
+            Some((&s, true)), Some(0),
+        ).meshes;
+        let particles = draw(&e, 0.1);
+        assert_eq!(particles.len(), 8);
+        let seventh = particles[7].particle;
+        assert_eq!(seventh.seed[0], 7); // _particleID, not the old sine seed 49.
+        assert_eq!(&seventh.scale_age[..3], &[0.018_218_994; 3]);
+        assert!((seventh.scale_age[3] - 0.1 / 0.373_779_3).abs() < 1e-6);
+        // Native DXIL basis at the half-precision angles. Mixed axes catch
+        // both the previous XYZ order and accidentally transposed directions.
+        let basis = [
+            Vec3::new(0.095_848_784, -0.836_863_4, -0.538_955_15),
+            Vec3::new(0.882_988_15, 0.321_432_17, -0.342_072_04),
+            Vec3::new(0.459_505_14, -0.443_103_85, 0.769_749_34),
+        ];
+        for (column, expected) in seventh.transform[..3].iter().zip(basis) {
+            let actual = Vec3::new(column[0], column[1], column[2]) / seventh.scale_age[0];
+            assert!(actual.distance(expected) < 1e-6, "{actual:?} != {expected:?}");
+        }
+        e["start_delay"] = json!([0.,1.]);
+        e["life"] = json!([0.2,0.2]);
+        e["burst"] = json!(32);
+        let delayed = draw(&e, 0.8);
+        assert!(!delayed.is_empty() && delayed.len() < 32);
+        assert!(delayed.iter().all(|p| p.particle.scale_age[3] <= 1.));
+        assert!(draw(&e, 1.3).is_empty());
+    }
+
+    #[test]
+    fn rejected_infinite_births_keep_their_slots_across_time_and_draw_quality() {
+        let s = Surface::read(&surface(), &|| false).unwrap().unwrap();
+        let mut e = emitter();
+        e["kind"] = json!("mesh");
+        e["particle_faces"] = json!([[0,1,2]]);
+        e["alpha_over_life"] = json!([1.]);
+        e["spawn_volume_data"] = json!([0.,1.,0.35,0.]);
+        e["spawn_random_seed"] = json!(123);
+        e["tracking_position_speed"] = json!(10000.);
+        e["burst"] = json!(64);
+        e["burst_min"] = json!(64);
+        e["max_particles"] = json!(130); // The third burst reserves only two slots.
+        e["bursts_per_second"] = json!(10.);
+        e["infinite_life"] = json!(true);
+        e["repeat_curves"] = json!(true);
+        let ids = |time, limit| crate::preview_effects::effect_emitter_particles(
+            &e, 0, time, 0.001, 0, Mat4::IDENTITY, Vec3::X, Vec3::Y, -Vec3::Z, limit,
+            crate::preview_effect_lightning::LightningView { eye: Vec3::Z * 5., vertical_fov: 0.7, height: 480. },
+            Some((&s, true)), Some(0),
+        ).meshes.into_iter().map(|v| v.particle.seed[0]).collect::<Vec<_>>();
+        let complete = ids(0.5, 2048);
+        assert!(!complete.is_empty() && complete.len() < 64);
+        assert!(complete.iter().any(|&id| id >= 64));
+        assert!(complete.iter().all(|&id| id < 130));
+        assert_eq!(ids(0.5, 64), complete);
+        assert_eq!(ids(100., 2048), complete);
+    }
+
     #[test]
     fn surface_volume_moves_over_a_fixed_target_and_clips_without_fallback() {
         let surface = Surface::read(&surface(), &|| false).unwrap().unwrap();
         let emitter = emitter();
         let origin = surface
-            .sample(&emitter, Mat4::IDENTITY, true, 7, 123)
-            .unwrap();
+            .sample(&emitter, Mat4::IDENTITY, true, 7, 123, None)
+            .unwrap().position;
         assert!((origin.z - 0.02).abs() < 1e-6);
         assert!(origin.x >= 0. && origin.y >= 0. && origin.x + origin.y <= 1.);
         assert!(
@@ -283,7 +541,8 @@ mod tests {
                     Mat4::from_translation(Vec3::X * 10.),
                     true,
                     7,
-                    123
+                    123,
+                    None
                 )
                 .is_none()
         );
@@ -292,7 +551,7 @@ mod tests {
             glam::Quat::from_rotation_z(0.7),
             Vec3::X * 0.2,
         );
-        let local = surface.sample(&emitter, placed, true, 7, 123).unwrap();
+        let local = surface.sample(&emitter, placed, true, 7, 123, None).unwrap().position;
         assert!(
             placed
                 .transform_point3(local)
@@ -307,25 +566,25 @@ mod tests {
         emitter["spawn_surface_density"] = json!(0);
         assert!(
             surface
-                .sample(&emitter, Mat4::IDENTITY, true, 7, 123)
+                .sample(&emitter, Mat4::IDENTITY, true, 7, 123, None)
                 .is_none()
         );
         emitter["spawn_surface_density"] = json!(10000);
         emitter["spawn_volume_data"] = json!([0.02, 0, 2, 0]);
         assert_eq!(
-            surface.sample(&emitter, Mat4::IDENTITY, true, 7, 123),
+            surface.sample(&emitter, Mat4::IDENTITY, true, 7, 123, None).map(|v| v.position),
             Some(Vec3::Z * 0.02)
         );
         emitter["spawn_volume_data"][3] = json!(0.1);
         assert!(
             surface
-                .sample(&emitter, Mat4::IDENTITY, true, 7, 123)
+                .sample(&emitter, Mat4::IDENTITY, true, 7, 123, None)
                 .is_none()
         );
         emitter["spawn_volume_type"] = json!(5);
         assert!(
             surface
-                .sample(&emitter, Mat4::IDENTITY, false, 7, 123)
+                .sample(&emitter, Mat4::IDENTITY, false, 7, 123, None)
                 .is_some()
         );
     }

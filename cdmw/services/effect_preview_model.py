@@ -132,6 +132,14 @@ class EmitterPreview:
     spawn_surface_density: float = 10000.0
     spawn_uniform_surface_density: bool = False
     spawn_normal_alignment: bool = False
+    spawn_surface_area_scale_ratio: float = 0.0
+    spawn_direction_density: Vec3 = (0.0, 0.0, 0.0)
+    spawn_random_seed: int = 0
+    spawn_use_effect_random_seed: bool = False
+    use_uniform_scale_random: bool = True
+    #: Variation-level tracking changes the native surface random stream, even
+    #: when the preview target is static. It is not an emitter-data member.
+    tracking_position_speed: float = 0.0
     spawn_surface: dict = field(default_factory=dict)
     spawn_mesh: str = ""
     #: EffectVertex normals and BGRA-authored branch controls, not display tint.
@@ -689,6 +697,11 @@ def _emitter_preview(
         spawn_surface_density=_read(sources, "_spawnData", "_surfaceDensity", 10000.0, _number),
         spawn_uniform_surface_density=_read(sources, "_spawnData", "_useUniformSurfaceDensity", False, _optional_flag),
         spawn_normal_alignment=_read(sources, "_spawnData", "_particleLookAtSpawnNormal", False, _optional_flag),
+        spawn_surface_area_scale_ratio=_read(sources, "_spawnData", "_surfaceAreaScaleRatio", 0.0, _number),
+        spawn_direction_density=_read(sources, "_spawnData", "_spawnDensity", (0.0, 0.0, 0.0), _vec3),
+        spawn_random_seed=int(_read(sources, "_spawnData", "_randomSeed", 0, _number)) & 0xFFFFFFFF,
+        spawn_use_effect_random_seed=_read(sources, "_spawnData", "_useEffectRandomSeed", False, _optional_flag),
+        use_uniform_scale_random=_read(sources, "_simulationData", "_useUniformScaleRandom", True, _optional_flag),
         material=shader_material,
         loop_count=loop_count,
         burst_min=max(0, int(_read(sources, '_spawnData', '_spawnCountMin', burst, _number))),
@@ -816,7 +829,11 @@ def build_effect_preview(
         editor_emitters.append({"index": index, "name": name, "enabled": enabled, "fields": sorted(field_names), "values": field_values, "resolved": document.walk_complete and (bool(base_doc and base_doc.walk_complete) or embedded.type_name == "EmitterData")})
         if enabled:
             from dataclasses import replace
-            emitters.append(replace(_emitter_preview(name, sources, meshes, notes, emitter_file_read=base_doc is not None or embedded.type_name == "EmitterData"), source_index=index))
+            emitters.append(replace(
+                _emitter_preview(name, sources, meshes, notes, emitter_file_read=base_doc is not None or embedded.type_name == "EmitterData"),
+                source_index=index,
+                tracking_position_speed=_number(variation, "_trackingPositionSpeed", 0.0),
+            ))
     box_min = _vec3(document.root, "_boundingBoxMin", (-0.5, -0.5, -0.5))
     box_max = _vec3(document.root, "_boundingBoxMax", (0.5, 0.5, 0.5))
     if not emitters and not paths:

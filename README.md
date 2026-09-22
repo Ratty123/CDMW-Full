@@ -200,7 +200,9 @@ Surface-dependent effects such as Aftertaa need a game-provided target mesh.
 The preview's **Surface** control samples the item or the real character mesh;
 missing targets and out-of-volume samples produce no particles. Synthetic body
 stand-ins are excluded. This preview selection does not establish the game's
-attachment binding. The emitter inspector edits spawn type, surface density and
+attachment binding. An empty effect target can resolve to its owning game object;
+it does not by itself prove that an attachment is broken. The owner still needs
+a usable mesh. The emitter inspector edits spawn type, surface density and
 volume values; for type 6, X is the normal offset, Y the triangle spread, Z the
 outer radius (0 = unlimited) and W the inner radius. Point mode removes the
 surface requirement. Supported lightning previews decoded branch thickness,
@@ -211,6 +213,15 @@ moving visibility pulse, emissive perimeter and mesh-control curve, and brightne
 limits that preserve hue. Mesh pivot offsets follow their inherited or overridden
 values. Particle counts remain limited by preview quality and a shared triangle
 budget; other shader features and final game lighting remain approximate.
+Mesh surface births use the decoded random sequence, tracking-dependent surface
+draws, directional density bias, area scaling, half-precision lifetime and size,
+and the native rotation order. Particle IDs drive lightning noise. Infinite
+particles retain their original births, including slots rejected by surface
+clipping, while curve repetition keeps their authored animation moving.
+Authored nonzero seeds are retained; effects requesting a live game seed receive
+a stable preview seed for repeatable seeking and comparison. Targets are static
+preview meshes. Animated mesh tracking, the game's per-frame allocation and live
+random state are not reproduced, so exact frame-for-frame game parity is unverified.
 
 Output can be a manager package or a CDMW-owned archive-group overlay. New Item
 installs through overlays only. **Output → Merge mods** combines compatible mod

@@ -298,3 +298,44 @@ def test_surface_spawn_preserves_authored_volume_and_explains_required_mesh():
     default = preview(node("EmitterData"))
     assert default.spawn_surface_density == 10000.
     assert default.spawn_uniform_surface_density is False
+
+
+def test_native_birth_inputs_preserve_defaults_overrides_and_variation_tracking():
+    import json
+    from cdmw.services.effect_preview_model import effect_preview_json
+
+    base = node("EmitterData", children=[
+        ("_spawnData", node("EmitterSpawnData", [("_randomSeed", 123.), ("_surfaceAreaScaleRatio", .5), ("_spawnDensity", (1., 2., 3.)), ("_useEffectRandomSeed", True)])),
+        ("_simulationData", node("EmitterSimulationData", [("_useUniformScaleRandom", False)])),
+    ])
+    inherited = preview(node("EmitterData"), base)
+    assert inherited.spawn_random_seed == 123
+    assert inherited.spawn_surface_area_scale_ratio == .5
+    assert inherited.spawn_direction_density == (1., 2., 3.)
+    assert inherited.spawn_use_effect_random_seed
+    assert not inherited.use_uniform_scale_random
+    overridden = preview(node("EmitterData", children=[
+        ("_spawnData", node("EmitterSpawnData", [("_randomSeed", 0.), ("_surfaceAreaScaleRatio", 0.), ("_useEffectRandomSeed", False)])),
+        ("_simulationData", node("EmitterSimulationData", [("_useUniformScaleRandom", True)])),
+    ]), base)
+    assert overridden.spawn_random_seed == 0
+    assert overridden.spawn_surface_area_scale_ratio == 0
+    assert not overridden.spawn_use_effect_random_seed
+    assert overridden.use_uniform_scale_random
+    default = preview(node("EmitterData"))
+    assert default.spawn_random_seed == 0 and default.spawn_surface_area_scale_ratio == 0
+    assert default.spawn_direction_density == (0., 0., 0.)
+    assert default.use_uniform_scale_random  # Native constructor, byte 0xc8 = 1.
+
+    variation = node("EmitterVariationData", [("_emitterDataName", "test"), ("_trackingPositionSpeed", 10000.)], [("_internalEmitterData", base)])
+    original = decode_effect_binary(EFFECT.read_bytes())
+    doc = replace(original, root=node("EffectData", children=[("_emitterVariationDataArray", (variation,))]))
+    decoded = build_effect_preview("test", doc)
+    assert decoded.emitters[0].tracking_position_speed == 10000
+    payload = json.loads(effect_preview_json(decoded))["emitters"][0]
+    assert payload["tracking_position_speed"] == 10000
+    assert payload["spawn_random_seed"] == 123
+    assert payload["spawn_surface_area_scale_ratio"] == .5
+    assert payload["spawn_direction_density"] == [1., 2., 3.]
+    assert payload["spawn_use_effect_random_seed"] is True
+    assert payload["use_uniform_scale_random"] is False
