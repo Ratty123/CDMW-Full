@@ -329,6 +329,12 @@ class NewItemModelControllerMixin:
         snapshot = self.snapshot
         variant = self._active_variant
         source_bake = source.bake
+        source_generation = source.mesh_generation
+        source_flip = source.flip_texture_v
+        model_source = self.draft.model_source
+        # A UI edit must not change the inputs underneath the worker. Source
+        # leases still belong to the original import; the copy freezes its values.
+        build_source = copy.copy(source)
 
         def task(log, progress, stop_event):
             with source.usage():
@@ -337,7 +343,7 @@ class NewItemModelControllerMixin:
                 log(f"Building {entry.basename} from {source.label} at its placement...")
                 return build_placed_import(
                     entry,
-                    source,
+                    build_source,
                     placement,
                     entries_by_normalized_path=by_path,
                     entries_by_basename=by_basename,
@@ -347,7 +353,10 @@ class NewItemModelControllerMixin:
                 )
 
         def done(result: object) -> None:
-            if self.snapshot is not snapshot or self.model_import is not source or self._active_variant != variant or self.model_placement != placement or source.bake != source_bake:
+            if (self.snapshot is not snapshot or self.model_import is not source or self._active_variant != variant
+                    or self.model_placement != placement or source.bake != source_bake
+                    or source.mesh_generation != source_generation or source.flip_texture_v != source_flip
+                    or self.draft.model_source != model_source):
                 cleanup = getattr(result,"cleanup",None)
                 if callable(cleanup):
                     self._model_cleanup_lane.retire(result)

@@ -39,6 +39,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Model & Placement combines rapid appearance edits and keeps the current mesh and camera while updated materials prepare. Clearing a preview cancels pending texture work. Apply rejects results made stale by texture flipping, mesh changes or returning to the template.
 - Create New Item shows the template mesh while textures prepare in the background. Pending texture dependencies no longer hold up the initial preview cache check, and texture upgrades preserve the camera.
 - Create New Item retains compatible Glow and shader edits when assigning dye slots, and rejects dye mappings that would replace an edited material. Clear dyes remains an explicit per-variant export choice. Template dye previews prepare current appearance edits before rendering.
 - Perks & Effects refreshes after Glow, Translucency and shader changes without discarding staged effects or resetting the camera. Unrelated plan changes reuse the resident preview.

@@ -72,6 +72,7 @@ class ProgressivePreviewSource:
     acquire_usage: Optional[Callable[[], object]] = None
     supports_fast_material_package: bool = False
     cached_materials: Optional[Callable[..., Path | None]] = None
+    geometry_token: Hashable = None
 
     def __call__(self, stop_event: threading.Event) -> Any:
         """Compatibility: callers that know only the old callable get full materials."""
@@ -99,6 +100,7 @@ class _PreviewPackageTask:
     native_preview_core_cache_root: Optional[Path]
     source_usage_required: bool
     source_usage_acquired: bool
+    reuse_geometry: bool = False
 
     @property
     def progressive(self) -> bool:
@@ -172,11 +174,12 @@ class _PreviewPackageTask:
             try:
                 # Native materials can still be waiting for archive dependencies.
                 # Keep the bare mesh independent so it can reach the viewport first.
-                geometry_item = candidate.geometry(stop_event)
-                geometry_package = build_item_preview_package(
-                    geometry_item, token=self.token, output_root=self.output_root, stop_event=stop_event,
-                    include_material_resources=False, render_settings=self.render_settings, cache_mode=self.cache_mode,
-                )
+                if not self.reuse_geometry:
+                    geometry_item = candidate.geometry(stop_event)
+                    geometry_package = build_item_preview_package(
+                        geometry_item, token=self.token, output_root=self.output_root, stop_event=stop_event,
+                        include_material_resources=False, render_settings=self.render_settings, cache_mode=self.cache_mode,
+                    )
             except RunCancelled:
                 raise
             except Exception:  # noqa: BLE001 - the full package can still land
@@ -618,6 +621,7 @@ class ItemPreviewFrame(QWidget):
         #: whether that package is a placement scene. A "ready" for anything else is a
         #: stale echo of the package before, and must not take the placement or the gizmo.
         self._loaded_token: Hashable = None
+        self._loaded_geometry_token: Hashable = _UNSET
         self._loaded_is_placement = False
         self._pending_capture: Optional[Path] = None
         self._loaded = False
@@ -731,7 +735,11 @@ class ItemPreviewFrame(QWidget):
         if self._closed:
             return
         if source is None:
+            if self._worker is not None:
+                self._superseded = True
+                self._worker.stop()
             self._pending = None
+            self._loaded_geometry_token = _UNSET
             self._pending_is_placement = False
             self._upgrade_request = None
             self._full_texture_upgrade_from_fast = False
@@ -759,10 +767,12 @@ class ItemPreviewFrame(QWidget):
         self._upgrade_request = None
         self._full_texture_upgrade_from_fast = False
         self._drop_deferred_package()
-        self.is_ready = False
+        same_geometry = self._can_reuse_geometry(token, source, is_placement)
+        if not same_geometry:
+            self.is_ready = False
         # the scene on screen is the package before this request: take the gizmo off it at
         # once, so nothing there can be dragged while it is stale
-        if self.host is not None and self._loaded_token is not None and self._loaded_token != token:
+        if self.host is not None and self._loaded_token is not None and self._loaded_token != token and not same_geometry:
             try:
                 self.host.set_alignment_state(enabled=False)
             except Exception:  # noqa: BLE001 - a host without the call keeps its gizmo
@@ -945,6 +955,19 @@ class ItemPreviewFrame(QWidget):
 
         return bool(self.is_ready and self._loaded_is_placement and self._placement is not None)
 
+    @staticmethod
+    def _source_geometry_token(token: Hashable, source: Any) -> Hashable:
+        if isinstance(source, ProgressivePreviewSource) and source.geometry_token is not None:
+            return source.geometry_token
+        return token
+
+    def _can_reuse_geometry(self, token: Hashable, source: Any, is_placement: bool) -> bool:
+        return bool(
+            self.is_ready and self._package_dir is not None
+            and self._loaded_is_placement == bool(is_placement)
+            and self._loaded_geometry_token == self._source_geometry_token(token, source)
+        )
+
     def _start_package(
         self,
         request: tuple[Hashable, Any],
@@ -969,8 +992,9 @@ class ItemPreviewFrame(QWidget):
         candidate_source = resolved_source if resolved_source is not None else source
         progressive = isinstance(candidate_source, ProgressivePreviewSource)
         full_stage = stage == "materials" or not progressive
+        reuse_geometry = progressive and self._can_reuse_geometry(token, candidate_source, is_placement)
         self._building = (token, is_placement, "materials" if full_stage else "geometry")
-        if not full_stage:
+        if not full_stage and not reuse_geometry:
             self.is_ready = False
             self._placement_base = None
             self.status_changed.emit("Building the preview...")
@@ -988,6 +1012,7 @@ class ItemPreviewFrame(QWidget):
             native_preview_core_cache_root=native_preview_core_cache_root,
             source_usage_required=callable(acquire_usage),
             source_usage_acquired=source_usage is not None,
+            reuse_geometry=reuse_geometry,
         )
         self._launch_package_worker(task, source_usage)
 
@@ -1152,7 +1177,9 @@ class ItemPreviewFrame(QWidget):
         previous_stage = self._loaded_stage
         # A new scene needs its own framing even if geometry was skipped or failed.
         # Later material tiers for that same scene keep the user's camera.
-        reset_view = previous is None or self._loaded_token != token
+        source = self._pending[1] if self._pending is not None and self._pending[0] == token else None
+        geometry_token = self._source_geometry_token(token, source)
+        reset_view = previous is None or self._loaded_geometry_token != geometry_token
         if self.host.load_package(result, reset_view=reset_view):
             self._last_pushed_placement = None
             self._package_dir = result
@@ -1160,6 +1187,7 @@ class ItemPreviewFrame(QWidget):
                 self._retire_after_ready.append(previous)
             self._loaded = True
             self._loaded_token = token
+            self._loaded_geometry_token = geometry_token
             self._loaded_is_placement = bool(is_placement)
             self._loaded_stage = stage
             self._full_texture_upgrade_from_fast = stage == "materials" and previous_stage == "fast_materials"
@@ -1183,7 +1211,7 @@ class ItemPreviewFrame(QWidget):
                 self.status_changed.emit("The resident viewport rejected the preview package.")
 
     def _host_state(self, state: str, message: str) -> None:
-        if self._closed or self.host is None:
+        if self._closed or self.host is None or self._pending is None:
             return
         if str(state) == "ready" and self._package_dir is not None:
             if self._pending is not None and self._loaded_token != self._pending[0]:

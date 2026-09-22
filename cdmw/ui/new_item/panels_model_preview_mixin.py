@@ -43,6 +43,7 @@ class ModelPanelPreviewMixin:
     def refresh_preview(self) -> None:
         """Show the selected item source in the inline resident viewport."""
 
+        self._appearance_preview_timer.stop()
         window = self.window()
         if not (self.isVisible() or (window is not None and window.isVisible())):
             return
@@ -343,6 +344,7 @@ class ModelPanelPreviewMixin:
 
     def shutdown_preview(self) -> None:
         self._show_preview_timer.stop()
+        self._appearance_preview_timer.stop()
         self.operation_spinner.set_running(False)
         try:
             self.preview.shutdown()
@@ -351,6 +353,7 @@ class ModelPanelPreviewMixin:
 
     def request_shutdown_preview(self) -> None:
         self._show_preview_timer.stop()
+        self._appearance_preview_timer.stop()
         self.operation_spinner.set_running(False)
         try:
             self.preview.request_shutdown()

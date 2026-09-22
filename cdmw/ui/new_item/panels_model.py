@@ -215,6 +215,10 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self._show_preview_timer.setSingleShot(True)
         self._show_preview_timer.setInterval(0)
         self._show_preview_timer.timeout.connect(self.refresh_preview)
+        self._appearance_preview_timer = QTimer(self)
+        self._appearance_preview_timer.setSingleShot(True)
+        self._appearance_preview_timer.setInterval(80)
+        self._appearance_preview_timer.timeout.connect(self.refresh_preview)
 
         model, model_layout, import_row = self._build_model_source_controls()
         self.appearance_page = QWidget()
@@ -959,7 +963,7 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self._controller.draft.shader_controls = choices
         self._controller.invalidate_plan()
         if tuple((n, c.shader) for n, c in previous) != tuple((n, c.shader) for n, c in choices):
-            self.refresh_preview()
+            self._appearance_preview_timer.start()
         else:
             self._sync_glow_preview()
 
@@ -977,7 +981,7 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         source = self._controller.model_import
         if source is None:
             if self._controller.draft.template_key is not None:
-                self.refresh_preview()
+                self._appearance_preview_timer.start()
             return
         sender = getattr(preview.host, "apply_material_parameter_groups", None)
         if source is None or not callable(sender) or not preview.showing_placement:

@@ -130,6 +130,81 @@ def test_apply_failure_stays_visible_through_preview_refresh_and_can_be_retried(
     assert "Handle needs" not in panel.apply_status.plain_text()
 
 
+@pytest.mark.parametrize("changed", ["flip", "mesh", "placement", "template", "appearance"])
+def test_apply_captures_inputs_and_rejects_changed_geometry(studio, monkeypatch, changed):
+    from cdmw.domain.new_item.translucency import TranslucencyChoice
+    from cdmw.ui.new_item.model_import import ModelPlacement
+
+    app, tab = studio
+    source = _import(tab)
+    controller, panel = tab.controller, tab.model_panel
+    release = threading.Event()
+    inputs = []
+    built = ModelFiles(b"captured placement")
+
+    def build(_entry, captured, placement, **_kwargs):
+        assert release.wait(3)
+        inputs.append((captured, captured.flip_texture_v, captured.mesh_generation, placement))
+        return built
+
+    monkeypatch.setattr("cdmw.ui.new_item.controller.build_placed_import", build)
+    try:
+        panel.apply_button.click()
+        assert controller.busy
+        if changed == "flip":
+            panel.flip_texture_v.setChecked(True)
+        elif changed == "mesh":
+            source.mesh_generation += 1
+        elif changed == "placement":
+            controller.set_model_placement(ModelPlacement(offset=(1, 0, 0)))
+        elif changed == "template":
+            panel.keep_model.setChecked(True)
+        else:
+            controller.draft.glow_parts = ("steel",)
+            controller.draft.translucency = TranslucencyChoice(("steel",), 0.2, 0.4)
+            controller.invalidate_plan()
+    finally:
+        release.set()
+    _finish(app, controller)
+    assert inputs and inputs[0][0] is not source
+    assert inputs[0][1:] == (False, 0, ModelPlacement())
+    if changed == "appearance":
+        assert controller.model_result is built, "material-only edits do not invalidate the geometry build"
+        assert controller.draft.glow_parts == ("steel",)
+        assert controller.current_spec().translucency == TranslucencyChoice(("steel",), 0.2, 0.4)
+    else:
+        assert controller.model_result is None
+        assert source.applied is None
+        assert "Not applied" in panel.apply_status.plain_text()
+        assert "Placement applied to" not in tab.output_panel.log.toPlainText()
+        if changed == "template":
+            assert controller.draft.model_source is ModelSource.TEMPLATE
+
+
+def test_template_appearance_changes_coalesce_to_the_latest_values(studio, monkeypatch):
+    app, tab = studio
+    panel = tab.model_panel
+    requests = []
+
+    def preview_source(**_kwargs):
+        requests.append(tab.controller.draft.glow_intensity)
+        return None
+
+    monkeypatch.setattr(tab.controller, "item_preview_source", preview_source)
+    tab.show()
+    tab.show_step(2)
+    app.processEvents()
+    requests.clear()
+    for value in range(5, 16):
+        panel.glow_intensity.setValue(value)
+    assert not requests, "slider edits should not repeatedly restart package workers"
+    deadline = time.monotonic() + 2
+    while panel._appearance_preview_timer.isActive() and time.monotonic() < deadline:
+        app.processEvents()
+        time.sleep(.001)
+    assert requests == [15.0]
+
+
 def test_plan_reports_unapplied_variant_before_starting_a_worker(studio):
     _, tab = studio
     _import(tab)

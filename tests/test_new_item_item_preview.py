@@ -1469,6 +1469,7 @@ class ItemPreviewFrameTests(unittest.TestCase):
         output = Path(tempfile.mkdtemp(prefix="cdmw_item_preview_resident_failure_"))
         frame = ItemPreviewFrame(output_root=output, host_factory=self._fake_host_class())
         frame._ensure_host()
+        frame._pending = ("template", object())
         frame._loaded_stage = "materials"
         frame._full_texture_upgrade_from_fast = True
         statuses = []
@@ -1582,6 +1583,118 @@ class ItemPreviewFrameTests(unittest.TestCase):
         self.assertEqual([call[1][0] for call in loads], [cached])
         self.assertEqual(frame._loaded_stage, "materials")
         frame.request_shutdown()
+
+    def test_appearance_updates_keep_the_ready_mesh_and_camera_without_a_bare_reload(self) -> None:
+        from dataclasses import replace
+        from cdmw.domain.cancellation import raise_if_cancelled
+        from cdmw.domain.new_item.spec import GlowChoice
+        from cdmw.ui.new_item.controller_preview_mixin import _template_progressive_source
+        from cdmw.ui.new_item.item_preview import ItemPreviewFrame
+        from cdmw.ui.new_item.model_import import ModelPlacement
+
+        output = Path(tempfile.mkdtemp(prefix="cdmw_appearance_update_"))
+        frame = ItemPreviewFrame(output_root=output, host_factory=self._fake_host_class())
+        frame._ensure_host()
+        geometry_builds = []
+        release = threading.Event()
+        waiting = threading.Event()
+
+        def pump(predicate):
+            deadline = time.monotonic() + 3
+            while not predicate() and time.monotonic() < deadline:
+                self.app.processEvents()
+                time.sleep(.001)
+            self.assertTrue(predicate())
+
+        def package(*_args, **_kwargs):
+            geometry_builds.append(True)
+            path = output / f"bare_{len(geometry_builds)}"
+            path.mkdir()
+            return path
+
+        def source(scene, name, *, wait=False, intensity=None):
+            def materials(stop):
+                if wait:
+                    waiting.set()
+                    while not release.wait(.01):
+                        raise_if_cancelled(stop)
+                path = output / name
+                path.mkdir()
+                return path
+            token, build = _template_progressive_source(
+                ("template", scene), 17, lambda _: object(), materials, False, lambda _: None,
+                glow=GlowChoice(("blade",), (1., 0., 0.), intensity) if intensity is not None else None,
+            )
+            return token, replace(build, materials=materials)
+
+        with patch("cdmw.ui.new_item.item_preview.build_item_preview_package", package):
+            try:
+                token, build = source("sword", "original")
+                frame.show_placement(build, token=token, placement=ModelPlacement())
+                pump(lambda: frame._thread is None)
+                frame._host_state("ready", "")
+                token, build = source("sword", "stale-glow", wait=True, intensity=2.)
+                frame.show_placement(build, token=token, placement=ModelPlacement())
+                self.assertTrue(frame.showing_placement, "the current mesh stays usable during material preparation")
+                self.assertEqual(len(geometry_builds), 1)
+                pump(waiting.is_set)
+                token, build = source("sword", "glow", intensity=6.)
+                frame.show_placement(build, token=token, placement=ModelPlacement())
+                pump(lambda: frame._thread is None)
+                loads = [call for call in frame.host.calls if call[0] == "load_package"]
+                self.assertEqual([call[1][0].name for call in loads], ["bare_1", "original", "glow"])
+                self.assertEqual([call[2]["reset_view"] for call in loads], [True, False, False])
+                frame._host_state("ready", "")
+                token, build = source("helmet", "helmet")
+                frame.show_placement(build, token=token, placement=ModelPlacement())
+                pump(lambda: frame._thread is None)
+                loads = [call for call in frame.host.calls if call[0] == "load_package"]
+                self.assertEqual(len(geometry_builds), 2, "a different model still gets an immediate bare preview")
+                self.assertTrue(loads[-2][2]["reset_view"])
+            finally:
+                release.set()
+                frame.request_shutdown()
+                pump(lambda: not frame.iter_shutdown_workers())
+
+    def test_clearing_the_preview_cancels_pending_materials_and_rejects_late_ready(self) -> None:
+        from cdmw.domain.cancellation import raise_if_cancelled
+        from cdmw.ui.new_item.item_preview import ItemPreviewFrame, ProgressivePreviewSource
+
+        output = Path(tempfile.mkdtemp(prefix="cdmw_preview_clear_"))
+        bare = output / "bare"
+        bare.mkdir()
+        stopped = threading.Event()
+        frame = ItemPreviewFrame(output_root=output, host_factory=self._fake_host_class())
+        frame._ensure_host()
+
+        def materials(stop):
+            try:
+                self.assertTrue(stop.wait(3), "clearing the source must cancel texture preparation")
+                raise_if_cancelled(stop)
+            finally:
+                stopped.set()
+
+        with patch("cdmw.ui.new_item.item_preview.build_item_preview_package", return_value=bare):
+            try:
+                frame.show(ProgressivePreviewSource(lambda _: object(), materials), token="sword")
+                deadline = time.monotonic() + 2
+                while frame._package_dir is None and time.monotonic() < deadline:
+                    self.app.processEvents()
+                    time.sleep(.001)
+                self.assertEqual(frame._package_dir, bare)
+                frame.show(None)
+                frame._host_state("ready", "late renderer acknowledgement")
+                self.assertFalse(frame.is_ready)
+                deadline = time.monotonic() + 2
+                while frame._thread is not None and time.monotonic() < deadline:
+                    self.app.processEvents()
+                    time.sleep(.001)
+                self.assertIsNone(frame._thread)
+                self.assertTrue(stopped.is_set())
+                loads = [call for call in frame.host.calls if call[0] == "load_package"]
+                self.assertEqual([call[1][0] for call in loads], [bare])
+            finally:
+                frame.request_shutdown()
 
     def test_template_materials_start_before_geometry_finishes_and_are_joined(self) -> None:
         from cdmw.ui.new_item.item_preview import ProgressivePreviewSource, _PreviewPackageTask

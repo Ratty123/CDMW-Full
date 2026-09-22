@@ -377,6 +377,11 @@ interactive mesh before texture preparation finishes. Preview Core supplies the
 textured packages without recompiling their materials in Python; upgrades preserve
 the host and camera. Standalone callers without native context retain the Python
 preview path; a configured native material failure remains visible as an error.
+Rapid appearance edits are combined over 80 ms before starting a package worker.
+Material changes retain the ready mesh and its camera while the replacement prepares;
+they skip the bare-mesh rebuild. Template, variant, fitted geometry and character
+changes still establish a new scene. Clearing the preview cancels pending texture
+work and ignores late renderer readiness.
 Placement and character comparison scenes also consume that native template package.
 They retain its complete material graph, layer masks, DDS bytes and material parameters
 in the combined scene, including Perks & Effects and template appearance edits. Rust
@@ -642,6 +647,10 @@ body orientation and centre, so a garment already aligned to the body stays alig
 Shapes without a clear axis or plane retain the bounding-box fit. The template stays
 fixed, and manual rotation remains available. The fit is baked into the mesh shared
 by the preview and **Apply placement**.
+Apply captures the import settings before its worker starts. A change to texture
+flipping, source geometry, placement, variant or model choice prevents the old result
+from becoming applied. Appearance-only changes retain that geometry build and use
+the latest material choices when planning output.
 `item_preview.py` owns the resident frame and publishes fitted geometry, direct
 DDS textures, and then the complete synthesized material tier without resetting
 the resident camera;

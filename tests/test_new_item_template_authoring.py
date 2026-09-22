@@ -214,6 +214,10 @@ def test_template_rejects_incompatible_experiment_and_still_previews_glow_and_gl
         panel.translucency_editor.changed.emit(glass)
         assert controller.draft.translucency == glass
         assert glow_choice(controller.draft).parts == (wrapper.submesh_name,)
+        deadline = time.monotonic() + 2
+        while len(requests) == count and time.monotonic() < deadline:
+            app.processEvents()
+            time.sleep(.001)
         assert len(requests) > count
 
         part = SubMesh(name=wrapper.submesh_name, material=wrapper.submesh_name,

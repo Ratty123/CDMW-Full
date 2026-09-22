@@ -39,7 +39,7 @@ from cdmw.workers.new_item_workers import export_task, install_overlay_task, ins
 from cdmw.workers.utility_workers import UtilityWorker
 
 
-def _progressive_preview_source(geometry, materials, acquire_usage=None, cached_materials=None):
+def _progressive_preview_source(geometry, materials, acquire_usage=None, cached_materials=None, *, geometry_token=None):
     from cdmw.ui.new_item.item_preview import ProgressivePreviewSource
 
     return ProgressivePreviewSource(
@@ -48,6 +48,7 @@ def _progressive_preview_source(geometry, materials, acquire_usage=None, cached_
         acquire_usage,
         supports_fast_material_package=True,
         cached_materials=cached_materials,
+        geometry_token=geometry_token,
     )
 
 
@@ -58,7 +59,7 @@ def _placement_progressive_source(
     placement,
     character_mesh,
     token,
-    shader_controls=(), snapshot=None, *, plain_pbr=False,
+    shader_controls=(), snapshot=None, *, plain_pbr=False, geometry_token=None,
 ):
     from cdmw.ui.new_item.item_preview import PlacementScene
 
@@ -94,6 +95,7 @@ def _placement_progressive_source(
         build_geometry_scene,
         build_material_scene,
         source.acquire_usage,
+        geometry_token=geometry_token,
     )
 
 
@@ -129,12 +131,14 @@ def _template_progressive_source(
     translucency=None,
     shader_controls=(), snapshot=None,
 ):
+    geometry_token = ("template-scene", token, bool(include_character))
     if not include_character and glow is None and translucency is None and not shader_controls:
         from functools import partial
 
         return token, _progressive_preview_source(
             geometry_build, material_build,
             cached_materials=partial(material_build, cache_only=True),
+            geometry_token=geometry_token,
         )
     from cdmw.ui.new_item.item_preview import PlacementScene
     from cdmw.services.new_item_materials import glow_preview_mesh
@@ -176,6 +180,7 @@ def _template_progressive_source(
         _progressive_preview_source(
             build_geometry_character_scene,
             build_material_character_scene,
+            geometry_token=geometry_token,
         ),
     )
 
@@ -324,6 +329,8 @@ class NewItemPreviewControllerMixin:
                 character_mesh,
                 token, self.draft.shader_controls, self.snapshot,
                 plain_pbr=self.draft.material_route is MaterialRoute.PLAIN_PBR,
+                geometry_token=("placement-scene", source.cache_identity, source.bake,
+                                source.mesh_generation, template_token, include_character),
             )
             return token, build
         result = self.model_result
