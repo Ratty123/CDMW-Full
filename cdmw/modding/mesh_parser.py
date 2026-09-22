@@ -223,6 +223,9 @@ class SubMesh:
     # unchanged; only an admitted topology edit fills it in. See
     # cdmw.domain.mesh.topology.
     topology_provenance: object | None = None
+    # Decoded CharacterVertex colour R/G plus an authority flag. Empty means
+    # unavailable; it is not interchangeable with display tint or cloth weights.
+    shader_masks: list[tuple[float, float, float]] = field(default_factory=list)
 
 @dataclass
 class ParsedMesh:
@@ -1467,6 +1470,8 @@ def _parse_pac_legacy(data: bytes, filename: str = "") -> ParsedMesh:
             vertex_count=len(verts),
             face_count=len(faces),
             source_vertex_offsets=source_offsets,
+            shader_masks=[(data[offset + 36] / 255., data[offset + 37] / 255., 1.)
+                          for offset in source_offsets] if vert_stride == 40 else [],
         )
         result.submeshes.append(sm)
 
@@ -2357,6 +2362,8 @@ def _parse_pac_geometry_section(
             source_index_offset=geom_sec["offset"] + idx_byte_offset,
             source_index_count=len(indices),
             source_vertex_stride=40,
+            shader_masks=[(data[offset + 36] / 255., data[offset + 37] / 255., 1.)
+                          for offset in source_offsets],
             source_descriptor_offset=desc.descriptor_offset,
             source_bbox_min=desc.bbox_min,
             source_bbox_extent=desc.bbox_extent,

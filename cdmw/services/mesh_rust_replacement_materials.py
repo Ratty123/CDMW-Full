@@ -15,10 +15,10 @@ from cdmw.services.mesh_replacement_materials import _sidecar_text
 
 
 def replacement_material_key(mesh, state):
-    if any(part.translucency is not None or part.emission is not None for part in state.parts):
-        source = replace(state, parts=tuple(replace(part, translucency=None, translucency_surface=None, emission=None) for part in state.parts))
+    if any(part.translucency is not None or part.emission is not None or part.shader_controls is not None for part in state.parts):
+        source = replace(state, parts=tuple(replace(part, translucency=None, translucency_surface=None, emission=None, shader_controls=None) for part in state.parts))
         return hashlib.sha256(repr((replacement_material_key(mesh, source), bound_part_indices(mesh, state),
-                                   [(p.part_id, p.translucency, p.translucency_surface, p.emission) for p in state.parts])).encode()).hexdigest()[:32]
+                                   [(p.part_id, p.translucency, p.translucency_surface, p.emission, p.shader_controls) for p in state.parts])).encode()).hexdigest()[:32]
     if not any(part.material_choice == "imported" for part in state.parts):
         return "base"
     digest = hashlib.sha256(repr((bound_part_indices(mesh, state), [(p.part_id, p.material_choice) for p in state.parts])).encode())
@@ -201,13 +201,13 @@ def stage_replacement_materials(authoring, mesh, state, stop_event=None):
         _RustMaterialSynthesisState, _mesh_material_presentations,
     )
     key = replacement_material_key(mesh, state)
-    if key not in authoring.archive_refit_material_cache and any(part.translucency is not None or part.emission is not None for part in state.parts):
-        source = replace(state, parts=tuple(replace(part, translucency=None, translucency_surface=None, emission=None) for part in state.parts))
+    if key not in authoring.archive_refit_material_cache and any(part.translucency is not None or part.emission is not None or part.shader_controls is not None for part in state.parts):
+        source = replace(state, parts=tuple(replace(part, translucency=None, translucency_surface=None, emission=None, shader_controls=None) for part in state.parts))
         source_key = stage_replacement_materials(authoring, mesh, source, stop_event)
         payload = copy.deepcopy(authoring.archive_refit_material_cache[source_key])
         indices = bound_part_indices(mesh, state)
-        rules = {indices[part.part_id]: (part.translucency, part.translucency_surface, part.emission)
-                 for part in state.parts if part.translucency is not None or part.emission is not None}
+        rules = {indices[part.part_id]: (part.translucency, part.translucency_surface, part.emission, part.shader_controls)
+                 for part in state.parts if part.translucency is not None or part.emission is not None or part.shader_controls is not None}
         presentations = {(row["lod_index"], row["material_index"]): row for row in payload["material_presentations"]}
         names = {(mesh.submeshes[index].material or mesh.submeshes[index].name).casefold(): value
                  for index, value in rules.items()}
@@ -224,6 +224,9 @@ def stage_replacement_materials(authoring, mesh, state, stop_event=None):
                         row["emissive_intensity"] = value[2].intensity
                         row["emission_animation"] = list(value[2].animation.factors())
                         row["emission_reveal"] = list(value[2].rgb.factors()) if value[2].rgb is not None else [0.0, 1.0, 0.0, -1.0]
+        if any(part.shader_controls is not None for part in state.parts):
+            from cdmw.services.mesh_shader_controls_preview import stage_shader_preview
+            stage_shader_preview(authoring, mesh, state, payload, presentations, stop_event)
         payload.update(key=key, material_presentations=list(presentations.values()))
         authoring.archive_refit_material_cache[key] = payload
     if key not in authoring.archive_refit_material_cache:

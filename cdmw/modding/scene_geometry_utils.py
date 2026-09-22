@@ -179,6 +179,7 @@ def _copy_submesh_with_transform(
         texture=submesh.texture,
         vertices=vertices,
         uvs=list(submesh.uvs),
+        shader_masks=list(submesh.shader_masks),
         normals=normals if len(normals) == len(vertices) else _compute_smooth_normals(vertices, faces),
         tangents=tangents if len(tangents) == len(vertices) else [],
         faces=faces,

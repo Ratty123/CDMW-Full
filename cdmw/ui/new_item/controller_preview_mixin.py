@@ -58,6 +58,7 @@ def _placement_progressive_source(
     placement,
     character_mesh,
     token,
+    shader_controls=(), snapshot=None,
 ):
     from cdmw.ui.new_item.item_preview import PlacementScene
 
@@ -73,12 +74,13 @@ def _placement_progressive_source(
 
     def build_material_scene(stop_event, **preview_context):
         from cdmw.ui.new_item.item_preview_materials import compose_template_materials
+        from cdmw.services.shader_controls_preview import shader_preview_mesh
 
         return compose_template_materials(
             template_build,
             lambda template: PlacementScene(
                 template=template,
-                model=source.baked_preview_mesh(),
+                model=shader_preview_mesh(source.baked_preview_mesh(), shader_controls, snapshot=snapshot, stop_event=stop_event),
                 placement=placement,
                 model_bounds=source.baked_bounds(),
                 model_origin=source.baked_origin(),
@@ -94,16 +96,23 @@ def _placement_progressive_source(
     )
 
 
-def _imported_model_progressive_source(model):
+def _imported_model_progressive_source(model, shader_controls=(), snapshot=None, character_mesh=None):
     from cdmw.ui.new_item.item_preview_materials import as_parsed_mesh
+    from cdmw.ui.new_item.item_preview import PlacementScene
+
+    def scene(mesh, stop_event):
+        return (PlacementScene(template=None, model=mesh, character=character_mesh(stop_event))
+                if character_mesh is not None else mesh)
 
     def imported_geometry(stop_event):
         if stop_event.is_set():
             raise RunCancelled("Imported model preview cancelled")
-        return as_parsed_mesh(model)
+        return scene(as_parsed_mesh(model), stop_event)
 
-    def imported_materials(_stop_event, **_preview_context):
-        return model
+    def imported_materials(stop_event, **_preview_context):
+        from cdmw.services.shader_controls_preview import shader_preview_mesh
+        mesh = shader_preview_mesh(as_parsed_mesh(model), shader_controls, snapshot=snapshot, stop_event=stop_event) if shader_controls else model
+        return scene(mesh, stop_event)
 
     return _progressive_preview_source(imported_geometry, imported_materials)
 
@@ -117,8 +126,9 @@ def _template_progressive_source(
     character_mesh,
     glow=None,
     translucency=None,
+    shader_controls=(), snapshot=None,
 ):
-    if not include_character and glow is None and translucency is None:
+    if not include_character and glow is None and translucency is None and not shader_controls:
         from functools import partial
 
         return token, _progressive_preview_source(
@@ -132,11 +142,13 @@ def _template_progressive_source(
     # The composed material cache must name the same scene as its geometry and
     # worker request. Include character visibility and invalidate packages that
     # lost the template's wrapper names before applying appearance edits.
-    token = (*token, "appearance-v2", bool(include_character), repr(glow), repr(translucency))
+    token = (*token, "appearance-v2", bool(include_character), repr(glow), repr(translucency), repr(shader_controls))
     scene_token = ("template-character", template_key, token) if include_character else token
 
-    def appearance(mesh):
-        return translucency_preview_mesh(glow_preview_mesh(mesh, glow), translucency)
+    def appearance(mesh, stop_event):
+        from cdmw.services.shader_controls_preview import shader_preview_mesh
+        return shader_preview_mesh(translucency_preview_mesh(glow_preview_mesh(mesh, glow), translucency),
+                                   shader_controls, snapshot=snapshot, stop_event=stop_event)
 
     def build_geometry_character_scene(stop_event):
         return PlacementScene(
@@ -152,7 +164,7 @@ def _template_progressive_source(
             material_build,
             lambda template: PlacementScene(
                 template=None,
-                model=appearance(template),
+                model=appearance(template, stop_event),
                 character=character_mesh(stop_event),
             ),
             stop_event, scene_token, preview_context,
@@ -190,7 +202,7 @@ class NewItemPreviewControllerMixin:
             snapshot=self.snapshot,
             template_key=self.draft.template_key,
             glow=glow_choice(self.draft),
-            translucency=self.draft.translucency,
+            translucency=self.draft.translucency, shader_controls=self.draft.shader_controls,
             material_route=self.draft.material_route,
             template_build=template[1] if template else None,
             preview_context=context,
@@ -301,7 +313,7 @@ class NewItemPreviewControllerMixin:
             placement = self.model_placement
             token = (
                 "placement", source.cache_identity, source.bake, source.mesh_generation,
-                template_token, include_character,
+                template_token, include_character, self.draft.shader_controls,
             )
             build = _placement_progressive_source(
                 source,
@@ -309,26 +321,16 @@ class NewItemPreviewControllerMixin:
                 geometry_build,
                 placement,
                 character_mesh,
-                token,
+                token, self.draft.shader_controls, self.snapshot,
             )
             return token, build
         result = self.model_result
         model = getattr(result, "preview_model", None)
         if result is not None and model is not None and getattr(model, "meshes", None):
-            if include_character:
-                from cdmw.ui.new_item.item_preview import PlacementScene
-
-                return (
-                    ("imported-character", id(result), self.draft.template_key),
-                    lambda stop_event: PlacementScene(
-                        template=None,
-                        model=model,
-                        character=character_mesh(stop_event),
-                    ),
-                )
             return (
-                ("imported", id(result)),
-                _imported_model_progressive_source(model),
+                ("imported", id(result), self.draft.template_key, include_character, self.draft.shader_controls),
+                _imported_model_progressive_source(model, self.draft.shader_controls, self.snapshot,
+                                                   character_mesh if include_character else None),
             )
         if result is not None:
             data = getattr(result, "rebuilt_data", b"")
@@ -366,6 +368,7 @@ class NewItemPreviewControllerMixin:
             character_mesh,
             glow_choice(self.draft),
             self.draft.translucency,
+            self.draft.shader_controls, self.snapshot,
         )
 
     def _template_geometry_build(self):

@@ -12,6 +12,7 @@ def _clone_submesh_fast(submesh: SubMesh) -> SubMesh:
         texture=str(submesh.texture or ""),
         vertices=list(submesh.vertices or []),
         uvs=list(submesh.uvs or []),
+        shader_masks=list(submesh.shader_masks or []),
         normals=list(submesh.normals or []),
         faces=list(submesh.faces or []),
         bone_indices=list(submesh.bone_indices or []),

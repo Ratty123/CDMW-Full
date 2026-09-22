@@ -29,6 +29,8 @@ pub enum TextureRole {
     Flow,
     LayerMask,
     SkinDetailMask,
+    ShaderMask,
+    ShaderNormal,
     SkinDetailNormal,
     SkinDetailMaterial,
     Unknown,
@@ -42,7 +44,11 @@ impl TextureRole {
             .filter(char::is_ascii_alphanumeric)
             .flat_map(char::to_lowercase)
             .collect::<String>();
-        if normalized == "skindetailmasktexture" {
+        if matches!(normalized.as_str(), "wingflowtex1" | "tornpatterntexture" | "posterglownoisetex" | "dissolvenoisetex" | "hairanisotropydetailmasktexture") {
+            Self::ShaderMask
+        } else if normalized == "hairanisotropydetailnormaltexture" {
+            Self::ShaderNormal
+        } else if normalized == "skindetailmasktexture" {
             Self::SkinDetailMask
         } else if normalized == "skindetailnormaltexture" {
             Self::SkinDetailNormal
@@ -871,6 +877,8 @@ pub fn inspect_dds(bytes: &[u8], role: TextureRole) -> Result<DdsMetadata, Textu
         | TextureRole::Height
         | TextureRole::Flow
         | TextureRole::LayerMask
+        | TextureRole::ShaderMask
+        | TextureRole::ShaderNormal
         | TextureRole::SkinDetailMask
         | TextureRole::SkinDetailNormal
         | TextureRole::SkinDetailMaterial => ColorSpace::Linear,

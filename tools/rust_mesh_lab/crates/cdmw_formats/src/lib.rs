@@ -62,6 +62,8 @@ pub struct Submesh {
     pub uvs: Vec<[f32; 2]>,
     pub indices: Vec<u32>,
     pub source_vertex_indices: Vec<i32>,
+    #[serde(default)]
+    pub shader_masks: Vec<[f32; 3]>,
     pub source_range: SourceRange,
     pub vertex_stride: u32,
     pub layout: String,
@@ -74,6 +76,10 @@ impl Submesh {
     }
 
     pub fn validate(&self) -> Result<(), FormatError> {
+        if !self.shader_masks.is_empty() && (self.shader_masks.len() != self.positions.len()
+            || self.shader_masks.iter().flatten().any(|v| !v.is_finite() || !(0.0..=1.0).contains(v))) {
+            return Err(FormatError::InvalidIndex);
+        }
         if self.positions.is_empty()
             || self.indices.len() < 3
             || !self.indices.len().is_multiple_of(3)
@@ -887,6 +893,7 @@ fn decode_static_submesh(
         normals,
         uvs,
         indices,
+        shader_masks: Vec::new(),
         source_vertex_indices: (0..record.vertex_count)
             .map(|value| i32::try_from(value).unwrap_or(-1))
             .collect(),
@@ -1287,6 +1294,7 @@ fn decode_pac_section(
             normals,
             uvs,
             indices,
+            shader_masks: Vec::new(),
             source_vertex_indices: (0..vertex_count)
                 .map(|value| i32::try_from(value).unwrap_or(-1))
                 .collect(),
@@ -1806,6 +1814,25 @@ mod tests {
     }
 
     #[test]
+    fn shader_masks_are_optional_and_validate_vertex_ownership() -> Result<(), FormatError> {
+        let mut part = Submesh {
+            name: "mask".to_owned(), material: String::new(),
+            positions: vec![[0.0; 3]; 3], normals: vec![[0.0, 1.0, 0.0]; 3],
+            uvs: vec![[0.0; 2]; 3], indices: vec![0, 1, 2], source_vertex_indices: vec![0, 1, 2],
+            shader_masks: vec![[0.2, 0.8, 1.0]; 3], source_range: SourceRange { offset: 0, length: 0 },
+            vertex_stride: 40, layout: "synthetic".to_owned(),
+        };
+        part.validate()?;
+        part.shader_masks.pop();
+        assert!(part.validate().is_err());
+        part.shader_masks = vec![[0.2, f32::NAN, 1.0]; 3];
+        assert!(part.validate().is_err());
+        part.shader_masks.clear();
+        part.validate()?;
+        Ok(())
+    }
+
+    #[test]
     fn submesh_validation_rejects_stale_indices() {
         let mesh = Submesh {
             name: "bad".to_owned(),
@@ -1814,6 +1841,7 @@ mod tests {
             normals: vec![[0.0, 1.0, 0.0]],
             uvs: vec![[0.0, 0.0]],
             indices: vec![0, 1, 0],
+            shader_masks: Vec::new(),
             source_vertex_indices: vec![0],
             source_range: SourceRange {
                 offset: 0,

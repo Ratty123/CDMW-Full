@@ -236,6 +236,7 @@ impl LabApplication {
                             .map(|n| (pose.head * Vec3::from(*n)).to_array()),
                     );
                     snapshot.uvs.extend_from_slice(&geometry.uvs);
+                    snapshot.shader_masks.resize(snapshot.positions.len(), [1.0, 1.0, 0.0]);
                     snapshot
                         .indices
                         .extend(geometry.indices.iter().map(|i| first + i));

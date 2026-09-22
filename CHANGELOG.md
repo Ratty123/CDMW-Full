@@ -21,6 +21,7 @@ The format is intentionally simple:
 
 ### Added
 
+- Shader experiments in Create New Item and Mesh Editor expose patterned cutout reveal, TornCloth tearing, animated hair UVs, anisotropic detail and Poster glow on compatible materials. Static Dissolve objects gain sphere, noise and edge-glow controls in Mesh Editor. Edits preserve source maps, support undo/drafts and include experimental viewport previews; game activation and appearance still need testing.
 - Create New Item and Mesh Editor offer experimental glow animation: emission texture scrolling, pulse speed and floor, plus RGB glow with reveal, softness and mask inversion. Settings follow variants and previews, support Mesh Editor Undo/Redo and drafts, and export to material sidecars. RGB mode preserves source DDS colours and alpha; unsupported shader combinations report an error.
 - Create New Item and Mesh Editor have per-part Roughness and Metallic controls for translucency, a Low-shine translucent surface preset, and a Source surface reset. Previews use the same channel overrides as exported material maps; absorption and glow stay independent.
 - Hair Tools has a Physics brush for painting static and moving regions along locks, with blue/orange feedback, selection and symmetry support, Undo/Redo and drafts. Static paint disables retained PAC cloth bindings in output; Physical keeps the template's physics.

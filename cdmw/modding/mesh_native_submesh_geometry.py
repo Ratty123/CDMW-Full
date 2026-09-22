@@ -643,6 +643,7 @@ def clone_native_mesh_affine_transformed_submesh(
         texture=str(getattr(submesh, "texture", "") or ""),
         vertices=list(transformed_vertices),
         uvs=list(getattr(submesh, "uvs", ()) or ()),
+        shader_masks=list(getattr(submesh, "shader_masks", ()) or ()),
         normals=normals,
         tangents=list(getattr(submesh, "tangents", ()) or ()),
         faces=[tuple(face) for face in (transformed_faces if transformed_faces is not None else source_faces)],

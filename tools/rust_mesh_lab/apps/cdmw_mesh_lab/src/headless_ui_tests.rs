@@ -7721,6 +7721,7 @@ fn inspector_paints_loaded_texture_relationship_provenance() -> TestResult {
             },
         ],
         material_factors: vec![crate::loader::LoadedMaterialFactors {
+            shader_controls: None,
             sidecar_label: "character/modelproperty/body.pam_xml".to_owned(),
             emissive_color: Some([32.0 / 255.0, 64.0 / 255.0, 96.0 / 255.0]),
             emissive_intensity: Some(2.5),
@@ -7902,6 +7903,45 @@ fn emission_controls_send_selected_parts_and_restore() -> TestResult {
     ui.application.cdmw_pending_request = None;
     ui.click("None")?;
     assert!(!has_host_command(&ui.actions_from_click("Apply glow")?, "replacement_emission"));
+    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), before);
+    Ok(())
+}
+
+#[test]
+fn shader_controls_send_selected_parts_and_restore() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(two_part_application()?, egui::vec2(1440.0, 1800.0));
+    let before = ui.application.mesh.as_ref().unwrap().draw_snapshot();
+    let controls = json!({"shader": "SkinnedMeshWing", "values": {"_wingFlowProgress": [0.5]}});
+    ui.application.cdmw_state["shader_controls"] = json!({"available": true, "static": false,
+        "catalogue": [{"shader": "SkinnedMeshWing", "label": "Patterned reveal", "note": "Binary cutout.",
+            "fields": [{"name": "_wingFlowProgress", "label": "Reveal progress", "default": [-0.1],
+                        "minimum": -1.0, "maximum": 2.0, "integer": false}]}],
+        "parts": [{"index": 0, "id": "a", "shader_controls": null},
+                  {"index": 1, "id": "b", "shader_controls": controls, "name": "Part B",
+                   "diagnostic": "Known masks: 2/3; G 0.000–1.000."}]});
+    ui.settle_layout();
+    ui.click("1: Part B")?;
+    ui.click("Shader experiments")?;
+    ui.settle_layout();
+    assert!(ui.reveal("Part B: Known masks: 2/3; G 0.000–1.000.").is_ok());
+    let actions = ui.actions_from_click("Apply shader controls")?;
+    assert!(actions.iter().any(|action| matches!(action,
+        UiAction::CdmwCommand { command: "replacement_shader_controls", arguments, .. }
+        if arguments == &json!({"part_ids": ["b"], "shader_controls": controls}))));
+    ui.application.cdmw_pending_request = None;
+    let actions = ui.actions_from_click("Restore shader controls")?;
+    assert!(actions.iter().any(|action| matches!(action,
+        UiAction::CdmwCommand { command: "replacement_shader_controls", arguments, .. }
+        if arguments == &json!({"part_ids": ["b"], "reset": true}))));
+    ui.application.cdmw_pending_request = None;
+    ui.click("All")?;
+    let actions = ui.actions_from_click("Restore shader controls")?;
+    assert!(actions.iter().any(|action| matches!(action,
+        UiAction::CdmwCommand { command: "replacement_shader_controls", arguments, .. }
+        if arguments == &json!({"part_ids": ["a", "b"], "reset": true}))));
+    ui.application.cdmw_pending_request = None;
+    ui.click("None")?;
+    assert!(!has_host_command(&ui.actions_from_click("Apply shader controls")?, "replacement_shader_controls"));
     assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), before);
     Ok(())
 }

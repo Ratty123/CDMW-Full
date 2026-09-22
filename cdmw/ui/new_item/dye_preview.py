@@ -34,14 +34,22 @@ def variant_dye_preview_source(controller):
     def model_files(stop_event):
         from cdmw.services.new_item_planning import ModelFiles, model_files_from_import
         from cdmw.services.new_item_materials import route_model_files
+        from cdmw.services.new_item_shader_controls import apply_shader_controls
         if result is None:
+            if choice.shader_controls:
+                from cdmw.services.new_item_template_model import prepare_template_model
+                return prepare_template_model(snapshot, [choice.model_path], glow=choice.glow_choice(),
+                    translucency=choice.translucency, shader_controls=choice.shader_controls,
+                    transform=choice.template_transform, stop_event=stop_event)
             return ModelFiles(snapshot.payload(choice.model_path),{material_path:snapshot.payload(material_path)})
         if isinstance(result,ModelFiles):
             from cdmw.services.new_item_translucency import apply_prebuilt_translucency
-            return apply_prebuilt_translucency(result,MaterialRoute(choice.material_route),choice.translucency)
+            files = apply_prebuilt_translucency(result,MaterialRoute(choice.material_route),choice.translucency)
+            return apply_shader_controls(files, choice.shader_controls)
         files = model_files_from_import(result,family=variant_family(snapshot.family(template_key),choice))
-        return route_model_files(files,MaterialRoute(choice.material_route),result=result,scene=scene,
+        files = route_model_files(files,MaterialRoute(choice.material_route),result=result,scene=scene,
                                  glow=choice.glow_choice(),translucency=choice.translucency,stop_event=stop_event)
+        return apply_shader_controls(files, choice.shader_controls, result=result, scene=scene)
 
     def geometry(stop_event):
         from cdmw.services.mesh_workflow_service import parse_pac
@@ -86,9 +94,31 @@ def variant_dye_preview_source(controller):
                                         prepared_sha256=hashlib.sha256(data).hexdigest(),prepared_note="New Item dye preview"))
             primary = next(value for value in prepared if value.path==choice.model_path)
             prefab = snapshot.entry(choice.prefab_path)
+            consume = None
+            if choice.shader_controls:
+                from types import SimpleNamespace
+                from cdmw.services.new_item_shader_controls import shader_control_bindings
+                from cdmw.services.shader_controls_preview import shader_preview_mesh
+                from cdmw.services.mesh_dotnet_reference_composite import decode_dotnet_native_preview_package
+                from cdmw.ui.new_item.item_preview import build_item_preview_package
+
+                mapped = shader_control_bindings(files, choice.shader_controls, result=result, scene=scene)
+                settings = tuple(pair for bindings in mapped.values() for pair in bindings)
+                authored = SimpleNamespace(
+                    has_entry=lambda path: path in payloads or snapshot.has_entry(path),
+                    payload=lambda path: payloads[path] if path in payloads else snapshot.payload(path),
+                )
+                def consume(package):
+                    mesh = decode_dotnet_native_preview_package(package, cancelled=stop_event.is_set)
+                    mesh = shader_preview_mesh(mesh, settings, snapshot=authored, stop_event=stop_event)
+                    return build_item_preview_package(mesh, token=token, output_root=context["output_root"],
+                        stop_event=stop_event, include_material_resources=True,
+                        render_settings=context.get("render_settings"), cache_mode="off",
+                        fast_package_ready=context.get("fast_package_ready"))
             package = build_native_template_preview(primary,tuple(prepared)+(prefab,), (prefab,),(),template_key,snapshot,stop_event,
                 output_root=context["output_root"],native_preview_core_cache_root=context["native_preview_core_cache_root"],
-                render_settings=context.get("render_settings"),cache_mode="off",fast_package_ready=context.get("fast_package_ready"))
+                render_settings=context.get("render_settings"),cache_mode="off",fast_package_ready=context.get("fast_package_ready"),
+                **({"consume_native_package": consume} if consume is not None else {}))
             if package is None:
                 raise ValueError("The authored dye material could not be rendered; the existing viewport remains available.")
             return package

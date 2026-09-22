@@ -265,6 +265,7 @@ class NewItemModelControllerMixin:
             self.draft.template_transform = ()
             self.draft.glow_parts = ()
             self.draft.translucency = None
+            self.draft.shader_controls = ()
             if self.model_result is not None:
                 self.set_imported_model(None, None)
             self.draft.model_source = ModelSource.IMPORTED
@@ -489,6 +490,7 @@ class NewItemModelControllerMixin:
         self.draft.template_transform = ()
         self.draft.glow_parts = ()
         self.draft.translucency = None
+        self.draft.shader_controls = ()
         if self.model_result is not None:
             self.set_imported_model(None, None)
         else:

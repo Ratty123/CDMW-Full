@@ -137,6 +137,21 @@ _EXTRA_SUBMESH_ATTRS = (
 )
 
 
+def shader_masks_by_source_offset(submesh):
+    """Source-addressed masks survive native snapshot reordering without guessing."""
+    offsets = getattr(submesh, "source_vertex_offsets", ())
+    masks = getattr(submesh, "shader_masks", ())
+    if len(offsets) != len(getattr(submesh, "vertices", ())) or len(masks) != len(offsets):
+        return {}
+    result = {}
+    for offset, value in zip(offsets, masks):
+        if offset < 0:
+            continue
+        value = tuple(value)
+        result[offset] = value if offset not in result or result[offset] == value else (1., 1., 0.)
+    return result
+
+
 def copy_extra_submesh_attrs(source: SubMesh, target: SubMesh) -> None:
     for attr_name in _EXTRA_SUBMESH_ATTRS:
         if hasattr(source, attr_name):
@@ -217,6 +232,7 @@ def clone_mesh_for_editing(mesh: ParsedMesh) -> ParsedMesh:
             texture=str(submesh.texture or ""),
             vertices=list(submesh.vertices or []),
             uvs=list(submesh.uvs or []),
+            shader_masks=list(submesh.shader_masks or []),
             normals=list(submesh.normals or []),
             tangents=list(submesh.tangents or []),
             faces=list(submesh.faces or []),
@@ -373,6 +389,7 @@ def _delete_faces_touching_submesh_vertices(
         index_map = {old_index: new_index for new_index, old_index in enumerate(used_vertex_indices)}
         submesh.vertices = [submesh.vertices[old_index] for old_index in used_vertex_indices]
         submesh.uvs = _remap_vertex_aligned_list(submesh.uvs, index_map, old_vertex_count)  # type: ignore[assignment]
+        submesh.shader_masks = _remap_vertex_aligned_list(submesh.shader_masks, index_map, old_vertex_count)
         submesh.normals = _remap_vertex_aligned_list(submesh.normals, index_map, old_vertex_count)  # type: ignore[assignment]
         submesh.bone_indices = _remap_vertex_aligned_list(submesh.bone_indices, index_map, old_vertex_count)  # type: ignore[assignment]
         submesh.bone_weights = _remap_vertex_aligned_list(submesh.bone_weights, index_map, old_vertex_count)  # type: ignore[assignment]
@@ -436,6 +453,7 @@ def _delete_submesh_faces_by_indices(
         index_map = {old_index: new_index for new_index, old_index in enumerate(used_vertex_indices)}
         submesh.vertices = [submesh.vertices[old_index] for old_index in used_vertex_indices]
         submesh.uvs = _remap_vertex_aligned_list(submesh.uvs, index_map, old_vertex_count)  # type: ignore[assignment]
+        submesh.shader_masks = _remap_vertex_aligned_list(submesh.shader_masks, index_map, old_vertex_count)
         submesh.normals = _remap_vertex_aligned_list(submesh.normals, index_map, old_vertex_count)  # type: ignore[assignment]
         submesh.bone_indices = _remap_vertex_aligned_list(submesh.bone_indices, index_map, old_vertex_count)  # type: ignore[assignment]
         submesh.bone_weights = _remap_vertex_aligned_list(submesh.bone_weights, index_map, old_vertex_count)  # type: ignore[assignment]
@@ -483,6 +501,7 @@ def _compact_orphan_vertices_for_submesh(
     if len(index_map) != old_vertex_count or len(valid_faces) != len(submesh.faces):
         submesh.vertices = [submesh.vertices[old_index] for old_index in used_vertex_indices]
         submesh.uvs = _remap_vertex_aligned_list(submesh.uvs, index_map, old_vertex_count)  # type: ignore[assignment]
+        submesh.shader_masks = _remap_vertex_aligned_list(submesh.shader_masks, index_map, old_vertex_count)
         submesh.normals = _remap_vertex_aligned_list(submesh.normals, index_map, old_vertex_count)  # type: ignore[assignment]
         submesh.bone_indices = _remap_vertex_aligned_list(submesh.bone_indices, index_map, old_vertex_count)  # type: ignore[assignment]
         submesh.bone_weights = _remap_vertex_aligned_list(submesh.bone_weights, index_map, old_vertex_count)  # type: ignore[assignment]
@@ -725,6 +744,7 @@ def _compact_submesh_faces(submesh: SubMesh, kept_faces: Sequence[tuple[int, int
     index_map = {old_index: new_index for new_index, old_index in enumerate(used_vertex_indices)}
     submesh.vertices = [submesh.vertices[old_index] for old_index in used_vertex_indices]
     submesh.uvs = _remap_vertex_aligned_list(submesh.uvs, index_map, old_vertex_count)  # type: ignore[assignment]
+    submesh.shader_masks = _remap_vertex_aligned_list(submesh.shader_masks, index_map, old_vertex_count)
     submesh.normals = _remap_vertex_aligned_list(submesh.normals, index_map, old_vertex_count)  # type: ignore[assignment]
     submesh.bone_indices = _remap_vertex_aligned_list(submesh.bone_indices, index_map, old_vertex_count)  # type: ignore[assignment]
     submesh.bone_weights = _remap_vertex_aligned_list(submesh.bone_weights, index_map, old_vertex_count)  # type: ignore[assignment]
@@ -803,6 +823,7 @@ def split_faces_to_submesh(
         texture=str(source.texture or ""),
         vertices=[source.vertices[old_index] for old_index in moved_vertex_indices],
         uvs=_remap_vertex_aligned_list(source.uvs, moved_index_map, old_vertex_count),  # type: ignore[arg-type]
+        shader_masks=_remap_vertex_aligned_list(source.shader_masks, moved_index_map, old_vertex_count),
         normals=_remap_vertex_aligned_list(source.normals, moved_index_map, old_vertex_count),  # type: ignore[arg-type]
         faces=[
             (moved_index_map[a], moved_index_map[b], moved_index_map[c])
@@ -988,6 +1009,8 @@ def subdivide_faces_touching_vertices(
             added_face_count += 3
 
         submesh.vertices = vertices
+        if len(submesh.shader_masks) == old_vertex_count:
+            submesh.shader_masks = [*submesh.shader_masks, *([(1., 1., 0.)] * (len(vertices) - old_vertex_count))]
         if len(uvs) == len(vertices):
             submesh.uvs = uvs  # type: ignore[assignment]
         if len(normals) == len(vertices):

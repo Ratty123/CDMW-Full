@@ -1265,6 +1265,7 @@ fn build_scene(
     generation: u64,
 ) -> HairScene {
     let mut snapshot = DrawSnapshot {
+        shader_masks: Vec::new(),
         mesh_identity: u64::MAX - 1,
         draw_revision: 0,
         topology_generation: generation,
@@ -1299,6 +1300,8 @@ fn build_scene(
         }
         let first = snapshot.positions.len();
         snapshot.positions.extend_from_slice(&part.positions);
+        snapshot.shader_masks.extend(part.shader_masks.iter().copied()
+            .chain(std::iter::repeat([1.0, 1.0, 0.0])).take(part.positions.len()));
         let mut part_normals = part.normals.clone();
         if part_normals.len() != part.positions.len() {
             normals(&part.positions, &part.indices, &mut part_normals);
@@ -1337,6 +1340,7 @@ fn build_scene(
             let mut reference_normals = vec![];
             normals(&mesh.positions, &indices, &mut reference_normals);
             snapshot.positions.extend_from_slice(&mesh.positions);
+            snapshot.shader_masks.extend(std::iter::repeat_n([1.0, 1.0, 0.0], mesh.positions.len()));
             snapshot.normals.extend(reference_normals);
             snapshot
                 .uvs

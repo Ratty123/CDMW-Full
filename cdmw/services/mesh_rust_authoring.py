@@ -2181,6 +2181,8 @@ def _mesh_document_payload(
                     # In the managed session this is the current local vertex index.
                     # Original-relative provenance remains authoritative in CDMW.
                     "source_vertex_indices": list(range(len(positions))),
+                    "shader_masks": (list(getattr(submesh, "shader_masks", ()))
+                                     if len(getattr(submesh, "shader_masks", ())) == len(positions) else []),
                     "source_range": {"offset": 0, "length": 0},
                     "vertex_stride": int(getattr(submesh, "source_vertex_stride", 0) or 0),
                     "layout": str(getattr(submesh, "source_skin_weight_layout", "") or "cdmw_session"),
@@ -3263,6 +3265,10 @@ def _material_input_texture_role(value: object) -> str:
         if character.isalnum()
     )
     shader_family = normalize_shader_family(getattr(value, "shader_family", ""))
+    if parameter_name in {"wingflowtex1", "tornpatterntexture", "posterglownoisetex", "dissolvenoisetex", "hairanisotropydetailmasktexture"}:
+        return "shader_mask"
+    if parameter_name == "hairanisotropydetailnormaltexture":
+        return "shader_normal"
     if parameter_name == "skindetailmasktexture":
         return "skin_detail_mask"
     if parameter_name == "skindetailnormaltexture":
@@ -3370,6 +3376,7 @@ def _material_input_is_exact_owner_binding(source: object, value: object) -> boo
         )
         return not any(
             _material_input_declares_owner_contract(item) for item in siblings
+            if _material_input_texture_role(item) not in {"shader_mask", "shader_normal"}
         )
     if authority not in {"authoritative", "exact"}:
         return False
@@ -3490,6 +3497,9 @@ def _material_input_is_renderer_role_eligible(
         getattr(value, "layer_channel", "") or ""
     ).strip().casefold()
 
+    if role in {"shader_mask", "shader_normal"}:
+        # These slots are used only by explicit shader-control presentations.
+        return authority in {"authoritative", "exact"} and _material_input_is_exact_owner_binding(source, value)
     if role in _RUST_DEDICATED_MATERIAL_INPUT_ROLES:
         # Layer masks and the three skin-detail resources are deliberately
         # consumed as local support data, never as the global surface map.
@@ -3572,8 +3582,12 @@ def _first_texture_resource_dds_path(
 ) -> Path | None:
     """Resolve one publisher-trusted DDS while preserving binding precedence."""
 
+    # An experiment's support map does not replace the source material's
+    # binding contract. Keep a legacy import's accepted base/normal maps when
+    # adding only a shader mask; existing PAC declarations still fail closed.
     material_inputs = tuple(
-        getattr(source, "preview_material_texture_inputs", ()) or ()
+        item for item in (getattr(source, "preview_material_texture_inputs", ()) or ())
+        if _material_input_texture_role(item) not in {"shader_mask", "shader_normal"}
     )
     declared_role_inputs = tuple(
         item
@@ -5847,6 +5861,7 @@ def _append_rust_material_presentation(rows, source, fallback_index, submeshes, 
             "translucency_surface": factor_parameters.get("translucency_surface"),
             "emission_animation": factor_parameters.get("emission_animation"),
             "emission_reveal": factor_parameters.get("emission_reveal"),
+            "shader_controls": factor_parameters.get("shader_controls"),
             "opacity": _rust_material_optional_scalar(
                 factor_parameters,
                 "opacity",
@@ -7997,6 +8012,8 @@ class RustMeshAuthoringSession:
         state["translucency"] = translucency_ui_state(self, state["replacement"])
         from cdmw.services.mesh_emission import emission_ui_state
         state["emission"] = emission_ui_state(self, state["replacement"])
+        from cdmw.services.mesh_shader_controls import shader_controls_ui_state
+        state["shader_controls"] = shader_controls_ui_state(self, state["replacement"])
         from cdmw.services.mesh_rust_cloth import cloth_ui_state
         state["cloth"] = cloth_ui_state(self, state["replacement"])
         from cdmw.services.mesh_rust_cloth_guides import guide_authoring_ui_state

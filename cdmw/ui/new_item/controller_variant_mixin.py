@@ -60,7 +60,7 @@ class NewItemVariantControllerMixin:
         appearance = replace(appearance,custom_model=self.draft.model_source is ModelSource.IMPORTED and (self.model_import is not None or self.model_result is not None),
                              material_route=self.draft.material_route.value,keep_template_physics=self.draft.keep_template_physics,
                              glow_parts=tuple(self.draft.glow_parts),glow_color=tuple(self.draft.glow_color),
-                             glow_intensity=self.draft.glow_intensity,glow_animation=self.draft.glow_animation,glow_rgb=self.draft.glow_rgb,translucency=self.draft.translucency,
+                             glow_intensity=self.draft.glow_intensity,glow_animation=self.draft.glow_animation,glow_rgb=self.draft.glow_rgb,translucency=self.draft.translucency,shader_controls=self.draft.shader_controls,
                              template_transform=self.draft.template_transform)
         self._variant_states[identity] = VariantModelState(appearance,self.model_import,self.model_result,self.model_entry,
             self.model_scene,self.model_placement,tuple(self.draft.glow_parts),tuple(self.draft.glow_color),self.draft.glow_intensity,
@@ -69,7 +69,7 @@ class NewItemVariantControllerMixin:
     def _sync_variant_state(self):
         if (self._active_variant is None and self.snapshot is not None and self.snapshot.sources
                 and self.snapshot.sources.static_layout and self.draft.model_source is ModelSource.TEMPLATE
-                and (self.draft.glow_parts or self.draft.translucency is not None or self.draft.template_transform)):
+                and (self.draft.glow_parts or self.draft.translucency is not None or self.draft.shader_controls or self.draft.template_transform)):
             # The selector already displays the primary binding before its first edit.
             self._active_variant = self.primary_variant_identity()
         if self._active_variant is None:
@@ -77,7 +77,7 @@ class NewItemVariantControllerMixin:
         self._capture_variant(self._active_variant)
         self.draft.variants = tuple(state.appearance for state in self._variant_states.values()
                                     if state.appearance.custom_model or state.appearance.dyes != ()
-                                    or state.appearance.glow_parts or state.appearance.translucency is not None
+                                    or state.appearance.glow_parts or state.appearance.translucency is not None or state.appearance.shader_controls
                                     or state.appearance.template_transform)
         if not self.draft.variants and self.draft.effect_stem:
             self.draft.variants = (self._variant_states[self._active_variant].appearance,)
@@ -103,6 +103,7 @@ class NewItemVariantControllerMixin:
         self.draft.glow_animation = state.appearance.glow_animation
         self.draft.glow_rgb = state.appearance.glow_rgb
         self.draft.translucency = state.appearance.translucency
+        self.draft.shader_controls = state.appearance.shader_controls
         self.draft.template_transform = state.appearance.template_transform
         self._held_character,self._material_parts = (),()
         self.invalidate_plan()

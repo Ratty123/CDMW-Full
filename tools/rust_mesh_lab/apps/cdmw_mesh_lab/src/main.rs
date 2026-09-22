@@ -10,6 +10,7 @@ mod cdmw_rig;
 mod cdmw_session;
 mod cdmw_ui;
 mod cdmw_emission;
+mod cdmw_shader_controls;
 mod cdmw_vertex_inspector;
 mod control_contract;
 #[cfg(test)]
@@ -1883,6 +1884,7 @@ fn cdmw_material_preview_factors(
         emissive_intensity: presentation.emissive_intensity,
         emission_animation: presentation.emission_animation,
         emission_reveal: presentation.emission_reveal,
+        shader_controls: presentation.shader_controls,
         roughness: presentation.roughness,
         metalness: presentation.metalness,
         specular: presentation.specular,
@@ -1947,6 +1949,7 @@ fn loaded_cdmw_material_factor(
         emissive_intensity: presentation.emissive_intensity,
         emission_animation: presentation.emission_animation,
         emission_reveal: presentation.emission_reveal,
+        shader_controls: presentation.shader_controls,
         roughness: presentation.roughness,
         metalness: presentation.metalness,
         specular: presentation.specular,
@@ -3595,6 +3598,7 @@ impl LabApplication {
                         emissive_intensity: factors.emissive_intensity,
                         emission_animation: factors.emission_animation,
                         emission_reveal: factors.emission_reveal,
+                        shader_controls: factors.shader_controls,
                         roughness: factors.roughness,
                         metalness: factors.metalness,
                         specular: factors.specular,
@@ -6980,6 +6984,7 @@ mod tests {
                     material: "sword".to_owned(),
                     normals: vec![[0.0, 0.0, 1.0]; positions.len()],
                     uvs: vec![[0.0, 0.0]; positions.len()],
+                    shader_masks: Vec::new(),
                     source_vertex_indices: vec![0, 1, 2],
                     positions,
                     indices: vec![0, 1, 2],

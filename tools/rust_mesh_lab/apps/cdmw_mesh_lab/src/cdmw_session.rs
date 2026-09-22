@@ -192,6 +192,7 @@ pub struct SessionMaterialPresentation {
     pub emissive_intensity: Option<f32>,
     pub emission_animation: Option<[f32; 4]>,
     pub emission_reveal: Option<[f32; 4]>,
+    pub shader_controls: Option<[f32; 32]>,
     pub height_scale: Option<f32>,
     pub texture_tint: Option<[f32; 3]>,
     pub base_tint_strength: Option<f32>,
@@ -944,6 +945,7 @@ impl CdmwBridge {
                     && part.normals == b.normals
                     && part.indices == b.indices
                     && part.uvs == b.uvs
+                    && part.shader_masks == b.shader_masks
             }) {
                 continue;
             }
@@ -952,6 +954,7 @@ impl CdmwBridge {
                     && part.normals.len() == b.normals.len()
                     && part.indices == b.indices
                     && part.uvs == b.uvs
+                    && part.shader_masks == b.shader_masks
             }) {
                 let vertices: Vec<_> = (0..part.positions.len())
                     .filter(|v| {
@@ -2302,6 +2305,7 @@ fn decode_preview_core_document(
             normals,
             uvs,
             indices,
+            shader_masks: Vec::new(),
             source_vertex_indices,
             source_range: SourceRange {
                 offset: 0,
@@ -3276,6 +3280,7 @@ mod tests {
                     normals: vec![[0.0, 0.0, 1.0]; 3],
                     uvs: vec![[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]],
                     indices: vec![0, 1, 2],
+                    shader_masks: Vec::new(),
                     source_vertex_indices: vec![0, 1, 2],
                     source_range: SourceRange {
                         offset: 0,
@@ -3292,6 +3297,7 @@ mod tests {
 
     fn material_presentation() -> SessionMaterialPresentation {
         SessionMaterialPresentation {
+            shader_controls: None,
             lod_index: 0,
             material_index: 0,
             material_slot_index: 0,

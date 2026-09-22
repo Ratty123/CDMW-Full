@@ -177,6 +177,12 @@ def validate_spec(spec: NewItemSpec) -> Tuple[ValidationIssue, ...]:
         return _validate_effect_layers(spec)
 
     issues: list[ValidationIssue] = []
+    from cdmw.domain.mesh.shader_controls import validate_choices
+    try:
+        validate_choices(spec.shader_controls, glow_parts=spec.glow.parts if spec.glow else (),
+                         translucent_parts=spec.translucency.parts if spec.translucency else (), equipment=True)
+    except ValueError as exc:
+        issues.append(_issue("shader_controls.invalid", "shader_controls", str(exc)))
     name = str(spec.internal_name or "")
     if spec.glow is not None:
         from cdmw.domain.mesh.emission import EmissionChoice

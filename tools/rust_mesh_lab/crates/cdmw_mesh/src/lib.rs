@@ -64,6 +64,7 @@ pub struct Selection {
 pub struct WorkingMesh {
     identity: u64,
     vertices: SlotMap<VertexHandle, Vertex>,
+    shader_masks: SecondaryMap<VertexHandle, [f32; 3]>,
     faces: SlotMap<FaceHandle, Face>,
     edges: SlotMap<EdgeHandle, Edge>,
     edge_by_pair: HashMap<(VertexHandle, VertexHandle), EdgeHandle>,
@@ -82,6 +83,7 @@ pub struct DrawSnapshot {
     pub positions: Vec<[f32; 3]>,
     pub normals: Vec<[f32; 3]>,
     pub uvs: Vec<[f32; 2]>,
+    pub shader_masks: Vec<[f32; 3]>,
     pub indices: Vec<u32>,
     pub triangle_materials: Vec<u32>,
     pub selected_vertices: Vec<u32>,
@@ -135,6 +137,7 @@ impl WorkingMesh {
         Self {
             identity: NEXT_MESH_IDENTITY.fetch_add(1, Ordering::Relaxed),
             vertices: SlotMap::with_key(),
+            shader_masks: SecondaryMap::new(),
             faces: SlotMap::with_key(),
             edges: SlotMap::with_key(),
             edge_by_pair: HashMap::new(),
@@ -374,6 +377,9 @@ impl WorkingMesh {
                     element: u32::try_from(index).map_err(|_| MeshError::ResourceLimit)?,
                 },
             }));
+            if let Some(mask) = source.shader_masks.get(index) {
+                self.shader_masks.insert(*handles.last().unwrap(), *mask);
+            }
         }
         for (face_index, triangle) in source.indices.chunks_exact(3).enumerate() {
             let a = usize::try_from(*triangle.first().ok_or(MeshError::InvalidSource)?)
@@ -1222,6 +1228,7 @@ impl WorkingMesh {
         let mut positions = Vec::with_capacity(vertex_capacity);
         let mut normals = Vec::with_capacity(vertex_capacity);
         let mut uvs = Vec::with_capacity(vertex_capacity);
+        let mut shader_masks = Vec::with_capacity(vertex_capacity);
         let mut handles = HashMap::new();
         for (handle, vertex) in &self.vertices {
             if elements.is_some_and(|items| !items.vertices.contains(&handle)) {
@@ -1232,6 +1239,7 @@ impl WorkingMesh {
             positions.push(vertex.position);
             normals.push(vertex.normal);
             uvs.push(vertex.uv);
+            shader_masks.push(self.shader_masks.get(handle).copied().unwrap_or([1.0, 1.0, 0.0]));
         }
         let mut indices = Vec::with_capacity(face_capacity.saturating_mul(3));
         let mut triangle_materials = Vec::with_capacity(face_capacity);
@@ -1268,6 +1276,7 @@ impl WorkingMesh {
             positions,
             normals,
             uvs,
+            shader_masks,
             indices,
             triangle_materials,
             selected_vertices,
@@ -1703,6 +1712,22 @@ mod tests {
             WorkingMesh::from_document_lod(&document, 2),
             Err(MeshError::MissingLod)
         ));
+        Ok(())
+    }
+
+    #[test]
+    fn shader_masks_follow_stable_vertices_and_visible_parts() -> Result<(), MeshError> {
+        let mut mesh = two_disconnected_triangles();
+        for (handle, vertex) in mesh.vertices.iter() {
+            if matches!(vertex.provenance, Provenance::Source { submesh: 1, .. }) {
+                mesh.shader_masks.insert(handle, [0.2, 0.4, 1.0]);
+            }
+        }
+        assert_eq!(mesh.draw_snapshot_for_submeshes(&HashSet::from([0])).shader_masks, vec![[1.0, 1.0, 0.0]; 3]);
+        let before = mesh.draw_snapshot_for_submeshes(&HashSet::from([1])).shader_masks;
+        assert_eq!(before, vec![[0.2, 0.4, 1.0]; 3]);
+        mesh.translate_vertices(&mesh.vertices.keys().collect(), Vec3::X)?;
+        assert_eq!(mesh.draw_snapshot_for_submeshes(&HashSet::from([1])).shader_masks, before);
         Ok(())
     }
 

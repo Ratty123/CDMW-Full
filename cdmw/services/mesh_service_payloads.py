@@ -32,7 +32,7 @@ _NATIVE_MATERIAL_OVERRIDE_KEYS = frozenset(
         "emissive_intensity",
         "emissive_color",
         "emissive_color_authoritative",
-        "glow_surface_color", "emission_animation", "emission_reveal",
+        "glow_surface_color", "emission_animation", "emission_reveal", "shader_controls",
         "emissive_scalar_mask",
         "contrast",
         "saturation",

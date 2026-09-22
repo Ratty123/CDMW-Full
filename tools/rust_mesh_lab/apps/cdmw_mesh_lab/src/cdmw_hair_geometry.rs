@@ -222,6 +222,7 @@ pub(super) fn prepare(
             part.positions = geometry.positions;
             part.normals = geometry.normals;
             part.uvs = geometry.uvs;
+            part.shader_masks.clear();
             part.indices = geometry.indices;
             part.source_vertex_indices = vec![-1; part.positions.len()];
             state.bindings.extend(geometry.bindings);
@@ -234,6 +235,7 @@ pub(super) fn prepare(
                 part.positions.clear();
                 part.normals.clear();
                 part.uvs.clear();
+                part.shader_masks.clear();
                 part.indices.clear();
                 part.source_vertex_indices.clear();
             }
@@ -295,6 +297,9 @@ fn compact_part(
     part.positions = used.iter().map(|i| part.positions[*i as usize]).collect();
     part.normals = used.iter().map(|i| part.normals[*i as usize]).collect();
     part.uvs = used.iter().map(|i| part.uvs[*i as usize]).collect();
+    if !part.shader_masks.is_empty() {
+        part.shader_masks = used.iter().map(|i| part.shader_masks[*i as usize]).collect();
+    }
     part.source_vertex_indices = used
         .iter()
         .map(|i| {

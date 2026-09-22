@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping, Optional, Sequence
 from uuid import uuid4
 
-from cdmw.modding.mesh_deformer import MeshFaceDeleteResult, MeshPartSplitResult, _EXTRA_SUBMESH_ATTRS
+from cdmw.modding.mesh_deformer import MeshFaceDeleteResult, MeshPartSplitResult, _EXTRA_SUBMESH_ATTRS, shader_masks_by_source_offset
 from cdmw.modding.mesh_native_core_constants import (
     Face,
     NATIVE_MESH_CORE_BACKEND_ID,
@@ -144,6 +144,9 @@ def _submesh_snapshot_metadata(submesh: object) -> dict[str, object]:
             extra_attrs[attr_name] = _snapshot_metadata_value(getattr(submesh, attr_name))
     if extra_attrs:
         metadata["extra_attrs"] = extra_attrs
+    masks = shader_masks_by_source_offset(submesh)
+    if masks:
+        metadata["shader_masks_by_source_offset"] = {str(offset): value for offset, value in masks.items()}
     return metadata
 
 def _snapshot_metadata_value(value: object) -> object:
@@ -397,6 +400,15 @@ def _submesh_from_native_snapshot_item(item: Mapping[str, object]) -> SubMesh | 
     )
     if tangent_signs:
         setattr(submesh, "tangent_signs", list(tangent_signs))
+    masks = metadata.get("shader_masks_by_source_offset")
+    if isinstance(masks, Mapping) and len(source_vertex_offsets) == vertex_count:
+        restored = [masks.get(str(offset), (1., 1., 0.)) if offset >= 0 else (1., 1., 0.)
+                    for offset in source_vertex_offsets]
+        if any(not isinstance(value, (list, tuple)) or len(value) != 3
+               or any(type(v) not in (float, int) or not math.isfinite(v) or not 0 <= v <= 1 for v in value)
+               for value in restored):
+            return None
+        submesh.shader_masks = [tuple(value) for value in restored]
     extra_attrs = metadata.get("extra_attrs")
     if isinstance(extra_attrs, Mapping):
         for raw_name, value in extra_attrs.items():

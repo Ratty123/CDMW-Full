@@ -638,6 +638,11 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self.translucency_editor.changed.connect(self._translucency_changed)
         self.translucency_editor.refresh(self._controller.material_parts(), self._controller.draft.translucency)
         model_layout.addWidget(self.translucency_editor)
+        from cdmw.ui.new_item.shader_controls_editor import ShaderControlsEditor
+        self.shader_controls_editor = ShaderControlsEditor(self)
+        self.shader_controls_editor.refresh(self._controller.material_parts(), self._controller.draft.shader_controls)
+        self.shader_controls_editor.changed.connect(self._shader_controls_changed)
+        model_layout.addWidget(self.shader_controls_editor)
         self.flip_texture_v = QCheckBox("Flip texture V")
         self.flip_texture_v.setToolTip(
             "glTF, GLB, OBJ and DAE put V's origin at the bottom and the game samples it from the top, so their textures need the "
@@ -893,6 +898,7 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self._set_glow_swatch()
         parts = self._controller.material_parts()
         self.translucency_editor.refresh(parts, self._controller.draft.translucency)
+        self.shader_controls_editor.refresh(parts, self._controller.draft.shader_controls)
         self.glow_parts.blockSignals(True)
         self.glow_parts.clear()
         for name, label in parts:
@@ -943,6 +949,15 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self._controller.invalidate_plan()
         self._sync_glow_preview()
 
+    def _shader_controls_changed(self, choices) -> None:
+        previous = self._controller.draft.shader_controls
+        self._controller.draft.shader_controls = choices
+        self._controller.invalidate_plan()
+        if tuple((n, c.shader) for n, c in previous) != tuple((n, c.shader) for n, c in choices):
+            self.refresh_preview()
+        else:
+            self._sync_glow_preview()
+
     def _sync_glow_preview(self) -> None:
         """Replay the draft's Glow and translucency choices together.
 
@@ -971,7 +986,7 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         authored_glass = source_transmission and any(
             source_translucency(part) is not None for part in getattr(source_mesh, "submeshes", ())
         )
-        if glow is None and translucency is None and not authored_glass and not self._glow_preview_touched:
+        if glow is None and translucency is None and not self._controller.draft.shader_controls and not authored_glass and not self._glow_preview_touched:
             return
         # Material names and factors do not depend on baked vertex positions.
         mesh = getattr(source, "preview_mesh", None) or source_mesh
@@ -981,8 +996,10 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         groups = glow_preview_parameter_groups(mesh, glow) + translucency_preview_parameter_groups(
             mesh, translucency, source_transmission=source_transmission,
         )
+        from cdmw.services.shader_controls_preview import shader_preview_groups
+        groups += shader_preview_groups(mesh, self._controller.draft.shader_controls)
         if groups and sender(groups):
-            self._glow_preview_touched = self._glow_preview_touched or glow is not None or translucency is not None or authored_glass
+            self._glow_preview_touched = self._glow_preview_touched or glow is not None or translucency is not None or authored_glass or bool(self._controller.draft.shader_controls)
 
     def _pick_glow_color(self) -> None:
         from PySide6.QtGui import QColor

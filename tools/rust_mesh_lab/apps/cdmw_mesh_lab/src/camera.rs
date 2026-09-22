@@ -618,6 +618,7 @@ mod tests {
                     material: "camera-test".to_owned(),
                     normals: vec![[0.0, 0.0, 1.0]; positions.len()],
                     uvs: vec![[0.0, 0.0]; positions.len()],
+                    shader_masks: Vec::new(),
                     source_vertex_indices: vec![0, 1, 2],
                     positions,
                     indices: vec![0, 1, 2],

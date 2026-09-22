@@ -66,6 +66,7 @@ pub(crate) fn fixture() -> (HairState, MeshDocument) {
         normals: vec![[0.0, 0.0, 1.0]; 3],
         uvs: vec![[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]],
         indices: vec![0, 1, 2],
+        shader_masks: Vec::new(),
         source_vertex_indices: vec![0, 1, 2],
         source_range: SourceRange {
             offset: 0,

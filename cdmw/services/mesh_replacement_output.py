@@ -337,6 +337,9 @@ def prepare_replacement_output(snapshot) -> MeshReplacementOutput:
     if any(part.emission is not None for part in state.parts):
         from cdmw.services.mesh_emission import build_emission_files
         files = list(build_emission_files(state, original, files))
+    if any(part.shader_controls is not None for part in state.parts):
+        from cdmw.services.mesh_shader_controls import build_shader_control_files
+        files = list(build_shader_control_files(state, original, files))
     if any(part.physics_profiles for part in state.parts):
         from cdmw.services.mesh_physics_profile_output import build_physics_profile_files
         files = list(build_physics_profile_files(state, original, files))

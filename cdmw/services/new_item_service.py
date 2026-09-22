@@ -267,7 +267,7 @@ class NewItemService:
                 material_route=spec.material_route.value,keep_template_physics=spec.keep_template_physics,
                 glow_parts=glow.parts if glow else (),glow_color=glow.color if glow else (1.0,1.0,1.0),
                 glow_intensity=glow.intensity if glow else 4.0,
-                glow_animation=glow.animation if glow else GlowAnimation(),glow_rgb=glow.rgb if glow else None,
+                glow_animation=glow.animation if glow else GlowAnimation(),glow_rgb=glow.rgb if glow else None,shader_controls=spec.shader_controls,
                 translucency=spec.translucency)
             spec = replace(spec,variants=(appearance,))
         if snapshot.provenance:
@@ -293,15 +293,18 @@ class NewItemService:
             raise_if_cancelled(stop_event, "New item plan cancelled.")
             files = route_model_files(files, allocated.material_route, result=model, scene=scene, glow=allocated.glow,
                                      translucency=allocated.translucency, on_log=report, stop_event=stop_event)
-        elif allocated.glow is not None or allocated.translucency is not None or allocated.template_transform:
+        elif allocated.glow is not None or allocated.translucency is not None or allocated.shader_controls or allocated.template_transform:
             from cdmw.services.new_item_template_model import prepare_template_model
 
             family = snapshot.family(allocated.template_key)
             paths = [item.path for item in family.files_for("pac") if item.exists]
             paths.sort(key=lambda path: PurePosixPath(path).stem.casefold() != family.model_stem.casefold())
-            files = prepare_template_model(snapshot, paths, glow=allocated.glow, translucency=allocated.translucency,
+            files = prepare_template_model(snapshot, paths, glow=allocated.glow, translucency=allocated.translucency, shader_controls=allocated.shader_controls,
                                            transform=allocated.template_transform, on_log=report,
                                            on_progress=on_progress, stop_event=stop_event)
+        if files is not None and model is not None:
+            from cdmw.services.new_item_shader_controls import apply_shader_controls
+            files = apply_shader_controls(files, allocated.shader_controls, result=model, scene=scene)
         built = icon
         prepared_variants = {}
         if allocated.variants is not None:

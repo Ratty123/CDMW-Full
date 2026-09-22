@@ -77,6 +77,9 @@ def validate_authoring(spec):
                 or not 0 <= variant.glow_intensity <= 20):
             issues.append(_issue("variant.glow", "variants", "Variant glow needs three color components and a supported intensity."))
         try:
+            from cdmw.domain.mesh.shader_controls import validate_choices
+            validate_choices(variant.shader_controls, glow_parts=variant.glow_parts,
+                             translucent_parts=variant.translucency.parts if variant.translucency else (), equipment=True)
             variant.glow_animation.validate()
             if variant.glow_rgb is not None:
                 variant.glow_rgb.validate()

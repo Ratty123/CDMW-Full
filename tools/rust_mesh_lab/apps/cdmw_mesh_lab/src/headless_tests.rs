@@ -7,6 +7,18 @@ use tempfile::tempdir;
 pub(super) type TestResult = Result<(), Box<dyn std::error::Error>>;
 
 #[test]
+fn shader_controls_legacy_documents_have_unknown_vertex_masks() -> TestResult {
+    let document = decode_mesh(&cdmw_formats::synthetic::triangle_pam("synthetic.dds"), MeshFormat::Pam)?;
+    let mut payload = serde_json::to_value(&document)?;
+    payload["lods"][0]["submeshes"][0].as_object_mut().unwrap().remove("shader_masks");
+    let restored: MeshDocument = serde_json::from_value(payload)?;
+    assert!(restored.lods[0].submeshes[0].shader_masks.is_empty());
+    let mesh = WorkingMesh::from_document(&restored)?;
+    assert!(mesh.draw_snapshot().shader_masks.iter().all(|mask| *mask == [1.0, 1.0, 0.0]));
+    Ok(())
+}
+
+#[test]
 #[ignore = "requires a D3D12 adapter"]
 fn offscreen_face_selection_obeys_depth_xray_and_clear() -> TestResult {
     pollster::block_on(cdmw_render_wgpu::verify_face_selection_depth())?;
@@ -53,6 +65,7 @@ pub(super) fn symmetry_application() -> Result<LabApplication, Box<dyn std::erro
                 material: "symmetric-material".to_owned(),
                 normals: vec![[0.0, 0.0, 1.0]; positions.len()],
                 uvs: vec![[0.0, 0.0]; positions.len()],
+                shader_masks: Vec::new(),
                 source_vertex_indices: vec![0, 1, 2, 3],
                 positions,
                 indices: vec![0, 1, 2],

@@ -20,6 +20,8 @@ def build_emission_files(state, original, companion_files, *, stop_event=None):
         if name in settings and settings[name] != part.emission:
             raise ValueError("Select all parts sharing this material and use the same glow settings.")
         if part.emission is not None:
+            if part.shader_controls is not None:
+                raise ValueError("Restore shader controls before applying Glow to this part.")
             part.emission.validate()
             if part.translucency is not None and (part.emission.animation.active or part.emission.rgb is not None):
                 raise ValueError("Animated glow cannot share a part with translucency.")

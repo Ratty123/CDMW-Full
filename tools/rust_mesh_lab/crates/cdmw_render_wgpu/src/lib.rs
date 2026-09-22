@@ -2,6 +2,7 @@
 
 mod gpu_lifecycle;
 mod glow_proof;
+mod shader_controls_proof;
 use gpu_lifecycle::GpuFaults;
 pub use gpu_lifecycle::GpuRecovery;
 
@@ -48,6 +49,8 @@ struct VertexOut {
     @location(3) tangent: vec4<f32>,
     @location(4) @interpolate(flat) part_id: u32,
     @location(5) deformation: vec4<f32>,
+    @location(6) shader_masks: vec3<f32>,
+    @location(7) world_position: vec3<f32>,
 };
 
 struct MaterialUniform {
@@ -64,6 +67,7 @@ struct MaterialUniform {
     translucency_surface: vec4<f32>,
     emission_animation: vec4<f32>,
     emission_reveal: vec4<f32>,
+    shader_controls: array<vec4<f32>, 8>,
 };
 
 @group(0) @binding(0) var base_texture: texture_2d<f32>;
@@ -121,6 +125,7 @@ fn make_vertex_out(
     uv: vec2<f32>,
     tangent: vec4<f32>,
     deformation: vec4<f32>,
+    shader_masks: vec3<f32>,
     editable_role: u32,
     instance_index: u32,
 ) -> VertexOut {
@@ -144,6 +149,8 @@ fn make_vertex_out(
     out.tangent = world_tangent;
     out.part_id = instance_index;
     out.deformation = deformation;
+    out.shader_masks = shader_masks;
+    out.world_position = world_position;
     return out;
 }
 
@@ -155,14 +162,19 @@ fn vs_main(
     @location(3) tangent: vec4<f32>,
     @location(4) deformation: vec4<f32>,
     @location(5) editable_role: u32,
+    @location(6) shader_masks: vec3<f32>,
     @builtin(instance_index) instance_index: u32,
 ) -> VertexOut {
-    return make_vertex_out(position, normal, uv, tangent, deformation, editable_role, instance_index);
+    return make_vertex_out(position, normal, uv, tangent, deformation, shader_masks, editable_role, instance_index);
 }
 
 fn safe_normalize(value: vec3<f32>, fallback: vec3<f32>) -> vec3<f32> {
     let length_squared = dot(value, value);
     return select(fallback, value * inverseSqrt(max(length_squared, 1e-8)), length_squared > 1e-8);
+}
+
+fn shader_value(index: u32) -> f32 {
+    return material.shader_controls[index / 4u][index % 4u];
 }
 
 fn facing_normal(normal: vec3<f32>, front_facing: bool) -> vec3<f32> {
@@ -406,6 +418,65 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool) 
     if (material.flags & MATERIAL_FLIP_V) != 0u {
         sample_uv.y = 1.0 - sample_uv.y;
     }
+    let shader_kind = shader_value(0u);
+    let shader_has_mask = shader_value(3u) > 0.5;
+    let has_vertex_mask = input.shader_masks.z > 0.999;
+    var shader_glow = vec3<f32>(0.0);
+    if shader_kind == 3.0 && has_vertex_mask {
+        let phase = fract(dot(sample_uv, vec2<f32>(2.9898, 78.233)) * 0.023) * 6.28318530718;
+        let frequency = vec2<f32>(shader_value(4u), shader_value(5u));
+        let speed = vec2<f32>(shader_value(6u), shader_value(7u));
+        let amplitude = vec2<f32>(shader_value(8u), shader_value(9u));
+        sample_uv += sin(phase * frequency + camera.material_time * speed) * amplitude * (1.0 - input.shader_masks.y);
+    }
+    if shader_kind == 1.0 && shader_has_mask {
+        let red = textureSampleLevel(skin_detail_mask_texture, material_sampler, sample_uv * 4.0, 0.0).r;
+        let blue = textureSampleLevel(skin_detail_mask_texture, material_sampler, sample_uv, 0.0).b;
+        let mask = select(blue, 1.0 - blue, shader_value(5u) >= 0.001);
+        let cut = clamp(2.0 * clamp(2.0 * mask - shader_value(4u), 0.0, 1.0) - red, 0.0, 1.0);
+        if cut > 0.001 { discard; }
+    }
+    if shader_kind == 2.0 && shader_has_mask && has_vertex_mask {
+        if input.shader_masks.x < 1.0 {
+            let uv = vec2<f32>((sample_uv.x - 0.5) / max(shader_value(5u), 0.00001) + 0.5,
+                clamp(1.0 - input.shader_masks.x, 0.005, 0.995));
+            if textureSampleLevel(skin_detail_mask_texture, material_sampler, uv, 0.0).r < 0.3333333333 { discard; }
+        }
+        if input.shader_masks.y < 1.0 {
+            let uv = (sample_uv - vec2<f32>(0.5)) / max(shader_value(6u), 0.00001) + vec2<f32>(0.5);
+            if textureSampleLevel(skin_detail_mask_texture, material_sampler, uv, 0.0).g * (1.0 - input.shader_masks.y) + shader_value(4u) > 1.0 { discard; }
+        }
+    }
+    // Object coordinates and lighting are previews, not game scene state.
+    // Player-relative mode cannot be reconstructed in an isolated mesh viewer.
+    if shader_kind == 6.0 && shader_value(7u) >= 1.0 {
+        let center = select(camera.scene_model[3].xyz,
+            vec3<f32>(shader_value(8u), shader_value(9u), shader_value(10u)), shader_value(7u) >= 2.0);
+        let radius = shader_value(4u) * shader_value(5u);
+        let intensity = shader_value(14u);
+        var noise = vec3<f32>(intensity);
+        if radius >= 0.001 && intensity >= 0.001 && shader_has_mask {
+            let uv = sample_uv * shader_value(11u) + camera.material_time * vec2<f32>(shader_value(12u), shader_value(13u));
+            noise = (textureSampleLevel(skin_detail_mask_texture, material_sampler, uv, 0.0).rgb * 2.0 - vec3<f32>(1.0)) * intensity;
+        }
+        let distance = (length(input.world_position - center + noise) - radius) / max(shader_value(6u), 0.001);
+        let signed_distance = select(distance, -distance, shader_value(2u) > 0.5);
+        if signed_distance < 0.001 { discard; }
+        let edge = clamp(1.0 - signed_distance / max(shader_value(19u), 0.0001), 0.0, 1.0);
+        shader_glow = srgb_to_linear(vec3<f32>(shader_value(15u), shader_value(16u), shader_value(17u))) * shader_value(18u) * edge;
+    }
+    if shader_kind == 5.0 && shader_has_mask {
+        let noise = textureSampleLevel(skin_detail_mask_texture, material_sampler, sample_uv, 0.0).r * shader_value(4u);
+        let width = max(shader_value(5u), 0.0001);
+        let progress = shader_value(8u);
+        let view = safe_normalize(camera.view_direction.xyz, vec3<f32>(0.0, 0.0, -1.0));
+        let fresnel = 1.0 - abs(dot(safe_normalize(input.normal, view), view));
+        var band = pow(clamp((fresnel + noise) / width, 0.0, 1.0), max(shader_value(6u), 0.0001)) * shader_value(7u);
+        if progress > 0.001 && progress < 1.0 {
+            band = clamp(1.0 - abs(sample_uv.x + noise - progress) / width, 0.0, 1.0);
+        }
+        shader_glow = srgb_to_linear(vec3<f32>(shader_value(9u), shader_value(10u), shader_value(11u))) * band;
+    }
     if camera.view_mode == 4u {
         let checker = (u32(floor(sample_uv.x * 16.0)) + u32(floor(sample_uv.y * 16.0))) & 1u;
         let value = select(0.08, 0.88, checker != 0u);
@@ -413,7 +484,7 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool) 
     }
     let has_emission = material.emissive_color_and_intensity.a > 0.0
         && any(material.emissive_color_and_intensity.rgb > vec3<f32>(0.0));
-    if material.flags == 0u && !has_emission && material.glow_surface_color.a < 0.5 {
+    if material.flags == 0u && !has_emission && material.glow_surface_color.a < 0.5 && shader_kind == 0.0 {
         if camera.view_mode == 8u {
             let part_id = f32(input.part_id) + 1.0;
             return present_srgb(fract(part_id * vec3<f32>(0.6180339, 0.3819660, 0.7548777)), 1.0);
@@ -537,6 +608,12 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool) 
         tangent_normal = normalize(vec3<f32>(tangent_xy, tangent_z));
     }
     var skin_detail_weight = 0.0;
+    if shader_kind == 4.0 && shader_has_mask && shader_value(31u) > 0.5 {
+        let weight = textureSampleLevel(skin_detail_mask_texture, material_sampler, sample_uv, 0.0).r * shader_value(4u);
+        let detail_uv = sample_uv / max(shader_value(5u), 0.0001);
+        let detail = textureSampleLevel(skin_detail_normal_texture, material_sampler, detail_uv, 0.0).xy * 2.0 - vec2<f32>(1.0);
+        tangent_normal = safe_normalize(vec3<f32>(tangent_normal.xy + detail * weight, tangent_normal.z), vec3<f32>(0.0, 0.0, 1.0));
+    }
     if (material.flags & MATERIAL_SKIN_DETAIL_MASK) != 0u {
         skin_detail_weight = clamp(
             textureSampleBias(
@@ -664,6 +741,11 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool) 
             sample_uv,
             MATERIAL_MIP_LOD_BIAS).r, 0.0, 1.0);
         roughness = clamp(1.0 - authored_glossiness, 0.04, 1.0);
+    }
+    if shader_kind == 4.0 && (material.flags & MATERIAL_SURFACE) != 0u {
+        let source_roughness = textureSampleLevel(material_texture, material_sampler, sample_uv, 0.0).g;
+        let dye_offset = select(0.0, shader_value(6u) / 255.0 * 2.0 - 1.0, shader_value(1u) > 0.5);
+        roughness = clamp(source_roughness + dye_offset + 0.25, 0.04, 1.0);
     }
     if !has_source_roughness && !gltf_pbr {
         var category_roughness = 0.66;
@@ -1151,7 +1233,7 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool) 
         let floor = min(emission_strength, material.emission_animation.w);
         emission_strength = floor + (emission_strength - floor) * (0.5 + 0.5 * sin(3.14159265359 * material.emission_animation.z * camera.material_time));
     }
-    let emissive = emission_colour * emission_strength * select(2.2, 1.0, gltf_pbr);
+    let emissive = emission_colour * emission_strength * select(2.2, 1.0, gltf_pbr) + shader_glow;
     let showcase_warmth = select(vec3<f32>(1.0), vec3<f32>(1.08, 0.99, 0.90), showcase);
     let exposure = select(select(0.90, 1.0, showcase), 1.06, game_outdoor);
     if material.translucency_factors.z > 0.5 {
@@ -1348,6 +1430,7 @@ struct MaterialUniform {
     translucency_surface: [f32; 4],
     emission_animation: [f32; 4],
     emission_reveal: [f32; 4],
+    shader_controls: [[f32; 4]; 8],
 }
 
 const MATERIAL_BASE_COLOR: u32 = 1;
@@ -1407,16 +1490,18 @@ struct GpuVertex {
     tangent: [f32; 4],
     deformation: [f32; 4],
     editable_role: u32,
+    shader_masks: [f32; 3],
 }
 
 impl GpuVertex {
-    const ATTRIBUTES: [wgpu::VertexAttribute; 6] = wgpu::vertex_attr_array![
+    const ATTRIBUTES: [wgpu::VertexAttribute; 7] = wgpu::vertex_attr_array![
         0 => Float32x3,
         1 => Float32x3,
         2 => Float32x2,
         3 => Float32x4,
         4 => Float32x4,
-        5 => Uint32
+        5 => Uint32,
+        6 => Float32x3
     ];
 
     fn layout() -> wgpu::VertexBufferLayout<'static> {
@@ -1435,6 +1520,7 @@ impl GpuVertex {
             tangent: [1.0, 0.0, 0.0, 1.0],
             deformation: [0.0; 4],
             editable_role: 0,
+            shader_masks: [1.0, 1.0, 0.0],
         }
     }
 
@@ -1450,6 +1536,7 @@ impl GpuVertex {
             tangent: [1.0, 0.0, 0.0, 1.0],
             deformation: [vertex.colour[3].clamp(0.0, 1.0), 0.0, 0.0, 0.0],
             editable_role: 0,
+            shader_masks: [1.0, 1.0, 0.0],
         }
     }
 }
@@ -1568,6 +1655,7 @@ pub struct MaterialPreviewFactors {
     pub emissive_intensity: Option<f32>,
     pub emission_animation: Option<[f32; 4]>,
     pub emission_reveal: Option<[f32; 4]>,
+    pub shader_controls: Option<[f32; 32]>,
     pub roughness: Option<f32>,
     pub metalness: Option<f32>,
     pub specular: Option<f32>,
@@ -2018,6 +2106,8 @@ struct MaterialTextureIndices {
     flow: Option<usize>,
     layer_mask: Option<usize>,
     skin_detail_mask: Option<usize>,
+    shader_mask: Option<usize>,
+    shader_normal: Option<usize>,
     skin_detail_normal: Option<usize>,
     skin_detail_material: Option<usize>,
 }
@@ -2266,6 +2356,7 @@ fn gpu_vertices_with_tangents(
                 tangent,
                 deformation: deformation[index],
                 editable_role: scene_roles.map_or(0, |roles| roles[index]),
+                shader_masks: snapshot.shader_masks.get(index).copied().unwrap_or([1.0, 1.0, 0.0]),
             }
         })
         .collect())
@@ -2674,7 +2765,10 @@ pub struct WindowRenderer {
 impl WindowRenderer {
     pub fn has_material_animation(&self) -> bool {
         self.material_factors.iter().any(|owned| owned.factors.emission_animation
-            .is_some_and(|values| values[..3].iter().any(|v| *v > 0.0)))
+            .is_some_and(|values| values[..3].iter().any(|v| *v > 0.0))
+            || owned.factors.shader_controls.is_some_and(|v|
+                (v[0] == 3.0 && (v[6] * v[8] != 0.0 || v[7] * v[9] != 0.0))
+                || (v[0] == 6.0 && v[4] * v[5] > 0.0 && v[14] > 0.0 && (v[12] != 0.0 || v[13] != 0.0))))
     }
 
     pub fn set_material_time(&mut self, time: f32) {
@@ -4033,6 +4127,8 @@ fn material_texture_role_is_sampled(role: TextureRole) -> bool {
             | TextureRole::Height
             | TextureRole::Flow
             | TextureRole::LayerMask
+            | TextureRole::ShaderMask
+            | TextureRole::ShaderNormal
             | TextureRole::SkinDetailMask
             | TextureRole::SkinDetailNormal
             | TextureRole::SkinDetailMaterial
@@ -4069,6 +4165,7 @@ fn validate_material_factor_ownership(
         && factors.emissive_intensity.is_none()
         && factors.emission_animation.is_none()
         && factors.emission_reveal.is_none()
+        && factors.shader_controls.is_none()
         && factors.roughness.is_none()
         && factors.metalness.is_none()
         && factors.specular.is_none()
@@ -4125,6 +4222,10 @@ fn validate_material_factor_ownership(
         return Err(RenderError::Texture(
             "material factors contain a non-finite or out-of-range value".to_owned(),
         ));
+    }
+    if factors.shader_controls.is_some_and(|v| v.iter().any(|n| !n.is_finite() || n.abs() > 1e6)
+        || !(0.0..=6.0).contains(&v[0]) || v[0].fract() != 0.0) {
+        return Err(RenderError::Texture("Invalid experimental shader controls".to_owned()));
     }
     if factors.emission_reveal.is_some_and(|v| {
         v.into_iter().any(|v| !v.is_finite()) || !(0.0..=1.0).contains(&v[0])
@@ -4789,6 +4890,8 @@ async fn run_headless_render_smoke_internal(
             .iter()
             .map(|(material, indices)| {
                 let selected = MaterialTextureIndices {
+                    shader_mask: if roles.contains(&TextureRole::ShaderMask) { indices.shader_mask } else { None },
+                    shader_normal: if roles.contains(&TextureRole::ShaderNormal) { indices.shader_normal } else { None },
                     base_color: if roles.contains(&TextureRole::BaseColor) {
                         indices.base_color
                     } else {
@@ -5113,6 +5216,17 @@ async fn run_headless_render_smoke_internal(
                 role: TextureRole::Emissive, single_channel: uploaded.single_channel, material_indices_by_lod: vec![vec![0]] }];
             Ok(create_material_bind_group(&device, &texture_layout, &material_sampler, &default_material_textures,
                 &textures, MaterialTextureIndices { emissive: Some(0), ..Default::default() }, factors))
+        })?;
+    shader_controls_proof::verify(&device, &queue, format, &pipelines, &camera_bind_group,
+        &mut camera_uniform, &camera_buffer, &default_material_binding.bind_group, |mask, base, factors| {
+            let mut textures = Vec::new();
+            for (bytes, role) in [(base, TextureRole::BaseColor), (mask, TextureRole::ShaderMask), (mask, TextureRole::ShaderNormal)] {
+                let uploaded = upload_dds_texture(&device, &queue, bytes, role)?;
+                textures.push(GpuMaterialTexture { texture: uploaded.texture, view_format: uploaded.view_format,
+                    role, single_channel: uploaded.single_channel, material_indices_by_lod: vec![vec![0]] });
+            }
+            Ok(create_material_bind_group(&device, &texture_layout, &material_sampler, &default_material_textures,
+                &textures, MaterialTextureIndices { base_color: Some(0), shader_mask: Some(1), shader_normal: Some(2), ..Default::default() }, factors))
         })?;
     material_transparency::verify(
         &device,
@@ -6456,6 +6570,7 @@ fn isolate_material_snapshot(
         .filter_map(|source| remapped_vertices.get(source).copied())
         .collect();
     Ok(DrawSnapshot {
+        shader_masks: Vec::new(),
         mesh_identity: snapshot.mesh_identity,
         draw_revision: snapshot.draw_revision,
         topology_generation: snapshot.topology_generation,
@@ -6509,6 +6624,7 @@ fn material_proof_sphere_snapshot() -> DrawSnapshot {
     }
     let triangle_count = indices.len() / 3;
     DrawSnapshot {
+        shader_masks: Vec::new(),
         mesh_identity: u64::MAX - 17,
         draw_revision: 1,
         topology_generation: 1,
@@ -7984,6 +8100,8 @@ fn resolve_material_bindings<'a>(
                 TextureRole::Height => &mut slots.height,
                 TextureRole::Flow => &mut slots.flow,
                 TextureRole::LayerMask => &mut slots.layer_mask,
+                TextureRole::ShaderMask => &mut slots.shader_mask,
+                TextureRole::ShaderNormal => &mut slots.shader_normal,
                 TextureRole::SkinDetailMask => &mut slots.skin_detail_mask,
                 TextureRole::SkinDetailNormal => &mut slots.skin_detail_normal,
                 TextureRole::SkinDetailMaterial => &mut slots.skin_detail_material,
@@ -8020,6 +8138,9 @@ pub fn preview_material_factors(
         let target = resolved.entry(material).or_default();
         if changes.emissive_color.is_some() {
             target.emissive_color = changes.emissive_color;
+        }
+        if changes.shader_controls.is_some() {
+            target.shader_controls = changes.shader_controls;
         }
         if changes.emission_reveal.is_some() {
             target.emission_reveal = changes.emission_reveal;
@@ -8159,6 +8280,12 @@ fn resolve_material_factors<'a>(
                     )));
                 }
                 resolved.glow_surface_color = Some(color);
+            }
+            if let Some(controls) = factors.shader_controls {
+                if resolved.shader_controls.is_some_and(|existing| existing != controls) {
+                    return Err(RenderError::Texture("Conflicting shader controls".to_owned()));
+                }
+                resolved.shader_controls = Some(controls);
             }
             if let Some(reveal) = factors.emission_reveal {
                 if resolved.emission_reveal.is_some_and(|existing| existing != reveal) {
@@ -8963,10 +9090,11 @@ fn create_material_bind_group(
     let height_view = material_texture_view(textures, indices.height, &defaults.height);
     let flow_view = material_texture_view(textures, indices.flow, &defaults.flow);
     let layer_mask_view = material_texture_view(textures, indices.layer_mask, &defaults.layer_mask);
+    let effect = factors.shader_controls.is_some_and(|v| v[0] > 0.0);
     let skin_detail_mask_view =
-        material_texture_view(textures, indices.skin_detail_mask, &defaults.layer_mask);
+        material_texture_view(textures, if effect { indices.shader_mask } else { indices.skin_detail_mask }, &defaults.layer_mask);
     let skin_detail_normal_view =
-        material_texture_view(textures, indices.skin_detail_normal, &defaults.normal);
+        material_texture_view(textures, if effect { indices.shader_normal } else { indices.skin_detail_normal }, &defaults.normal);
     let skin_detail_material_view =
         material_texture_view(textures, indices.skin_detail_material, &defaults.surface);
     let mut flags = 0;
@@ -9018,10 +9146,10 @@ fn create_material_bind_group(
     }
     let skin_detail_ready =
         factors.skin_detail_scale.is_some() && factors.skin_detail_opacity.is_some();
-    if skin_detail_ready && indices.skin_detail_mask.is_some() {
+    if !effect && skin_detail_ready && indices.skin_detail_mask.is_some() {
         flags |= MATERIAL_SKIN_DETAIL_MASK;
     }
-    if skin_detail_ready && indices.skin_detail_normal.is_some() {
+    if !effect && skin_detail_ready && indices.skin_detail_normal.is_some() {
         flags |= MATERIAL_SKIN_DETAIL_NORMAL;
     }
     if skin_detail_ready && indices.skin_detail_material.is_some() {
@@ -9061,6 +9189,12 @@ fn create_material_bind_group(
     let uniform = MaterialUniform {
         emission_animation: factors.emission_animation.unwrap_or([0.0; 4]),
         emission_reveal: factors.emission_reveal.unwrap_or([0.0, 1.0, 0.0, -1.0]),
+        shader_controls: {
+            let mut values = factors.shader_controls.unwrap_or([0.0; 32]);
+            values[3] = if effect && indices.shader_mask.is_some() { 1.0 } else { 0.0 };
+            values[31] = if effect && indices.shader_normal.is_some() { 1.0 } else { 0.0 };
+            std::array::from_fn(|i| std::array::from_fn(|j| values[i * 4 + j]))
+        },
         flags,
         glow_surface_color: factors.glow_surface_color.map_or([0.0; 4], |c| [c[0], c[1], c[2], 1.0]),
         skin_detail_scale: factors.skin_detail_scale.unwrap_or(1.0),
@@ -9588,6 +9722,7 @@ mod material_transparency {
     ) -> Result<(), super::RenderError> {
         let saved_camera = *camera;
         let mut snapshot = cdmw_mesh::DrawSnapshot {
+            shader_masks: Vec::new(),
             mesh_identity: u64::MAX - 19,
             draw_revision: 1,
             topology_generation: 1,
@@ -10064,11 +10199,29 @@ mod tests {
     }
 
     #[test]
+    fn shader_controls_validate_and_remain_owned_by_the_selected_material() {
+        let mut controls = [0.0; 32]; controls[0] = 1.0; controls[4] = 0.5;
+        let factors = MaterialPreviewFactors { shader_controls: Some(controls), ..Default::default() };
+        let owners = vec![vec![1]];
+        assert!(validate_material_factor_ownership(factors, &owners).is_ok());
+        let resolved = resolve_material_factors(std::iter::once((factors, owners.as_slice())), 0).unwrap();
+        assert!(!resolved.contains_key(&0));
+        assert_eq!(resolved[&1].shader_controls, Some(controls));
+        for invalid in [f32::NAN, f32::INFINITY, 7.0, 1.5] {
+            controls[0] = invalid;
+            assert!(validate_material_factor_ownership(MaterialPreviewFactors {
+                shader_controls: Some(controls), ..Default::default()
+            }, &owners).is_err());
+        }
+    }
+
+    #[test]
     fn material_uniform_and_vertex_match_the_wgsl_layout_contracts() {
-        assert_eq!(std::mem::size_of::<MaterialUniform>(), 160);
-        assert_eq!(std::mem::size_of::<GpuVertex>(), 68);
+        assert_eq!(std::mem::size_of::<MaterialUniform>(), 288);
+        assert_eq!(std::mem::size_of::<GpuVertex>(), 80);
         assert_eq!(GpuVertex::ATTRIBUTES[5].shader_location, 5);
         assert_eq!(GpuVertex::ATTRIBUTES[5].format, wgpu::VertexFormat::Uint32);
+        assert_eq!(GpuVertex::ATTRIBUTES[6].format, wgpu::VertexFormat::Float32x3);
     }
 
     #[test]
@@ -10365,7 +10518,7 @@ mod tests {
 
     #[test]
     fn skin_detail_uses_authored_scale_mask_channel_and_support_maps() {
-        assert_eq!(std::mem::size_of::<MaterialUniform>(), 160);
+        assert_eq!(std::mem::size_of::<MaterialUniform>(), 288);
         assert_eq!(MATERIAL_SKIN_DETAIL_MASK, 524_288);
         assert_eq!(MATERIAL_SKIN_DETAIL_NORMAL, 1_048_576);
         assert_eq!(MATERIAL_SKIN_DETAIL_MATERIAL, 2_097_152);
@@ -10511,6 +10664,7 @@ mod tests {
     #[test]
     fn jiggle_region_colours_use_the_gpu_overlay_without_changing_geometry() {
         let snapshot = DrawSnapshot {
+            shader_masks: Vec::new(),
             mesh_identity: 1, draw_revision: 1, topology_generation: 1,
             positions: vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
             normals: vec![[0.0, 0.0, 1.0]; 3], uvs: vec![[0.0, 0.0]; 3],
@@ -10539,6 +10693,7 @@ mod tests {
     #[test]
     fn deformation_heatmap_uses_green_yellow_red_magnitude_scale() {
         let snapshot = DrawSnapshot {
+            shader_masks: Vec::new(),
             mesh_identity: 1,
             draw_revision: 1,
             topology_generation: 1,
@@ -10699,6 +10854,7 @@ mod tests {
     #[test]
     fn material_batches_group_noncontiguous_triangles_without_losing_indices() {
         let snapshot = DrawSnapshot {
+            shader_masks: Vec::new(),
             mesh_identity: 1,
             draw_revision: 1,
             topology_generation: 1,
@@ -10734,6 +10890,7 @@ mod tests {
     #[test]
     fn material_isolation_compacts_owned_triangles_and_preserves_the_owner() {
         let snapshot = DrawSnapshot {
+            shader_masks: Vec::new(),
             mesh_identity: 17,
             draw_revision: 4,
             topology_generation: 2,
@@ -10904,6 +11061,8 @@ mod tests {
                         flow: Some(11),
                         layer_mask: Some(12),
                         skin_detail_mask: Some(13),
+                        shader_mask: None,
+                        shader_normal: None,
                         skin_detail_normal: Some(14),
                         skin_detail_material: Some(15),
                     }
@@ -11278,6 +11437,7 @@ mod tests {
     #[test]
     fn tangent_basis_is_derived_from_positions_and_texture_coordinates() {
         let snapshot = DrawSnapshot {
+            shader_masks: Vec::new(),
             mesh_identity: 1,
             draw_revision: 1,
             topology_generation: 1,
@@ -11307,6 +11467,7 @@ mod tests {
     #[test]
     fn normal_and_bounds_overlays_build_persistent_line_vertices() {
         let snapshot = DrawSnapshot {
+            shader_masks: Vec::new(),
             mesh_identity: 1,
             draw_revision: 1,
             topology_generation: 1,
@@ -11341,6 +11502,7 @@ mod tests {
             .map(|index| [index as f32 * 0.001, 0.0, 0.0])
             .collect::<Vec<_>>();
         let dense = DrawSnapshot {
+            shader_masks: Vec::new(),
             mesh_identity: 2,
             draw_revision: 1,
             topology_generation: 1,

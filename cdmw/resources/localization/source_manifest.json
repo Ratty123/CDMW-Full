@@ -3681,7 +3681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 784,
+          "line": 789,
           "sink": "setToolTip"
         }
       ]
@@ -3761,7 +3761,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 220,
+          "line": 222,
           "sink": "ValueError"
         }
       ]
@@ -6306,7 +6306,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 855,
+          "line": 860,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -6872,6 +6872,16 @@
       ]
     },
     {
+      "key": "Amplitude U",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Amplitude V",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "An absent Morph & Refit state cannot contain Python metadata.",
       "origins": [
         {
@@ -7201,17 +7211,17 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_emission.py",
-          "line": 25,
+          "line": 27,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 146,
+          "line": 148,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_translucency.py",
-          "line": 18,
+          "line": 20,
           "sink": "ValueError"
         }
       ]
@@ -7445,6 +7455,11 @@
           "sink": "QGroupBox"
         }
       ]
+    },
+    {
+      "key": "Anisotropic detail",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Anisotropy",
@@ -7951,7 +7966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1073,
+          "line": 1090,
           "sink": "set_note"
         },
         {
@@ -8300,6 +8315,11 @@
           "sink": "QPushButton"
         }
       ]
+    },
+    {
+      "key": "Apply shader controls",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Apply the filter now. Filtering is debounced while typing to keep large archives responsive.",
@@ -13532,6 +13552,16 @@
       ]
     },
     {
+      "key": "Band exponent",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Band width",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Bare body",
       "origins": [
         {
@@ -13882,6 +13912,11 @@
       ]
     },
     {
+      "key": "Binary cutout, not glass. Higher progress reveals more of the surface. Uses the source mask, or the game's wing mask. Changing a Plain PBR shader is experimental.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Binary header preview:",
       "origins": [],
       "manual": true
@@ -13966,7 +14001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 855,
+          "line": 860,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -16136,7 +16171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 334,
+          "line": 335,
           "sink": "log"
         }
       ]
@@ -17861,7 +17896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 722,
+          "line": 727,
           "sink": "setToolTip"
         }
       ]
@@ -18300,6 +18335,11 @@
           "sink": "addItem"
         }
       ]
+    },
+    {
+      "key": "Centre mode (0/1/2)",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "ChaCha20",
@@ -19756,7 +19796,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7222,
+          "line": 7232,
           "sink": "report"
         }
       ]
@@ -20527,6 +20567,16 @@
       ]
     },
     {
+      "key": "Choose a compatible shader experiment for this part. Unchecked fields keep source values. Object dissolve is available for static objects in Mesh Editor.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/shader_controls_editor.py",
+          "line": 65,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Choose a complete DDS file smaller than 128 MiB.",
       "origins": [
         {
@@ -20871,7 +20921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/state.py",
-          "line": 403,
+          "line": 406,
           "sink": "ValueError"
         }
       ]
@@ -20881,7 +20931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 915,
+          "line": 921,
           "sink": "setToolTip"
         }
       ]
@@ -21211,7 +21261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 740,
+          "line": 745,
           "sink": "QPushButton"
         }
       ]
@@ -21265,6 +21315,11 @@
           "sink": "getExistingDirectory"
         }
       ]
+    },
+    {
+      "key": "Choose experiment",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Choose glowing parts, colour, strength and animation. Source glow maps are retained; parts without a glow map use a solid map. Off restores the source emission.",
@@ -21511,7 +21566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 855,
+          "line": 860,
           "sink": "getOpenFileName"
         }
       ]
@@ -22966,7 +23021,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 132,
+          "line": 134,
           "sink": "ValueError"
         }
       ]
@@ -23001,7 +23056,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 129,
+          "line": 131,
           "sink": "ValueError"
         }
       ]
@@ -23381,7 +23436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1003,
+          "line": 1020,
           "sink": "setText"
         },
         {
@@ -23446,7 +23501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/state.py",
-          "line": 505,
+          "line": 508,
           "sink": "python-return:stats_summary"
         }
       ]
@@ -23456,7 +23511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/state.py",
-          "line": 519,
+          "line": 522,
           "sink": "python-return:stats_summary"
         }
       ]
@@ -24096,7 +24151,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 325,
+          "line": 328,
           "sink": "report"
         }
       ]
@@ -27137,6 +27192,16 @@
       ]
     },
     {
+      "key": "Cross-grain scale",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Cross-grain tear",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Crosshatch",
       "origins": [
         {
@@ -29502,6 +29567,11 @@
       ]
     },
     {
+      "key": "Detail strength changes normals, not transparency. The roughness byte only acts when the source hair dye has nonzero alpha; editing it never enables or changes dye colour.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Detail:",
       "origins": [
         {
@@ -30441,7 +30511,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 691,
+          "line": 696,
           "sink": "QPushButton"
         },
         {
@@ -30491,7 +30561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 692,
+          "line": 697,
           "sink": "setToolTip"
         }
       ]
@@ -30565,6 +30635,11 @@
           "sink": "MeshEditorAction"
         }
       ]
+    },
+    {
+      "key": "Dissolve ratio",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Distant versions",
@@ -31666,7 +31741,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 383,
+          "line": 386,
           "sink": "ValueError"
         }
       ]
@@ -31706,7 +31781,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 301,
+          "line": 303,
           "sink": "ValueError"
         }
       ]
@@ -31747,11 +31822,16 @@
       ]
     },
     {
+      "key": "Dye roughness byte",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Dye-material preview requires the resident Preview Core.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/dye_preview.py",
-          "line": 56,
+          "line": 64,
           "sink": "ValueError"
         }
       ]
@@ -31982,6 +32062,16 @@
       ]
     },
     {
+      "key": "Edge colour RGB",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Edge glow",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Edge sensitivity",
       "origins": [
         {
@@ -31990,6 +32080,11 @@
           "sink": "_add_tool_setting_row"
         }
       ]
+    },
+    {
+      "key": "Edge width",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Edit",
@@ -32136,7 +32231,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 9480,
+          "line": 9492,
           "sink": "RuntimeError"
         }
       ]
@@ -37631,7 +37726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 741,
+          "line": 746,
           "sink": "setToolTip"
         }
       ]
@@ -37641,7 +37736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 755,
+          "line": 760,
           "sink": "setText"
         }
       ]
@@ -37651,7 +37746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 842,
+          "line": 847,
           "sink": "setText"
         }
       ]
@@ -37661,7 +37756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 876,
+          "line": 881,
           "sink": "emit"
         }
       ]
@@ -39627,16 +39722,26 @@
       ]
     },
     {
+      "key": "Finish the hair workflow before changing shader controls.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_shader_controls.py",
+          "line": 65,
+          "sink": "python-return:shader_controls_ui_state"
+        }
+      ]
+    },
+    {
       "key": "Finish the hair workflow before changing the material shader.",
       "origins": [
         {
           "path": "cdmw/services/mesh_emission.py",
-          "line": 73,
+          "line": 75,
           "sink": "python-return:emission_ui_state"
         },
         {
           "path": "cdmw/services/mesh_translucency.py",
-          "line": 62,
+          "line": 64,
           "sink": "python-return:translucency_ui_state"
         }
       ]
@@ -39911,7 +40016,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1031,
+          "line": 1048,
           "sink": "setText"
         }
       ]
@@ -40141,7 +40246,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 641,
+          "line": 646,
           "sink": "QCheckBox"
         }
       ]
@@ -40566,7 +40671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 844,
+          "line": 849,
           "sink": "setText"
         }
       ]
@@ -40671,7 +40776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 749,
+          "line": 754,
           "sink": "QPushButton"
         }
       ]
@@ -42317,11 +42422,16 @@
       ]
     },
     {
+      "key": "Glow colour RGB",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Glow draft has no emission settings.",
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 186,
+          "line": 195,
           "sink": "ValueError"
         }
       ]
@@ -42331,12 +42441,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_emission.py",
-          "line": 31,
+          "line": 33,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_emission.py",
-          "line": 73,
+          "line": 75,
           "sink": "python-return:emission_ui_state"
         }
       ]
@@ -42346,17 +42456,22 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_emission.py",
-          "line": 36,
+          "line": 38,
           "sink": "ValueError"
         }
       ]
+    },
+    {
+      "key": "Glow ratio",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Glow settings require replacement draft version 11.",
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 143,
+          "line": 145,
           "sink": "ValueError"
         }
       ]
@@ -42756,7 +42871,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 190,
+          "line": 199,
           "sink": "ValueError"
         }
       ]
@@ -46051,7 +46166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 322,
+          "line": 323,
           "sink": "emit"
         }
       ]
@@ -46126,7 +46241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 707,
+          "line": 712,
           "sink": "setText"
         }
       ]
@@ -46186,7 +46301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 683,
+          "line": 688,
           "sink": "QPushButton"
         }
       ]
@@ -46546,7 +46661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 675,
+          "line": 680,
           "sink": "QRadioButton"
         }
       ]
@@ -46556,7 +46671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
-          "line": 102,
+          "line": 104,
           "sink": "RunCancelled"
         }
       ]
@@ -48661,7 +48776,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 207,
+          "line": 216,
           "sink": "ValueError"
         }
       ]
@@ -48681,7 +48796,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_emission.py",
-          "line": 96,
+          "line": 98,
           "sink": "ValueError"
         }
       ]
@@ -48881,17 +48996,17 @@
         },
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 153,
+          "line": 160,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 156,
+          "line": 163,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 196,
+          "line": 205,
           "sink": "ValueError"
         },
         {
@@ -48936,7 +49051,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 117,
+          "line": 119,
           "sink": "ValueError"
         }
       ]
@@ -48946,7 +49061,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 381,
+          "line": 384,
           "sink": "ValueError"
         }
       ]
@@ -48956,7 +49071,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 126,
+          "line": 128,
           "sink": "ValueError"
         }
       ]
@@ -48966,7 +49081,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 105,
+          "line": 107,
           "sink": "ValueError"
         }
       ]
@@ -48976,7 +49091,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 166,
+          "line": 173,
           "sink": "ValueError"
         }
       ]
@@ -48986,7 +49101,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 181,
+          "line": 188,
           "sink": "ValueError"
         }
       ]
@@ -49007,6 +49122,16 @@
         {
           "path": "cdmw/services/archive_overlay_manager.py",
           "line": 494,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Invalid shader-control reset request.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_shader_controls.py",
+          "line": 86,
           "sink": "ValueError"
         }
       ]
@@ -49096,7 +49221,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_translucency.py",
-          "line": 85,
+          "line": 87,
           "sink": "ValueError"
         }
       ]
@@ -49247,6 +49372,11 @@
       ]
     },
     {
+      "key": "Invert progress mask",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Invert reveal mask",
       "origins": [
         {
@@ -49275,6 +49405,11 @@
           "sink": "_part_control_button"
         }
       ]
+    },
+    {
+      "key": "Invert sphere mask",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Issues",
@@ -49606,7 +49741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_item_source.py",
-          "line": 166,
+          "line": 168,
           "sink": "RunCancelled"
         }
       ]
@@ -50301,7 +50436,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 135,
+          "line": 137,
           "sink": "ValueError"
         }
       ]
@@ -50477,6 +50612,16 @@
         {
           "path": "cdmw/ui/item_icons/panels.py",
           "line": 171,
+          "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "Keep source shader",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/shader_controls_editor.py",
+          "line": 20,
           "sink": "addItem"
         }
       ]
@@ -51430,6 +51575,11 @@
           "sink": "setHeaderLabels"
         }
       ]
+    },
+    {
+      "key": "Length-grain scale",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Level",
@@ -53956,12 +54106,12 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 576,
+          "line": 579,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 578,
+          "line": 581,
           "sink": "ValueError"
         },
         {
@@ -54186,7 +54336,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 87,
+          "line": 89,
           "sink": "ValueError"
         }
       ]
@@ -56696,12 +56846,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 477,
+          "line": 478,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 478,
+          "line": 479,
           "sink": "emit"
         }
       ]
@@ -60071,12 +60221,12 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 662,
+          "line": 667,
           "sink": "QGroupBox"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 664,
+          "line": 669,
           "sink": "setAccessibleName"
         },
         {
@@ -61216,7 +61366,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8811,
+          "line": 8823,
           "sink": "RuntimeError"
         }
       ]
@@ -61296,7 +61446,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8741,
+          "line": 8753,
           "sink": "RuntimeError"
         }
       ]
@@ -61306,7 +61456,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8737,
+          "line": 8749,
           "sink": "RuntimeError"
         }
       ]
@@ -61316,7 +61466,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8712,
+          "line": 8724,
           "sink": "RuntimeError"
         }
       ]
@@ -61715,6 +61865,11 @@
           "sink": "setToolTip"
         }
       ]
+    },
+    {
+      "key": "Moving hair textures",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Multiple Crimson Desert package roots were found. Choose one:",
@@ -63021,32 +63176,32 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 377,
+          "line": 380,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 453,
+          "line": 456,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 580,
+          "line": 583,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 585,
+          "line": 588,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 587,
+          "line": 590,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 645,
+          "line": 648,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -63616,7 +63771,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 274,
+          "line": 276,
           "sink": "ValueError"
         }
       ]
@@ -64016,7 +64171,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 211,
+          "line": 213,
           "sink": "ValueError"
         }
       ]
@@ -64801,22 +64956,22 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 699,
+          "line": 704,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 705,
+          "line": 710,
           "sink": "NoteLabel"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1042,
+          "line": 1059,
           "sink": "set_note"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1043,
+          "line": 1060,
           "sink": "setText"
         }
       ]
@@ -66892,6 +67047,21 @@
       ]
     },
     {
+      "key": "Noise scale",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Noise speed UV",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Noise strength",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Non-finite animation channel values",
       "origins": [
         {
@@ -66906,7 +67076,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 179,
+          "line": 186,
           "sink": "ValueError"
         }
       ]
@@ -66916,7 +67086,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 169,
+          "line": 176,
           "sink": "ValueError"
         }
       ]
@@ -67080,6 +67250,16 @@
           "sink": "addItem"
         }
       ]
+    },
+    {
+      "key": "Normal detail scale",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Normal detail strength",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Normal maps",
@@ -67246,7 +67426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1075,
+          "line": 1092,
           "sink": "set_note"
         },
         {
@@ -67985,6 +68165,11 @@
           "sink": "addTab"
         }
       ]
+    },
+    {
+      "key": "Object dissolve",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Objects",
@@ -69361,12 +69546,12 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 714,
+          "line": 719,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 829,
+          "line": 834,
           "sink": "setText"
         }
       ]
@@ -69701,7 +69886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 402,
+          "line": 403,
           "sink": "emit"
         },
         {
@@ -69721,7 +69906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 715,
+          "line": 720,
           "sink": "setToolTip"
         }
       ]
@@ -70381,12 +70566,12 @@
         },
         {
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
-          "line": 536,
+          "line": 542,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
-          "line": 578,
+          "line": 584,
           "sink": "raise_if_cancelled"
         },
         {
@@ -72222,6 +72407,16 @@
       ]
     },
     {
+      "key": "Override this field. Uncheck to retain the authored value.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/shader_controls_editor.py",
+          "line": 73,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Override tile",
       "origins": [
         {
@@ -73171,7 +73366,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 361,
+          "line": 364,
           "sink": "ValueError"
         }
       ]
@@ -73181,7 +73376,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 355,
+          "line": 358,
           "sink": "ValueError"
         }
       ]
@@ -73191,7 +73386,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 373,
+          "line": 376,
           "sink": "ValueError"
         }
       ]
@@ -73638,6 +73833,31 @@
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
           "line": 147,
           "sink": "addTab"
+        }
+      ]
+    },
+    {
+      "key": "Parts sharing a preview material need the same shader controls.",
+      "origins": [
+        {
+          "path": "cdmw/services/shader_controls_preview.py",
+          "line": 40,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/shader_controls_preview.py",
+          "line": 111,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Parts sharing an atlas material need the same shader controls.",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_shader_controls.py",
+          "line": 38,
+          "sink": "ValueError"
         }
       ]
     },
@@ -74642,6 +74862,11 @@
       ]
     },
     {
+      "key": "Patterned reveal",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Pause",
       "origins": [
         {
@@ -75031,7 +75256,7 @@
         },
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 159,
+          "line": 166,
           "sink": "ValueError"
         },
         {
@@ -75306,7 +75531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 684,
+          "line": 689,
           "sink": "setToolTip"
         }
       ]
@@ -75526,7 +75751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1071,
+          "line": 1088,
           "sink": "setToolTip"
         }
       ]
@@ -75536,7 +75761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1071,
+          "line": 1088,
           "sink": "setToolTip"
         }
       ]
@@ -75811,7 +76036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 354,
+          "line": 355,
           "sink": "emit"
         }
       ]
@@ -76126,7 +76351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 766,
+          "line": 771,
           "sink": "QCheckBox"
         }
       ]
@@ -76790,6 +77015,11 @@
           "sink": "QLabel"
         }
       ]
+    },
+    {
+      "key": "Poster glow band",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Pre-run classification check: {value_0} matched DDS file(s) are still unclassified.",
@@ -77476,7 +77706,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_replacement_materials.py",
-          "line": 242,
+          "line": 245,
           "sink": "ValueError"
         }
       ]
@@ -77486,7 +77716,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_replacement_materials.py",
-          "line": 244,
+          "line": 247,
           "sink": "ValueError"
         }
       ]
@@ -77621,7 +77851,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7220,
+          "line": 7230,
           "sink": "report"
         }
       ]
@@ -77641,7 +77871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 373,
+          "line": 374,
           "sink": "log"
         },
         {
@@ -77951,7 +78181,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 543,
+          "line": 546,
           "sink": "on_log"
         }
       ]
@@ -78101,7 +78331,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7775,
+          "line": 7785,
           "sink": "progress"
         }
       ]
@@ -78111,7 +78341,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7086,
+          "line": 7096,
           "sink": "report"
         }
       ]
@@ -78121,7 +78351,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7110,
+          "line": 7120,
           "sink": "report"
         }
       ]
@@ -78461,7 +78691,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_template_model.py",
-          "line": 152,
+          "line": 154,
           "sink": "on_log"
         }
       ]
@@ -78481,7 +78711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 421,
+          "line": 422,
           "sink": "log"
         },
         {
@@ -78551,7 +78781,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 323,
+          "line": 326,
           "sink": "report"
         }
       ]
@@ -87071,7 +87301,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 194,
+          "line": 203,
           "sink": "ValueError"
         }
       ]
@@ -87081,7 +87311,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 161,
+          "line": 168,
           "sink": "ValueError"
         }
       ]
@@ -87091,7 +87321,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 163,
+          "line": 170,
           "sink": "ValueError"
         }
       ]
@@ -88301,7 +88531,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 209,
+          "line": 218,
           "sink": "ValueError"
         }
       ]
@@ -88341,7 +88571,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 172,
+          "line": 179,
           "sink": "ValueError"
         }
       ]
@@ -88361,7 +88591,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 198,
+          "line": 207,
           "sink": "ValueError"
         }
       ]
@@ -88371,7 +88601,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 110,
+          "line": 112,
           "sink": "ValueError"
         }
       ]
@@ -88381,7 +88611,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 107,
+          "line": 109,
           "sink": "ValueError"
         }
       ]
@@ -88391,7 +88621,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 37,
+          "line": 38,
           "sink": "ValueError"
         }
       ]
@@ -88401,7 +88631,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 34,
+          "line": 35,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -88431,7 +88661,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 200,
+          "line": 209,
           "sink": "ValueError"
         }
       ]
@@ -88551,7 +88781,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_replacement_materials.py",
-          "line": 269,
+          "line": 272,
           "sink": "ValueError"
         }
       ]
@@ -88986,7 +89216,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 375,
+          "line": 378,
           "sink": "ValueError"
         }
       ]
@@ -89045,6 +89275,21 @@
           "sink": "setToolTip"
         }
       ]
+    },
+    {
+      "key": "Requires HairAnimatedUV and decoded vertex green below white. Speed uses the raw shader time scale; preview timing and game shadows may differ. Zero amplitude stops motion.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Requires a Poster material. Progress drives a colour/glow sweep, not disappearance. Between 0.001 and 1 the sweep ignores glow ratio. The viewport approximates the band and lighting; game activation remains experimental.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Requires a TornCloth material and vertex colour R/G. White R/G disables the tears. Without decoded vertex colours the viewport leaves the shape unchanged.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Requires the source glow map. RGB supplies the colours, alpha masks their intensity, and red is the reveal mask. Uses RGB strength instead of the single-colour strength above. Reveal 0 is off; 1 shows the full glow. Game brightness may differ.",
@@ -89541,7 +89786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1031,
+          "line": 1048,
           "sink": "setText"
         }
       ]
@@ -90987,6 +91232,41 @@
       "manual": true
     },
     {
+      "key": "Restore shader controls",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Restore shader controls before applying Glow to this part.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_emission.py",
+          "line": 24,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Restore shader controls before applying Translucency to this part.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_translucency.py",
+          "line": 18,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Restore source shader controls",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/shader_controls_editor.py",
+          "line": 34,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Restore the backup named by the last Mesh Editor overlay receipt.",
       "origins": [
         {
@@ -91201,7 +91481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 670,
+          "line": 675,
           "sink": "setToolTip"
         }
       ]
@@ -91526,7 +91806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 829,
+          "line": 834,
           "sink": "setText"
         }
       ]
@@ -91645,6 +91925,11 @@
           "sink": "addRow"
         }
       ]
+    },
+    {
+      "key": "Reveal progress",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Reveal softness",
@@ -93836,7 +94121,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 176,
+          "line": 183,
           "sink": "ValueError"
         },
         {
@@ -97272,11 +97557,21 @@
       ]
     },
     {
+      "key": "Select all parts sharing this material and use the same shader controls.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_shader_controls.py",
+          "line": 17,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Select all parts sharing this material and use the same translucency settings.",
       "origins": [
         {
           "path": "cdmw/services/mesh_translucency.py",
-          "line": 22,
+          "line": 24,
           "sink": "ValueError"
         }
       ]
@@ -97736,7 +98031,17 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_emission.py",
-          "line": 93,
+          "line": 95,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Select at least one material part for shader controls.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_shader_controls.py",
+          "line": 84,
           "sink": "ValueError"
         }
       ]
@@ -97746,7 +98051,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_translucency.py",
-          "line": 82,
+          "line": 84,
           "sink": "ValueError"
         }
       ]
@@ -98610,6 +98915,11 @@
           "sink": "python-return:build_retrofit_update_plan_html"
         }
       ]
+    },
+    {
+      "key": "Selected parts have different shader settings. Applying replaces their explicit overrides.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Selected parts have different translucency settings.",
@@ -99718,6 +100028,76 @@
           "path": "cdmw/ui/archive_browser/static_replacement_texture_diagnostics.py",
           "line": 119,
           "sink": "texture_context_kv_row"
+        }
+      ]
+    },
+    {
+      "key": "Shader controls affect a whole atlas material. Select all its parts or import them separately.",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_shader_controls.py",
+          "line": 35,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Shader controls require replacement draft version 12.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_draft.py",
+          "line": 150,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Shader dependencies exceed the 512 MiB snapshot limit.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_shader_controls.py",
+          "line": 133,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Shader draft has no experimental controls.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_draft.py",
+          "line": 193,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Shader experiments cannot share a part with Glow or Translucency overrides.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_draft.py",
+          "line": 153,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Shader material bindings were not found: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_shader_controls.py",
+          "line": 46,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Shader material sources are ambiguous.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_shader_controls.py",
+          "line": 34,
+          "sink": "ValueError"
         }
       ]
     },
@@ -101156,7 +101536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 777,
+          "line": 782,
           "sink": "setToolTip"
         }
       ]
@@ -102106,7 +102486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 768,
+          "line": 773,
           "sink": "setToolTip"
         }
       ]
@@ -103832,6 +104212,16 @@
       ]
     },
     {
+      "key": "Spatial frequency U",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Spatial frequency V",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Spawn factor",
       "origins": [
         {
@@ -103935,6 +104325,16 @@
           "sink": "addRow"
         }
       ]
+    },
+    {
+      "key": "Speed U",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Speed V",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Speed limit",
@@ -104900,6 +105300,11 @@
           "sink": "python-return:_comparison_lines_from_mapping"
         }
       ]
+    },
+    {
+      "key": "Static Dissolve materials only. Centre: 0 player, 1 object pivot, 2 world. Larger ratio removes more unless inverted. The viewport approximates noise and edge lighting; player-relative mode stays visible because no game player position is available.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Static geometry thumbnail only in this picker; textures and live texture uploads are skipped here to keep placement browsing stable.",
@@ -106091,7 +106496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 676,
+          "line": 681,
           "sink": "setToolTip"
         }
       ]
@@ -106111,12 +106516,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 148,
+          "line": 155,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_translucency.py",
-          "line": 20,
+          "line": 22,
           "sink": "ValueError"
         },
         {
@@ -106240,6 +106645,11 @@
           "sink": "QLabel"
         }
       ]
+    },
+    {
+      "key": "Sweep progress",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Switch Mesh Editor preview between edited, source, and source ghost overlay modes.",
@@ -107356,7 +107766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 783,
+          "line": 788,
           "sink": "QCheckBox"
         }
       ]
@@ -107386,7 +107796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 669,
+          "line": 674,
           "sink": "QRadioButton"
         }
       ]
@@ -107426,7 +107836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
-          "line": 394,
+          "line": 400,
           "sink": "RunCancelled"
         }
       ]
@@ -107623,6 +108033,16 @@
           "path": "tools/translation_studio/ai_panel.py",
           "line": 305,
           "sink": "emit"
+        }
+      ]
+    },
+    {
+      "key": "Test the result in game; the viewport does not reproduce every game shader pass.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/shader_controls_editor.py",
+          "line": 31,
+          "sink": "QLabel"
         }
       ]
     },
@@ -109156,22 +109576,22 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 413,
+          "line": 414,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 415,
+          "line": 416,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 420,
+          "line": 421,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 451,
+          "line": 452,
           "sink": "RuntimeError"
         },
         {
@@ -109726,7 +110146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/dye_preview.py",
-          "line": 93,
+          "line": 123,
           "sink": "ValueError"
         }
       ]
@@ -109851,7 +110271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 993,
+          "line": 1010,
           "sink": "getColor"
         }
       ]
@@ -110441,7 +110861,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 162,
+          "line": 164,
           "sink": "ValueError"
         }
       ]
@@ -110616,7 +111036,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_emission.py",
-          "line": 39,
+          "line": 41,
           "sink": "ValueError"
         }
       ]
@@ -110626,7 +111046,17 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_translucency.py",
-          "line": 37,
+          "line": 39,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The matching material sidecar is missing or incomplete for: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_shader_controls.py",
+          "line": 55,
           "sink": "ValueError"
         }
       ]
@@ -110746,12 +111176,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 281,
+          "line": 282,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 282,
+          "line": 283,
           "sink": "emit"
         }
       ]
@@ -110811,7 +111241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
-          "line": 646,
+          "line": 652,
           "sink": "emit"
         }
       ]
@@ -111166,17 +111596,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 358,
-          "sink": "emit"
-        },
-        {
-          "path": "cdmw/ui/new_item/controller_model_mixin.py",
           "line": 359,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
           "line": 360,
+          "sink": "emit"
+        },
+        {
+          "path": "cdmw/ui/new_item/controller_model_mixin.py",
+          "line": 361,
           "sink": "emit"
         }
       ]
@@ -111576,7 +112006,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 141,
+          "line": 143,
           "sink": "ValueError"
         }
       ]
@@ -111786,7 +112216,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 313,
+          "line": 315,
           "sink": "ValueError"
         }
       ]
@@ -111796,12 +112226,32 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 156,
+          "line": 158,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 160,
+          "line": 162,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The shader mask is unavailable: {value_0}. Reopen this mesh from Browse Archives.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_shader_controls.py",
+          "line": 129,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The shader preview mask is missing: {value_0}. Reopen this mesh from Browse Archives.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_shader_controls_preview.py",
+          "line": 62,
           "sink": "ValueError"
         }
       ]
@@ -111986,7 +112436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 870,
+          "line": 875,
           "sink": "emit"
         }
       ]
@@ -112066,7 +112516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
-          "line": 601,
+          "line": 607,
           "sink": "emit"
         }
       ]
@@ -112136,7 +112586,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 127,
+          "line": 129,
           "sink": "ValueError"
         }
       ]
@@ -112285,6 +112735,11 @@
           "sink": "QLabel"
         }
       ]
+    },
+    {
+      "key": "These controls preserve the source maps. Game shader activation, shadows and timing still require an in-game test.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "These controls write raw fields. Values far outside the range used by the game's own equipment have crashed the game when an item was bought.",
@@ -113226,7 +113681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_variant_mixin.py",
-          "line": 118,
+          "line": 119,
           "sink": "ValueError"
         }
       ]
@@ -113291,7 +113746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/dye_preview.py",
-          "line": 61,
+          "line": 69,
           "sink": "ValueError"
         }
       ]
@@ -113872,6 +114327,11 @@
       ]
     },
     {
+      "key": "Torn cloth",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Total Delta",
       "origins": [
         {
@@ -114266,7 +114726,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 192,
+          "line": 201,
           "sink": "ValueError"
         }
       ]
@@ -114291,7 +114751,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_translucency.py",
-          "line": 34,
+          "line": 36,
           "sink": "ValueError"
         }
       ]
@@ -114301,12 +114761,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_translucency.py",
-          "line": 29,
+          "line": 31,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_translucency.py",
-          "line": 62,
+          "line": 64,
           "sink": "python-return:translucency_ui_state"
         }
       ]
@@ -114321,7 +114781,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 137,
+          "line": 139,
           "sink": "ValueError"
         }
       ]
@@ -114341,7 +114801,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 188,
+          "line": 197,
           "sink": "ValueError"
         }
       ]
@@ -114361,7 +114821,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 140,
+          "line": 142,
           "sink": "ValueError"
         }
       ]
@@ -115137,6 +115597,11 @@
       ]
     },
     {
+      "key": "Unchecked fields retain authored values. Compatibility is checked when applying.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Unclassified",
       "origins": [],
       "manual": true
@@ -115576,7 +116041,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 351,
+          "line": 354,
           "sink": "ValueError"
         }
       ]
@@ -116166,7 +116631,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_replacement.py",
-          "line": 144,
+          "line": 147,
           "sink": "ValueError"
         }
       ]
@@ -116176,7 +116641,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 95,
+          "line": 97,
           "sink": "ValueError"
         }
       ]
@@ -116981,7 +117446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 721,
+          "line": 726,
           "sink": "QPushButton"
         }
       ]
@@ -117411,7 +117876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 775,
+          "line": 780,
           "sink": "QCheckBox"
         }
       ]
@@ -118501,7 +118966,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 298,
+          "line": 300,
           "sink": "add"
         }
       ]
@@ -118511,7 +118976,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 279,
+          "line": 281,
           "sink": "add"
         }
       ]
@@ -118521,7 +118986,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 305,
+          "line": 307,
           "sink": "add"
         }
       ]
@@ -118531,7 +118996,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 315,
+          "line": 317,
           "sink": "add"
         }
       ]
@@ -118551,7 +119016,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 291,
+          "line": 293,
           "sink": "add"
         }
       ]
@@ -121550,6 +122015,11 @@
           "sink": "_add_settings_page"
         }
       ]
+    },
+    {
+      "key": "World centre XYZ",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Wrap",
@@ -126916,7 +127386,7 @@
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7368,
+          "line": 7378,
           "sink": "open_edit_session"
         },
         {
@@ -127321,12 +127791,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3297,
+          "line": 3303,
           "sink": "python-return:_material_input_texture_role"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3313,
+          "line": 3319,
           "sink": "python-return:_material_input_texture_role"
         },
         {
@@ -128646,7 +129116,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3319,
+          "line": 3325,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -128981,7 +129451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 642,
+          "line": 647,
           "sink": "setToolTip"
         }
       ]
@@ -129016,7 +129486,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3311,
+          "line": 3317,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -129201,7 +129671,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 4027,
+          "line": 4036,
           "sink": "ValueError"
         }
       ]
@@ -129361,12 +129831,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3284,
+          "line": 3290,
           "sink": "python-return:_material_input_texture_role"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3317,
+          "line": 3323,
           "sink": "python-return:_material_input_texture_role"
         },
         {
@@ -130641,12 +131111,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3295,
+          "line": 3301,
           "sink": "python-return:_material_input_texture_role"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3323,
+          "line": 3329,
           "sink": "python-return:_material_input_texture_role"
         },
         {
@@ -130716,7 +131186,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3668,
+          "line": 3677,
           "sink": "ValueError"
         }
       ]
@@ -130726,7 +131196,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3657,
+          "line": 3666,
           "sink": "ValueError"
         }
       ]
@@ -130736,7 +131206,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3640,
+          "line": 3649,
           "sink": "ValueError"
         }
       ]
@@ -131181,7 +131651,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3305,
+          "line": 3311,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -131446,12 +131916,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 6684,
+          "line": 6694,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 6782,
+          "line": 6792,
           "sink": "RuntimeError"
         }
       ]
@@ -132406,12 +132876,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3282,
+          "line": 3288,
           "sink": "python-return:_material_input_texture_role"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3301,
+          "line": 3307,
           "sink": "python-return:_material_input_texture_role"
         },
         {
@@ -132656,7 +133126,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3307,
+          "line": 3313,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -132846,7 +133316,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3315,
+          "line": 3321,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -135911,7 +136381,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3303,
+          "line": 3309,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -137431,12 +137901,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3294,
+          "line": 3300,
           "sink": "python-return:_material_input_texture_role"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3309,
+          "line": 3315,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -140491,7 +140961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1070,
+          "line": 1087,
           "sink": "setText"
         }
       ]
@@ -140501,7 +140971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1061,
+          "line": 1078,
           "sink": "setText"
         }
       ]
@@ -142611,7 +143081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 873,
+          "line": 878,
           "sink": "emit"
         }
       ]
@@ -144666,7 +145136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/state.py",
-          "line": 472,
+          "line": 475,
           "sink": "python-return:effect_reference"
         }
       ]
@@ -144886,7 +145356,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_emission.py",
-          "line": 52,
+          "line": 54,
           "sink": "ValueError"
         }
       ]
@@ -144992,6 +145462,16 @@
       ]
     },
     {
+      "key": "{value_0}: multiple source material variants need separate shader previews.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_shader_controls_preview.py",
+          "line": 31,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "{value_0}: no archive entry to read",
       "origins": [
         {
@@ -145067,6 +145547,16 @@
       ]
     },
     {
+      "key": "{value_0}: restore Glow and Translucency before choosing another shader experiment.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_shader_controls.py",
+          "line": 21,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "{value_0}: texture registry changes have no CDMW ownership information.",
       "origins": [
         {
@@ -145081,7 +145571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1072,
+          "line": 1089,
           "sink": "note"
         }
       ]
@@ -145092,6 +145582,16 @@
         {
           "path": "cdmw/services/mod_merge_service.py",
           "line": 226,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "{value_0}: the shader preview texture is unavailable: {value_1}.",
+      "origins": [
+        {
+          "path": "cdmw/services/shader_controls_preview.py",
+          "line": 147,
           "sink": "ValueError"
         }
       ]
@@ -145551,7 +146051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1060,
+          "line": 1077,
           "sink": "note"
         }
       ]
@@ -145871,7 +146371,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 206,
+          "line": 208,
           "sink": "add"
         }
       ]
@@ -145896,7 +146396,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 206,
+          "line": 208,
           "sink": "add"
         }
       ]

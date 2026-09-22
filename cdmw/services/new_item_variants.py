@@ -78,12 +78,12 @@ def prepare_variant_models(spec, snapshot, models, scenes, *, on_log=None, on_pr
         family = variant_family(snapshot.family(spec.template_key), appearance)
         model = models.get(appearance.identity)
         if not appearance.custom_model:
-            if appearance.glow_parts or appearance.translucency is not None or appearance.template_transform:
+            if appearance.glow_parts or appearance.translucency is not None or appearance.shader_controls or appearance.template_transform:
                 from cdmw.services.new_item_template_model import prepare_template_model
 
                 result[appearance.identity] = prepare_template_model(
                     snapshot, [appearance.model_path], glow=appearance.glow_choice(),
-                    translucency=appearance.translucency, transform=appearance.template_transform,
+                    translucency=appearance.translucency, shader_controls=appearance.shader_controls, transform=appearance.template_transform,
                     on_log=on_log, on_progress=on_progress, stop_event=stop_event,
                 )
             continue
@@ -112,7 +112,9 @@ def prepare_variant_models(spec, snapshot, models, scenes, *, on_log=None, on_pr
             from cdmw.services.new_item_skinning import rebind_armour_from_body
             files = rebind_armour_from_body(snapshot, appearance.model_path, files, stop_event=stop_event)
             validate_variant_rig(snapshot, appearance.model_path, files.pac_data, prefab_path=appearance.prefab_path)
-        result[appearance.identity] = files
+        from cdmw.services.new_item_shader_controls import apply_shader_controls
+        result[appearance.identity] = apply_shader_controls(
+            files, appearance.shader_controls, result=model, scene=scenes.get(appearance.identity))
     return result
 
 

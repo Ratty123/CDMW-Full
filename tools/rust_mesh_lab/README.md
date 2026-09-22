@@ -1,5 +1,13 @@
 # CDMW Rust Mesh Lab
 
+[Shader experiments](../../cdmw/ui/mesh_editor/SHADER_CONTROLS.md) use the
+existing authoring commands and resident preview. `replacement_shader_controls`
+accepts selected part IDs and typed controls, or `reset: true`. Python owns source
+validation, undo, drafts and output. Optional per-vertex `shader_masks` carry R/G
+plus a known-data flag; older documents default to unknown. The GPU vertex is 80
+bytes. `shader_mask` / `shader_normal` reuse skin-detail bindings only while an
+experiment is active; ordinary materials keep their previous bindings.
+
 Product labels use Preview and Mesh Editor, with neutral Layer, Morph Profile,
 Morph and Preset defaults. Internal renderer and protocol identities remain unchanged.
 Particle BC4/R8 masks use linear sampling; RGB mask coverage is converted back from
@@ -13,7 +21,8 @@ restores ordinary glow; null restores authored parameters. RGB emission samples 
 same glow texture's RGB/alpha and its red channel as a linear reveal mask. The shader
 scrolls emission UVs independently of the base texture and applies the decoded sine
 pulse after emission masking. The material clock uses camera-uniform padding without
-changing the camera buffer size. The material uniform is now 160 bytes.
+changing the camera buffer size. The material uniform is now 288 bytes, including
+eight vec4s for experimental shader controls.
 
 Animated materials request another frame after 16 ms while the window is visible;
 static materials retain event-driven repainting. The resident New Item preview uses

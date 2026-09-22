@@ -3713,6 +3713,7 @@ impl LabApplication {
         }
         self.draw_cdmw_translucency(ui, actions);
         self.draw_cdmw_emission(ui, actions);
+        self.draw_cdmw_shader_controls(ui, actions);
     }
 
     fn cdmw_part_action_reason(&self, action: &str) -> Option<&'static str> {

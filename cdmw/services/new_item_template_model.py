@@ -132,7 +132,7 @@ def transform_template_pac(payload, matrix, *, stop_event=None):
     return bytes(result)
 
 
-def prepare_template_model(snapshot, paths, *, glow=None, translucency=None, transform=(), on_log=None, on_progress=None, stop_event=None):
+def prepare_template_model(snapshot, paths, *, glow=None, translucency=None, shader_controls=(), transform=(), on_log=None, on_progress=None, stop_event=None):
     from cdmw.core.pac_xml_standard_material import find_material_wrappers, rewrite_emission
     from cdmw.services.new_item_planning import ModelFiles, NewItemPlanError
     from cdmw.services.new_item_materials import encode_emissive_solid
@@ -142,7 +142,9 @@ def prepare_template_model(snapshot, paths, *, glow=None, translucency=None, tra
         raise NewItemPlanError("The template has no editable model.")
     selected_glow = {name.casefold() for name in (glow.parts if glow else ())}
     selected_glass = {name.casefold() for name in (translucency.parts if translucency else ())}
-    found_glow, found_glass = set(), set()
+    found_glow, found_glass, found_controls = set(), set(), set()
+    from cdmw.domain.mesh.shader_controls import validate_choices
+    validate_choices(shader_controls, glow_parts=tuple(selected_glow), translucent_parts=tuple(selected_glass), equipment=True)
     side, geometry = {}, {}
     notes = ["Template geometry and authored materials retained with explicit appearance/placement edits."]
     solid = None
@@ -205,9 +207,13 @@ def prepare_template_model(snapshot, paths, *, glow=None, translucency=None, tra
             except ValueError as exc:
                 raise NewItemPlanError(str(exc)) from exc
             side.update(textures)
-        if emission or glass:
+        if shader_controls:
+            from cdmw.core.material_shader_controls import rewrite_shader_controls
+            text, matched = rewrite_shader_controls(text, shader_controls, allow_missing=True)
+            found_controls.update(matched)
+        if emission or glass or shader_controls:
             side[xml] = (b"\xef\xbb\xbf" if original.startswith(b"\xef\xbb\xbf") else b"") + text.encode("utf-8")
-    missing = (selected_glow - found_glow) | (selected_glass - found_glass)
+    missing = (selected_glow - found_glow) | (selected_glass - found_glass) | ({name.casefold() for name, _ in shader_controls} - found_controls)
     if missing:
         raise NewItemPlanError("Template material bindings were not found: " + ", ".join(sorted(missing)))
     side.update({path: data for path, data in geometry.items() if path != paths[0]})

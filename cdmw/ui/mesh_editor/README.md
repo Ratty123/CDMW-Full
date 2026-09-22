@@ -1,5 +1,9 @@
 # Mesh Editor
 
+[Shader experiments](SHADER_CONTROLS.md) extend
+the existing Parts workflow with captured material dependencies, Undo/Redo and
+replacement draft version 12. Static Dissolve stays object-only.
+
 Owns the direct, mesh-only Mesh Editor tab shell, typed archive-session requests,
 resident authoring workspace, and output orchestration. Archive internals and
 destructive writes stay outside this UI package. Static-replacement builder

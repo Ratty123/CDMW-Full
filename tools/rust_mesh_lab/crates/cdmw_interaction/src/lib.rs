@@ -1673,6 +1673,7 @@ mod tests {
                     normals: vec![[0.0, 1.0, 0.0]; vertex_count],
                     uvs: vec![[0.0, 0.0]; vertex_count],
                     indices,
+                    shader_masks: Vec::new(),
                     source_vertex_indices: (0..vertex_count)
                         .map(i32::try_from)
                         .collect::<Result<Vec<_>, _>>()?,

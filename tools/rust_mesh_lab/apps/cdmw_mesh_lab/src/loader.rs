@@ -71,6 +71,7 @@ pub struct LoadedMaterialFactors {
     pub emissive_intensity: Option<f32>,
     pub emission_animation: Option<[f32; 4]>,
     pub emission_reveal: Option<[f32; 4]>,
+    pub shader_controls: Option<[f32; 32]>,
     pub roughness: Option<f32>,
     pub metalness: Option<f32>,
     pub specular: Option<f32>,
@@ -1548,7 +1549,7 @@ fn resolve_material_parameters(
                         ]
                     }),
                     emissive_intensity: intensity.map(f32::from_bits),
-                    emission_animation: None, emission_reveal: None,
+                    emission_animation: None, emission_reveal: None, shader_controls: None,
                     roughness: roughness.map(f32::from_bits),
                     metalness: metalness.map(f32::from_bits),
                     specular: specular.map(f32::from_bits),
@@ -1876,6 +1877,8 @@ const fn is_preview_sampled_role(role: TextureRole) -> bool {
             | TextureRole::Height
             | TextureRole::Flow
             | TextureRole::LayerMask
+            | TextureRole::ShaderMask
+            | TextureRole::ShaderNormal
             | TextureRole::SkinDetailMask
             | TextureRole::SkinDetailNormal
             | TextureRole::SkinDetailMaterial
@@ -2204,6 +2207,8 @@ fn relation_kind(role: TextureRole) -> RelationKind {
         TextureRole::Height => RelationKind::HeightTexture,
         TextureRole::Flow => RelationKind::FlowTexture,
         TextureRole::LayerMask => RelationKind::LayerMaskTexture,
+        TextureRole::ShaderMask => RelationKind::LayerMaskTexture,
+        TextureRole::ShaderNormal => RelationKind::NormalTexture,
         TextureRole::SkinDetailMask => RelationKind::LayerMaskTexture,
         TextureRole::SkinDetailNormal => RelationKind::NormalTexture,
         TextureRole::SkinDetailMaterial => RelationKind::MaterialTexture,
@@ -2308,6 +2313,7 @@ mod tests {
                         normals: Vec::new(),
                         uvs: Vec::new(),
                         indices: Vec::new(),
+                        shader_masks: Vec::new(),
                         source_vertex_indices: Vec::new(),
                         source_range: SourceRange {
                             offset: 0,

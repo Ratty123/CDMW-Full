@@ -24,6 +24,7 @@ class PlannedEffectItemSource:
     material_route: MaterialRoute = MaterialRoute.PLAIN_PBR
     template_build: object = None
     preview_context: object = None
+    shader_controls: tuple = ()
 
     def consume(self, stop_event, consumer):
         """Keep prepared native textures leased until the Effects package owns them."""
@@ -34,10 +35,8 @@ class PlannedEffectItemSource:
 
         def consume_native(package):
             mesh = decode_dotnet_native_preview_package(package, cancelled=stop_event.is_set)
-            if not self.placement.is_identity:
-                from cdmw.services.new_item_template_model import transform_template_mesh
-                mesh = transform_template_mesh(mesh, self.placement.matrix())
-            return consumer(self._finish(mesh, "template", stop_event))
+            return consumer(self._finish(mesh, "template", stop_event,
+                template_transform=self.placement.matrix() if not self.placement.is_identity else None))
 
         return self.template_build(stop_event, **context, consume_native_package=consume_native)
 
@@ -112,12 +111,10 @@ class PlannedEffectItemSource:
                 mesh = parsed if mesh is None else placement_reference_mesh(mesh, parsed)
         if mesh is None:
             return None, ""
-        if not self.rebuilt_data and not self.placement.is_identity:
-            from cdmw.services.new_item_template_model import transform_template_mesh
-            mesh = transform_template_mesh(mesh, self.placement.matrix())
-        return self._finish(mesh, "applied" if self.applied else "template", stop_event)
+        return self._finish(mesh, "applied" if self.applied else "template", stop_event,
+            template_transform=self.placement.matrix() if not self.rebuilt_data and not self.placement.is_identity else None)
 
-    def _finish(self, mesh, kind, stop_event, origin=None):
+    def _finish(self, mesh, kind, stop_event, origin=None, *, template_transform=None):
         self._check_cancelled(stop_event)
         preview = glow_preview_mesh(mesh, self.glow)
         from cdmw.services.new_item_translucency import translucency_preview_mesh
@@ -125,6 +122,11 @@ class PlannedEffectItemSource:
         preview = translucency_preview_mesh(
             preview, self.translucency, source_transmission=self.material_route is MaterialRoute.PLAIN_PBR,
         )
+        from cdmw.services.shader_controls_preview import shader_preview_mesh
+        preview = shader_preview_mesh(preview, self.shader_controls, snapshot=self.snapshot, stop_event=stop_event)
+        if template_transform is not None:
+            from cdmw.services.new_item_template_model import transform_template_mesh
+            preview = transform_template_mesh(preview, template_transform)
         if self._is_wearable():
             point = origin
             if point is None and getattr(preview, "bbox_min", None) is not None and getattr(preview, "bbox_max", None) is not None:

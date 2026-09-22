@@ -1802,6 +1802,7 @@ impl PreviewApplication {
                 positions: Vec::new(),
                 normals: Vec::new(),
                 uvs: Vec::new(),
+                shader_masks: Vec::new(),
                 source_vertex_indices: Vec::new(),
                 indices: Vec::new(),
                 source_range: SourceRange {
@@ -2893,6 +2894,12 @@ fn apply_preview_material_parameters(
                     .map_err(|_| "RGB glow reveal requires four numbers".to_owned())?),
                 None => None,
             },
+            shader_controls: match group.get("shader_controls") {
+                Some(Value::Null) => Some([0.0; 32]),
+                Some(value) => Some(serde_json::from_value::<[f32; 32]>(value.clone())
+                    .map_err(|_| "Shader controls require 32 numbers".to_owned())?),
+                None => None,
+            },
             emission_animation: match group.get("emission_animation").filter(|v| !v.is_null()) {
                 Some(value) => Some(serde_json::from_value::<[f32; 4]>(value.clone())
                     .map_err(|_| "Emission animation requires four numbers".to_owned())?),
@@ -3740,6 +3747,7 @@ mod tests {
             HeadlessMaterialFactors, HeadlessMaterialTexture, run_headless_material_capture};
         let root = tempfile::tempdir().unwrap();
         let snapshot = cdmw_mesh::DrawSnapshot {
+            shader_masks: Vec::new(),
             mesh_identity: 1, draw_revision: 1, topology_generation: 1,
             positions: vec![[-1.0, -1.0, 0.0], [1.0, -1.0, 0.0], [0.0, 1.0, 0.0]],
             normals: vec![[0.0, 0.0, -1.0]; 3],

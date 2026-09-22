@@ -16,6 +16,7 @@ from cdmw.domain.mesh.jiggle import PacJiggleRule
 from cdmw.domain.mesh.physics_profile import PacPhysicsProfileRule
 from cdmw.domain.mesh.translucency import translucency_values, translucency_surface_values
 from cdmw.domain.mesh.emission import EmissionChoice
+from cdmw.domain.mesh.shader_controls import ShaderControls
 
 
 MAX_REPLACEMENT_BYTES = 512 * 1024 * 1024
@@ -49,7 +50,7 @@ def save_replacement_state(state, project_root, generation_dir, stop_event=None)
     translucent = any(part.translucency is not None for part in state.parts)
     guides = any(part.cloth_guides is not None for part in state.parts)
     return {
-        "version": (11 if any(part.emission is not None for part in state.parts) else 10 if any(part.translucency_surface is not None for part in state.parts) else 9 if guides else 8 if translucent else
+        "version": (12 if any(part.shader_controls is not None for part in state.parts) else 11 if any(part.emission is not None for part in state.parts) else 10 if any(part.translucency_surface is not None for part in state.parts) else 9 if guides else 8 if translucent else
                     7 if physics_profiles else 6 if relative_jiggle else
                     5 if any(part.jiggle is not None for part in state.parts) else
                     4 if any(part.cloth is not None for part in state.parts) else
@@ -69,9 +70,10 @@ def save_replacement_state(state, project_root, generation_dir, stop_event=None)
                    **({"physics_profiles": [rule.to_dict() for rule in part.physics_profiles]} if part.physics_profiles else {}),
                    **({"translucency": list(part.translucency)} if part.translucency is not None else {}),
                    **({"emission": part.emission.to_dict()} if part.emission is not None else {}),
+                   **({"shader_controls": part.shader_controls.to_dict()} if part.shader_controls is not None else {}),
                    **({"translucency_surface": list(part.translucency_surface)} if part.translucency_surface is not None else {}),
                    **({"jiggle": {**part.jiggle.to_dict(),
-                                  **({"retained": part.jiggle.retained} if relative_jiggle or physics_profiles or translucent or guides or any(p.emission is not None for p in state.parts) else {})}}
+                                  **({"retained": part.jiggle.retained} if relative_jiggle or physics_profiles or translucent or guides or any(p.emission is not None or p.shader_controls is not None for p in state.parts) else {})}}
                       if part.jiggle is not None else {})}
                   for part in state.parts],
         "dependencies": [file_payload(file) for file in state.dependencies],
@@ -90,7 +92,7 @@ def load_replacement_state(payload, project_root):
 def _load_replacement_state(payload, project_root):
     if payload is None:
         return None
-    if (not isinstance(payload, dict) or payload.get("version") not in {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}
+    if (not isinstance(payload, dict) or payload.get("version") not in {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}
             or (payload["version"] < 3 and ("neutral_appearance" in payload or "neutral_coordinates" in payload))):
         raise ValueError("Unsupported replacement draft state.")
     root = Path(project_root).resolve()
@@ -144,6 +146,11 @@ def _load_replacement_state(payload, project_root):
         emission = EmissionChoice.from_dict(value["emission"]) if "emission" in value else None
         if emission is not None and (emission.animation.active or emission.rgb is not None) and translucency is not None:
             raise ValueError("Animated glow cannot share a part with translucency.")
+        if payload["version"] < 12 and "shader_controls" in value:
+            raise ValueError("Shader controls require replacement draft version 12.")
+        controls = ShaderControls.from_dict(value["shader_controls"]) if "shader_controls" in value else None
+        if controls is not None and (emission is not None or translucency is not None):
+            raise ValueError("Shader experiments cannot share a part with Glow or Translucency overrides.")
         if surface is not None and translucency is None:
             raise ValueError("Surface overrides require translucency on the same part.")
         jiggle = PacJiggleRule.from_dict(value["jiggle"]) if "jiggle" in value else None
@@ -181,7 +188,9 @@ def _load_replacement_state(payload, project_root):
             raise ValueError("Invalid replacement output intent.")
         parts.append(ReplacementPart(str(value["part_id"]), int(value["target_index"]),
             tuple(str(v) for v in value["source_part_ids"]), value["included"],
-            value["material_choice"], str(value["source_label"]), positions, normals, cloth, jiggle, profiles, translucency, guides, surface, emission))
+            value["material_choice"], str(value["source_label"]), positions, normals, cloth, jiggle, profiles, translucency, guides, surface, emission, controls))
+    if payload["version"] == 12 and not any(part.shader_controls is not None for part in parts):
+        raise ValueError("Shader draft has no experimental controls.")
     if payload["version"] == 11 and not any(part.emission is not None for part in parts):
         raise ValueError("Glow draft has no emission settings.")
     if payload["version"] == 10 and not any(part.translucency_surface is not None for part in parts):

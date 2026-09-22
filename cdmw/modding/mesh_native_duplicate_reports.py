@@ -15,7 +15,7 @@ from cdmw.modding.mesh_native_core_constants import Vec2, Vec3
 from cdmw.modding.mesh_native_core_payload_helpers import _finite_float, _index
 from cdmw.modding.mesh_native_payloads import _source_vertex_map_report_values, _source_vertex_offsets_report_values
 from cdmw.modding.mesh_native_preview_payloads import _native_preview_triangle_group
-from cdmw.modding.mesh_deformer import _EXTRA_SUBMESH_ATTRS
+from cdmw.modding.mesh_deformer import _EXTRA_SUBMESH_ATTRS, shader_masks_by_source_offset
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 
 
@@ -163,6 +163,9 @@ def _build_duplicate_submesh(
                       source_bbox_min=_vec3(getattr(source, "source_bbox_min", (0.0, 0.0, 0.0)), fallback=0.0),
                       source_bbox_extent=_vec3(getattr(source, "source_bbox_extent", (0.0, 0.0, 0.0)), fallback=0.0))
     result = SubMesh(**kwargs)
+    masks = shader_masks_by_source_offset(source)
+    if masks and len(result.source_vertex_offsets) == len(result.vertices):
+        result.shader_masks = [masks.get(offset, (1., 1., 0.)) for offset in result.source_vertex_offsets]
     result.vertex_count, result.face_count = len(result.vertices), len(result.faces)
     setattr(result, "cdmw_mesh_edit_topology_source_submesh_index", source_index)
     raw_extra_attrs = item.get("extra_attrs")
