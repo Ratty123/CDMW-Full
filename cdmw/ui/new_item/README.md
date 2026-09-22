@@ -281,6 +281,16 @@ authored DDS bytes and encodes other source images as BC7 with alpha and mipmaps
 It leaves the base surface hue unchanged. A part without a source glow texture
 reports an error; split atlased materials before animating their emission.
 
+Skin parts using `SkinnedMeshSkin` or `SkinnedMeshSkin_Ver2` support static and
+animated Glow in both Create New Item and Mesh Editor. Their colour, normal and
+surface inputs are baked into an Emissive material, with nonmetal skin surface
+channels and textures up to 2048px. RGB glow still requires a source glow map.
+This conversion fixes dye colours in the baked textures and does not retain the
+skin shader's subsurface lighting or dynamic skin effects; its appearance needs
+in-game verification. Restore/untick or Undo recovers the original skin material.
+Unsupported-material errors name the shader; animation/translucency conflicts
+are reported only for a translucent material or an overlapping translucency edit.
+
 Both options follow the selected variant, Model & Placement, Perks & Effects and
 Build plan. The export uses the matching `SkinnedMeshEmissive` variant and retains
 other material inputs. Shader combinations that would drop wrinkle inputs, and

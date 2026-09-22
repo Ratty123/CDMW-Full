@@ -57,6 +57,18 @@ def test_incompatible_shader_and_wrinkle_inputs_fail_before_export(editor):
         rewrite_emission_animation(source, {name: GlowAnimation(pulse_frequency=1)})
 
 
+@pytest.mark.parametrize("animation", [GlowAnimation(), GlowAnimation(pulse_frequency=1)])
+def test_unsupported_glow_shader_does_not_report_a_translucency_conflict(animation):
+    source = ('<SkinnedMeshMaterialWrapper _subMeshName="Hand">'
+              '<Material Name="_resourceMaterial" _materialName="SkinnedMeshSkin">'
+              '<Vector Name="_parameters"/></Material></SkinnedMeshMaterialWrapper>')
+    with pytest.raises(ValueError) as error:
+        rewrite_emission_animation(source, {"Hand": animation})
+    assert "Hand" in str(error.value) and "SkinnedMeshSkin" in str(error.value)
+    assert "translucency" not in str(error.value).lower()
+    assert "animated" not in str(error.value).lower()
+
+
 def test_unticked_part_restores_authored_animation_in_combined_preview(editor):
     from cdmw.services.mesh_rust_authoring import _append_rust_material_presentation
     service, sid = editor

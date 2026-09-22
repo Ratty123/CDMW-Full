@@ -274,7 +274,7 @@ def test_texture_failure_reports_the_affected_part(monkeypatch, failure):
     snapshot = SimpleNamespace(payload=files.__getitem__, has_entry=files.__contains__)
     if failure == "decode":
         monkeypatch.setattr(texture_native, "ensure_directxtex_dds_preview_pngs", lambda *_args, **_kwargs: {})
-        expected = f"{BLADE}: cannot decode translucency texture {MASK}"
+        expected = f"{BLADE}: cannot decode material texture {MASK}"
     else:
         monkeypatch.setattr(texture_native, "encode_dds_with_directxtex", lambda *_args, **_kwargs: None)
         expected = f"{BLADE}: could not encode the base texture"

@@ -1,4 +1,4 @@
-"""Bake selected layered template materials for the texture-driven glass shader."""
+"""Bake selected template surfaces for texture-driven glass or skin glow."""
 
 from dataclasses import fields
 from collections import OrderedDict
@@ -19,27 +19,47 @@ _BAKE_CACHE_LOCK = threading.Lock()
 
 
 def bake_template_translucency(snapshot, text, model_path, settings, *, on_log=None, on_progress=None, stop_event=None):
-    from cdmw.core.archive_model_references import _parse_archive_model_sidecar_texture_bindings
     from cdmw.core.archive_model_texture_semantics import _is_placeholder_model_texture
-    from cdmw.core.pac_xml_standard_material import PlainMaterial, find_material_wrappers, rewrite_materials
-    from cdmw.core.texture_native import native_texture_backend_identity
-    from cdmw.services.new_item_variants import xml_path
+    from cdmw.core.pac_xml_standard_material import find_material_wrappers
 
     selected = [row for row in find_material_wrappers(text)
                 if row.submesh_name.casefold() in settings and (
                     not row.textures.get("_baseColorTexture")
                     or _is_placeholder_model_texture(row.textures["_baseColorTexture"]))]
+    return _bake_template_materials(snapshot, text, model_path, selected, settings, purpose="translucency",
+        on_log=on_log, on_progress=on_progress, stop_event=stop_event)
+
+
+def bake_template_skin_glow(snapshot, text, model_path, settings, *, on_log=None, on_progress=None, stop_event=None):
+    """Convert skin's diffuse/normal/surface inputs before using equipment emission."""
+    from cdmw.core.pac_xml_standard_material import find_material_wrappers
+
+    selected = [row for row in find_material_wrappers(text)
+                if row.submesh_name.casefold() in settings
+                and row.shader in {"SkinnedMeshSkin", "SkinnedMeshSkin_Ver2"}]
+    return _bake_template_materials(snapshot, text, model_path, selected, {}, purpose="glow",
+        on_log=on_log, on_progress=on_progress, stop_event=stop_event)
+
+
+def _bake_template_materials(snapshot, text, model_path, selected, settings, *, purpose,
+                              on_log=None, on_progress=None, stop_event=None):
+    from cdmw.core.archive_model_references import _parse_archive_model_sidecar_texture_bindings
+    from cdmw.core.archive_model_texture_semantics import _is_placeholder_model_texture
+    from cdmw.core.pac_xml_standard_material import PlainMaterial, rewrite_materials
+    from cdmw.core.texture_native import native_texture_backend_identity
+    from cdmw.services.new_item_variants import xml_path
+
     if not selected:
         return text, {}, ()
-    # The shared combiner resolves each shader's declared colour and surface
-    # inputs, including cloth and fur. Eligibility depends on usable output,
-    # not a separate shader-name allowlist in the template workflow.
+    # Resolve the source shader's declared colour and surface inputs before
+    # writing texture-driven material parameters, including skin's nonmetal maps.
     bindings = _parse_archive_model_sidecar_texture_bindings(text, sidecar_path=xml_path(model_path))
     replacements, side, notes = {}, {}, []
     source_hash = hashlib.sha256(text.encode("utf-8")).digest()
     backend = native_texture_backend_identity()
     payloads = {}
-    with TemporaryDirectory(prefix="cdmw_template_glass_") as temp:
+    suffix = "glass" if purpose == "translucency" else "glow"
+    with TemporaryDirectory(prefix=f"cdmw_template_{suffix}_") as temp:
         root = Path(temp)
         for index, row in enumerate(selected):
             raise_if_cancelled(stop_event)
@@ -59,7 +79,7 @@ def bake_template_translucency(snapshot, text, model_path, settings, *, on_log=N
                 raise_if_cancelled(stop_event)
                 if path not in payloads:
                     if not snapshot.has_entry(path):
-                        raise NewItemPlanError(f"{row.submesh_name}: cannot prepare translucency; missing texture {path}.")
+                        raise NewItemPlanError(f"{row.submesh_name}: cannot prepare {purpose}; missing texture {path}.")
                     # Read even on cache hits so the snapshot tracks current provenance.
                     payloads[path] = bytes(snapshot.payload(path))
                 fingerprints.append((path, hashlib.sha256(payloads[path]).digest()))
@@ -92,16 +112,19 @@ def bake_template_translucency(snapshot, text, model_path, settings, *, on_log=N
             stem = str(PurePosixPath(model_path.replace("character/model/", "character/texture/")).with_suffix(""))
             paths = {}
             for role, data in maps.items():
-                path = f"{stem}_cdmw_glass_{identity}_{role}.dds"
+                path = f"{stem}_cdmw_{suffix}_{identity}_{role}.dds"
                 side[path] = data
                 paths[role] = path
             replacements[row.submesh_name] = PlainMaterial(**paths,
-                emissive_texture=row.textures.get("_emissiveIntensityTexture", ""),
+                emissive_texture=(row.textures.get("_emissiveIntensityTexture", "")
+                    or (row.textures.get("_emissiveProgressTexture", "") if purpose == "glow" else "")),
                 emissive_color=row.value("_emissiveColor") or "#FFFFFFFF",
                 emissive_intensity=float(row.value("_emissiveIntensity") or 1.0),
                 render_flag=int(row.value("_renderSettingFlag")) if row.value("_renderSettingFlag") else None,
-                translucency=settings[row.submesh_name.casefold()])
-            notes.append(f"{row.submesh_name}: layered template colours and surface maps baked for translucency (up to 2048px); dye colours are fixed in the baked textures.")
+                translucency=settings.get(row.submesh_name.casefold()))
+            notes.append(f"{row.submesh_name}: layered template colours and surface maps baked for {purpose} (up to 2048px); dye colours are fixed in the baked textures.")
+            if purpose == "glow":
+                notes.append(f"{row.submesh_name}: skin glow uses an Emissive material; skin-specific subsurface lighting and dynamic skin effects are not retained.")
             detail = f"Prepared materials: {index + 1}/{len(selected)}."
             if on_log is not None:
                 on_log(detail)
@@ -143,7 +166,7 @@ def _bake_material_maps(row, bindings, payloads, model_path, output, index, repo
     for item in inputs:
         preview = decoded.get(item.source_dds_path)
         if preview is None:
-            raise NewItemPlanError(f"{row.submesh_name}: cannot decode translucency texture {item.source_texture_path}.")
+            raise NewItemPlanError(f"{row.submesh_name}: cannot decode material texture {item.source_texture_path}.")
         item.preview_texture_path = str(preview)
     report("Combining material layers...")
     combined = combine_preview_material(SimpleNamespace(material_name=row.submesh_name,
@@ -154,9 +177,9 @@ def _bake_material_maps(row, bindings, payloads, model_path, output, index, repo
             requested_output_channels=frozenset({"base", "normal", "roughness", "metalness", "legacy_material"})),
         cancelled=stop_event.is_set if stop_event is not None else None)
     if not combined.base_source:
-        raise NewItemPlanError(f"{row.submesh_name}: the layered material could not produce a base colour texture for translucency.")
+        raise NewItemPlanError(f"{row.submesh_name}: the layered material could not produce a base colour texture.")
     if any(item.binding_disposition == "layer_material_response" for item in inputs) and not combined.legacy_material_source:
-        raise NewItemPlanError(f"{row.submesh_name}: the layered surface maps could not be prepared for translucency; check the material's detail masks.")
+        raise NewItemPlanError(f"{row.submesh_name}: the layered surface maps could not be prepared; check the material's detail masks.")
     maps = {}
     for role, source in (("base", combined.base_source), ("normal", combined.normal_source),
                          ("material", combined.legacy_material_source)):
@@ -196,5 +219,5 @@ def _encode_baked_map(source, png, role, *, material, stop_event, on_log=None):
         source_color_policy="ignore_srgb_metadata", on_log=on_log, stop_event=stop_event)
     raise_if_cancelled(stop_event)
     if not report or not dds.is_file() or not dds.stat().st_size:
-        raise NewItemPlanError(f"{material}: could not encode the {role} texture for translucency.")
+        raise NewItemPlanError(f"{material}: could not encode the {role} texture.")
     return dds.read_bytes()

@@ -42,7 +42,19 @@ def build_emission_files(state, original, companion_files, *, stop_event=None):
     source = files.get(path, sources.get(path))
     if source is None:
         raise ValueError("The matching PAC XML is missing. Open this item from the archive to edit glow.")
-    text = _sidecar_text(source.data)
+    from types import SimpleNamespace
+    from cdmw.services.new_item_template_materials import bake_template_skin_glow
+
+    def read_texture(path):
+        key = path.replace("\\", "/").casefold()
+        file = files.get(key, sources.get(key))
+        return file.data if file is not None else None
+
+    captured = SimpleNamespace(has_entry=lambda path: read_texture(path) is not None, payload=read_texture)
+    text, baked, _ = bake_template_skin_glow(captured, _sidecar_text(source.data), state.target_path,
+                                            settings, stop_event=stop_event)
+    for key, data in baked.items():
+        files[key.casefold()] = ReplacementFile(key, data)
     text = rewrite_emission_animation(text, {name: value.animation for name, value in settings.items()})
     emission = {}
     for wrapper in find_material_wrappers(text):

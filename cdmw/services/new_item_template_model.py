@@ -199,6 +199,12 @@ def prepare_template_model(snapshot, paths, *, glow=None, translucency=None, sha
             notes.extend(baked_notes)
         if emission:
             from cdmw.core.pac_xml_emission import rewrite_emission_animation
+            from cdmw.services.new_item_template_materials import bake_template_skin_glow
+
+            text, textures, baked_notes = bake_template_skin_glow(snapshot, text, path, emission,
+                on_log=on_log, on_progress=on_progress, stop_event=stop_event)
+            side.update(textures)
+            notes.extend(baked_notes)
             # Validate against the source shader before switching it.
             text = rewrite_emission_animation(text, {name: glow.animation for name in emission})
             text = rewrite_emission(text, emission)

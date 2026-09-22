@@ -36,14 +36,18 @@ def append_emission_parameter(block, row):
 
 
 def validate_emission_shader(wrapper, *, animated=False):
+    if animated and wrapper.shader == "SkinnedMeshTranslucent":
+        raise PacXmlMaterialError(
+            f"{wrapper.submesh_name}: animated or RGB glow cannot share a part with translucency. "
+            "Use static glow or remove translucency from this part.")
     allowed = {"SkinnedMeshStandard", "SkinnedMeshStandard_Ver2",
                "SkinnedMeshEmissive", "SkinnedMeshEmissive_Ver2"}
     if not animated:
         allowed.add("SkinnedMeshTranslucent")
     if wrapper.shader not in allowed:
         raise PacXmlMaterialError(
-            f"{wrapper.submesh_name}: {wrapper.shader} does not support this glow edit. "
-            "Animated glow requires an equipment Emissive material and cannot share a part with translucency.")
+            f"{wrapper.submesh_name}: glow editing is not supported for this material ({wrapper.shader}). "
+            "The material must be prepared for an Emissive shader before applying glow.")
     if wrapper.shader.startswith("SkinnedMeshStandard") and any(
             p.name.lower().startswith("_wrinkle") for p in wrapper.parameters):
         raise PacXmlMaterialError(

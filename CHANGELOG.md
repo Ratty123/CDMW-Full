@@ -44,6 +44,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Glow supports skin materials in Mesh Editor and Create New Item by baking their colour, normal and nonmetal surface maps into an Emissive material. Restore and Undo retain the original skin material. Unsupported-material errors identify the shader; translucency conflicts are reported only when translucency is actually involved.
 - Effects start at the item's center and keep the chosen position when switching effects, including after moving the gizmo to zero or browsing through No effect. Saved placements and recipe layer positions remain intact.
 - Effects with dense item or character surfaces load from smaller, faster-to-prepare preview manifests without losing geometry. Oversized builds fail before replacing the current scene, and Retry keeps its package available instead of reporting a missing `manifest.json`.
 - Material Glow preview no longer clips strength 1 and 4 to the same solid white. Reduced bloom, bounded compositing and lower archive-material emission exposure preserve more surface detail. Dark mode retains dim fill lighting so textures remain readable at moderate glow strengths. Exported glow values are unchanged.
