@@ -251,13 +251,12 @@ class EffectPlacementWorkspace(
         self.caveat.setVisible(True)
 
     def _apply_scene_visibility(self) -> None:
-        """Show or hide the reach frame and the character; the item, the anchor and the
-        particles are always drawn."""
+        """Keep solid placement helpers hidden; retain the independent line gizmo."""
 
         self._refresh_legend()
         if self.host is None or self._preview is None:
             return
-        hidden = []
+        hidden = list(self._preview.solid_helper_submesh_indices)
         if not self.show_reach.isChecked():
             hidden.append(self._preview.reach_submesh_index)
         if not self.show_character.isChecked():
@@ -265,7 +264,7 @@ class EffectPlacementWorkspace(
         setter = getattr(self.host, "set_hidden_source_submeshes", None)
         if callable(setter):
             try:
-                setter(tuple(hidden))
+                setter(tuple(sorted(set(hidden))))
             except Exception:  # noqa: BLE001 - a host without the call keeps what it draws
                 pass
 

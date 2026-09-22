@@ -21,7 +21,6 @@ from PySide6.QtWidgets import (
 )
 
 from cdmw.services.effect_placement_preview import (
-    ANCHOR_TINT,
     BODY_TINT,
     EFFECT_AXIS_TINTS,
     ITEM_TINT,
@@ -136,7 +135,7 @@ class EffectPlacementConstructionMixin:
             # Keep the gesture reference without spending a permanent line on it.
             self.host.setToolTip(
                 "Turn the view: drag with the right mouse button. Shift-drag pans, the wheel zooms. "
-                "The left button drags the orange anchor."
+                "Drag the gizmo handles with the left mouse button to place the effect."
             )
             body.addLayout(viewport_column, 1)
             return
@@ -355,13 +354,12 @@ class EffectPlacementConstructionMixin:
         legend_column = QVBoxLayout()
         legend_column.setContentsMargins(0, 0, 0, 0)
         self.legend_rows: dict = {}
-        self._add_legend_row(legend_column, "anchor", ANCHOR_TINT, "the effect's origin - drag this one")
         axes = QLabel()
         axes.setTextFormat(Qt.TextFormat.RichText)
         axes.setWordWrap(True)
         axes.setText(
             f"{_swatch(EFFECT_AXIS_TINTS[0])}{_swatch(EFFECT_AXIS_TINTS[1])}{_swatch(EFFECT_AXIS_TINTS[2])} "
-            "the effect's own x, y and z, which the rotation turns"
+            "the transform gizmo: drag its handles to move, rotate or scale the effect"
         )
         legend_column.addWidget(axes)
         self.legend_rows["axes"] = axes

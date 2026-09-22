@@ -76,6 +76,7 @@ class _Host(QWidget):
         self.camera_bindings: list = []
         self.restored_views: list[dict] = []
         self.gizmo_tools: list = []
+        self.alignment_states: list = []
         self.lightings: list = []
         self.remembered: tuple = ()
         self.loaded = None
@@ -144,6 +145,7 @@ class _Host(QWidget):
         return True
 
     def set_alignment_state(self, *, enabled: bool) -> bool:
+        self.alignment_states.append(bool(enabled))
         return True
 
     def set_camera_drag_bindings(self, **_bindings) -> bool:
@@ -184,7 +186,7 @@ class _DialogTestCase(unittest.TestCase):
         dialog._preview = EffectPlacementPreview(
             package_dir=Path("."), box_submesh_index=0, item_submesh_count=1,
             box_min=(-11.0, -10.0, -11.0), box_max=(11.0, 17.0, 11.0),
-            reach_submesh_index=1, body_submesh_index=3,
+            reach_submesh_index=1, body_submesh_index=6,
         )
         self.addCleanup(self._shutdown_dialog, dialog)
         return dialog
@@ -324,12 +326,11 @@ class DialogTests(_DialogPresentationMixin, _DialogTestCase):
         dialog = self._dialog()
         dialog.show_character.setChecked(True)
         dialog.show_reach.setChecked(True)
-        self.assertEqual(self._legend(dialog), ["anchor", "axes", "item", "body", "reach", "particles"])
+        self.assertEqual(self._legend(dialog), ["axes", "item", "body", "reach", "particles"])
         dialog.show_character.setChecked(False)
         dialog.show_reach.setChecked(False)
-        # the anchor, its axes, the item and the particles are always drawn, so they
-        # are always named
-        self.assertEqual(self._legend(dialog), ["anchor", "axes", "item", "particles"])
+        # The line gizmo remains visible; its opaque helper geometry stays hidden.
+        self.assertEqual(self._legend(dialog), ["axes", "item", "particles"])
         self.assertIn("character", dialog.legend_rows["body"].text())
         self.assertIn("1.75 m", dialog.legend_rows["body"].text())
 
@@ -414,11 +415,11 @@ class DialogTests(_DialogPresentationMixin, _DialogTestCase):
         dialog.show_reach.setChecked(True)
         dialog.show_character.setChecked(True)
         dialog._apply_scene_visibility()
-        self.assertEqual(dialog.host.hidden, ())
+        self.assertEqual(dialog.host.hidden, (0, 2, 3, 4))
         dialog.show_character.setChecked(False)
-        self.assertEqual(dialog.host.hidden, (3,), "the character's submesh, not the item's")
+        self.assertEqual(dialog.host.hidden, (0, 2, 3, 4, 6), "the character's submesh, not the item's")
         dialog.show_reach.setChecked(False)
-        self.assertEqual(dialog.host.hidden, (1, 3))
+        self.assertEqual(dialog.host.hidden, (0, 1, 2, 3, 4, 6))
         self.assertTrue(dialog.legend_rows["body"].isHidden(), "the legend follows what is drawn")
 
     def test_the_particles_can_be_taken_off_the_item(self) -> None:
@@ -433,6 +434,43 @@ class DialogTests(_DialogPresentationMixin, _DialogTestCase):
         dialog.show_particles.setChecked(True)
         self.assertEqual(dialog.host.particles, [False, True])
         self.assertFalse(dialog.legend_rows["particles"].isHidden())
+
+    def test_embedded_gizmo_keeps_working_without_solid_helpers_at_any_effect_scale(self) -> None:
+        workspace = EffectPlacementWorkspace(
+            item_mesh=_blade(), box_min=(-1, -1, -1), box_max=(1, 1, 1),
+            host_factory=lambda parent: _Host(parent), compatibility_ui=False,
+        )
+        workspace._initial_package_timer.stop()
+        self.addCleanup(self._shutdown_workspace, workspace)
+        workspace._preview = EffectPlacementPreview(
+            package_dir=Path("."), box_submesh_index=0, item_submesh_count=1,
+            box_min=(-1, -1, -1), box_max=(1, 1, 1), body_submesh_index=6,
+        )
+        workspace.show_reach.setChecked(False)
+        workspace.show_character.setChecked(True)
+        workspace._host_state("ready", "")
+        hidden = (0, 1, 2, 3, 4)
+        self.assertEqual(workspace.host.hidden, hidden)
+        self.assertTrue(workspace.host.alignment_states[-1])
+        for scale in (workspace.scale_spin.minimum(), workspace.scale_spin.maximum()):
+            workspace.scale_spin.setValue(scale)
+            self.assertEqual(workspace.host.transforms[-1]["scale_xyz"], (scale,) * 3)
+            self.assertEqual(workspace.host.hidden, hidden)
+        for tool, button in (("move", workspace.move_button), ("rotate", workspace.rotate_button), ("scale", workspace.scale_button)):
+            button.click()
+            self.assertEqual(workspace.host.gizmo_tools[-1], tool)
+        workspace.host.alignment_drag_finished.emit(0.25, 0, 0)
+        workspace.host.alignment_rotation_finished.emit(0, 45, 0)
+        workspace.host.alignment_scale_finished.emit(-0.1, -0.1, -0.1)
+        self.assertEqual(workspace.offset, (0.25, 0, 0))
+        self.assertEqual(workspace.rotation, (0, 45, 0))
+        self.assertEqual(workspace.scale, 9.9)
+        self.assertIsNone(workspace.host.loaded, "live gizmo edits do not reload the package")
+        workspace.host.hidden = ()  # A restarted renderer must receive the mask again.
+        workspace._host_state("ready", "")
+        self.assertEqual(workspace.host.hidden, hidden)
+        self.assertTrue(workspace.host.alignment_states[-1])
+        self.assertEqual(workspace.host.transforms[-1]["translation"], (0.25, 0, 0))
 
     def test_showing_the_reach_zooms_out_far_enough_to_see_it(self) -> None:
         """The frame of an effect made for a boss is twenty metres across a one-metre
@@ -491,7 +529,7 @@ class DialogTests(_DialogPresentationMixin, _DialogTestCase):
         dialog._preview = EffectPlacementPreview(
             package_dir=Path("."), box_submesh_index=0, item_submesh_count=1,
             box_min=(-1.0, -1.0, -1.0), box_max=(1.0, 1.0, 1.0),
-            reach_submesh_index=1, body_submesh_index=3, item_rotation=quarter,
+            reach_submesh_index=1, body_submesh_index=6, item_rotation=quarter,
         )
         from cdmw.ui.new_item.effect_placement_dialog_support import PlacementFrame
 
@@ -574,11 +612,11 @@ class DialogTests(_DialogPresentationMixin, _DialogTestCase):
         dialog._preview = EffectPlacementPreview(
             package_dir=Path("."), box_submesh_index=0, item_submesh_count=1,
             box_min=(-1.0, -1.0, -1.0), box_max=(1.0, 1.0, 1.0),
-            reach_submesh_index=1, body_submesh_index=3, body_submesh_count=4,
+            reach_submesh_index=1, body_submesh_index=6, body_submesh_count=4,
         )
         dialog.show_reach.setChecked(True)
         dialog.show_character.setChecked(False)
-        self.assertEqual(dialog.host.hidden, (3, 4, 5, 6))
+        self.assertEqual(dialog.host.hidden, (0, 2, 3, 4, 6, 7, 8, 9))
 
     def test_the_dialog_builds_its_package_with_the_character_it_is_handed(self) -> None:
         """The whole path in one go: the builder runs on the worker thread, its character

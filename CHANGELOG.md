@@ -39,6 +39,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Perks & Effects keeps the solid origin marker and axis bars hidden so they cannot obscure particles when scaling or zooming. The thin Move, Rotate and Scale handles remain available.
 - Mesh Editor resolves glow, translucency and shader edits against the selected PAC part's material wrapper, including parts whose texture labels differ or are shared. Lower LOD previews keep the same ownership. Layered translucency now prepares colour and surface maps through the same path as New Item instead of rejecting a missing base map.
 - Perks & Effects explains where to restore an incompatible shader choice left by an older draft.
 - Create New Item disables incompatible shader experiments for template parts and explains their source shader, preventing an unsupported choice from blocking later Glow and Translucency preview updates. Compatibility follows the selected model variant and is prepared in the background.

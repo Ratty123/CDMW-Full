@@ -499,6 +499,16 @@ class EffectPlacementPreview:
     item_rotation: Optional[Tuple[float, ...]] = None
 
     @property
+    def solid_helper_submesh_indices(self) -> Tuple[int, ...]:
+        """Transform geometry retained for placement, hidden behind the line gizmo.
+
+        The editable role contains the origin, reach cage, then three axis bars.
+        Keeping these identities lets placement work without opaque helpers
+        covering particles as the effect is scaled or the camera zooms in.
+        """
+        return (self.box_submesh_index, *range(self.reach_submesh_index + 1, self.reach_submesh_index + 4))
+
+    @property
     def body_submesh_indices(self) -> Tuple[int, ...]:
         """Every scene submesh the body occupies, empty when the package carries none."""
 

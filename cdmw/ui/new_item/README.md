@@ -529,7 +529,10 @@ portable JSON recipes can retain up to 128 samples. Save, load, import and expor
 the complete composition. Playback speed, seek, seed, restart and preview
 quality support repeatable comparisons; playback settings do not change exported files.
 **Show effect** toggles only the particles for comparison with the item underneath;
-it never changes the draft, placement or camera. Selection, placement and look are staged; Apply publishes one draft
+it never changes the draft, placement or camera. Move, Rotate and Scale use the thin
+transform handles. The solid origin and axis helper meshes stay hidden, including
+after scaling or restarting the renderer, so they cannot cover the effect. The reach
+cage remains optional through **Show the reach**. Selection, placement and look are staged; Apply publishes one draft
 change, while Continue stays disabled and direct navigation offers Apply, Discard or
 Stay. The reusable `EffectPlacementWorkspace` keeps one renderer resident, rebuilds
 effect/look packages without resetting the camera, and retains old package files until

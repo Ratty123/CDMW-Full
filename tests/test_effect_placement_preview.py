@@ -247,6 +247,8 @@ class PackageTests(unittest.TestCase):
             self.assertEqual(scene["comparison_mode"], "overlay")
             self.assertEqual(scene["interaction_mode"], "placement")
             self.assertEqual(scene["roles"]["replacement"], [0, 1, 2, 3, 4], "the anchor, the reach cage and the axis triad move together")
+            self.assertEqual(preview.solid_helper_submesh_indices, (0, 2, 3, 4))
+            self.assertTrue(set(preview.solid_helper_submesh_indices).isdisjoint(scene["roles"]["original_reference"]))
             self.assertEqual(preview.reach_submesh_index, 1, "the cage keeps the index the dialog hides by")
             self.assertEqual(scene["roles"]["original_reference"], [5, 6], "the item and the character follow the anchor's five")
             self.assertEqual(preview.body_submesh_index, 6)
@@ -267,6 +269,34 @@ class PackageTests(unittest.TestCase):
             _manifest, scene = _rust_package_state(preview)
             self.assertEqual(scene["roles"]["original_reference"], [5])
             self.assertEqual(preview.body_submesh_index, -1)
+
+    def test_hidden_helpers_do_not_hide_item_or_character_parts_with_overlapping_source_indices(self) -> None:
+        from copy import copy
+
+        item = _blade()
+        body = _blade()
+        for mesh in (item, body):
+            original = mesh.submeshes[0]
+            mesh.submeshes = [copy(original) for _ in range(5)]
+            for index, part in enumerate(mesh.submeshes):
+                part.source_submesh_index = index
+                part.cdmw_native_source_submesh_index = index
+        with tempfile.TemporaryDirectory() as folder:
+            preview = build_effect_placement_package(
+                item, (-1, -1, -1), (1, 1, 1), output_root=Path(folder), character_mesh=body,
+            )
+            _manifest, scene = _rust_package_state(preview)
+            identities = scene["part_identities"]
+            self.assertEqual([part["source_submesh_index"] for part in identities], list(range(15)))
+            hidden = set(preview.solid_helper_submesh_indices) | {preview.reach_submesh_index}
+            visible = [part["scene_submesh_index"] for part in identities if part["source_submesh_index"] not in hidden]
+            self.assertEqual(visible, scene["roles"]["original_reference"])
+            hidden.update(preview.body_submesh_indices)
+            visible = [part["scene_submesh_index"] for part in identities if part["source_submesh_index"] not in hidden]
+            self.assertEqual(visible, list(range(5, 10)), "hiding the character leaves every item part visible")
+        for mesh in (item, body):
+            self.assertEqual([part.source_submesh_index for part in mesh.submeshes], list(range(5)))
+            self.assertEqual([part.cdmw_native_source_submesh_index for part in mesh.submeshes], list(range(5)))
 
     def test_a_reach_of_twenty_metres_does_not_become_the_size_of_the_world(self) -> None:
         """The builder frames on everything it is given, and the reach cage is one of the
