@@ -9,6 +9,12 @@ pub use gpu_lifecycle::GpuRecovery;
 mod effect_depth;
 mod effect_particle_proof;
 mod effect_particle_shader;
+mod effect_mesh;
+mod effect_mesh_shader;
+mod effect_mesh_proof;
+pub use effect_mesh_proof::run_headless_effect_mesh_deformation;
+pub use effect_mesh::{EffectLightningMaterial, EffectMeshAsset, EffectMeshInstance,
+    EffectMeshParticle, EffectMeshVertex, EffectMeshView, MAX_EFFECT_MESH_TRIANGLES};
 mod selection_overlay;
 pub use selection_overlay::verify_face_selection_depth;
 
@@ -1945,6 +1951,7 @@ struct GpuEffectTexture {
 }
 
 struct GpuEffectBatch {
+    depths: Vec<f32>,
     texture_index: usize,
     blend: EffectBlendMode,
     instances: Arc<wgpu::Buffer>,
@@ -2753,6 +2760,7 @@ pub struct WindowRenderer {
     effect_sampler: wgpu::Sampler,
     effect_textures: Vec<GpuEffectTexture>,
     effect_batches: Vec<GpuEffectBatch>,
+    effect_mesh: effect_mesh::MeshParticles,
     effect_instance_buffer: Option<(Arc<wgpu::Buffer>, usize)>,
     mesh: Option<GpuMeshBuffers>,
     skeleton_lines: Option<GpuOverlayLines>,
@@ -2858,6 +2866,7 @@ impl WindowRenderer {
         let bindings = std::mem::take(&mut self.active_material_bindings);
         let effects = self.effect_textures.split_off(1);
         let batches = std::mem::take(&mut self.effect_batches);
+        let effect_meshes = std::mem::take(&mut self.effect_mesh.resources);
         let instance_buffer = self.effect_instance_buffer.take();
         let camera = self.camera_uniform;
         let stats = self.upload_stats;
@@ -2873,6 +2882,7 @@ impl WindowRenderer {
             self.effect_textures.truncate(1);
             self.effect_textures.extend(effects);
             self.effect_batches = batches;
+            self.effect_mesh.resources = effect_meshes;
             self.effect_instance_buffer = instance_buffer;
             self.camera_uniform = camera;
             self.upload_stats = stats;
@@ -3016,6 +3026,9 @@ impl WindowRenderer {
             &effect_sampler,
         )];
         let effect_depth_layout = effect_depth::layout(&device, sample_count);
+        let effect_mesh = effect_mesh::MeshParticles::new(&device, format,
+            &camera_bind_group_layout, &effect_texture_bind_group_layout,
+            &effect_depth_layout, sample_count);
         let effect_particle_alpha_pipeline = create_effect_particle_pipeline(
             &device,
             format,
@@ -3138,6 +3151,7 @@ impl WindowRenderer {
             effect_sampler,
             effect_textures,
             effect_batches: Vec::new(),
+            effect_mesh,
             effect_instance_buffer: None,
             mesh: None,
             skeleton_lines: None,
@@ -3502,6 +3516,15 @@ impl WindowRenderer {
     pub fn reset_effect_textures(&mut self) {
         self.effect_textures.truncate(1);
         self.effect_batches.clear();
+        self.effect_mesh.resources = Default::default();
+    }
+
+    pub fn add_effect_mesh(&mut self, asset: &EffectMeshAsset) -> Result<usize, RenderError> {
+        self.effect_mesh.add(&self.device, asset)
+    }
+
+    pub fn set_effect_mesh_particles(&mut self, instances: &[EffectMeshInstance], view: EffectMeshView) -> Result<(), RenderError> {
+        self.effect_mesh.set(&self.device, &self.queue, instances, view)
     }
 
     /// Upload one validated package DDS. Identical bytes share the same GPU
@@ -3631,6 +3654,7 @@ impl WindowRenderer {
                 end += 1;
             }
             self.effect_batches.push(GpuEffectBatch {
+                depths: ordered[start..end].iter().map(|v| v.depth).collect(),
                 texture_index,
                 blend,
                 instances: Arc::clone(buffer),
@@ -3896,7 +3920,7 @@ impl WindowRenderer {
                     self.show_bounds,
                     false, // Skeleton context is drawn above weight and selection colours below.
                 );
-                if self.effect_batches.is_empty() {
+                if self.effect_batches.is_empty() && self.effect_mesh.is_empty() {
                     self.rig_weights.draw(
                         &mut pass,
                         &self.default_material_binding.bind_group,

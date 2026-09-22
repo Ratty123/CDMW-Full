@@ -243,10 +243,36 @@ pub(crate) fn effect_emitter_billboards_with_limit(
     lightning_view: LightningView,
     spawn_surface: Option<(&Surface, bool)>,
 ) -> Vec<EffectBillboardInstance> {
+    effect_emitter_particles(emitter, emitter_index, time, minimum_radius,
+        texture_index, model_matrix, camera_right, camera_up, camera_forward,
+        particle_limit, lightning_view, spawn_surface, None).billboards
+}
+
+#[derive(Default)]
+pub(crate) struct EffectEmission {
+    pub billboards: Vec<EffectBillboardInstance>,
+    pub meshes: Vec<cdmw_render_wgpu::EffectMeshInstance>,
+}
+
+pub(crate) fn effect_emitter_particles(
+    emitter: &Value,
+    emitter_index: usize,
+    time: f32,
+    minimum_radius: f32,
+    texture_index: usize,
+    model_matrix: Mat4,
+    camera_right: Vec3,
+    camera_up: Vec3,
+    camera_forward: Vec3,
+    particle_limit: usize,
+    lightning_view: LightningView,
+    spawn_surface: Option<(&Surface, bool)>,
+    mesh_index: Option<usize>,
+) -> EffectEmission {
     let max_particles_per_emitter = particle_limit.clamp(64, 2048);
     let surface_spawn = matches!(emitter["spawn_volume_type"].as_u64(), Some(5 | 6));
     if surface_spawn && spawn_surface.is_none() {
-        return Vec::new();
+        return EffectEmission::default();
     }
     let kind = emitter
         .get("kind")
@@ -263,9 +289,10 @@ pub(crate) fn effect_emitter_billboards_with_limit(
     // Never substitute crosses or sprites for unavailable mesh geometry. A
     // complete shipped lightning pack must fit even at the lowest quality.
     if faces == 0 || faces > 8192 {
-        return Vec::new();
+        return EffectEmission::default();
     }
-    let max_instances_per_emitter = (max_particles_per_emitter * 8).max(faces);
+    let max_instances_per_emitter = if mesh_index.is_some() { usize::MAX }
+        else { (max_particles_per_emitter * 8).max(faces) };
     let simulation_speed = emitter
         .get("simulation_speed")
         .and_then(Value::as_f64)
@@ -277,14 +304,14 @@ pub(crate) fn effect_emitter_billboards_with_limit(
     let delay = delay_low + (delay_high - delay_low) * seed_unit(emitter_index as f32 + 17.3);
     let simulation_time = time.max(0.0) * simulation_speed - delay.max(0.0);
     if simulation_time < 0.0 || emitter.get("burst").and_then(Value::as_u64) == Some(0) {
-        return Vec::new();
+        return EffectEmission::default();
     }
     let burst = emitter
         .get("burst")
         .and_then(Value::as_u64)
         .and_then(|value| usize::try_from(value).ok())
         .unwrap_or(1)
-        .clamp(1, if surface_spawn { 10000 } else { 64 });
+        .clamp(1, if surface_spawn || mesh_index.is_some() { 10000 } else { 64 });
     let maximum = emitter
         .get("max_particles")
         .and_then(Value::as_u64)
@@ -387,6 +414,7 @@ pub(crate) fn effect_emitter_billboards_with_limit(
     let scene_scale = scene_scale.max(1.0e-6);
     let lightning = LightningMaterial::read(emitter);
     let mut instances = Vec::new();
+    let mut mesh_instances = Vec::new();
     let mut emitted = 0usize;
     let candidates = burst
         .saturating_mul(burst_history.min(newest_burst.saturating_add(1).max(0) as usize))
@@ -477,7 +505,7 @@ pub(crate) fn effect_emitter_billboards_with_limit(
             let scale_low = vec3_value(scales.and_then(|v| v.first()), Vec3::splat(0.04)).abs();
             let scale_high = vec3_value(scales.and_then(|v| v.get(1)), scale_low).abs();
             let size = scale_low.lerp(scale_high, seed_unit(seed + 0.91)) * axes_curve;
-            if size.x <= 1.0e-6 || size.y <= 1.0e-6 {
+            if size.x <= 1.0e-6 || size.y <= 1.0e-6 || (mesh_index.is_some() && size.z <= 1.0e-6) {
                 continue;
             }
             let radius = size.max_element();
@@ -510,7 +538,20 @@ pub(crate) fn effect_emitter_billboards_with_limit(
                     * (std::f32::consts::PI / 180.0);
                 let rotation = Quat::from_euler(EulerRot::XYZ, angles.x, angles.y, angles.z);
                 let transform = model_matrix
-                    * Mat4::from_scale_rotation_translation(size, rotation, local_center);
+                    * Mat4::from_scale_rotation_translation(size, rotation, local_center)
+                    * Mat4::from_translation(vec3_value(emitter.get("pivot_offset"), Vec3::ZERO));
+                if let Some(mesh_index) = mesh_index {
+                    mesh_instances.push(cdmw_render_wgpu::EffectMeshInstance {
+                        mesh_index, depth: (center - lightning_view.eye).dot(camera_forward),
+                        particle: cdmw_render_wgpu::EffectMeshParticle {
+                            transform: transform.to_cols_array_2d(), colour,
+                            scale_age: [size.x, size.y, size.z, progress],
+                            seed: [seed as u32, 0, 0, 0],
+                            parent_scale: [model_matrix.x_axis.length(), model_matrix.y_axis.length(), model_matrix.z_axis.length(), 0.],
+                            parent_origin: model_matrix.w_axis.to_array(),
+                        },
+                    });
+                } else {
                 append_particle_mesh(
                     &mut instances,
                     emitter,
@@ -525,6 +566,7 @@ pub(crate) fn effect_emitter_billboards_with_limit(
                         transform, view: lightning_view,
                     })),
                 );
+                }
             } else if kind == "beam" {
                 let local_axis =
                     vec3_value(emitter.get("beam_axis"), Vec3::Y).normalize_or(Vec3::Y);
@@ -630,7 +672,7 @@ pub(crate) fn effect_emitter_billboards_with_limit(
             emitted += 1;
         }
     }
-    instances
+    EffectEmission { billboards: instances, meshes: mesh_instances }
 }
 
 fn effect_range(value: Option<&Value>, seed: f32, fallback: Vec3) -> Vec3 {
@@ -940,6 +982,28 @@ mod tests {
         assert_eq!(p[0].axis_right, [0.1, 0., 0.]);
         assert_eq!(p[0].axis_up, [0., 0.4, 0.]);
         assert_eq!(p[0].triangle_uvs, Some([[0., 0.], [1., 0.], [0., 1.]]));
+    }
+
+    #[test]
+    fn indexed_meshes_keep_particle_counts_and_apply_the_pivot_before_scale() {
+        let mut e = emitter();
+        e["kind"] = json!("mesh");
+        e["burst"] = json!(256);
+        e["max_particles"] = json!(256);
+        e["particle_vertices"] = json!([[0.,0.,0.],[1.,0.,0.],[0.,1.,0.]]);
+        e["particle_faces"] = json!(vec![[0,1,2];3338]);
+        e["scale"] = json!([[2.,2.,2.],[2.,2.,2.]]);
+        e["pivot_offset"] = json!([0.,0.,-5.]);
+        let emission = effect_emitter_particles(&e, 0, 0.5, 0.001, 0,
+            Mat4::from_translation(Vec3::X), Vec3::X,Vec3::Y,-Vec3::Z,256,
+            LightningView {eye:Vec3::Z*5.,vertical_fov:0.5,height:512.},None,Some(7));
+        assert!(emission.billboards.is_empty());
+        assert_eq!(emission.meshes.len(),256); // 854,528 triangles, 256 records.
+        assert!(emission.meshes.iter().all(|p| p.mesh_index == 7));
+        let transform = Mat4::from_cols_array_2d(&emission.meshes[0].particle.transform);
+        assert_eq!(transform.transform_point3(Vec3::ZERO),Vec3::new(1.,0.,-10.));
+        let cpu = draw(&e,0.5);
+        assert_eq!(cpu[0].center,[0.,0.,-10.]);
     }
 
     #[test]

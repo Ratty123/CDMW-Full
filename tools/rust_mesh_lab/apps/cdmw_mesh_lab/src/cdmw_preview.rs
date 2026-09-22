@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 #[cfg(test)]
 use crate::preview_effects::{effect_emitter_billboards, particle_kinematics};
-use crate::preview_effects::{effect_emitter_billboards_with_limit, push_effect_line};
+use crate::preview_effects::{effect_emitter_particles, push_effect_line};
 use crate::preview_effect_lightning::LightningView;
 
 use crate::camera::{OrbitCamera, StandardView};
@@ -402,6 +402,8 @@ pub struct PreviewApplication {
     effect_textures: Vec<CdmwEffectTextureResource>,
     effect_texture_indices: HashMap<String, usize>,
     effect_surfaces: crate::preview_effect_spawn::EffectSurfaces,
+    effect_meshes: crate::preview_effect_mesh::EffectMeshes,
+    effect_mesh_indices: Vec<Option<usize>>,
     presentations: Vec<SessionMaterialPresentation>,
     camera: OrbitCamera,
     view_mode: ViewMode,
@@ -454,6 +456,8 @@ impl PreviewApplication {
             .unwrap_or(Value::Null);
         let effect_surfaces = crate::preview_effect_spawn::EffectSurfaces::read(&scene, &|| false)
             .map_err(anyhow::Error::msg)?;
+        let effect_meshes = crate::preview_effect_mesh::EffectMeshes::read(&scene, &|| false)
+            .map_err(anyhow::Error::msg)?;
         let bridge = PreviewBridge::new(
             package.manifest().session_id.clone(),
             package.manifest().process_generation,
@@ -478,6 +482,8 @@ impl PreviewApplication {
             effect_textures,
             effect_texture_indices: HashMap::new(),
             effect_surfaces,
+            effect_meshes,
+            effect_mesh_indices: Vec::new(),
             presentations,
             camera,
             view_mode: ViewMode::TexturedSolid,
@@ -614,10 +620,13 @@ impl PreviewApplication {
         let Some(renderer) = &mut self.renderer else {
             return Ok(());
         };
-        let effect_texture_indices = renderer
+        let (effect_texture_indices, effect_mesh_indices) = renderer
             .replace_preview_scene(|renderer| {
                 renderer.reset_texture();
                 renderer.reset_effect_textures();
+                let effect_mesh_indices = self.effect_meshes.0.iter().map(|asset|
+                    asset.as_ref().map(|asset| renderer.add_effect_mesh(asset)).transpose()
+                ).collect::<Result<Vec<_>, _>>()?;
                 let mut effect_texture_indices = HashMap::new();
                 for texture in &self.effect_textures {
                     let index = renderer.add_effect_dds_texture(&texture.bytes)?;
@@ -647,10 +656,11 @@ impl PreviewApplication {
                     renderer.set_snapshot(&self.snapshot)?;
                     renderer.set_scene_transform(Mat4::IDENTITY)?;
                 }
-                Ok(effect_texture_indices)
+                Ok((effect_texture_indices, effect_mesh_indices))
             })
             .map_err(|error| error.to_string())?;
         self.effect_texture_indices = effect_texture_indices;
+        self.effect_mesh_indices = effect_mesh_indices;
         Ok(())
     }
 
@@ -720,6 +730,7 @@ impl PreviewApplication {
                 let old_mesh = std::mem::replace(&mut self.mesh, loaded.mesh);
                 let old_geometry = std::mem::replace(&mut self.geometry, loaded.geometry);
                 let old_effect_surfaces = std::mem::replace(&mut self.effect_surfaces, loaded.effect_surfaces);
+                let old_effect_meshes = std::mem::replace(&mut self.effect_meshes, loaded.effect_meshes);
                 let old_snapshot = std::mem::replace(&mut self.snapshot, loaded.snapshot);
                 let old_roles = std::mem::replace(&mut self.snapshot_scene_roles, loaded.roles);
                 let old_textures =
@@ -761,6 +772,7 @@ impl PreviewApplication {
                     self.mesh = old_mesh;
                     self.geometry = old_geometry;
                     self.effect_surfaces = old_effect_surfaces;
+                    self.effect_meshes = old_effect_meshes;
                     self.snapshot = old_snapshot;
                     self.snapshot_scene_roles = old_roles;
                     self.textures = old_textures;
@@ -1617,6 +1629,8 @@ impl PreviewApplication {
 
         let effect_lines = emphasis_lines;
         let mut effect_particles = Vec::new();
+        let mut effect_mesh_particles = Vec::new();
+        let mut effect_mesh_triangles = 0usize;
         if display
             .get("effect_particles_visible")
             .and_then(Value::as_bool)
@@ -1702,7 +1716,7 @@ impl PreviewApplication {
                         .and_then(|path| self.effect_texture_indices.get(path))
                         .copied()
                         .unwrap_or(0);
-                    let instances = effect_emitter_billboards_with_limit(
+                    let emission = effect_emitter_particles(
                         emitter,
                         seeded_index,
                         time,
@@ -1721,6 +1735,7 @@ impl PreviewApplication {
                         self.effect_surfaces.select(emitter_index,
                             emitter["spawn_volume_type"].as_u64().unwrap_or(0),
                             control("effect_surface_target", 0)),
+                        self.effect_mesh_indices.get(emitter_index).copied().flatten(),
                     );
                     let faces_per_particle = if kind == "mesh" {
                         emitter
@@ -1734,7 +1749,14 @@ impl PreviewApplication {
                     };
                     let remaining = 32_768usize.saturating_sub(effect_particles.len());
                     let allowed = remaining / faces_per_particle * faces_per_particle;
-                    for mut instance in instances.into_iter().take(allowed) {
+                    let mesh_allowed = cdmw_render_wgpu::MAX_EFFECT_MESH_TRIANGLES
+                        .saturating_sub(effect_mesh_triangles) / faces_per_particle;
+                    let mesh_allowed = mesh_allowed.min(32_768usize.saturating_sub(effect_mesh_particles.len()));
+                    for instance in emission.meshes.into_iter().take(mesh_allowed) {
+                        effect_mesh_particles.push(instance);
+                        effect_mesh_triangles += faces_per_particle;
+                    }
+                    for mut instance in emission.billboards.into_iter().take(allowed) {
                         let mut center = Vec3::from_array(instance.center);
                         if instance.triangle_uvs.is_some() {
                             center += (Vec3::from_array(instance.axis_right)
@@ -1753,12 +1775,18 @@ impl PreviewApplication {
             }
         }
 
+        let effect_mesh_view = cdmw_render_wgpu::EffectMeshView {
+            eye_height: [self.camera.eye().x, self.camera.eye().y, self.camera.eye().z,
+                self.viewport_rect().height().max(1.)],
+            fov_padding: [self.camera.vertical_field_of_view(), 0., 0., 0.],
+        };
         if let Some(renderer) = &mut self.renderer {
             let _ = renderer.set_skeleton_lines(&skeleton_lines);
             renderer.set_bone_overlay(skeleton_visible && !skeleton_lines.is_empty());
             let _ = renderer.set_preview_lines(&guide_lines);
             let _ = renderer.set_effect_lines(&effect_lines);
             let _ = renderer.set_effect_particles(&effect_particles);
+            let _ = renderer.set_effect_mesh_particles(&effect_mesh_particles, effect_mesh_view);
         }
     }
 

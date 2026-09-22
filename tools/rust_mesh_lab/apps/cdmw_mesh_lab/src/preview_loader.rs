@@ -21,6 +21,7 @@ pub struct LoadedPreview {
     pub snapshot: DrawSnapshot,
     pub geometry: PreviewGeometry,
     pub effect_surfaces: crate::preview_effect_spawn::EffectSurfaces,
+    pub effect_meshes: crate::preview_effect_mesh::EffectMeshes,
 }
 #[derive(Debug)]
 pub struct LoadRequest {
@@ -99,6 +100,7 @@ impl PreviewLoader {
                             request.revision,
                         );
                         let effect_surfaces = crate::preview_effect_spawn::EffectSurfaces::read(scene, &cancelled)?;
+                        let effect_meshes = crate::preview_effect_mesh::EffectMeshes::read(scene, &cancelled)?;
                         let document = package.document().clone();
                         Ok(LoadedPreview {
                             package,
@@ -108,6 +110,7 @@ impl PreviewLoader {
                             document,
                             roles,
                             effect_surfaces,
+                            effect_meshes,
                         })
                     })();
                     let _publication = worker_pending.lock().expect("preview request lock");

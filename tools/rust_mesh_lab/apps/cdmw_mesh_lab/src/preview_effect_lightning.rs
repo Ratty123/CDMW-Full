@@ -172,6 +172,26 @@ pub(crate) struct LightningMaterial {
 }
 
 impl LightningMaterial {
+    pub(crate) fn gpu(&self) -> cdmw_render_wgpu::EffectLightningMaterial {
+        cdmw_render_wgpu::EffectLightningMaterial {
+            parameters: [
+                [self.main.range.x, self.main.range.y, self.main.time, self.thickness_exponent],
+                [self.sub.range.x, self.sub.range.y, self.sub.time, self.deform_sub_branch],
+                [self.small.amplitude.ratio, self.small.amplitude.time, self.small.frequency, self.small.speed],
+                [self.big.amplitude.ratio, self.big.amplitude.time, self.big.frequency, self.big.speed],
+                [self.deform.ratio, self.deform.time, self.deform_frequency, self.deform_speed],
+                [self.small.offset, self.big.offset, self.deform_offset, u32::from(self.continuous) as f32],
+                [self.distance_range.x, self.distance_range.y, self.distance_multiple, u32::from(self.distance_width) as f32],
+                [self.sub_limits.x, self.sub_limits.y, 0., 0.],
+            ],
+            curves: [self.main.ratio_curve.0, self.main.time_curve.0,
+                self.sub.ratio_curve.0, self.sub.time_curve.0,
+                self.small.amplitude.ratio_curve.0, self.small.amplitude.time_curve.0,
+                self.big.amplitude.ratio_curve.0, self.big.amplitude.time_curve.0,
+                self.deform.ratio_curve.0, self.deform.time_curve.0],
+        }
+    }
+
     pub(crate) fn read(emitter: &Value) -> Option<Self> {
         let material = emitter.get("material")?;
         let values = &material["values"];
@@ -545,5 +565,60 @@ mod tests {
                 "simplex at {point:?}"
             );
         }
+    }
+
+    #[test]
+    #[ignore = "D3D12 readback of production GPU lightning deformation; synthetic geometry only"]
+    fn lightning_gpu_deformation_matches_decoded_cpu_reference() {
+        use cdmw_render_wgpu::{EffectMeshAsset, EffectMeshVertex, EffectMeshParticle, EffectMeshView};
+        let mut e = emitter();
+        for (key,value) in [("_smallRatioPivotNoiseAmplitude",0.01), ("_smallTimePivotNoiseAmplitude",1.),
+            ("_smallRatioPivotNoiseFrequency",8.), ("_smallRatioPivotNoiseSpeed",5.),
+            ("_bigRatioPivotNoiseAmplitude",0.2), ("_bigTimePivotNoiseAmplitude",1.),
+            ("_bigRatioPivotNoiseFrequency",1.), ("_bigRatioPivotNoiseSpeed",3.)] {
+            e["material"]["values"][key] = json!(value);
+        }
+        for (i,key) in ["_mainBranchThicknessSpline","_mainBranchThicknessByTimeSpline",
+            "_subBranchThicknessSpline","_subBranchThicknessByTimeSpline",
+            "_smallRatioPivotNoiseAmplitudeSpline","_smallTimePivotNoiseAmplitudeSpline",
+            "_bigRatioPivotNoiseAmplitudeSpline","_bigTimePivotNoiseAmplitudeSpline",
+            "_deformRatioAmplitudeSpline","_deformTimeAmplitudeSpline"].into_iter().enumerate() {
+            let samples = (0..128).map(|n| 0.3 + i as f32 * 0.03 + n as f32 / 254.).collect::<Vec<_>>();
+            e["material"]["splines"][key] = json!({"samples":[samples]});
+        }
+        let material = LightningMaterial::read(&e).unwrap();
+        let vertices = (0..24).map(|i| {
+            let t = i as f32 / 23.;
+            EffectMeshVertex { position: [t-0.5,t*2.,t*10.],
+                normal: Vec3::new(t+0.2,1.,-0.1).normalize().to_array(), uv: [t,0.7-t*0.3],
+                controls: [0.3, if i%2 == 0 {1.} else {0.5}, 0.25+t*0.7,1.] }
+        }).collect::<Vec<_>>();
+        let parent = Mat4::from_scale_rotation_translation(Vec3::new(1.2,0.8,2.),
+            glam::Quat::from_rotation_y(0.4),Vec3::new(0.2,1.5,0.));
+        let view = LightningView {eye:Vec3::new(0.5,1.2,3.),vertical_fov:0.65,height:720.};
+        let particles = [0.21,0.51,0.81].into_iter().enumerate().map(|(i,age)| {
+            let scale = Vec3::new(0.02,0.015,0.03);
+            let transform = parent * Mat4::from_scale_rotation_translation(scale,
+                glam::Quat::from_rotation_x(0.2+i as f32),Vec3::new(0.1,0.,0.))
+                * Mat4::from_translation(Vec3::new(0.,0.,-5.));
+            LightningParticle { age, seed: [0,17,4819][i], scale, parent, transform, view }
+        }).collect::<Vec<_>>();
+        let gpu_particles = particles.iter().map(|p| EffectMeshParticle {
+            transform: p.transform.to_cols_array_2d(), colour: [1.;4],
+            scale_age: [p.scale.x,p.scale.y,p.scale.z,p.age], seed: [p.seed,0,0,0],
+            parent_scale: [parent.x_axis.length(),parent.y_axis.length(),parent.z_axis.length(),0.],
+            parent_origin: parent.w_axis.to_array(),
+        }).collect::<Vec<_>>();
+        let asset = EffectMeshAsset { vertices, indices: vec![0,1,2], lightning: material.gpu() };
+        let positions = pollster::block_on(cdmw_render_wgpu::run_headless_effect_mesh_deformation(
+            &asset,&gpu_particles,EffectMeshView { eye_height:[view.eye.x,view.eye.y,view.eye.z,view.height],
+                fov_padding:[view.vertical_fov,0.,0.,0.] })).expect("GPU deformation readback");
+        let mut maximum = 0_f32;
+        for ((p,v),actual) in particles.iter().flat_map(|p| asset.vertices.iter().map(move |v| (p,v))).zip(positions) {
+            let expected = p.transform.transform_point3(material.deform_vertex(Vec3::from_array(v.position),
+                Vec3::from_array(v.normal),Vec2::from_array(v.uv),Vec3::new(v.controls[0],v.controls[1],v.controls[2]),*p));
+            maximum = maximum.max((expected-Vec3::new(actual[0],actual[1],actual[2])).abs().max_element());
+        }
+        assert!(maximum < 0.0002, "GPU/decoded CPU deviation: {maximum}");
     }
 }

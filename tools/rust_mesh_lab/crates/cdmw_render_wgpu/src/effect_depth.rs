@@ -74,7 +74,7 @@ pub(super) fn render(
     height: u32,
     viewport: Option<[f32; 4]>,
 ) {
-    if renderer.effect_batches.is_empty() || renderer.mesh.is_none() {
+    if (renderer.effect_batches.is_empty() && renderer.effect_mesh.is_empty()) || renderer.mesh.is_none() {
         return;
     }
     let [x, y, w, h] = viewport.unwrap_or([0., 0., width as f32, height as f32]);
@@ -118,16 +118,7 @@ pub(super) fn render(
         ((x + w).ceil() - x.floor()) as u32,
         ((y + h).ceil() - y.floor()) as u32,
     );
-    draw_effect_particles(
-        &mut pass,
-        &renderer.effect_quad,
-        &renderer.effect_batches,
-        &renderer.effect_textures,
-        &renderer.camera_bind_group,
-        &binding,
-        &renderer.effect_particle_alpha_pipeline,
-        &renderer.effect_particle_additive_pipeline,
-    );
+    effect_mesh::draw_combined(renderer, &mut pass, &binding);
     renderer.face_selection.draw(
         &mut pass,
         &renderer.default_material_binding.bind_group,

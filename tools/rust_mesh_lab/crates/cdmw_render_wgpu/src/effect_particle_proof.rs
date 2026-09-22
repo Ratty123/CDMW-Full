@@ -61,7 +61,7 @@ fn verify_samples(
     let sampler = create_effect_sampler(device);
     let render_depth = |instance: GpuEffectBillboardInstance,
                         dds: &[u8],
-                        opaque_depth: f32|
+                        opaque_depth: f32, indexed_mesh: bool|
      -> Result<Vec<u8>, RenderError> {
         let uploaded = upload_dds_texture(device, queue, dds, TextureRole::BaseColor)?;
         let textures = [effect_texture_binding(
@@ -82,12 +82,33 @@ fn verify_samples(
             }),
         );
         let batches = [GpuEffectBatch {
+            depths: vec![0.],
             texture_index: 0,
             blend: EffectBlendMode::Alpha,
             instances: buffer,
             first_instance: 0,
             instance_count: 1,
         }];
+        let mut meshes = indexed_mesh.then(|| effect_mesh::MeshParticles::new(
+            device, format, &camera_layout, &effect_layout, &depth_layout, samples));
+        if let Some(meshes) = &mut meshes {
+            let asset = EffectMeshAsset {
+                vertices: [[-1.,-1.,0.], [1.,-1.,0.], [0.,1.,0.]].map(|position|
+                    EffectMeshVertex { position, normal: [0.;3], uv: [0.;2], controls: [1.;4] }).to_vec(),
+                indices: vec![0,1,2],
+                lightning: EffectLightningMaterial { parameters: [[0.;4];8], curves: [[1.;128];10] },
+            };
+            meshes.add(device, &asset)?;
+            let transform = Mat4::from_cols(
+                Vec3::from_array(instance.axis_right).extend(0.),
+                Vec3::from_array(instance.axis_up).extend(0.), Vec3::Z.extend(0.),
+                Vec3::from_array(instance.center).extend(1.));
+            meshes.set(device, queue, &[EffectMeshInstance { mesh_index: 0, depth: 0.,
+                particle: EffectMeshParticle { transform: transform.to_cols_array_2d(), colour: instance.colour,
+                    scale_age: [0.5,0.25,1.,0.5], seed: [17,0,0,0],
+                    parent_scale: [1.;4], parent_origin: [0.;4] },
+            }], EffectMeshView { eye_height: [0.,0.,2.,SIZE as f32], fov_padding: [0.5,0.,0.,0.] })?;
+        }
         let target = create_headless_color_target(device, format, SIZE, SIZE);
         let view = target.create_view(&wgpu::TextureViewDescriptor::default());
         let depth = create_depth_target_with_sample_count(device, SIZE, SIZE, samples);
@@ -152,7 +173,9 @@ fn verify_samples(
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
-            draw_effect_particles(
+            if let Some(meshes) = &meshes {
+                meshes.draw(&mut pass, 0, 0, 1, &camera_binding, &textures[0].bind_group, &depth_binding);
+            } else { draw_effect_particles(
                 &mut pass,
                 &quad_buffer,
                 &batches,
@@ -161,7 +184,7 @@ fn verify_samples(
                 &depth_binding,
                 &pipeline,
                 &pipeline,
-            );
+            ); }
         }
         encoder.copy_texture_to_buffer(
             wgpu::TexelCopyTextureInfo {
@@ -187,7 +210,7 @@ fn verify_samples(
         queue.submit([encoder.finish()]);
         read_headless_pixels(device, &readback, SIZE, SIZE)
     };
-    let render_dds = |instance, dds: &[u8]| render_depth(instance, dds, 1.);
+    let render_dds = |instance, dds: &[u8]| render_depth(instance, dds, 1., false);
     let render = |instance, texels: [u8; 16]| {
         let mut dds = cdmw_texture::synthetic::rgba8_checker_dds();
         dds[148..164].copy_from_slice(&texels);
@@ -241,8 +264,8 @@ fn verify_samples(
     };
     let mut white_dds = cdmw_texture::synthetic::rgba8_checker_dds();
     white_dds[148..164].copy_from_slice(&white);
-    let soft = render_depth(base, &white_dds, plane_depth(-0.01))?;
-    let occluded = render_depth(base, &white_dds, plane_depth(0.01))?;
+    let soft = render_depth(base, &white_dds, plane_depth(-0.01), false)?;
+    let occluded = render_depth(base, &white_dds, plane_depth(0.01), false)?;
     require(
         center(&soft)[0] > 0 && center(&soft)[0] < center(&red)[0] / 2,
         "particles did not fade against scene geometry",
@@ -357,6 +380,11 @@ fn verify_samples(
         (230..=282).contains(&visible(&triangle)),
         "mesh triangle rendered as a quad or disappeared",
     )?;
+    let indexed = render_depth(base, &white_dds, 1., true)?;
+    require((230..=300).contains(&visible(&indexed)) && center(&indexed)[0] > 180
+        && center(&indexed)[2] < 5, "indexed lightning mesh lost its geometry or colour")?;
+    let transparent = render_depth(GpuEffectBillboardInstance { colour: [1.,0.,0.,0.], ..base }, &white_dds, 1., true)?;
+    require(visible(&transparent) == 0, "zero-alpha indexed lightning is visible")?;
     Ok(())
 }
 

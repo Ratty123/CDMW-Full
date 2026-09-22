@@ -204,8 +204,11 @@ attachment binding. The emitter inspector edits spawn type, surface density and
 volume values; for type 6, X is the normal offset, Y the triangle spread, Z the
 outer radius (0 = unlimited) and W the inner radius. Point mode removes the
 surface requirement. Supported lightning previews decoded branch thickness,
-bending and pivot noise with its authored material curves. Particle counts remain
-limited by preview quality; final shader masks and emissive response are approximate.
+bending and pivot noise with its authored material curves. Supported untextured
+additive lightning reuses indexed GPU geometry, so a complex bolt no longer
+reduces the preview to one particle per emitter. Mesh pivot offsets follow their
+inherited or overridden values. Particle counts remain limited by preview quality
+and a shared triangle budget; final shader masks and emissive response are approximate.
 
 Output can be a manager package or a CDMW-owned archive-group overlay. New Item
 installs through overlays only. **Output → Merge mods** combines compatible mod

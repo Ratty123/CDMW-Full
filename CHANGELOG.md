@@ -43,6 +43,8 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Effects preview draws supported lightning as indexed GPU mesh particles, retaining complete bolt geometry and authored deformation without the one-particle triangle bottleneck. It preserves mesh pivot offsets and the native default spawn type.
+
 - Surface-dependent effects now sample the selected item or real character mesh with decoded density, normal offset and volume clipping; missing surfaces produce no particles. The emitter inspector can edit and export spawn type, density and surface-volume values. Preview target selection remains separate from game attachment binding.
 - Supported lightning mesh particles now animate their decoded branch thickness, bending and pivot noise, using authored Bezier/linear material curves and packed vertex controls. Unsupported variants remain explicit; surface spawning and final game shading are still approximate.
 - Ready-mod texture export, targeted classification review, empty-layer texture crops, percent-encoded glTF buffers, material base-colour checks and mesh companion summaries no longer fail on missing runtime dependencies. glTF data URIs retain arbitrary binary bytes.

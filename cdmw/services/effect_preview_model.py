@@ -113,6 +113,7 @@ class EmitterPreview:
     particle_uvs: Tuple[Tuple[float, float], ...] = ()
     particle_faces: Tuple[Tuple[int, int, int], ...] = ()
     rotation_3d: Tuple[Vec3, Vec3] = ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
+    pivot_offset: Vec3 = (0.0, 0.0, 0.0)
     layer_index: int = 0
     start_delay: Tuple[float, float] = (0.0, 0.0)
     burst_min: int = 0
@@ -123,7 +124,7 @@ class EmitterPreview:
     repeat_curves: bool = False
     #: Authored GPU spawn inputs. Type 6 samples a target mesh inside a volume;
     #: it is not a point or a box that creates positions without a mesh.
-    spawn_volume_type: int = 0
+    spawn_volume_type: int = 2
     spawn_volume_data: Tuple[float, ...] = ()
     spawn_volume_transform: Tuple[float, ...] = ()
     spawn_volume_additional_data: Tuple[float, ...] = ()
@@ -612,7 +613,8 @@ def _emitter_preview(
     if mesh_name and not points:
         notes.append(f"{name}: spawn mesh {mesh_name.rsplit('/', 1)[-1]} was not read; choose an item or character surface for the preview")
     particle_mesh = _string_from(sources, "_meshObjectFileName")
-    spawn_volume = int(_read(sources, "_spawnData", "_spawnVolumeType", 0, _number))
+    # EmitterSpawnData's native constructor initializes this enum to 2.
+    spawn_volume = int(_read(sources, "_spawnData", "_spawnVolumeType", 2, _number))
     if spawn_volume in (5, 6) and not points:
         notes.append(f"{name}: spawn type {spawn_volume} requires a target mesh surface. An empty surface produces no particles; the preview requires an item or character surface selected in the Surface control. That preview selection does not verify the game target binding.")
     elif spawn_volume and not points:
@@ -705,6 +707,7 @@ def _emitter_preview(
             _read(sources, "_simulationData", "_rotationMin", (0.0, 0.0, 0.0), _vec3),
             _read(sources, "_simulationData", "_rotationMax", (0.0, 0.0, 0.0), _vec3),
         ),
+        pivot_offset=_read(sources, "_simulationData", "_pivotOffset", (0.0, 0.0, 0.0), _vec3),
     )
 
 
@@ -801,7 +804,7 @@ def build_effect_preview(
             if holder is not None:
                 reachable = {n.type_name for source in sources for n in source.node.walk()}
                 field_names.update(m.name for t in holder.types if t.type_name in reachable for m in t.members)
-        field_values = {"_surfaceDensity": (10000.0,), "_useUniformSurfaceDensity": (0,),
+        field_values = {"_spawnVolumeType": (2,), "_surfaceDensity": (10000.0,), "_useUniformSurfaceDensity": (0,),
                         "_particleLookAtSpawnNormal": (0,)}
         for source in reversed(sources):
             for value in source.node.all_values():

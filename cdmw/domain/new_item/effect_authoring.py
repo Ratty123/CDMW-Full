@@ -23,7 +23,7 @@ EMITTER_FIELDS = (
     ("_useCureveRepeat", "Repeat lifetime curves (0/1)", 0.0, 1.0, 0.0),
     ("_sequenceCountX", "Atlas columns", 1.0, 64.0, 1.0),
     ("_sequenceCountY", "Atlas rows", 1.0, 64.0, 1.0),
-    ("_spawnVolumeType", "Spawn type (0 = point)", 0.0, 255.0, 0.0),
+    ("_spawnVolumeType", "Spawn type (0 = point)", 0.0, 255.0, 2.0),
     ("_surfaceDensity", "Surface density", 0.0, 1000000.0, 10000.0),
     ("_useUniformSurfaceDensity", "Uniform surface density (0/1)", 0.0, 1.0, 0.0),
     ("_maxParticleCount", "Particle limit", 1.0, 100000.0, 200.0),

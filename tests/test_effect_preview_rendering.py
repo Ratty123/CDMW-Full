@@ -88,8 +88,21 @@ def test_explicit_empty_mesh_and_authored_velocity_override_the_base():
     assert result.velocity == ((0., 0.5, 0.), (2., 3., 4.))
 
 
+def test_mesh_pivot_preserves_inheritance_and_zero_overrides_and_native_defaults():
+    base = node("EmitterData", children=[
+        ("_simulationData", node("EmitterSimulationData", [("_pivotOffset", (0., 0., -5.))])),
+    ])
+    override = node("EmitterData", children=[
+        ("_simulationData", node("EmitterSimulationData", [("_pivotOffset", (0., 0., 0.))])),
+    ])
+    assert preview(base).pivot_offset == (0., 0., -5.)
+    assert preview(override, base).pivot_offset == (0., 0., 0.)
+    assert preview(base).spawn_volume_type == 2
+    assert preview(base).brightness == 1.
+
+
 def test_inline_emitters_are_complete_and_disabled_sound_emitters_are_omitted():
-    embedded = node("EmitterData", children=[("_spawnData", node("EmitterSpawnData", [("_spawnTermMin", 0.), ("_spawnTermMax", 0.)]))])
+    embedded = node("EmitterData", children=[("_spawnData", node("EmitterSpawnData", [("_spawnTermMin", 0.), ("_spawnTermMax", 0.), ("_spawnVolumeType", 0)]))])
     silent = node("EmitterData", [("_enableParticleRender", False)])
     variations = tuple(node("Variation", [("_emitterDataName", name)], [("_internalEmitterData", item)]) for name, item in (("flash", embedded), ("sound", silent)))
     original = decode_effect_binary(EFFECT.read_bytes())

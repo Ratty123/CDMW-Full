@@ -501,6 +501,11 @@ impl ApplicationHandler for EffectProbe {
                     v[0].as_f64().unwrap() as f32, v[1].as_f64().unwrap() as f32, v[2].as_f64().unwrap() as f32)).unwrap_or(Vec3::ZERO);
                 let model = Mat4::from_translation(offset);
                 renderer.reset_effect_textures();
+                let effect_meshes = crate::preview_effect_mesh::EffectMeshes::read(
+                    &serde_json::json!({"effects_overlay": &effect}), &|| false).map_err(anyhow::Error::msg)?;
+                let mesh_indices = effect_meshes.0.iter().map(|asset|
+                    asset.as_ref().map(|asset| renderer.add_effect_mesh(asset)).transpose()
+                ).collect::<Result<Vec<_>, _>>()?;
                 let mut textures = std::collections::HashMap::new();
                 for (name, path) in inputs["textures"].as_object().expect("texture map") {
                     textures.insert(
@@ -519,7 +524,7 @@ impl ApplicationHandler for EffectProbe {
                         .iter()
                         .enumerate()
                     {
-                        for p in crate::preview_effects::effect_emitter_billboards_with_limit(
+                        let emission = crate::preview_effects::effect_emitter_particles(
                             emitter,
                             index,
                             time,
@@ -532,12 +537,32 @@ impl ApplicationHandler for EffectProbe {
                             256,
                             crate::preview_effect_lightning::LightningView { eye: Vec3::Z * 5., vertical_fov: 45_f32.to_radians(), height: 480. },
                             effect_surfaces.select(index, emitter["spawn_volume_type"].as_u64().unwrap_or(0), inputs["surface_target"].as_i64().unwrap_or(0)),
-                        ) {
+                            mesh_indices[index],
+                        );
+                        for p in emission.billboards {
                             let center = Vec3::from_array(p.center);
                             let radius = Vec3::from_array(p.axis_right).abs()
                                 + Vec3::from_array(p.axis_up).abs();
                             low = low.min(center - radius);
                             high = high.max(center + radius);
+                        }
+                        if let Some(asset) = &effect_meshes.0[index] {
+                            let material = crate::preview_effect_lightning::LightningMaterial::read(emitter).unwrap();
+                            for instance in emission.meshes {
+                                let p = instance.particle;
+                                let transform = Mat4::from_cols_array_2d(&p.transform);
+                                let particle = crate::preview_effect_lightning::LightningParticle {
+                                    age:p.scale_age[3],seed:p.seed[0],
+                                    scale:Vec3::new(p.scale_age[0],p.scale_age[1],p.scale_age[2]),parent:model,transform,
+                                    view:crate::preview_effect_lightning::LightningView {eye:Vec3::Z*5.,vertical_fov:45_f32.to_radians(),height:480.},
+                                };
+                                for v in &asset.vertices {
+                                    let position = transform.transform_point3(material.deform_vertex(
+                                        Vec3::from_array(v.position),Vec3::from_array(v.normal),glam::Vec2::from_array(v.uv),
+                                        Vec3::new(v.controls[0],v.controls[1],v.controls[2]),particle));
+                                    low = low.min(position); high = high.max(position);
+                                }
+                            }
                         }
                     }
                 }
@@ -560,6 +585,8 @@ impl ApplicationHandler for EffectProbe {
                 let mut total_visible = 0;
                 for time in [0.15, 0.5, 1.0, 2.5] {
                     let mut particles = Vec::new();
+                    let mut meshes = Vec::new();
+                    let frame_start = std::time::Instant::now();
                     for (index, emitter) in effect["emitters"]
                         .as_array()
                         .expect("emitters")
@@ -577,7 +604,7 @@ impl ApplicationHandler for EffectProbe {
                             .get(emitter["texture"].as_str().unwrap_or(""))
                             .copied()
                             .unwrap_or(0);
-                        particles.extend(crate::preview_effects::effect_emitter_billboards_with_limit(
+                        let emission = crate::preview_effects::effect_emitter_particles(
                             emitter,
                             index,
                             time,
@@ -590,12 +617,20 @@ impl ApplicationHandler for EffectProbe {
                             256,
                             crate::preview_effect_lightning::LightningView { eye, vertical_fov: 45_f32.to_radians(), height: 480. },
                             effect_surfaces.select(index, emitter["spawn_volume_type"].as_u64().unwrap_or(0), inputs["surface_target"].as_i64().unwrap_or(0)),
-                        ));
+                            mesh_indices[index],
+                        );
+                        particles.extend(emission.billboards);
+                        meshes.extend(emission.meshes);
                     }
                     for p in &mut particles {
                         p.depth = (Vec3::from_array(p.center) - eye).dot(-Vec3::Z);
                     }
                     renderer.set_effect_particles(&particles)?;
+                    renderer.set_effect_mesh_particles(&meshes, cdmw_render_wgpu::EffectMeshView {
+                        eye_height: [eye.x,eye.y,eye.z,480.],
+                        fov_padding: [45_f32.to_radians(),0.,0.,0.],
+                    })?;
+                    let prepare_ms = frame_start.elapsed().as_secs_f64() * 1000.;
                     renderer
                         .capture_frame(640, 480, None)?
                         .write(&dir.join(format!("{label}-{time}.png")))?;
@@ -610,7 +645,8 @@ impl ApplicationHandler for EffectProbe {
                         })
                         .count();
                     total_visible += visible;
-                    report.push(serde_json::json!({"time":time,"instances":particles.len(),"visible_pixels":visible}));
+                    report.push(serde_json::json!({"time":time,"instances":particles.len(),
+                        "mesh_particles":meshes.len(),"prepare_ms":prepare_ms,"visible_pixels":visible}));
                 }
                 anyhow::ensure!(
                     label == "before" || total_visible > 0,
