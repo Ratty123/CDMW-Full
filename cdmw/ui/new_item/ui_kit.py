@@ -147,6 +147,12 @@ def step_style(palette) -> str:
         QPushButton[newItemPrimary="true"]:pressed {{ color: {text}; background: {pressed}; border-color: {active}; }}
         QPushButton[newItemPrimary="true"]:focus {{ border: 2px solid {text}; }}
         QPushButton[newItemPrimary="true"]:disabled {{ background: {panel}; color: {disabled}; border-color: {border}; }}
+        QToolButton[newItemOutputMode="true"] {{ min-height: 30px; padding: 0 8px; border-radius: 4px; color: {text}; background: {panel}; border: 1px solid {border}; }}
+        QToolButton[newItemOutputMode="true"]:hover {{ background: {hover}; border-color: {active}; }}
+        QToolButton[newItemOutputMode="true"]:checked {{ color: {active_text}; background: {active}; border-color: {active}; }}
+        QToolButton[newItemOutputMode="true"]:pressed {{ background: {pressed}; color: {text}; }}
+        QToolButton[newItemOutputMode="true"]:focus {{ border: 2px solid {active}; }}
+        QToolButton[newItemOutputMode="true"]:disabled {{ color: {disabled}; background: {panel}; border-color: {border}; }}
         QToolButton[effectChip="true"]:hover {{ background: {hover}; border-color: {active}; }}
         QToolButton[effectChip="true"]:checked, QToolButton[effectChip="true"]:checked:hover {{ color: {active_text}; background: {active}; border-color: {active}; }}
         QToolButton[effectChip="true"]:pressed, QToolButton[effectChip="true"]:checked:pressed {{ color: {text}; background: {pressed}; border-color: {active}; }}

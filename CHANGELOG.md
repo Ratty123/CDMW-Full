@@ -15,7 +15,7 @@ The format is intentionally simple:
 
 - Create New Item keeps Model & Placement loading progress below the scrolling inspector and shows camera help only once in Template. Shader experiments mark incompatible options as unavailable and explain their material requirements; every Glow animation setting has hover help.
 - Mesh Editor's glow, translucency and shader experiment numbers have sliders with editable values. Create New Item's material numbers and absorption slider accept mouse-wheel adjustments while focused, keeping unfocused page scrolling from changing a material.
-- Create New Item's Output keeps the activity log visible on the right, with an adjustable divider and the workflow on the left. Draft tools is now Mod management, beside the output action below the plan review.
+- Create New Item's Output gives file review the main workspace and groups destination, plan status and write/install actions in a right sidebar. The activity log folds below the review and opens for output errors. Mod management stays below the output action, and the divider remains adjustable.
 - Shortened the Build Plan progress message in Create New Item.
 - Hair Tools draws and bends smoother hair cards with extra curve subdivisions and continuous shading, without adding physics guide points. Detail stays within the vertex budget, and older drawn hair is refined on its next grooming edit.
 - Hair Tools starts new hairstyles empty and removes the procedural hairstyle presets. Existing saved hair keeps its authored geometry.

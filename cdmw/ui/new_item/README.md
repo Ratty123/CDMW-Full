@@ -459,13 +459,18 @@ text include the exact validation reasons. The Effects preview and in-game verif
 caveats stay in those details and the plan review; they do not mark applied effects
 as unfinished. Unapplied changes and actionable validation issues still mark the step.
 Its footer keeps Back, `Step N of 7` and Continue stable. Output hides Continue and
-places **Write mod folder** or **Install as an overlay** below the left workflow.
+keeps the file review on the left and destination settings in a right sidebar.
+The sidebar groups the **Mod folder** / **Game overlay** choices, destination,
+plan status and **Write mod folder** or **Install as an overlay** action. Its
+settings scroll independently while the plan status and output actions stay visible.
 Choose the destination and existing-mod base first, build the plan, then review its
 file changes and full details. Destination, manager, overlay number and base changes
-clear the plan, including an in-flight result. The **Mod management** menu beside
+clear the plan, including an in-flight result. The **Mod management** menu below
 the output action contains Merge mods, game-update checks, Installed overlays and
 Archive recovery; opening the menu or recovery controls never performs a write.
-The activity log stays visible in a full-height right pane with an adjustable divider.
+**Build plan** stays beside the review heading, and the adjustable divider gives
+the review most of the page width. **Activity log** expands below the review and
+starts collapsed; collapsing it retains its messages, and an output error opens it.
 The left review area scrolls independently, keeping progress and output actions visible.
 An overlay installation failure also opens a warning and keeps the reason visible
 on Output after the worker stops; the plan remains available for review or retry.
