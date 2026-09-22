@@ -1484,9 +1484,10 @@ class ItemPreviewFrameTests(unittest.TestCase):
         self.assertFalse(frame._full_texture_upgrade_from_fast)
         frame.shutdown()
 
-    def test_progressive_template_accepts_a_native_package_without_python_recompile(self) -> None:
+    def test_native_template_shows_geometry_while_materials_wait_without_recompiling_them(self) -> None:
         from PySide6.QtCore import QEventLoop
 
+        from cdmw.domain.cancellation import raise_if_cancelled
         from cdmw.ui.new_item.item_preview import ItemPreviewFrame, ProgressivePreviewSource
 
         output = Path(tempfile.mkdtemp(prefix="cdmw_item_preview_native_template_"))
@@ -1501,6 +1502,8 @@ class ItemPreviewFrameTests(unittest.TestCase):
         frame._ensure_host()
         built = []
         material_context = {}
+        release_materials = threading.Event()
+        materials_started = threading.Event()
 
         def build_package(source, *, include_material_resources, output_root, **_kwargs):
             self.assertFalse(include_material_resources, "the ready native package must bypass Python recompilation")
@@ -1509,8 +1512,11 @@ class ItemPreviewFrameTests(unittest.TestCase):
             package.mkdir(parents=True, exist_ok=True)
             return package
 
-        def build_materials(_stop, **kwargs):
+        def build_materials(stop, **kwargs):
             material_context.update(kwargs)
+            materials_started.set()
+            while not release_materials.wait(0.01):
+                raise_if_cancelled(stop)
             return native_package
 
         geometry_source = object()
@@ -1519,18 +1525,32 @@ class ItemPreviewFrameTests(unittest.TestCase):
             materials=build_materials,
         )
         with patch("cdmw.ui.new_item.item_preview.build_item_preview_package", build_package):
-            frame.show(source, token=("template", 17))
-            deadline = time.monotonic() + 2.0
-            while len([call for call in frame.host.calls if call[0] == "load_package"]) < 1 and time.monotonic() < deadline:
-                self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
+            try:
+                frame.show(source, token=("template", 17))
+                deadline = time.monotonic() + 2.0
+                while not any(call[0] == "load_package" for call in frame.host.calls) and time.monotonic() < deadline:
+                    self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
+
+                loads = [call for call in frame.host.calls if call[0] == "load_package"]
+                self.assertTrue(materials_started.is_set())
+                self.assertEqual([call[1][0] for call in loads], [output / "geometry"],
+                                 "the mesh must reach the viewport before textures finish")
+                frame._host_state("ready", "")
+                self.assertTrue(frame.is_ready, "the bare mesh is interactive during texture preparation")
+            finally:
+                release_materials.set()
+                deadline = time.monotonic() + 2.0
+                while frame._thread is not None and time.monotonic() < deadline:
+                    self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
+                frame.shutdown()
 
         loads = [call for call in frame.host.calls if call[0] == "load_package"]
-        self.assertEqual(built, [], "native template geometry must not also be decoded in Python")
-        self.assertEqual([call[1][0] for call in loads], [native_package])
+        self.assertEqual(built, [geometry_source], "only the bare mesh uses the Python package builder")
+        self.assertEqual([call[1][0] for call in loads], [output / "geometry", native_package])
+        self.assertEqual([call[2]["reset_view"] for call in loads], [True, False])
         self.assertEqual(material_context["output_root"], output)
         self.assertEqual(material_context["native_preview_core_cache_root"], native_cache)
         self.assertEqual(material_context["render_settings"], frame._render_settings)
-        frame.shutdown()
 
     def test_progressive_template_uses_a_durable_material_cache_hit_before_geometry(self) -> None:
         from PySide6.QtCore import QEventLoop
@@ -1598,12 +1618,13 @@ class ItemPreviewFrameTests(unittest.TestCase):
         from cdmw.ui.new_item.item_preview import ProgressivePreviewSource, _PreviewPackageTask
 
         output = Path(tempfile.mkdtemp(prefix="cdmw_parallel_template_cancel_"))
-        for failure in ("geometry_cancel", "progress_error"):
-            with self.subTest(failure=failure):
+        for failure, native in ((failure, native) for failure in ("geometry_cancel", "progress_error")
+                                for native in (False, True)):
+            with self.subTest(failure=failure, native=native):
                 started, finished = threading.Event(), threading.Event()
                 cancelled = []
 
-                def materials(stop):
+                def materials(stop, **_preview_context):
                     started.set()
                     cancelled.append(stop.wait(1.0))
                     finished.set()
@@ -1621,7 +1642,7 @@ class ItemPreviewFrameTests(unittest.TestCase):
                 task = _PreviewPackageTask(
                     output_root=output, token=("template", 17), candidate=ProgressivePreviewSource(geometry, materials),
                     is_placement=False, full_stage=False, base_package=None, render_settings=None,
-                    cache_mode="off", native_preview_core_cache_root=None,
+                    cache_mode="off", native_preview_core_cache_root=output / "native" if native else None,
                     source_usage_required=False, source_usage_acquired=False,
                 )
                 expected = RunCancelled if failure == "geometry_cancel" else RuntimeError

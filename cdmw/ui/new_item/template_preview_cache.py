@@ -68,6 +68,12 @@ def build_native_template_preview(
 ):
     """Keep staged native resources alive until the final scene owns its copies."""
 
+    raise_if_cancelled(stop_event)
+    if cache_only and prepared_dependencies is not None and not prepared_dependencies.done.is_set():
+        # The geometry worker probes before starting either preview stage. A cold
+        # dependency lookup belongs to the material worker, not this cache probe.
+        return None
+
     from dataclasses import replace
 
     from cdmw.models import clamp_model_preview_render_settings

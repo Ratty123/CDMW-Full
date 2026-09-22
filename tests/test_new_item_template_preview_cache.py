@@ -11,6 +11,35 @@ from cdmw.models import ModelPreviewRenderSettings
 from cdmw.ui.new_item import template_preview_cache
 
 
+def test_native_cache_probe_does_not_wait_for_unprepared_textures(tmp_path, monkeypatch):
+    from cdmw.services import mesh_rust_preview_cache
+    from cdmw.ui.new_item.template_preview_dependencies import PreparedTemplateDependencies
+
+    ticket = PreparedTemplateDependencies()
+    entry = SimpleNamespace(identity="template")
+    cached = tmp_path / "cached"
+    looked_up = []
+
+    def lookup(**context):
+        looked_up.append(context)
+        return SimpleNamespace(package_dir=cached)
+
+    monkeypatch.setattr(template_preview_cache, "template_preview_cache_identity", lambda *_: "ready-template")
+    monkeypatch.setattr(mesh_rust_preview_cache, "lookup_rust_preview_package_from_preview_core_identity", lookup)
+    probe = partial(template_preview_cache.build_native_template_preview,
+                    entry, (entry,), (), (), 17, SimpleNamespace(), threading.Event(),
+                    output_root=tmp_path, native_preview_core_cache_root=tmp_path / "native",
+                    render_settings=ModelPreviewRenderSettings(), cache_mode="balanced",
+                    cache_only=True, prepared_dependencies=ticket)
+
+    assert probe() is None, "texture preparation cannot delay the geometry worker's cache probe"
+    assert not looked_up, "an incomplete dependency snapshot is not a valid cache identity"
+    ticket.entries = (entry,)
+    ticket.done.set()
+    assert probe() == cached, "completed dependency snapshots still use the immediate textured cache hit"
+    assert len(looked_up) == 1
+
+
 def _native_helmet(tmp_path):
     """Two independently editable wrappers sharing one underlying material."""
     import copy

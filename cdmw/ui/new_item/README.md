@@ -349,8 +349,9 @@ its package or resetting its camera. Texture upgrades wait for an active drag or
 orbit to finish and preserve the resulting placement. Snapshot creation
 reuses Archive Browser's published path, basename and extension indexes. A valid durable
 material-package hit is accepted before either preview builder, including packages
-produced by native Preview Core. Native template loading avoids a duplicate Python
-geometry decode. Its canonical material package is cached for Model & Placement and
+produced by native Preview Core. This cache probe never waits for unfinished texture
+dependencies. On a miss, the bare template mesh loads while native materials prepare
+in parallel. Its canonical material package is cached for Model & Placement and
 Perks & Effects, with texture resources leased until the consuming scene owns them.
 Effects uses the same archive render settings as the shared template viewport.
 New Item reads the cache root from the archive owner, just as Browse Archives does;
@@ -371,9 +372,10 @@ service and shared material indexes using one small character model while the re
 archive tables load. It uses the template preview's cache and captured render settings;
 unfinished warm-up is cancelled and drained before the snapshot returns. Warm-up failure
 does not invalidate the table snapshot, and waiting for the native service is cancellable.
-On a cold native template miss, Preview Core prepares geometry and materials once.
-The first textured package upgrades to full materials without restarting the host
-or resetting the camera. Standalone callers without native context retain the Python
+On a cold native template miss, the geometry-only builder gives the viewport an
+interactive mesh before texture preparation finishes. Preview Core supplies the
+textured packages without recompiling their materials in Python; upgrades preserve
+the host and camera. Standalone callers without native context retain the Python
 preview path; a configured native material failure remains visible as an error.
 Placement and character comparison scenes also consume that native template package.
 They retain its complete material graph, layer masks, DDS bytes and material parameters

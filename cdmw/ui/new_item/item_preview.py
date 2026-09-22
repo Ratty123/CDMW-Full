@@ -170,14 +170,13 @@ class _PreviewPackageTask:
         material_thread.start()
         try:
             try:
-                native_template = (self.native_preview_core_cache_root is not None and isinstance(self.token, tuple)
-                                   and self.token and self.token[0] == "template")
-                if not native_template:
-                    geometry_item = candidate.geometry(stop_event)
-                    geometry_package = build_item_preview_package(
-                        geometry_item, token=self.token, output_root=self.output_root, stop_event=stop_event,
-                        include_material_resources=False, render_settings=self.render_settings, cache_mode=self.cache_mode,
-                    )
+                # Native materials can still be waiting for archive dependencies.
+                # Keep the bare mesh independent so it can reach the viewport first.
+                geometry_item = candidate.geometry(stop_event)
+                geometry_package = build_item_preview_package(
+                    geometry_item, token=self.token, output_root=self.output_root, stop_event=stop_event,
+                    include_material_resources=False, render_settings=self.render_settings, cache_mode=self.cache_mode,
+                )
             except RunCancelled:
                 raise
             except Exception:  # noqa: BLE001 - the full package can still land
