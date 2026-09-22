@@ -99,6 +99,67 @@ class LazyTextureWorkflowPanelTests(unittest.TestCase):
         self.assertEqual(1024, window.textures.dds_custom_width_spin.value())
         self.assertFalse(window.textures.chainner_section.is_body_built())
 
+    def test_editable_filters_and_override_keep_long_values_and_undo(self) -> None:
+        filters = "\n".join(f"characters/filter-{index}/*" for index in range(205))
+        override = "{\n" + ",\n".join(f'  "input-{index}": "value"' for index in range(305)) + "\n}"
+        window, settings = self._window({
+            "settings/include_filters": filters,
+            "chainner/override_json": override,
+        })
+        window.textures.filters_section.set_expanded(True)
+        window.textures.chainner_section.set_expanded(True)
+        for editor, expected in (
+            (window.textures.filters_edit, filters),
+            (window.textures.chainner_override_edit, override),
+        ):
+            self.assertEqual(expected, editor.toPlainText())
+            self.assertTrue(editor.isUndoRedoEnabled())
+            editor.insertPlainText("edited")
+            self.assertNotEqual(expected, editor.toPlainText())
+            editor.undo()
+            self.assertEqual(expected, editor.toPlainText())
+        window._save_settings()
+        self.assertEqual(filters, settings.value("settings/include_filters"))
+        self.assertEqual(override, settings.value("chainner/override_json"))
+
+    def test_shared_recolor_source_change_clears_analysis_and_preview_without_removing_assets(self) -> None:
+        import dataclasses
+        from PySide6.QtGui import QImage
+        from cdmw.core.recolor_variants import analyze_recolor_variant_package
+        from tests.test_recolor_variants import _write_mod
+
+        window, settings = self._window({"ui/active_tool_key": "archive_browser"})
+        source = _write_mod(Path(settings.fileName()).parent)
+        analysis = analyze_recolor_variant_package(source)
+        # Material rows exercise shared selection without decoding DDS files.
+        analysis = dataclasses.replace(analysis, targets=tuple(
+            target for target in analysis.targets if target.target_kind == "material_color"
+        ))
+        self.assertTrue(analysis.targets)
+        textures = window.textures
+        textures.set_texture_mode("recolor")
+        recolor = window.recolor_variants_tab.ensure_widget()
+        recolor.source_path_edit.setText(str(source))
+        recolor.analysis = analysis
+        recolor._populate_targets_tree()
+        editor = window.texture_editor_tab.ensure_widget()
+        image = QImage(4, 4, QImage.Format_RGBA8888)
+        image.fill(0)
+        editor.show_workspace_preview(image, image)
+        recolor.current_preview_image = object()
+        assets = dict(textures.job.assets)
+        operation = textures.job.begin("recolor_preview")
+
+        recolor.source_path_edit.setText(str(source.parent / "other-mod"))
+
+        self.assertIsNone(recolor.analysis)
+        self.assertIsNone(textures.job.recolor_analysis)
+        self.assertIsNone(recolor.current_preview_image)
+        self.assertIsNone(editor.workspace_preview)
+        self.assertFalse(recolor.build_button.isEnabled())
+        self.assertFalse(textures.job.accept(operation))
+        self.assertEqual(assets, textures.job.assets)
+
 
 if __name__ == "__main__":
     unittest.main()

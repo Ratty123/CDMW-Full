@@ -161,9 +161,6 @@ def _dialog_step_0013(_state):
         _state.self.set_status_message("Choose Placement Source is disabled - WIP.", error=True)
         return
 
-        donor = _state.self._open_archive_attachment_donor_picker_dialog(_state.dialog, _state.entry)
-        if isinstance(donor, _state.ArchiveEntry):
-            _state.self._open_archive_attachment_placement_diff_dialog(_state.entry, donor)
     _state._copy_inline_placement_from_donor = _copy_inline_placement_from_donor
 
 def _dialog_step_0014(_state):

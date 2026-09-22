@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import hashlib
 import math
 import re
-import tempfile
 from dataclasses import replace
 from pathlib import Path, PurePosixPath
 from typing import Mapping, Optional, Sequence
@@ -27,7 +25,14 @@ from .material_replacer import (
     _warn_once,
     is_static_replacement_helper_material_name,
 )
-from .material_source_driven import _normalized_accent_glow_rgb, _sanitize_texture_component
+from .material_source_driven import (
+    _best_source_material_for_target,
+    _material_tokens,
+    _normalized_accent_glow_rgb,
+    _normalized_source_part_material_role,
+    _sanitize_texture_component,
+    _solid_material_factor_png_path,
+)
 
 _TEXTURE_SUFFIXES: tuple[tuple[str, str, str], ...] = (
     ("base", "BaseColorTexture", "basecolor"),
@@ -855,25 +860,6 @@ def _source_emissive_rgb(source_submesh: object) -> Optional[tuple[float, float,
     return emissive_rgb
 
 
-def _solid_material_factor_png_path(
-    material_name: str,
-    slot_kind: str,
-    rgb: Sequence[float],
-) -> Path:
-    components = tuple(max(0, min(255, int(round(float(component) * 255.0)))) for component in tuple(rgb[:3]))
-    digest = hashlib.sha1(f"{material_name}|{slot_kind}|{components}".encode("utf-8", errors="ignore")).hexdigest()[:12]
-    safe_material = _sanitize_texture_component(material_name) or "material"
-    safe_slot = _sanitize_texture_component(slot_kind) or "slot"
-    root = Path(tempfile.gettempdir()) / "cdmw_synthetic_materials"
-    root.mkdir(parents=True, exist_ok=True)
-    path = root / f"{safe_material}_{safe_slot}_{digest}.png"
-    if not path.is_file():
-        from PIL import Image
-
-        Image.new("RGBA", (16, 16), (components[0], components[1], components[2], 255)).save(path)
-    return path
-
-
 def _normalize_source_texture_slot_kind(slot_kind: str) -> str:
     normalized = str(slot_kind or "").strip().lower().replace("-", "_").replace(" ", "_")
     aliases = {
@@ -1172,36 +1158,6 @@ def _attach_source_face_counts(texture_sets: Mapping[str, ReplacementTextureSet]
             texture_set = _texture_set_for_source_texture_reference(submesh, texture_sets)
         if texture_set is not None:
             texture_set.source_face_count += len(submesh.faces)
-
-
-def _normalized_source_part_material_role(raw_role: object) -> str:
-    value = str(raw_role or "").strip().lower().replace("_", " ").replace("-", " ")
-    if not value:
-        return ""
-    tokens = {token for token in re.split(r"[^a-z0-9]+", value) if token}
-    if tokens & {"glow", "emissive", "emission", "accent"}:
-        return "glow"
-    if tokens & {"blade"}:
-        return "blade"
-    if tokens & {"handle", "grip"}:
-        return "handle"
-    if tokens & {"guard", "crossguard"}:
-        return "guard"
-    if tokens & {"cloth", "fabric"}:
-        return "cloth"
-    if tokens & {"wood", "oak", "pine", "bark", "timber", "plank"}:
-        return "wood"
-    if tokens & {"leather", "hide"}:
-        return "leather"
-    if tokens & {"stone", "rock", "granite", "marble", "slate"}:
-        return "stone"
-    if tokens & {"metal", "metallic", "metalness", "steel", "iron", "gold", "silver", "bronze", "copper"}:
-        return "metal"
-    if tokens & {"shiny", "glossy", "polished", "mirror", "clearcoat"}:
-        return "shiny"
-    if tokens & {"glass", "crystal", "lens", "gem", "jewel"}:
-        return "glass"
-    return value.replace(" ", "/")
 
 
 def _source_part_has_texture_adjustment(adjustment: object) -> bool:
@@ -1785,63 +1741,6 @@ def _texture_source_candidate_score(target_material_name: str, texture_set: Repl
     if "handle" in target_tokens and ("tip" in source_tokens or "edge" in source_tokens):
         score -= 4.0
     return score
-
-
-def _best_source_material_for_target(target_material: str, target_to_source_material: Mapping[str, str]) -> str:
-    target_key = str(target_material or "").strip().lower()
-    if target_key in target_to_source_material:
-        return target_to_source_material[target_key]
-    best_value = ""
-    best_score = 0.0
-    target_tokens = _material_tokens(target_key)
-    for target_name, source_material in target_to_source_material.items():
-        source_tokens = _material_tokens(f"{target_name} {source_material}")
-        overlap = target_tokens & source_tokens
-        score = float(len(overlap) * 8)
-        for token in overlap:
-            score += min(6.0, len(token) * 0.75)
-        if target_name and (target_name in target_key or target_key in target_name):
-            score += min(20.0, len(target_name) * 0.5)
-        target_name_tokens = _material_tokens(target_name)
-        if "sword" in target_tokens and "blade" in target_name_tokens:
-            score += 14.0
-        if "blade" in target_tokens and "blade" in target_name_tokens:
-            score += 14.0
-        if "handle" in target_tokens and "handle" in target_name_tokens:
-            score += 14.0
-        if "guard" in target_tokens and "guard" in target_name_tokens:
-            score += 14.0
-        if "acc" in target_tokens and "acc" in target_name_tokens:
-            score += 14.0
-        if score > best_score:
-            best_score = score
-            best_value = source_material
-    return best_value if best_score >= 11.5 else ""
-
-
-def _material_tokens(value: str) -> set[str]:
-    stop_words = {
-        "cd",
-        "phm",
-        "pc",
-        "texture",
-        "material",
-        "mesh",
-        "obj",
-        "dds",
-        "png",
-        "source",
-        "target",
-        "donor",
-        "original",
-        "replacement",
-    }
-    tokens: set[str] = set()
-    for raw_token in re.sub(r"[^a-z0-9]+", " ", str(value or "").lower()).split():
-        token = re.sub(r"\d+$", "", raw_token.strip())
-        if len(token) > 1 and token not in stop_words and not token.isdigit():
-            tokens.add(token)
-    return tokens
 
 
 def _reference_target_path(reference: object) -> str:

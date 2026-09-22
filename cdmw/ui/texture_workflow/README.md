@@ -17,6 +17,11 @@ labels stack above their fields and Browse buttons. The profile and rule tables
 open in their own editor through **Workflow Profiles, Rules & Matches > Edit**.
 Lazy panels restore their saved settings when first opened.
 
+Editable texture filters and chaiNNer override JSON preserve all entered lines
+and support Undo. Recolor source changes invalidate the previous analysis and
+preview; a package must be analysed for the current source before Build can run.
+Ready-mod preflight reports each selected output profile before conversion.
+
 **Replace** accepts loose PNG/DDS files without opening editor documents or
 decoding them for the queue. **Open Folder** recursively replaces the current
 shared texture job; **Reload Folder** repeats the last successful folder load,

@@ -212,11 +212,8 @@ class TextSearchPreviewMixin:
         ]
 
     def _make_selection(self, start: int, end: int, fmt: QTextCharFormat) -> QTextEdit.ExtraSelection:
-        cursor = QTextCursor(self.preview_text_edit.document())
-        cursor.setPosition(start)
-        cursor.setPosition(end, QTextCursor.KeepAnchor)
         selection = QTextEdit.ExtraSelection()
-        selection.cursor = cursor
+        selection.cursor = self.preview_text_edit.cursor_for_span(start, end)
         selection.format = fmt
         return selection
 
@@ -242,12 +239,14 @@ class TextSearchPreviewMixin:
         active_find_format.setForeground(QColor(theme["accent_text"]))
         active_find_format.setFontWeight(QFont.Bold)
 
-        for start, end in self.preview_search_spans:
+        for index in self.preview_text_edit.highlighted_match_indexes(len(self.preview_search_spans), 0):
+            start, end = self.preview_search_spans[index]
             if end > start:
                 selections.append(self._make_selection(start, end, search_format))
 
         active_span: Optional[tuple[int, int]] = None
-        for index, (start, end) in enumerate(self.preview_find_spans):
+        for index in self.preview_text_edit.highlighted_match_indexes(len(self.preview_find_spans), self.preview_find_active_index):
+            start, end = self.preview_find_spans[index]
             if end <= start:
                 continue
             if index == self.preview_find_active_index:

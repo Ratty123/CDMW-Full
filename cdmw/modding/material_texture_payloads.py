@@ -14,6 +14,7 @@ from typing import Callable, Mapping, Optional, Sequence
 from cdmw.core.atomic_file import atomic_binary_writer
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.textures.material_parameters import evaluate_material_parameters
+from cdmw.domain.textures.semantics import is_stock_or_shared_texture_path
 from cdmw.modding.material_base_color_evaluator import shader_equivalent_base_color_rgba
 
 from .asset_replacement import classify_texture_binding, infer_cd_texture_role_from_path
@@ -470,7 +471,7 @@ def _is_direct_base_color_mapping(mapping: TextureSlotMapping) -> bool:
         return False
     if target_path.startswith("("):
         return True
-    if _is_shared_material_layer_texture(target_path):
+    if is_stock_or_shared_texture_path(target_path):
         return False
     basename = PurePosixPath(target_path).name.lower()
     return (
@@ -537,6 +538,12 @@ def _build_missing_base_color_parameter_payloads(
     on_log: Optional[Callable[[str], None]],
     texture_output_size_mode: str,
 ) -> tuple[list[TextureReplacementPayload], list[SidecarTextureParameterInjection]]:
+    from .material_replacer import (
+        SidecarTextureParameterInjection,
+        TextureReplacementPayload,
+        TextureSlotMapping,
+    )
+
     del obj_mesh
     base_mapped_targets = {
         str(mapping.target_material_name or "").strip().lower()

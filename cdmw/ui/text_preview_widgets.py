@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from bisect import bisect_left
 from typing import Dict, Optional, Tuple
 
 from PySide6.QtCore import QRect, QSize, Qt, QSignalBlocker
@@ -445,6 +446,8 @@ class _LineNumberArea(QWidget):
 
 
 class CodePreviewEditor(QPlainTextEdit):
+    MAX_SEARCH_HIGHLIGHTS = 500
+
     def __init__(
         self,
         *,
@@ -461,6 +464,8 @@ class CodePreviewEditor(QPlainTextEdit):
         self._search_query = ""
         self._search_matches: list[Tuple[int, int]] = []
         self._current_search_index = -1
+        self._text_offset_revision = -1
+        self._supplementary_positions: list[int] = []
         self._editor_font_size = max(8, self.font().pointSize())
         self.line_number_area = _LineNumberArea(self)
         self.syntax_highlighter = PreviewSyntaxHighlighter(
@@ -671,40 +676,48 @@ class CodePreviewEditor(QPlainTextEdit):
         if not query:
             self.clear_search()
             return
-        haystack = self.toPlainText()
-        lowered_haystack = haystack.lower()
-        lowered_query = query.lower()
-        matches: list[Tuple[int, int]] = []
-        start = 0
-        while True:
-            index = lowered_haystack.find(lowered_query, start)
-            if index < 0:
-                break
-            end = index + len(query)
-            matches.append((index, end))
-            start = max(index + len(query), index + 1)
+        matches = [match.span() for match in re.finditer(re.escape(query), self.toPlainText(), re.IGNORECASE)]
         self._search_matches = matches
         self._current_search_index = 0 if matches else -1
         self._apply_search_selection(jump=jump and bool(matches))
 
     def _apply_search_selection(self, *, jump: bool) -> None:
         selections: list[QTextEdit.ExtraSelection] = []
-        for match_index, (start, end) in enumerate(self._search_matches):
+        for match_index in self.highlighted_match_indexes(len(self._search_matches), self._current_search_index):
+            start, end = self._search_matches[match_index]
             selection = QTextEdit.ExtraSelection()
             selection.format.setBackground(
                 self._search_current_match_color
                 if match_index == self._current_search_index
                 else self._search_match_color
             )
-            cursor = self.textCursor()
-            cursor.setPosition(start)
-            cursor.setPosition(end, QTextCursor.KeepAnchor)
-            selection.cursor = cursor
+            selection.cursor = self.cursor_for_span(start, end)
             selections.append(selection)
         self.set_match_selections(selections)
         if jump and 0 <= self._current_search_index < len(self._search_matches):
             start, end = self._search_matches[self._current_search_index]
             self.center_on_span(start, end)
+
+    def highlighted_match_indexes(self, match_count: int, active_index: int) -> range:
+        """Bound Qt selections while retaining every match for navigation."""
+        start = max(0, min(active_index - self.MAX_SEARCH_HIGHLIGHTS // 2, match_count - self.MAX_SEARCH_HIGHLIGHTS))
+        return range(start, min(match_count, start + self.MAX_SEARCH_HIGHLIGHTS))
+
+    def cursor_for_span(self, start: int, end: int) -> QTextCursor:
+        """Convert Python character spans to the UTF-16 positions used by Qt."""
+        document = self.document()
+        revision = document.revision()
+        if revision != self._text_offset_revision:
+            self._supplementary_positions = [
+                match.start() for match in re.finditer(r"[\U00010000-\U0010ffff]", self.toPlainText())
+            ]
+            self._text_offset_revision = revision
+        start = max(0, start)
+        end = max(start, end)
+        cursor = QTextCursor(document)
+        cursor.setPosition(start + bisect_left(self._supplementary_positions, start))
+        cursor.setPosition(end + bisect_left(self._supplementary_positions, end), QTextCursor.KeepAnchor)
+        return cursor
 
     def adjust_font_size(self, delta: int) -> int:
         self._editor_font_size = max(8, min(22, self._editor_font_size + delta))
@@ -733,10 +746,7 @@ class CodePreviewEditor(QPlainTextEdit):
         self._apply_editor_font(updated_font)
 
     def center_on_span(self, start: int, end: int) -> None:
-        cursor = self.textCursor()
-        cursor.setPosition(max(0, start))
-        cursor.setPosition(max(start, end), QTextCursor.KeepAnchor)
-        self.setTextCursor(cursor)
+        self.setTextCursor(self.cursor_for_span(start, end))
         self.centerCursor()
 
     def _apply_editor_font(self, font: QFont) -> None:

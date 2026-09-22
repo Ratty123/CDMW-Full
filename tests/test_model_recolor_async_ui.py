@@ -232,6 +232,92 @@ def test_recolor_stale_analysis_and_close_do_not_publish_or_block() -> None:
         app.processEvents()
 
 
+def test_recolor_source_change_clears_completed_analysis_and_rejects_stale_build(tmp_path) -> None:
+    from cdmw.core.recolor_variants import RecolorVariantBuildResult
+
+    app = _app()
+    source = _write_mod(tmp_path)
+    analysis = analyze_recolor_variant_package(source)
+    tab = RecolorVariantsTab(settings=create_settings(settings_file_path=tmp_path / "settings.ini"), base_dir=tmp_path)
+    try:
+        tab.source_path_edit.setText(str(source))
+        tab.analyze_source()
+        assert _wait_for(app, lambda: tab.analysis is not None and tab.worker_thread is None)
+        assert tab.build_button.isEnabled()
+        assert tab.targets_tree.topLevelItemCount() > 0
+        tab.current_preview_image = object()
+
+        tab.source_path_edit.setText(str(tmp_path / "other-mod"))
+
+        assert tab.analysis is None
+        assert tab.current_preview_image is None
+        assert tab.targets_tree.topLevelItemCount() == 0
+        assert not tab.build_button.isEnabled()
+        assert not tab.preview_template_button.isEnabled()
+        assert not tab.refresh_selected_preview_button.isEnabled()
+        assert "other-mod" not in tab.selected_target_label.text()
+        # Guard programmatic callers even if analysis was assigned without a source signal.
+        tab.analysis = analysis
+        with mock.patch("cdmw.ui.recolor_variants_tab.RecolorVariantBuildWorker") as worker:
+            tab.start_build()
+            worker.assert_not_called()
+        assert tab.analysis is None
+
+        tab.source_path_edit.setText(str(source))
+        tab.analyze_source()
+        assert _wait_for(app, lambda: tab.analysis is not None and tab.worker_thread is None)
+        with mock.patch(
+            "cdmw.workers.recolor_variant_workers.build_recolor_variant_outputs",
+            return_value=RecolorVariantBuildResult(str(source), output_roots=(tmp_path / "output",)),
+        ) as build:
+            tab.start_build()
+            assert _wait_for(app, lambda: tab.worker_thread is None)
+            assert build.call_count == 1
+            assert build.call_args.args[0].package_path == str(source)
+        assert tab.build_button.isEnabled()
+    finally:
+        _close_worker_tab(app, tab)
+
+
+def test_recolor_source_change_cancels_and_rejects_inflight_preview(tmp_path) -> None:
+    from cdmw.core.recolor_variants import RecolorVariantPreviewImage
+
+    app = _app()
+    source = _write_mod(tmp_path)
+    analysis = analyze_recolor_variant_package(source)
+    tab = RecolorVariantsTab(settings=create_settings(settings_file_path=tmp_path / "settings.ini"), base_dir=tmp_path)
+    started = threading.Event()
+    release = threading.Event()
+    cancelled = []
+    image = tmp_path / "preview.png"
+    Image.new("RGBA", (8, 8), (20, 40, 60, 255)).save(image)
+    try:
+        tab.source_path_edit.setText(str(source))
+        tab.analysis = analysis
+        tab._populate_targets_tree()
+        target = tab._selected_target()
+
+        def slow_preview(*_args, stop_event, **_kwargs):
+            started.set()
+            release.wait(2.0)
+            cancelled.append(stop_event.is_set())
+            return RecolorVariantPreviewImage(target.target_id, source / "source.dds", image, image)
+
+        with mock.patch("cdmw.ui.recolor_variants_tab.preview_recolor_variant_target_image", side_effect=slow_preview):
+            tab.refresh_selected_preview()
+            assert started.wait(1.0)
+            tab.source_path_edit.setText(str(tmp_path / "other-mod"))
+            release.set()
+            assert _wait_for(app, lambda: tab.worker_thread is None)
+        assert cancelled == [True]
+        assert tab.analysis is None
+        assert tab.current_preview_image is None
+        assert not tab.build_button.isEnabled()
+    finally:
+        release.set()
+        _close_worker_tab(app, tab)
+
+
 def test_shell_model_import_handler_defers_file_io_and_scene_import() -> None:
     captured: dict[str, object] = {}
     entry = object()

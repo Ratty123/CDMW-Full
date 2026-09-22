@@ -50,6 +50,7 @@ from cdmw.services.texture_workflow_service import (
     texture_editor_settings_for_recolor_variant_rule,
 )
 from cdmw.models import RunCancelled, TextureEditorSourceBinding, TextureEditorToolSettings
+from cdmw.ui.shell.lazy_tool_tab import created_tool_widget
 from cdmw.ui.widgets import (
     CollapsibleSection,
     EmptyStatePanel,
@@ -711,12 +712,24 @@ class RecolorVariantsTab(SharedRecolorModeMixin, QWidget):
             handler(str(message))
 
     def _handle_source_path_changed(self, _text: str) -> None:
-        if self._worker_kind != "analysis":
-            return
-        self._operation_request_id += 1
-        worker = self.build_worker
-        if worker is not None and hasattr(worker, "stop"):
-            worker.stop()
+        if self._worker_kind in {"analysis", "preview"}:
+            self._operation_request_id += 1
+            worker = self.build_worker
+            if worker is not None and hasattr(worker, "stop"):
+                worker.stop()
+        self.analysis = None
+        self.current_preview_image = None
+        self._open_in_editor_after_preview_target_id = ""
+        self._populate_targets_tree()
+        if self.workspace is not None:
+            self.workspace.job.cancel("recolor_preview")
+            editor = created_tool_widget(self.workspace.editor_container)
+            if editor is not None and editor.workspace_preview is not None:
+                editor.set_workspace_mode(self.workspace.job.mode)
+            self._sync_shared_recolor_target()
+        self.summary_label.setText("Choose a loose or zip mod, then analyze it for safe recolor targets.")
+        self._refresh_preview_summary()
+        self._sync_action_state()
 
     @Slot()
     def _request_recolor_thread_quit(self) -> None:
@@ -1120,6 +1133,14 @@ class RecolorVariantsTab(SharedRecolorModeMixin, QWidget):
             self.status_message_requested.emit("A recolor operation is already running.", True)
             return
         if self.analysis is None:
+            self.status_message_requested.emit("Analyze a Source Mod first.", True)
+            return
+        source_text = self.source_path_edit.text().strip()
+        if not source_text or (
+            str(Path(source_text).expanduser().absolute()).casefold()
+            != str(Path(self.analysis.package_path).expanduser().absolute()).casefold()
+        ):
+            self._handle_source_path_changed(source_text)
             self.status_message_requested.emit("Analyze a Source Mod first.", True)
             return
         profiles = self._selected_profiles()

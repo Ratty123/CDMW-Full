@@ -22,6 +22,8 @@ from cdmw.core.texture_pipeline.inspection import parse_dds
 from cdmw.core.texture_pipeline.preview import _validate_high_precision_staged_png
 from cdmw.core.upscale_postprocess import build_source_match_plan_for_decision, describe_post_upscale_correction_mode
 from cdmw.core.upscale_profiles import classify_texture_type
+from cdmw.domain.packages.export_policy import mod_package_expanded_export_options
+from cdmw.domain.packages.layout import resolve_mod_package_profile_root
 from cdmw.domain.textures.output import (
     _resolve_plan_output_settings,
     summarize_effective_dds_override,

@@ -12,6 +12,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 from cdmw.domain.mesh.operations import (
+    _changed_submesh_channels,
     MeshEditOperation,
     mesh_edit_operation_changed_channel,
     mesh_edit_operations_from_dicts,
@@ -1102,34 +1103,6 @@ def _submeshes_by_lod(mesh: ParsedMesh) -> tuple[tuple[object, ...], ...]:
     if lod_levels:
         return tuple(tuple(level or ()) for level in lod_levels)
     return (tuple(getattr(mesh, "submeshes", ()) or ()),)
-
-
-def _changed_submesh_channels(before: object | None, after: object | None) -> tuple[str, ...]:
-    if before is None or after is None:
-        return ("topology",)
-    fields = (
-        ("vertices", "positions"),
-        ("normals", "normals"),
-        ("tangents", "tangents"),
-        ("uvs", "uv0"),
-        ("faces", "indices"),
-        ("bone_indices", "bone_indices"),
-        ("bone_weights", "bone_weights"),
-    )
-    changed = [
-        channel
-        for attr, channel in fields
-        if tuple(getattr(before, attr, ()) or ()) != tuple(getattr(after, attr, ()) or ())
-    ]
-    if str(getattr(before, "material", "") or "") != str(getattr(after, "material", "") or ""):
-        changed.append("material")
-    if str(getattr(before, "texture", "") or "") != str(getattr(after, "texture", "") or ""):
-        changed.append("texture")
-    if int(getattr(before, "vertex_count", 0) or 0) != int(getattr(after, "vertex_count", 0) or 0):
-        changed.append("vertex_count")
-    if int(getattr(before, "face_count", 0) or 0) != int(getattr(after, "face_count", 0) or 0):
-        changed.append("index_count")
-    return tuple(changed)
 
 
 def _submesh_stable_id(lod_index: int, submesh_index: int, submesh: object | None) -> str:

@@ -9,6 +9,7 @@ from typing import Dict, List, Sequence, Tuple
 import cv2
 import numpy as np
 
+from cdmw.domain.textures.editor_common import _new_layer_id
 from cdmw.domain.textures.editor_composite import (
     _layer_canvas_intersection,
     _resize_array,

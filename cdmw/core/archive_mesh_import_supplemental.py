@@ -591,14 +591,14 @@ def _summarize_crimson_companion_supplemental_files(supplemental_files: Sequence
         if extension == ".prefab":
             decoded = decode_prefab(data)
             roles = Counter(reference.role for reference in decoded.references)
-            role_text = _summarize_compact([f"{role}={count}" for role, count in sorted(roles.items())]) or "no resource refs"
+            role_text = ", ".join(f"{role}={count}" for role, count in sorted(roles.items())[:6]) or "no resource refs"
             lines.append(
                 f"  {path.name}: prefab refs {role_text}; patchable={decoded.patchable_reference_count}; policy={policy}"
             )
         elif extension == ".meshinfo":
             decoded = decode_meshinfo(data)
             roles = Counter(reference.role for reference in decoded.references)
-            role_text = _summarize_compact([f"{role}={count}" for role, count in sorted(roles.items())]) or "no visible refs"
+            role_text = ", ".join(f"{role}={count}" for role, count in sorted(roles.items())[:6]) or "no visible refs"
             lines.append(f"  {path.name}: meshinfo refs {role_text}; policy={decoded.material_policy}")
         elif extension == ".paa_metabin":
             decoded = decode_paa_metabin(data)

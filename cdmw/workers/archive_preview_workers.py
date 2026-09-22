@@ -24,13 +24,11 @@ from cdmw.core.archive_references import build_archive_relationship_references
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.character_context import NativePreviewContextComponent
 from cdmw.models import (
-    PREVIEW_MESH_IMAGE_FIELD_NAMES,
     ArchiveEntry,
     ArchiveModelTextureReference,
     ArchivePreviewResult,
     AssetFamilyGraph,
     ModelPreviewData,
-    ModelPreviewMesh,
     ModelPreviewRenderSettings,
     PreparedModelPreviewData,
     RelationConfidence,
@@ -41,6 +39,7 @@ from cdmw.models import (
 from cdmw.rendering.model_preview_prepare import prepare_model_preview
 from cdmw.rendering.static_model_thumbnail import render_static_model_thumbnail_image
 from cdmw.services.preview_material_status import with_preview_material_warning
+from cdmw.services.archive_preview_service import clone_archive_preview_model
 from cdmw.workers.archive_preview_native import ArchivePreviewNativeMixin, NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS
 from cdmw.rendering.dotnet_preview_package_cache import (
     lookup_dotnet_preview_package_cache,
@@ -544,31 +543,7 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
         *,
         strip_images: bool = False,
     ) -> Optional[object]:
-        if not isinstance(preview_model, ModelPreviewData):
-            return preview_model
-        cloned_meshes: List[object] = []
-        for mesh in getattr(preview_model, "meshes", []) or []:
-            if isinstance(mesh, ModelPreviewMesh):
-                mesh_values = {
-                    field_info.name: getattr(mesh, field_info.name)
-                    for field_info in dataclasses.fields(ModelPreviewMesh)
-                }
-                if strip_images:
-                    for image_field in PREVIEW_MESH_IMAGE_FIELD_NAMES:
-                        mesh_values[image_field] = None
-                cloned_meshes.append(ModelPreviewMesh(**mesh_values))
-            else:
-                cloned_meshes.append(mesh)
-        return ModelPreviewData(
-            **{
-                field_info.name: (
-                    cloned_meshes
-                    if field_info.name == "meshes"
-                    else getattr(preview_model, field_info.name)
-                )
-                for field_info in dataclasses.fields(ModelPreviewData)
-            }
-        )
+        return clone_archive_preview_model(preview_model, strip_images=strip_images)
 
     def _attach_cached_preview_payload_images(self, result: ArchivePreviewResult) -> ArchivePreviewResult:
         prepared_preview = getattr(result, "prepared_preview_model", None)

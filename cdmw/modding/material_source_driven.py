@@ -60,6 +60,7 @@ from .material_profiles import (
     normalize_tone_contrast,
 )
 from .material_sidecar_patching import (
+    _material_tokens,
     _normalize_texture_path,
     _apply_source_emissive_parameters,
     _apply_source_pbr_scalar_parameters,
@@ -1296,31 +1297,6 @@ def _solid_material_factor_png_path(
 
         Image.new("RGBA", (16, 16), (components[0], components[1], components[2], 255)).save(path)
     return path
-
-
-def _material_tokens(value: str) -> set[str]:
-    stop_words = {
-        "cd",
-        "phm",
-        "pc",
-        "texture",
-        "material",
-        "mesh",
-        "obj",
-        "dds",
-        "png",
-        "source",
-        "target",
-        "donor",
-        "original",
-        "replacement",
-    }
-    tokens: set[str] = set()
-    for raw_token in re.sub(r"[^a-z0-9]+", " ", str(value or "").lower()).split():
-        token = re.sub(r"\d+$", "", raw_token.strip())
-        if len(token) > 1 and token not in stop_words and not token.isdigit():
-            tokens.add(token)
-    return tokens
 
 
 def _best_source_material_for_target(target_material: str, target_to_source_material: Mapping[str, str]) -> str:

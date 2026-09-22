@@ -8,6 +8,7 @@ import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Optional, Sequence
+from urllib.parse import unquote_to_bytes
 
 from cdmw.models import PreviewMaterialParameterInput, PreviewMaterialTextureInput
 from cdmw.core.common import raise_if_cancelled
@@ -1240,4 +1241,4 @@ def _decode_data_uri_with_mime(uri: str) -> tuple[str, bytes]:
     mime_type = header[5:].split(";", 1)[0] if header.startswith("data:") else ""
     if ";base64" in header.lower():
         return mime_type, base64.b64decode(payload)
-    return mime_type, unquote(payload).encode("utf-8")
+    return mime_type, unquote_to_bytes(payload)

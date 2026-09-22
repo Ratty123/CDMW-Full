@@ -7061,12 +7061,17 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 831,
+          "line": 844,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1123,
+          "line": 1136,
+          "sink": "emit"
+        },
+        {
+          "path": "cdmw/ui/recolor_variants_tab.py",
+          "line": 1144,
           "sink": "emit"
         }
       ]
@@ -20746,8 +20751,13 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 189,
+          "line": 190,
           "sink": "QLabel"
+        },
+        {
+          "path": "cdmw/ui/recolor_variants_tab.py",
+          "line": 730,
+          "sink": "setText"
         }
       ]
     },

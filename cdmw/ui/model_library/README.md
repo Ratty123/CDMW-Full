@@ -9,6 +9,12 @@ Rust host only when a prepared package is ready, then promotes it after the
 host reports `ready`; the unopened tab retains a lightweight placeholder.
 Archive Browser preview remains an explicit manual action.
 
+Catalogue shard caches are keyed by their full source URL, so changing mirrors
+cannot reuse another mirror's records. New catalogue IDs skip full-text deletion
+scans; updates replace their previous searchable text. Nested ZIP extraction
+caches live outside the verified outer tree and are reused only while both
+archive contents and extracted files remain valid.
+
 Runtime localization defers child-added processing until after construction.
 Creating a task thread must not expose its incomplete PySide wrapper to the
 localizer; the queued parent pass covers new widgets and actions together.

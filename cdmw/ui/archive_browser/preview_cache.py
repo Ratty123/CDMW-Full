@@ -12,13 +12,12 @@ from typing import Dict, List, Optional, Tuple
 from PySide6.QtGui import QImageReader
 
 from cdmw.services.archive_query_service import resolve_archive_pathc_path
+from cdmw.services.archive_preview_service import clone_archive_preview_model
 from cdmw.services.cache_layout import runtime_cache_layout
 from cdmw.models import (
-    PREVIEW_MESH_IMAGE_FIELD_NAMES,
     ArchiveEntry,
     ArchivePreviewResult,
     ModelPreviewData,
-    ModelPreviewMesh,
 )
 from cdmw.services.preview_rendering_service import PreparedModelPreviewData
 from cdmw.services.preview_rendering_service import (
@@ -456,31 +455,7 @@ class ArchivePreviewCacheMixin:
         *,
         strip_images: bool = False,
     ) -> Optional[object]:
-        if not isinstance(preview_model, ModelPreviewData):
-            return preview_model
-        cloned_meshes: List[object] = []
-        for mesh in getattr(preview_model, "meshes", []) or []:
-            if isinstance(mesh, ModelPreviewMesh):
-                mesh_values = {
-                    field_info.name: getattr(mesh, field_info.name)
-                    for field_info in dataclasses.fields(ModelPreviewMesh)
-                }
-                if strip_images:
-                    for image_field in PREVIEW_MESH_IMAGE_FIELD_NAMES:
-                        mesh_values[image_field] = None
-                cloned_meshes.append(ModelPreviewMesh(**mesh_values))
-            else:
-                cloned_meshes.append(mesh)
-        return ModelPreviewData(
-            **{
-                field_info.name: (
-                    cloned_meshes
-                    if field_info.name == "meshes"
-                    else getattr(preview_model, field_info.name)
-                )
-                for field_info in dataclasses.fields(ModelPreviewData)
-            }
-        )
+        return clone_archive_preview_model(preview_model, strip_images=strip_images)
 
     def _archive_preview_result_cacheable(self, result: ArchivePreviewResult) -> bool:
         dotnet_package_path = str(getattr(result, "dotnet_preview_package_path", "") or "").strip()

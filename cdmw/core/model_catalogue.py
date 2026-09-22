@@ -389,15 +389,13 @@ def resolve_importable_model_path(
     nested_archive = destination.joinpath(*PurePosixPath(outer_member).parts)
     if not nested_archive.is_file():
         return None
-    nested_destination = destination / ".cdmw_nested_zip" / _nested_zip_extract_dir_name(outer_member)
+    # Keep derived files outside the outer archive's verified extraction tree.
+    # The complete path also distinguishes equal archive names in different roots.
+    nested_cache_key = hashlib.sha256(os.fsencode(nested_archive.resolve())).hexdigest()
+    nested_destination = destination.parent / ".cdmw_nested_zip" / nested_cache_key
     safe_extract_zip(nested_archive, nested_destination, stop_event=stop_event)
     candidate = nested_destination.joinpath(*PurePosixPath(nested_member).parts)
     return candidate if candidate.is_file() and is_importable_model_path(candidate) else None
-
-
-def _nested_zip_extract_dir_name(member_name: str) -> str:
-    clean = re.sub(r"[^a-zA-Z0-9_.-]+", "_", str(member_name or "").replace("\\", "/")).strip("._")
-    return clean[:96] or "nested_zip"
 
 
 def download_mirror_model(
@@ -689,7 +687,7 @@ def upsert_catalogue_records(
 ) -> None:
     indexed_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     rows = []
-    fts_rows = []
+    fts_rows = {}
     for record in records:
         uid = str(record.get("uid", "") or "").strip()
         if not uid:
@@ -728,9 +726,21 @@ def upsert_catalogue_records(
                 indexed_at,
             )
         )
-        fts_rows.append((uid, str(record.get("name", "") or uid), creator, tags, categories, str(record.get("description", "") or "")))
+        fts_rows[uid] = (uid, str(record.get("name", "") or uid), creator, tags, categories, str(record.get("description", "") or ""))
 
     if rows:
+        fts_enabled = _catalogue_fts_enabled(conn)
+        existing_uids: list[str] = []
+        if fts_enabled:
+            # models.uid is indexed; FTS5's UNINDEXED uid column is not. Avoid
+            # scanning the entire text index once for every newly imported row.
+            uids = tuple(fts_rows)
+            for offset in range(0, len(uids), 900):
+                batch = uids[offset:offset + 900]
+                placeholders = ",".join("?" for _ in batch)
+                existing_uids.extend(
+                    row[0] for row in conn.execute(f"SELECT uid FROM models WHERE uid IN ({placeholders})", batch)
+                )
         conn.executemany(
             """
             INSERT OR REPLACE INTO models (
@@ -745,12 +755,15 @@ def upsert_catalogue_records(
             """,
             rows,
         )
-        if _catalogue_fts_enabled(conn):
+        if fts_enabled:
             try:
-                conn.executemany("DELETE FROM models_fts WHERE uid = ?", [(row[0],) for row in fts_rows])
+                for offset in range(0, len(existing_uids), 900):
+                    batch = existing_uids[offset:offset + 900]
+                    placeholders = ",".join("?" for _ in batch)
+                    conn.execute(f"DELETE FROM models_fts WHERE uid IN ({placeholders})", batch)
                 conn.executemany(
                     "INSERT INTO models_fts(uid, name, creator, tags, categories, description) VALUES (?, ?, ?, ?, ?, ?)",
-                    fts_rows,
+                    fts_rows.values(),
                 )
             except sqlite3.OperationalError:
                 conn.execute("INSERT OR REPLACE INTO metadata(key, value) VALUES('fts5_enabled', '0')")
@@ -1012,7 +1025,11 @@ def build_mirror_catalogue_index(
                 break
             shard_name = safe_catalogue_link_name(href)
             shard_url = urljoin(catalogue_url, href)
-            shard_path = shards_dir / shard_name
+            # A filename alone is shared by unrelated mirrors and even distinct
+            # catalogue URLs on the same mirror. Do not reuse unbound old caches.
+            shard_cache_dir = shards_dir / hashlib.sha256(shard_url.encode("utf-8")).hexdigest()
+            shard_cache_dir.mkdir(parents=True, exist_ok=True)
+            shard_path = shard_cache_dir / shard_name
             if shard_path.is_file() and not refresh_shards:
                 raw_text = shard_path.read_text(encoding="utf-8")
             else:

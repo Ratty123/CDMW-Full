@@ -1395,9 +1395,6 @@ def build_pac(mesh: ParsedMesh, original_data: bytes) -> bytes:  # noqa: F811
                 imported_mesh=working_mesh,
             )
         )
-        if preserve_skin:
-            clean_shading_records = False
-
     exact_skin_targets = _exact_pac_skin_weight_targets(working_mesh)
     any_skin_weights_changed = any(
         pac_skin_weights_changed(original, updated)

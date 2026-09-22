@@ -199,7 +199,6 @@ class TextureWorkflowUpscaleBackendPanelMixin:
         )
         self.chainner_override_edit.setMinimumHeight(116)
         self.chainner_override_edit.setMaximumHeight(120)
-        self.chainner_override_edit.document().setMaximumBlockCount(300)
         chainner_layout.addWidget(chainner_hint)
         chainner_layout.addWidget(self.chainner_override_edit)
         self.upscale_backend_stack.addWidget(chainner_page)

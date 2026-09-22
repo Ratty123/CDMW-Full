@@ -1,3 +1,4 @@
+import io
 import json
 import tempfile
 import threading
@@ -7,6 +8,7 @@ import zipfile
 from pathlib import Path
 from unittest import mock
 
+from cdmw.core.atomic_file import atomic_publish_directory
 from cdmw.core.model_catalogue import (
     DEFAULT_MODEL_MIRROR_URL,
     _download_url_to_file,
@@ -500,6 +502,135 @@ class ModelCatalogueTests(unittest.TestCase):
         self.assertEqual(manifest["seen_model_records_this_run"], 2)
         self.assertEqual([row["uid"] for row in rows], ["aaaa"])
         self.assertEqual([row["uid"] for row in all_rows], ["aaaa"])
+
+    def test_upsert_new_records_does_not_scan_existing_full_text_rows(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            conn = initialize_catalogue_db(Path(temp_dir) / "catalogue.sqlite")
+            try:
+                self.assertEqual(conn.execute("SELECT value FROM metadata WHERE key = 'fts5_enabled'").fetchone()[0], "1")
+                upsert_catalogue_records(
+                    conn,
+                    [{"uid": f"old-{index}", "name": "Existing model"} for index in range(5000)],
+                    shard_name="old.json",
+                    shard_url="https://example.test/old.json",
+                )
+                progress_calls = 0
+
+                def count_steps() -> int:
+                    nonlocal progress_calls
+                    progress_calls += 1
+                    return 0
+
+                conn.set_progress_handler(count_steps, 100)
+                upsert_catalogue_records(
+                    conn,
+                    [{"uid": f"new-{index}", "name": "Incoming model"} for index in range(100)],
+                    shard_name="new.json",
+                    shard_url="https://example.test/new.json",
+                )
+                conn.set_progress_handler(None, 0)
+                # A generous VM-operation budget, independent of machine speed:
+                # scanning 5,000 existing FTS rows per insertion exceeds it.
+                self.assertLess(progress_calls * 100, 500_000)
+                self.assertEqual(conn.execute("SELECT COUNT(*) FROM models_fts WHERE models_fts MATCH 'Incoming'").fetchone()[0], 100)
+            finally:
+                conn.close()
+
+    def test_upsert_replaces_full_text_tokens_and_same_batch_duplicates(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            conn = initialize_catalogue_db(Path(temp_dir) / "catalogue.sqlite")
+            try:
+                upsert_catalogue_records(
+                    conn, [{"uid": "one", "name": "Obsolete"}, {"uid": "other", "name": "Unchanged"}],
+                    shard_name="one.json", shard_url="https://example.test/one.json",
+                )
+                upsert_catalogue_records(
+                    conn,
+                    [{"uid": "one", "name": "Intermediate"}, {"uid": "one", "name": "Replacement"},
+                     {"uid": "new", "name": "Discarded"}, {"uid": "new", "name": "Final"}],
+                    shard_name="two.json", shard_url="https://example.test/two.json",
+                )
+                self.assertEqual(conn.execute("SELECT COUNT(*) FROM models_fts").fetchone()[0], 3)
+                for obsolete in ("Obsolete", "Intermediate", "Discarded"):
+                    self.assertEqual(conn.execute("SELECT COUNT(*) FROM models_fts WHERE models_fts MATCH ?", (obsolete,)).fetchone()[0], 0)
+                for current in ("Replacement", "Unchanged", "Final"):
+                    self.assertEqual(conn.execute("SELECT COUNT(*) FROM models_fts WHERE models_fts MATCH ?", (current,)).fetchone()[0], 1)
+                self.assertEqual(conn.execute("SELECT name FROM models WHERE uid = 'one'").fetchone()[0], "Replacement")
+            finally:
+                conn.close()
+
+    def test_mirror_shard_cache_is_bound_to_full_source_url(self) -> None:
+        fetched_shards: list[str] = []
+
+        def fetch_text(url: str, *, timeout: float) -> str:
+            if url.endswith("+README/"):
+                return "readme"
+            if url.endswith("+catalogue/"):
+                return '<a href="one.json">one.json</a>'
+            fetched_shards.append(url)
+            name = "Alpha" if "alpha.test" in url else "Beta"
+            return json.dumps({"results": [{"uid": name.lower(), "name": name, "archives": {"gltf": {"size": 10}}}]})
+
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch("cdmw.core.model_catalogue._fetch_text", side_effect=fetch_text):
+            root = Path(temp_dir)
+            legacy_cache = root / "catalogue_shards"
+            legacy_cache.mkdir()
+            (legacy_cache / "one.json").write_text(json.dumps({"results": [{"uid": "legacy", "name": "Unbound"}]}), encoding="utf-8")
+            for mirror, expected in (("alpha", "Alpha"), ("beta", "Beta"), ("alpha", "Alpha")):
+                base_url = f"https://{mirror}.test/models/"
+                build_mirror_catalogue_index(mirror_url=base_url, output_dir=root, clear_existing=True)
+                rows = search_catalogue_records(root / "mirror_catalogue.sqlite", "", limit=10)
+                self.assertEqual([row["name"] for row in rows], [expected])
+                self.assertTrue(rows[0]["gltf_url"].startswith(base_url))
+            self.assertEqual(fetched_shards, ["https://alpha.test/models/+catalogue/one.json", "https://beta.test/models/+catalogue/one.json"])
+
+    def test_nested_zip_reopen_reuses_cache_and_repairs_tampering(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            archive = root / "outer.zip"
+            destination = root / "extracted"
+            nested = io.BytesIO()
+            with zipfile.ZipFile(nested, "w") as zip_file:
+                zip_file.writestr("scene/model.gltf", "clean")
+                zip_file.writestr("scene/model.bin", "data")
+            with zipfile.ZipFile(archive, "w") as zip_file:
+                zip_file.writestr("source/model.zip", nested.getvalue())
+
+            resolved = resolve_importable_model_path(archive, extract_root=destination)
+            self.assertIsNotNone(resolved)
+            self.assertFalse(resolved.is_relative_to(destination))
+            with mock.patch("cdmw.core.model_catalogue.atomic_publish_directory") as publish:
+                self.assertEqual(resolve_importable_model_path(archive, extract_root=destination), resolved)
+                publish.assert_not_called()
+
+            # Neither an unexpected outer directory (including the old derived
+            # cache location) nor a modified inner file may bypass validation.
+            dirty_directory = destination / ".cdmw_nested_zip"
+            dirty_directory.mkdir()
+            (dirty_directory / "unexpected.txt").write_text("unexpected", encoding="utf-8")
+            resolved.write_text("dirty", encoding="utf-8")
+            with mock.patch("cdmw.core.model_catalogue.atomic_publish_directory", wraps=atomic_publish_directory) as publish:
+                self.assertEqual(resolve_importable_model_path(archive, extract_root=destination), resolved)
+                self.assertEqual(publish.call_count, 2)
+            self.assertFalse(dirty_directory.exists())
+            self.assertEqual(resolved.read_text(encoding="utf-8"), "clean")
+
+    def test_nested_zip_cache_distinguishes_outer_destinations(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            resolved_paths = []
+            for name in ("first", "second"):
+                archive = root / f"{name}.zip"
+                nested = io.BytesIO()
+                with zipfile.ZipFile(nested, "w") as zip_file:
+                    zip_file.writestr("scene/model.gltf", name)
+                with zipfile.ZipFile(archive, "w") as zip_file:
+                    zip_file.writestr("source/model.zip", nested.getvalue())
+                resolved = resolve_importable_model_path(archive, extract_root=root / name)
+                self.assertIsNotNone(resolved)
+                resolved_paths.append(resolved)
+            self.assertNotEqual(*resolved_paths)
+            self.assertEqual([path.read_text(encoding="utf-8") for path in resolved_paths], ["first", "second"])
 
     def test_safe_extract_zip_blocks_path_traversal(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -77,7 +77,6 @@ class TextureWorkflowProfilesUiMixin:
         self.filters_edit.setPlaceholderText("examples:\ncharacters/*\nui/**/*.dds")
         self.filters_edit.setMinimumHeight(80)
         self.filters_edit.setMaximumHeight(96)
-        self.filters_edit.document().setMaximumBlockCount(200)
 
         texture_rules_label = QLabel("Per-file workflow matching")
         texture_rules_hint = QLabel(

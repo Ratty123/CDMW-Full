@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Sequence
 
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QTreeWidgetItem
@@ -32,6 +32,7 @@ from cdmw.ui.research.classification_review_state import (
     unknown_group_display_name,
     unknown_group_empty_status_text,
     unknown_group_filter_progress_status_text,
+    unknown_group_focus_status_text,
     unknown_group_matches_filters,
     unknown_group_package_text,
     unknown_group_ready_status_text,
