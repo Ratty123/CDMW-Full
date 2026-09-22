@@ -255,7 +255,7 @@ class GuidedEffectsWorkspace(EffectWorkspaceAuthoringMixin, QWidget):
         self._reset_view_next = True
         self._preview_dirty = True
         self._preview_retry_remaining = 1
-        self._origin_defaulted_stem: Optional[str] = None
+        self._placement_position = self._committed.offset if self._committed.stem else None
         self._placement_root = Path(tempfile.mkdtemp(prefix="cdmw_effect_workspace_"))
         self._label_by_stem: dict[str, str] = {}
         self._library_rows: dict[str, EffectLibraryRow] = {}
@@ -353,7 +353,7 @@ class GuidedEffectsWorkspace(EffectWorkspaceAuthoringMixin, QWidget):
             self._initial_preview_timer.start()
 
     def choose_effect(self, stem: str, *, scale: float = 1.0) -> None:
-        """Compatibility entry point: stage an exact shipped stem at neutral defaults."""
+        """Stage a shipped effect while keeping the current placement position."""
 
         clean = str(stem or "").strip()
         self._stage_source(clean)
@@ -395,6 +395,7 @@ class GuidedEffectsWorkspace(EffectWorkspaceAuthoringMixin, QWidget):
 
     def discard_staged(self) -> None:
         self._staged = self._committed
+        self._placement_position = self._committed.offset if self._committed.stem else None
         self._refresh_library()
         self._select_stem(self._staged.stem)
         self._sync_placement_from_state()
@@ -573,7 +574,18 @@ class GuidedEffectsWorkspace(EffectWorkspaceAuthoringMixin, QWidget):
                 rate=1.0,
                 lifetime=1.0,
             )
-        placement._set_numbers(self._staged.offset, self._staged.scale, self._staged.rotation)
+        if self._staged.stem and self._placement_position is not None:
+            self._placement_position = self._staged.offset
+        position = self._placement_position if self._placement_position is not None else self._staged.offset
+        was_syncing, self._syncing = self._syncing, True
+        try:
+            placement._set_numbers(position, self._staged.scale, self._staged.rotation)
+        finally:
+            self._syncing = was_syncing
+        if self._staged.stem:
+            self._staged = replace(self._staged, offset=placement.offset, scale=placement.scale, rotation=placement.rotation)
+            if self._placement_position is not None:
+                self._placement_position = placement.offset
         placement.set_look(
             color=self._staged.color,
             intensity=self._staged.intensity,
@@ -589,6 +601,7 @@ class GuidedEffectsWorkspace(EffectWorkspaceAuthoringMixin, QWidget):
         if self._syncing or self.placement is None:
             return
         placement = self.placement
+        self._placement_position = tuple(float(value) for value in placement.offset)
         self._staged = replace(
             self._staged,
             scale=float(placement.scale),
@@ -667,6 +680,7 @@ class GuidedEffectsWorkspace(EffectWorkspaceAuthoringMixin, QWidget):
         self._committed = EffectWorkspaceState.from_draft(self._controller.draft)
         if not was_dirty:
             self._staged = self._committed
+            self._placement_position = self._committed.offset if self._committed.stem else None
             self._refresh_library()
             self._sync_placement_from_state()
             self._refresh_compatibility()
@@ -693,7 +707,7 @@ class GuidedEffectsWorkspace(EffectWorkspaceAuthoringMixin, QWidget):
         self._committed = EffectWorkspaceState.from_draft(self._controller.draft)
         self._staged = self._committed
         self.character_fit_choice.setEnabled(self._controller.draft.template_key is not None)
-        self._origin_defaulted_stem = None
+        self._placement_position = self._committed.offset if self._committed.stem else None
         self._reset_view_next = True
         self._preview_retry_remaining = 1
         if self._library_snapshot is not getattr(self._controller, "snapshot", None):
@@ -803,26 +817,20 @@ class GuidedEffectsWorkspace(EffectWorkspaceAuthoringMixin, QWidget):
                 self._schedule_preview(300)
             return
         self._preview_retry_remaining = 1
-        stem = self._staged.stem
-        raw_origin = getattr(mesh, "_cdmw_effect_item_origin", None)
-        try:
-            item_origin = tuple(float(value) for value in raw_origin)
-        except (TypeError, ValueError):
-            item_origin = ()
-        if len(item_origin) != 3:
-            item_origin = ()
-        if self._origin_defaulted_stem != stem:
-            self._origin_defaulted_stem = stem
-            if (
-                stem
-                and item_origin
-                and all(abs(float(value)) < 1e-9 for value in self._staged.offset)
-            ):
-                # A wearable mesh is rooted at the character, while its applied model
-                # origin is on the worn piece. Neutral placement starts at that origin so
-                # the gizmo and the effect open on the helmet instead of at the feet.
+        if self._placement_position is None:
+            raw_origin = getattr(mesh, "_cdmw_effect_item_origin", None)
+            try:
+                item_origin = tuple(float(value) for value in raw_origin)
+            except (TypeError, ValueError):
+                item_origin = ()
+            if len(item_origin) != 3:
+                low, high = mesh.bbox_min, mesh.bbox_max
+                item_origin = tuple((float(low[axis]) + float(high[axis])) * 0.5 for axis in range(3))
+            # Pick an initial point once per item. An explicit move to zero is
+            # also a chosen position; later effect or texture loads must keep it.
+            self._placement_position = item_origin
+            if self._staged.stem:
                 self._staged = replace(self._staged, offset=item_origin)
-                self._publish_dirty()
         self._sync_placement_from_state()
 
     def iter_shutdown_workers(self):

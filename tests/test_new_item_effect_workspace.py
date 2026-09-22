@@ -495,12 +495,89 @@ class EffectWorkspaceTests(unittest.TestCase):
         self.assertEqual(workspace.placement.offset, (0.01, 1.76, -0.05))
         self.assertTrue(workspace.has_staged_changes(), "the head-height default is saved on Apply")
 
-    def test_leaving_effects_during_item_preparation_does_not_stage_a_late_origin(self) -> None:
+    def test_effect_switches_keep_the_dragged_position_through_real_package_reloads(self) -> None:
+        from dataclasses import replace
+        from tests.test_effect_placement_dialog import _Host
+
+        def placement_factory(parent, **kwargs):
+            return EffectPlacementWorkspace(parent, host_factory=_Host, **kwargs)
+
+        workspace, controller, _confirmations = self._workspace(placement_factory=placement_factory)
+        workspace.choose_effect("fx_fire_hit")
+        self._settle(lambda: workspace.placement is not None and workspace.placement._preview is not None)
+        placement = workspace.placement
+        self.assertEqual(placement.offset, (0.05, 0.0, -0.5), "first placement starts at the item's center")
+        self.assertEqual(workspace.staged_state.offset, placement.offset)
+        workspace._staged = replace(workspace.staged_state, scale=0.034)
+        workspace._sync_placement_from_state()
+        self.assertEqual(workspace.staged_state.scale, placement.scale, "export keeps the controls' numeric precision")
+        self.assertTrue(workspace.apply_staged())
+        placement.host.alignment_drag_finished.emit(0.4, 0.3, 0.2)
+        position = placement.offset
+        self.assertEqual(position, (0.45, 0.3, -0.3))
+
+        for stem in ("", "fx_frost_loop", "fx_fire_ring_loop", "fx_fire_hit"):
+            previous = placement._preview
+            workspace.choose_effect(stem)
+            self._settle(lambda: placement._preview is not previous and placement._thread is None)
+            self.assertEqual(workspace.staged_state.offset, position if stem else (0.0, 0.0, 0.0))
+            self.assertEqual(placement.offset, position)
+            self.assertEqual(placement.host.transforms[-1]["translation"], position)
+        self.assertEqual(controller.draft.effect_offset, (0.05, 0.0, -0.5), "browsing remains staged")
+        self.assertTrue(workspace.apply_staged())
+        self.assertEqual(controller.draft.effect_offset, position)
+
+    def test_explicit_zero_position_survives_no_effect_apply_and_reselection(self) -> None:
         controller = _Controller()
         helmet = _mesh()
         helmet._cdmw_effect_item_origin = (0.01, 1.76, -0.05)
         controller.item_mesh_as_planned = lambda: (helmet, "applied")
         workspace, _controller, _confirmations = self._workspace(controller)
+        workspace.choose_effect("fx_fire_hit")
+        self._settle(lambda: workspace.placement is not None and workspace.staged_state.offset == helmet._cdmw_effect_item_origin)
+        self.assertTrue(workspace.apply_staged())
+        placement = workspace.placement
+        placement._set_numbers((0.0, 0.0, 0.0), 1.0)
+        placement.transform_changed.emit()
+        for stem in ("", "fx_frost_loop", "fx_fire_hit"):
+            workspace.choose_effect(stem)
+            workspace.selection_timer.stop()
+            workspace._rebuild_preview()
+            self._settle(lambda: not placement.item_timer.isActive())
+            self.assertEqual(placement.offset, (0.0, 0.0, 0.0))
+            self.assertEqual(workspace.staged_state.offset, (0.0, 0.0, 0.0))
+            if not stem:
+                self.assertTrue(workspace.apply_staged())
+                self.assertEqual(EffectWorkspaceState.from_draft(controller.draft), EffectWorkspaceState.defaults())
+
+    def test_saved_zero_position_is_not_recentered_when_opening_the_workspace(self) -> None:
+        controller = _Controller()
+        EffectWorkspaceState(stem="fx_fire_hit").write_to(controller.draft)
+        workspace, _controller, _confirmations = self._workspace(controller)
+        self._settle(lambda: workspace.placement is not None and not workspace.placement.item_timer.isActive())
+        self.assertEqual(workspace.placement.offset, (0.0, 0.0, 0.0))
+        self.assertEqual(workspace.staged_state, EffectWorkspaceState.from_draft(controller.draft))
+
+    def test_layer_selection_uses_its_own_position_and_effect_changes_keep_it(self) -> None:
+        from cdmw.domain.new_item.effect_authoring import EffectLayer
+
+        workspace, _controller, _confirmations = self._workspace()
+        layers = (EffectLayer("fx_fire_hit", offset=(1.0, 2.0, 3.0)),
+                  EffectLayer("fx_frost_loop", offset=(-1.0, 0.5, 0.0)))
+        workspace._recipe_changed(EffectWorkspaceState.from_layers(layers, 1))
+        workspace.choose_effect("fx_fire_ring_loop")
+        self.assertEqual(workspace.staged_state.offset, layers[1].offset)
+        self.assertEqual(workspace.staged_state.resolved_layers()[0], layers[0])
+        workspace._recipe_changed(EffectWorkspaceState.from_layers(workspace.staged_state.resolved_layers(), 0))
+        self.assertEqual(workspace.staged_state.offset, layers[0].offset)
+
+    def test_leaving_effects_during_item_preparation_does_not_stage_a_late_origin(self) -> None:
+        controller = _Controller()
+        helmet = _mesh()
+        helmet._cdmw_effect_item_origin = (0.01, 1.76, -0.05)
+        controller.item_mesh_as_planned = lambda: (None, "")
+        workspace, _controller, _confirmations = self._workspace(controller)
+        controller.item_mesh_as_planned = lambda: (helmet, "applied")
         workspace.choose_effect("fx_fire_hit")
         workspace.selection_timer.stop()
         workspace._rebuild_preview()

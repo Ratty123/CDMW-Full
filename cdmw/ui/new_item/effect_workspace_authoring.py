@@ -189,6 +189,8 @@ class EffectWorkspaceAuthoringMixin:
             self._staged = EffectWorkspaceState.from_layers(tuple(layers), index)
         else:
             self._staged = self._committed if stem == self._committed.stem else EffectWorkspaceState.defaults(stem)
+        if stem and self._placement_position is not None:
+            self._staged = replace(self._staged, offset=self._placement_position)
         if self.recipe_panel is not None:
             self.recipe_panel.set_preview(None)
 
@@ -246,6 +248,7 @@ class EffectWorkspaceAuthoringMixin:
         if self.recipe_panel is not None and (state.stem != self._staged.stem or state.active_layer != self._staged.active_layer or state.emitter_order != self._staged.emitter_order):
             self.recipe_panel.set_preview(None)
         self._staged = state
+        self._placement_position = state.offset if state.stem else self._placement_position
         self._send_effect_controls({'active_layer': state.active_layer})
         self._refresh_library()
         self._sync_placement_from_state()

@@ -581,7 +581,12 @@ quality support repeatable comparisons; playback settings do not change exported
 it never changes the draft, placement or camera. Move, Rotate and Scale use the thin
 transform handles. The solid origin and axis helper meshes stay hidden, including
 after scaling or restarting the renderer, so they cannot cover the effect. The reach
-cage remains optional through **Show the reach**. Selection, placement and look are staged; Apply publishes one draft
+cage remains optional through **Show the reach**. Initial placement starts at the
+item's center, or the applied origin for wearables. Choosing another effect keeps
+the current position, including a deliberate move to zero or browsing through
+**No effect**. Saved positions and explicit layer changes retain their own placement;
+changing the item or choosing Discard restores the draft's placement. Selection,
+placement and look are staged; Apply publishes one draft
 change, while Continue stays disabled and direct navigation offers Apply, Discard or
 Stay. The reusable `EffectPlacementWorkspace` keeps one renderer resident, rebuilds
 effect/look packages without resetting the camera, and retains old package files until
