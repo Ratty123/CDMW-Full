@@ -247,10 +247,15 @@ and **Pulse floor** to templates and separate imported Plain PBR material parts.
 Hover over a setting or its label for a short description, including the RGB
 strength, reveal, softness and inversion controls.
 The shared Rust renderer blurs visible HDR emission separately from surface colour
-and adds a coloured bloom halo to the viewport and captures. The emission pass
-respects depth, cutout, transparent coverage, animation and RGB masks; ordinary
+and adds a restrained coloured bloom halo to the viewport and captures. The halo
+uses remaining display headroom rather than clipping an already lit surface to
+white. Archive emission uses a conservative preview exposure instead of the old
+brightness boost; imported glTF retains its authored radiance scale.
+Strength 1 and 4 remain distinguishable; lower strengths retain more texture detail.
+The emission pass respects depth, cutout, transparent coverage, animation and RGB masks; ordinary
 bright surfaces do not bloom. **Preview > Dark mode** dims the background and
-scene illumination while retaining emission strength. This is a viewport lighting
+scene illumination while retaining emission strength and enough fill to read
+surface textures at moderate glow strengths. This is a viewport lighting
 simulation; it does not add game lights or change the exported material.
 Focus a material number, then use the mouse wheel to adjust it. This also works for
 translucency and shader experiment fields; scrolling over an unfocused control

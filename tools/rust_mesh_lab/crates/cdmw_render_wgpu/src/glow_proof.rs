@@ -11,7 +11,7 @@ pub(super) fn verify(
     camera: &mut CameraUniform,
     camera_buffer: &wgpu::Buffer,
     default_binding: &wgpu::BindGroup,
-    make_binding: impl Fn(&[u8], MaterialPreviewFactors) -> Result<GpuMaterialBinding, RenderError>,
+    make_binding: impl Fn(&[u8], Option<&[u8]>, MaterialPreviewFactors) -> Result<GpuMaterialBinding, RenderError>,
 ) -> Result<(), RenderError> {
     let saved_camera = *camera;
     let snapshot = DrawSnapshot {
@@ -83,7 +83,7 @@ pub(super) fn verify(
         camera.material_time = time;
         camera.lighting_preset = if case.starts_with("dark") { 2 } else { saved_camera.lighting_preset };
         camera.scene_model = Mat4::IDENTITY.to_cols_array_2d();
-        let bindings = BTreeMap::from([(0, make_binding(&dds, factors)?)]);
+        let bindings = BTreeMap::from([(0, make_binding(&dds, None, factors)?)]);
         let (buffer, width, height) = render_headless_readback_at(
             device,
             queue,
@@ -146,10 +146,53 @@ pub(super) fn verify(
         || halos["RGB zero alpha"] != halos["no glow"]
         || halos["pulse trough"] != halos["no glow"]
         || luma("dark surface") * 2 >= luma("lit surface")
-        // The tiny residual reflection dims too; the emitter keeps its brightness.
-        || luma("dark glow") * 100 < luma("static") * 97
+        // Residual reflected light dims in the other channels; the dominant
+        // emissive channel keeps its brightness even with restrained bloom.
+        || samples["dark glow"][2].abs_diff(samples["static"][2]) > 2
     {
         return Err(RenderError::Device(format!("Bloom/dark lighting mismatch: centres={samples:?}, halos={halos:?}")));
+    }
+    // Reproduce New Item's solid white glow over a textured material. Coloured
+    // emission on a black surface did not catch 1x and 4x both clipping to white.
+    let mut textured = snapshot.clone();
+    textured.uvs = vec![[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]];
+    let textured_mesh = GpuMeshBuffers::upload(device, &textured)?;
+    let mut white = cdmw_texture::synthetic::rgba8_checker_dds();
+    white[148..].fill(255);
+    let mut base = white.clone();
+    for (index, pixel) in base[148..].chunks_exact_mut(4).enumerate() {
+        let value = if index % 2 == 0 { 48 } else { 220 };
+        pixel.copy_from_slice(&[value, value, value, 255]);
+    }
+    for lighting in [0, 2] {
+        let mut strengths = Vec::new();
+        for strength in [0.0, 0.1, 1.0, 4.0] {
+            *camera = saved_camera;
+            camera.scene_model = Mat4::IDENTITY.to_cols_array_2d();
+            camera.lighting_preset = lighting;
+            let bindings = BTreeMap::from([(0, make_binding(&white, Some(&base), MaterialPreviewFactors {
+                emissive_color: Some([1.0; 3]), emissive_intensity: Some(strength),
+                specular: Some(0.0), roughness: Some(1.0), ..Default::default()
+            })?)]);
+            let (buffer, width, height) = render_headless_readback_at(device, queue, format,
+                &textured_mesh, default_binding, &bindings, camera_binding, pipelines, camera,
+                camera_buffer, ViewMode::TexturedSolid, 64, 64, Mat4::IDENTITY, None, false, None);
+            let pixels = read_headless_pixels(device, &buffer, width, height)?;
+            let sample = |x| pixels[((height / 2 * width + x) * 4) as usize];
+            strengths.push([sample(19), sample(45)]);
+        }
+        let unit = strengths[2];
+        let strong = strengths[3];
+        if strengths.windows(2).any(|pair| (0..2).any(|i| pair[1][i] <= pair[0][i]))
+            || unit.iter().any(|value| *value >= 240)
+            || strong.iter().any(|value| *value >= 254)
+            || (0..2).any(|i| u16::from(strong[i]) < u16::from(unit[i]) + 12)
+            || unit[0].abs_diff(unit[1]) < if lighting == 0 { 6 } else { 5 }
+        {
+            return Err(RenderError::Device(format!(
+                "White glow clips, loses texture detail or ignores strength (lighting {lighting}): {strengths:?}")));
+        }
+        eprintln!("White glow strength 0/0.1/1/4, textured dark/light samples (lighting {lighting}): {strengths:?}");
     }
     // A hidden emitter must not bleed through an opaque foreground surface.
     // Transparent and cutout foregrounds must retain the visible source behind.
@@ -169,11 +212,11 @@ pub(super) fn verify(
         ("cutout foreground", 0.0, false, Some(0.5)),
     ] {
         let bindings = BTreeMap::from([
-            (0, make_binding(&dds, MaterialPreviewFactors {
+            (0, make_binding(&dds, None, MaterialPreviewFactors {
                 emissive_color: Some([1.0, 0.0, 0.0]), emissive_intensity: Some(10.0),
                 ..Default::default()
             })?),
-            (1, make_binding(&dds, MaterialPreviewFactors {
+            (1, make_binding(&dds, None, MaterialPreviewFactors {
                 emissive_intensity: Some(0.0), opacity: Some(opacity),
                 alpha_blend: Some(alpha_blend), alpha_cutoff,
                 ..Default::default()

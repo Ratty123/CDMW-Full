@@ -1241,14 +1241,18 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
         let floor = min(emission_strength, material.emission_animation.w);
         emission_strength = floor + (emission_strength - floor) * (0.5 + 0.5 * sin(3.14159265359 * material.emission_animation.z * camera.material_time));
     }
-    let emissive = emission_colour * emission_strength * select(2.2, 1.0, gltf_pbr) + shader_glow;
+    // Archive materials lack the game's exposure context. Use a conservative
+    // preview exposure instead of the old 2.2x boost, retaining texture detail
+    // at ordinary strengths. Imported glTF keeps its authored radiance scale.
+    let emissive = emission_colour * emission_strength * select(0.5, 1.0, gltf_pbr) + shader_glow;
     if emission_only {
         // Preserve HDR emission before surface tone mapping; diffuse white and
         // specular highlights must never become glow sources.
         return vec4<f32>(min(max(emissive, vec3<f32>(0.0)), vec3<f32>(64.0)),
             select(1.0, material_alpha, (material.flags & MATERIAL_ALPHA_BLEND) != 0u));
     }
-    let light_scale = select(1.0, 0.025, camera.lighting_preset == 2u);
+    // Keep enough fill to read the base texture under glow in the dark preview.
+    let light_scale = select(1.0, 0.15, camera.lighting_preset == 2u);
     let showcase_warmth = select(vec3<f32>(1.0), vec3<f32>(1.08, 0.99, 0.90), showcase);
     let exposure = select(select(0.90, 1.0, showcase), 1.06, game_outdoor);
     if material.translucency_factors.z > 0.5 {
@@ -5267,12 +5271,16 @@ async fn run_headless_render_smoke_internal(
         return Err(error);
     }
     glow_proof::verify(&device, &queue, format, &pipelines, &camera_bind_group,
-        &mut camera_uniform, &camera_buffer, &default_material_binding.bind_group, |bytes, factors| {
-            let uploaded = upload_dds_texture(&device, &queue, bytes, TextureRole::Emissive)?;
-            let textures = [GpuMaterialTexture { texture: uploaded.texture, view_format: uploaded.view_format,
-                role: TextureRole::Emissive, single_channel: uploaded.single_channel, material_indices_by_lod: vec![vec![0]] }];
+        &mut camera_uniform, &camera_buffer, &default_material_binding.bind_group, |bytes, base, factors| {
+            let mut textures = Vec::new();
+            for (bytes, role) in std::iter::once((bytes, TextureRole::Emissive))
+                .chain(base.map(|bytes| (bytes, TextureRole::BaseColor))) {
+                let uploaded = upload_dds_texture(&device, &queue, bytes, role)?;
+                textures.push(GpuMaterialTexture { texture: uploaded.texture, view_format: uploaded.view_format,
+                    role, single_channel: uploaded.single_channel, material_indices_by_lod: vec![vec![0]] });
+            }
             Ok(create_material_bind_group(&device, &texture_layout, &material_sampler, &default_material_textures,
-                &textures, MaterialTextureIndices { emissive: Some(0), ..Default::default() }, factors))
+                &textures, MaterialTextureIndices { emissive: Some(0), base_color: base.map(|_| 1), ..Default::default() }, factors))
         })?;
     shader_controls_proof::verify(&device, &queue, format, &pipelines, &camera_bind_group,
         &mut camera_uniform, &camera_buffer, &default_material_binding.bind_group, |mask, base, factors| {
@@ -9642,7 +9650,7 @@ fn map_dds_format(
 }
 
 mod emission_bloom {
-    //! HDR emission is blurred separately from lit surfaces, then added to the view.
+    //! HDR emission is blurred separately, then blended into the view's headroom.
     //! The quarter-resolution targets are reused; white albedo never produces bloom.
     use super::*;
     use std::cell::RefCell;
@@ -9677,7 +9685,7 @@ mod emission_bloom {
         return blur(input.uv, vec2<f32>(0.0, 1.0));
     }
     @fragment fn composite(input: Quad) -> @location(0) vec4<f32> {
-        let light = textureSampleLevel(source, linear_sampler, input.uv, 0.0).rgb * 0.28;
+        let light = textureSampleLevel(source, linear_sampler, input.uv, 0.0).rgb * 0.08;
         // Compress by peak, preserving the glow's hue as its strength increases.
         var halo = light / (1.0 + max(light.r, max(light.g, light.b)));
         if !OUTPUT_IS_SRGB {
@@ -9794,7 +9802,11 @@ mod emission_bloom {
                 format,
                 Some(wgpu::BlendState {
                     color: wgpu::BlendComponent {
-                        src_factor: wgpu::BlendFactor::One,
+                        // The destination is already tone mapped. An unbounded
+                        // additive pass clips white emission at both 1x and 4x.
+                        // Screen blending retains surface contrast and leaves
+                        // room for strength changes without sampling the target.
+                        src_factor: wgpu::BlendFactor::OneMinusDst,
                         dst_factor: wgpu::BlendFactor::One,
                         operation: wgpu::BlendOperation::Add,
                     },
