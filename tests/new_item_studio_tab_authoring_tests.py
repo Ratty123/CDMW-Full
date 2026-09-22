@@ -762,6 +762,8 @@ class _TabAuthoringMixin:
         tab.deleteLater()
 
     def test_guided_shell_keeps_one_inspector_and_an_optional_library(self) -> None:
+        from PySide6.QtCore import Qt
+
         tab = self._tab()
         tab.start_snapshot()
         effects = tab.perks_panel.effects_workspace
@@ -785,6 +787,14 @@ class _TabAuthoringMixin:
             self.assertEqual(tab.step_hint.text(), "Step 5 of 7")
             self.assertEqual(tab.back_button.text(), "Back")
             self.assertEqual(tab.continue_button.text(), "Continue")
+            self.assertIs(
+                tab.perks_panel.tabs.cornerWidget(Qt.Corner.TopRightCorner),
+                effects.library_controls,
+            )
+            self.assertTrue(effects.library_controls.isVisibleTo(tab))
+            self.assertEqual(effects.layout().indexOf(effects.library_controls), -1)
+            self.assertEqual(effects.splitter.y(), 0)
+            self.assertLessEqual(effects.height() - effects.splitter.height(), effects.caution.sizeHint().height() + 4)
             outer = effects.splitter.sizes()
             placement = effects.placement
             self.assertIsNotNone(placement)
@@ -831,6 +841,10 @@ class _TabAuthoringMixin:
         self.assertTrue(effects.library_panel.isVisibleTo(effects))
         effects.library_toggle.setChecked(False)
         self.assertIs(effects.placement, resident)
+        tab.perks_panel.tabs.setCurrentWidget(tab.perks_panel.perks_page)
+        self.assertFalse(effects.library_controls.isVisibleTo(tab))
+        tab.perks_panel.tabs.setCurrentWidget(tab.perks_panel.effects_page)
+        self.assertTrue(effects.library_controls.isVisibleTo(tab))
         tab.show_step(5)
         tab.show_step(4)
         self.assertIs(effects.placement, resident, "returning to Step 5 reuses the resident placement workspace")

@@ -340,6 +340,12 @@ class PerksPanel(QGroupBox):
         self.bonus_editor = BonusEditor(self._controller)
         self.tabs.addTab(self.bonus_editor, "Inherent bonuses")
         self.tabs.setCurrentWidget(self.effects_page)
+        self.tabs.setCornerWidget(self.effects_workspace.library_controls, Qt.Corner.TopRightCorner)
+        self.tabs.currentChanged.connect(
+            lambda _index: self.effects_workspace.library_controls.setVisible(
+                self.tabs.currentWidget() is self.effects_page
+            )
+        )
         self.own_perks.toggled.connect(self._show_perks_when_customizing)
         self._show_perks_when_customizing(self.own_perks.isChecked())
         while layout.count():

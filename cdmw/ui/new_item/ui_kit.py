@@ -102,7 +102,7 @@ def step_style(palette) -> str:
         QTableView#effect_library::item:hover {{ background: {border}; }}
         QTableView#effect_library::item:selected {{ color: {active_text}; background: {active}; }}
         QTableView#effect_library QHeaderView::section {{ min-height: 20px; padding: 0 4px; font-weight: normal; }}
-        QLineEdit#effect_search {{ min-height: 30px; border: 1px solid {border}; padding: 0 8px; background: {background}; }}
+        QFrame#effect_library_panel QLineEdit#effect_search {{ min-height: 24px; border: 1px solid {border}; padding: 0 6px; background: {background}; }}
         QToolButton[effectChip="true"] {{ min-height: 24px; padding: 0 5px; color: {text}; background: {background}; border: 1px solid {border}; border-radius: 4px; }}
         QGroupBox#new_item_step QLineEdit, QGroupBox#new_item_step QComboBox,
         QGroupBox#new_item_step QDoubleSpinBox, QGroupBox#new_item_step QPushButton {{ min-height: 30px; }}
@@ -119,6 +119,7 @@ def step_style(palette) -> str:
             border: none; margin-top: 0; padding: 0;
         }}
         QGroupBox#new_item_step QSpinBox {{ min-height: 30px; }}
+        QFrame#effect_library_panel QComboBox {{ min-height: 22px; padding: 1px 22px 1px 5px; }}
         QWidget#effect_toolbar QPushButton,
         QWidget#effect_playback_controls QPushButton,
         QWidget#effect_playback_controls QDoubleSpinBox,

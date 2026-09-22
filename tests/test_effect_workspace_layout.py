@@ -8,22 +8,109 @@ from pathlib import Path
 
 import pytest
 import shiboken6
-from PySide6.QtCore import QPoint
+from PySide6.QtCore import QPoint, QRect, Qt
 from PySide6.QtGui import QFont, QFontDatabase
-from PySide6.QtWidgets import QApplication, QGroupBox, QLabel, QPushButton, QScrollArea, QTabWidget, QVBoxLayout
+from PySide6.QtWidgets import QApplication, QGroupBox, QLabel, QPushButton, QScrollArea, QTabWidget, QVBoxLayout, QWidget
 
 from cdmw.domain.new_item.effect_authoring import EffectLayer
 from cdmw.ui.new_item.effect_placement_dialog import EffectPlacementWorkspace
 from cdmw.ui.new_item.effect_recipe_panel import EffectRecipePanel, EffectUserLibrary
+from cdmw.ui.new_item.effect_workspace import GuidedEffectsWorkspace
 from cdmw.ui.new_item.state import EffectWorkspaceState
 from cdmw.ui.new_item.ui_kit import step_style
 from cdmw.ui.themes import build_app_palette, build_app_stylesheet
 from tests.test_effect_placement_dialog import _Host, _blade
+from tests.test_new_item_effect_workspace import _Controller
 
 _APP = QApplication.instance() or QApplication([])
 _FONT = Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts/segoeui.ttf"
 if _FONT.is_file():
     QFontDatabase.addApplicationFont(str(_FONT))
+
+
+@pytest.mark.parametrize("width,height,font_size", [(1280, 720, 9), (1600, 900, 9), (1280, 720, 11)])
+def test_effect_library_controls_leave_the_viewport_full_height(monkeypatch, width, height, font_size):
+    """Headless styled geometry; the placeholder owns no renderer or game assets."""
+    monkeypatch.setattr(GuidedEffectsWorkspace, "_rebuild_preview", lambda self: None)
+    previous_font = _APP.font()
+    _APP.setFont(QFont("Segoe UI", font_size))
+    root = QGroupBox()
+    root.setObjectName("new_item_step")
+    root.setProperty("guidedPage", True)
+    root.setFont(QFont("Segoe UI", font_size))
+    root.setPalette(build_app_palette("graphite"))
+    root.setStyleSheet(build_app_stylesheet("graphite") + step_style(root.palette()))
+    tabs = QTabWidget()
+    tabs.setObjectName("new_item_perks_effects_tabs")
+    layout = QVBoxLayout(root)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.addWidget(tabs)
+    controller = _Controller()
+    workspace = GuidedEffectsWorkspace(controller)
+    tabs.addTab(QWidget(), "Perks (experimental)")
+    tabs.addTab(workspace, "Effects")
+    tabs.addTab(QWidget(), "Available sockets")
+    tabs.addTab(QWidget(), "Inherent bonuses")
+    tabs.setCurrentWidget(workspace)
+    tabs.setCornerWidget(workspace.library_controls, Qt.Corner.TopRightCorner)
+    root.resize(width, height)
+    root.show()
+
+    def settle():
+        for _ in range(4):
+            _APP.processEvents()
+
+    def library_rect(widget):
+        return QRect(widget.mapTo(workspace.library_panel, QPoint()), widget.size())
+
+    try:
+        settle()
+        assert root.size().width() == width
+        assert root.size().height() == height
+        assert workspace.placement is None
+        assert workspace.library_toggle.isVisibleTo(root)
+        assert not workspace.library_panel.isVisibleTo(workspace)
+        assert workspace.splitter.y() <= 1
+        assert workspace.placement_holder.y() == 0
+        assert workspace.height() - workspace.splitter.geometry().bottom() - 1 <= workspace.caution.fontMetrics().height() + 16
+        assert workspace.caution.height() <= workspace.caution.fontMetrics().height() + 8
+        controls = workspace.library_controls
+        assert tabs.cornerWidget(Qt.Corner.TopRightCorner) is controls
+        for control in (workspace.library_toggle, workspace.selected_effect_label):
+            assert controls.rect().contains(control.geometry())
+        assert not workspace.library_toggle.geometry().intersects(workspace.selected_effect_label.geometry())
+        assert controls.mapTo(tabs, QPoint()).x() > tabs.tabBar().geometry().right()
+        assert workspace.selected_effect_label.width() <= 240
+
+        original_placeholder = workspace.placeholder
+        workspace.library_toggle.click()
+        settle()
+        assert workspace.library_panel.isVisibleTo(workspace)
+        assert workspace.library_panel.isAncestorOf(workspace.search)
+        assert workspace.library_panel.isAncestorOf(workspace.category_choice)
+        assert 120 <= workspace.search.width() <= 280
+        assert workspace.library_panel.rect().contains(library_rect(workspace.search))
+        filters = (workspace.behavior_all, workspace.loop_only, workspace.one_shot_only, workspace.category_choice)
+        for index, control in enumerate(filters):
+            rect = library_rect(control)
+            assert workspace.library_panel.rect().contains(rect)
+            assert abs(rect.center().y() - library_rect(workspace.category_choice).center().y()) <= 2
+            for other in filters[index + 1:]:
+                assert not rect.intersects(library_rect(other))
+        assert library_rect(workspace.search).bottom() < library_rect(workspace.category_choice).top()
+        assert workspace.splitter.y() <= 1
+        assert workspace.placeholder is original_placeholder
+        expanded_height = workspace.splitter.height()
+        workspace.library_toggle.click()
+        settle()
+        assert not workspace.library_panel.isVisibleTo(workspace)
+        assert workspace.splitter.height() == expanded_height
+        assert workspace.placeholder is original_placeholder
+    finally:
+        workspace.request_shutdown()
+        root.close()
+        shiboken6.delete(root)
+        _APP.setFont(previous_font)
 
 
 @pytest.mark.parametrize("width,height,font_size", [(1000, 700, 9), (1600, 900, 9), (1100, 720, 11)])

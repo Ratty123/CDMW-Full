@@ -13,6 +13,7 @@ The format is intentionally simple:
 
 ### Changed
 
+- Perks & Effects gives the viewport more height by moving Browse effects and the selected name into the tab bar, keeping a shorter search and category filters inside the library, and compacting the preview notice.
 - Create New Item keeps Model & Placement loading progress below the scrolling inspector and shows camera help only once in Template. Shader experiments mark incompatible options as unavailable and explain their material requirements; every Glow animation setting has hover help.
 - Mesh Editor's glow, translucency and shader experiment numbers have sliders with editable values. Create New Item's material numbers and absorption slider accept mouse-wheel adjustments while focused, keeping unfocused page scrolling from changing a material.
 - Create New Item's Output gives file review the main workspace and groups destination, plan status and write/install actions in a right sidebar. The activity log folds below the review and opens for output errors. Mod management stays below the output action, and the divider remains adjustable.
