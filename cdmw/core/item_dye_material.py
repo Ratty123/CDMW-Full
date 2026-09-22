@@ -26,11 +26,12 @@ def has_dye_wiring(wrapper):
             and bool(wrapper.textures.get("_colorBlendingMaskTexture") or wrapper.textures.get("_maskTexture")))
 
 
-def copy_dye_materials(target, source, assignments, mask_paths):
+def copy_dye_materials(target, source, assignments, mask_paths, *, preserve_materials=False):
     """Copy only explicit donor materials at the same exact property indices.
 
-Packed shader flags retain the donor's values. A supplied RGB mask changes the
-proven color-mask texture parameter, never an inferred or fuzzy material binding.
+Unedited mappings retain the donor's material and flags. Preserved appearance
+edits keep compatible same-part dye wiring. An RGB mask changes only its proven
+texture parameter, never an inferred or fuzzy material binding.
 """
     source_text, target_text = source.decode("utf-8-sig"), target.decode("utf-8-sig")
     source_properties = {int(match.group(1)): match.group(2) for match in _PROPERTY.finditer(source_text)}
@@ -49,6 +50,20 @@ proven color-mask texture parameter, never an inferred or fuzzy material binding
             if donor is None or not has_dye_wiring(donor):
                 raise ValueError(f"No proven dye material for {entry.source_submesh}, property {property_index}")
             material = source_property[donor.start:donor.end]
+            original = donors.get(wrapper.submesh_name)
+            original_material = source_property[original.start:original.end] if original is not None else None
+            current_material = match.group(2)[wrapper.start:wrapper.end]
+            if preserve_materials and current_material != original_material:
+                # A same-part mapping can retain proven dye wiring after compatible
+                # edits (for example Standard_Ver2 -> Emissive_Ver2). Grafting a
+                # different donor or a layered dye block onto Plain PBR glass would
+                # silently replace those edits or invent unsupported shader inputs.
+                compatible = (wrapper.shader.replace("SkinnedMeshEmissive", "SkinnedMeshStandard")
+                              == donor.shader.replace("SkinnedMeshEmissive", "SkinnedMeshStandard"))
+                if entry.source_submesh != wrapper.submesh_name or not has_dye_wiring(wrapper) or not compatible:
+                    raise ValueError(f"{wrapper.submesh_name}: this dye mapping would replace the edited material. "
+                                     "Remove its dye mapping or restore its appearance edits.")
+                material = current_material
             mask = mask_paths.get(entry.target_submesh)
             if mask:
                 name = "_colorBlendingMaskTexture" if "_colorBlendingMaskTexture" in donor.textures else "_maskTexture"

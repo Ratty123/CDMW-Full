@@ -11,7 +11,7 @@ from PySide6.QtCore import QObject, QThread, Qt, QTimer, Signal
 from cdmw.services.archive_workflow_service import archive_name_search_text_match, parse_archive_search_query
 from cdmw.domain.cancellation import RunCancelled, raise_if_cancelled
 from cdmw.domain.new_item.rules import ValidationIssue, has_errors
-from cdmw.domain.new_item.spec import IconSource, ModelSource, NewItemSpec
+from cdmw.domain.new_item.spec import IconSource, MaterialRoute, ModelSource, NewItemSpec
 from cdmw.models import ArchiveEntry
 from cdmw.ui.new_item.blender_setting import blender_for_fbx
 from cdmw.ui.new_item.model_import import (
@@ -58,7 +58,7 @@ def _placement_progressive_source(
     placement,
     character_mesh,
     token,
-    shader_controls=(), snapshot=None,
+    shader_controls=(), snapshot=None, *, plain_pbr=False,
 ):
     from cdmw.ui.new_item.item_preview import PlacementScene
 
@@ -80,7 +80,8 @@ def _placement_progressive_source(
             template_build,
             lambda template: PlacementScene(
                 template=template,
-                model=shader_preview_mesh(source.baked_preview_mesh(), shader_controls, snapshot=snapshot, stop_event=stop_event),
+                model=shader_preview_mesh(source.baked_preview_mesh(), shader_controls, snapshot=snapshot,
+                                          stop_event=stop_event, plain_pbr=plain_pbr),
                 placement=placement,
                 model_bounds=source.baked_bounds(),
                 model_origin=source.baked_origin(),
@@ -313,7 +314,7 @@ class NewItemPreviewControllerMixin:
             placement = self.model_placement
             token = (
                 "placement", source.cache_identity, source.bake, source.mesh_generation,
-                template_token, include_character, self.draft.shader_controls,
+                template_token, include_character, self.draft.shader_controls, self.draft.material_route,
             )
             build = _placement_progressive_source(
                 source,
@@ -322,6 +323,7 @@ class NewItemPreviewControllerMixin:
                 placement,
                 character_mesh,
                 token, self.draft.shader_controls, self.snapshot,
+                plain_pbr=self.draft.material_route is MaterialRoute.PLAIN_PBR,
             )
             return token, build
         result = self.model_result
@@ -621,9 +623,21 @@ class NewItemPreviewControllerMixin:
         return held
 
     def material_shader_options(self):
-        """Worker-prepared compatibility for the selected template variant only."""
+        """Template facts or the known Plain PBR contract of an external import."""
         if self.model_import is not None or self.model_result is not None:
-            return None
+            if self.model_import is None or self.draft.material_route is not MaterialRoute.PLAIN_PBR:
+                # Builder wrappers are not interchangeable with source materials.
+                # Without a proven binding, do not advertise every shader family.
+                return {}
+            from cdmw.services.new_item_translucency import source_translucency
+            from cdmw.services.new_item_materials import appearance_preview_part_names
+            mesh = getattr(getattr(self.model_import, "scene", None), "mesh", None)
+            glass = {name.casefold() for part in getattr(mesh, "submeshes", ())
+                     if source_translucency(part) is not None for name in appearance_preview_part_names(part)}
+            return {name.casefold(): (
+                "SkinnedMeshTranslucent" if name.casefold() in glass else "SkinnedMeshStandard",
+                () if name.casefold() in glass else ("SkinnedMeshWing",),
+            ) for name, _label in self.material_parts()}
         identity = self.current_variant_identity()
         selected = identity[1].casefold() if identity else None
         options = {}

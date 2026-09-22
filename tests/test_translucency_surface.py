@@ -135,3 +135,41 @@ def test_surface_conflicts_in_shared_atlas_are_rejected():
     atlas = SourceMaterialTextures("Combined", atlas_sources=(SourceMaterialTextures("Blade"), SourceMaterialTextures("Gem")))
     with pytest.raises(ValueError, match="different surface settings"):
         selected_translucency(choice, "Combined", atlas)
+
+
+@pytest.mark.parametrize("prebuilt", [False, True])
+def test_import_surface_cancellation_reaches_the_conversion_boundary(monkeypatch, prebuilt):
+    import cdmw.services.new_item_materials as materials
+    files = source_files()
+    stop = threading.Event()
+    choice = TranslucencyChoice.from_settings({"Blade": (.1, .3)}, {"Blade": (.9, 0)})
+    def no_encode(*args, **kwargs):
+        pytest.fail("A cancelled surface operation must not reach the encoder")
+    monkeypatch.setattr("cdmw.services.translucency_surface._encode_surface", no_encode)
+    if prebuilt:
+        stop.set()
+        with pytest.raises(RunCancelled):
+            apply_prebuilt_translucency(files, MaterialRoute.PLAIN_PBR, choice, stop_event=stop)
+    else:
+        finish = materials._finish_plain_pbr_route
+        def cancel_after_route(**kwargs):
+            result = finish(**kwargs)
+            stop.set()
+            return result
+        monkeypatch.setattr(materials, "_finish_plain_pbr_route", cancel_after_route)
+        with pytest.raises(RunCancelled):
+            route_plain_pbr(files, translucency=choice, stop_event=stop)
+
+
+def test_rgb_glow_encoding_receives_the_cancel_event(tmp_path, monkeypatch):
+    from cdmw.services.new_item_materials import encode_rgb_emissive
+    source = tmp_path / "glow.png"
+    Image.new("RGBA", (4, 4), (255, 30, 10, 255)).save(source)
+    stop = threading.Event()
+    def encode(*args, stop_event=None, **kwargs):
+        assert stop_event is stop
+        stop.set()
+        raise RunCancelled()
+    monkeypatch.setattr("cdmw.core.texture_native.encode_dds_with_directxtex", encode)
+    with pytest.raises(RunCancelled):
+        encode_rgb_emissive(source, stop_event=stop)

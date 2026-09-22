@@ -18,6 +18,7 @@ class VariantModelState:
     glow_color: tuple = (1.0,1.0,1.0)
     glow_intensity: float = 4.0
     camera: object = None
+    dyes_edited: bool = False
 
 
 class NewItemVariantControllerMixin:
@@ -52,11 +53,13 @@ class NewItemVariantControllerMixin:
             return
         prior = self._variant_states.get(identity)
         appearance = prior.appearance if prior else VariantAppearance(*identity)
+        dyes_edited = prior.dyes_edited if prior else False
         if prior and (prior.source is not self.model_import
                       or (self.model_import is None and prior.result is not self.model_result)):
             # Dye consent belongs to this import. Replacing it starts disabled,
             # even when the new file has the same path or material names.
             appearance = replace(appearance,dyes=())
+            dyes_edited = False
         appearance = replace(appearance,custom_model=self.draft.model_source is ModelSource.IMPORTED and (self.model_import is not None or self.model_result is not None),
                              material_route=self.draft.material_route.value,keep_template_physics=self.draft.keep_template_physics,
                              glow_parts=tuple(self.draft.glow_parts),glow_color=tuple(self.draft.glow_color),
@@ -64,7 +67,7 @@ class NewItemVariantControllerMixin:
                              template_transform=self.draft.template_transform)
         self._variant_states[identity] = VariantModelState(appearance,self.model_import,self.model_result,self.model_entry,
             self.model_scene,self.model_placement,tuple(self.draft.glow_parts),tuple(self.draft.glow_color),self.draft.glow_intensity,
-            prior.camera if prior else None)
+            prior.camera if prior else None, dyes_edited)
 
     def _sync_variant_state(self):
         if (self._active_variant is None and self.snapshot is not None and self.snapshot.sources
@@ -76,7 +79,7 @@ class NewItemVariantControllerMixin:
             return
         self._capture_variant(self._active_variant)
         self.draft.variants = tuple(state.appearance for state in self._variant_states.values()
-                                    if state.appearance.custom_model or state.appearance.dyes != ()
+                                    if state.appearance.custom_model or state.dyes_edited or state.appearance.dyes != ()
                                     or state.appearance.glow_parts or state.appearance.translucency is not None or state.appearance.shader_controls
                                     or state.appearance.template_transform)
         if not self.draft.variants and self.draft.effect_stem:
@@ -118,8 +121,10 @@ class NewItemVariantControllerMixin:
             if identity is None:
                 raise ValueError("This template has no model variant to dye.")
             self.select_variant(identity)
+        self._capture_variant(self._active_variant)
         state = self._variant_states[self._active_variant]
         state.appearance = replace(state.appearance,dyes=assignments)
+        state.dyes_edited = True
         self.invalidate_plan()
         self.variant_changed.emit(self._active_variant)
 

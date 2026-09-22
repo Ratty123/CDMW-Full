@@ -307,6 +307,10 @@ class GuidedEffectsWorkspace(EffectWorkspaceAuthoringMixin, QWidget):
         controller.model_import_changed.connect(self._source_changed)
         controller.model_changed.connect(self._source_changed)
         controller.model_placement_changed.connect(self._source_changed)
+        self._preview_appearance = self._appearance_state()
+        invalidated = getattr(controller, "plan_invalidated", None)
+        if invalidated is not None:
+            invalidated.connect(self._appearance_changed)
         snapshot_ready = getattr(controller, "snapshot_ready", None)
         if snapshot_ready is not None:
             snapshot_ready.connect(self._start_library)
@@ -656,7 +660,23 @@ class GuidedEffectsWorkspace(EffectWorkspaceAuthoringMixin, QWidget):
             self._schedule_preview()
         self._publish_dirty()
 
+    def _appearance_state(self):
+        draft = self._controller.draft
+        return (draft.model_source, draft.material_route, draft.glow_parts, draft.glow_color,
+                draft.glow_intensity, draft.glow_animation, draft.glow_rgb, draft.translucency,
+                draft.shader_controls, draft.template_transform, draft.variants)
+
+    def _appearance_changed(self) -> None:
+        if self._library_closed:
+            return
+        state = self._appearance_state()
+        if state != self._preview_appearance:
+            self._preview_appearance = state
+            # Keep staged effects and camera; cancel only the obsolete material build.
+            self._schedule_preview()
+
     def _source_changed(self, *_args) -> None:
+        self._preview_appearance = self._appearance_state()
         self._committed = EffectWorkspaceState.from_draft(self._controller.draft)
         self._staged = self._committed
         self.character_fit_choice.setEnabled(self._controller.draft.template_key is not None)

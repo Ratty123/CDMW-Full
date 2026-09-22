@@ -52,7 +52,7 @@ def shader_control_diagnostic(part, controls, authored):
     return ""
 
 
-def shader_preview_groups(mesh, choices):
+def shader_preview_groups(mesh, choices, *, plain_pbr=False):
     from cdmw.services.new_item_materials import appearance_preview_part_names
     settings = {name.casefold(): controls for name, controls in choices}
     result = []
@@ -61,6 +61,10 @@ def shader_preview_groups(mesh, choices):
         if selected and any(value != selected[0] for value in selected):
             raise ValueError("Parts sharing a preview material need the same shader controls.")
         values, _ = source_inputs(part)
+        if selected and plain_pbr and selected[0].shader == "SkinnedMeshWing":
+            # Plain PBR conversion starts fully revealed in the output writer.
+            # Explicit control values still win in preview_factors.
+            values = {"_wingFlowProgress": "2"}
         result.append({"source_submesh_indices": [index], "editor_role": "replacement_preview",
                        "shader_controls": list(preview_factors(selected[0], values)) if selected else None})
     return tuple(result)
@@ -113,7 +117,7 @@ def attach_source_masks(part, source):
                              for position, uv in zip(part.vertices, part.uvs)]
 
 
-def shader_preview_mesh(mesh, choices, *, snapshot=None, stop_event=None):
+def shader_preview_mesh(mesh, choices, *, snapshot=None, stop_event=None, plain_pbr=False):
     if not choices:
         return mesh
     from cdmw.services.new_item_materials import appearance_preview_part_names
@@ -134,8 +138,11 @@ def shader_preview_mesh(mesh, choices, *, snapshot=None, stop_event=None):
             raise ValueError("Parts sharing a preview material need the same shader controls.")
         clone = copy.copy(part)
         values, textures = source_inputs(part)
+        if plain_pbr and controls.shader == "SkinnedMeshWing":
+            values = {"_wingFlowProgress": "2"}
+            textures.pop("_wingFlowTex1", None)
         path = str(getattr(part, "preview_source_asset_path", "") or mesh.path).replace("\\", "/")
-        if snapshot is not None and path.casefold().endswith(".pac"):
+        if not plain_pbr and snapshot is not None and path.casefold().endswith(".pac"):
             if path not in decoded:
                 xml = path.replace("/model/", "/modelproperty/", 1) + "_xml"
                 text = snapshot.payload(xml).decode("utf-8-sig") if snapshot.has_entry(xml) else ""

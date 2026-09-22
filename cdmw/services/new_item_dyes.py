@@ -60,7 +60,8 @@ def prepare_dye_preview_table(index, row, parts):
                              encode_prefab_dye_row(replace(row, submeshes=parts)))
 
 
-def prepare_dye_assignments(source_row, material, source_material, assignments, *, imported, mask_paths=None):
+def prepare_dye_assignments(source_row, material, source_material, assignments, *, imported, mask_paths=None,
+                            preserve_materials=False):
     if assignments == ():
         return (),material
     bindings = material_dye_bindings(material)
@@ -84,7 +85,8 @@ def prepare_dye_assignments(source_row, material, source_material, assignments, 
         if imported and assignment.target_submesh != assignment.source_submesh and not (mask_paths or {}).get(assignment.target_submesh):
             raise ValueError("A renamed imported dye part needs an explicit RGB mask for its UV layout.")
         parts.append(replace(sources[assignment.source_submesh], name=assignment.target_submesh,slots=assignment.slots))
-    material = copy_dye_materials(material,source_material,assignments,mask_paths or {})
+    material = copy_dye_materials(material,source_material,assignments,mask_paths or {},
+                                 preserve_materials=preserve_materials)
     return tuple(parts),material
 
 
@@ -111,7 +113,8 @@ def plan_variant_dye(planner,old_model,new_model,material,choice,imported):
         target = f"character/texture/{PurePosixPath(new_model).stem}_dye{ordinal}.dds"
         planner.add(snapshot.entry(old_model),target,data,f"Dye mask: {target}")
         masks[assignment.target_submesh] = target
-    submeshes,material = prepare_dye_assignments(source,material,source_material,assignments,imported=imported,mask_paths=masks)
+    submeshes,material = prepare_dye_assignments(source,material,source_material,assignments,imported=imported,mask_paths=masks,
+        preserve_materials=bool(choice and (choice.glow_parts or choice.translucency is not None or choice.shader_controls)))
     if imported and assignments is None and source.submeshes and not submeshes:
         warning = f"Template dyes were omitted for {old_model}: the imported materials do not support the template dye setup. Add explicit dye mappings to enable dyes."
         planner.warnings.append(warning)

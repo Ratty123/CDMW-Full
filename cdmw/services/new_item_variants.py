@@ -92,7 +92,7 @@ def prepare_variant_models(spec, snapshot, models, scenes, *, on_log=None, on_pr
         if isinstance(model, ModelFiles):
             from cdmw.services.new_item_translucency import apply_prebuilt_translucency
             files = apply_prebuilt_translucency(model, MaterialRoute(appearance.material_route),
-                                               appearance.translucency, on_log=on_log)
+                                               appearance.translucency, on_log=on_log, stop_event=stop_event)
         else:
             files = model_files_from_import(model, family=family)
             files = route_model_files(files, MaterialRoute(appearance.material_route), result=model,

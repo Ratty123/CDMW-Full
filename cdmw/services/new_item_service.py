@@ -287,7 +287,8 @@ class NewItemService:
             pass
         elif isinstance(model, ModelFiles):
             from cdmw.services.new_item_translucency import apply_prebuilt_translucency
-            files = apply_prebuilt_translucency(model, allocated.material_route, allocated.translucency, on_log=report)
+            files = apply_prebuilt_translucency(model, allocated.material_route, allocated.translucency,
+                                               on_log=report, stop_event=stop_event)
         elif model is not None:
             files = model_files_from_import(model, family=snapshot.family(allocated.template_key))
             raise_if_cancelled(stop_event, "New item plan cancelled.")

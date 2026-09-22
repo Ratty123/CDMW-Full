@@ -587,6 +587,56 @@ class EffectWorkspaceTests(unittest.TestCase):
         self.assertGreater(placement.cancelled_content, before)
         self.assertTrue(workspace.selection_timer.isActive())
 
+    def test_appearance_edits_refresh_resident_effects_without_discarding_staged_changes(self) -> None:
+        from dataclasses import replace
+        from cdmw.domain.new_item.translucency import TranslucencyChoice
+        from cdmw.domain.mesh.shader_controls import ShaderControls
+        from cdmw.ui.new_item.panels_model import ModelPanel
+        controller = NewItemStudioController(synchronous=True)
+        self.addCleanup(controller.shutdown)
+        controller.draft.template_key = 1
+        captures = []
+        def source():
+            captures.append((controller.draft.glow_parts, controller.draft.translucency, controller.draft.shader_controls))
+            return lambda _stop: (_mesh(), "template")
+        controller.item_effect_preview_source = source
+        controller.effect_box = lambda _stem: ((-1., -1., -1.), (1., 1., 1.))
+        controller.effect_preview_for_placement = lambda *_args: (None, None)
+        workspace, _, _ = self._workspace(controller)
+        self._settle(lambda: workspace.placement is not None and not workspace.placement.item_timer.isActive())
+        workspace.placement._renderer_failed = False
+        workspace._staged = replace(workspace.staged_state, offset=(1., 2., 3.))
+        staged = workspace.staged_state
+        panel = SimpleNamespace(_controller=controller, _sync_glow_preview=lambda: None, refresh_preview=lambda: None,
+            _ticked_glow_parts=lambda: ("Blade",), glow_box=SimpleNamespace(isChecked=lambda: True),
+            glow_intensity=SimpleNamespace(value=lambda: 9.),
+            glow_animation=SimpleNamespace(value=lambda: controller.draft.glow_animation, rgb_value=lambda: None),
+            plain_pbr=SimpleNamespace(setChecked=lambda _value: None))
+        for name, apply in (
+            ("glow", lambda: ModelPanel._glow_changed(panel)),
+            ("translucency", lambda: ModelPanel._translucency_changed(panel, TranslucencyChoice(("Blade",), .1, .3))),
+            ("shader", lambda: ModelPanel._shader_controls_changed(panel, (("Other", ShaderControls("SkinnedMeshWing")),))),
+        ):
+            with self.subTest(name=name):
+                workspace.hide()
+                before = len(captures)
+                cancelled = workspace.placement.cancelled_content
+                apply()
+                self.assertTrue(workspace._preview_dirty)
+                self.assertGreater(workspace.placement.cancelled_content, cancelled)
+                workspace.show()
+                self._settle(lambda: len(captures) > before and not workspace.placement.item_timer.isActive())
+                self.assertEqual(len(captures), before + 1)
+                self.assertEqual(workspace.staged_state, staged)
+        self.assertEqual(captures[-1], (controller.draft.glow_parts, controller.draft.translucency, controller.draft.shader_controls))
+        controller.invalidate_plan()  # A price/stat edit must not re-decode materials.
+        self.assertFalse(workspace._preview_dirty)
+        self.assertFalse(workspace.selection_timer.isActive())
+        workspace.request_shutdown()
+        controller.draft.glow_intensity += 1
+        controller.invalidate_plan()
+        self.assertFalse(workspace.selection_timer.isActive())
+
     def test_character_fit_selector_rebuilds_only_the_preview_for_the_requested_rig(self) -> None:
         controller = _Controller()
         requested: list[str] = []

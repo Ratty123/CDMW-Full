@@ -124,7 +124,7 @@ def encode_translucent_base(source, *, on_log=None, stop_event=None) -> bytes | 
         )
 
 
-def apply_prebuilt_translucency(files, route: MaterialRoute, choice: TranslucencyChoice | None, *, on_log=None):
+def apply_prebuilt_translucency(files, route: MaterialRoute, choice: TranslucencyChoice | None, *, on_log=None, stop_event=None):
     """Prebuilt materials already own their textures and glow; patch only the selection."""
     if choice is None:
         return files
@@ -142,7 +142,7 @@ def apply_prebuilt_translucency(files, route: MaterialRoute, choice: Translucenc
         text, surface_files = apply_translucency_surface(text,
             {name: choice.values_for(name) for name in choice.parts},
             {name: choice.surface_for(name) for name in choice.parts}, key.removesuffix("_xml"),
-            lambda path: sources.get(path.replace("\\", "/").casefold()))
+            lambda path: sources.get(path.replace("\\", "/").casefold()), stop_event=stop_event)
     except (UnicodeDecodeError, ValueError) as exc:
         raise NewItemPlanError(str(exc)) from exc
     notes = []

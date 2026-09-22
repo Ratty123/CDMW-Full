@@ -310,6 +310,9 @@ Imported resident previews update without rebuilding geometry; template previews
 recompose their cached native material inputs. Both restore source defaults when the
 manual override is disabled. Effects previews carry the
 same settings. Switching to Builder clears the automatic glass preview.
+Returning to Effects after changing appearance refreshes its resident item materials.
+The refresh cancels obsolete preparation while retaining staged effects and the camera;
+price and other unrelated draft changes do not rebuild the preview.
 For templates without a usable base-colour map, Build plan bakes only the selected
 parts into Plain PBR textures before applying translucency. This uses declared
 material inputs across item types, including cloth and fur on helmets, armour and
@@ -325,6 +328,8 @@ part and source path instead of exporting grey replacement textures.
 Dye previews use the same translucency choices as export. For prebuilt imports,
 manual translucency changes only the selected shaders, absorption values and explicitly
 overridden surface channels; existing glow, other parameters and unselected materials are kept.
+Surface-map and RGB glow encoding receive the request's cancellation event, including
+prebuilt import and dye-preview routes.
 The viewport applies absorption to the background separately from reflection and
 glow, without painting the opaque diffuse texture over the glass. On adapters with
 dual-source blending it preserves RGB transmission through sorted, overlapping
@@ -925,6 +930,12 @@ material inspection; it does not simulate a chosen in-game pigment or prove dye
 station behavior. Mask revisions form part of the preview identity and immutable
 worker request. A replaced mask invalidates cached previews and export plans;
 changing it during preparation is rejected.
+Template dye previews first prepare current Glow, Translucency, shader and placement
+edits. Explicit mappings on the same compatible material retain appearance edits and
+change only the dye assignment or requested mask. A donor swap or incompatible shader
+conversion that would replace an edited material is rejected; remove the dye mapping
+or restore those appearance edits. Clear dyes retains an explicit empty override even
+without other edits, and remains cleared when switching variants and building the plan.
 
 **Imported armour:** complete wearable replacements transfer weights from the whole
 compatible template surface, independently of its material sections. Partial edits

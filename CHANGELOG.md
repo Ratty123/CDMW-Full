@@ -39,6 +39,9 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Create New Item retains compatible Glow and shader edits when assigning dye slots, and rejects dye mappings that would replace an edited material. Clear dyes remains an explicit per-variant export choice. Template dye previews prepare current appearance edits before rendering.
+- Perks & Effects refreshes after Glow, Translucency and shader changes without discarding staged effects or resetting the camera. Unrelated plan changes reuse the resident preview.
+- Imported Plain PBR materials only offer compatible shader experiments. Patterned reveal uses the same inherited progress in live preview, Effects and export. Cancelling import material preparation also cancels surface-map and RGB glow texture conversion.
 - Perks & Effects keeps the solid origin marker and axis bars hidden so they cannot obscure particles when scaling or zooming. The thin Move, Rotate and Scale handles remain available.
 - Mesh Editor resolves glow, translucency and shader edits against the selected PAC part's material wrapper, including parts whose texture labels differ or are shared. Lower LOD previews keep the same ownership. Layered translucency now prepares colour and surface maps through the same path as New Item instead of rejecting a missing base map.
 - Perks & Effects explains where to restore an incompatible shader choice left by an older draft.

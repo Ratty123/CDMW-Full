@@ -124,7 +124,8 @@ class PlannedEffectItemSource:
         )
         from cdmw.services.shader_controls_preview import shader_preview_mesh
         try:
-            preview = shader_preview_mesh(preview, self.shader_controls, snapshot=self.snapshot, stop_event=stop_event)
+            preview = shader_preview_mesh(preview, self.shader_controls, snapshot=self.snapshot, stop_event=stop_event,
+                plain_pbr=self.source is not None and self.material_route is MaterialRoute.PLAIN_PBR)
         except ValueError as exc:
             raise ValueError(f"{exc} Return to Model & Placement > Appearance and restore shader controls for the affected part.") from exc
         if template_transform is not None:

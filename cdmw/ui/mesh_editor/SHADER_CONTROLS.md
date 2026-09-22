@@ -31,6 +31,12 @@ unsupported experiment cannot enter the draft and block later Glow or Translucen
 preview updates. This does not add TornCloth support to ordinary armour. Restore
 source shader controls to clear an incompatible choice made in an older build.
 
+External Plain PBR imports offer Patterned reveal on opaque materials. Authored glass
+does not offer that conversion. Builder/prebuilt imports without proven source bindings
+keep experiments disabled. Unchecking Reveal progress on a Plain PBR conversion uses
+the same fully revealed value (2) in live preview, prepared scenes, Effects and export;
+existing Wing template materials still inherit their authored progress.
+
 Existing mask/normal bindings are retained. Default Wing, TornCloth, Poster and
 Dissolve masks become explicit dependencies when absent. Anisotropy needs its
 authored detail mask and normal. These controls do not paint vertex masks,

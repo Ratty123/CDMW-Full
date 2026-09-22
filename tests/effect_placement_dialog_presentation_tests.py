@@ -129,7 +129,8 @@ class _DialogPresentationMixin:
         for label in dialog.legend_rows.values():
             self.assertFalse(label.isVisibleTo(dialog), "and its rows are not taking room")
         dialog.legend_toggle.toggle.setChecked(True)
-        self.assertTrue(dialog.legend_rows["anchor"].isVisibleTo(dialog), "one click and it is there")
+        self.assertNotIn("anchor", dialog.legend_rows, "the hidden solid origin marker needs no legend row")
+        self.assertTrue(dialog.legend_rows["axes"].isVisibleTo(dialog), "one click and it is there")
 
     def test_guided_presentation_exposes_the_exact_toolbar_and_inspector_controls(self) -> None:
         character_control = QComboBox()

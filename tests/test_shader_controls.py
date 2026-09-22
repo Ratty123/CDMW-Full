@@ -238,7 +238,7 @@ def test_real_qt_editor_emits_only_enabled_fields_and_restores():
     app.processEvents()
 
 
-def test_template_shader_options_follow_variant_and_clear_for_import(monkeypatch):
+def test_template_and_import_shader_options_follow_the_output_route(monkeypatch):
     from PySide6.QtWidgets import QApplication
     from cdmw.ui.new_item.controller import NewItemStudioController
     from cdmw.ui.new_item.shader_controls_editor import ShaderControlsEditor
@@ -264,12 +264,65 @@ def test_template_shader_options_follow_variant_and_clear_for_import(monkeypatch
             widget.family.setCurrentIndex(widget.family.findData(shader))
             assert changes.pop()[0][1].shader == shader
         controller.model_import = object()
+        monkeypatch.setattr(controller, "material_parts", lambda: (("Imported", "Imported"),))
         widget.refresh((("Imported", "Imported"),), (), controller.material_shader_options())
-        assert all(widget.family.model().item(i).isEnabled() for i in range(widget.family.count()))
+        assert [widget.family.itemData(i) for i in range(1, widget.family.count())
+                if widget.family.model().item(i).isEnabled()] == ["SkinnedMeshWing"]
+        widget.family.setCurrentIndex(widget.family.findData("SkinnedMeshTornCloth_Ver2"))
         assert not changes
+        part = SimpleNamespace(name="Imported", material="Imported", preview_material_parameters=(
+            SimpleNamespace(parameter_name="_transmissionFactor", value="0.7"),))
+        controller.model_import = SimpleNamespace(scene=SimpleNamespace(mesh=SimpleNamespace(submeshes=[part])))
+        assert controller.material_shader_options()["imported"] == ("SkinnedMeshTranslucent", ())
+        from cdmw.domain.new_item.spec import MaterialRoute
+        controller.draft.material_route = MaterialRoute.BUILDER
+        widget.refresh((("Imported", "Imported"),), (), controller.material_shader_options())
+        assert all(not widget.family.model().item(i).isEnabled() for i in range(1, widget.family.count()))
     finally:
         controller.model_import = None
         controller.shutdown()
+        widget.close()
+        app.processEvents()
+
+
+@pytest.mark.parametrize("progress", [None, .25])
+def test_import_wing_inherited_progress_matches_live_prepared_and_export(progress):
+    from PySide6.QtWidgets import QApplication
+    from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+    from cdmw.services.shader_controls_preview import shader_preview_groups, shader_preview_mesh
+    from cdmw.ui.new_item.shader_controls_editor import ShaderControlsEditor
+    app = QApplication.instance() or QApplication([])
+    widget = ShaderControlsEditor()
+    try:
+        widget.refresh((("Blade", "Blade"),), (), {"blade": ("SkinnedMeshStandard", ("SkinnedMeshWing",))})
+        widget.family.setCurrentIndex(widget.family.findData("SkinnedMeshWing"))
+        field, enabled, spins = widget._rows[0]
+        assert field.name == "_wingFlowProgress"
+        if progress is None:
+            enabled.setChecked(False)
+        else:
+            spins[0].setValue(progress)
+        controls = widget._choices["Blade"]
+        part = SubMesh(name="Blade", material="Blade")
+        part.preview_material_texture_inputs = (SimpleNamespace(parameter_name="_wingFlowTex1",
+            source_texture_path="mask.dds", preview_texture_path="owned-mask.dds"),)
+        mesh = ParsedMesh(path="imported.obj", submeshes=[part])
+        settings = (("Blade", controls),)
+        output, _ = rewrite_shader_controls(material(), settings)
+        expected = float(find_material_wrappers(output)[0].value("_wingFlowProgress"))
+        assert shader_preview_groups(mesh, settings, plain_pbr=True)[0]["shader_controls"][4] == expected
+        prepared = shader_preview_mesh(mesh, settings, plain_pbr=True)
+        assert prepared.submeshes[0].preview_native_material_overrides["shader_controls"][4] == expected
+        from cdmw.ui.new_item.effect_item_source import PlannedEffectItemSource
+        from cdmw.ui.new_item.model_import import ModelPlacement
+        effects = PlannedEffectItemSource(object(), ModelPlacement(), False, None, b"", None, None, None,
+                                          shader_controls=settings)
+        effect_mesh, _ = effects._finish(mesh, "placed", threading.Event())
+        assert effect_mesh.submeshes[0].preview_native_material_overrides["shader_controls"][4] == expected
+        # Authored Wing materials still inherit their own value in other callers.
+        part.preview_material_parameters = (SimpleNamespace(parameter_name="_wingFlowProgress", value="0.8"),)
+        assert shader_preview_groups(mesh, (("Blade", choice()),))[0]["shader_controls"][4] == .8
+    finally:
         widget.close()
         app.processEvents()
 

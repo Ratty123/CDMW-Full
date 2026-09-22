@@ -887,6 +887,8 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
     def _material_route_changed(self, plain: bool) -> None:
         self._controller.draft.material_route = MaterialRoute.PLAIN_PBR if plain else MaterialRoute.BUILDER
         self._controller.invalidate_plan()
+        self.shader_controls_editor.refresh(self._controller.material_parts(), self._controller.draft.shader_controls,
+                                            self._controller.material_shader_options())
         self._sync_glow_preview()
 
     def refresh_glow_parts(self) -> None:
@@ -1000,7 +1002,8 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
             mesh, translucency, source_transmission=source_transmission,
         )
         from cdmw.services.shader_controls_preview import shader_preview_groups
-        groups += shader_preview_groups(mesh, self._controller.draft.shader_controls)
+        groups += shader_preview_groups(mesh, self._controller.draft.shader_controls,
+                                        plain_pbr=self._controller.draft.material_route is MaterialRoute.PLAIN_PBR)
         if groups and sender(groups):
             self._glow_preview_touched = self._glow_preview_touched or glow is not None or translucency is not None or authored_glass or bool(self._controller.draft.shader_controls)
 

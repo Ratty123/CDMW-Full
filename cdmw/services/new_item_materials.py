@@ -486,7 +486,8 @@ def encode_rgb_emissive(path, *, on_log=None, stop_event=None):
         source, output = Path(temp) / "glow.png", Path(temp) / "glow.dds"
         rgba.save(source)
         report = encode_dds_with_directxtex(source, output, dds_format="BC7_UNORM",
-            width=rgba.width, height=rgba.height, mip_count=max_mips_for_size(*rgba.size), on_log=on_log)
+            width=rgba.width, height=rgba.height, mip_count=max_mips_for_size(*rgba.size), on_log=on_log,
+            stop_event=stop_event)
         raise_if_cancelled(stop_event)
         if not report or not output.is_file():
             raise NewItemPlanError(f"The DDS encoder produced no RGB glow map for {path.name}.")
@@ -968,7 +969,7 @@ def route_plain_pbr(
         try:
             text, generated = apply_translucency_surface(side[xml_key].decode("utf-8"),
                 absorption_settings, surface_settings, xml_key.removesuffix("_xml"),
-                lambda path: sources.get(path.replace("\\", "/").casefold()))
+                lambda path: sources.get(path.replace("\\", "/").casefold()), stop_event=stop_event)
         except ValueError as exc:
             raise NewItemPlanError(str(exc)) from exc
         side.update(generated)
