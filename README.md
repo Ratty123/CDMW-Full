@@ -745,7 +745,7 @@ as download or help links.
 **Hair Tools is experimental.** Drawing, grooming and package validation have
 local test coverage, including rendered checks, but in-game appearance and behavior
 are unverified. Multi-PAC hairstyles, additional LODs and unsupported skin layouts
-are gated before loading. See the [hair guide](docs/hair-authoring-feasibility.md)
+are gated before loading. See the [hair guide](cdmw/ui/mesh_editor/README.md#hair-creation)
 for supported sources and the limits of the available evidence.
 
 **Placement editing is deliberately bounded.** The operations listed under
@@ -776,9 +776,8 @@ flame and lightning textures, packed smoke masks, animated sprite sheets and
 decoded particle meshes, with authored colour, velocity, size and fading.
 Game-only vector fields, collisions, lighting and distortion remain approximate;
 procedural spawn shapes currently use the placed origin unless a spawn mesh is
-available. See
-[what is still closed](#what-is-still-closed) for the remaining formats and the
-order in which closing them would pay off.
+available. Use **Inspect File Formats** in the app to review current read/write
+support and the remaining limits for each format.
 
 ## License
 

@@ -1516,12 +1516,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -1531,7 +1531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -1541,7 +1541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -1561,7 +1561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -1586,7 +1586,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -1606,7 +1606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -1651,7 +1651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -1941,7 +1941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -2266,7 +2266,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 202,
+          "line": 201,
           "sink": "_add_combo_choice"
         }
       ]
@@ -2361,7 +2361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 203,
+          "line": 202,
           "sink": "_add_combo_choice"
         }
       ]
@@ -2396,7 +2396,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 204,
+          "line": 203,
           "sink": "_add_combo_choice"
         }
       ]
@@ -2446,7 +2446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -2536,7 +2536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -2566,7 +2566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -2696,7 +2696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -2706,7 +2706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -2926,7 +2926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -3026,7 +3026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -3591,12 +3591,12 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 675,
+          "line": 676,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1120,
+          "line": 1133,
           "sink": "emit"
         }
       ]
@@ -4091,17 +4091,17 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 142,
+          "line": 141,
           "sink": "setHeaderLabels"
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 221,
+          "line": 220,
           "sink": "_workflow_profile_field_label"
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 429,
+          "line": 428,
           "sink": "setHeaderLabels"
         }
       ]
@@ -4676,12 +4676,12 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 126,
+          "line": 125,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 263,
+          "line": 262,
           "sink": "QPushButton"
         }
       ]
@@ -4736,7 +4736,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -4956,7 +4956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 135,
+          "line": 134,
           "sink": "EmptyStateTreeWidget"
         }
       ]
@@ -5136,7 +5136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 276,
+          "line": 275,
           "sink": "EmptyStateTreeWidget"
         }
       ]
@@ -5416,7 +5416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 408,
+          "line": 409,
           "sink": "CollapsibleSection"
         }
       ]
@@ -5876,7 +5876,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 906,
+          "line": 919,
           "sink": "setText"
         },
         {
@@ -5941,7 +5941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1032,
+          "line": 1045,
           "sink": "_set_preview_image"
         }
       ]
@@ -6331,17 +6331,17 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 522,
+          "line": 523,
           "sink": "getOpenFileName:filter-label"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 629,
+          "line": 630,
           "sink": "getOpenFileName:filter-label"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 648,
+          "line": 649,
           "sink": "getSaveFileName:filter-label"
         },
         {
@@ -6541,7 +6541,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 256,
+          "line": 255,
           "sink": "_add_combo_choice"
         }
       ]
@@ -6656,7 +6656,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 283,
+          "line": 282,
           "sink": "setHeaderLabels"
         }
       ]
@@ -6681,7 +6681,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 390,
+          "line": 389,
           "sink": "QLabel"
         }
       ]
@@ -6926,7 +6926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -7051,7 +7051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 756,
+          "line": 769,
           "sink": "failed"
         }
       ]
@@ -7061,7 +7061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 314,
+          "line": 315,
           "sink": "QPushButton"
         }
       ]
@@ -7091,7 +7091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 221,
+          "line": 222,
           "sink": "EmptyStatePanel"
         }
       ]
@@ -7101,7 +7101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 776,
+          "line": 789,
           "sink": "emit"
         }
       ]
@@ -7111,7 +7111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 737,
+          "line": 750,
           "sink": "_append_log"
         }
       ]
@@ -7682,6 +7682,16 @@
       ]
     },
     {
+      "key": "Any text editor (extract, edit, repack)",
+      "origins": [
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 46,
+          "sink": "python-data:_TEXT_TOOL"
+        }
+      ]
+    },
+    {
       "key": "Appearance",
       "origins": [
         {
@@ -7701,7 +7711,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -8001,7 +8011,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 325,
+          "line": 324,
           "sink": "setToolTip"
         }
       ]
@@ -8686,7 +8696,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -9801,7 +9811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -10676,7 +10686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -10881,7 +10891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -11677,6 +11687,16 @@
       ]
     },
     {
+      "key": "Asset Research",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/compact/registry.py",
+          "line": 29,
+          "sink": "CompactToolSpec"
+        }
+      ]
+    },
+    {
       "key": "Asset authoring helper discovery failed: {value_0}",
       "origins": [
         {
@@ -11793,6 +11813,31 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 54,
           "sink": "python-return:_build_start_sections"
+        },
+        {
+          "path": "cdmw/ui/shell/compact/registry.py",
+          "line": 16,
+          "sink": "python-data:COMPACT_CATEGORY_ORDER"
+        },
+        {
+          "path": "cdmw/ui/shell/compact/registry.py",
+          "line": 19,
+          "sink": "CompactToolSpec"
+        },
+        {
+          "path": "cdmw/ui/shell/compact/registry.py",
+          "line": 20,
+          "sink": "CompactToolSpec"
+        },
+        {
+          "path": "cdmw/ui/shell/compact/registry.py",
+          "line": 21,
+          "sink": "CompactToolSpec"
+        },
+        {
+          "path": "cdmw/ui/shell/compact/registry.py",
+          "line": 22,
+          "sink": "CompactToolSpec"
         }
       ]
     },
@@ -11851,7 +11896,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 411,
+          "line": 410,
           "sink": "QPushButton"
         }
       ]
@@ -12441,7 +12486,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 358,
+          "line": 357,
           "sink": "addRow"
         },
         {
@@ -12482,6 +12527,16 @@
       ]
     },
     {
+      "key": "Authored cloth profiles",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 331,
+          "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
       "key": "Authoring",
       "origins": [
         {
@@ -12493,6 +12548,26 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 54,
           "sink": "python-return:_build_start_sections"
+        },
+        {
+          "path": "cdmw/ui/shell/compact/registry.py",
+          "line": 16,
+          "sink": "python-data:COMPACT_CATEGORY_ORDER"
+        },
+        {
+          "path": "cdmw/ui/shell/compact/registry.py",
+          "line": 23,
+          "sink": "CompactToolSpec"
+        },
+        {
+          "path": "cdmw/ui/shell/compact/registry.py",
+          "line": 24,
+          "sink": "CompactToolSpec"
+        },
+        {
+          "path": "cdmw/ui/shell/compact/registry.py",
+          "line": 25,
+          "sink": "CompactToolSpec"
         }
       ]
     },
@@ -12701,7 +12776,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -12711,7 +12786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -12996,7 +13071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 257,
+          "line": 256,
           "sink": "QCheckBox"
         }
       ]
@@ -13556,7 +13631,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 253,
+          "line": 252,
           "sink": "_add_combo_choice"
         }
       ]
@@ -13621,7 +13696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 372,
+          "line": 373,
           "sink": "addItem"
         }
       ]
@@ -13766,7 +13841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 906,
+          "line": 919,
           "sink": "setText"
         },
         {
@@ -13806,7 +13881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1031,
+          "line": 1044,
           "sink": "_set_preview_image"
         }
       ]
@@ -14611,7 +14686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -14681,12 +14756,12 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 313,
+          "line": 314,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 455,
+          "line": 456,
           "sink": "QPushButton"
         },
         {
@@ -14726,7 +14801,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 268,
+          "line": 267,
           "sink": "QPushButton"
         }
       ]
@@ -14743,6 +14818,36 @@
           "path": "cdmw/ui/texture_editor_tab.py",
           "line": 379,
           "sink": "QAction"
+        }
+      ]
+    },
+    {
+      "key": "Browse Archives",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/compact/registry.py",
+          "line": 19,
+          "sink": "CompactToolSpec"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 35,
+          "sink": "python-data:TOOLS"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 36,
+          "sink": "python-data:TOOLS"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 37,
+          "sink": "python-data:TOOLS"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 42,
+          "sink": "python-data:TOOLS"
         }
       ]
     },
@@ -14981,17 +15086,17 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1209,
+          "line": 1230,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1219,
+          "line": 1240,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1221,
+          "line": 1242,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -15051,7 +15156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 249,
+          "line": 250,
           "sink": "FlatSectionPanel"
         }
       ]
@@ -15156,7 +15261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 236,
+          "line": 237,
           "sink": "FlatSectionPanel"
         }
       ]
@@ -15361,7 +15466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 459,
+          "line": 460,
           "sink": "QPushButton"
         }
       ]
@@ -15496,7 +15601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1210,
+          "line": 1231,
           "sink": "_append_log"
         }
       ]
@@ -15626,7 +15731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 83,
+          "line": 82,
           "sink": "QLabel"
         }
       ]
@@ -16286,7 +16391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1217,
+          "line": 1238,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -16346,7 +16451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1198,
+          "line": 1219,
           "sink": "_append_log"
         }
       ]
@@ -16791,7 +16896,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 280,
+          "line": 279,
           "sink": "addItem"
         }
       ]
@@ -16821,7 +16926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 473,
+          "line": 474,
           "sink": "QCheckBox"
         }
       ]
@@ -17326,8 +17431,18 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
+        }
+      ]
+    },
+    {
+      "key": "Can write",
+      "origins": [
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 57,
+          "sink": "python-data:WRITE_WORDS"
         }
       ]
     },
@@ -18536,7 +18651,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 239,
+          "line": 240,
           "sink": "setHeaderLabels"
         },
         {
@@ -18646,7 +18761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 345,
+          "line": 344,
           "sink": "_add_combo_choice"
         }
       ]
@@ -18701,7 +18816,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 414,
+          "line": 413,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -19996,7 +20111,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -20051,7 +20166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -20146,7 +20261,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -20231,7 +20346,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -20431,7 +20546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -20581,7 +20696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 733,
+          "line": 746,
           "sink": "emit"
         }
       ]
@@ -20751,7 +20866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -20956,7 +21071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -21251,7 +21366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1131,
+          "line": 1152,
           "sink": "emit"
         }
       ]
@@ -21261,7 +21376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_placement_part_01.py",
-          "line": 206,
+          "line": 203,
           "sink": "setToolTip"
         }
       ]
@@ -21556,7 +21671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 930,
+          "line": 943,
           "sink": "getColor"
         }
       ]
@@ -22136,7 +22251,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -22441,7 +22556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 456,
+          "line": 457,
           "sink": "QCheckBox"
         }
       ]
@@ -23341,7 +23456,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 283,
+          "line": 282,
           "sink": "setHeaderLabels"
         }
       ]
@@ -23361,7 +23476,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 255,
+          "line": 254,
           "sink": "_add_combo_choice"
         }
       ]
@@ -23381,7 +23496,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 254,
+          "line": 253,
           "sink": "_add_combo_choice"
         }
       ]
@@ -23456,7 +23571,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 388,
+          "line": 387,
           "sink": "QLabel"
         }
       ]
@@ -23661,7 +23776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -23726,7 +23841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -23736,7 +23851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -24481,7 +24596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -24586,7 +24701,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 362,
+          "line": 361,
           "sink": "QLabel"
         }
       ]
@@ -25266,7 +25381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 322,
+          "line": 321,
           "sink": "setToolTip"
         }
       ]
@@ -26683,6 +26798,11 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 54,
           "sink": "python-return:_build_start_sections"
+        },
+        {
+          "path": "cdmw/ui/shell/compact/registry.py",
+          "line": 22,
+          "sink": "CompactToolSpec"
         }
       ]
     },
@@ -26821,7 +26941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 265,
+          "line": 264,
           "sink": "QCheckBox"
         }
       ]
@@ -26851,7 +26971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 266,
+          "line": 265,
           "sink": "setToolTip"
         }
       ]
@@ -27051,7 +27171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -27101,7 +27221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -27191,7 +27311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 473,
+          "line": 474,
           "sink": "QCheckBox"
         }
       ]
@@ -27206,7 +27326,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 281,
+          "line": 280,
           "sink": "addItem"
         }
       ]
@@ -27346,12 +27466,12 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 291,
+          "line": 292,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 886,
+          "line": 899,
           "sink": "_set_color_swatch"
         },
         {
@@ -27531,7 +27651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1066,
+          "line": 1079,
           "sink": "emit"
         }
       ]
@@ -27731,7 +27851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 195,
+          "line": 194,
           "sink": "_add_combo_choice"
         }
       ]
@@ -27741,7 +27861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 234,
+          "line": 233,
           "sink": "_workflow_profile_field_label"
         }
       ]
@@ -27751,12 +27871,12 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 177,
+          "line": 176,
           "sink": "_add_combo_choice"
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 229,
+          "line": 228,
           "sink": "_workflow_profile_field_label"
         }
       ]
@@ -27771,7 +27891,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 297,
+          "line": 296,
           "sink": "addItem"
         },
         {
@@ -27996,7 +28116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 344,
+          "line": 343,
           "sink": "_add_combo_choice"
         }
       ]
@@ -28051,7 +28171,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 208,
+          "line": 209,
           "sink": "setHeaderLabels"
         },
         {
@@ -28156,12 +28276,12 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 142,
+          "line": 141,
           "sink": "setHeaderLabels"
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 429,
+          "line": 428,
           "sink": "setHeaderLabels"
         }
       ]
@@ -28181,7 +28301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 224,
+          "line": 223,
           "sink": "_create_workflow_profile_panel"
         }
       ]
@@ -28451,7 +28571,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 298,
+          "line": 297,
           "sink": "addItem"
         },
         {
@@ -28886,7 +29006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 473,
+          "line": 474,
           "sink": "QCheckBox"
         },
         {
@@ -28896,7 +29016,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 278,
+          "line": 277,
           "sink": "addItem"
         }
       ]
@@ -28941,12 +29061,12 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 128,
+          "line": 127,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 265,
+          "line": 264,
           "sink": "QPushButton"
         }
       ]
@@ -29441,7 +29561,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 359,
+          "line": 358,
           "sink": "addRow"
         }
       ]
@@ -30146,7 +30266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 238,
+          "line": 237,
           "sink": "_create_workflow_profile_panel"
         }
       ]
@@ -30471,7 +30591,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -30516,12 +30636,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_placement_part_01.py",
-          "line": 304,
+          "line": 301,
           "sink": "setItemData"
         },
         {
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_placement_part_01.py",
-          "line": 324,
+          "line": 321,
           "sink": "setToolTip"
         },
         {
@@ -30786,7 +30906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -30796,12 +30916,12 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 358,
+          "line": 357,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 370,
+          "line": 369,
           "sink": "QPushButton"
         }
       ]
@@ -31086,7 +31206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -31630,6 +31750,11 @@
       "key": "Driven bones",
       "origins": [
         {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 41,
+          "sink": "python-data:TOOLS"
+        },
+        {
           "path": "tools/placement_studio/window.py",
           "line": 336,
           "sink": "addTab"
@@ -31721,7 +31846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -31801,12 +31926,12 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 127,
+          "line": 126,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 264,
+          "line": 263,
           "sink": "QPushButton"
         }
       ]
@@ -32211,7 +32336,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 113,
+          "line": 112,
           "sink": "QPushButton"
         },
         {
@@ -32288,6 +32413,16 @@
           "path": "cdmw/ui/archive_browser/reference_preview.py",
           "line": 473,
           "sink": "_add_action"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 36,
+          "sink": "python-data:TOOLS"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 37,
+          "sink": "python-data:TOOLS"
         }
       ]
     },
@@ -32507,6 +32642,21 @@
       ]
     },
     {
+      "key": "Edit Translations",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/compact/registry.py",
+          "line": 28,
+          "sink": "CompactToolSpec"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 29,
+          "sink": "python-data:TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Edit UV0",
       "origins": [],
       "manual": true
@@ -32701,7 +32851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 793,
+          "line": 806,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -32946,7 +33096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         },
         {
@@ -33027,6 +33177,16 @@
       ]
     },
     {
+      "key": "Editing depends on the format, LOD, source mapping, and output support. Unsupported channels remain read-only; a rejected batch changes no vertices. UV1 and vertex colours are not editable. Skin weight editing requires a supported Exact PAC LOD0 layout and resolved bone palette; the separate Rig & Weights tool remains hidden.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 331,
+          "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
       "key": "Editing glow for {value_0} selected parts.{value_1}",
       "origins": [
         {
@@ -33041,7 +33201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
-          "line": 368,
+          "line": 372,
           "sink": "setText"
         }
       ]
@@ -33146,12 +33306,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
-          "line": 440,
+          "line": 444,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
-          "line": 490,
+          "line": 494,
           "sink": "warning"
         }
       ]
@@ -33161,12 +33321,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
-          "line": 450,
+          "line": 454,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
-          "line": 482,
+          "line": 486,
           "sink": "warning"
         }
       ]
@@ -33336,12 +33496,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
-          "line": 433,
+          "line": 437,
           "sink": "getOpenFileName:filter-label"
         },
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
-          "line": 443,
+          "line": 447,
           "sink": "getSaveFileName:filter-label"
         }
       ]
@@ -33351,12 +33511,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
-          "line": 433,
+          "line": 437,
           "sink": "getOpenFileName"
         },
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
-          "line": 443,
+          "line": 447,
           "sink": "getSaveFileName"
         }
       ]
@@ -33376,7 +33536,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
-          "line": 437,
+          "line": 441,
           "sink": "ValueError"
         }
       ]
@@ -33388,6 +33548,16 @@
           "path": "cdmw/services/effect_reference.py",
           "line": 37,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Effect surface preparation cancelled",
+      "origins": [
+        {
+          "path": "cdmw/services/effect_placement_preview.py",
+          "line": 724,
+          "sink": "RunCancelled"
         }
       ]
     },
@@ -33486,7 +33656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_placement_part_01.py",
-          "line": 190,
+          "line": 187,
           "sink": "QLabel"
         }
       ]
@@ -33721,7 +33891,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 373,
+          "line": 374,
           "sink": "addItem"
         }
       ]
@@ -33771,7 +33941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
-          "line": 404,
+          "line": 408,
           "sink": "getColor"
         }
       ]
@@ -33781,7 +33951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
-          "line": 368,
+          "line": 372,
           "sink": "setText"
         }
       ]
@@ -33971,7 +34141,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 308,
+          "line": 307,
           "sink": "QCheckBox"
         }
       ]
@@ -34351,7 +34521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1219,
+          "line": 1240,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -34401,7 +34571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1196,
+          "line": 1217,
           "sink": "_append_log"
         }
       ]
@@ -34676,7 +34846,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 311,
+          "line": 310,
           "sink": "_add_combo_choice"
         }
       ]
@@ -34811,7 +34981,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 320,
+          "line": 319,
           "sink": "setPlaceholderText"
         }
       ]
@@ -35286,7 +35456,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 262,
+          "line": 261,
           "sink": "setToolTip"
         }
       ]
@@ -35346,7 +35516,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 329,
+          "line": 328,
           "sink": "setToolTip"
         }
       ]
@@ -35426,7 +35596,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 397,
+          "line": 398,
           "sink": "QPushButton"
         },
         {
@@ -35696,7 +35866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -36396,7 +36566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
-          "line": 443,
+          "line": 447,
           "sink": "getSaveFileName"
         }
       ]
@@ -36416,7 +36586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 664,
+          "line": 665,
           "sink": "warning"
         }
       ]
@@ -36466,7 +36636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -36501,7 +36671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 648,
+          "line": 649,
           "sink": "getSaveFileName"
         }
       ]
@@ -36626,7 +36796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -36826,7 +36996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 661,
+          "line": 662,
           "sink": "_append_log"
         }
       ]
@@ -37411,7 +37581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -37431,7 +37601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 245,
+          "line": 244,
           "sink": "_workflow_profile_field_label"
         }
       ]
@@ -37836,7 +38006,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -38036,7 +38206,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1209,
+          "line": 1230,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -38331,7 +38501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 473,
+          "line": 474,
           "sink": "QCheckBox"
         },
         {
@@ -38341,7 +38511,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 282,
+          "line": 281,
           "sink": "addItem"
         }
       ]
@@ -38356,7 +38526,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 299,
+          "line": 298,
           "sink": "addItem"
         },
         {
@@ -39336,7 +39506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 403,
+          "line": 402,
           "sink": "setToolTip"
         }
       ]
@@ -39531,7 +39701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_placement_part_01.py",
-          "line": 259,
+          "line": 256,
           "sink": "QPushButton"
         }
       ]
@@ -39611,7 +39781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/preview_panel.py",
-          "line": 267,
+          "line": 266,
           "sink": "python-return:_preview_match_status_text"
         }
       ]
@@ -40536,7 +40706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 312,
+          "line": 313,
           "sink": "setPlaceholderText"
         }
       ]
@@ -40891,7 +41061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 259,
+          "line": 258,
           "sink": "QCheckBox"
         }
       ]
@@ -40981,7 +41151,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 225,
+          "line": 224,
           "sink": "_workflow_profile_field_label"
         },
         {
@@ -41006,12 +41176,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -41436,7 +41606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 193,
+          "line": 192,
           "sink": "_add_combo_choice"
         }
       ]
@@ -41551,7 +41721,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 523,
+          "line": 522,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -41600,6 +41770,16 @@
       "key": "Full/LOD companion",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Fully read",
+      "origins": [
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 51,
+          "sink": "python-data:READ_WORDS"
+        }
+      ]
     },
     {
       "key": "Fully read. {value_0} Everything below can be changed.{value_1}",
@@ -41736,7 +41916,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -41961,7 +42141,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 295,
+          "line": 294,
           "sink": "addItem"
         },
         {
@@ -42071,7 +42251,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -42441,7 +42621,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 310,
+          "line": 309,
           "sink": "_add_combo_choice"
         }
       ]
@@ -42471,7 +42651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 357,
+          "line": 358,
           "sink": "FlatSectionPanel"
         }
       ]
@@ -44606,7 +44786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_placement_part_01.py",
-          "line": 194,
+          "line": 191,
           "sink": "QPushButton"
         },
         {
@@ -44736,7 +44916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_placement_part_01.py",
-          "line": 195,
+          "line": 192,
           "sink": "setToolTip"
         }
       ]
@@ -45106,7 +45286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -45636,7 +45816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -45961,7 +46141,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 396,
+          "line": 397,
           "sink": "QPushButton"
         }
       ]
@@ -46226,7 +46406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -46283,6 +46463,11 @@
           "path": "cdmw/ui/archive_browser/actions.py",
           "line": 514,
           "sink": "addAction"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 42,
+          "sink": "python-data:TOOLS"
         }
       ]
     },
@@ -46426,7 +46611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
-          "line": 433,
+          "line": 437,
           "sink": "getOpenFileName"
         }
       ]
@@ -46436,7 +46621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 644,
+          "line": 645,
           "sink": "warning"
         }
       ]
@@ -46511,7 +46696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 629,
+          "line": 630,
           "sink": "getOpenFileName"
         }
       ]
@@ -46521,7 +46706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -46681,7 +46866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 641,
+          "line": 642,
           "sink": "_append_log"
         }
       ]
@@ -48041,7 +48226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 341,
+          "line": 340,
           "sink": "_add_combo_choice"
         }
       ]
@@ -48051,7 +48236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 336,
+          "line": 335,
           "sink": "_add_combo_choice"
         }
       ]
@@ -48061,7 +48246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 210,
+          "line": 209,
           "sink": "_add_combo_choice"
         }
       ]
@@ -48076,7 +48261,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 199,
+          "line": 198,
           "sink": "_add_combo_choice"
         }
       ]
@@ -48086,7 +48271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 201,
+          "line": 200,
           "sink": "_add_combo_choice"
         }
       ]
@@ -48096,17 +48281,17 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 169,
+          "line": 168,
           "sink": "_add_combo_choice"
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 174,
+          "line": 173,
           "sink": "_add_combo_choice"
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 191,
+          "line": 190,
           "sink": "_add_combo_choice"
         }
       ]
@@ -48121,7 +48306,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 163,
+          "line": 162,
           "sink": "_add_combo_choice"
         }
       ]
@@ -48131,7 +48316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 348,
+          "line": 347,
           "sink": "_add_combo_choice"
         }
       ]
@@ -48141,7 +48326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 331,
+          "line": 330,
           "sink": "_add_combo_choice"
         }
       ]
@@ -48247,6 +48432,16 @@
       ]
     },
     {
+      "key": "Inspect File Formats",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/compact/registry.py",
+          "line": 27,
+          "sink": "CompactToolSpec"
+        }
+      ]
+    },
+    {
       "key": "Inspect Only",
       "origins": [
         {
@@ -48301,7 +48496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -48311,7 +48506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -48382,7 +48577,7 @@
       ]
     },
     {
-      "key": "Inspect the sidecar and its Asset Family as read-only context. Material authoring is not an Archive Browser or Mesh Editor action.",
+      "key": "Inspect the sidecar and its Asset Family as read-only context. Mesh Editor offers experimental Glow, Translucency, and Shader experiments for supported parts with captured material dependencies.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -49401,7 +49596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_host.py",
-          "line": 721,
+          "line": 722,
           "sink": "ValueError"
         }
       ]
@@ -49858,6 +50053,11 @@
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
           "line": 80,
           "sink": "python-return:_archive_asset_map_group_label"
+        },
+        {
+          "path": "cdmw/ui/shell/compact/registry.py",
+          "line": 21,
+          "sink": "CompactToolSpec"
         }
       ]
     },
@@ -50426,7 +50626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 473,
+          "line": 474,
           "sink": "QCheckBox"
         },
         {
@@ -50436,7 +50636,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 279,
+          "line": 278,
           "sink": "addItem"
         }
       ]
@@ -50986,7 +51186,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 208,
+          "line": 209,
           "sink": "setHeaderLabels"
         },
         {
@@ -51216,7 +51416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -51586,7 +51786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -51856,7 +52056,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -52102,11 +52302,21 @@
       ]
     },
     {
+      "key": "Limited edits",
+      "origins": [
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 58,
+          "sink": "python-data:WRITE_WORDS"
+        }
+      ]
+    },
+    {
       "key": "Line 1, Column 1",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_placement_part_01.py",
-          "line": 262,
+          "line": 259,
           "sink": "QLabel"
         }
       ]
@@ -52146,7 +52356,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 338,
+          "line": 337,
           "sink": "_add_combo_choice"
         }
       ]
@@ -52586,7 +52796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_placement_part_01.py",
-          "line": 205,
+          "line": 202,
           "sink": "QPushButton"
         }
       ]
@@ -52751,7 +52961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -52931,12 +53141,12 @@
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 414,
+          "line": 413,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 448,
+          "line": 447,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -53731,7 +53941,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -53781,7 +53991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -53936,7 +54146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 793,
+          "line": 806,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -54526,7 +54736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 464,
+          "line": 465,
           "sink": "CollapsibleSection"
         }
       ]
@@ -54756,12 +54966,12 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 283,
+          "line": 282,
           "sink": "setHeaderLabels"
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 378,
+          "line": 377,
           "sink": "QLabel"
         }
       ]
@@ -54781,12 +54991,12 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 230,
+          "line": 229,
           "sink": "_add_combo_choice"
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 214,
+          "line": 213,
           "sink": "_add_combo_choice"
         }
       ]
@@ -54806,12 +55016,12 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 225,
+          "line": 224,
           "sink": "_add_combo_choice"
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 213,
+          "line": 212,
           "sink": "_add_combo_choice"
         }
       ]
@@ -54831,12 +55041,12 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 220,
+          "line": 219,
           "sink": "_add_combo_choice"
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 212,
+          "line": 211,
           "sink": "_add_combo_choice"
         }
       ]
@@ -54846,17 +55056,17 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 170,
+          "line": 169,
           "sink": "_add_combo_choice"
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 176,
+          "line": 175,
           "sink": "_add_combo_choice"
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 192,
+          "line": 191,
           "sink": "_add_combo_choice"
         }
       ]
@@ -54866,7 +55076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 175,
+          "line": 174,
           "sink": "_add_combo_choice"
         }
       ]
@@ -54876,7 +55086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 339,
+          "line": 338,
           "sink": "_add_combo_choice"
         }
       ]
@@ -54961,7 +55171,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 404,
+          "line": 403,
           "sink": "QGroupBox"
         }
       ]
@@ -55206,7 +55416,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 500,
+          "line": 499,
           "sink": "ArchiveModelTextureReference"
         }
       ]
@@ -55226,7 +55436,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 500,
+          "line": 499,
           "sink": "ArchiveModelTextureReference"
         }
       ]
@@ -55301,7 +55511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 889,
+          "line": 902,
           "sink": "setText"
         }
       ]
@@ -55311,7 +55521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1262,
+          "line": 1283,
           "sink": "setToolTip"
         }
       ]
@@ -55321,7 +55531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 977,
+          "line": 990,
           "sink": "emit"
         }
       ]
@@ -55331,7 +55541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 370,
+          "line": 371,
           "sink": "addItem"
         }
       ]
@@ -55343,6 +55553,16 @@
           "path": "cdmw/ui/archive_browser/material_sidecar_editor_helpers.py",
           "line": 445,
           "sink": "python-return:material_sidecar_preview_blocked_status"
+        }
+      ]
+    },
+    {
+      "key": "Material experiments",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 331,
+          "sink": "python-return:_build_archive_mesh_sections"
         }
       ]
     },
@@ -55486,12 +55706,12 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 407,
+          "line": 408,
           "sink": "addRow"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 424,
+          "line": 425,
           "sink": "addRow"
         }
       ]
@@ -56523,6 +56743,26 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 331,
           "sink": "python-return:_build_archive_mesh_sections"
+        },
+        {
+          "path": "cdmw/ui/shell/compact/registry.py",
+          "line": 23,
+          "sink": "CompactToolSpec"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 32,
+          "sink": "python-data:TOOLS"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 33,
+          "sink": "python-data:TOOLS"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 34,
+          "sink": "python-data:TOOLS"
         }
       ]
     },
@@ -59411,7 +59651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -59606,7 +59846,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 232,
+          "line": 231,
           "sink": "_workflow_profile_field_label"
         }
       ]
@@ -59796,7 +60036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -59911,7 +60151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -60016,7 +60256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 351,
+          "line": 350,
           "sink": "QGroupBox"
         }
       ]
@@ -60036,7 +60276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -60236,7 +60476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 350,
+          "line": 349,
           "sink": "addRow"
         }
       ]
@@ -60246,7 +60486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 522,
+          "line": 523,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -60276,7 +60516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -60441,7 +60681,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 239,
+          "line": 238,
           "sink": "_workflow_profile_field_label"
         },
         {
@@ -60533,6 +60773,11 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 54,
           "sink": "python-return:_build_start_sections"
+        },
+        {
+          "path": "cdmw/ui/shell/compact/registry.py",
+          "line": 20,
+          "sink": "CompactToolSpec"
         },
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
@@ -61826,7 +62071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 267,
+          "line": 266,
           "sink": "QPushButton"
         }
       ]
@@ -61836,7 +62081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 266,
+          "line": 265,
           "sink": "QPushButton"
         }
       ]
@@ -61856,7 +62101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -62271,17 +62516,17 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 395,
+          "line": 394,
           "sink": "QGroupBox"
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 142,
+          "line": 141,
           "sink": "setHeaderLabels"
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 429,
+          "line": 428,
           "sink": "setHeaderLabels"
         }
       ]
@@ -62336,7 +62581,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 407,
+          "line": 406,
           "sink": "QLabel"
         }
       ]
@@ -62526,17 +62771,17 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
-          "line": 473,
+          "line": 477,
           "sink": "getText"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 407,
+          "line": 408,
           "sink": "addRow"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 424,
+          "line": 425,
           "sink": "addRow"
         },
         {
@@ -62561,12 +62806,12 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 142,
+          "line": 141,
           "sink": "setHeaderLabels"
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 219,
+          "line": 218,
           "sink": "_workflow_profile_field_label"
         }
       ]
@@ -62678,6 +62923,16 @@
           "path": "cdmw/ui/new_item/panels_identity.py",
           "line": 132,
           "sink": "QGroupBox"
+        }
+      ]
+    },
+    {
+      "key": "Names only",
+      "origins": [
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 53,
+          "sink": "python-data:READ_WORDS"
         }
       ]
     },
@@ -63961,7 +64216,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 314,
+          "line": 313,
           "sink": "_add_combo_choice"
         }
       ]
@@ -64011,7 +64266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 221,
+          "line": 222,
           "sink": "EmptyStatePanel"
         }
       ]
@@ -65076,7 +65331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/preview_panel.py",
-          "line": 270,
+          "line": 269,
           "sink": "python-return:_preview_match_status_text"
         }
       ]
@@ -65436,7 +65691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1221,
+          "line": 1242,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -65446,7 +65701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 422,
+          "line": 421,
           "sink": "EmptyStateTreeWidget"
         }
       ]
@@ -65466,7 +65721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -65531,7 +65786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 276,
+          "line": 275,
           "sink": "EmptyStateTreeWidget"
         }
       ]
@@ -65866,7 +66121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1221,
+          "line": 1242,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -66146,7 +66401,7 @@
         },
         {
           "path": "cdmw/ui/text_search/preview_panel.py",
-          "line": 265,
+          "line": 264,
           "sink": "python-return:_preview_match_status_text"
         },
         {
@@ -66566,7 +66821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/classification_review_controller.py",
-          "line": 119,
+          "line": 120,
           "sink": "setPlainText"
         }
       ]
@@ -67057,6 +67312,16 @@
       "manual": true
     },
     {
+      "key": "No tool yet",
+      "origins": [
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 47,
+          "sink": "python-data:_NO_TOOL"
+        }
+      ]
+    },
+    {
       "key": "No topic contains every search word. Try fewer words or search for a tool, action, file format, or setting.",
       "origins": [],
       "manual": true
@@ -67241,7 +67506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 135,
+          "line": 134,
           "sink": "EmptyStateTreeWidget"
         }
       ]
@@ -67281,7 +67546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -67291,7 +67556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -67401,7 +67666,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 342,
+          "line": 341,
           "sink": "_add_combo_choice"
         }
       ]
@@ -67491,7 +67756,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 310,
+          "line": 309,
           "sink": "addItem"
         },
         {
@@ -67738,6 +68003,16 @@
           "path": "tools/placement_studio/inspect_package.py",
           "line": 104,
           "sink": "python-return:render"
+        }
+      ]
+    },
+    {
+      "key": "Not read",
+      "origins": [
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 54,
+          "sink": "python-data:READ_WORDS"
         }
       ]
     },
@@ -68471,12 +68746,12 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 219,
+          "line": 218,
           "sink": "_add_combo_choice"
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 211,
+          "line": 210,
           "sink": "_add_combo_choice"
         },
         {
@@ -68631,7 +68906,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 283,
+          "line": 282,
           "sink": "setHeaderLabels"
         }
       ]
@@ -68731,7 +69006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1053,
+          "line": 1066,
           "sink": "emit"
         }
       ]
@@ -68771,7 +69046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -68951,7 +69226,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -69016,7 +69291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -69026,7 +69301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 890,
+          "line": 903,
           "sink": "setText"
         }
       ]
@@ -69091,7 +69366,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -69146,7 +69421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 270,
+          "line": 271,
           "sink": "QPushButton"
         }
       ]
@@ -69202,6 +69477,26 @@
       ]
     },
     {
+      "key": "Open Mesh Data > Cloth > Authored cloth profile and choose a captured variant. Use profile in preview loads supported starting values; preview sliders do not change the mod.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 331,
+          "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
+      "key": "Open Mesh Data > Vertex Parameters and select vertices, edges, faces, or parts. Inspect Position, UV Coordinates, Normals, and Skin Weights, enter supported changes, then choose Apply to commit the batch as one Undo step. Discard clears pending inputs.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 331,
+          "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
       "key": "Open Mesh Editor from an archive target before {value_0} a rebuilt asset.",
       "origins": [
         {
@@ -69246,7 +69541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 462,
+          "line": 463,
           "sink": "QPushButton"
         },
         {
@@ -69298,6 +69593,11 @@
           "path": "cdmw/ui/archive_browser/actions.py",
           "line": 488,
           "sink": "addAction"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 35,
+          "sink": "python-data:TOOLS"
         }
       ]
     },
@@ -69751,7 +70051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -69786,7 +70086,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -69926,7 +70226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -69946,7 +70246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 372,
+          "line": 371,
           "sink": "setToolTip"
         }
       ]
@@ -69956,7 +70256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 360,
+          "line": 359,
           "sink": "setToolTip"
         }
       ]
@@ -70486,7 +70786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1085,
+          "line": 1098,
           "sink": "emit"
         }
       ]
@@ -70761,12 +71061,12 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 407,
+          "line": 408,
           "sink": "addRow"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 424,
+          "line": 425,
           "sink": "addRow"
         }
       ]
@@ -71051,7 +71351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -71076,7 +71376,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 409,
+          "line": 408,
           "sink": "setToolTip"
         }
       ]
@@ -71126,7 +71426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 412,
+          "line": 411,
           "sink": "setToolTip"
         }
       ]
@@ -71171,7 +71471,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 313,
+          "line": 312,
           "sink": "setPlaceholderText"
         }
       ]
@@ -71251,7 +71551,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 257,
+          "line": 256,
           "sink": "QGroupBox"
         }
       ]
@@ -71731,7 +72031,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 447,
+          "line": 448,
           "sink": "FlatSectionPanel"
         },
         {
@@ -71761,7 +72061,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 239,
+          "line": 240,
           "sink": "setHeaderLabels"
         },
         {
@@ -71806,7 +72106,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -72686,7 +72986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 205,
+          "line": 204,
           "sink": "QCheckBox"
         }
       ]
@@ -72706,7 +73006,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 311,
+          "line": 310,
           "sink": "addItem"
         },
         {
@@ -73356,7 +73656,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 361,
+          "line": 360,
           "sink": "addRow"
         }
       ]
@@ -73386,7 +73686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -73461,12 +73761,12 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 414,
+          "line": 413,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 448,
+          "line": 447,
           "sink": "ArchivePreviewResult"
         },
         {
@@ -73851,7 +74151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 477,
+          "line": 478,
           "sink": "QLabel"
         }
       ]
@@ -74067,6 +74367,16 @@
       ]
     },
     {
+      "key": "Partly read",
+      "origins": [
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 52,
+          "sink": "python-data:READ_WORDS"
+        }
+      ]
+    },
+    {
       "key": "Partly read. {value_0}{value_1} What is shown was read from the file; the rest uses a structure this tool cannot follow yet. You can still swap a file for another whose name is exactly the same length - that moves nothing in the file - but anything that would resize it is refused.{value_2}",
       "origins": [
         {
@@ -74098,6 +74408,16 @@
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
           "line": 147,
           "sink": "addTab"
+        }
+      ]
+    },
+    {
+      "key": "Parts sharing a material wrapper need matching settings. Restore incompatible overrides before choosing another experiment. Previews approximate the game shaders; refraction, lighting, and animation may differ in game.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 331,
+          "sink": "python-return:_build_archive_mesh_sections"
         }
       ]
     },
@@ -74921,12 +75241,12 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 283,
+          "line": 282,
           "sink": "setHeaderLabels"
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 429,
+          "line": 428,
           "sink": "setHeaderLabels"
         }
       ]
@@ -75091,7 +75411,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -75116,12 +75436,12 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 283,
+          "line": 282,
           "sink": "setHeaderLabels"
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 380,
+          "line": 379,
           "sink": "QLabel"
         }
       ]
@@ -75326,7 +75646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 82,
+          "line": 81,
           "sink": "QLabel"
         }
       ]
@@ -75356,7 +75676,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -75866,7 +76186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 382,
+          "line": 383,
           "sink": "_build_color_row"
         }
       ]
@@ -75876,7 +76196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 383,
+          "line": 384,
           "sink": "_build_color_row"
         }
       ]
@@ -76116,13 +76436,38 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
+        },
+        {
+          "path": "cdmw/ui/shell/compact/registry.py",
+          "line": 24,
+          "sink": "CompactToolSpec"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 38,
+          "sink": "python-data:TOOLS"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 39,
+          "sink": "python-data:TOOLS"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 40,
+          "sink": "python-data:TOOLS"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 41,
+          "sink": "python-data:TOOLS"
         }
       ]
     },
@@ -76731,7 +77076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 283,
+          "line": 282,
           "sink": "setHeaderLabels"
         }
       ]
@@ -76751,7 +77096,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 369,
+          "line": 368,
           "sink": "QLabel"
         }
       ]
@@ -76791,7 +77136,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 357,
+          "line": 356,
           "sink": "QLabel"
         }
       ]
@@ -76891,7 +77236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -77256,7 +77601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 247,
+          "line": 246,
           "sink": "_workflow_profile_field_label"
         }
       ]
@@ -77276,7 +77621,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 410,
+          "line": 409,
           "sink": "QLabel"
         }
       ]
@@ -77711,7 +78056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 346,
+          "line": 345,
           "sink": "_add_combo_choice"
         }
       ]
@@ -78916,7 +79261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1043,
+          "line": 1056,
           "sink": "emit"
         }
       ]
@@ -79166,7 +79511,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 166,
+          "line": 165,
           "sink": "_add_combo_choice"
         }
       ]
@@ -79221,7 +79566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 394,
+          "line": 395,
           "sink": "QCheckBox"
         },
         {
@@ -79276,7 +79621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -79311,7 +79656,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 341,
+          "line": 340,
           "sink": "addRow"
         }
       ]
@@ -80021,7 +80366,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -80096,7 +80441,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -80171,12 +80516,12 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 199,
+          "line": 200,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 817,
+          "line": 830,
           "sink": "setText"
         }
       ]
@@ -80706,7 +81051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 827,
+          "line": 840,
           "sink": "setText"
         }
       ]
@@ -80716,7 +81061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 821,
+          "line": 834,
           "sink": "setText"
         }
       ]
@@ -81361,7 +81706,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 414,
+          "line": 413,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -81786,7 +82131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1012,
+          "line": 1025,
           "sink": "failed"
         }
       ]
@@ -82041,7 +82386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_host.py",
-          "line": 726,
+          "line": 727,
           "sink": "ValueError"
         }
       ]
@@ -82776,7 +83121,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 218,
+          "line": 217,
           "sink": "_create_workflow_profile_panel"
         }
       ]
@@ -82791,7 +83136,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -82801,7 +83146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -83041,7 +83386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -83546,7 +83891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -83813,6 +84158,11 @@
           "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
           "line": 286,
           "sink": "QTreeWidgetItem"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 59,
+          "sink": "python-data:WRITE_WORDS"
         }
       ]
     },
@@ -84871,12 +85221,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -84906,7 +85256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -85066,7 +85416,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 165,
+          "line": 164,
           "sink": "_add_combo_choice"
         }
       ]
@@ -85611,12 +85961,12 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 536,
+          "line": 537,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 554,
+          "line": 555,
           "sink": "setText"
         }
       ]
@@ -85626,12 +85976,12 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 744,
+          "line": 757,
           "sink": "RunCancelled"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 747,
+          "line": 760,
           "sink": "RunCancelled"
         }
       ]
@@ -85641,7 +85991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 772,
+          "line": 785,
           "sink": "emit"
         }
       ]
@@ -85651,7 +86001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 752,
+          "line": 765,
           "sink": "emit"
         }
       ]
@@ -85691,7 +86041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1008,
+          "line": 1021,
           "sink": "emit"
         }
       ]
@@ -85701,7 +86051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1001,
+          "line": 1014,
           "sink": "ValueError"
         }
       ]
@@ -85711,7 +86061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -85761,7 +86111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 665,
+          "line": 666,
           "sink": "emit"
         }
       ]
@@ -85771,7 +86121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 645,
+          "line": 646,
           "sink": "emit"
         }
       ]
@@ -85781,7 +86131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 844,
+          "line": 857,
           "sink": "emit"
         }
       ]
@@ -85791,7 +86141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 626,
+          "line": 627,
           "sink": "emit"
         }
       ]
@@ -85801,12 +86151,12 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 629,
+          "line": 630,
           "sink": "getOpenFileName:filter-label"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 648,
+          "line": 649,
           "sink": "getSaveFileName:filter-label"
         }
       ]
@@ -85816,7 +86166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 662,
+          "line": 663,
           "sink": "emit"
         }
       ]
@@ -85826,7 +86176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 642,
+          "line": 643,
           "sink": "emit"
         }
       ]
@@ -85846,7 +86196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1205,
+          "line": 1226,
           "sink": "emit"
         }
       ]
@@ -85856,7 +86206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1211,
+          "line": 1232,
           "sink": "emit"
         }
       ]
@@ -85866,7 +86216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1203,
+          "line": 1224,
           "sink": "emit"
         }
       ]
@@ -85876,7 +86226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1225,
+          "line": 1246,
           "sink": "emit"
         }
       ]
@@ -85941,7 +86291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -86721,7 +87071,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -86866,7 +87216,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 410,
+          "line": 409,
           "sink": "QPushButton"
         },
         {
@@ -87001,7 +87351,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 269,
+          "line": 270,
           "sink": "QPushButton"
         }
       ]
@@ -87131,7 +87481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/classification_review_controller.py",
-          "line": 420,
+          "line": 421,
           "sink": "setText"
         }
       ]
@@ -87616,7 +87966,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -87796,7 +88146,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -88307,6 +88657,16 @@
       ]
     },
     {
+      "key": "Repackage Mods",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/compact/registry.py",
+          "line": 26,
+          "sink": "CompactToolSpec"
+        }
+      ]
+    },
+    {
       "key": "Repackage summary",
       "origins": [
         {
@@ -88661,7 +89021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 378,
+          "line": 379,
           "sink": "addItem"
         },
         {
@@ -89601,12 +89961,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -89976,7 +90336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         },
         {
@@ -90851,7 +91211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -91666,7 +92026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 239,
+          "line": 240,
           "sink": "setHeaderLabels"
         }
       ]
@@ -91781,7 +92141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -92036,7 +92396,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 264,
+          "line": 263,
           "sink": "setToolTip"
         }
       ]
@@ -92046,7 +92406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 263,
+          "line": 262,
           "sink": "QCheckBox"
         }
       ]
@@ -92336,7 +92696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         },
         {
@@ -92376,7 +92736,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 399,
+          "line": 400,
           "sink": "QPushButton"
         }
       ]
@@ -92401,7 +92761,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -92416,7 +92776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -92571,7 +92931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -92611,7 +92971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -93471,7 +93831,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 429,
+          "line": 428,
           "sink": "setHeaderLabels"
         }
       ]
@@ -93971,7 +94331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -94041,7 +94401,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 500,
+          "line": 499,
           "sink": "ArchiveModelTextureReference"
         }
       ]
@@ -94146,7 +94506,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 398,
+          "line": 399,
           "sink": "QPushButton"
         },
         {
@@ -94286,7 +94646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
-          "line": 473,
+          "line": 477,
           "sink": "getText"
         }
       ]
@@ -94436,7 +94796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 625,
+          "line": 626,
           "sink": "_append_log"
         }
       ]
@@ -94661,12 +95021,12 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 401,
+          "line": 400,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 241,
+          "line": 240,
           "sink": "_workflow_profile_field_label"
         }
       ]
@@ -94916,7 +95276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 422,
+          "line": 421,
           "sink": "EmptyStateTreeWidget"
         }
       ]
@@ -95417,6 +95777,16 @@
       ]
     },
     {
+      "key": "Search File Text",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/compact/registry.py",
+          "line": 30,
+          "sink": "CompactToolSpec"
+        }
+      ]
+    },
+    {
       "key": "Search Index",
       "origins": [
         {
@@ -95461,7 +95831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_placement_part_01.py",
-          "line": 258,
+          "line": 255,
           "sink": "setPlaceholderText"
         }
       ]
@@ -95481,7 +95851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -95491,7 +95861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -95616,7 +95986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/preview_panel.py",
-          "line": 269,
+          "line": 268,
           "sink": "python-return:_preview_match_status_text"
         }
       ]
@@ -95726,7 +96096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -95826,7 +96196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -95986,7 +96356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -97406,12 +97776,12 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 974,
+          "line": 987,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1050,
+          "line": 1063,
           "sink": "emit"
         }
       ]
@@ -97531,7 +97901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -98111,12 +98481,12 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 261,
+          "line": 262,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 877,
+          "line": 890,
           "sink": "setText"
         }
       ]
@@ -98351,7 +98721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1127,
+          "line": 1148,
           "sink": "emit"
         }
       ]
@@ -98421,7 +98791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1148,
+          "line": 1169,
           "sink": "ValueError"
         }
       ]
@@ -98561,7 +98931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 518,
+          "line": 519,
           "sink": "getExistingDirectory"
         }
       ]
@@ -98591,7 +98961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 522,
+          "line": 523,
           "sink": "getOpenFileName"
         }
       ]
@@ -98782,11 +99152,21 @@
       ]
     },
     {
+      "key": "Select parts and expand Glow, Translucency, or Shader experiments in Parts. Supported choices depend on the captured source shader and material dependencies. Apply stages the edit; Restore and Undo/Redo recover earlier settings. Finish, validate, then Build Mod to include the material companions.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 331,
+          "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
       "key": "Select recolor variant output root",
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 527,
+          "line": 528,
           "sink": "getExistingDirectory"
         }
       ]
@@ -98796,7 +99176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -98971,7 +99351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 258,
+          "line": 259,
           "sink": "FlatSectionPanel"
         },
         {
@@ -98991,7 +99371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 157,
+          "line": 156,
           "sink": "QGroupBox"
         }
       ]
@@ -99031,7 +99411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 304,
+          "line": 303,
           "sink": "QGroupBox"
         }
       ]
@@ -99161,7 +99541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -99326,7 +99706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1036,
+          "line": 1049,
           "sink": "emit"
         }
       ]
@@ -99376,7 +99756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1264,
+          "line": 1285,
           "sink": "setToolTip"
         }
       ]
@@ -99666,7 +100046,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 208,
+          "line": 209,
           "sink": "setHeaderLabels"
         },
         {
@@ -99681,17 +100061,17 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 283,
+          "line": 282,
           "sink": "setHeaderLabels"
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 384,
+          "line": 383,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 429,
+          "line": 428,
           "sink": "setHeaderLabels"
         }
       ]
@@ -99976,7 +100356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 379,
+          "line": 380,
           "sink": "addItem"
         }
       ]
@@ -100176,7 +100556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -100186,7 +100566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -100196,7 +100576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -100206,7 +100586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -100216,7 +100596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -100291,7 +100671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -100301,12 +100681,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -100321,7 +100701,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -100731,7 +101111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -100761,7 +101141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -101421,7 +101801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_placement_part_01.py",
-          "line": 213,
+          "line": 210,
           "sink": "setToolTip"
         }
       ]
@@ -101476,7 +101856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_placement_part_01.py",
-          "line": 209,
+          "line": 206,
           "sink": "QCheckBox"
         }
       ]
@@ -102366,7 +102746,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 194,
+          "line": 193,
           "sink": "_add_combo_choice"
         }
       ]
@@ -102511,7 +102891,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 227,
+          "line": 226,
           "sink": "_workflow_profile_field_label"
         }
       ]
@@ -102846,7 +103226,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 167,
+          "line": 166,
           "sink": "_add_combo_choice"
         }
       ]
@@ -102926,7 +103306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 843,
+          "line": 856,
           "sink": "_append_log"
         }
       ]
@@ -102976,7 +103356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 208,
+          "line": 209,
           "sink": "setHeaderLabels"
         }
       ]
@@ -102996,12 +103376,12 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 407,
+          "line": 408,
           "sink": "addRow"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 424,
+          "line": 425,
           "sink": "addRow"
         }
       ]
@@ -103886,7 +104266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 215,
+          "line": 214,
           "sink": "_add_combo_choice"
         }
       ]
@@ -103906,7 +104286,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 235,
+          "line": 234,
           "sink": "_add_combo_choice"
         }
       ]
@@ -103926,12 +104306,12 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 245,
+          "line": 244,
           "sink": "_add_combo_choice"
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 217,
+          "line": 216,
           "sink": "_add_combo_choice"
         }
       ]
@@ -103951,12 +104331,12 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 240,
+          "line": 239,
           "sink": "_add_combo_choice"
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 216,
+          "line": 215,
           "sink": "_add_combo_choice"
         }
       ]
@@ -103986,12 +104366,12 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 305,
+          "line": 306,
           "sink": "FlatSectionPanel"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 315,
+          "line": 316,
           "sink": "QLabel"
         }
       ]
@@ -104001,7 +104381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 742,
+          "line": 755,
           "sink": "FileNotFoundError"
         }
       ]
@@ -104096,12 +104476,12 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 407,
+          "line": 408,
           "sink": "addRow"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 424,
+          "line": 425,
           "sink": "addRow"
         }
       ]
@@ -105396,7 +105776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1138,
+          "line": 1159,
           "sink": "_append_log"
         }
       ]
@@ -105621,7 +106001,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 208,
+          "line": 209,
           "sink": "setHeaderLabels"
         },
         {
@@ -106171,7 +106551,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 460,
+          "line": 461,
           "sink": "QPushButton"
         },
         {
@@ -106341,7 +106721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1184,
+          "line": 1205,
           "sink": "_append_log"
         }
       ]
@@ -106436,7 +106816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 343,
+          "line": 342,
           "sink": "_add_combo_choice"
         }
       ]
@@ -106451,12 +106831,12 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 407,
+          "line": 408,
           "sink": "addRow"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 424,
+          "line": 425,
           "sink": "addRow"
         },
         {
@@ -107101,7 +107481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -107351,17 +107731,17 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 208,
+          "line": 209,
           "sink": "setHeaderLabels"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 292,
+          "line": 293,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 887,
+          "line": 900,
           "sink": "_set_color_swatch"
         },
         {
@@ -107496,12 +107876,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 360,
+          "line": 359,
           "sink": "addRow"
         }
       ]
@@ -107556,12 +107936,12 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 407,
+          "line": 408,
           "sink": "addRow"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 424,
+          "line": 425,
           "sink": "addRow"
         }
       ]
@@ -107631,12 +108011,12 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 407,
+          "line": 408,
           "sink": "addRow"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 424,
+          "line": 425,
           "sink": "addRow"
         }
       ]
@@ -107656,7 +108036,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 363,
+          "line": 362,
           "sink": "QLabel"
         }
       ]
@@ -108056,7 +108436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 351,
+          "line": 350,
           "sink": "_add_combo_choice"
         }
       ]
@@ -108066,7 +108446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 350,
+          "line": 349,
           "sink": "_add_combo_choice"
         }
       ]
@@ -108106,7 +108486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -108131,12 +108511,12 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 407,
+          "line": 408,
           "sink": "addRow"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 424,
+          "line": 425,
           "sink": "addRow"
         },
         {
@@ -108241,7 +108621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 836,
+          "line": 849,
           "sink": "_append_log"
         }
       ]
@@ -108471,12 +108851,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         },
         {
@@ -108891,12 +109271,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 335,
+          "line": 334,
           "sink": "QGroupBox"
         }
       ]
@@ -108921,7 +109301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -109156,12 +109536,12 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 407,
+          "line": 408,
           "sink": "addRow"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 424,
+          "line": 425,
           "sink": "addRow"
         }
       ]
@@ -109491,7 +109871,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 369,
+          "line": 370,
           "sink": "addItem"
         }
       ]
@@ -109556,7 +109936,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -109620,6 +110000,11 @@
           "sink": "python-return:_build_workflow_core_sections"
         },
         {
+          "path": "cdmw/ui/shell/compact/registry.py",
+          "line": 25,
+          "sink": "CompactToolSpec"
+        },
+        {
           "path": "cdmw/ui/shell/help_dialogs.py",
           "line": 257,
           "sink": "python-return:_section_category"
@@ -109628,6 +110013,16 @@
           "path": "cdmw/ui/texture_workflow/workspace_ui.py",
           "line": 247,
           "sink": "getOpenFileNames:filter-label"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 30,
+          "sink": "python-data:TOOLS"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 31,
+          "sink": "python-data:TOOLS"
         }
       ]
     },
@@ -109646,7 +110041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -109656,7 +110051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -109666,7 +110061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -109688,16 +110083,6 @@
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
           "line": 418,
           "sink": "setText"
-        }
-      ]
-    },
-    {
-      "key": "Textures are read-only references here. Use Textures for texture editing and Create New Item for a new equipment identity. Equipment placement belongs in Placement & Animations.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 331,
-          "sink": "python-return:_build_archive_mesh_sections"
         }
       ]
     },
@@ -109776,7 +110161,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -109791,7 +110176,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -109806,7 +110191,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -110082,6 +110467,16 @@
       ]
     },
     {
+      "key": "The active game variant is not inferred. Profile edits do not create cloth guides or bone bindings, and preview motion does not establish in-game behavior.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 331,
+          "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
       "key": "The active layer is empty. Duplicate a layer first, or enable 'Sample visible layers'.",
       "origins": [
         {
@@ -110116,7 +110511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -110126,7 +110521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -110136,7 +110531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -110696,7 +111091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -113221,7 +113616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -113701,7 +114096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 458,
+          "line": 459,
           "sink": "setToolTip"
         }
       ]
@@ -114056,7 +114451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 416,
+          "line": 415,
           "sink": "QLabel"
         }
       ]
@@ -114276,7 +114671,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 404,
+          "line": 403,
           "sink": "QLabel"
         }
       ]
@@ -114291,7 +114686,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 406,
+          "line": 405,
           "sink": "setToolTip"
         }
       ]
@@ -114446,7 +114841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 377,
+          "line": 378,
           "sink": "addItem"
         },
         {
@@ -114486,7 +114881,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 356,
+          "line": 355,
           "sink": "addRow"
         }
       ]
@@ -114571,12 +114966,12 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 407,
+          "line": 408,
           "sink": "addRow"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 424,
+          "line": 425,
           "sink": "addRow"
         }
       ]
@@ -114646,7 +115041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -115101,12 +115496,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -115291,7 +115686,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -115381,7 +115776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -116036,8 +116431,18 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
+        }
+      ]
+    },
+    {
+      "key": "Under Edit profile for mod, choose the shared assignment group and source profile, then select the raw values to override. Apply profile edit and Restore profile assignment support Undo/Redo. Finish and Build Mod include the cloned profile, catalogue, and sidecar assignment; a single PAC export cannot contain these companions.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 331,
+          "sink": "python-return:_build_archive_mesh_sections"
         }
       ]
     },
@@ -116386,7 +116791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -117566,7 +117971,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 164,
+          "line": 163,
           "sink": "_add_combo_choice"
         }
       ]
@@ -117581,7 +117986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -117721,17 +118126,17 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -117791,7 +118196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_placement_part_01.py",
-          "line": 200,
+          "line": 197,
           "sink": "QPushButton"
         }
       ]
@@ -118097,6 +118502,16 @@
       ]
     },
     {
+      "key": "Use Textures for texture editing; Hair Appearance also has a dedicated DDS editing handoff. Use Create New Item for a new equipment identity and Placement & Animations for equipment placement.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 331,
+          "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
       "key": "Use a custom icon",
       "origins": [
         {
@@ -118121,7 +118536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_placement_part_01.py",
-          "line": 201,
+          "line": 198,
           "sink": "setToolTip"
         }
       ]
@@ -118171,7 +118586,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 258,
+          "line": 257,
           "sink": "setToolTip"
         }
       ]
@@ -118331,7 +118746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -118571,7 +118986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -118915,9 +119330,44 @@
           "sink": "python-return:_build_start_sections"
         },
         {
+          "path": "cdmw/ui/shell/compact/registry.py",
+          "line": 16,
+          "sink": "python-data:COMPACT_CATEGORY_ORDER"
+        },
+        {
+          "path": "cdmw/ui/shell/compact/registry.py",
+          "line": 26,
+          "sink": "CompactToolSpec"
+        },
+        {
+          "path": "cdmw/ui/shell/compact/registry.py",
+          "line": 27,
+          "sink": "CompactToolSpec"
+        },
+        {
+          "path": "cdmw/ui/shell/compact/registry.py",
+          "line": 28,
+          "sink": "CompactToolSpec"
+        },
+        {
+          "path": "cdmw/ui/shell/compact/registry.py",
+          "line": 29,
+          "sink": "CompactToolSpec"
+        },
+        {
+          "path": "cdmw/ui/shell/compact/registry.py",
+          "line": 30,
+          "sink": "CompactToolSpec"
+        },
+        {
           "path": "cdmw/ui/shell/help_dialogs.py",
           "line": 265,
           "sink": "python-return:_section_category"
+        },
+        {
+          "path": "tools/format_explorer/catalogue.py",
+          "line": 29,
+          "sink": "python-data:TOOLS"
         }
       ]
     },
@@ -119526,7 +119976,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 357,
+          "line": 356,
           "sink": "addRow"
         }
       ]
@@ -119563,8 +120013,13 @@
     },
     {
       "key": "Vertex Parameters",
-      "origins": [],
-      "manual": true
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 331,
+          "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
     },
     {
       "key": "Vertex Parameters is unavailable with this host/helper combination.",
@@ -119876,7 +120331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 349,
+          "line": 348,
           "sink": "_add_combo_choice"
         }
       ]
@@ -120531,12 +120986,12 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 414,
+          "line": 413,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 448,
+          "line": 447,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -120716,22 +121171,22 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 771,
+          "line": 784,
           "sink": "_append_log"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 841,
+          "line": 854,
           "sink": "_append_log"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1035,
+          "line": 1048,
           "sink": "_append_log"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1194,
+          "line": 1215,
           "sink": "_append_log"
         },
         {
@@ -121316,7 +121771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -121366,7 +121821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -121671,7 +122126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -121681,7 +122136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -121891,7 +122346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -121901,7 +122356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -122001,7 +122456,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -122066,7 +122521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -122136,12 +122591,12 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 283,
+          "line": 282,
           "sink": "setHeaderLabels"
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 429,
+          "line": 428,
           "sink": "setHeaderLabels"
         }
       ]
@@ -122166,7 +122621,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 382,
+          "line": 381,
           "sink": "QLabel"
         }
       ]
@@ -122191,7 +122646,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 120,
+          "line": 119,
           "sink": "QGroupBox"
         }
       ]
@@ -122206,7 +122661,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 105,
+          "line": 104,
           "sink": "setWindowTitle"
         }
       ]
@@ -122496,7 +122951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_placement_part_01.py",
-          "line": 260,
+          "line": 257,
           "sink": "QCheckBox"
         },
         {
@@ -122846,7 +123301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -123121,7 +123576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -123596,7 +124051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_placement_part_01.py",
-          "line": 290,
+          "line": 287,
           "sink": "addTab"
         }
       ]
@@ -124041,12 +124496,12 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 177,
+          "line": 176,
           "sink": "_add_combo_choice"
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 195,
+          "line": 194,
           "sink": "_add_combo_choice"
         }
       ]
@@ -124056,12 +124511,22 @@
       "origins": [
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 525,
+          "line": 608,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 526,
+          "line": 609,
+          "sink": "_read"
+        },
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 694,
+          "sink": "_read"
+        },
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 695,
           "sink": "_read"
         }
       ]
@@ -124071,37 +124536,132 @@
       "origins": [
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 495,
+          "line": 578,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 497,
+          "line": 580,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 498,
+          "line": 581,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 515,
+          "line": 598,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 518,
+          "line": 601,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 519,
+          "line": 602,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 561,
+          "line": 652,
+          "sink": "_read"
+        },
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 656,
+          "sink": "_read"
+        },
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 657,
+          "sink": "_read"
+        }
+      ]
+    },
+    {
+      "key": "_simulationData",
+      "origins": [
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 576,
+          "sink": "_read"
+        },
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 577,
+          "sink": "_read"
+        },
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 584,
+          "sink": "_read"
+        },
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 585,
+          "sink": "_read"
+        },
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 587,
+          "sink": "_read"
+        },
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 588,
+          "sink": "_read"
+        },
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 590,
+          "sink": "_read"
+        },
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 591,
+          "sink": "_read"
+        },
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 594,
+          "sink": "_read"
+        },
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 595,
+          "sink": "_read"
+        },
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 704,
+          "sink": "_read"
+        },
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 720,
+          "sink": "_read"
+        },
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 721,
+          "sink": "_read"
+        },
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 723,
+          "sink": "_read"
+        }
+      ]
+    },
+    {
+      "key": "_spawnData",
+      "origins": [
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 564,
           "sink": "_read"
         },
         {
@@ -124113,145 +124673,100 @@
           "path": "cdmw/services/effect_preview_model.py",
           "line": 566,
           "sink": "_read"
-        }
-      ]
-    },
-    {
-      "key": "_simulationData",
-      "origins": [
+        },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 493,
+          "line": 569,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 494,
+          "line": 570,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 501,
+          "line": 572,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 502,
+          "line": 573,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 504,
+          "line": 575,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 505,
+          "line": 625,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 507,
+          "line": 690,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 508,
+          "line": 691,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 511,
+          "line": 696,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 512,
+          "line": 697,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 615,
+          "line": 698,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 616,
-          "sink": "_read"
-        }
-      ]
-    },
-    {
-      "key": "_spawnData",
-      "origins": [
-        {
-          "path": "cdmw/services/effect_preview_model.py",
-          "line": 481,
+          "line": 699,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 482,
+          "line": 700,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 483,
+          "line": 701,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 486,
+          "line": 702,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 487,
+          "line": 703,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 489,
+          "line": 707,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 490,
+          "line": 708,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 492,
-          "sink": "_read"
-        },
-        {
-          "path": "cdmw/services/effect_preview_model.py",
-          "line": 541,
-          "sink": "_read"
-        },
-        {
-          "path": "cdmw/services/effect_preview_model.py",
-          "line": 599,
-          "sink": "_read"
-        },
-        {
-          "path": "cdmw/services/effect_preview_model.py",
-          "line": 600,
-          "sink": "_read"
-        },
-        {
-          "path": "cdmw/services/effect_preview_model.py",
-          "line": 602,
-          "sink": "_read"
-        },
-        {
-          "path": "cdmw/services/effect_preview_model.py",
-          "line": 603,
-          "sink": "_read"
-        },
-        {
-          "path": "cdmw/services/effect_preview_model.py",
-          "line": 603,
+          "line": 708,
           "sink": "_read"
         }
       ]
@@ -124371,7 +124886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -124451,7 +124966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -124626,17 +125141,17 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -124646,7 +125161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -124676,7 +125191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -124686,7 +125201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -124696,7 +125211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -124731,7 +125246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -124776,7 +125291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -124846,7 +125361,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -124891,7 +125406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -124911,7 +125426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -125191,7 +125706,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 372,
+          "line": 373,
           "sink": "addItem"
         }
       ]
@@ -125576,7 +126091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -125811,7 +126326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -125921,17 +126436,17 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -126111,7 +126626,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 280,
+          "line": 279,
           "sink": "addItem"
         }
       ]
@@ -126166,12 +126681,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -126221,7 +126736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -126296,7 +126811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -126686,7 +127201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 317,
+          "line": 316,
           "sink": "addItems"
         }
       ]
@@ -126736,7 +127251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -127151,7 +127666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -127161,7 +127676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -127671,7 +128186,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 278,
+          "line": 277,
           "sink": "addItem"
         },
         {
@@ -128256,7 +128771,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_effect_planning.py",
-          "line": 121,
+          "line": 120,
           "sink": "add"
         }
       ]
@@ -128301,7 +128816,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 373,
+          "line": 374,
           "sink": "addItem"
         }
       ]
@@ -128311,7 +128826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 317,
+          "line": 316,
           "sink": "addItems"
         }
       ]
@@ -128321,7 +128836,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_effect_planning.py",
-          "line": 126,
+          "line": 125,
           "sink": "add"
         }
       ]
@@ -128621,7 +129136,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 311,
+          "line": 310,
           "sink": "_add_combo_choice"
         }
       ]
@@ -129281,7 +129796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -129291,7 +129806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -129441,7 +129956,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 296,
+          "line": 295,
           "sink": "addItem"
         },
         {
@@ -129476,7 +129991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 116,
+          "line": 115,
           "sink": "finish_texture_workflow_panel_body"
         }
       ]
@@ -129526,7 +130041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -129681,7 +130196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -129691,7 +130206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -129761,7 +130276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -129961,7 +130476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 310,
+          "line": 309,
           "sink": "_add_combo_choice"
         }
       ]
@@ -130351,7 +130866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 317,
+          "line": 316,
           "sink": "addItems"
         }
       ]
@@ -130481,7 +130996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -130491,7 +131006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -130661,7 +131176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -130736,7 +131251,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 523,
+          "line": 522,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -130851,7 +131366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -130861,7 +131376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -130871,7 +131386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -130891,7 +131406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -130901,7 +131416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -130911,7 +131426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -130931,7 +131446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -130951,7 +131466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -130991,7 +131506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -131031,7 +131546,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 279,
+          "line": 278,
           "sink": "addItem"
         }
       ]
@@ -131056,7 +131571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -131331,7 +131846,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 338,
+          "line": 337,
           "sink": "_add_combo_choice"
         }
       ]
@@ -131506,7 +132021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -131546,7 +132061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 317,
+          "line": 316,
           "sink": "addItems"
         }
       ]
@@ -131556,7 +132071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 317,
+          "line": 316,
           "sink": "addItems"
         }
       ]
@@ -131937,7 +132452,7 @@
       ]
     },
     {
-      "key": "mesh editor viewport standalone workspace no-session guidance select move grab smooth inflate pinch undo redo resident native interaction solid textured authoring exact game asset free edit replace from archive pam pamlod pac object transform overlay export sidecar app xml pac xml",
+      "key": "mesh editor viewport standalone workspace no-session guidance select move grab smooth inflate pinch undo redo resident native interaction solid textured authoring exact game asset free edit replace from archive pam pamlod pac object transform overlay export sidecar app xml pac xml glow translucency shader vertex parameters skin weights cloth physics profile",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -131981,7 +132496,7 @@
       "origins": [
         {
           "path": "cdmw/services/effect_preview_geometry.py",
-          "line": 92,
+          "line": 148,
           "sink": "ValueError"
         }
       ]
@@ -132276,7 +132791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -132286,7 +132801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -132341,12 +132856,12 @@
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 414,
+          "line": 413,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 448,
+          "line": 447,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -132381,7 +132896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -132391,7 +132906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -132556,7 +133071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -133286,7 +133801,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 342,
+          "line": 341,
           "sink": "_add_combo_choice"
         }
       ]
@@ -133391,7 +133906,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -133421,7 +133936,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 317,
+          "line": 316,
           "sink": "addItems"
         }
       ]
@@ -133751,17 +134266,17 @@
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 414,
+          "line": 413,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 448,
+          "line": 447,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 523,
+          "line": 522,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -133886,7 +134401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -133906,7 +134421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -133956,7 +134471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -134061,7 +134576,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
-          "line": 311,
+          "line": 310,
           "sink": "addItem"
         },
         {
@@ -134221,7 +134736,7 @@
       "origins": [
         {
           "path": "cdmw/services/effect_preview_geometry.py",
-          "line": 59,
+          "line": 115,
           "sink": "ValueError"
         }
       ]
@@ -134231,7 +134746,7 @@
       "origins": [
         {
           "path": "cdmw/services/effect_preview_geometry.py",
-          "line": 66,
+          "line": 122,
           "sink": "ValueError"
         }
       ]
@@ -134241,7 +134756,7 @@
       "origins": [
         {
           "path": "cdmw/services/effect_preview_geometry.py",
-          "line": 71,
+          "line": 127,
           "sink": "ValueError"
         }
       ]
@@ -134251,7 +134766,7 @@
       "origins": [
         {
           "path": "cdmw/services/effect_preview_geometry.py",
-          "line": 74,
+          "line": 130,
           "sink": "ValueError"
         }
       ]
@@ -134316,7 +134831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -134461,7 +134976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -134551,7 +135066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -134581,7 +135096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -134621,7 +135136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 346,
+          "line": 345,
           "sink": "_add_combo_choice"
         }
       ]
@@ -134671,7 +135186,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_effect_planning.py",
-          "line": 131,
+          "line": 130,
           "sink": "add"
         }
       ]
@@ -135211,7 +135726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -135221,7 +135736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -135396,7 +135911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -135441,7 +135956,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 523,
+          "line": 522,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -135586,7 +136101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -136081,7 +136596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -136121,7 +136636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -136161,7 +136676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         },
         {
@@ -136181,7 +136696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -136606,7 +137121,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 500,
+          "line": 499,
           "sink": "ArchiveModelTextureReference"
         }
       ]
@@ -136631,7 +137146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -136666,7 +137181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -136876,7 +137391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 317,
+          "line": 316,
           "sink": "addItems"
         }
       ]
@@ -136941,7 +137456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -136981,7 +137496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 337,
+          "line": 336,
           "sink": "_add_combo_choice"
         }
       ]
@@ -137006,7 +137521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -137016,7 +137531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -137636,7 +138151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -138041,7 +138556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 167,
+          "line": 166,
           "sink": "_add_combo_choice"
         }
       ]
@@ -138362,6 +138877,56 @@
       ]
     },
     {
+      "key": "spawn surface exceeds the GPU surface table limit",
+      "origins": [
+        {
+          "path": "cdmw/services/effect_spawn_surface.py",
+          "line": 19,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "spawn surface has invalid normals",
+      "origins": [
+        {
+          "path": "cdmw/services/effect_spawn_surface.py",
+          "line": 47,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "spawn surface has invalid positions",
+      "origins": [
+        {
+          "path": "cdmw/services/effect_spawn_surface.py",
+          "line": 28,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "spawn surface has invalid triangle indices",
+      "origins": [
+        {
+          "path": "cdmw/services/effect_spawn_surface.py",
+          "line": 34,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "spawn surface has no triangles",
+      "origins": [
+        {
+          "path": "cdmw/services/effect_spawn_surface.py",
+          "line": 51,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "spear",
       "origins": [
         {
@@ -138436,7 +139001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 337,
+          "line": 336,
           "sink": "_add_combo_choice"
         }
       ]
@@ -138596,7 +139161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 343,
+          "line": 342,
           "sink": "_add_combo_choice"
         }
       ]
@@ -138831,7 +139396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -138956,7 +139521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -138986,7 +139551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -138996,7 +139561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -139231,7 +139796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 377,
+          "line": 378,
           "sink": "addItem"
         },
         {
@@ -139276,7 +139841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -139316,7 +139881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -139326,7 +139891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 456,
+          "line": 466,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -139336,7 +139901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -139616,7 +140181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 496,
+          "line": 506,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -139626,7 +140191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -139636,7 +140201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -139667,6 +140232,16 @@
       ]
     },
     {
+      "key": "truncated EffectVertex",
+      "origins": [
+        {
+          "path": "cdmw/services/effect_preview_geometry.py",
+          "line": 26,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "turns a source image into an item-icon asset using a compatible archive target as the format and path authority.",
       "origins": [
         {
@@ -139691,7 +140266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 317,
+          "line": 316,
           "sink": "addItems"
         }
       ]
@@ -140596,7 +141171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 651,
+          "line": 661,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -140681,7 +141256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -140711,7 +141286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -140731,7 +141306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -140741,7 +141316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 573,
+          "line": 583,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -140801,7 +141376,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
-          "line": 187,
+          "line": 186,
           "sink": "QLabel"
         }
       ]
@@ -141956,7 +142531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 882,
+          "line": 895,
           "sink": "setText"
         }
       ]
@@ -144461,7 +145036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1217,
+          "line": 1238,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -144861,7 +145436,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 523,
+          "line": 522,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -144916,12 +145491,12 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 414,
+          "line": 413,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 448,
+          "line": 447,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -145671,7 +146246,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 793,
+          "line": 806,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -146206,12 +146781,12 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 911,
+          "line": 924,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 914,
+          "line": 927,
           "sink": "setText"
         },
         {
@@ -146486,7 +147061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 763,
+          "line": 776,
           "sink": "setText"
         }
       ]
@@ -146971,7 +147546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 793,
+          "line": 806,
           "sink": "QTreeWidgetItem"
         }
       ]

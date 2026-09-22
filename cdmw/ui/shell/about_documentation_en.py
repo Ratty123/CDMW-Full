@@ -393,7 +393,7 @@ class AboutDocumentationEnglishMixin:
                   <tr><td>Tell which duplicate is active</td><td>Read the <b>State</b> column.</td><td><b>Active mod</b> is the replacement payload currently winning over an original; <b>Shadowed original</b> or <b>Shadowed mod</b> means another row with the same virtual path has priority.</td></tr>
                   <tr><td>Find textures used by a model</td><td>Select the model and click <b>Asset Family</b>.</td><td>Resolved means the app found an archive entry; partial means metadata exists but some texture decoding or archive data is incomplete.</td></tr>
                   <tr><td>Review equipment placement</td><td>Open <b>Placement &amp; Animations</b>.</td><td>Prepare the target and replacement, compare their placement and animation, then review the exact files before export.</td></tr>
-                  <tr><td>Find material values</td><td>Look for <code>.pac_xml</code>, <code>.pam_xml</code>, <code>.pamlod_xml</code>, or <code>.pami</code> sidecars.</td><td>Inspect the sidecar and its Asset Family as read-only context. Material authoring is not an Archive Browser or Mesh Editor action.</td></tr>
+                  <tr><td>Find material values</td><td>Look for <code>.pac_xml</code>, <code>.pam_xml</code>, <code>.pamlod_xml</code>, or <code>.pami</code> sidecars.</td><td>Inspect the sidecar and its Asset Family as read-only context. Mesh Editor offers experimental Glow, Translucency, and Shader experiments for supported parts with captured material dependencies.</td></tr>
                   <tr><td>Understand a selected file</td><td>Open <b>Details</b>.</td><td>Details includes package, raw/stored size, compression, preview diagnostics, readable strings, and import summaries.</td></tr>
                 </table>
                 <h4>Modded duplicates and active rows</h4>
@@ -415,7 +415,7 @@ class AboutDocumentationEnglishMixin:
                 "id": "mesh_editor",
                 "title": "Mesh Editor",
                 "summary": "Permanent standalone viewport, resident native interaction, capability-gated LOD0 authoring, review, and safe mesh output.",
-                "keywords": "mesh editor viewport standalone workspace no-session guidance select move grab smooth inflate pinch undo redo resident native interaction solid textured authoring exact game asset free edit replace from archive pam pamlod pac object transform overlay export sidecar app xml pac xml",
+                "keywords": "mesh editor viewport standalone workspace no-session guidance select move grab smooth inflate pinch undo redo resident native interaction solid textured authoring exact game asset free edit replace from archive pam pamlod pac object transform overlay export sidecar app xml pac xml glow translucency shader vertex parameters skin weights cloth physics profile",
                 "html": """
 <p><b>Mesh Editor</b> opens supported archive or local meshes in the embedded Rust/D3D12 editor. A missing or incompatible helper blocks editing and offers Retry.</p>
                 <h4>Open and author a mesh</h4>
@@ -432,6 +432,16 @@ class AboutDocumentationEnglishMixin:
                 <p>Neutral-appearance meshes show an Experimental warning; imports and Mod inclusion are available without an extra enable button. Positioning, scale or animation may be wrong in game. Imports keep their placement; export reverses the neutral display transform using transferred skin weights. Invalid geometry and missing dependencies still block output.</p>
                 <p>Output Preview shows the prepared result. Finish, validate, then Build Mod to include required companion files. Replacement drafts preserve geometry, inclusion, materials and placement.</p>
                 <p>Replacement supports one eligible PAC, PAM or PAMLOD at a time. Clear active Morph &amp; Refit bindings first; unsupported layouts or missing dependencies block Apply.</p>
+                <h4>Material experiments</h4>
+                <p>Select parts and expand Glow, Translucency, or Shader experiments in Parts. Supported choices depend on the captured source shader and material dependencies. Apply stages the edit; Restore and Undo/Redo recover earlier settings. Finish, validate, then Build Mod to include the material companions.</p>
+                <p>Parts sharing a material wrapper need matching settings. Restore incompatible overrides before choosing another experiment. Previews approximate the game shaders; refraction, lighting, and animation may differ in game.</p>
+                <h4>Vertex Parameters</h4>
+                <p>Open Mesh Data &gt; Vertex Parameters and select vertices, edges, faces, or parts. Inspect Position, UV Coordinates, Normals, and Skin Weights, enter supported changes, then choose Apply to commit the batch as one Undo step. Discard clears pending inputs.</p>
+                <p>Editing depends on the format, LOD, source mapping, and output support. Unsupported channels remain read-only; a rejected batch changes no vertices. UV1 and vertex colours are not editable. Skin weight editing requires a supported Exact PAC LOD0 layout and resolved bone palette; the separate Rig &amp; Weights tool remains hidden.</p>
+                <h4>Authored cloth profiles</h4>
+                <p>Open Mesh Data &gt; Cloth &gt; Authored cloth profile and choose a captured variant. Use profile in preview loads supported starting values; preview sliders do not change the mod.</p>
+                <p>Under Edit profile for mod, choose the shared assignment group and source profile, then select the raw values to override. Apply profile edit and Restore profile assignment support Undo/Redo. Finish and Build Mod include the cloned profile, catalogue, and sidecar assignment; a single PAC export cannot contain these companions.</p>
+                <p>The active game variant is not inferred. Profile edits do not create cloth guides or bone bindings, and preview motion does not establish in-game behavior.</p>
                 <h4>Hair Tools (Experimental)</h4>
                 <p>Hair Tools is experimental for Kliff, Damiane and Oongka. Create starts on an empty fitting scalp; Edit loads an existing hairstyle. Hair and motion have not been tested in game and may not work correctly.</p>
                 <p>Draw offers Freehand, Straight, Arc and Circle. Use Stroke smoothing, Bend, Follow scalp and Move reach to control the shape. Ctrl temporarily draws away from the scalp while collision stays active.</p>
@@ -446,7 +456,7 @@ class AboutDocumentationEnglishMixin:
                   <li>Export Mesh File writes a separate rebuilt asset. Build Mod writes a loose manager package or a DMM archive-group package.</li>
                   <li>Install as Overlay requires review, confirmation, a closed game, and verified recovery. Restore Last Overlay Install uses the saved receipt.</li>
                 </ul>
-                <p>Textures are read-only references here. Use Textures for texture editing and Create New Item for a new equipment identity. Equipment placement belongs in Placement &amp; Animations.</p>
+                <p>Use Textures for texture editing; Hair Appearance also has a dedicated DDS editing handoff. Use Create New Item for a new equipment identity and Placement &amp; Animations for equipment placement.</p>
                 <p>The Rust editor controls currently remain in English. The surrounding app and this guide use the selected interface language.</p>
                 """,
             },

@@ -338,6 +338,7 @@ _PYTHON_SINKS = {
     "ArchiveModelTextureReference",
     "ArchivePreviewResult",
     "AssetAuthoringHelperSpec",
+    "CompactToolSpec",
     "EmptyStateTreeWidget",
     "Guide",
     "MeshImportSetupSelection",
@@ -730,6 +731,12 @@ def _python_source_value(node: ast.AST) -> str:
 
 
 def _python_candidate_nodes(call: ast.Call, sink: str) -> Iterable[ast.AST]:
+    if sink == "CompactToolSpec":
+        # The remaining fields are stable tool/icon identifiers, not UI text.
+        yield from _python_wrapper_candidates(
+            call, (1, 2), (("key", "label", "category", "icon"),)
+        )
+        return
     if sink in {"information", "warning", "critical", "question"}:
         indexes = (1, 2)
     elif sink in {"getOpenFileName", "getOpenFileNames", "getSaveFileName"}:
@@ -1345,6 +1352,33 @@ def _infer_python_ui_wrappers(
     )
 
 
+def _python_ui_catalogue_sources(
+    relative: str,
+    assignments: dict[str, tuple[ast.AST, ...]],
+) -> Iterable[tuple[str, ast.AST, str]]:
+    """Read declared presentation tables whose consumers cross module boundaries."""
+    if relative == "cdmw/ui/shell/compact/registry.py":
+        names = ("COMPACT_CATEGORY_ORDER",)
+    elif relative == "tools/format_explorer/catalogue.py":
+        names = ("TOOLS", "_TEXT_TOOL", "_NO_TOOL", "READ_WORDS", "WRITE_WORDS")
+    else:
+        return
+    for name in names:
+        for value in assignments.get(name, ()):
+            # Dictionary values carry labels; keys are extensions/status IDs.
+            for node in _python_return_source_nodes(value, assignments):
+                text = _python_source_value(node)
+                if name in {"TOOLS", "_TEXT_TOOL", "_NO_TOOL"}:
+                    # Match localized_tool_location: each route segment has its
+                    # own catalog key, including alternatives within a segment.
+                    texts = re.split(r" > | / ", text)
+                else:
+                    texts = (text,)
+                for label in texts:
+                    for source in _html_segments(label.strip()):
+                        yield source, node, f"python-data:{name}"
+
+
 def _scan_python() -> dict[str, list[dict[str, object]]]:
     origins: dict[str, list[dict[str, object]]] = defaultdict(list)
     trees: list[tuple[Path, ast.Module]] = []
@@ -1362,6 +1396,16 @@ def _scan_python() -> dict[str, list[dict[str, object]]]:
     for path, tree in trees:
         relative = path.relative_to(ROOT).as_posix()
         module_assignments = _python_module_assignments(tree)
+        for source, node, sink in _python_ui_catalogue_sources(
+            relative, module_assignments
+        ):
+            origins[source].append(
+                {
+                    "path": relative,
+                    "line": int(getattr(node, "lineno", 0) or 0),
+                    "sink": sink,
+                }
+            )
         assignments_by_node: dict[int, dict[str, tuple[ast.AST, ...]]] = {}
         for definition in ast.walk(tree):
             if not isinstance(

@@ -27,7 +27,7 @@ Choose the exact test file for an ordinary change. On a fresh source checkout,
 prepare the native helpers and archive worker using the root README's source
 setup first. Full-suite and native tests require those real helpers.
 
-GitHub's Windows Build defaults to the ten-module `smoke` gate on Python 3.14
+GitHub's Windows Build defaults to the `smoke` gate on Python 3.14
 for code pushes, pull requests, tags and manual runs. Documentation and GitHub
 issue/pull-request template-only pushes and pull requests skip both Windows
 Build and CodeQL; mixed code/documentation changes still run. The CodeQL
@@ -37,7 +37,7 @@ CodeQL uploads all security results but disables optional database-archive
 publication, whose bundling can stall after analysis has completed. All five
 language scans and their security-result uploads remain required.
 The default Windows QA path runs focused CodeQL workflow-contract and Archive
-Browser filter-popup tests after smoke, without requesting the full suite.
+Browser Finder wiring tests after smoke, without requesting the full suite.
 The smoke gate covers startup/tool
 construction, archive confirmation/backup/rollback, output path safety,
 helper cleanup, metadata and localization without building native helpers.

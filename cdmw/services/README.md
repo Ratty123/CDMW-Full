@@ -11,7 +11,7 @@ mutation flows stay explicit, confirmable, backed up, and recoverable.
 
 Archive UI coordination uses focused read, query, preview, extraction,
 environment, and cached lazy workflow surfaces composed by `ArchiveService`.
-`archive_catalogue_service.py` is the typed v2 catalogue boundary over the
+`archive_catalogue_service.py` is the typed v3 catalogue boundary over the
 shell-owned resident process client. It publishes bounded pages/batches and
 converts only explicitly requested DTOs to the legacy `ArchiveEntry` shape.
 After one unexpected worker restart it reopens unchanged sessions and

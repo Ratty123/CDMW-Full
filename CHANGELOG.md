@@ -48,6 +48,7 @@ The format is intentionally simple:
 - Effects preview draws supported lightning as indexed GPU mesh particles, retaining complete bolt geometry and authored deformation without the one-particle triangle bottleneck. It preserves mesh pivot offsets and the native default spawn type.
 
 - Surface-dependent effects now sample the selected item or real character mesh with decoded density, normal offset and volume clipping; missing surfaces produce no particles. The emitter inspector can edit and export spawn type, density and surface-volume values. Preview target selection remains separate from game attachment binding.
+- Completed translations for newer Hair, replacement, vertex, shader, glow and translucency controls and messages across all built-in interface languages. Compact navigation and Format Explorer labels now enter the translation inventory.
 - Supported lightning mesh particles now animate their decoded branch thickness, bending and pivot noise, using authored Bezier/linear material curves and packed vertex controls. Unsupported variants remain explicit; surface spawning and final game shading are still approximate.
 - Ready-mod texture export, targeted classification review, empty-layer texture crops, percent-encoded glTF buffers, material base-colour checks and mesh companion summaries no longer fail on missing runtime dependencies. glTF data URIs retain arbitrary binary bytes.
 - Recolor invalidates completed analysis when its source package changes and checks source identity before building. Editable texture filters and chaiNNer overrides retain their full text and Undo history.
@@ -105,6 +106,10 @@ The format is intentionally simple:
 - Create New Item no longer scans every archive entry when checking its effects cache, preventing that work from stalling template selection and delaying textures. Loading is labelled, early progress and preview messages remain in Current Tool Log and diagnostics, and incomplete effect metadata includes names and decoder reasons.
 
 - Model & Placement views horizontal models from above the grid with their length across the viewport. New imports reset the camera even when their textured preview arrives without a geometry preview; texture upgrades retain the user's view. Frame restores the corrected view, and older preview caches rebuild automatically.
+
+### Docs
+
+- Updated in-app Mesh help for material experiments, Vertex Parameters and authored cloth profiles, corrected disabled-entrypoint guidance, and aligned contributor testing instructions with the current CI workflow.
 
 ## [0.11.0-alpha.21] - 2026-09-20
 

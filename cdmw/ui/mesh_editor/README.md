@@ -7,9 +7,10 @@ replacement draft version 12. Static Dissolve stays object-only.
 Owns the direct, mesh-only Mesh Editor tab shell, typed archive-session requests,
 resident authoring workspace, and output orchestration. Archive internals and
 destructive writes stay outside this UI package. Static-replacement builder
-hosting remains compatibility-only in this tab. Archive Browser exposes
-**Import > Replace Mesh from File...** in a separate replacement window; opening
-it does not replace the active Mesh Editor session.
+hosting remains compatibility-only in this tab. Archive Browser's separate
+**Replace Mesh from File...** workflow is temporarily disabled for release review;
+its retained implementation does not replace the active Mesh Editor session.
+Use the editor's **Import Replacement...** workflow for supported replacement edits.
 
 The current product boundary is geometry authoring: selection, topology,
 transforms, normals/tangents, rigging, Morph & Refit, UV-coordinate editing,
@@ -117,8 +118,9 @@ inherited empty assignments. The editing context owns these immutable sources;
 ordinary preview models and their serialized form stay unchanged. Cancellation,
 stale load results and closing the session release the context. Missing or
 ambiguous paths remain unresolved, and same-name files elsewhere are not used.
-This source handoff does not yet select the active game variant, apply profiles
-to the motion test or enable profile export.
+The active game variant is not inferred. These captured sources support explicit
+profile selection for cloth preview and reversible companion-file output through
+the [Authored physics profiles](#authored-physics-profiles) workflow below.
 
 ## Collapsible panels and tool icons
 
@@ -344,8 +346,6 @@ intact. The 40-byte PAC layout guard
 remains in force. Drafts can be reopened and saved repeatedly without losing part
 identities. A multi-LOD donor is blocked until its writer is verified. Installed archives stay
 read-only. In-game barber selection, save/load, headgear and motion remain unverified.
-
-For implementation and evidence boundaries see [the hair document](../../../docs/hair-authoring-feasibility.md).
 
 ## Replacement workflow
 

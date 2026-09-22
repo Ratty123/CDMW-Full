@@ -1408,6 +1408,94 @@ def test_generated_manifest_is_current() -> None:
     )
 
 
+def test_manifest_extracts_only_declared_registry_and_catalogue_labels(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from scripts import generate_ui_localization_manifest as generator
+
+    sources = {
+        "cdmw/ui/shell/compact/registry.py": (
+            "COMPACT_CATEGORY_ORDER = ('Asset group', 'Empty group')\n"
+            "COMPACT_TOOL_SPECS = (\n"
+            "    CompactToolSpec('Tool identifier', 'Positional label', 'Asset group', 'Icon identifier'),\n"
+            "    CompactToolSpec(key='Other identifier', label='Keyword label', category='Other group', icon='Other icon'),\n"
+            ")\n"
+        ),
+        "tools/format_explorer/catalogue.py": (
+            "TOOLS: dict[str, str] = {'Extension identifier': 'First tool > Second tool / Alternative tool'}\n"
+            "_TEXT_TOOL = 'External editor guidance'\n"
+            "_NO_TOOL = 'Unavailable guidance'\n"
+            "READ_WORDS = {'Read status identifier': 'Read status label'}\n"
+            "WRITE_WORDS = {'Write status identifier': 'Write status label'}\n"
+            "UNRELATED = {'Unrelated key': 'Unrelated value'}\n"
+        ),
+        "tools/other/catalogue.py": (
+            "READ_WORDS = {'Unrelated status': 'Unrelated status label'}\n"
+            "TOOLS = {'Unrelated extension': 'Unrelated tool'}\n"
+        ),
+    }
+    for relative, text in sources.items():
+        path = tmp_path / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+    monkeypatch.setattr(generator, "ROOT", tmp_path)
+    monkeypatch.setattr(generator, "PYTHON_SOURCE_ROOTS", (tmp_path,))
+
+    origins = generator._scan_python()
+
+    assert set(origins) == {
+        "Asset group", "Empty group", "Other group",
+        "Positional label", "Keyword label",
+        "First tool", "Second tool", "Alternative tool",
+        "External editor guidance", "Unavailable guidance",
+        "Read status label", "Write status label",
+    }
+    assert origins["Keyword label"][0]["sink"] == "CompactToolSpec"
+    assert origins["Read status label"][0]["sink"] == "python-data:READ_WORDS"
+    assert origins["Alternative tool"][0]["path"] == "tools/format_explorer/catalogue.py"
+
+
+def test_generated_manifest_covers_current_registry_and_catalogue_labels() -> None:
+    from cdmw.ui.shell.compact.registry import COMPACT_CATEGORY_ORDER, COMPACT_TOOL_SPECS
+    from tools.format_explorer.catalogue import (
+        READ_WORDS, TOOLS, WRITE_WORDS, _NO_TOOL, _TEXT_TOOL,
+    )
+
+    entries = {entry["key"]: entry for entry in _packaged_source_manifest()["entries"]}
+    compact_labels = set(COMPACT_CATEGORY_ORDER) | {
+        value for spec in COMPACT_TOOL_SPECS for value in (spec.label, spec.category)
+    }
+    format_labels = set(READ_WORDS.values()) | set(WRITE_WORDS.values()) | {
+        alternative.strip()
+        for location in (*TOOLS.values(), _NO_TOOL, _TEXT_TOOL)
+        for segment in location.split(" > ")
+        for alternative in segment.split(" / ")
+    }
+    for relative, labels in (
+        ("cdmw/ui/shell/compact/registry.py", compact_labels),
+        ("tools/format_explorer/catalogue.py", format_labels),
+    ):
+        assert labels <= entries.keys()
+        for label in labels:
+            assert any(
+                origin["path"] == relative for origin in entries[label]["origins"]
+            ), label
+
+
+@pytest.mark.parametrize("code", [code for code, _name in EXPECTED_LANGUAGES if code != "en"])
+def test_reviewed_navigation_and_authoring_labels_translate_at_runtime(
+    code: str, tmp_path: Path,
+) -> None:
+    localizer = UiLocalizer(language_dir=tmp_path, language_code=code)
+    for source in (
+        "Browse Archives", "Edit Translations", "Inspect File Formats",
+        "Search File Text", "No tool yet",
+        "Any text editor (extract, edit, repack)",
+        "Choose experiment", "Review the plan", "Apply shader controls",
+    ):
+        assert localizer.translate_rendered(source) != source, (code, source)
+
+
 def test_generated_manifest_freshness_ignores_only_source_line_movement() -> None:
     expected = {
         "schema": "cdmw_ui_localization_source_manifest_v1",

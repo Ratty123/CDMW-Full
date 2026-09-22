@@ -51,8 +51,9 @@ Please try to:
 - avoid unrelated cleanup in the same PR
 - use the current tool names from the [README](README.md) and update in-app
   documentation when controls or workflows change
-- follow the [test guide](tests/README.md) for focused checks; GitHub runs the
-  full nonvisual Python matrix for pull requests
+- follow the [test guide](tests/README.md) for focused checks; GitHub runs smoke
+  and focused contracts by default, with full nonvisual QA available through
+  the manual `exhaustive_tests` option
 
 ## Project Scope
 
