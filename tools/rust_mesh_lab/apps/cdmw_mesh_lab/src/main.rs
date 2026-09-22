@@ -24,6 +24,7 @@ mod headless_ui_tests;
 mod loader;
 mod preview_core_material;
 mod preview_effects;
+mod preview_effect_lightning;
 mod preview_geometry;
 #[cfg(all(test, target_os = "windows"))]
 mod preview_gpu_tests;

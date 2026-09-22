@@ -2,6 +2,7 @@
 use cdmw_render_wgpu::{EffectBillboardInstance, EffectBlendMode, EffectLineVertex};
 use glam::{EulerRot, Mat4, Quat, Vec3};
 use serde_json::Value;
+use crate::preview_effect_lightning::{LightningMaterial, LightningParticle, LightningView};
 
 fn vec3_value(value: Option<&Value>, fallback: Vec3) -> Vec3 {
     let Some(values) = value.and_then(Value::as_array) else {
@@ -215,6 +216,7 @@ pub(crate) fn effect_emitter_billboards(
         camera_up,
         camera_forward,
         256,
+        LightningView { eye: Vec3::Z * 5., vertical_fov: 45_f32.to_radians(), height: 512. },
     )
 }
 
@@ -229,6 +231,7 @@ pub(crate) fn effect_emitter_billboards_with_limit(
     camera_up: Vec3,
     camera_forward: Vec3,
     particle_limit: usize,
+    lightning_view: LightningView,
 ) -> Vec<EffectBillboardInstance> {
     let max_particles_per_emitter = particle_limit.clamp(64, 2048);
     let kind = emitter
@@ -368,6 +371,7 @@ pub(crate) fn effect_emitter_billboards_with_limit(
         + model_matrix.transform_vector3(Vec3::Z).length())
         / 3.0;
     let scene_scale = scene_scale.max(1.0e-6);
+    let lightning = LightningMaterial::read(emitter);
     let mut instances = Vec::new();
     let mut emitted = 0usize;
     let candidates = burst
@@ -493,6 +497,10 @@ pub(crate) fn effect_emitter_billboards_with_limit(
                     texture_channel,
                     blend,
                     max_instances_per_emitter,
+                    lightning.as_ref().map(|material| (material, LightningParticle {
+                        age: progress, seed: seed as u32, scale: size, parent: model_matrix,
+                        transform, view: lightning_view,
+                    })),
                 );
             } else if kind == "beam" {
                 let local_axis =
@@ -624,6 +632,7 @@ fn append_particle_mesh(
     texture_channel: i32,
     blend: EffectBlendMode,
     limit: usize,
+    lightning: Option<(&LightningMaterial, LightningParticle)>,
 ) {
     let Some(vertices) = emitter.get("particle_vertices").and_then(Value::as_array) else {
         return;
@@ -637,6 +646,28 @@ fn append_particle_mesh(
     if faces.len() > limit.saturating_sub(instances.len()) {
         return;
     }
+    let read_uv = |i: usize| -> [f32; 2] {
+        let value = uvs.and_then(|v| v.get(i)).and_then(Value::as_array);
+        [0, 1].map(|axis| {
+            value.and_then(|v| v.get(axis)).and_then(Value::as_f64)
+                .filter(|v| v.is_finite()).unwrap_or(0.0) as f32
+        })
+    };
+    let normals = emitter.get("particle_normals").and_then(Value::as_array);
+    let controls = emitter.get("particle_colors").and_then(Value::as_array);
+    let lightning = lightning.filter(|_| normals.is_some_and(|v| v.len() == vertices.len())
+        && controls.is_some_and(|v| v.len() == vertices.len()));
+    // Deform shared vertices once, not once per triangle corner.
+    let transformed = vertices.iter().enumerate().map(|(i, vertex)| {
+        let mut position = vec3_value(Some(vertex), Vec3::ZERO);
+        if let Some((material, particle)) = lightning {
+            position = material.deform_vertex(position,
+                vec3_value(normals.and_then(|v| v.get(i)), Vec3::ZERO),
+                glam::Vec2::from_array(read_uv(i)),
+                vec3_value(controls.and_then(|v| v.get(i)), Vec3::ZERO), particle);
+        }
+        transform.transform_point3(position)
+    }).collect::<Vec<_>>();
     for face in faces {
         let Some(indices) = face.as_array().filter(|v| v.len() == 3) else {
             continue;
@@ -651,21 +682,11 @@ fn append_particle_mesh(
         }
         let points = indices
             .iter()
-            .map(|i| transform.transform_point3(vec3_value(vertices.get(*i), Vec3::ZERO)))
+            .map(|i| transformed[*i])
             .collect::<Vec<_>>();
         let edge1 = points[1] - points[0];
         let edge2 = points[2] - points[0];
 
-        let read_uv = |i: usize| -> [f32; 2] {
-            let value = uvs.and_then(|v| v.get(i)).and_then(Value::as_array);
-            [0, 1].map(|axis| {
-                value
-                    .and_then(|v| v.get(axis))
-                    .and_then(Value::as_f64)
-                    .filter(|v| v.is_finite())
-                    .unwrap_or(0.0) as f32
-            })
-        };
         instances.push(EffectBillboardInstance {
             center: points[0].to_array(),
             axis_right: edge1.to_array(),
@@ -766,6 +787,7 @@ mod tests {
                 Vec3::Y,
                 -Vec3::Z,
                 budget,
+                LightningView { eye: Vec3::Z * 5., vertical_fov: 45_f32.to_radians(), height: 512. },
             )
         };
         let draft = render(64, 0);
@@ -894,5 +916,29 @@ mod tests {
         assert_eq!(p[0].axis_right, [0.1, 0., 0.]);
         assert_eq!(p[0].axis_up, [0., 0.4, 0.]);
         assert_eq!(p[0].triangle_uvs, Some([[0., 0.], [1., 0.], [0., 1.]]));
+    }
+
+    #[test]
+    fn mesh_lightning_playback_uses_packed_controls_and_material_deformation() {
+        let mut e = emitter();
+        e["kind"] = json!("mesh");
+        e["particle_vertices"] = json!([[0., 0., 0.], [1., 0., 0.], [0., 1., 0.]]);
+        e["particle_faces"] = json!([[0, 1, 2]]);
+        e["particle_uvs"] = json!([[0., 0.], [1., 0.], [0., 1.]]);
+        e["particle_normals"] = json!(vec![[0., 1., 0.]; 3]);
+        e["particle_colors"] = json!(vec![[1., 1., 1., 1.]; 3]);
+        e["material"] = json!({"name": "EffectTest_Lightning", "values": {
+            "_materialFlags": 16384, "_deformRatioAmplitude": 1., "_deformTimeAmplitude": 1.,
+            "_deformRatioFrequency": 6., "_deformRatioSpeed": 2., "_deformSubBranchAmplitude": 1.
+        }});
+        let early = draw(&e, 0.4);
+        let late = draw(&e, 1.4);
+        assert_eq!(early.len(), 1);
+        assert_eq!(late.len(), 1);
+        assert_ne!(early[0].center, late[0].center);
+        assert_eq!(early[0].triangle_uvs, late[0].triangle_uvs);
+        assert_eq!(early[0].colour, late[0].colour);
+        e["particle_normals"] = json!([]);
+        assert_eq!(draw(&e, 0.4)[0].center, draw(&e, 1.4)[0].center);
     }
 }

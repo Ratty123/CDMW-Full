@@ -2,6 +2,7 @@
 #[cfg(test)]
 use crate::preview_effects::{effect_emitter_billboards, particle_kinematics};
 use crate::preview_effects::{effect_emitter_billboards_with_limit, push_effect_line};
+use crate::preview_effect_lightning::LightningView;
 
 use crate::camera::{OrbitCamera, StandardView};
 use crate::cdmw_material_preview_factors;
@@ -1706,6 +1707,11 @@ impl PreviewApplication {
                         self.camera.up(),
                         self.camera.forward(),
                         control("effect_particle_budget", 256).clamp(64, 2048) as usize,
+                        LightningView {
+                            eye: self.camera.eye(),
+                            vertical_fov: self.camera.vertical_field_of_view(),
+                            height: self.viewport_rect().height(),
+                        },
                     );
                     let faces_per_particle = if kind == "mesh" {
                         emitter

@@ -261,6 +261,7 @@ def test_procedural_material_preserves_keyed_values_and_partial_spline_overrides
     decoded = material["splines"]["_progressSpline"]["components"][0][0]
     assert decoded["position"] == pytest.approx((.5, .9))
     assert decoded["outer_tangent"] == pytest.approx(.7)
+    assert material["splines"]["_progressSpline"]["samples"][0] == pytest.approx((.9,) * 128)
     assert thickness.value("_value").value == pytest.approx((.1, .2))
 
 

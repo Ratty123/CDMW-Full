@@ -72,6 +72,10 @@ impl OrbitCamera {
         self.target + self.orientation() * Vec3::Z * self.distance
     }
 
+    pub fn vertical_field_of_view(&self) -> f32 {
+        FIELD_OF_VIEW_Y
+    }
+
     #[must_use]
     pub fn forward(&self) -> Vec3 {
         (self.target - self.eye()).normalize_or_zero()

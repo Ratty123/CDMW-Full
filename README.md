@@ -198,8 +198,10 @@ Colour edits include cloned render-preset temperature ramps. Billboard particle
 size represents its full dimensions, with placement scale applied once.
 Surface-dependent effects such as Aftertaa need a game-provided target mesh;
 placing their preview at an item offset does not establish that binding. The
-emitter diagnostics identify this requirement. Procedural lightning deformation
-and its surface spawning remain under investigation.
+emitter diagnostics identify this requirement. Supported `EffectTest_Lightning`
+materials now use decoded Bezier/linear curves, packed branch controls, stepped
+bending, and small/large pivot noise in the viewport. Surface spawning, particle
+counts, shader masks and final emissive response remain under investigation.
 
 Output can be a manager package or a CDMW-owned archive-group overlay. New Item
 installs through overlays only. **Output → Merge mods** combines compatible mod

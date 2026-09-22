@@ -43,6 +43,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Supported lightning mesh particles now animate their decoded branch thickness, bending and pivot noise, using authored Bezier/linear material curves and packed vertex controls. Unsupported variants remain explicit; surface spawning and final game shading are still approximate.
 - Ready-mod texture export, targeted classification review, empty-layer texture crops, percent-encoded glTF buffers, material base-colour checks and mesh companion summaries no longer fail on missing runtime dependencies. glTF data URIs retain arbitrary binary bytes.
 - Recolor invalidates completed analysis when its source package changes and checks source identity before building. Editable texture filters and chaiNNer overrides retain their full text and Undo history.
 - Model Library separates catalogue-page caches by source URL, avoids full-text scans for new catalogue records, and reuses unchanged nested ZIP extractions while retaining tamper checks.

@@ -319,6 +319,7 @@ def _shader_material(sources: Sequence[_Source]) -> dict:
     This descriptor does not claim that the renderer implements every material.
     """
     from cdmw.services.effect_recipe import _merge
+    from cdmw.services.effect_material_spline import sample_material_spline
 
     resolved = None
     for source in reversed(sources):
@@ -353,7 +354,11 @@ def _shader_material(sources: Sequence[_Source]) -> dict:
         preset = reference.value("_splinePresetName")
         if preset is None and instance is not None:
             preset = instance.value("_presetName")
-        splines[label] = {"preset": str(preset.value or "") if preset is not None else "", "components": tuple(curves)}
+        splines[label] = {
+            "preset": str(preset.value or "") if preset is not None else "",
+            "components": tuple(curves),
+            "samples": tuple(sample_material_spline(points) for points in curves),
+        }
     return {"name": str(name.value or "") if name is not None else "", "values": numeric, "splines": splines}
 
 
@@ -616,13 +621,18 @@ def _emitter_preview(
         notes.append(f"{name}: spawn type {spawn_volume} requires a target mesh surface. An empty game surface produces no particles; the preview currently shows particles at the placed origin and does not verify that target binding.")
     elif spawn_volume and not points:
         notes.append(f"{name}: spawn volume type {spawn_volume} is not simulated; the preview uses the placed origin, so particle distribution can differ in game.")
-    for source in sources:
-        material = _first_child(source.node, "_effectMaterialData2")
-        material_name = material.value("_materialName") if material is not None else None
-        if material_name is not None and material_name.value:
-            if "lightning" in str(material_name.value).lower():
-                notes.append(f"{name}: {material_name.value} procedural deformation and shader masks are not reproduced; this is a static mesh approximation.")
-            break
+    shader_material = _shader_material(sources)
+    material_name = shader_material.get("name", "")
+    if "lightning" in material_name.lower():
+        values = shader_material.get("values", {})
+        supported = (material_name == "EffectTest_Lightning" and int(values.get("_materialFlags", 0)) & 0x4000
+                     and not any(values.get(key, 0) for key in ("_noiseType", "_smallRatioVertexNoiseAmplitude", "_bigRatioVertexNoiseAmplitude"))
+                     and all(not spline["components"] and not spline["preset"] or all(len(samples) == 128 for samples in spline["samples"])
+                             for spline in shader_material.get("splines", {}).values()))
+        if supported:
+            notes.append(f"{name}: lightning previews decoded branch thickness, bending and pivot noise when packed vertex controls are available. Particle counts, spawning, shader masks and emissive response remain approximate.")
+        else:
+            notes.append(f"{name}: this lightning material variant has unsupported deformation inputs; it is shown as a static mesh. Shader masks and emissive response remain approximate.")
 
     scale_curve = _curve_from(sources, SCALE_CURVE_ID, 3)
     alpha_curve = _curve_from(sources, ALPHA_CURVE_ID, 1)
@@ -680,7 +690,7 @@ def _emitter_preview(
         spawn_surface_density=_read(sources, "_spawnData", "_surfaceDensity", None, _number),
         spawn_uniform_surface_density=_read(sources, "_spawnData", "_useUniformSurfaceDensity", None, _optional_flag),
         spawn_normal_alignment=_read(sources, "_spawnData", "_particleLookAtSpawnNormal", None, _optional_flag),
-        material=_shader_material(sources),
+        material=shader_material,
         loop_count=loop_count,
         burst_min=max(0, int(_read(sources, '_spawnData', '_spawnCountMin', burst, _number))),
         start_delay=(float(_read(sources, '_spawnData', '_spawnDelayMin', 0.0, _number)), float(_read(sources, '_spawnData', '_spawnDelayMax', 0.0, _number))),
