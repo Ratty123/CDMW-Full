@@ -202,6 +202,33 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         finally:
             tab.controller.model_import = None
 
+    def test_loading_footer_stays_visible_below_scrolled_appearance_and_dark_mode_is_live(self) -> None:
+        from PySide6.QtCore import QPoint
+
+        tab = self._tab()
+        tab.prefill_template(TEMPLATE)
+        tab.resize(1250, 720)
+        tab.show_step(2)
+        tab.show()
+        panel = tab.model_panel
+        panel.inspector_tabs.setCurrentWidget(panel.appearance_page)
+        panel.glow_box.setChecked(True)
+        panel._preview_status("Loading model textures…")
+        self.app.processEvents()
+        panel.model_icon_scroll.verticalScrollBar().setValue(panel.model_icon_scroll.verticalScrollBar().maximum())
+        self.app.processEvents()
+        self.assertTrue(panel.operation_banner.isVisibleTo(panel))
+        self.assertFalse(panel.model_icon_content.isAncestorOf(panel.operation_banner))
+        banner_top = panel.operation_banner.mapTo(panel, QPoint(0, 0)).y()
+        scroll_bottom = panel.model_icon_scroll.mapTo(panel, panel.model_icon_scroll.rect().bottomLeft()).y()
+        self.assertGreater(banner_top, scroll_bottom)
+        with patch.object(panel.preview, "set_lighting_preset") as lighting, patch.object(panel, "refresh_preview") as rebuild:
+            panel.dark_preview.setChecked(True)
+            lighting.assert_called_once_with("dark")
+            rebuild.assert_not_called()
+            panel.dark_preview.setChecked(False)
+            self.assertEqual(lighting.call_args.args, ("neutral_studio",))
+
     def test_pending_post_install_refresh_is_cancelled_when_tab_is_deleted(self) -> None:
         from PySide6.QtCore import QCoreApplication, QEvent
 
@@ -670,7 +697,7 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         self.assertTrue(panel.preview_group.isAncestorOf(panel.preview_holder))
         self.assertLess(
             panel.preview_group.layout().indexOf(panel.preview_holder),
-            panel.preview_group.layout().indexOf(panel.preview_note),
+            panel.preview_group.layout().indexOf(panel.preview_status),
         )
         self.assertEqual(panel.matches.columnCount(), 5)
         self.assertEqual(

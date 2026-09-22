@@ -62,6 +62,10 @@ class ShaderControlsEditor(QGroupBox):
         note = f"Source shader: {shader}."
         if not supported:
             note += " No compatible shader experiments. Glow and translucency have separate controls."
+        else:
+            labels = [family.label for family in FAMILIES if family.shader in supported and family.shader != "Dissolve"]
+            note += " Available for this part: " + ", ".join(labels) + "."
+        note += " Options marked Unavailable require a different source material. Hover over an option for its requirements."
         return note
 
     def _update_available_families(self):
@@ -71,8 +75,14 @@ class ShaderControlsEditor(QGroupBox):
         for index in range(1, self.family.count()):
             item = self.family.model().item(index)
             available = options is None or self.family.itemData(index) in supported
+            family = family_for(self.family.itemData(index))
+            item.setText(family.label if available else f"{family.label} — Unavailable")
             item.setEnabled(available)
-            item.setToolTip("" if available else "Unavailable for this part's source material.")
+            requirement = ("Requires a Plain PBR material with a base colour texture, or an existing Wing material." if family.shader == "SkinnedMeshWing"
+                           else f"Requires a {family.shader} source material.")
+            item.setToolTip(family.note if available else
+                            f"Unavailable for this part. {requirement} "
+                            + (f"This part uses {_shader}." if _shader else "Source material information is unavailable."))
 
     def _show_part(self, *_args):
         if self._loading:

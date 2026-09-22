@@ -119,17 +119,10 @@ class TemplatePanel(QGroupBox):
         self.preview_group = QGroupBox("Preview")
         self.preview_group.setMinimumHeight(340)
         preview_layout = QVBoxLayout(self.preview_group)
-        self.preview_note = QLabel(
-            "Preview controls: left-drag orbits around the model; middle-drag, right-drag, or Shift+left-drag pans; "
-            "mouse wheel zooms; Fit resets the view framing. These controls only move the preview camera/view."
-        )
-        self.preview_note.setObjectName("new_item_intro")
-        self.preview_note.setWordWrap(True)
         self.preview_holder = QWidget(self.preview_group)
         self.preview_holder_layout = QVBoxLayout(self.preview_holder)
         self.preview_holder_layout.setContentsMargins(0, 0, 0, 0)
         preview_layout.addWidget(self.preview_holder, 1)
-        preview_layout.addWidget(self.preview_note)
         self.preview_status = QLabel("")
         self.preview_status.setObjectName("new_item_intro")
         self.preview_status.setWordWrap(True)

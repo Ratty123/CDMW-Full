@@ -1,7 +1,7 @@
 """Compact part selection and live absorption controls for New Item."""
 
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QSlider, QVBoxLayout, QWidget
+from PySide6.QtCore import QSignalBlocker, Qt, Signal
+from PySide6.QtWidgets import QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QPushButton, QSlider, QVBoxLayout, QWidget
 
 from cdmw.domain.new_item.translucency import TranslucencyChoice
 from cdmw.ui.wheel_guard import enable_focused_wheel
@@ -26,6 +26,16 @@ class TranslucencyEditor(QGroupBox):
         self.parts.setMaximumHeight(110)
         self.parts.setToolTip("Check parts to override. Highlight a part to edit only its settings.")
         details.addWidget(self.parts)
+        selection = QHBoxLayout()
+        self.select_all = QPushButton("Select all")
+        self.clear_selection = QPushButton("Clear selection")
+        self.select_all.setToolTip("Enable translucency on every part with one preview update. Existing part settings are kept.")
+        self.select_all.clicked.connect(lambda: self._select_parts(True))
+        self.clear_selection.clicked.connect(lambda: self._select_parts(False))
+        selection.addWidget(self.select_all)
+        selection.addWidget(self.clear_selection)
+        selection.addStretch(1)
+        details.addLayout(selection)
         self.controls = QWidget()
         controls = QVBoxLayout(self.controls)
         controls.setContentsMargins(0, 0, 0, 0)
@@ -174,6 +184,23 @@ class TranslucencyEditor(QGroupBox):
             self.parts.setCurrentItem(item)
         self._show_current()
         self._emit_choice()
+
+    def _select_parts(self, checked):
+        state = Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked
+        changed = False
+        # Batch the list mutation: itemChanged would otherwise rebuild the preview
+        # once per part and could refresh the list while we are still traversing it.
+        with QSignalBlocker(self.parts):
+            for index in range(self.parts.count()):
+                item = self.parts.item(index)
+                if item.checkState() != state:
+                    item.setCheckState(state)
+                    changed = True
+                if checked:
+                    self._settings.setdefault(str(item.data(Qt.ItemDataRole.UserRole)).casefold(), (0.1, 0.3))
+        self._show_current()
+        if changed:
+            self._emit_choice()
 
     def _values_changed(self, *_args):
         self._set_pair((self.thickness.value(), self.extinction.value()))

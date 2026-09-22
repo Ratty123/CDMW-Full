@@ -1224,6 +1224,7 @@ impl PreviewApplication {
             renderer.set_lighting_preset(
                 match display.get("lighting_preset").and_then(Value::as_str) {
                     Some("showcase") => LightingPreset::Showcase,
+                    Some("dark") => LightingPreset::Dark,
                     _ => LightingPreset::NeutralStudio,
                 },
             );

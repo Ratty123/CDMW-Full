@@ -181,7 +181,11 @@ class EffectPlacementPackageMixin:
         self._thread, self._worker = thread, worker
         worker.completed.connect(self._package_ready)
         worker.error.connect(self._package_failed)
-        worker.finished.connect(self._worker_finished, Qt.ConnectionType.DirectConnection)
+        # Teardown stays on the worker's native thread. Moving a just-finished
+        # QObject back through the application filters leaves PySide's wrapper
+        # lifetime dependent on GUI event timing during rapid preview changes.
+        worker.finished.connect(thread.quit, Qt.ConnectionType.DirectConnection)
+        thread.finished.connect(worker.deleteLater)
         thread.finished.connect(self._build_finished, Qt.ConnectionType.QueuedConnection)
         thread.started.connect(worker.run)
         self.status.setText("Preparing the placement preview…")
@@ -301,12 +305,6 @@ class EffectPlacementPackageMixin:
             self._content_failed = True
             self.status.setText(f"The placement preview could not be built: {message}")
 
-    def _worker_finished(self) -> None:
-        worker = self._worker
-        if worker is not None and worker.thread() is QThread.currentThread():
-            worker.moveToThread(self.thread())
-        QThread.currentThread().quit()
-
     def _build_finished(self) -> None:
         thread, worker = self._thread, self._worker
         if thread is not None and not thread.wait(0):
@@ -316,8 +314,6 @@ class EffectPlacementPackageMixin:
         self._worker = None
         source_usage, self._active_model_source_usage = self._active_model_source_usage, None
         self._release_model_source_usage(source_usage)
-        if worker is not None:
-            worker.deleteLater()
         if thread is not None:
             thread.deleteLater()
         pending, self._pending_package = self._pending_package, None

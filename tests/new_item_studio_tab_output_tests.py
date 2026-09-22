@@ -44,12 +44,9 @@ def _assert_template_panel_chrome_removed(case: unittest.TestCase, template) -> 
     preview_layout = template.preview_group.layout()
     case.assertLess(
         preview_layout.indexOf(template.preview_holder),
-        preview_layout.indexOf(template.preview_note),
-    )
-    case.assertLess(
-        preview_layout.indexOf(template.preview_note),
         preview_layout.indexOf(template.preview_status),
     )
+    case.assertFalse(hasattr(template, "preview_note"), "the resident host owns the single camera help row")
     case.assertFalse(
         any(
             label.text().startswith("Every new item is a copy")

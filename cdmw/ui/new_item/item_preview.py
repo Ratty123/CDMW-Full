@@ -705,7 +705,7 @@ class ItemPreviewFrame(QWidget):
     def set_lighting_preset(self, preset: object) -> None:
         normalized = str(preset or "neutral_studio").strip().lower()
         self._lighting_preset = (
-            normalized if normalized in {"neutral_studio", "showcase"} else "neutral_studio"
+            normalized if normalized in {"neutral_studio", "showcase", "dark"} else "neutral_studio"
         )
         if self.host is not None:
             lighting = getattr(self.host, "set_lighting_preset", None)
@@ -1018,7 +1018,8 @@ class ItemPreviewFrame(QWidget):
 
     def _launch_package_worker(self, task: Callable, source_usage: object) -> None:
         worker = UtilityWorker(task, task_accepts_progress=True, task_accepts_cancel=True)
-        thread = QThread(self)
+        thread = QThread()
+        thread.setParent(self)
         worker.moveToThread(thread)
         self._thread, self._worker = thread, worker
         self._active_source_usage = source_usage
@@ -1031,7 +1032,8 @@ class ItemPreviewFrame(QWidget):
         worker.progress_changed.connect(self._progressive_package_ready)
         worker.completed.connect(self._package_ready)
         worker.error.connect(self._package_failed)
-        worker.finished.connect(self._worker_finished, Qt.DirectConnection)
+        worker.finished.connect(thread.quit, Qt.DirectConnection)
+        thread.finished.connect(worker.deleteLater)
         thread.finished.connect(self._build_finished, Qt.QueuedConnection)
         thread.started.connect(worker.run)
         thread.start()
@@ -1075,14 +1077,6 @@ class ItemPreviewFrame(QWidget):
         else:
             self.status_changed.emit(f"The preview could not be built: {message}")
 
-    def _worker_finished(self) -> None:
-        """Return the worker QObject to this frame's thread before its loop exits."""
-
-        worker = self._worker
-        if worker is not None and worker.thread() is QThread.currentThread():
-            worker.moveToThread(self.thread())
-        QThread.currentThread().quit()
-
     def _build_finished(self) -> None:
         """The build in flight has ended (landed or failed): tear its thread down and
         start the newest request when it superseded this one."""
@@ -1097,8 +1091,6 @@ class ItemPreviewFrame(QWidget):
         release_usage = getattr(source_usage, "release", None)
         if callable(release_usage):
             release_usage()
-        if worker is not None:
-            worker.deleteLater()
         if thread is not None:
             thread.deleteLater()
         done_token = self._building[0] if self._building is not None else None

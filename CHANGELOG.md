@@ -13,6 +13,7 @@ The format is intentionally simple:
 
 ### Changed
 
+- Create New Item keeps Model & Placement loading progress below the scrolling inspector and shows camera help only once in Template. Shader experiments mark incompatible options as unavailable and explain their material requirements; every Glow animation setting has hover help.
 - Mesh Editor's glow, translucency and shader experiment numbers have sliders with editable values. Create New Item's material numbers and absorption slider accept mouse-wheel adjustments while focused, keeping unfocused page scrolling from changing a material.
 - Create New Item's Output keeps the activity log visible on the right, with an adjustable divider and the workflow on the left. Draft tools is now Mod management, beside the output action below the plan review.
 - Shortened the Build Plan progress message in Create New Item.
@@ -22,6 +23,8 @@ The format is intentionally simple:
 
 ### Added
 
+- Translucency has Select all and Clear selection actions that update the preview once while retaining each part's settings.
+- Material emission has a bloom halo in the shared Rust renderer. Model & Placement includes a preview-only Dark mode that dims scene lighting while retaining emission, including animated and RGB glow.
 - Shader experiments in Create New Item and Mesh Editor expose patterned cutout reveal, TornCloth tearing, animated hair UVs, anisotropic detail and Poster glow on compatible materials. Static Dissolve objects gain sphere, noise and edge-glow controls in Mesh Editor. Edits preserve source maps, support undo/drafts and include experimental viewport previews; game activation and appearance still need testing.
 - Create New Item and Mesh Editor offer experimental glow animation: emission texture scrolling, pulse speed and floor, plus RGB glow with reveal, softness and mask inversion. Settings follow variants and previews, support Mesh Editor Undo/Redo and drafts, and export to material sidecars. RGB mode preserves source DDS colours and alpha; unsupported shader combinations report an error.
 - Create New Item and Mesh Editor have per-part Roughness and Metallic controls for translucency, a Low-shine translucent surface preset, and a Source surface reset. Previews use the same channel overrides as exported material maps; absorption and glow stay independent.
@@ -39,6 +42,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Model and Effects preview workers are deleted on their own native threads after completion, avoiding GUI-thread migration during repeated appearance edits and transitions to Perks & Effects.
 - Model & Placement combines rapid appearance edits and keeps the current mesh and camera while updated materials prepare. Clearing a preview cancels pending texture work. Apply rejects results made stale by texture flipping, mesh changes or returning to the template.
 - Create New Item shows the template mesh while textures prepare in the background. Pending texture dependencies no longer hold up the initial preview cache check, and texture upgrades preserve the camera.
 - Create New Item retains compatible Glow and shader edits when assigning dye slots, and rejects dye mappings that would replace an edited material. Clear dyes remains an explicit per-variant export choice. Template dye previews prepare current appearance edits before rendering.

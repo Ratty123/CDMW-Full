@@ -224,7 +224,7 @@ fn aces_tone_map(value: f32) -> f32 {
 fn workbench_tone(color: vec3<f32>, exposure: f32) -> vec3<f32> {
     let exposed = max(color * max(exposure, 0.05), vec3<f32>(0.0));
     let exposed_luma = dot(exposed, vec3<f32>(0.2126, 0.7152, 0.0722));
-    if camera.lighting_preset == 0u {
+    if camera.lighting_preset == 0u || camera.lighting_preset == 2u {
         // Neutral Studio preserves chroma and applies one bounded luminance
         // compression in linear space. The sRGB target performs the sole
         // output conversion in `present`.
@@ -392,15 +392,16 @@ fn neutral_surface(normal: vec3<f32>, front_facing: bool) -> vec3<f32> {
     let shade = 0.38
         + 0.52 * max(dot(surface_normal, key_light), 0.0)
         + 0.10 * max(dot(surface_normal, fill_light), 0.0);
-    return vec3<f32>(0.56, 0.58, 0.62) * shade;
+    return vec3<f32>(0.56, 0.58, 0.62) * shade * select(1.0, 0.025, camera.lighting_preset == 2u);
 }
 
-fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool) -> vec4<f32> {
+fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, emission_only: bool) -> vec4<f32> {
     if transmission_only && camera.view_mode != 0u && camera.view_mode != 2u && camera.view_mode != 9u {
         // Material diagnostics show their values without transmitted background.
         return vec4<f32>(0.0);
     }
     if input.deformation.a > 0.0001 {
+        if emission_only { return vec4<f32>(0.0, 0.0, 0.0, 1.0); }
         if transmission_only { return vec4<f32>(0.0); }
         let overlay_amount = clamp(input.deformation.a, 0.0, 0.88);
         let surface = neutral_surface(input.normal, front_facing);
@@ -485,6 +486,7 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool) 
     let has_emission = material.emissive_color_and_intensity.a > 0.0
         && any(material.emissive_color_and_intensity.rgb > vec3<f32>(0.0));
     if material.flags == 0u && !has_emission && material.glow_surface_color.a < 0.5 && shader_kind == 0.0 {
+        if emission_only { return vec4<f32>(0.0, 0.0, 0.0, 1.0); }
         if camera.view_mode == 8u {
             let part_id = f32(input.part_id) + 1.0;
             return present_srgb(fract(part_id * vec3<f32>(0.6180339, 0.3819660, 0.7548777)), 1.0);
@@ -1234,18 +1236,25 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool) 
         emission_strength = floor + (emission_strength - floor) * (0.5 + 0.5 * sin(3.14159265359 * material.emission_animation.z * camera.material_time));
     }
     let emissive = emission_colour * emission_strength * select(2.2, 1.0, gltf_pbr) + shader_glow;
+    if emission_only {
+        // Preserve HDR emission before surface tone mapping; diffuse white and
+        // specular highlights must never become glow sources.
+        return vec4<f32>(min(max(emissive, vec3<f32>(0.0)), vec3<f32>(64.0)),
+            select(1.0, material_alpha, (material.flags & MATERIAL_ALPHA_BLEND) != 0u));
+    }
+    let light_scale = select(1.0, 0.025, camera.lighting_preset == 2u);
     let showcase_warmth = select(vec3<f32>(1.0), vec3<f32>(1.08, 0.99, 0.90), showcase);
     let exposure = select(select(0.90, 1.0, showcase), 1.06, game_outdoor);
     if material.translucency_factors.z > 0.5 {
         // Glass absorbs background light. Do not paint its opaque diffuse body
         // over that background or fade reflection/emission with absorption.
         let surface = workbench_tone(
-            (specular + environment_specular) * showcase_warmth + glass_edge + emissive,
+            ((specular + environment_specular) * showcase_warmth + glass_edge) * light_scale + emissive,
             exposure);
         return present(surface, material_alpha);
     }
     let shaded = workbench_tone(
-        diffuse
+        (diffuse
             + environment_diffuse
             + metallic_source_anchor
             + specular * showcase_warmth
@@ -1253,7 +1262,7 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool) 
             + leather_sheen
             + cloth_sheen
             + skin_scatter
-            + glass_edge
+            + glass_edge) * light_scale
             + emissive,
         exposure);
     return present(shaded, select(1.0, material_alpha, (material.flags & MATERIAL_ALPHA_BLEND) != 0u));
@@ -1261,12 +1270,19 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool) 
 
 @fragment
 fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @location(0) vec4<f32> {
-    return shade_surface(input, front_facing, false);
+    return shade_surface(input, front_facing, false, false);
+}
+
+@fragment
+fn fs_emission(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @location(0) vec4<f32> {
+    let emission = shade_surface(input, front_facing, false, true);
+    let coverage = select(emission.a, 1.0, material.translucency_factors.z > 0.5);
+    return vec4<f32>(emission.rgb * coverage, emission.a);
 }
 
 @fragment
 fn fs_blended(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @location(0) vec4<f32> {
-    let surface = shade_surface(input, front_facing, false);
+    let surface = shade_surface(input, front_facing, false, false);
     // The optional dual-source pipeline supplies RGB transmission. Adapters
     // without it still retain surface light with a scalar transmission estimate.
     let coverage = select(surface.a, 1.0, material.translucency_factors.z > 0.5);
@@ -1324,6 +1340,7 @@ const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 pub enum LightingPreset {
     NeutralStudio,
     Showcase,
+    Dark,
 }
 
 impl LightingPreset {
@@ -1331,6 +1348,7 @@ impl LightingPreset {
         match self {
             Self::NeutralStudio => 0,
             Self::Showcase => 1,
+            Self::Dark => 2,
         }
     }
 }
@@ -2088,6 +2106,7 @@ struct GpuMaterialBinding {
     _uniform_buffer: wgpu::Buffer,
     alpha_blend: bool,
     translucent: bool,
+    emits_light: bool,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -2722,6 +2741,7 @@ pub struct WindowRenderer {
     bone_pipeline: wgpu::RenderPipeline,
     guide_pipeline: wgpu::RenderPipeline,
     effect_pipeline: wgpu::RenderPipeline,
+    emission_bloom: emission_bloom::EmissionBloom,
     face_selection: selection_overlay::FaceSelectionRenderer,
     rig_weights: selection_overlay::FaceSelectionRenderer,
     face_selection_xray: bool,
@@ -3106,6 +3126,7 @@ impl WindowRenderer {
             bone_pipeline: pipelines.bone,
             guide_pipeline: pipelines.guide,
             effect_pipeline: pipelines.effect,
+            emission_bloom: pipelines.emission_bloom,
             face_selection,
             rig_weights,
             face_selection_xray: false,
@@ -3793,7 +3814,9 @@ impl WindowRenderer {
                     view: mesh_color_view,
                     resolve_target,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(self.clear_colour),
+                        load: wgpu::LoadOp::Clear(if self.camera_uniform.lighting_preset == 2 {
+                            clear_colour_for_target([0.006, 0.008, 0.012, 1.0], self.config.format.is_srgb())
+                        } else { self.clear_colour }),
                         store,
                     },
                     depth_slice: None,
@@ -3911,6 +3934,11 @@ impl WindowRenderer {
             output_height,
             viewport,
         );
+        if let Some(mesh) = &self.mesh {
+            self.emission_bloom.record(&self.device, encoder, view, [output_width, output_height], viewport,
+                mesh, &self.default_material_binding.bind_group, &self.active_material_bindings,
+                &self.camera_bind_group, &self.camera_uniform, self.view_mode);
+        }
     }
 
     pub fn capture_frame(
@@ -5442,6 +5470,7 @@ async fn run_headless_render_smoke_internal(
                 None,
                 false,
                 None,
+                [width, height],
             );
             queue.submit([encoder.finish()]);
             frames_rendered = frames_rendered.saturating_add(1);
@@ -6656,6 +6685,7 @@ fn record_headless_pass(
     skeleton_lines: Option<&GpuOverlayLines>,
     show_bones: bool,
     effect_lines: Option<&GpuOverlayLines>,
+    size: [u32; 2],
 ) {
     let transparency = material_transparency::prepare(
         device,
@@ -6670,7 +6700,9 @@ fn record_headless_pass(
             view: color,
             resolve_target,
             ops: wgpu::Operations {
-                load: wgpu::LoadOp::Clear(clear_colour_for_target([0.025, 0.03, 0.04, 1.0], true)),
+                load: wgpu::LoadOp::Clear(clear_colour_for_target(
+                    if camera_uniform.lighting_preset == 2 { [0.006, 0.008, 0.012, 1.0] }
+                    else { [0.025, 0.03, 0.04, 1.0] }, camera_uniform.output_is_srgb != 0)),
                 store: if resolve_target.is_some() {
                     wgpu::StoreOp::Discard
                 } else {
@@ -6718,6 +6750,9 @@ fn record_headless_pass(
         show_overlays,
         show_bones,
     );
+    drop(pass);
+    pipelines.emission_bloom.record(device, encoder, resolve_target.unwrap_or(color), size, None,
+        mesh, default_material_bind_group, active_material_bindings, camera_bind_group, camera_uniform, mode);
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -6893,6 +6928,7 @@ fn render_headless_readback_at(
         skeleton_lines,
         show_bones,
         effect_lines,
+        [width, height],
     );
     encoder.copy_texture_to_buffer(
         wgpu::TexelCopyTextureInfo {
@@ -7161,6 +7197,7 @@ fn changed_pixel_count(reference: &[u8], candidate: &[u8]) -> Result<usize, Rend
 
 struct Pipelines {
     sample_count: u32,
+    emission_bloom: emission_bloom::EmissionBloom,
     solid: wgpu::RenderPipeline,
     blended: wgpu::RenderPipeline,
     translucent: Option<wgpu::RenderPipeline>,
@@ -7414,8 +7451,8 @@ struct GlassOutput {
 @fragment
 fn fs_translucent(input: VertexOut, @builtin(front_facing) front_facing: bool) -> GlassOutput {
     var out: GlassOutput;
-    out.surface = shade_surface(input, front_facing, false);
-    out.transmission = shade_surface(input, front_facing, true);
+    out.surface = shade_surface(input, front_facing, false, false);
+    out.transmission = shade_surface(input, front_facing, true, false);
     return out;
 }
 "#);
@@ -7433,6 +7470,7 @@ fn fs_translucent(input: VertexOut, @builtin(front_facing) front_facing: bool) -
     });
     Pipelines {
         sample_count,
+        emission_bloom: emission_bloom::EmissionBloom::new(device, format, &layout, &shader),
         translucent,
         solid: create_pipeline(
             device,
@@ -9329,6 +9367,9 @@ fn create_material_bind_group(
         _uniform_buffer: uniform_buffer,
         alpha_blend: factors.alpha_blend == Some(true) || factors.translucency.is_some(),
         translucent: factors.translucency.is_some(),
+        emits_light: ((uniform.emissive_color_and_intensity[3] > 0.0 || uniform.emission_reveal[3] > 0.0)
+            && uniform.emissive_color_and_intensity[..3].iter().any(|value| *value > 0.0))
+            || matches!(uniform.shader_controls[0][0] as u32, 5 | 6),
     }
 }
 
@@ -9569,6 +9610,350 @@ fn map_dds_format(
         }
     };
     Ok(mapped)
+}
+
+mod emission_bloom {
+    //! HDR emission is blurred separately from lit surfaces, then added to the view.
+    //! The quarter-resolution targets are reused; white albedo never produces bloom.
+    use super::*;
+    use std::cell::RefCell;
+
+    const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
+    const POST_SHADER: &str = r#"
+    @group(0) @binding(0) var source: texture_2d<f32>;
+    @group(0) @binding(1) var linear_sampler: sampler;
+    struct Quad { @builtin(position) position: vec4<f32>, @location(0) uv: vec2<f32> };
+    @vertex fn vs(@builtin(vertex_index) index: u32) -> Quad {
+        let uv = vec2<f32>(f32((index << 1u) & 2u), f32(index & 2u));
+        var out: Quad;
+        out.position = vec4<f32>(uv * vec2<f32>(2.0, -2.0) + vec2<f32>(-1.0, 1.0), 0.0, 1.0);
+        out.uv = uv;
+        return out;
+    }
+    fn blur(uv: vec2<f32>, axis: vec2<f32>) -> vec4<f32> {
+        let step = axis / vec2<f32>(textureDimensions(source));
+        var light = vec3<f32>(0.0);
+        var total = 0.0;
+        for (var i = -8; i <= 8; i += 1) {
+            let weight = exp(-f32(i * i) / 24.0);
+            light += textureSampleLevel(source, linear_sampler, uv + step * f32(i), 0.0).rgb * weight;
+            total += weight;
+        }
+        return vec4<f32>(light / total, 0.0);
+    }
+    @fragment fn horizontal(input: Quad) -> @location(0) vec4<f32> {
+        return blur(input.uv, vec2<f32>(1.0, 0.0));
+    }
+    @fragment fn vertical(input: Quad) -> @location(0) vec4<f32> {
+        return blur(input.uv, vec2<f32>(0.0, 1.0));
+    }
+    @fragment fn composite(input: Quad) -> @location(0) vec4<f32> {
+        let light = textureSampleLevel(source, linear_sampler, input.uv, 0.0).rgb * 0.28;
+        // Compress by peak, preserving the glow's hue as its strength increases.
+        var halo = light / (1.0 + max(light.r, max(light.g, light.b)));
+        if !OUTPUT_IS_SRGB {
+            halo = select(1.055 * pow(halo, vec3<f32>(1.0 / 2.4)) - 0.055,
+                halo * 12.92, halo <= vec3<f32>(0.0031308));
+        }
+        return vec4<f32>(halo, 0.0);
+    }
+    "#;
+
+    struct Target {
+        view: wgpu::TextureView,
+        binding: wgpu::BindGroup,
+    }
+
+    struct Targets {
+        size: [u32; 2],
+        emission: Target,
+        horizontal: Target,
+        vertical: Target,
+        depth: DepthTarget,
+    }
+
+    pub(super) struct EmissionBloom {
+        opaque: wgpu::RenderPipeline,
+        blended: wgpu::RenderPipeline,
+        horizontal: wgpu::RenderPipeline,
+        vertical: wgpu::RenderPipeline,
+        composite: wgpu::RenderPipeline,
+        layout: wgpu::BindGroupLayout,
+        sampler: wgpu::Sampler,
+        targets: RefCell<Option<Targets>>,
+    }
+
+    impl EmissionBloom {
+        pub(super) fn new(
+            device: &wgpu::Device,
+            format: wgpu::TextureFormat,
+            mesh_layout: &wgpu::PipelineLayout,
+            shader: &wgpu::ShaderModule,
+        ) -> Self {
+            let opaque = create_pipeline(
+                device,
+                FORMAT,
+                mesh_layout,
+                shader,
+                "HDR emission",
+                wgpu::PrimitiveTopology::TriangleList,
+                "fs_emission",
+                solid_cull_mode(),
+                PipelineDepth::Write,
+                None,
+                1,
+            );
+            let blended = create_pipeline(
+                device,
+                FORMAT,
+                mesh_layout,
+                shader,
+                "blended HDR emission",
+                wgpu::PrimitiveTopology::TriangleList,
+                "fs_emission",
+                solid_cull_mode(),
+                PipelineDepth::Test,
+                Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+                1,
+            );
+            let layout = create_effect_texture_bind_group_layout(device);
+            let sampler = create_effect_sampler(device);
+            let post_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Emission bloom layout"),
+                bind_group_layouts: &[Some(&layout)],
+                immediate_size: 0,
+            });
+            let source = POST_SHADER.replace(
+                "OUTPUT_IS_SRGB",
+                if format.is_srgb() { "true" } else { "false" },
+            );
+            let post = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("Emission bloom"),
+                source: wgpu::ShaderSource::Wgsl(source.into()),
+            });
+            let pipeline = |entry: &str, target, blend| {
+                device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                    label: Some(entry),
+                    layout: Some(&post_layout),
+                    vertex: wgpu::VertexState {
+                        module: &post,
+                        entry_point: Some("vs"),
+                        compilation_options: Default::default(),
+                        buffers: &[],
+                    },
+                    primitive: Default::default(),
+                    depth_stencil: None,
+                    multisample: Default::default(),
+                    fragment: Some(wgpu::FragmentState {
+                        module: &post,
+                        entry_point: Some(entry),
+                        compilation_options: Default::default(),
+                        targets: &[Some(wgpu::ColorTargetState {
+                            format: target,
+                            blend,
+                            write_mask: wgpu::ColorWrites::COLOR,
+                        })],
+                    }),
+                    multiview_mask: None,
+                    cache: None,
+                })
+            };
+            let horizontal = pipeline("horizontal", FORMAT, None);
+            let vertical = pipeline("vertical", FORMAT, None);
+            let composite = pipeline(
+                "composite",
+                format,
+                Some(wgpu::BlendState {
+                    color: wgpu::BlendComponent {
+                        src_factor: wgpu::BlendFactor::One,
+                        dst_factor: wgpu::BlendFactor::One,
+                        operation: wgpu::BlendOperation::Add,
+                    },
+                    alpha: wgpu::BlendComponent::OVER,
+                }),
+            );
+            Self {
+                opaque,
+                blended,
+                horizontal,
+                vertical,
+                composite,
+                layout,
+                sampler,
+                targets: RefCell::new(None),
+            }
+        }
+
+        fn target(&self, device: &wgpu::Device, width: u32, height: u32) -> Target {
+            let texture = device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("Quarter resolution HDR bloom"),
+                size: wgpu::Extent3d {
+                    width,
+                    height,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: FORMAT,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+                view_formats: &[],
+            });
+            let view = texture.create_view(&Default::default());
+            let binding = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("Bloom source"),
+                layout: &self.layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(&view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::Sampler(&self.sampler),
+                    },
+                ],
+            });
+            Target { view, binding }
+        }
+
+        #[allow(clippy::too_many_arguments)]
+        pub(super) fn record(
+            &self,
+            device: &wgpu::Device,
+            encoder: &mut wgpu::CommandEncoder,
+            output: &wgpu::TextureView,
+            size: [u32; 2],
+            viewport: Option<[f32; 4]>,
+            mesh: &GpuMeshBuffers,
+            default_binding: &wgpu::BindGroup,
+            materials: &BTreeMap<u32, GpuMaterialBinding>,
+            camera: &wgpu::BindGroup,
+            uniform: &CameraUniform,
+            mode: ViewMode,
+        ) {
+            if !matches!(mode, ViewMode::TexturedSolid | ViewMode::GameOutdoor)
+                || mesh.vertex_count == 0
+                || !materials.values().any(|binding| binding.emits_light)
+            {
+                return;
+            }
+            let width = size[0].div_ceil(4).max(1);
+            let height = size[1].div_ceil(4).max(1);
+            let mut storage = self.targets.borrow_mut();
+            if storage.as_ref().is_none_or(|t| t.size != [width, height]) {
+                *storage = Some(Targets {
+                    size: [width, height],
+                    emission: self.target(device, width, height),
+                    horizontal: self.target(device, width, height),
+                    vertical: self.target(device, width, height),
+                    depth: create_depth_target_with_sample_count(device, width, height, 1),
+                });
+            }
+            let targets = storage.as_ref().expect("bloom targets");
+            let transparency = material_transparency::prepare(device, mesh, materials, uniform, mode);
+            {
+                let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("Visible emission only"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &targets.emission.view,
+                        resolve_target: None,
+                        depth_slice: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
+                    depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                        view: &targets.depth.view,
+                        depth_ops: Some(wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(1.0),
+                            store: wgpu::StoreOp::Discard,
+                        }),
+                        stencil_ops: None,
+                    }),
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                    multiview_mask: None,
+                });
+                if let Some([x, y, w, h]) = viewport {
+                    let sx = width as f32 / size[0].max(1) as f32;
+                    let sy = height as f32 / size[1].max(1) as f32;
+                    let x = (x * sx).clamp(0.0, width.saturating_sub(1) as f32);
+                    let y = (y * sy).clamp(0.0, height.saturating_sub(1) as f32);
+                    pass.set_viewport(
+                        x,
+                        y,
+                        (w * sx).max(1.0).min(width as f32 - x),
+                        (h * sy).max(1.0).min(height as f32 - y),
+                        0.0,
+                        1.0,
+                    );
+                }
+                pass.set_vertex_buffer(0, mesh.vertex.slice(..));
+                pass.set_bind_group(1, camera, &[]);
+                draw_textured_solid(
+                    &mut pass,
+                    mesh,
+                    default_binding,
+                    materials,
+                    &self.opaque,
+                    &self.blended,
+                    None,
+                    transparency.as_ref(),
+                );
+            }
+            for (pipeline, source, target, composite) in [
+                (
+                    &self.horizontal,
+                    &targets.emission.binding,
+                    &targets.horizontal.view,
+                    false,
+                ),
+                (
+                    &self.vertical,
+                    &targets.horizontal.binding,
+                    &targets.vertical.view,
+                    false,
+                ),
+                (&self.composite, &targets.vertical.binding, output, true),
+            ] {
+                let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("Emission halo"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: target,
+                        resolve_target: None,
+                        depth_slice: None,
+                        ops: wgpu::Operations {
+                            load: if composite {
+                                wgpu::LoadOp::Load
+                            } else {
+                                wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT)
+                            },
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
+                    depth_stencil_attachment: None,
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                    multiview_mask: None,
+                });
+                if composite && let Some([x, y, w, h]) = viewport {
+                    let x = (x.max(0.0) as u32).min(size[0].saturating_sub(1));
+                    let y = (y.max(0.0) as u32).min(size[1].saturating_sub(1));
+                    pass.set_scissor_rect(
+                        x,
+                        y,
+                        (w.ceil().max(1.0) as u32).min(size[0] - x),
+                        (h.ceil().max(1.0) as u32).min(size[1] - y),
+                    );
+                }
+                pass.set_pipeline(pipeline);
+                pass.set_bind_group(0, source, &[]);
+                pass.draw(0..3, 0..1);
+            }
+        }
+    }
 }
 
 mod material_transparency {

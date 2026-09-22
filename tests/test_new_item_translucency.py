@@ -269,6 +269,32 @@ def test_editor_signals_values_and_restores_a_variant_without_emitting_edits():
         app.processEvents()
 
 
+def test_select_all_batches_one_preview_update_and_preserves_part_settings():
+    from cdmw.ui.new_item.translucency_editor import TranslucencyEditor
+    app = QApplication.instance() or QApplication([])
+    editor = TranslucencyEditor()
+    sent = []
+    editor.changed.connect(sent.append)
+    try:
+        rows = tuple((f"Part{i}", f"Part {i}") for i in range(12))
+        editor.refresh(rows, TranslucencyChoice.from_settings({"Part0": (.7, .2)}, {"Part0": (.9, .0)}))
+        editor.select_all.click()
+        assert len(sent) == 1
+        assert sent[0].parts == tuple(name for name, _ in rows)
+        assert sent[0].values_for("Part0") == (.7, .2)
+        assert sent[0].surface_for("Part0") == (.9, .0)
+        assert sent[0].values_for("Part11") == (.1, .3)
+        editor.select_all.click()
+        assert len(sent) == 1, "an unchanged selection must not reload"
+        editor.clear_selection.click()
+        assert sent[-1] is None and len(sent) == 2
+        editor.select_all.click()
+        assert sent[-1].values_for("Part0") == (.7, .2)
+    finally:
+        editor.deleteLater()
+        app.processEvents()
+
+
 def test_per_part_controls_preserve_other_parts_and_restore_without_signals():
     from cdmw.ui.new_item.translucency_editor import TranslucencyEditor
     app = QApplication.instance() or QApplication([])

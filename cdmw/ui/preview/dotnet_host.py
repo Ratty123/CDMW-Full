@@ -480,7 +480,7 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
 
     def set_lighting_preset(self, preset: object) -> bool:
         normalized = str(preset or "neutral_studio").strip().lower()
-        if normalized not in {"neutral_studio", "showcase"}:
+        if normalized not in {"neutral_studio", "showcase", "dark"}:
             normalized = "neutral_studio"
         display = dict(self._presentation_state.get("display", {}))
         display["lighting_preset"] = normalized

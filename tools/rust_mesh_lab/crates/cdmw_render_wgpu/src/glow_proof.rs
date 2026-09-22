@@ -34,6 +34,7 @@ pub(super) fn verify(
     };
     let mesh = GpuMeshBuffers::upload(device, &snapshot)?;
     let mut samples = BTreeMap::new();
+    let mut halos = BTreeMap::new();
     for (case, time, flow, frequency, floor, reveal, inverse, alpha) in [
         ("static", 0.75, 0.0, 0.0, 0.0, -1.0, 0.0, 255),
         ("pulse peak", 0.25, 0.0, 2.0, 0.0, -1.0, 0.0, 255),
@@ -47,6 +48,11 @@ pub(super) fn verify(
         ("RGB reveal", 0.0, 0.0, 0.0, 0.0, 0.5, 0.0, 255),
         ("RGB inverse", 0.0, 0.0, 0.0, 0.0, 0.5, 1.0, 255),
         ("RGB zero alpha", 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0),
+        ("no glow", 0.0, 0.0, 0.0, 0.0, -1.0, 0.0, 255),
+        ("bright glow", 0.0, 0.0, 0.0, 0.0, -1.0, 0.0, 255),
+        ("lit surface", 0.0, 0.0, 0.0, 0.0, -1.0, 0.0, 255),
+        ("dark surface", 0.0, 0.0, 0.0, 0.0, -1.0, 0.0, 255),
+        ("dark glow", 0.75, 0.0, 0.0, 0.0, -1.0, 0.0, 255),
     ] {
         let mut dds = cdmw_texture::synthetic::rgba8_checker_dds();
         let width = u32::from_le_bytes(dds[16..20].try_into().unwrap()) as usize;
@@ -59,10 +65,15 @@ pub(super) fn verify(
             pixel.copy_from_slice(&color);
         }
         let factors = MaterialPreviewFactors {
-            texture_tint: Some([0.0; 3]),
+            texture_tint: Some([if case.ends_with("surface") { 0.65 } else { 0.0 }; 3]),
             base_tint_strength: Some(0.0),
             emissive_color: Some([1.0; 3]),
-            emissive_intensity: Some(if case == "static floor" { 0.2 } else { 1.0 }),
+            emissive_intensity: Some(match case {
+                "no glow" | "lit surface" | "dark surface" => 0.0,
+                "bright glow" => 10.0,
+                "static floor" => 0.2,
+                _ => 1.0,
+            }),
             emission_animation: Some([flow, 0.0, frequency, floor]),
             emission_reveal: (reveal >= 0.0).then_some([reveal, 0.1, inverse, 1.0]),
             specular: Some(0.0),
@@ -70,6 +81,7 @@ pub(super) fn verify(
             ..Default::default()
         };
         camera.material_time = time;
+        camera.lighting_preset = if case.starts_with("dark") { 2 } else { saved_camera.lighting_preset };
         camera.scene_model = Mat4::IDENTITY.to_cols_array_2d();
         let bindings = BTreeMap::from([(0, make_binding(&dds, factors)?)]);
         let (buffer, width, height) = render_headless_readback_at(
@@ -97,6 +109,9 @@ pub(super) fn verify(
             case,
             <[u8; 4]>::try_from(&pixels[center..center + 4]).unwrap(),
         );
+        // Outside the square: a coloured surface alone cannot light this pixel.
+        let outside = ((height / 2 * width + width - 2) * 4) as usize;
+        halos.insert(case, <[u8; 4]>::try_from(&pixels[outside..outside + 4]).unwrap());
     }
     let luma = |name| {
         samples[name][..3]
@@ -125,10 +140,60 @@ pub(super) fn verify(
             "Emission animation/reveal pixel mismatch: {samples:?}"
         )));
     }
+    if halos["static"][2] <= halos["no glow"][2] + 5
+        || halos["bright glow"][2] <= halos["static"][2] + 10
+        || halos["lit surface"] != halos["no glow"]
+        || halos["RGB zero alpha"] != halos["no glow"]
+        || halos["pulse trough"] != halos["no glow"]
+        || luma("dark surface") * 2 >= luma("lit surface")
+        // The tiny residual reflection dims too; the emitter keeps its brightness.
+        || luma("dark glow") * 100 < luma("static") * 97
+    {
+        return Err(RenderError::Device(format!("Bloom/dark lighting mismatch: centres={samples:?}, halos={halos:?}")));
+    }
+    // A hidden emitter must not bleed through an opaque foreground surface.
+    // Transparent and cutout foregrounds must retain the visible source behind.
+    let mut overlap = snapshot.clone();
+    overlap.positions.extend(snapshot.positions.iter().map(|p| [p[0], p[1], 0.25]));
+    overlap.normals.extend(snapshot.normals.iter().copied());
+    overlap.uvs.extend(snapshot.uvs.iter().copied());
+    overlap.indices.extend(snapshot.indices.iter().map(|index| index + 4));
+    overlap.triangle_materials.extend([1; 2]);
+    let overlap_mesh = GpuMeshBuffers::upload(device, &overlap)?;
+    let dds = cdmw_texture::synthetic::rgba8_checker_dds();
+    *camera = saved_camera;
+    camera.scene_model = Mat4::IDENTITY.to_cols_array_2d();
+    for (label, opacity, alpha_blend, alpha_cutoff) in [
+        ("opaque occluder", 1.0, false, None),
+        ("transparent foreground", 0.0, true, None),
+        ("cutout foreground", 0.0, false, Some(0.5)),
+    ] {
+        let bindings = BTreeMap::from([
+            (0, make_binding(&dds, MaterialPreviewFactors {
+                emissive_color: Some([1.0, 0.0, 0.0]), emissive_intensity: Some(10.0),
+                ..Default::default()
+            })?),
+            (1, make_binding(&dds, MaterialPreviewFactors {
+                emissive_intensity: Some(0.0), opacity: Some(opacity),
+                alpha_blend: Some(alpha_blend), alpha_cutoff,
+                ..Default::default()
+            })?),
+        ]);
+        let (buffer, width, height) = render_headless_readback_at(device, queue, format,
+            &overlap_mesh, default_binding, &bindings, camera_binding, pipelines, camera,
+            camera_buffer, ViewMode::TexturedSolid, 64, 64, Mat4::IDENTITY, None, false, None);
+        let pixels = read_headless_pixels(device, &buffer, width, height)?;
+        let outside = ((height / 2 * width + width - 2) * 4) as usize;
+        let halo = <[u8; 4]>::try_from(&pixels[outside..outside + 4]).unwrap();
+        let visible = halo[2] > halos["no glow"][2] + 5;
+        if visible != (label != "opaque occluder") {
+            return Err(RenderError::Device(format!("Bloom visibility mismatch for {label}: {halo:?}")));
+        }
+    }
     *camera = saved_camera;
     queue.write_buffer(camera_buffer, 0, bytemuck::bytes_of(camera));
     eprintln!(
-        "Verified glow UV scrolling, pulse peaks/floors, RGB reveal/inversion and zero-alpha pixels."
+        "Verified glow animation, RGB masks, HDR bloom beyond the mesh, strength, non-emissive exclusion and dark lighting."
     );
     Ok(())
 }

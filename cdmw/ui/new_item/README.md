@@ -3,6 +3,9 @@
 [Shader experiments](../mesh_editor/SHADER_CONTROLS.md) share
 typed controls with Mesh Editor, including per-variant choices and worker-prepared
 resources for Model, Effects and dye previews.
+The experiment selector marks incompatible choices **Unavailable**, lists the
+experiments supported by the selected part, and explains each unavailable option's
+required source material in its tooltip.
 
 Owns the Create New Item tab: clone an equipment item into a brand-new one with
 its own identity, model, icon, stats, shop placement and item groups, then write
@@ -145,8 +148,8 @@ be orbited and zoomed before the workflow inherits it. Template handoffs search 
 catalogue once and select the requested row. Search and results stay in the
 left column, with search and category on one row and readable item names first. The
 resizable list receives more width than the preview by default. The workflow summary remains the one selected-template status authority, so
-Template does not repeat it in another group; its camera help follows the viewport
-instead of separating the viewport from its heading. Every shared preview keeps the
+Template does not repeat it in another group or add a second camera explanation.
+Every shared preview keeps the
 current orbit, pan and zoom controls in a footer outside the native viewport. Initial
 package framing survives helper startup and progressive texture state replay, while
 later explicit camera commands remain authoritative. Single-template geometry uses the
@@ -241,6 +244,14 @@ the template is loaded.
 
 **Glow > Animation (experimental)** adds **Scroll U**, **Scroll V**, **Pulse speed**
 and **Pulse floor** to templates and separate imported Plain PBR material parts.
+Hover over a setting or its label for a short description, including the RGB
+strength, reveal, softness and inversion controls.
+The shared Rust renderer blurs visible HDR emission separately from surface colour
+and adds a coloured bloom halo to the viewport and captures. The emission pass
+respects depth, cutout, transparent coverage, animation and RGB masks; ordinary
+bright surfaces do not bloom. **Preview > Dark mode** dims the background and
+scene illumination while retaining emission strength. This is a viewport lighting
+simulation; it does not add game lights or change the exported material.
 Focus a material number, then use the mouse wheel to adjust it. This also works for
 translucency and shader experiment fields; scrolling over an unfocused control
 continues to scroll the page without changing its value.
@@ -269,7 +280,10 @@ are approximations of decoded shader behavior; this feature has synthetic GPU an
 export tests, not game calibration. Mesh Editor has the same controls in Parts.
 
 The Appearance page offers **Translucency (experimental)** for both template and imported models.
-Enable it and tick the material parts to change. Highlight a checked part to edit
+Enable it and tick the material parts to change, or use **Select all** to check every
+part with one preview update. **Clear selection** restores source materials with
+one update. Both actions retain individual absorption and surface settings.
+Highlight a checked part to edit
 its own settings without changing the other checked parts. **Absorption preset**
 offers Clear, Light, Medium and Dense absorption; the Clear-to-Dense slider adjusts
 the exported parameters together, with finer adjustment near clear glass. **Advanced**
@@ -674,6 +688,8 @@ deduplication. Imported preview caches rebuild when this material handoff change
 A textureless exported material still keeps its authored
 `TEXCOORD_0` channel instead of triggering an unnecessary auto-unwrap. Generated material
 synthesis is deduplicated across identical submesh inputs.
+The loading bar stays below the right inspector's scroll area, above the placement
+actions, so scrolling through Appearance never hides progress.
 Apply runs through the controller's cancellable progress lane; its spinner, current phase,
 percentage when available and Cancel action remain live while conflicting placement edits
 are disabled. Preview-loading text stays in that pinned operation bar while errors and

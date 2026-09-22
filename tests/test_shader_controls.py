@@ -8,7 +8,7 @@ import pytest
 
 from cdmw.core.material_shader_controls import rewrite_shader_controls, control_material_sources
 from cdmw.core.pac_xml_standard_material import find_material_wrappers, plain_material_xml, PlainMaterial
-from cdmw.domain.mesh.shader_controls import FAMILIES, ShaderControls, preview_factors, validate_choices
+from cdmw.domain.mesh.shader_controls import FAMILIES, ShaderControls, family_for, preview_factors, validate_choices
 from cdmw.services.mesh_shader_controls import build_shader_control_files
 from cdmw.services.mesh_replacement_draft import load_replacement_state, save_replacement_state
 from cdmw.services.mesh_replacement_import import initial_replacement_state, mesh_with_part_ids, commit_replacement
@@ -260,6 +260,13 @@ def test_template_and_import_shader_options_follow_the_output_route(monkeypatch)
             available = [widget.family.itemData(i) for i in range(1, widget.family.count())
                          if widget.family.model().item(i).isEnabled()]
             assert available == [shader]
+            assert family_for(shader).label in widget.note.text()
+            for index in range(1, widget.family.count()):
+                item = widget.family.model().item(index)
+                if not item.isEnabled():
+                    assert "Unavailable" in item.text()
+                    assert "Requires" in item.toolTip()
+                    assert "This part uses" in item.toolTip()
             assert not changes
             widget.family.setCurrentIndex(widget.family.findData(shader))
             assert changes.pop()[0][1].shader == shader

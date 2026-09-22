@@ -240,7 +240,6 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self._build_icon_controls()
 
         model_icon_content_layout.addWidget(self.model_group)
-        model_icon_content_layout.addWidget(self.operation_banner)
         model_icon_content_layout.addWidget(self.preview_controls)
         from cdmw.ui.new_item.dye_editor import DyeEditor
         self.dyes = DyeEditor(controller,self)
@@ -253,6 +252,7 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         model_icon_content_layout.addWidget(self.inspector_tabs)
         model_icon_content_layout.addStretch(1)
         preview_column_layout.addWidget(self.preview_group, 1)
+        model_icon_column_layout.addWidget(self.operation_banner)
         model_icon_column_layout.addWidget(self.placement_actions)
         self.workspace_splitter.addWidget(self.preview_column)
         self.workspace_splitter.addWidget(self.model_icon_column)
@@ -410,7 +410,7 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self.show_character.setEnabled(controller.draft.template_key is not None)
         self.show_character.toggled.connect(self._character_preview_changed)
         controls_layout.addWidget(self.view_toolbar)
-        self.operation_banner = QFrame(self.model_icon_content)
+        self.operation_banner = QFrame(self.model_icon_column)
         self.operation_banner.setObjectName("new_item_loading_card")
         self.operation_banner.setFrameShape(QFrame.Shape.StyledPanel)
         self.operation_banner.setSizePolicy(
@@ -427,6 +427,7 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         operation_row.addWidget(self.operation_spinner)
         self.operation_label = QLabel("")
         self.operation_label.setObjectName("new_item_intro")
+        self.operation_label.setWordWrap(True)
         operation_row.addWidget(self.operation_label, 1)
         self.cancel_operation_button = QPushButton("Cancel")
         self.cancel_operation_button.clicked.connect(self._cancel_operation)
@@ -492,6 +493,10 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self.grid_visible.toggled.connect(self.preview.set_grid_visible)
         view_row.addWidget(self.grid_visible)
         self.preview.set_lighting_preset("neutral_studio")
+        self.dark_preview = QCheckBox("Dark mode")
+        self.dark_preview.setToolTip("Dim the preview lighting and background to see emissive glow and its bloom. This changes only the viewport.")
+        self.dark_preview.toggled.connect(self._preview_lighting_changed)
+        view_row.addWidget(self.dark_preview)
         self.frame_view_button = QPushButton("Frame")
         self.frame_view_button.setToolTip("Bring the camera back onto the model where it sits now.")
         self.frame_view_button.clicked.connect(self.preview.fit_view)
@@ -950,6 +955,9 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         draft.glow_rgb = self.glow_animation.rgb_value()
         self._controller.invalidate_plan()
         self._sync_glow_preview()
+
+    def _preview_lighting_changed(self, dark: bool) -> None:
+        self.preview.set_lighting_preset("dark" if dark else "neutral_studio")
 
     def _translucency_changed(self, choice) -> None:
         self._controller.draft.translucency = choice

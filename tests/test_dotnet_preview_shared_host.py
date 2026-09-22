@@ -1924,6 +1924,9 @@ def test_preview_host_lighting_is_a_resident_display_only_update(tmp_path: Path)
         item.get("event") == "package_load_request" for item in process.writes
     ) == package_requests_before
 
+    assert host.set_lighting_preset("dark")
+    assert process.writes[-1]["display"] == {"lighting_preset": "dark"}
+    assert controller._resident_state["presentation"][1]["camera"]["yaw"] == 27.0
     assert host.set_lighting_preset("unknown")
     _event, payload = controller._resident_state["presentation"]  # noqa: SLF001
     assert payload["display"]["lighting_preset"] == "neutral_studio"

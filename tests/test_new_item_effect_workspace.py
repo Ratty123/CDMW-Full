@@ -608,6 +608,7 @@ class EffectWorkspaceTests(unittest.TestCase):
         workspace._staged = replace(workspace.staged_state, offset=(1., 2., 3.))
         staged = workspace.staged_state
         panel = SimpleNamespace(_controller=controller, _sync_glow_preview=lambda: None, refresh_preview=lambda: None,
+            _appearance_preview_timer=SimpleNamespace(start=lambda: None),
             _ticked_glow_parts=lambda: ("Blade",), glow_box=SimpleNamespace(isChecked=lambda: True),
             glow_intensity=SimpleNamespace(value=lambda: 9.),
             glow_animation=SimpleNamespace(value=lambda: controller.draft.glow_animation, rgb_value=lambda: None),
