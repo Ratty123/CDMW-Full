@@ -206,9 +206,11 @@ outer radius (0 = unlimited) and W the inner radius. Point mode removes the
 surface requirement. Supported lightning previews decoded branch thickness,
 bending and pivot noise with its authored material curves. Supported untextured
 additive lightning reuses indexed GPU geometry, so a complex bolt no longer
-reduces the preview to one particle per emitter. Mesh pivot offsets follow their
-inherited or overridden values. Particle counts remain limited by preview quality
-and a shared triangle budget; final shader masks and emissive response are approximate.
+reduces the preview to one particle per emitter. It also applies the authored
+moving visibility pulse, emissive perimeter and mesh-control curve, and brightness
+limits that preserve hue. Mesh pivot offsets follow their inherited or overridden
+values. Particle counts remain limited by preview quality and a shared triangle
+budget; other shader features and final game lighting remain approximate.
 
 Output can be a manager package or a CDMW-owned archive-group overlay. New Item
 installs through overlays only. **Output → Merge mods** combines compatible mod

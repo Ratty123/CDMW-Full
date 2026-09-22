@@ -4,6 +4,8 @@
 //! variant 5a038345_25fffac5_0_e2f61e7d_2_deba1dcd_b0ae633a. Keep the two
 //! kernels distinct: the pivot's small noise uses a BCC lattice, while its
 //! large noise sums three alternating simplex octaves.
+//! Visibility is interpolated from that VS; emissive shaping follows PS
+//! 5a038345_25fffac5_4_0fc1eb3c_2_deba1dcd_6c287fba (df866b7b91248a911fc91ffb6816a5a3).
 use glam::{Mat4, Vec2, Vec3};
 use serde_json::Value;
 
@@ -153,6 +155,37 @@ impl Thickness {
     }
 }
 
+struct Shading {
+    parameters: [[f32; 4]; 3],
+    progress: Curve,
+    speed: Curve,
+    emissive: Curve,
+}
+
+impl Shading {
+    fn read(material: &Value, flags: u64) -> Option<Self> {
+        let values = &material["values"];
+        let finite = |value: &Value| {
+            let result = value.as_f64()? as f32;
+            result.is_finite().then_some(result)
+        };
+        Some(Self {
+            // A partial/unknown shading block must not turn valid geometry black
+            // by silently treating missing emissive limits as [0, 0].
+            parameters: [
+                [finite(&values["_emissiveThickness"])?, finite(&values["_emissivePerimeter"])?,
+                    finite(&values["_emissiveEffectRatio"])?, finite(&values["_emissiveForHideExp"])?],
+                [finite(&values["_progress"])?, finite(&values["_speed"])?,
+                    finite(&values["_emissiveMinMaxLimits"][0])?, finite(&values["_emissiveMinMaxLimits"][1])?],
+                [u32::from(flags & 0x8000 != 0) as f32, 1., 0., 0.],
+            ],
+            progress: Curve::read(material, "_progressSpline")?,
+            speed: Curve::read(material, "_speedSpline")?,
+            emissive: Curve::read(material, "_emissiveThicknessSpline")?,
+        })
+    }
+}
+
 pub(crate) struct LightningMaterial {
     main: Thickness,
     sub: Thickness,
@@ -169,10 +202,12 @@ pub(crate) struct LightningMaterial {
     distance_width: bool,
     distance_range: Vec2,
     distance_multiple: f32,
+    shading: Option<Shading>,
 }
 
 impl LightningMaterial {
     pub(crate) fn gpu(&self) -> cdmw_render_wgpu::EffectLightningMaterial {
+        let shading = self.shading.as_ref();
         cdmw_render_wgpu::EffectLightningMaterial {
             parameters: [
                 [self.main.range.x, self.main.range.y, self.main.time, self.thickness_exponent],
@@ -183,12 +218,18 @@ impl LightningMaterial {
                 [self.small.offset, self.big.offset, self.deform_offset, u32::from(self.continuous) as f32],
                 [self.distance_range.x, self.distance_range.y, self.distance_multiple, u32::from(self.distance_width) as f32],
                 [self.sub_limits.x, self.sub_limits.y, 0., 0.],
+                shading.map_or([0.; 4], |s| s.parameters[0]),
+                shading.map_or([0.; 4], |s| s.parameters[1]),
+                shading.map_or([0.; 4], |s| s.parameters[2]),
             ],
             curves: [self.main.ratio_curve.0, self.main.time_curve.0,
                 self.sub.ratio_curve.0, self.sub.time_curve.0,
                 self.small.amplitude.ratio_curve.0, self.small.amplitude.time_curve.0,
                 self.big.amplitude.ratio_curve.0, self.big.amplitude.time_curve.0,
-                self.deform.ratio_curve.0, self.deform.time_curve.0],
+                self.deform.ratio_curve.0, self.deform.time_curve.0,
+                shading.map_or([1.; 128], |s| s.progress.0),
+                shading.map_or([1.; 128], |s| s.speed.0),
+                shading.map_or([1.; 128], |s| s.emissive.0)],
         }
     }
 
@@ -220,6 +261,7 @@ impl LightningMaterial {
             distance_width: flags & 0x40000 != 0,
             distance_range: pair(values, "_fieldOfViewDistanceRange"),
             distance_multiple: number(values, "_fieldOfViewMultipleValue"),
+            shading: Shading::read(material, flags),
         })
     }
 
@@ -451,6 +493,32 @@ mod tests {
                 height: 512.,
             },
         }
+    }
+
+    #[test]
+    fn lightning_shading_retains_resolved_curves_and_rejects_incomplete_blocks() {
+        let mut emitter = emitter();
+        let partial = LightningMaterial::read(&emitter).unwrap().gpu();
+        assert_eq!(partial.parameters[10][1], 0.);
+        let values = emitter["material"]["values"].as_object_mut().unwrap();
+        for (key,value) in [("_emissiveThickness",2.), ("_emissivePerimeter",4.),
+            ("_emissiveEffectRatio",1.), ("_emissiveForHideExp",1.), ("_progress",0.5), ("_speed",1.)] {
+            values.insert(key.into(), json!(value));
+        }
+        values.insert("_materialFlags".into(), json!(0x4000 | 0x8000));
+        values.insert("_emissiveMinMaxLimits".into(), json!([0.,1e8]));
+        emitter["material"]["splines"] = json!({
+            "_progressSpline": {"samples":[vec![0.25;128]]},
+            "_speedSpline": {"samples":[vec![0.5;128]]},
+            "_emissiveThicknessSpline": {"samples":[vec![0.75;128]]}
+        });
+        let gpu = LightningMaterial::read(&emitter).unwrap().gpu();
+        assert_eq!(gpu.parameters[8], [2.,4.,1.,1.]);
+        assert_eq!(gpu.parameters[9], [0.5,1.,0.,1e8]);
+        assert_eq!(gpu.parameters[10], [1.,1.,0.,0.]);
+        assert_eq!(gpu.curves[10..], [[0.25;128],[0.5;128],[0.75;128]]);
+        emitter["material"]["splines"]["_progressSpline"] = json!({"preset":"unresolved"});
+        assert_eq!(LightningMaterial::read(&emitter).unwrap().gpu().parameters[10][1], 0.);
     }
 
     #[test]

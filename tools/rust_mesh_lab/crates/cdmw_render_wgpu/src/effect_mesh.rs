@@ -27,13 +27,13 @@ impl EffectMeshVertex {
     }
 }
 
-/// Parameters and ten 128-sample curves for the decoded lightning variant.
+/// Deformation, visibility and emissive parameters with 128-sample curves.
 /// This is an internal renderer ABI, not a saved project or package schema.
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Pod, Zeroable)]
 pub struct EffectLightningMaterial {
-    pub parameters: [[f32; 4]; 8],
-    pub curves: [[f32; 128]; 10],
+    pub parameters: [[f32; 4]; 11],
+    pub curves: [[f32; 128]; 13],
 }
 
 #[repr(C)]
@@ -103,7 +103,11 @@ impl MeshParticles {
             label: Some("lightning mesh data"),
             entries: &[0, 1, 2].map(|binding| wgpu::BindGroupLayoutEntry {
                 binding,
-                visibility: wgpu::ShaderStages::VERTEX,
+                visibility: if binding == 0 {
+                    wgpu::ShaderStages::VERTEX_FRAGMENT
+                } else {
+                    wgpu::ShaderStages::VERTEX
+                },
                 ty: wgpu::BindingType::Buffer {
                     ty: if binding == 2 {
                         wgpu::BufferBindingType::Uniform
@@ -157,7 +161,7 @@ impl MeshParticles {
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
-                entry_point: Some("fs_effect_particle"),
+                entry_point: Some("fs_effect_mesh"),
                 compilation_options: Default::default(),
                 targets: &[Some(wgpu::ColorTargetState {
                     format,

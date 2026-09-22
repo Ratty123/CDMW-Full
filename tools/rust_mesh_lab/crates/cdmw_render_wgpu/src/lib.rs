@@ -5260,7 +5260,12 @@ async fn run_headless_render_smoke_internal(
     );
     // Pipeline construction alone missed particles disappearing on D3D12.
     // Assert actual pixels through the production bindings and vertex layout.
-    effect_particle_proof::verify(&device, &queue)?;
+    if let Err(error) = effect_particle_proof::verify(&device, &queue) {
+        if let Some(validation) = error_scope.pop().await {
+            return Err(RenderError::Device(format!("particle GPU validation failed: {validation}")));
+        }
+        return Err(error);
+    }
     glow_proof::verify(&device, &queue, format, &pipelines, &camera_bind_group,
         &mut camera_uniform, &camera_buffer, &default_material_binding.bind_group, |bytes, factors| {
             let uploaded = upload_dds_texture(&device, &queue, bytes, TextureRole::Emissive)?;

@@ -108,8 +108,7 @@ fn vs_effect_particle(
     return out;
 }
 
-@fragment
-fn fs_effect_particle(input: EffectParticleOut, @builtin(sample_index) sample_index: u32) -> @location(0) vec4<f32> {
+fn shade_effect_particle(input: EffectParticleOut, sample_index: u32) -> vec4<f32> {
     let cell = input.uv_rect.zw;
     let origin = input.uv_rect.xy;
     // Stay inside a flipbook cell: filtering must not pull in adjacent frames.
@@ -146,6 +145,11 @@ fn fs_effect_particle(input: EffectParticleOut, @builtin(sample_index) sample_in
     let distance = length(scene.xyz / scene.w - input.world);
     let fade = select(smoothstep(0.0, input.soft_range, distance), 1.0, scene_depth >= 0.999999);
     return present(mapped, clamp(sprite.a * input.colour.a * fade, 0.0, 1.0));
+}
+
+@fragment
+fn fs_effect_particle(input: EffectParticleOut, @builtin(sample_index) sample_index: u32) -> @location(0) vec4<f32> {
+    return shade_effect_particle(input, sample_index);
 }
 
 "#;

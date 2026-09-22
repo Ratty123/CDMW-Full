@@ -1,8 +1,8 @@
 // Shader source stays in .rs so the helper's existing provenance covers it.
 pub(super) const SHADER: &str = r#"
 struct LightningMaterial {
-    parameters: array<vec4<f32>, 8>,
-    curves: array<array<f32, 128>, 10>,
+    parameters: array<vec4<f32>, 11>,
+    curves: array<array<f32, 128>, 13>,
 };
 struct MeshParticle {
     transform: mat4x4<f32>,
@@ -169,19 +169,71 @@ fn lightning_deform(position: vec3<f32>, source_normal: vec3<f32>, uv: vec2<f32>
         + lightning_large_noise(big_point) * (big.x * big.y * lightning_curve(6u,ratio) * lightning_curve(7u,age));
 }
 
+// The native vertex shader evaluates the pulse before raster interpolation.
+// Recomputing it per pixel would illuminate triangles whose vertices are hidden.
+fn lightning_visibility(uv: vec2<f32>, age: f32) -> f32 {
+    let start = 2.0 * lightning_curve(10u, age) * lightning.parameters[9].x - 1.0;
+    let width = lightning_curve(11u, age) * lightning.parameters[9].y;
+    let ratio = 1.0 - uv.x;
+    var t = 0.0;
+    if ratio <= start || ratio >= start + width {
+        t = select(0.0, 1.0, ratio > start);
+    } else {
+        t = (ratio - start) / width;
+    }
+    return clamp(5.0 * t * (1.0 - t), 0.0, 1.0);
+}
+
+struct LightningOut {
+    @builtin(position) position: vec4<f32>,
+    @location(0) uv: vec2<f32>,
+    @location(1) colour: vec4<f32>,
+    @location(2) world: vec3<f32>,
+    @location(3) @interpolate(flat) soft_range: f32,
+    @location(4) control_pulse: vec3<f32>,
+};
+
 @vertex
 fn vs_effect_mesh(@location(0) position: vec3<f32>, @location(1) normal: vec3<f32>,
     @location(2) uv: vec2<f32>, @location(3) controls: vec4<f32>,
-    @builtin(instance_index) instance: u32) -> EffectParticleOut {
+    @builtin(instance_index) instance: u32) -> LightningOut {
     let particle = mesh_particles[instance];
     let local = lightning_deform(position,normal,uv,controls.xyz,particle);
     let world = (particle.transform * vec4<f32>(local,1.0)).xyz;
-    var out: EffectParticleOut;
+    var out: LightningOut;
     out.position = camera.view_projection * vec4<f32>(world,1.0);
     out.world = world; out.uv = uv; out.colour = particle.colour;
-    out.uv_rect = vec4<f32>(0.0,0.0,1.0,1.0);
-    out.sprite_options = vec3<f32>(-2.0,0.0,1.0);
     out.soft_range = max(min(particle.scale_age.x,particle.scale_age.y) * 0.25,0.0001);
+    out.control_pulse = vec3<f32>(quantizeToF16(controls.x), quantizeToF16(controls.z),
+        lightning_visibility(uv, particle.scale_age.w));
     return out;
+}
+
+@fragment
+fn fs_effect_mesh(input: LightningOut, @builtin(sample_index) sample_index: u32) -> @location(0) vec4<f32> {
+    var colour = input.colour;
+    if lightning.parameters[10].y > 0.5 {
+        let emissive = lightning.parameters[8];
+        // TEXCOORD12.x is the packed mesh control, not particle age or UV.
+        let thickness = emissive.x * lightning_curve(12u, input.control_pulse.x);
+        let perimeter = pow(max(input.control_pulse.y, 0.0), emissive.y);
+        colour = vec4<f32>(mix(colour.rgb, colour.rgb * (thickness * perimeter), emissive.z), colour.a);
+        if lightning.parameters[10].x > 0.5 {
+            let visibility = input.control_pulse.z;
+            if visibility < 0.1 { discard; }
+            colour = vec4<f32>(colour.rgb * pow(visibility, emissive.w), colour.a);
+        }
+        let magnitude = length(colour.rgb);
+        if magnitude > 0.0 {
+            let bounded = min(max(magnitude, lightning.parameters[9].z), lightning.parameters[9].w);
+            colour = vec4<f32>(colour.rgb * (bounded / magnitude), colour.a);
+        }
+    }
+    var particle_input: EffectParticleOut;
+    particle_input.position = input.position; particle_input.uv = input.uv; particle_input.colour = colour;
+    particle_input.world = input.world; particle_input.soft_range = input.soft_range;
+    particle_input.uv_rect = vec4<f32>(0.0,0.0,1.0,1.0);
+    particle_input.sprite_options = vec3<f32>(-2.0,0.0,1.0);
+    return shade_effect_particle(particle_input, sample_index);
 }
 "#;

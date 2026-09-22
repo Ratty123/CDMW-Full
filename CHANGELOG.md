@@ -43,6 +43,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Supported untextured additive lightning previews the decoded moving visibility pulse and emissive perimeter, curve and brightness limits. Hidden portions no longer remain lit, and brightness limits preserve the authored hue.
 - Effects preview draws supported lightning as indexed GPU mesh particles, retaining complete bolt geometry and authored deformation without the one-particle triangle bottleneck. It preserves mesh pivot offsets and the native default spawn type.
 
 - Surface-dependent effects now sample the selected item or real character mesh with decoded density, normal offset and volume clipping; missing surfaces produce no particles. The emitter inspector can edit and export spawn type, density and surface-volume values. Preview target selection remains separate from game attachment binding.

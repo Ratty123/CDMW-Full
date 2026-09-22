@@ -628,7 +628,7 @@ def _emitter_preview(
                      and all(not spline["components"] and not spline["preset"] or all(len(samples) == 128 for samples in spline["samples"])
                              for spline in shader_material.get("splines", {}).values()))
         if supported:
-            notes.append(f"{name}: lightning previews decoded branch thickness, bending and pivot noise when packed vertex controls are available. Particle counts are limited by preview quality; shader masks and emissive response remain approximate.")
+            notes.append(f"{name}: lightning previews decoded branch thickness, bending and pivot noise when packed vertex controls are available. Supported untextured additive variants also use authored visibility pulses and emissive curves. Particle counts are limited by preview quality; other shader features and game lighting remain approximate.")
         else:
             notes.append(f"{name}: this lightning material variant has unsupported deformation inputs; it is shown as a static mesh. Shader masks and emissive response remain approximate.")
 
