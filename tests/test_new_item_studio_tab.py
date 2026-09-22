@@ -202,6 +202,59 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         finally:
             tab.controller.model_import = None
 
+    def test_glow_translucency_warning_tracks_shared_parts_animation_and_restored_choices(self) -> None:
+        from PySide6.QtCore import Qt
+        from cdmw.domain.mesh.emission import GlowAnimation
+        from cdmw.domain.new_item.translucency import TranslucencyChoice
+
+        tab = self._tab()
+        tab.prefill_template(TEMPLATE)
+        tab.show_step(2)
+        panel = tab.model_panel
+        editor = panel.translucency_editor
+        checked = Qt.CheckState.Checked
+        with patch.object(tab.controller, "material_parts", return_value=(("Blade", "Blade edge"), ("Grip", "Leather grip"))):
+            panel.refresh_glow_parts()
+            self.assertTrue(panel.material_warning.isHidden())
+            panel.glow_box.setChecked(True)
+            panel.glow_parts.item(0).setCheckState(checked)
+            editor.setChecked(True)
+            editor.parts.item(1).setCheckState(checked)
+            self.assertTrue(panel.material_warning.isHidden(), "different parts are compatible")
+            editor.parts.item(0).setCheckState(checked)
+            self.assertFalse(panel.material_warning.isHidden())
+            self.assertIn("Blade edge", panel.material_warning.text())
+            self.assertNotIn("Leather grip", panel.material_warning.text())
+            self.assertIn("Static glow is supported", panel.material_warning.text())
+            self.assertFalse(panel.model_icon_content.isAncestorOf(panel.material_warning), "warning stays outside the scroll area")
+            panel.glow_animation.spins["pulse_minimum"].setValue(.5)
+            self.assertIn("Static glow is supported", panel.material_warning.text())
+            panel.glow_animation.spins["pulse_frequency"].setValue(1)
+            self.assertIn("cannot be exported", panel.material_warning.text())
+            panel.glow_animation.spins["pulse_frequency"].setValue(0)
+            self.assertIn("Static glow is supported", panel.material_warning.text())
+            panel.glow_animation.rgb_box.setChecked(True)
+            self.assertIn("cannot be exported", panel.material_warning.text())
+            panel.glow_box.setChecked(False)
+            self.assertTrue(panel.material_warning.isHidden())
+            panel.glow_box.setChecked(True)
+            self.assertIn("cannot be exported", panel.material_warning.text())
+            editor.setChecked(False)
+            self.assertTrue(panel.material_warning.isHidden())
+            editor.setChecked(True)
+            editor.clear_selection.click()
+            self.assertTrue(panel.material_warning.isHidden())
+            draft = tab.controller.draft
+            draft.glow_parts = ("Blade",)
+            draft.translucency = TranslucencyChoice(("blade",))
+            draft.glow_animation = GlowAnimation(flow_u=1)
+            draft.glow_rgb = None
+            panel.refresh_glow_parts()
+            self.assertIn("cannot be exported", panel.material_warning.text(), "restored choices use export's case-insensitive matching")
+            draft.glow_parts = ()
+            panel.refresh_glow_parts()
+            self.assertTrue(panel.material_warning.isHidden())
+
     def test_loading_footer_stays_visible_below_scrolled_appearance_and_dark_mode_is_live(self) -> None:
         from PySide6.QtCore import QPoint
 

@@ -39,7 +39,7 @@ from cdmw.ui.new_item.panels_model_preview_mixin import (
     ModelPanelPreviewMixin,
 )
 from cdmw.ui.new_item.state import glow_choice
-from cdmw.ui.new_item.ui_kit import EDIT, OK, WARN, NoteLabel, elided, note
+from cdmw.ui.new_item.ui_kit import BLOCK, EDIT, OK, WARN, NoteLabel, elided, note
 
 #: what a Blender looks like on each platform, for the dialog that points the studio at one
 BLENDER_FILE_FILTER = "Blender (blender.exe blender);;All files (*)"
@@ -252,6 +252,8 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         model_icon_content_layout.addWidget(self.inspector_tabs)
         model_icon_content_layout.addStretch(1)
         preview_column_layout.addWidget(self.preview_group, 1)
+        self.material_warning = NoteLabel("", WARN)
+        model_icon_column_layout.addWidget(self.material_warning)
         model_icon_column_layout.addWidget(self.operation_banner)
         model_icon_column_layout.addWidget(self.placement_actions)
         self.workspace_splitter.addWidget(self.preview_column)
@@ -933,6 +935,34 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         if not parts:
             self.glow_box.setChecked(False)
             self.glow_box.setToolTip("Choose a template or import a model to edit its material parts.")
+        self._update_material_overlap_warning()
+
+    def _update_material_overlap_warning(self) -> None:
+        draft = self._controller.draft
+        translucent = {name.casefold() for name in draft.translucency.parts} if draft.translucency else set()
+        overlap = tuple(name for name in draft.glow_parts if name.casefold() in translucent)
+        message = ""
+        tone = WARN
+        if overlap:
+            labels = {
+                str(self.glow_parts.item(row).data(Qt.ItemDataRole.UserRole)).casefold(): self.glow_parts.item(row).text()
+                for row in range(self.glow_parts.count())
+            }
+            parts = ", ".join(labels.get(name.casefold(), name) for name in overlap)
+            if draft.glow_animation.active or draft.glow_rgb is not None:
+                tone = BLOCK
+                message = (
+                    f"Warning: Animated or RGB Glow cannot share a part with Translucency: {parts}. "
+                    "This combination cannot be exported. Disable Glow animation and RGB, "
+                    "or deselect these parts in Glow or Translucency."
+                )
+            else:
+                message = (
+                    f"Warning: Glow and Translucency overlap on: {parts}. "
+                    "Static glow is supported, but in-game brightness is unverified and may ignore Strength. "
+                    "Animated and RGB glow cannot be used on the same part."
+                )
+        self.material_warning.set_note(message, tone)
 
     def _ticked_glow_parts(self) -> tuple:
         return tuple(
@@ -985,6 +1015,7 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         override. An untouched import with no glass or overrides sends nothing.
         """
 
+        self._update_material_overlap_warning()
         preview = self.preview
         source = self._controller.model_import
         if source is None:

@@ -305,6 +305,7 @@ class PanelGlowSyncTests(unittest.TestCase):
                 model_import=model_import,
             ),
             _glow_preview_touched=touched,
+            _update_material_overlap_warning=lambda: None,
         )
         return panel, sent
 

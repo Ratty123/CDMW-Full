@@ -357,6 +357,11 @@ map and colour. Export retains those inputs and the authored strength, but the
 translucent shader may ignore the separate strength parameter, so brightness
 needs in-game verification. A mixed opaque/translucent atlas must be separated or all its
 materials selected, and missing material selections block export.
+When Glow and Translucency select the same part, a warning below the scrolling
+inspector names the overlapping parts. Static glow shows the brightness caveat;
+animated or RGB glow shows an unsupported-combination warning with instructions
+to disable those modes or deselect the shared parts. The warning updates immediately
+and follows restored variant choices.
 Moving to step 3 reparents that
 live viewport without rebuilding
 its package or resetting its camera. Texture upgrades wait for an active drag or

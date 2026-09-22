@@ -23,6 +23,7 @@ The format is intentionally simple:
 
 ### Added
 
+- Create New Item warns immediately when Glow and Translucency select the same part, distinguishing the static-glow brightness caveat from unsupported animated/RGB glow and explaining how to resolve it.
 - Translucency has Select all and Clear selection actions that update the preview once while retaining each part's settings.
 - Material emission has a bloom halo in the shared Rust renderer. Model & Placement includes a preview-only Dark mode that dims scene lighting while retaining emission, including animated and RGB glow.
 - Shader experiments in Create New Item and Mesh Editor expose patterned cutout reveal, TornCloth tearing, animated hair UVs, anisotropic detail and Poster glow on compatible materials. Static Dissolve objects gain sphere, noise and edge-glow controls in Mesh Editor. Edits preserve source maps, support undo/drafts and include experimental viewport previews; game activation and appearance still need testing.
