@@ -52,7 +52,7 @@ def test_effect_library_controls_leave_the_viewport_full_height(monkeypatch, wid
     tabs.addTab(QWidget(), "Available sockets")
     tabs.addTab(QWidget(), "Inherent bonuses")
     tabs.setCurrentWidget(workspace)
-    tabs.setCornerWidget(workspace.library_controls, Qt.Corner.TopRightCorner)
+    tabs.setCornerWidget(workspace.library_controls, Qt.Corner.TopLeftCorner)
     root.resize(width, height)
     root.show()
 
@@ -75,17 +75,19 @@ def test_effect_library_controls_leave_the_viewport_full_height(monkeypatch, wid
         assert workspace.height() - workspace.splitter.geometry().bottom() - 1 <= workspace.caution.fontMetrics().height() + 16
         assert workspace.caution.height() <= workspace.caution.fontMetrics().height() + 8
         controls = workspace.library_controls
-        assert tabs.cornerWidget(Qt.Corner.TopRightCorner) is controls
+        assert tabs.cornerWidget(Qt.Corner.TopLeftCorner) is controls
         for control in (workspace.library_toggle, workspace.selected_effect_label):
             assert controls.rect().contains(control.geometry())
         assert not workspace.library_toggle.geometry().intersects(workspace.selected_effect_label.geometry())
-        assert controls.mapTo(tabs, QPoint()).x() > tabs.tabBar().geometry().right()
+        assert controls.mapTo(tabs, controls.rect().topRight()).x() < tabs.tabBar().geometry().left()
         assert workspace.selected_effect_label.width() <= 240
 
         original_placeholder = workspace.placeholder
         workspace.library_toggle.click()
         settle()
         assert workspace.library_panel.isVisibleTo(workspace)
+        toggle_center = workspace.library_toggle.mapTo(workspace.library_panel, workspace.library_toggle.rect().center())
+        assert 0 <= toggle_center.x() < workspace.library_panel.width()
         assert workspace.library_panel.isAncestorOf(workspace.search)
         assert workspace.library_panel.isAncestorOf(workspace.category_choice)
         assert 120 <= workspace.search.width() <= 280

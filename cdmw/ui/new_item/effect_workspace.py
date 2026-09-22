@@ -117,6 +117,7 @@ class GuidedEffectsWorkspace(EffectWorkspaceAuthoringMixin, QWidget):
         header.setContentsMargins(4, 0, 4, 0)
         header.setSpacing(6)
         self.library_toggle = QToolButton()
+        self.library_toggle.setObjectName("effect_library_toggle")
         self.library_toggle.setText("Browse effects")
         self.library_toggle.setCheckable(True)
         self.library_toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)

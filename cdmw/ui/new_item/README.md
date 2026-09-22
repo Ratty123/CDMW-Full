@@ -526,8 +526,10 @@ an all-target success, and never edits a shared borrowed prefab. The Effects tab
 24 px virtualized table rows with neutral stem-derived names, separated numeric suffixes,
 and compact Type and approximate Size columns; the exact stem stays searchable and
 appears in selection details and tooltips instead of being repeated under every row. `No effect` is the
-empty-state row. **Browse effects** opens the library on demand from the Effects tab
-bar, alongside the selected effect name. The library keeps a short search field below
+empty-state row. **Browse effects** opens the library on demand from the left end of the
+Effects tab bar, above the library and alongside the selected effect name. Its larger,
+bold button uses the active theme's accent colour so it is easy to find even when the
+library is folded. The library keeps a short search field below
 its heading and result count, with the category selector beside All / Loops / One-shot.
 There is no separate search row above the viewport. A compact footer keeps the preview
 notice and compatibility messages visible when the library is folded. Search matches words in the

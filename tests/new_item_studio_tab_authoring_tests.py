@@ -788,7 +788,7 @@ class _TabAuthoringMixin:
             self.assertEqual(tab.back_button.text(), "Back")
             self.assertEqual(tab.continue_button.text(), "Continue")
             self.assertIs(
-                tab.perks_panel.tabs.cornerWidget(Qt.Corner.TopRightCorner),
+                tab.perks_panel.tabs.cornerWidget(Qt.Corner.TopLeftCorner),
                 effects.library_controls,
             )
             self.assertTrue(effects.library_controls.isVisibleTo(tab))

@@ -103,6 +103,11 @@ def step_style(palette) -> str:
         QTableView#effect_library::item:selected {{ color: {active_text}; background: {active}; }}
         QTableView#effect_library QHeaderView::section {{ min-height: 20px; padding: 0 4px; font-weight: normal; }}
         QFrame#effect_library_panel QLineEdit#effect_search {{ min-height: 24px; border: 1px solid {border}; padding: 0 6px; background: {background}; }}
+        QToolButton#effect_library_toggle {{ min-height: 28px; padding: 0 12px; font-weight: 600; color: {active_text}; background: {active}; border: 1px solid {active}; border-radius: 4px; }}
+        QToolButton#effect_library_toggle:hover {{ color: {text}; background: {hover}; }}
+        QToolButton#effect_library_toggle:pressed {{ color: {text}; background: {pressed}; }}
+        QToolButton#effect_library_toggle:focus {{ border: 2px solid {text}; }}
+        QToolButton#effect_library_toggle:disabled {{ color: {disabled}; background: {panel}; border-color: {border}; }}
         QToolButton[effectChip="true"] {{ min-height: 24px; padding: 0 5px; color: {text}; background: {background}; border: 1px solid {border}; border-radius: 4px; }}
         QGroupBox#new_item_step QLineEdit, QGroupBox#new_item_step QComboBox,
         QGroupBox#new_item_step QDoubleSpinBox, QGroupBox#new_item_step QPushButton {{ min-height: 30px; }}
