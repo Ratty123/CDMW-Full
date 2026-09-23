@@ -666,7 +666,7 @@ class _TabAuthoringMixin:
             tab.controller.snapshot.english.index(),
             {},
         )
-        self.assertTrue(standalone_label.endswith(" — experimental"), "an unproven standalone perk keeps the marker")
+        self.assertNotIn("experimental", standalone_label.casefold(), "perk names stay concise; evidence belongs in the tooltip")
         before = tuple(tab.controller.draft.socket_items or ())
         QTest.mouseClick(
             perks.perk_results.viewport(),

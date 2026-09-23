@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from typing import Optional, Tuple
 
-from PySide6.QtCore import QSize, Qt, QTimer, Signal
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -32,18 +32,9 @@ from cdmw.ui.new_item.effect_placement_dialog_support import (
     remembered_backdrop,
 )
 from cdmw.ui.mesh_editor.icons import mesh_editor_action_icon
+from cdmw.ui.wrapping_layout import WrappingLayout
 
 Vec3 = Tuple[float, float, float]
-
-
-class _GuidedToolbarPanel(QWidget):
-    resized = Signal(int)
-
-    def resizeEvent(self, event) -> None:  # noqa: N802 - Qt override
-        super().resizeEvent(event)
-        width = self.width()
-        self.resized.emit(width)
-        QTimer.singleShot(0, self, lambda: self.resized.emit(width))
 
 
 class EffectPlacementGuidedMixin:
@@ -75,12 +66,14 @@ class EffectPlacementGuidedMixin:
         layout.setContentsMargins(12, 8, 0, 8)
         layout.setSpacing(4)
 
-        toolbar_panel = _GuidedToolbarPanel(viewport)
+        toolbar_panel = QWidget(viewport)
         toolbar_panel.setObjectName("effect_toolbar")
-        toolbar = QGridLayout(toolbar_panel)
+        toolbar_policy = QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
+        toolbar_policy.setHeightForWidth(True)
+        toolbar_panel.setSizePolicy(toolbar_policy)
+        toolbar = WrappingLayout(toolbar_panel)
         toolbar.setContentsMargins(0, 0, 4, 0)
-        toolbar.setHorizontalSpacing(4)
-        toolbar.setVerticalSpacing(4)
+        toolbar.setSpacing(4)
         self._ensure_guided_view_buttons()
         self.view_buttons[-1].setVisible(False)
         self.frame_button = QPushButton("Frame")
@@ -109,17 +102,19 @@ class EffectPlacementGuidedMixin:
             button.setProperty("effectToolbarButton", True)
             button.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
             button.setIconSize(QSize(14, 14))
+            toolbar.addWidget(button)
         self.guided_toolbar_panel = toolbar_panel
         self.guided_toolbar_layout = toolbar
-        self._guided_toolbar_columns = 0
-        toolbar_panel.resized.connect(self._reflow_guided_toolbar)
-        QTimer.singleShot(0, toolbar_panel, lambda: self._reflow_guided_toolbar(toolbar_panel.width()))
+        self._guided_toolbar_columns = len(self._guided_toolbar_buttons)
         self._set_viewport_controls_available(self.host is not None)
         layout.addWidget(toolbar_panel)
         from cdmw.ui.new_item.effect_playback import EffectPlaybackControls
         self.playback_controls = EffectPlaybackControls(self)
-        layout.addWidget(self.playback_controls)
-        layout.addWidget(self.gizmo_visible)
+        for control in self.playback_controls._controls:
+            control.setEnabled(self.playback_controls.isEnabled())
+            toolbar.addWidget(control)
+        self.playback_controls.hide()
+        toolbar.addWidget(self.gizmo_visible)
         if self.host is not None:
             self.host.setMinimumSize(480, 360)
             layout.addWidget(self.host, 1)
@@ -128,26 +123,6 @@ class EffectPlacementGuidedMixin:
         self.status.setObjectName("effect_workspace_status")
         layout.addWidget(self.status)
         return viewport
-
-    def _reflow_guided_toolbar(self, width: int) -> None:
-        buttons = self._guided_toolbar_buttons
-        spacing = self.guided_toolbar_layout.horizontalSpacing()
-        required = sum(button.sizeHint().width() for button in buttons) + spacing * (len(buttons) - 1) + 4
-        columns = len(buttons) if int(width) >= max(560, required) else 4
-        if columns == self._guided_toolbar_columns:
-            return
-        self._guided_toolbar_columns = columns
-        while self.guided_toolbar_layout.count():
-            self.guided_toolbar_layout.takeAt(0)
-        for column in range(len(buttons) + 1):
-            self.guided_toolbar_layout.setColumnStretch(column, 1 if column == columns else 0)
-        for index, button in enumerate(buttons):
-            self.guided_toolbar_layout.addWidget(button, index // columns, index % columns, Qt.AlignmentFlag.AlignLeft)
-        rows = (len(buttons) + columns - 1) // columns
-        height = rows * max(button.sizeHint().height() for button in buttons) + (rows - 1) * self.guided_toolbar_layout.verticalSpacing()
-        self.guided_toolbar_panel.setFixedHeight(height)
-        self.guided_toolbar_layout.setGeometry(self.guided_toolbar_panel.rect())
-        self.guided_toolbar_panel.updateGeometry()
 
     def _ensure_guided_view_buttons(self) -> None:
         if self.view_buttons:
@@ -193,10 +168,23 @@ class EffectPlacementGuidedMixin:
         self.inspector_widget = inspector
         self._add_inspector_tab(inspector, self.tr("Placement"), "effect_inspector_scroll")
 
-        heading = QLabel("Placement")
-        heading.setObjectName("effect_inspector_heading")
-        layout.addWidget(heading)
-        self._add_guided_transform_controls(layout)
+        self.placement_toggle = QToolButton()
+        self.placement_toggle.setObjectName("effect_inspector_heading")
+        self.placement_toggle.setText("Placement")
+        self.placement_toggle.setCheckable(True)
+        self.placement_toggle.setAutoRaise(True)
+        self.placement_toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        layout.addWidget(self.placement_toggle)
+        self.placement_controls = QWidget()
+        transform_layout = QVBoxLayout(self.placement_controls)
+        transform_layout.setContentsMargins(0, 0, 0, 0)
+        self._add_guided_transform_controls(transform_layout)
+        layout.addWidget(self.placement_controls)
+        self.placement_toggle.toggled.connect(self.placement_controls.setVisible)
+        self.placement_toggle.toggled.connect(
+            lambda expanded: self.placement_toggle.setArrowType(Qt.ArrowType.DownArrow if expanded else Qt.ArrowType.RightArrow)
+        )
+        self.placement_toggle.setChecked(True)
         self.preview_options_toggle = QToolButton()
         self.preview_options_toggle.setText("Preview options")
         self.preview_options_toggle.setCheckable(True)
@@ -209,11 +197,11 @@ class EffectPlacementGuidedMixin:
         preview_layout.setContentsMargins(0, 0, 0, 0)
         self._add_guided_scene_controls(preview_layout)
         layout.addWidget(self.preview_options)
-        self.preview_options.hide()
         self.preview_options_toggle.toggled.connect(self.preview_options.setVisible)
         self.preview_options_toggle.toggled.connect(
             lambda expanded: self.preview_options_toggle.setArrowType(Qt.ArrowType.DownArrow if expanded else Qt.ArrowType.RightArrow)
         )
+        self.preview_options_toggle.setChecked(True)
         layout.addStretch(1)
         look = QWidget()
         look_layout = QVBoxLayout(look)

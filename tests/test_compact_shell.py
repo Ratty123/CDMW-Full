@@ -479,7 +479,7 @@ def test_compact_workspace_executes_rail_footer_status_and_drawer_contracts(tmp_
     assert workspace.status_strip.cache_label is owner.archive_cache_status_chip
     assert workspace.status_strip.progress_bar.size().width() == 76
     assert workspace.status_strip.progress_bar.size().height() == 10
-    assert workspace.status_strip.height() == 42
+    assert workspace.status_strip.height() == 30
     assert workspace.rail.support_button.isFlat()
     footer = workspace.rail.settings_button.parentWidget()
     assert footer is not None

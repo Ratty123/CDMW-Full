@@ -94,7 +94,7 @@ def step_style(palette) -> str:
         QWidget#effect_viewport_panel {{ background: {background}; }}
         QScrollArea#effect_inspector_scroll {{ border: none; background: {panel}; }}
         QSplitter#effect_workspace_splitter::handle, QSplitter#effect_placement_splitter::handle {{ background: {border}; width: 1px; }}
-        QLabel#effect_library_heading, QLabel#effect_inspector_heading {{ font-weight: 600; color: {text}; }}
+        QLabel#effect_library_heading, QToolButton#effect_inspector_heading {{ font-weight: 600; color: {text}; }}
         QLabel#effect_compatibility {{ color: {muted}; }}
         QLabel#effect_visual_caution {{ color: {caution}; border-top: 1px solid {border}; }}
         QTableView#effect_library {{ border: 1px solid {border}; background: {panel}; alternate-background-color: {background}; outline: none; }}
@@ -126,6 +126,9 @@ def step_style(palette) -> str:
         QGroupBox#new_item_step QSpinBox {{ min-height: 30px; }}
         QFrame#effect_library_panel QComboBox {{ min-height: 22px; padding: 1px 22px 1px 5px; }}
         QWidget#effect_toolbar QPushButton,
+        QWidget#effect_toolbar QDoubleSpinBox,
+        QWidget#effect_toolbar QSpinBox,
+        QWidget#effect_toolbar QComboBox,
         QWidget#effect_playback_controls QPushButton,
         QWidget#effect_playback_controls QDoubleSpinBox,
         QWidget#effect_playback_controls QSpinBox,
@@ -135,12 +138,15 @@ def step_style(palette) -> str:
         QWidget#effect_inspector QSpinBox,
         QWidget#effect_inspector QComboBox,
         QWidget#effect_inspector QLineEdit {{ min-height: 22px; padding: 2px 5px; }}
+        QWidget#effect_toolbar QDoubleSpinBox,
         QWidget#effect_playback_controls QDoubleSpinBox,
         QWidget#effect_inspector QDoubleSpinBox {{
             color: {text}; background: {panel}; border: 1px solid {border}; border-radius: 4px;
         }}
+        QWidget#effect_toolbar QDoubleSpinBox:disabled,
         QWidget#effect_playback_controls QDoubleSpinBox:disabled,
         QWidget#effect_inspector QDoubleSpinBox:disabled {{ color: {disabled}; }}
+        QWidget#effect_toolbar QComboBox,
         QWidget#effect_playback_controls QComboBox,
         QWidget#effect_inspector QComboBox {{ padding-right: 22px; }}
         QTabWidget#effect_recipe_tabs::pane {{ border: none; }}
@@ -188,7 +194,7 @@ def step_style(palette) -> str:
         QTabWidget#new_item_model_inspector_tabs::pane {{ border: 1px solid {border}; }}
         QTabWidget#new_item_model_inspector_tabs QTabBar::tab {{ min-height: 24px; padding: 2px 10px; }}
         QTabWidget#new_item_model_inspector_tabs QTabBar::tab:selected {{ border-bottom: 2px solid {active}; }}
-        QProgressBar#new_item_model_progress {{ min-height: 4px; max-height: 4px; padding: 0; }}
+        QProgressBar#new_item_model_progress {{ min-height: 18px; padding: 0; }}
     """
 
 

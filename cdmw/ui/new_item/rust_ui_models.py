@@ -97,6 +97,9 @@ class ModelProjection:
                                  "text": str(model.headerData(col, Qt.Horizontal) or ""),
                                  "width": header.sectionSize(col) if header else 160,
                                  "resizable": bool(header and header.sectionResizeMode(col) == QHeaderView.ResizeMode.Interactive),
+                                 "size_to_contents": bool(header and header.sectionResizeMode(col) == QHeaderView.ResizeMode.ResizeToContents),
+                                 "stretch": bool(header and (header.sectionResizeMode(col) == QHeaderView.ResizeMode.Stretch
+                                                            or header.stretchLastSection() and col == columns - 1)),
                                  "hidden": header.isSectionHidden(col) if header else False})
         selected = view.selectionModel()
         budget = [PAGE_ROWS]

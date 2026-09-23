@@ -43,6 +43,14 @@ asynchronously so CDMW can stop it and keep the same draft available in Classic.
 Buttons fit their labels and related actions stay together. Inspector lists fit
 their contents, the navigation footer stays compact, and expanding Quick turn or
 other inspector sections preserves the viewport size and splitter position.
+Rust lists and table headings align left. Headings use plain text with sorting
+indicators where supported, and draggable edges retain manually chosen widths.
+Content-sized columns reserve room for their headings and values; stretch columns
+take the remaining pane width without hiding the final price or parameter editor.
+The navigation footer fits one control row, and the shell status strip has a 30 px
+minimum height that can grow for the active font. Model loading keeps its label,
+percentage bar and Cancel adjacent; percentages use reported work counts, while
+stages without a measurable total remain indeterminate.
 Editable choices keep their text field and dropdown arrow on one row. Short
 tables use their actual row and font heights, and narrow split panels scroll to
 keep every inspector reachable. Context menus open beside the pointer; small
@@ -660,6 +668,8 @@ hover, pressed, focus and disabled states. Step 5 is a
 non-scrolling full-height page with **Effects** first and **Experimental Features
 (Perks, Sockets, Bonuses)** second. Perk selection, socket capacity/costs and
 inherent bonuses share that second tab with adjustable panes and growing lists;
+available and selected perks have aligned headings and a shared compact action row.
+Individual perk names omit experimental suffixes;
 perk details and experimental limits are available on hover. The navigator is a
 compact 46 px row; the outer pages do not
 repeat numbered titles underneath it. Distribution fills the available height;
@@ -734,11 +744,14 @@ worker teardown. The preview thread is fully constructed before it is attached t
 resident widget, so child observers cannot resolve an incomplete Qt thread wrapper.
 A single inspector has **Placement**, **Look**, **Layers**, **Emitters**
 and **Saved** tabs, with Apply and Discard pinned below their local scroll areas.
-Preview options fold inside Placement. Layers add up to 16 effects with independent placement,
+Placement and Preview options are independently collapsible and start expanded.
+Layers add up to 16 effects with independent placement,
 visibility and appearance. Selecting another layer does not itself create a draft edit.
 The inspector tabs size to their active contents and keep actions together at the top.
-The compact preview toolbar and playback rows retain natural control widths and wrap
-at narrow sizes; extra workspace width goes to the viewport, while the inspector remains
+The preview tools, playback controls and Show gizmo share one compact toolbar;
+Rust uses tool icons with hover labels. The toolbar wraps only when its controls
+cannot fit the available width. Library actions also share a wrapping row rather
+than separate rows for each group. Extra workspace width goes to the viewport, while the inspector remains
 resizable. Apply and Discard remain pinned when the inspector needs to scroll.
 Layer solo and emitter solo affect only the preview. **Create from this emitter** starts
 a custom recipe from an existing emitter; duplicate/remove controls change its emitter

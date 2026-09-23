@@ -591,12 +591,16 @@ fn column_drag_keeps_the_full_distance_on_release_and_after_row_updates() {
         "headers": true, "sortable": true, "columns": [
             {"index":0,"width":100,"text":"Internal name","resizable":true},
             {"index":1,"width":100,"text":"Name","resizable":true}],
-        "total":0,"rows":[]
+        "total":1,"rows":[{"path":[0],"cells":[
+            {"control":control("first-column", "progress", "", json!({"value":50}))}, {"text":"Name"}]}]
     })));
     apply_theme(&context, &state.theme);
     let size = egui::vec2(960.0, 720.0);
     for _ in 0..3 { frame(&context, &mut view, &state, size, vec![]); }
-    for (x, pressed) in [(471.0, Some(true)), (511.0, None), (551.0, None), (551.0, Some(false))] {
+    let column = view.rects.iter().find(|item| item.id == "first-column").unwrap();
+    let initial_width = column.rect[2];
+    let edge = column.rect[0] + initial_width;
+    for (x, pressed) in [(edge, Some(true)), (edge + 40.0, None), (edge + 80.0, None), (edge + 80.0, Some(false))] {
         let point = egui::pos2(x, 13.0);
         let mut events = vec![egui::Event::PointerMoved(point)];
         if let Some(pressed) = pressed {
@@ -607,15 +611,15 @@ fn column_drag_keeps_the_full_distance_on_release_and_after_row_updates() {
     }
     let resize = view.inputs.iter().find(|input| input.action == "resize_column").expect("header drag");
     assert_eq!(resize.value["column"], 0);
-    assert_eq!(resize.value["width"], 552);
+    assert_eq!(resize.value["width"], (initial_width + 80.0).round() as u64);
     state.root.revision += 1;
-    state.root.props["columns"][0]["width"] = json!(552);
+    state.root.props["columns"][0]["width"] = resize.value["width"].clone();
     frame(&context, &mut view, &state, size, vec![]);
-    assert_eq!(view.column_widths[&("table".into(), 0)], 552.0);
+    assert_eq!(view.column_widths[&("table".into(), 0)], initial_width + 80.0);
 
     // Windows can deliver the final move and release before the next paint.
-    let start = egui::pos2(551.0, 13.0);
-    let end = egui::pos2(611.0, 13.0);
+    let start = egui::pos2(edge + 80.0, 13.0);
+    let end = egui::pos2(edge + 140.0, 13.0);
     frame(&context, &mut view, &state, size, vec![
         egui::Event::PointerMoved(start), egui::Event::PointerButton {
             pos:start,button:egui::PointerButton::Primary,pressed:true,modifiers:egui::Modifiers::NONE}]);
@@ -623,11 +627,11 @@ fn column_drag_keeps_the_full_distance_on_release_and_after_row_updates() {
         egui::Event::PointerMoved(end), egui::Event::PointerButton {
             pos:end,button:egui::PointerButton::Primary,pressed:false,modifiers:egui::Modifiers::NONE}]);
     let resize = view.inputs.iter().find(|input| input.action == "resize_column").expect("coalesced header drag");
-    assert_eq!(resize.value["width"], 612);
+    assert_eq!(resize.value["width"], (initial_width + 140.0).round() as u64);
 
     frame(&context, &mut view, &state, size, vec![]);
-    let start = egui::pos2(611.0, 13.0);
-    let end = egui::pos2(531.0, 13.0);
+    let start = egui::pos2(edge + 140.0, 13.0);
+    let end = egui::pos2(edge + 60.0, 13.0);
     frame(&context, &mut view, &state, size, vec![
         egui::Event::PointerMoved(start), egui::Event::PointerButton {
             pos:start,button:egui::PointerButton::Primary,pressed:true,modifiers:egui::Modifiers::NONE},
@@ -635,11 +639,11 @@ fn column_drag_keeps_the_full_distance_on_release_and_after_row_updates() {
     frame(&context, &mut view, &state, size, vec![egui::Event::PointerButton {
             pos:end,button:egui::PointerButton::Primary,pressed:false,modifiers:egui::Modifiers::NONE}]);
     let resize = view.inputs.iter().find(|input| input.action == "resize_column").expect("press and first move in one frame");
-    assert_eq!(resize.value["width"], 532);
+    assert_eq!(resize.value["width"], (initial_width + 60.0).round() as u64);
 
     frame(&context, &mut view, &state, size, vec![]);
-    let start = egui::pos2(531.0, 13.0);
-    let end = egui::pos2(571.0, 13.0);
+    let start = egui::pos2(edge + 60.0, 13.0);
+    let end = egui::pos2(edge + 100.0, 13.0);
     frame(&context, &mut view, &state, size, vec![
         egui::Event::PointerMoved(start), egui::Event::PointerButton {
             pos:start,button:egui::PointerButton::Primary,pressed:true,modifiers:egui::Modifiers::NONE},
@@ -647,19 +651,92 @@ fn column_drag_keeps_the_full_distance_on_release_and_after_row_updates() {
             pos:end,button:egui::PointerButton::Primary,pressed:false,modifiers:egui::Modifiers::NONE}]);
     assert_eq!(view.inputs.len(), 1);
     assert_eq!(view.inputs[0].action, "resize_column");
-    assert_eq!(view.inputs[0].value["width"], 572);
+    assert_eq!(view.inputs[0].value["width"], (initial_width + 100.0).round() as u64);
 
     state.root.enabled = false;
     frame(&context, &mut view, &state, size, vec![]);
-    let start = egui::pos2(571.0, 13.0);
-    let end = egui::pos2(491.0, 13.0);
+    let start = egui::pos2(edge + 100.0, 13.0);
+    let end = egui::pos2(edge + 20.0, 13.0);
     frame(&context, &mut view, &state, size, vec![
         egui::Event::PointerMoved(start), egui::Event::PointerButton {
             pos:start,button:egui::PointerButton::Primary,pressed:true,modifiers:egui::Modifiers::NONE},
         egui::Event::PointerMoved(end), egui::Event::PointerButton {
             pos:end,button:egui::PointerButton::Primary,pressed:false,modifiers:egui::Modifiers::NONE}]);
     assert!(view.inputs.is_empty());
-    assert_eq!(view.column_widths[&("table".into(), 0)], 572.0);
+    assert_eq!(view.column_widths[&("table".into(), 0)], initial_width + 100.0);
+}
+
+#[test]
+fn table_headers_and_rows_align_left_and_stretch_columns_leave_room_for_editors() {
+    for font in [14.0, 22.0] {
+        for width in [520.0, 1100.0] {
+            for (heading, value) in [("Money item", "Money_Copper"), ("Inherent bonus", "BuffLevel_HPRegen")] {
+                let context = egui::Context::default();
+                let mut view = PresentationView::default();
+                let mut state = state(control("table", "table", "", json!({
+                    "headers":true,"row_headers":true,"total":2,"grow_y":true,
+                    "columns":[{"index":0,"text":heading,"width":2400,"stretch":true},
+                               {"index":1,"text":"Parameter level","width":100}],
+                    "rows":[{"path":[0],"label":"1","cells":[{"text":value},
+                             {"text":"98765","editable":true,"enabled":true}]},
+                            {"path":[1],"label":"2","cells":[{"text":"Another item"},
+                             {"control":control("last-editor","number","",json!({"value":99}))}]}]
+                })));
+                state.theme["font_pixels"] = json!(font);
+                apply_theme(&context, &state.theme);
+                let size = egui::vec2(width, 600.0);
+                for _ in 0..3 { frame(&context, &mut view, &state, size, vec![]); }
+                let output = context.run_ui(egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+                    ..Default::default()
+                }, |ui| view.draw(ui, &state));
+                let texts: Vec<_> = output.shapes.iter().filter_map(|shape| match &shape.shape {
+                    egui::epaint::Shape::Text(text) => Some(text), _ => None,
+                }).collect();
+                let heading_text = texts.iter().find(|text| text.galley.job.text == heading).expect("full heading");
+                let value_text = texts.iter().find(|text| text.galley.job.text == value).expect("full name");
+                assert!((value_text.pos.x - heading_text.pos.x).abs() <= 1.0, "header={} row={} width={width} font={font}", heading_text.pos.x, value_text.pos.x);
+                assert!(value_text.pos.x < 60.0, "row must start at the left of its column");
+                let field = texts.iter().find(|text| text.galley.job.text == "98765").expect("editable price");
+                assert!(field.pos.x + field.galley.size().x < width);
+                let editor = view.rects.iter().find(|item| item.id == "last-editor").unwrap();
+                assert!(editor.rect[0] + editor.rect[2] <= width, "{editor:?}");
+            }
+        }
+    }
+}
+
+#[test]
+fn content_columns_keep_effect_headings_and_values_readable() {
+    for (width, font) in [(560.0, 14.0), (820.0, 22.0)] {
+        let context = egui::Context::default();
+        let mut view = PresentationView::default();
+        let mut state = state(control("effects", "table", "", json!({
+            "headers":true,"sortable":true,"sort_column":0,"total":1,
+            "columns":[{"index":0,"text":"Category","width":1000,"size_to_contents":true},
+                       {"index":1,"text":"Effect","width":2400,"stretch":true},
+                       {"index":2,"text":"Type","width":1000,"size_to_contents":true},
+                       {"index":3,"text":"Size","width":1000,"size_to_contents":true}],
+            "rows":[{"path":[0],"cells":[{"text":"Lightning"},{"text":"Cast 1 · Lightning"},
+                    {"text":"Unknown"},{"text":"31×41.5×3"}]}]
+        })));
+        state.theme["font_pixels"] = json!(font);
+        apply_theme(&context, &state.theme);
+        let size = egui::vec2(width, 600.0);
+        for _ in 0..3 { frame(&context, &mut view, &state, size, vec![]); }
+        let output = context.run_ui(egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+            ..Default::default()
+        }, |ui| view.draw(ui, &state));
+        for expected in ["Category ▴", "Lightning", "Effect", "Cast 1 · Lightning", "Type", "Unknown", "Size", "31×41.5×3"] {
+            let (clip, text) = output.shapes.iter().find_map(|shape| match &shape.shape {
+                egui::epaint::Shape::Text(text) if text.galley.job.text == expected => Some((shape.clip_rect, text)),
+                _ => None,
+            }).unwrap_or_else(|| panic!("missing {expected}"));
+            assert!(!text.galley.elided, "{expected} is truncated at {width}px");
+            assert!(text.pos.x + text.galley.size().x <= clip.right() + 1.0, "{expected} is clipped");
+        }
+    }
 }
 
 #[test]

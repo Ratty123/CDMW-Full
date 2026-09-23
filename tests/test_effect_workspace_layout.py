@@ -169,10 +169,15 @@ def test_styled_effect_tools_are_compact_and_do_not_overlap(monkeypatch, width, 
                     assert not button.geometry().intersects(other.geometry())
         for control in workspace.playback_controls._controls:
             assert control.width() <= control.sizeHint().width() + 4
-            assert workspace.playback_controls.rect().contains(control.geometry())
-        if width == 1600:
-            assert workspace.playback_controls._columns == len(workspace.playback_controls._controls)
-            assert workspace.playback_controls.height() < 40
+            assert workspace.guided_toolbar_panel.rect().contains(control.geometry())
+        assert workspace.guided_toolbar_panel.rect().contains(workspace.gizmo_visible.geometry())
+        assert workspace.preview_options_toggle.isChecked()
+        assert workspace.placement_toggle.isChecked()
+        workspace.placement_toggle.click()
+        assert workspace.placement_controls.isHidden()
+        assert not workspace.preview_options.isHidden()
+        workspace.placement_toggle.click()
+        assert not workspace.placement_controls.isHidden()
 
         tabs.setCurrentIndex(3)
         recipe.set_preview(SimpleNamespace(editor_emitters=({

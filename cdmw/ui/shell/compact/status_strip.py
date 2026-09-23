@@ -59,7 +59,7 @@ class CompactBottomStatusStrip(QFrame):
         super().__init__(parent)
         self.setObjectName("CompactBottomStatusStrip")
         self.setFrameShape(QFrame.NoFrame)
-        self.setMinimumHeight(42)
+        self.setMinimumHeight(30)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self._active_tool_key = ""
         self._snapshots: dict[str, CompactStatusSnapshot] = {}

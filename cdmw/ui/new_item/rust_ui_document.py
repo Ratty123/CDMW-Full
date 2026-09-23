@@ -309,6 +309,11 @@ class PresentationDocument:
     def _button(self, widget, node):
         node["kind"] = "radio" if isinstance(widget, QRadioButton) else "check" if isinstance(widget, QCheckBox) else "button"
         node["label"] = widget.text()
+        if isinstance(widget, QToolButton) and widget.isCheckable() and widget.arrowType() != Qt.ArrowType.NoArrow:
+            node["label"] = ("▾ " if widget.isChecked() else "▸ ") + widget.text()
+        if widget.property("effectToolbarButton") and not widget.icon().isNull():
+            node["tooltip"] = node["tooltip"] or widget.text()
+            node["label"] = ""
         parent = widget.parentWidget()
         if isinstance(parent, QDialogButtonBox) and parent.standardButton(widget) == QDialogButtonBox.NoButton:
             # Qt's shared localizer handles standard button-box labels; custom
@@ -344,7 +349,8 @@ class PresentationDocument:
     def layout(self, layout):
         children = []
         grid = isinstance(layout, (QGridLayout, QFormLayout))
-        horizontal = isinstance(layout, QBoxLayout) and layout.direction() in (QBoxLayout.LeftToRight, QBoxLayout.RightToLeft)
+        horizontal = (isinstance(layout, QBoxLayout) and layout.direction() in (QBoxLayout.LeftToRight, QBoxLayout.RightToLeft)
+                      or layout.__class__.__name__ == "WrappingLayout")
         for index in range(layout.count()):
             item = layout.itemAt(index)
             child = self.widget(item.widget()) if item.widget() is not None else self.layout(item.layout()) if item.layout() is not None else None

@@ -6,7 +6,7 @@ from dataclasses import replace
 
 from PySide6.QtCore import QSize, QTimer
 from PySide6.QtGui import QIcon, QImage, QPixmap
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QToolButton
+from PySide6.QtWidgets import QLabel, QToolButton
 
 from cdmw.domain.new_item.effect_authoring import EffectLook
 from cdmw.ui.new_item.effect_recipe_panel import EffectRecipePanel, EffectUserLibrary
@@ -15,11 +15,14 @@ from cdmw.ui.new_item.state import EffectWorkspaceState
 
 class EffectWorkspaceAuthoringMixin:
     def _build_library_tools(self, layout):
+        from cdmw.ui.wrapping_layout import WrappingLayout
         self.user_library = EffectUserLibrary(getattr(self._controller, 'effect_cache_path', None))
         self.recipe_panel = None
         self._thumbnail_request = None
         self._thumbnail_generation = None
-        row = QHBoxLayout()
+        row = WrappingLayout()
+        row.setSpacing(4)
+        self.library_tools = row
         self.favourite = QToolButton()
         self.favourite.setText('☆')
         self.favourite.setCheckable(True)
@@ -35,9 +38,6 @@ class EffectWorkspaceAuthoringMixin:
             button.setCheckable(True)
             button.clicked.connect(self._refresh_library)
             row.addWidget(button)
-        row.addStretch()
-        layout.addLayout(row)
-        row = QHBoxLayout()
         self.thumbnail = QToolButton()
         self.thumbnail.setText('Capture thumbnail')
         self.thumbnail.setToolTip('Use the current preview frame as this effect’s library thumbnail')
@@ -49,7 +49,6 @@ class EffectWorkspaceAuthoringMixin:
         self.large_thumbnails.setCheckable(True)
         self.large_thumbnails.toggled.connect(self._thumbnail_size_changed)
         row.addWidget(self.large_thumbnails)
-        row.addStretch()
         layout.addLayout(row)
         for button in (self.favourite, self.favourites_only, self.family_only,
                        self.thumbnail, self.large_thumbnails):

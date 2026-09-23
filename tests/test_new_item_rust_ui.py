@@ -330,7 +330,7 @@ def test_shell_model_loading_uses_compact_status_bar_and_keeps_cancel(studio, ru
             assert panel.model_icon_column.layout().indexOf(banner) == -1
             inspector_height = panel.model_icon_scroll.height()
             strip_height = strip.height()
-            assert strip_height == 42
+            assert strip_height == 30
             assert banner.parentWidget().isHidden()
 
             controller = workflow.controller
@@ -342,9 +342,17 @@ def test_shell_model_loading_uses_compact_status_bar_and_keeps_cancel(studio, ru
             assert banner.isVisible()
             assert panel.operation_spinner._timer.isActive()
             assert (panel.busy_bar.maximum(), panel.busy_bar.value()) == (8, 3)
+            assert panel.busy_bar.isTextVisible()
+            assert panel.busy_bar.height() >= panel.busy_bar.fontMetrics().height()
+            assert panel.busy_bar.text() == "37%"
             assert not panel.operation_label.wordWrap()
             assert panel.operation_label.toolTip() == detail
             assert panel.operation_label.width() > 40
+            assert 0 <= panel.busy_bar.x() - panel.operation_label.geometry().right() <= 10
+            controller.operation_progress.emit("model_import", 7, 8, "Build materials")
+            settle()
+            assert panel.busy_bar.text() == "87%"
+            assert 0 <= panel.busy_bar.x() - panel.operation_label.geometry().right() <= 10
             assert banner.parentWidget().x() > strip.cache_label.geometry().right()
             assert panel.cancel_operation_button.isVisible()
             assert panel.model_icon_scroll.height() == inspector_height
@@ -733,7 +741,7 @@ def test_perk_add_and_remove_route_through_the_same_double_click_and_button_hand
     _, tab, bridge = studio
     tab.show_step(4)
     panel = tab.perks_panel
-    _send(bridge, panel.tabs, "tab", 0)
+    _send(bridge, panel.tabs, "tab", panel.tabs.indexOf(panel.perks_page))
     _send(bridge, panel.own_perks, "toggle", True)
     _send(bridge, panel.perk_filter, "text", "Swift")
     before = tuple(tab.controller.draft.socket_items or ())

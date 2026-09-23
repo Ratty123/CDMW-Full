@@ -80,6 +80,40 @@ def test_playback_projects_one_compact_row_for_rust_to_wrap_at_its_own_width():
     placement.deleteLater()
 
 
+def test_guided_effect_toolbar_and_disclosures_project_and_dispatch(studio, monkeypatch):
+    from cdmw.ui.new_item.effect_placement_dialog import EffectPlacementWorkspace
+    from tests.test_effect_placement_dialog import _Host
+    _, tab, bridge = studio
+    tab.show_step(4)
+    QApplication.processEvents()
+    monkeypatch.setattr(EffectPlacementWorkspace, '_start_package', lambda self, **kwargs: None)
+    workspace = tab.perks_panel.effects_workspace
+    workspace._host_factory = _Host
+    workspace._rebuild_preview()
+    QApplication.processEvents()
+    placement = workspace.placement
+    assert placement is not None
+    toolbar = bridge.document.widget(placement.guided_toolbar_panel, force=True)['children'][0]
+    assert toolbar['kind'] == 'row'
+    controls = toolbar['children']
+    assert len(controls) == len(placement._guided_toolbar_buttons) + 7
+    for node in controls[:8]:
+        assert node['label'] == ''
+        assert node['tooltip']
+        assert node['props']['image']
+    assert controls[-1]['label'] == 'Show gizmo'
+    assert placement.preview_options_toggle.isChecked()
+    assert placement.preview_options.isVisibleTo(tab)
+    _send(bridge, placement.placement_toggle, 'toggle', False)
+    assert placement.placement_controls.isHidden()
+    _send(bridge, placement.placement_toggle, 'toggle', True)
+    assert placement.placement_controls.isVisibleTo(tab)
+    bonus = tab.perks_panel.bonus_editor
+    columns = bridge.document.widget(bonus.values, force=True)['props']['columns']
+    assert columns[0]['stretch']
+    assert not columns[1]['stretch']
+
+
 def test_distribution_tables_expand_and_edits_reach_the_same_draft(studio, tmp_path):
     from tests.test_new_item_acquisition_authoring import acquisition_game
     _, tab, bridge = studio

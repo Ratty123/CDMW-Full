@@ -528,7 +528,7 @@ class NewItemStudioTab(QWidget):
         body_layout.addWidget(self.steps)
         body_layout.addWidget(self.pages, 1)
         footer = QHBoxLayout()
-        footer.setContentsMargins(8, 6, 8, 2)
+        footer.setContentsMargins(8, 2, 8, 0)
         self.back_button = QPushButton("Back")
         self.back_button.clicked.connect(lambda: self._step_by(-1))
         self.continue_button = QPushButton("Continue")

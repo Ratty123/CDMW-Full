@@ -13,6 +13,7 @@ The format is intentionally simple:
 
 ### Changed
 
+- Create New Item uses left-aligned Rust lists and plain column headings. Effects combines viewport controls and Show gizmo in one compact toolbar, groups library actions, opens Preview options by default, and lets Placement collapse. Individual perk names omit the experimental suffix; the feature tab and hover details retain that context. Navigation and the bottom status strip use less height, with model progress percentages beside the operation text.
 - Create New Item opens Effects first with Browse effects expanded. Perks, sockets and bonuses share one Experimental Features tab with aligned, resizable panes and hover help. Recipes and Loot and rewards are marked experimental.
 - Installed overlays includes a right-hand preview of the selected installed item, with an item selector for multi-item overlays and cancellable background loading.
 - Create New Item (Rust) prepares its interface in the background after startup and reuses it when opened. Its loading message identifies New Item correctly.
@@ -50,6 +51,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Rust Create New Item sizes table columns within their panes, keeping shop prices, effect categories and inherent bonus names readable without unnecessary horizontal scrolling. Available and selected perks share aligned list and action rows.
 - Create New Item (Rust) restores the effects library at a usable width, keeps playback controls together and emitter values aligned, and gives sockets and recipe tables their available workspace height. Tab navigation no longer fails when an unrelated preview label changes; input errors go to Activity. Installed overlay selection enables removal review reliably.
 - Create New Item gives Stats & Prices full-height, resizable table panes in Classic and Rust, keeping short lists visible and editable. Removed the Recipes shortcut from Stats & Prices; recipes remain under Distribution.
 - Create New Item (Rust) no longer deadlocks when focus leaves a selected template row. A stalled Rust interface can be hidden and stopped without blocking CDMW, preserving access to the draft in Classic.

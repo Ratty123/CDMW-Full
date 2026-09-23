@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QDoubleSpinBox,
     QFormLayout,
+    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -101,14 +102,20 @@ class PerksPanel(QGroupBox):
         self.perk_count.setWordWrap(True)
         columns = QHBoxLayout()
         columns.setSpacing(8)
-        available_column = QVBoxLayout()
-        available_column.setSpacing(4)
-        available_column.addWidget(QLabel("Available perks"))
+        headings = QGridLayout()
+        headings.setHorizontalSpacing(8)
+        headings.setVerticalSpacing(4)
+        headings.setColumnStretch(0, 1)
+        headings.setColumnStretch(1, 1)
+        headings.addWidget(QLabel("Available perks"), 0, 0)
+        headings.addWidget(QLabel("Selected perks"), 0, 1)
         self.perk_filter = QLineEdit()
         self.perk_filter.setPlaceholderText("Search perks or internal IDs")
         self.perk_filter.setClearButtonEnabled(True)
         self.perk_filter.textChanged.connect(self._refresh_catalogue)
-        available_column.addWidget(self.perk_filter)
+        headings.addWidget(self.perk_filter, 1, 0)
+        headings.addWidget(self.perk_count, 1, 1)
+        custom_layout.addLayout(headings)
         self.perk_results = QListView()
         self.perk_results.setUniformItemSizes(True)
         self.perk_results.setLayoutMode(QListView.Batched)
@@ -120,21 +127,20 @@ class PerksPanel(QGroupBox):
         self.perk_results.doubleClicked.connect(
             lambda _item, _column=0: self._add_selected()
         )
-        available_column.addWidget(self.perk_results, 1)
+        available_list = QVBoxLayout()
+        available_list.addWidget(self.perk_results, 1)
+        columns.addLayout(available_list, 1)
         self.add_button = QPushButton("Add selected perk")
         self.add_button.clicked.connect(self._add_selected)
-        available_column.addWidget(self.add_button)
-        columns.addLayout(available_column, 1)
-
-        selected_column = QVBoxLayout()
-        selected_column.setSpacing(4)
-        selected_column.addWidget(QLabel("Selected perks"))
-        selected_column.addWidget(self.perk_count)
         self.chosen = QListWidget()
         self.chosen.setMinimumHeight(210)
         self.chosen.currentItemChanged.connect(self._chosen_perk_changed)
-        selected_column.addWidget(self.chosen, 1)
+        selected_list = QVBoxLayout()
+        selected_list.addWidget(self.chosen, 1)
+        columns.addLayout(selected_list, 1)
         buttons = QHBoxLayout()
+        buttons.setSpacing(4)
+        buttons.addWidget(self.add_button)
         self.remove_button = QPushButton("Remove")
         self.remove_button.clicked.connect(self._remove_selected)
         buttons.addWidget(self.remove_button)
@@ -142,9 +148,8 @@ class PerksPanel(QGroupBox):
         self.reset_button.clicked.connect(self._reset_to_template)
         buttons.addWidget(self.reset_button)
         buttons.addStretch(1)
-        selected_column.addLayout(buttons)
-        columns.addLayout(selected_column, 1)
         custom_layout.addLayout(columns, 1)
+        custom_layout.addLayout(buttons)
 
         # Compatibility data adapter for older integrations. It mirrors the visible list
         # but never opens a popup; the inline list is the sole presented catalogue.

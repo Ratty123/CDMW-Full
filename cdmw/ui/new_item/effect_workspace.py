@@ -205,7 +205,7 @@ class GuidedEffectsWorkspace(EffectWorkspaceAuthoringMixin, QWidget):
         self.reset_filters.setText("Reset filters")
         self.reset_filters.setAutoRaise(True)
         self.reset_filters.clicked.connect(self._reset_filters)
-        library_layout.addWidget(self.reset_filters, 0, Qt.AlignmentFlag.AlignLeft)
+        self.library_tools.addWidget(self.reset_filters)
         self.selection_detail = QLabel("")
         self.selection_detail.setObjectName("effect_selection_detail")
         self.selection_detail.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)

@@ -462,11 +462,11 @@ impl PresentationView {
                 top = header.min_rect().bottom() + 6.0;
             }
         }
-        let footer_height = control_height(ui) + 6.0;
+        let footer_height = control_height(ui) + 2.0;
         let footer_top = (rect.bottom() - footer_height).max(top + 80.0);
         let body_rect = egui::Rect::from_min_max(
             egui::pos2(rect.left(), top),
-            egui::pos2(rect.right(), footer_top - 4.0),
+            egui::pos2(rect.right(), footer_top - 2.0),
         );
         if let Some(body) = slot("body") {
             let mut body_ui = ui.new_child(
@@ -503,7 +503,7 @@ impl PresentationView {
                     egui::UiBuilder::new()
                         .id_salt(name)
                         .max_rect(egui::Rect::from_min_max(
-                            egui::pos2(left, footer_top + 4.0),
+                            egui::pos2(left, footer_top + 1.0),
                             egui::pos2(right, rect.bottom()),
                         ))
                         .layout(egui::Layout::top_down(egui::Align::Center)),
@@ -996,7 +996,7 @@ impl PresentationView {
     }
 
     fn button(&mut self, ui: &mut Ui, node: &Node) -> egui::Response {
-        let label = if node.label.is_empty() {
+        let label = if node.label.is_empty() && node.text("image").is_empty() {
             &node.tooltip
         } else {
             &node.label
@@ -1018,10 +1018,8 @@ impl PresentationView {
             RichText::new(label)
         };
         let mut button = if let Some(texture) = self.textures.get(node.text("image")) {
-            egui::Button::image_and_text(
-                egui::Image::new(texture).fit_to_exact_size(Vec2::splat(20.0)),
-                text,
-            )
+            let image = egui::Image::new(texture).fit_to_exact_size(Vec2::splat(if label.is_empty() { 16.0 } else { 20.0 }));
+            if label.is_empty() { egui::Button::image(image) } else { egui::Button::image_and_text(image, text) }
         } else {
             egui::Button::new(text)
         }
@@ -1419,27 +1417,67 @@ impl PresentationView {
             .iter()
             .filter(|column| column["hidden"] != true)
             .collect();
-        let row_header_width = if node.flag("row_headers") { 72.0 } else { 0.0 };
+        let row_header_width = if node.flag("row_headers") {
+            let digits = ui.painter().layout_no_wrap(
+                (node.number("total", 0.0) as u64).to_string(),
+                TextStyle::Body.resolve(ui.style()), ui.visuals().text_color(),
+            ).size().x;
+            node.array("rows").iter().map(|row| ui.painter().layout_no_wrap(
+                row["label"].as_str().unwrap_or("").to_owned(), TextStyle::Body.resolve(ui.style()),
+                ui.visuals().text_color()).size().x).fold(digits, f32::max).min(120.0) + 12.0
+        } else { 0.0 };
         let header_height = control_height(ui);
         let header_space = if node.flag("headers") { header_height + ui.spacing().item_spacing.y } else { 0.0 };
-        let width = ui.available_width() - row_header_width;
-        let total_width = columns
-            .iter()
-            .map(|column| column["width"].as_f64().unwrap_or(160.0))
-            .sum::<f64>()
-            .max(1.0);
-        let mut widths: Vec<_> = columns
-            .iter()
-            .map(|column| {
-                ((width - 8.0 * columns.len() as f32)
-                    * (column["width"].as_f64().unwrap_or(160.0) / total_width) as f32)
-                    .max(65.0)
-            })
-            .collect();
-        for (column, width) in columns.iter().zip(&mut widths) {
-            if let Some(resized) = self.column_widths.get(&(node.id.clone(), column["index"].as_u64().unwrap_or(0))) {
-                *width = *resized;
+        let gaps = ui.spacing().item_spacing.x
+            * (columns.len() + usize::from(row_header_width > 0.0)).saturating_sub(1) as f32;
+        let budget = (ui.available_width() - row_header_width - gaps
+            - ui.spacing().scroll.allocated_width()).max(0.0);
+        // Qt's hidden backing view can be much wider than this pane. Preserve
+        // content columns and give the remaining space to its stretch columns;
+        // scaling all widths equally starves short headings and price editors.
+        let minimums: Vec<f32> = columns.iter().map(|column| {
+            let heading = column["text"].as_str().unwrap_or("");
+            let heading = if node.flag("sortable") { format!("{heading} ▾") } else { heading.to_owned() };
+            let heading_width = ui.painter().layout_no_wrap(
+                heading, TextStyle::Body.resolve(ui.style()), ui.visuals().text_color(),
+            ).size().x + 2.0 * ui.spacing().button_padding.x + 4.0;
+            let index = column["index"].as_u64().unwrap_or(0) as usize;
+            let editor_width = node.array("rows").iter().map(|row| {
+                let cell = &row["cells"][index];
+                if let Ok(control) = serde_json::from_value::<Node>(cell["control"].clone()) {
+                    minimum_width(ui, &control).min(180.0)
+                } else if cell["editable"] == true { 64.0 } else { 0.0 }
+            }).fold(0.0, f32::max);
+            heading_width.clamp(40.0, 260.0).max(editor_width)
+        }).collect();
+        let manual: Vec<_> = columns.iter().map(|column| self.column_widths
+            .get(&(node.id.clone(), column["index"].as_u64().unwrap_or(0))).copied()).collect();
+        let mut widths: Vec<_> = columns.iter().enumerate().map(|(index, column)| {
+            manual[index].unwrap_or_else(|| if column["stretch"] == true {
+                minimums[index]
+            } else if column["size_to_contents"] == true {
+                let col = column["index"].as_u64().unwrap_or(0) as usize;
+                node.array("rows").iter().map(|row| {
+                    ui.painter().layout_no_wrap(row["cells"][col]["text"].as_str().unwrap_or("").to_owned(),
+                        TextStyle::Body.resolve(ui.style()), ui.visuals().text_color()).size().x
+                        + 2.0 * (ui.spacing().button_padding.x + ui.spacing().item_spacing.x)
+                }).fold(minimums[index], f32::max).min(220.0).max(minimums[index])
+            } else { (column["width"].as_f64().unwrap_or(160.0) as f32).max(minimums[index]) })
+        }).collect();
+        let used = widths.iter().sum::<f32>();
+        if used > budget {
+            let shrinkable: f32 = widths.iter().enumerate().filter(|(i, _)| manual[*i].is_none())
+                .map(|(i, width)| (width - minimums[i]).max(0.0)).sum();
+            let factor = ((used - budget) / shrinkable.max(1.0)).min(1.0);
+            for (index, width) in widths.iter_mut().enumerate() {
+                if manual[index].is_none() { *width -= (*width - minimums[index]).max(0.0) * factor; }
             }
+        } else {
+            let has_stretch = columns.iter().enumerate().any(|(i, column)| column["stretch"] == true && manual[i].is_none());
+            let stretch: Vec<_> = columns.iter().enumerate().filter(|(i, column)|
+                manual[*i].is_none() && (!has_stretch || column["stretch"] == true)).map(|(i, _)| i).collect();
+            let extra = (budget - used) / stretch.len().max(1) as f32;
+            for index in stretch { widths[index] += extra; }
         }
         let total = node.number("total", 0.0) as u64;
         let offset = node.number("offset", 0.0) as u64;
@@ -1457,7 +1495,7 @@ impl PresentationView {
         let mut at_end = false;
         let response = egui::ScrollArea::horizontal().id_salt("table-columns").auto_shrink([false,!fill_height])
             .max_height(height).show(ui, |ui| {
-                ui.set_min_width(widths.iter().sum::<f32>() + row_header_width + 8.0*columns.len() as f32);
+                ui.set_min_width(widths.iter().sum::<f32>() + row_header_width + gaps);
                 if node.flag("headers") { ui.horizontal(|ui| {
                     if row_header_width > 0.0 { ui.allocate_space(Vec2::new(row_header_width,header_height)); }
                     for (column,width) in columns.iter().zip(&widths) {
@@ -1467,8 +1505,14 @@ impl PresentationView {
                         }
                         let (header_rect, _) = ui.allocate_exact_size(Vec2::new(*width,header_height),egui::Sense::hover());
                         let mut button_rect = header_rect;
+                        button_rect.min.x += ui.spacing().button_padding.x;
                         if column["resizable"] == true { button_rect.max.x -= 4.0; }
-                        let response = ui.put(button_rect,egui::Button::new(&text).truncate()).on_hover_text(&text);
+                        let sense = if node.flag("sortable") { egui::Sense::click() } else { egui::Sense::hover() };
+                        let response = ui.interact(button_rect, ui.id().with(("column-header", column["index"].as_u64())), sense).on_hover_text(&text);
+                        ui.painter().with_clip_rect(ui.clip_rect().intersect(button_rect)).text(
+                            button_rect.left_center(), egui::Align2::LEFT_CENTER, &text,
+                            TextStyle::Body.resolve(ui.style()), ui.visuals().text_color());
+                        ui.painter().hline(header_rect.x_range(), header_rect.bottom(), ui.visuals().widgets.noninteractive.bg_stroke);
                         ui.advance_cursor_after_rect(header_rect);
                         if response.clicked() && node.flag("sortable") {
                             self.input(node,"sort",json!({"column":column["index"],"descending":!node.flag("sort_descending")}));
@@ -1519,7 +1563,7 @@ impl PresentationView {
                     .min_scrolled_height(0.0)
                     .max_height((height-header_space).max(header_height)).show(ui, |ui| {
                         if node.array("rows").is_empty() { ui.weak("—"); }
-                        self.table_rows(ui,node,&node.props,&columns,&widths,0,focus_id);
+                        self.table_rows(ui,node,&node.props,&columns,&widths,row_header_width,0,focus_id);
                     });
                 let scrolling_down = ui.input(|input| input.pointer.latest_pos().is_some_and(|point| rows.inner_rect.contains(point))
                     && input.raw.events.iter().any(|event| matches!(event, egui::Event::MouseWheel { delta, .. } if delta.y < 0.0)));
@@ -1564,6 +1608,7 @@ impl PresentationView {
         props: &Value,
         columns: &[&Value],
         widths: &[f32],
+        row_header_width: f32,
         depth: usize,
         focus_id: egui::Id,
     ) {
@@ -1572,7 +1617,7 @@ impl PresentationView {
                 ui.push_id(row["path"].to_string(), |ui| {
                     ui.horizontal(|ui| {
                         if node.flag("row_headers") {
-                            ui.add_sized(Vec2::new(72.0, control_height(ui)), egui::Label::new(row["label"].as_str().unwrap_or("")).truncate());
+                            ui.add_sized(Vec2::new(row_header_width, control_height(ui)), egui::Label::new(row["label"].as_str().unwrap_or("")).truncate());
                         }
                         for (column, width) in columns.iter().zip(widths) {
                             let col = column["index"].as_u64().unwrap_or(0) as usize;
@@ -1600,7 +1645,8 @@ impl PresentationView {
                                         let mut text = self.edit_text(&key, node.revision, cell["text"].as_str().unwrap_or(""));
                                         let background = Color32::from_hex(cell["background"].as_str().unwrap_or(""))
                                             .unwrap_or(ui.visuals().extreme_bg_color);
-                                        let response = ui.add(egui::TextEdit::singleline(&mut text).desired_width(*width).background_color(background));
+                                        let response = ui.add_sized(Vec2::new(*width, control_height(ui)),
+                                            egui::TextEdit::singleline(&mut text).desired_width(0.0).background_color(background));
                                         if response.clicked() {
                                             self.input(node, "select", json!({"path":row["path"],"column":col,"mode":"click"}));
                                         }
@@ -1615,7 +1661,7 @@ impl PresentationView {
                                         if cell["italic"] == true { text = text.italics(); }
                                         if cell["selected"] == true { text = text.color(ui.visuals().selection.stroke.color); }
                                         else if let Ok(color) = Color32::from_hex(cell["foreground"].as_str().unwrap_or("")) { text = text.color(color); }
-                                        let mut button = egui::Button::selectable(cell["selected"] == true,text).truncate();
+                                        let mut button = egui::Button::selectable(cell["selected"] == true, "").left_text(text).truncate();
                                         if cell["selected"] != true {
                                             if let Ok(color) = Color32::from_hex(cell["background"].as_str().unwrap_or("")) { button = button.fill(color); }
                                         }
@@ -1638,7 +1684,7 @@ impl PresentationView {
                         }
                     });
                     if row["nested"].is_object() {
-                        self.table_rows(ui, node, &row["nested"], columns, widths, depth + 1,focus_id);
+                        self.table_rows(ui, node, &row["nested"], columns, widths, row_header_width, depth + 1,focus_id);
                         self.paging(ui,node,&row["nested"]);
                     }
                 });
@@ -1743,7 +1789,8 @@ fn minimum_width(ui: &Ui, node: &Node) -> f32 {
         "slider" => 140.0,
         "button" | "action" | "check" | "radio" => {
             let font = TextStyle::Button.resolve(ui.style());
-            let label = if node.label.is_empty() {
+            if node.label.is_empty() && !node.text("image").is_empty() { return control_height(ui) + 4.0; }
+            let label = if node.label.is_empty() && node.text("image").is_empty() {
                 &node.tooltip
             } else {
                 &node.label
@@ -1758,6 +1805,11 @@ fn minimum_width(ui: &Ui, node: &Node) -> f32 {
             };
             (text.size().x + ui.spacing().button_padding.x * 2.0 + accessory + 4.0)
                 .clamp(24.0, 360.0)
+        }
+        "choice" if !node.flag("grow_x") && !node.flag("editable") => {
+            (ui.painter().layout_no_wrap(node.text("text").to_owned(),
+                TextStyle::Button.resolve(ui.style()), ui.visuals().text_color()).size().x
+                + ui.spacing().icon_width + ui.spacing().item_spacing.x + ui.spacing().button_padding.x * 2.0 + 8.0).clamp(80.0, 240.0)
         }
         "text" | "choice" => 150.0,
         "row" => node.children.iter().map(|child| minimum_width(ui, child)).sum::<f32>()
@@ -1791,7 +1843,24 @@ fn estimate_height(ui: &Ui, node: &Node, width: f32) -> f32 {
             * (control_height(ui) + ui.spacing().item_spacing.y)
             + if node.flag("headers") { control_height(ui) + ui.spacing().item_spacing.y } else { 0.0 },
         "viewport" => 260.0,
-        "row" | "split" => node
+        "row" => {
+            let mut used = 0.0;
+            let mut height = 0.0;
+            let mut line_height: f32 = 0.0;
+            for child in &node.children {
+                let child_width = minimum_width(ui, child).min(width);
+                if used > 0.0 && used + ui.spacing().item_spacing.x + child_width > width {
+                    height += line_height + ui.spacing().item_spacing.y;
+                    used = 0.0;
+                    line_height = 0.0;
+                }
+                if used > 0.0 { used += ui.spacing().item_spacing.x; }
+                used += child_width;
+                line_height = line_height.max(estimate_height(ui, child, child_width));
+            }
+            height + line_height
+        }
+        "split" => node
             .children
             .iter()
             .map(|child| estimate_height(ui, child, width / node.children.len().max(1) as f32))

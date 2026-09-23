@@ -18,8 +18,6 @@ def perk_choices(snapshot, query, stop_event):
             internal = str(row.string_key or "")
             name = english.get(row.name_key)
             label = str(name.text) if name is not None else internal
-            if not users.get(key) and not internal.endswith(("_II", "_III")):
-                label += " — experimental"
             description = str(getattr(english.get(row.desc_key), "text", "") or "").strip()
             lowered = internal.casefold()
             kind = "Ability" if "item_skill" in lowered else "Stat perk" if "item_stat" in lowered else "Perk"

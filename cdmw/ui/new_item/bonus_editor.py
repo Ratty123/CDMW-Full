@@ -1,7 +1,8 @@
 """Equipment bonus presets and established per-enhancement parameter levels."""
 from dataclasses import replace
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QCheckBox, QComboBox, QHBoxLayout, QLabel, QPushButton, QSpinBox,
+    QCheckBox, QComboBox, QHeaderView, QHBoxLayout, QLabel, QPushButton, QSpinBox,
     QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
 from cdmw.domain.new_item.authoring import EquipmentBonus, LevelBonuses
@@ -45,7 +46,9 @@ class BonusEditor(QWidget):
         layout.addLayout(row)
         self.values = QTableWidget(0, 2)
         self.values.setHorizontalHeaderLabels(["Inherent bonus", "Parameter level"])
-        self.values.horizontalHeader().setStretchLastSection(True)
+        self.values.verticalHeader().hide()
+        self.values.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.values.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
         layout.addWidget(self.values, 1)
         row = QHBoxLayout()
         self.advanced = QComboBox()
@@ -149,6 +152,7 @@ class BonusEditor(QWidget):
             for i, bonus in enumerate(chosen):
                 buff = self.index.buffs.get(bonus.buff_key) if self.index else None
                 label = QTableWidgetItem(buff.name if buff else str(bonus.buff_key))
+                label.setFlags(label.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 self.values.setItem(i, 0, label)
                 value = QSpinBox()
                 value.setRange(buff.minimum if buff else bonus.parameter, buff.maximum if buff else bonus.parameter)

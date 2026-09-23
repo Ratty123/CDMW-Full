@@ -75,6 +75,7 @@ def test_bonus_inheritance_partial_overrides_and_explicit_clearing(tmp_path):
 
 
 def test_bonus_widget_loads_presets_applies_all_and_restores_inheritance(tmp_path):
+    from PySide6.QtCore import Qt
     app = QApplication.instance() or QApplication([])
     service, snapshot = game_with_bonus(tmp_path)
     controller = NewItemStudioController(synchronous=True)
@@ -84,6 +85,7 @@ def test_bonus_widget_loads_presets_applies_all_and_restores_inheritance(tmp_pat
     widget.load.click()
     assert widget.index is not None
     widget.customize.setChecked(True)
+    assert not widget.values.item(0, 0).flags() & Qt.ItemFlag.ItemIsEditable
     widget.values.cellWidget(0, 1).setValue(2)
     widget.apply_all.click()
     assert all(level.bonuses[0].parameter == 2 for level in controller.draft.equipment_bonuses)
