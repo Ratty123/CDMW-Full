@@ -6,7 +6,7 @@ import ctypes
 import sys
 from ctypes import wintypes
 
-from PySide6.QtCore import QEvent, Qt, Signal
+from PySide6.QtCore import QEvent, QTimer, Qt, Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QFrame,
@@ -96,6 +96,9 @@ class RustMeshEditorHostFrame(QFrame):
         self._child_process_id = 0
         self._launch_parent_hwnd = 0
         self._editor_visible = False
+        self._geometry_sync_timer = QTimer(self)
+        self._geometry_sync_timer.setSingleShot(True)
+        self._geometry_sync_timer.timeout.connect(self._sync_child_geometry_after_layout)
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -285,6 +288,10 @@ class RustMeshEditorHostFrame(QFrame):
         except (AttributeError, OSError, TypeError, ValueError):
             return
 
+    def _sync_child_geometry_after_layout(self) -> None:
+        if self._editor_visible and self.isVisible():
+            self._sync_child_geometry()
+
     def detach_child_window(self) -> None:
         self._set_child_visible(False)
         self._child_hwnd = 0
@@ -341,6 +348,10 @@ class RustMeshEditorHostFrame(QFrame):
             if self._editor_visible:
                 self._sync_child_geometry(force_frame_refresh=event_type == QEvent.Type.Show)
                 self._set_child_visible(self.isVisible())
+                # Qt can deliver Show/Resize before resizing the native parent,
+                # especially when a prewarmed hidden tab first becomes visible.
+                # Coalesce a second sync after that native layout has settled.
+                self._geometry_sync_timer.start(0)
         elif event_type == QEvent.Type.Hide:
             self._set_child_visible(False)
         elif event_type == QEvent.Type.FocusIn and self._child_hwnd > 0:

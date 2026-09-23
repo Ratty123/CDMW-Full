@@ -30,6 +30,8 @@ the Rust tab and its renderer in the background. Opening it reuses that process;
 hidden state polling stops after the first acknowledgement. An early click can
 still show New Item's loading message while preparation finishes. The renderer
 remains owned by the tab and participates in normal asynchronous shutdown.
+The native window resizes after Qt settles its container geometry, so the first
+opening fills the workspace even when preparation happened in a hidden tab.
 
 The embedded child takes keyboard focus on clicks and supplies its actual Win32
 focus state to egui. Field edits finish before navigation or dialog actions hide

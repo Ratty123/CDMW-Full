@@ -23,6 +23,7 @@ class _FakeUser32:
         self.visible: list[int] = []
         self.positions: list[tuple[int, int, int]] = []
         self.focused: list[int] = []
+        self.client_size = (800, 600)
 
     def IsWindow(self, _hwnd: object) -> bool:  # noqa: N802
         return True
@@ -47,8 +48,7 @@ class _FakeUser32:
     def GetClientRect(self, _hwnd: object, rect: object) -> bool:  # noqa: N802
         rect._obj.left = 0
         rect._obj.top = 0
-        rect._obj.right = 800
-        rect._obj.bottom = 600
+        rect._obj.right, rect._obj.bottom = self.client_size
         return True
 
     def SetWindowPos(self, _child: object, _after: object, _x: int, _y: int, width: int, height: int, flags: int) -> bool:  # noqa: N802
@@ -187,6 +187,36 @@ def test_host_resizes_hides_focuses_and_reparents_the_owned_child() -> None:
     assert 5 in api.visible
     assert api.focused[-1] == 123
     assert api.parent_hwnd == launch_parent + 10
+    host.deleteLater()
+    application.processEvents()
+
+
+def test_prewarmed_host_uses_native_size_settled_after_show_and_resize() -> None:
+    application = QApplication.instance() or QApplication([])
+    host = RustMeshEditorHostFrame()
+    launch_parent = host.prepare_launch()
+    api = _FakeUser32(owner_pid=77, parent_hwnd=launch_parent)
+    with patch("cdmw.ui.mesh_editor.rust_host._windows_api", return_value=api):
+        assert host.attach_child_window(123, 77, launch_parent) == (True, "")
+        assert not host.isVisible()
+        host.show()
+        assert api.positions[-1][:2] == (800, 600)
+        # Windows finishes its parent resize after Qt sends Show/Resize.
+        api.client_size = (1600, 900)
+        application.processEvents()
+        assert api.positions[-1][:2] == (1600, 900)
+
+        host.resize(1100, 720)
+        api.client_size = (1650, 1080)
+        application.processEvents()
+        assert api.positions[-1][:2] == (1650, 1080)
+
+        host.resize(1200, 800)
+        host.hide()
+        positions = len(api.positions)
+        application.processEvents()
+        assert len(api.positions) == positions
+        host.detach_child_window()
     host.deleteLater()
     application.processEvents()
 

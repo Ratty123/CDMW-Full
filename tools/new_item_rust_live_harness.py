@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import ctypes
+from ctypes import wintypes
 import json
 import os
 from pathlib import Path
@@ -37,6 +38,7 @@ def main():
     from cdmw.services.new_item_rust_runtime import NewItemUiLaunch
     from cdmw.services.new_item_rust_protocol import PROTOCOL
     from cdmw.ui.new_item.rust_ui_tab import RustNewItemStudioTab
+    from cdmw.ui.shell.lazy_tool_tab import LazyToolTab
     import test_new_item_studio_tab as support
 
     settings_root = tempfile.TemporaryDirectory(prefix="cdmw-new-item-live-settings-")
@@ -53,11 +55,34 @@ def main():
     sent_states = []
     native_inputs = []
     rejected_inputs = []
+    geometry_checks = []
     preview_host = None
     preview_root = tempfile.TemporaryDirectory(prefix="cdmw-new-item-native-preview-") if args.preview else None
     user32 = ctypes.WinDLL("user32", use_last_error=True)
     user32.PostMessageW.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_size_t, ctypes.c_ssize_t]
     user32.PostMessageW.restype = ctypes.c_int
+    user32.GetClientRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
+    user32.GetClientRect.restype = wintypes.BOOL
+
+    def native_size(hwnd):
+        rect = wintypes.RECT()
+        assert user32.GetClientRect(hwnd, ctypes.byref(rect))
+        return [rect.right - rect.left, rect.bottom - rect.top]
+
+    def geometry():
+        host = experimental._host
+        return {"host_qt": [host.width(), host.height()],
+                "host_native": native_size(host.host_hwnd()),
+                "child_native": native_size(host.child_hwnd)}
+
+    def check_geometry(label):
+        pump(0.3)
+        sizes = geometry()
+        geometry_checks.append({"stage": label, **sizes})
+        print(json.dumps(geometry_checks[-1]), flush=True)
+        assert sizes["child_native"] == sizes["host_native"], sizes
+        checks.append(label)
+
     crop_timer = QTimer()
     crop_timer.setInterval(30)
 
@@ -91,7 +116,6 @@ def main():
 
     def click_native_control(widget, index=0):
         """Locate a real control and click only this probe's owned child HWND."""
-        from ctypes import wintypes
         experimental._state_fingerprint = b""
         experimental._publish_state()
         pump(0.2)
@@ -190,40 +214,60 @@ def main():
             experimental._send = record_send
             experimental._handle_message = record_input
             experimental.status_message_requested.connect(lambda text, error: errors.append(text) if error else None)
-            experimental.setAttribute(Qt.WA_DontShowOnScreen, not args.visible)
-            experimental.resize(1280, 850)
-            experimental.prewarm()
+            # Match the shell: construct and prewarm inside a hidden lazy tab,
+            # then select it for the first time at the workspace's actual size.
+            shell = QWidget()
+            shell.setAttribute(Qt.WA_DontShowOnScreen, not args.visible)
+            shell.setWindowTitle(f"CDMW Rust UI - {args.report.stem}")
+            shell.resize(1500, 950)
+            shell_layout = QHBoxLayout(shell)
+            navigation = QVBoxLayout()
+            shell_layout.addLayout(navigation)
+            pages = QStackedWidget()
+            other = QPushButton("Other tool remains responsive")
+            pages.addWidget(other)
+            container = LazyToolTab(lambda: experimental)
+            pages.addWidget(container)
+            for title, page in [("Create New Item (Rust)", container), ("Other tool", other)]:
+                button = QPushButton(title)
+                navigation.addWidget(button)
+                button.clicked.connect(lambda _checked=False, page=page: pages.setCurrentWidget(page))
+            navigation.addStretch()
+            shell_layout.addWidget(pages, 1)
+            if args.visible:
+                shell.showMaximized()
+            else:
+                shell.show()
+            container.when_created(lambda widget: widget.prewarm())
+            container.request_widget()
             until(lambda: experimental._ready and experimental._received_generation > 0,
                   "hidden_prewarm_ready_and_state_acknowledged")
             warm_pid = experimental._process.processId()
             assert not experimental.isVisible() and not experimental._timer.isActive()
-            experimental.show()
+            geometry_checks.append({"stage": "hidden_prewarm", **geometry()})
+            pages.setCurrentWidget(container)
             until(lambda: experimental._ready and experimental._received_generation > 0, "real_child_ready_and_state_acknowledged")
+            check_geometry("first_open_child_fills_host")
             assert experimental._process.processId() == warm_pid
             checks.append("opening_reuses_prewarmed_process")
+            shell.showNormal()
+            shell.resize(1100, 720)
+            check_geometry("resized_child_fills_host")
+            pages.setCurrentWidget(other)
+            shell.resize(1500, 950)
+            pages.setCurrentWidget(container)
+            check_geometry("reopened_child_fills_host")
+            assert experimental._process.processId() == warm_pid
+            checks.append("resize_and_tool_switch_reuse_prewarmed_process")
+            if args.visible:
+                shell.showMaximized()
+                check_geometry("maximized_child_fills_host")
             user32.IsWindowVisible.argtypes = [ctypes.c_void_p]
             user32.IsWindowVisible.restype = ctypes.c_int
-            assert bool(user32.IsWindowVisible(int(experimental.winId()))) == args.visible
+            assert bool(user32.IsWindowVisible(experimental._host.child_hwnd)) == args.visible
             if args.interactive:
-                shell = QWidget()
-                shell.setWindowTitle(f"CDMW Rust UI - {args.report.stem}")
-                shell.resize(1500, 950)
-                shell_layout = QHBoxLayout(shell)
-                navigation = QVBoxLayout()
-                shell_layout.addLayout(navigation)
-                pages = QStackedWidget()
-                pages.addWidget(experimental)
-                other = QPushButton("Other tool remains responsive")
-                pages.addWidget(other)
-                for title, page in [("Create New Item (Rust)", experimental), ("Other tool", other)]:
-                    button = QPushButton(title)
-                    navigation.addWidget(button)
-                    button.clicked.connect(lambda _checked=False, page=page: pages.setCurrentWidget(page))
-                navigation.addStretch()
-                shell_layout.addWidget(pages, 1)
                 workflow.template_panel.filter_edit.clear()
                 workflow.identity_panel.display_name.setText("Owned fixture")
-                shell.show()
                 if args.preview:
                     from cdmw.services.mesh_rust_preview_package import build_rust_preview_package
                     from tests.test_effect_placement_dialog import _blade
@@ -301,8 +345,9 @@ def main():
                 assert preview_host.set_view(yaw=35, pitch=65)
                 after = capture("native_preview_after_camera")
                 assert before != after, "The actual renderer must apply the camera change"
-            experimental.resize(1100, 720)
+            shell.resize(1100, 720)
             QApplication.processEvents()
+            check_geometry("preview_resize_child_fills_host")
             until(lambda: experimental._received_generation == experimental._sent_generation, "resize_document_acknowledged")
             assert int(viewport.winId()) == old_handle
             session_before_failure = experimental._bridge.session
@@ -352,6 +397,7 @@ def main():
         assert not any(root.exists() for root in launches), "Owned launch manifests were not cleaned"
         args.report.parent.mkdir(parents=True, exist_ok=True)
         args.report.write_text(json.dumps({"checks": checks, "errors": errors, "native_inputs": native_inputs,
+            "geometry": geometry_checks,
             "rejected_inputs": rejected_inputs, "hidden": not args.visible,
             "renderer": str(args.renderer.resolve()), "source": "owned_synthetic_fixture"}, indent=2), encoding="utf-8")
     print(json.dumps({"passed": len(checks), "report": str(args.report)}))
