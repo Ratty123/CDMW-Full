@@ -652,6 +652,92 @@ fn short_tables_fit_their_actual_font_height_without_clipping_the_last_row() {
     }
 }
 
+fn template_results_state(total: u64, offset: u64, preview: bool) -> State {
+    let end = (offset + 128).min(total);
+    let mut table = control("matches", "table", "", json!({"total":total,"offset":offset,"end":end,
+        "model":[1,1],"headers":true,"columns":[{"index":0,"text":"Item name","width":400}]}));
+    table.stretch = 1;
+    table.props["rows"] = json!((offset..end).map(|index| json!({"path":[index],
+        "cells":[{"text":format!("Template {index}"),"enabled":true}]})).collect::<Vec<_>>());
+    let mut selection = control("selection", "column", "", json!({}));
+    selection.children = vec![control("find", "text", "", json!({"text":""})),
+        control("summary", "label", "", json!({"text":"Current item tables"})), table];
+    let mut split = control("template-split", "split", "", json!({"horizontal":true,"sizes":[800,400]}));
+    split.children.push(selection);
+    if preview { split.children.push(control("preview", "viewport", "", json!({}))); }
+    let mut page = control("page", "scroll", "", json!({}));
+    page.slot = "body".into();
+    page.children.push(split);
+    let mut root = control("workspace", "workspace", "", json!({}));
+    let mut next = control("continue", "button", "Continue", json!({}));
+    next.slot = "next".into();
+    root.children = vec![page, next];
+    state(root)
+}
+
+#[test]
+fn template_results_fill_the_page_and_keep_their_height_on_the_last_page() {
+    for preview in [false, true] {
+        for font in [14, 22] {
+            let context = egui::Context::default();
+            let mut state = template_results_state(900, 0, preview);
+            state.theme["font_pixels"] = json!(font);
+            apply_theme(&context, &state.theme);
+            let mut view = PresentationView::default();
+            let size = egui::vec2(1440.0, 1000.0);
+            for _ in 0..4 { frame(&context, &mut view, &state, size, vec![]); }
+            let before = view.rects.iter().find(|rect| rect.id == "matches").unwrap().rect;
+            let footer = view.rects.iter().find(|rect| rect.id == "continue").unwrap().rect;
+            assert!(before[3] > 800.0, "Template list must fill the browser, not an eight-row slot: {before:?}");
+            assert!(footer[1] - before[1] - before[3] < 55.0, "Unused space before the footer: {before:?}, {footer:?}");
+            let mut last = template_results_state(900, 896, preview);
+            last.theme = state.theme.clone();
+            for _ in 0..4 { frame(&context, &mut view, &last, size, vec![]); }
+            let after = view.rects.iter().find(|rect| rect.id == "matches").unwrap().rect;
+            assert_eq!(before, after, "The final four rows must not collapse the browser");
+        }
+    }
+}
+
+#[test]
+fn template_scrolling_requests_more_only_once_at_the_end_of_loaded_results() {
+    let context = egui::Context::default();
+    let mut state = template_results_state(900, 0, false);
+    apply_theme(&context, &state.theme);
+    let mut view = PresentationView::default();
+    let size = egui::vec2(1440.0, 1000.0);
+    for _ in 0..4 { frame(&context, &mut view, &state, size, vec![]); }
+    let mut requests = Vec::new();
+    let scroll_to_end = |view: &mut PresentationView, state: &State, requests: &mut Vec<Value>| {
+        for _ in 0..24 {
+            frame(&context, view, state, size, vec![egui::Event::PointerMoved(egui::pos2(300.0,200.0)),
+                egui::Event::MouseWheel { unit:egui::MouseWheelUnit::Point, delta:egui::vec2(0.0,-400.0), phase:egui::TouchPhase::Move, modifiers:egui::Modifiers::NONE }]);
+            requests.extend(view.inputs.iter().filter(|input| input.action == "range" && input.value["end"] == true).map(|input| input.value.clone()));
+        }
+    };
+    scroll_to_end(&mut view, &state, &mut requests);
+    assert!(requests.is_empty(), "Scrolling the first 128 of 900 rows must not fetch more Qt rows: {requests:?}");
+
+    state = template_results_state(900, 768, false);
+    scroll_to_end(&mut view, &state, &mut requests);
+    assert!(requests.is_empty(), "The loaded results still have another page");
+
+    state = template_results_state(896, 768, false);
+    scroll_to_end(&mut view, &state, &mut requests);
+    assert_eq!(requests.len(), 1, "The last loaded page must request more once, not on every frame");
+    let rectangle = view.rects.iter().find(|rect| rect.id == "matches").unwrap().rect;
+    for _ in 0..30 {
+        state.generation += 1;
+        frame(&context, &mut view, &state, size, vec![]);
+        assert!(!view.inputs.iter().any(|input| input.action == "range" && input.value["end"] == true));
+        assert_eq!(view.rects.iter().find(|rect| rect.id == "matches").unwrap().rect, rectangle);
+    }
+    state = template_results_state(900, 896, false);
+    scroll_to_end(&mut view, &state, &mut requests);
+    assert_eq!(requests.len(), 2, "A short final page must still be able to fetch more rows");
+    assert_eq!(requests[1]["offset"], 896);
+}
+
 #[test]
 fn narrow_split_keeps_the_stacked_inspector_reachable_by_scrolling() {
     let context = egui::Context::default();

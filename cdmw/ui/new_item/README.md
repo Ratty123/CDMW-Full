@@ -52,7 +52,10 @@ and authoring viewports. The overlay folder field accepts digits; leave it blank
 for Auto or enter a folder number from 0036 to 9999.
 Projected dialogs retain their original results and block edits behind them in
 the bridge without registering a second hidden Qt modal window, which would
-disable the visible application. Template results fill the available height;
+disable the visible application. Template results fill the available height,
+including a short final page, while inspector lists remain compact. Scrolling
+requests more source rows only at the end of the loaded results, once per unchanged
+model and page. Previous and Next navigate the projected pages.
 Internal Name starts wider and header edges resize columns. Preview portals move
 the complete native host, keeping its loading/status overlays in one stable slot
 and retaining a layout placeholder for interface switches.

@@ -563,6 +563,34 @@ def test_context_menu_returns_the_original_selected_action(studio):
         menu.deleteLater()
 
 
+def test_template_paging_keeps_results_until_the_last_loaded_page(studio):
+    from cdmw.ui.new_item.panels_template import _MATCH_PAGE_SIZE
+    _, workflow, bridge = studio
+    panel = workflow.template_panel
+    panel._preferred_match_key = -1
+    panel._requested_row_count = 300
+    panel._show_matches([(TEMPLATE, f"fixture_{index:04}", f"Fixture {index}", "OneHandSword")
+                         for index in range(900)])
+    QApplication.processEvents()
+    search = panel.filter_edit.text()
+    bridge.snapshot()
+    identifier = bridge.document.registry.identify(panel.matches)
+
+    def props():
+        bridge.snapshot()
+        return bridge.document.registry.current[identifier]["props"]
+
+    assert (props()["offset"], props()["end"], props()["total"]) == (0, 128, 300)
+    _send(bridge, panel.matches, "range", {"offset": 128})
+    assert (props()["offset"], props()["end"], props()["total"]) == (128, 256, 300)
+    _send(bridge, panel.matches, "range", {"offset": 256, "end": True})
+    total = 300 + _MATCH_PAGE_SIZE
+    assert (props()["offset"], props()["end"], props()["total"]) == (256, min(384, total), total)
+    assert panel.filter_edit.text() == search
+    assert panel.matches.topLevelItem(256).text(0) == "fixture_0256"
+    assert workflow.controller.draft.template_key == TEMPLATE
+
+
 def test_expanded_tree_budget_preserves_paging_for_later_branches():
     from PySide6.QtWidgets import QTreeWidget, QTreeWidgetItem
     app = QApplication.instance() or QApplication([])

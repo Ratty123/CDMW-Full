@@ -48,6 +48,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Create New Item (Rust) keeps the Template list full height, including its final page. Scrolling requests more results only once at the end of the loaded list, preventing repeated refreshes and flicker.
 - Create New Item (Rust) keeps editable dropdowns on one row, opens compact context menus, fits small dialogs to their fields, and groups dialog actions below scrolling content. Empty lists no longer reserve blank space, table rows accommodate the selected font, and narrow panels keep their inspectors reachable. Additional instructions appear in hover help.
 - Create New Item (Rust) keeps its viewport stable when inspector sections expand, sizes buttons and short lists to their contents, groups related actions, and uses a compact footer. Instructions appear as hover help, dropdowns and tooltips stay above native previews, and the Auto overlay folder field accepts numeric input without validator errors. Mesh and item viewport wheel zoom follows the pointer.
 - Create New Item viewports frame newly selected templates reliably during rapid switches and otherwise retain the live camera across effect loading, material and model updates, character visibility, variants, display modes and tab switches. Model gizmos stay centered on visible geometry, and a shared Show gizmo checkbox in item and effect viewports remembers its state across restarts while keeping the orientation control available.

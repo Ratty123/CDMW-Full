@@ -20,6 +20,7 @@ pub struct PresentationView {
     accepted_edits: HashMap<String, Value>,
     split_sizes: HashMap<String, (u64, Vec<f32>)>,
     table_focus: HashMap<String, egui::Id>,
+    table_end_requests: HashMap<String, (Value, u64, u64)>,
     column_widths: HashMap<(String, u64), f32>,
     column_drag_origins: HashMap<(String, u64), (f32, f32)>,
     menu_positions: HashMap<String, egui::Pos2>,
@@ -268,7 +269,12 @@ impl PresentationView {
                 None
             }
             "split" => {
+                // A split owns full-height panes even inside a scrolling page.
+                // Only an inspector's own scroll area should compact its lists.
+                let compact_depth = self.compact_depth;
+                self.compact_depth = 0;
                 self.split(ui, node);
+                self.compact_depth = compact_depth;
                 None
             }
             "scroll" => {
@@ -1429,19 +1435,20 @@ impl PresentationView {
                 *width = *resized;
             }
         }
-        let height = (bounded_height(ui)
-            - if node.number("total", 0.0) > 128.0 {
-                36.0
-            } else {
-                0.0
-            })
-        .max(100.0);
-        let rows = node.number("total", 0.0).max(1.0) as f32;
+        let total = node.number("total", 0.0) as u64;
+        let offset = node.number("offset", 0.0) as u64;
+        let end = node.props["end"].as_u64().unwrap_or((offset + 128).min(total));
+        let paging_height = if offset > 0 || end < total {
+            control_height(ui) + ui.spacing().item_spacing.y
+        } else { 0.0 };
+        let height = (bounded_height(ui) - paging_height).max(100.0);
+        let fill_height = self.compact_depth == 0 && total > 8;
+        let rows = total.max(1) as f32;
         let rows = if self.compact_depth > 0 { rows.min(8.0) } else { rows };
         let height = height.min(rows * (control_height(ui) + ui.spacing().item_spacing.y)
             + header_space);
         let mut at_end = false;
-        let response = egui::ScrollArea::horizontal().id_salt("table-columns").auto_shrink([false,true])
+        let response = egui::ScrollArea::horizontal().id_salt("table-columns").auto_shrink([false,!fill_height])
             .max_height(height).show(ui, |ui| {
                 ui.set_min_width(widths.iter().sum::<f32>() + row_header_width + 8.0*columns.len() as f32);
                 if node.flag("headers") { ui.horizontal(|ui| {
@@ -1501,13 +1508,16 @@ impl PresentationView {
                         }
                     }
                 }); }
-                let rows = egui::ScrollArea::vertical().id_salt(("rows",node.number("offset",0.0) as u64)).auto_shrink([false,true])
+                let rows = egui::ScrollArea::vertical().id_salt(("rows",offset)).auto_shrink([false,!fill_height])
                     .min_scrolled_height(0.0)
                     .max_height((height-header_space).max(header_height)).show(ui, |ui| {
                         if node.array("rows").is_empty() { ui.weak("—"); }
                         self.table_rows(ui,node,&node.props,&columns,&widths,0,focus_id);
                     });
-                at_end = rows.state.offset.y > 0.0 && rows.state.offset.y + rows.inner_rect.height() >= rows.content_size.y-40.0;
+                let scrolling_down = ui.input(|input| input.pointer.latest_pos().is_some_and(|point| rows.inner_rect.contains(point))
+                    && input.raw.events.iter().any(|event| matches!(event, egui::Event::MouseWheel { delta, .. } if delta.y < 0.0)));
+                at_end = (rows.state.offset.y > 0.0 || scrolling_down)
+                    && rows.state.offset.y + rows.inner_rect.height() >= rows.content_size.y-40.0;
             });
         let response_for_audit = ui.interact(
             response.inner_rect,
@@ -1525,11 +1535,16 @@ impl PresentationView {
                 },
             )
         });
-        if at_end {
+        let request = (node.props["model"].clone(), offset, total);
+        if at_end && end >= total && self.table_end_requests.get(&node.id) != Some(&request) {
+            // Reaching an intermediate presentation page is not the end of the
+            // Qt model. Repeated requests otherwise append rows every frame and
+            // race the refreshed document while the user remains at the bottom.
+            self.table_end_requests.insert(node.id.clone(), request);
             self.input(
                 node,
                 "range",
-                json!({"offset": node.number("offset", 0.0) as u64, "end": true}),
+                json!({"offset": offset, "end": true}),
             );
         }
         self.paging(ui, node, &node.props);
