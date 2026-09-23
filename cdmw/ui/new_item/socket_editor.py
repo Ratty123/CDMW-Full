@@ -26,6 +26,7 @@ class SocketEditor(QWidget):
         layout.addLayout(row)
         self.costs = QTableWidget(0, 3)
         self.costs.setHorizontalHeaderLabels(["Slot", "Unlock material / currency key", "Amount"])
+        self.costs.verticalHeader().hide()
         self.costs.horizontalHeader().setStretchLastSection(True)
         layout.addWidget(self.costs, 1)
         self.state = QLabel()

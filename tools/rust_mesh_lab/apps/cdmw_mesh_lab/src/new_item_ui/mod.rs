@@ -344,19 +344,13 @@ impl Application {
                 }
                 Some("rejected") => {
                     self.view.reject_edits();
-                    self.view.feedback = message["message"]
-                        .as_str()
-                        .unwrap_or("The input was rejected.")
-                        .to_owned();
                     self.in_flight = None;
                     self.requests.clear();
                 }
                 Some("shutdown") => {
                     event_loop.exit();
                 }
-                Some("ack") => {
-                    self.view.feedback.clear();
-                }
+                Some("ack") => {}
                 _ => bail!("Unknown New Item host message"),
             }
         }

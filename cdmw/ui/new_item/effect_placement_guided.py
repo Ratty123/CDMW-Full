@@ -113,7 +113,7 @@ class EffectPlacementGuidedMixin:
         self.guided_toolbar_layout = toolbar
         self._guided_toolbar_columns = 0
         toolbar_panel.resized.connect(self._reflow_guided_toolbar)
-        QTimer.singleShot(0, lambda: self._reflow_guided_toolbar(toolbar_panel.width()))
+        QTimer.singleShot(0, toolbar_panel, lambda: self._reflow_guided_toolbar(toolbar_panel.width()))
         self._set_viewport_controls_available(self.host is not None)
         layout.addWidget(toolbar_panel)
         from cdmw.ui.new_item.effect_playback import EffectPlaybackControls

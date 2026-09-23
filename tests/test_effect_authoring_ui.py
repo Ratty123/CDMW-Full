@@ -122,6 +122,32 @@ def test_recipe_limit_failure_preserves_saved_library(monkeypatch):
     shiboken6.delete(panel)
 
 
+def test_saved_recipe_round_trips_layers_placement_and_emitter_edits(tmp_path, monkeypatch):
+    from cdmw.domain.new_item.effect_authoring import EffectLook, EmitterEdit
+    library = EffectUserLibrary(tmp_path / 'effect-index.json')
+    panel = EffectRecipePanel(library)
+    layers = (EffectLayer('fx_fire', offset=(.2, .3, .4),
+                          look=EffectLook(emitters=(EmitterEdit(0, values=(('_spawnCountMax', (8.,)),)),))),
+              EffectLayer('fx_sparks', name='Sparks'))
+    state = EffectWorkspaceState.from_layers(layers)
+    panel.set_state(state)
+    received = []
+    panel.changed.connect(received.append)
+    monkeypatch.setattr('cdmw.ui.new_item.effect_recipe_panel.QInputDialog.getText', lambda *args: ('Owned test', True))
+    try:
+        panel.save_recipe()
+        assert 'Owned test' in EffectUserLibrary(tmp_path / 'effect-index.json').recipes
+        panel.set_state(EffectWorkspaceState())
+        panel.load_recipe()
+        assert received[-1].resolved_layers() == layers
+        panel.delete_recipe()
+        assert not library.recipes
+        assert not EffectUserLibrary(tmp_path / 'effect-index.json').recipes
+    finally:
+        panel.close()
+        shiboken6.delete(panel)
+
+
 def test_effect_controls_update_live_patch_and_replay_state():
     from cdmw.ui.preview.dotnet_host import RustPreviewHostFrame
     patches = []

@@ -140,7 +140,7 @@ class EffectRecipePanel(QWidget):
         self.parameters.setFixedHeight(240)
         self.parameters.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         self.parameters.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
-        self.parameters.setColumnWidth(1, 120)
+        self.parameters.setColumnWidth(1, 200)
         self.parameters.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self.parameters.itemChanged.connect(lambda _: self._edit())
         col.addWidget(self.parameters)

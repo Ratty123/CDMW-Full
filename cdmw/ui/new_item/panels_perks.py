@@ -15,6 +15,7 @@ every compatible prefab the new item owns.
 from __future__ import annotations
 
 from typing import List, Optional
+from html import unescape
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -31,6 +32,7 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QPushButton,
+    QSplitter,
     QTabWidget,
     QToolButton,
     QVBoxLayout,
@@ -151,11 +153,12 @@ class PerksPanel(QGroupBox):
         self.catalogue.currentIndexChanged.connect(self._catalogue_perk_changed)
         self.perk_details = NoteLabel("")
         custom_layout.addWidget(self.perk_details)
+        self.perk_details.hide()
         self.experimental_perks = QCheckBox("Experimental: allow five to eight perks")
         self.experimental_perks.setToolTip("No shipped item carries more than four perks. The row format accepts eight, but five to eight remain unproven in game.")
         self.experimental_perks.toggled.connect(self._perk_limit_changed)
         custom_layout.addWidget(self.experimental_perks)
-        perks_layout.addWidget(self.custom_perks)
+        perks_layout.addWidget(self.custom_perks, 1)
         return perks
 
     def _build_effect_section(self) -> QGroupBox:
@@ -327,18 +330,30 @@ class PerksPanel(QGroupBox):
         self.perks_page_layout = QVBoxLayout(self.perks_page)
         self.perks_page_layout.setContentsMargins(8, 6, 8, 6)
         self.perks_page_layout.setSpacing(6)
-        self.perks_page_layout.addWidget(perks)
-        self.perks_page_layout.addStretch(1)
         self.effects_workspace = GuidedEffectsWorkspace(self._controller)
         self.effects_page = self.effects_workspace
-        self.tabs.addTab(self.perks_page, "Perks (experimental)")
         self.tabs.addTab(self.effects_page, "Effects")
+        self.tabs.addTab(self.perks_page, "Experimental Features (Perks, Sockets, Bonuses)")
         from cdmw.ui.new_item.socket_editor import SocketEditor
         self.socket_editor = SocketEditor(self._controller)
-        self.tabs.addTab(self.socket_editor, "Available sockets")
         from cdmw.ui.new_item.bonus_editor import BonusEditor
         self.bonus_editor = BonusEditor(self._controller)
-        self.tabs.addTab(self.bonus_editor, "Inherent bonuses")
+        experimental = QSplitter(Qt.Orientation.Horizontal)
+        experimental.setChildrenCollapsible(False)
+        experimental.addWidget(perks)
+        settings = QSplitter(Qt.Orientation.Vertical)
+        settings.setChildrenCollapsible(False)
+        for title, editor in (("Available sockets", self.socket_editor),
+                              ("Inherent bonuses", self.bonus_editor)):
+            group = QGroupBox(title)
+            group_layout = QVBoxLayout(group)
+            group_layout.setContentsMargins(6, 6, 6, 6)
+            group_layout.addWidget(editor, 1)
+            settings.addWidget(group)
+        settings.setSizes([320, 360])
+        experimental.addWidget(settings)
+        experimental.setSizes([650, 650])
+        self.perks_page_layout.addWidget(experimental, 1)
         self.tabs.setCurrentWidget(self.effects_page)
         self.tabs.setCornerWidget(self.effects_workspace.library_controls, Qt.Corner.TopLeftCorner)
         self.tabs.currentChanged.connect(
@@ -358,8 +373,6 @@ class PerksPanel(QGroupBox):
     # ------------------------------------------------------------------ perks
 
     def _show_perks_when_customizing(self, checked: bool) -> None:
-        self.perks_page_layout.setStretch(0, 1 if checked else 0)
-        self.perks_page_layout.setStretch(1, 0 if checked else 1)
         if checked:
             self.tabs.setCurrentWidget(self.perks_page)
 
@@ -397,6 +410,7 @@ class PerksPanel(QGroupBox):
         for key in list(self._controller.draft.socket_items or ()):
             item = QListWidgetItem(self._controller.perk_label(key))
             item.setData(Qt.UserRole, int(key))
+            item.setToolTip(unescape(self._controller.perk_details(int(key))))
             self.chosen.addItem(item)
         if current_key is not None:
             for index in range(self.chosen.count()):
@@ -407,7 +421,8 @@ class PerksPanel(QGroupBox):
             self.chosen.setCurrentRow(0)
         count = self.chosen.count()
         safe_note = "Shipped items use at most four." if count <= SAFE_PERKS else "Five to eight perks are experimental."
-        self.perk_count.setText(f"Selected: {count}/{MAX_PERKS}. {safe_note} Duplicate stacking is unverified.")
+        self.perk_count.setText(f"Selected: {count}/{MAX_PERKS}")
+        self.perk_count.setToolTip(f"{safe_note} Duplicate stacking is unverified.")
         selected_item = self.chosen.currentItem()
         selected_key = selected_item.data(Qt.UserRole) if selected_item is not None else None
         self._refresh_perk_details(int(selected_key) if isinstance(selected_key, int) else None)
@@ -478,13 +493,17 @@ class PerksPanel(QGroupBox):
                 current = self.catalogue.currentData()
             key = int(current) if isinstance(current, int) else None
         if key is None:
-            self.perk_details.set_note("Choose a perk to see what the game calls it and whether shipped equipment uses it.", None)
+            self.perk_results.setToolTip("Choose a perk to inspect its details.")
+            self.chosen.setToolTip("")
             return
-        text = self._controller.perk_details(int(key))
+        text = unescape(self._controller.perk_details(int(key)))
         selected_count = list(self._controller.draft.socket_items or ()).count(int(key))
         if selected_count > 1:
             text += f" Selected {selected_count} times; whether duplicates stack is unverified."
         self.perk_details.set_note(text, WARN if "experimental" in text.casefold() or selected_count > 1 else None)
+        self.perk_details.hide()
+        self.perk_results.setToolTip(text)
+        self.chosen.setToolTip(text)
 
     def _perk_limit_changed(self, _checked: bool) -> None:
         self._update_add_enabled()

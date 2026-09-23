@@ -286,6 +286,7 @@ class RustNewItemStudioTab(QWidget):
             response = bridge.dispatch(message)
             self._send(response)
         except (PresentationProtocolError, ValueError, RuntimeError) as error:
+            self.workflow.controller.log_message.emit(str(error))
             self._send({"type": "rejected", "request": message.get("request", 0), "message": str(error)})
         finally:
             self._state_fingerprint = b""

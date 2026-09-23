@@ -616,6 +616,16 @@ file changes and full details. Destination, manager, overlay number and base cha
 clear the plan, including an in-flight result. The **Mod management** menu below
 the output action contains Merge mods, game-update checks, Installed overlays and
 Archive recovery; opening the menu or recovery controls never performs a write.
+Installed overlays pairs its selectable inventory with an item preview on the
+right. Overlays containing multiple items expose an item selector. Folder,
+file-count and build details appear on hover to leave room for readable names.
+Preview work re-reads the installed overlay's index and metadata on the preview worker, so a
+Studio snapshot taken before installation cannot substitute the old template.
+Changing selection cancels obsolete preview work; closing retains the worker and
+any reparented Rust viewport until shutdown finishes. Overlays without mounted
+item models show an empty state. Remove selected uses the selected inventory row
+and keeps its existing review, confirmation, backup and rollback flow; unmounted
+history points to Check game updates or Start fresh instead.
 **Build plan** stays beside the review heading, and the adjustable divider gives
 the review most of the page width. **Activity log** expands below the review and
 starts collapsed; collapsing it retains its messages, and an output error opens it.
@@ -647,11 +657,15 @@ its inventory backup; comparison and preparing the confirmation are read-only.
 Shared section cards and accent primary buttons keep
 Continue, Build plan and Apply placement visually distinct, with palette-based
 hover, pressed, focus and disabled states. Step 5 is a
-non-scrolling full-height page with Perks and Effects tabs. The navigator is a
+non-scrolling full-height page with **Effects** first and **Experimental Features
+(Perks, Sockets, Bonuses)** second. Perk selection, socket capacity/costs and
+inherent bonuses share that second tab with adjustable panes and growing lists;
+perk details and experimental limits are available on hover. The navigator is a
 compact 46 px row; the outer pages do not
-repeat numbered titles underneath it. Distribution measures the selected route tab,
-so hidden reward controls do not add an outer scrollbar to Shops at
-1280x720. Longer active content remains scrollable. Perks & Effects keeps gameplay perks separate
+repeat numbered titles underneath it. Distribution fills the available height;
+Shops scrolls independently, while recipe ingredients/outputs and reward routes
+use the remaining workspace. Recipes and Loot and rewards are marked experimental.
+Longer active content remains scrollable. Perks & Effects keeps gameplay perks separate
 from visual-only effects. Perks are chosen through searchable Available and Selected
 lists that grow with the workspace rather than a popup catalogue. Perk search, labels
 and tooltips share one lookup for the immutable English table; loading a different
@@ -664,10 +678,14 @@ an all-target success, and never edits a shared borrowed prefab. The Effects tab
 reviewed word splits, preserved numeric suffixes and visible Category, Type and
 approximate Size columns; the exact stem stays searchable and
 appears in selection details and tooltips instead of being repeated under every row. `No effect` is the
-empty-state row. **Browse effects** opens the library on demand from the left end of the
+empty-state row. The library starts open; **Browse effects** toggles it from the left end of the
 Effects tab bar, above the library and alongside the selected effect name. Its larger,
 bold button uses the active theme's accent colour so it is easy to find even when the
-library is folded. The library keeps a short search field below
+library is folded. Rust retains usable pane widths when it is reopened. Playback
+controls are grouped at their natural widths and wrap at the rendered pane width.
+Independent corner-label changes no longer invalidate tab navigation, and rejected
+Rust inputs are recorded in Activity rather than a banner above the workflow.
+The library keeps a short search field below
 its heading and result count, with the category selector beside All / Loops / One-shot.
 There is no separate search row above the viewport. A compact footer keeps the preview
 notice and compatibility messages visible when the library is folded. Search matches words in the

@@ -230,7 +230,7 @@ class GuidedEffectsWorkspace(EffectWorkspaceAuthoringMixin, QWidget):
         self.splitter.setStretchFactor(0, 29)
         self.splitter.setStretchFactor(1, 71)
         self.splitter.setSizes([380, 930])
-        library.hide()
+        self.library_toggle.setChecked(True)
 
         self.caution = QLabel("Visual only  •  Approximate preview  •  Verify final fit in game")
         self.caution.setObjectName("effect_visual_caution")

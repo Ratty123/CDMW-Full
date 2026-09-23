@@ -7,7 +7,6 @@ from PySide6.QtWidgets import (
 )
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.new_item.authoring import RecipeInput, RecipeOutput, RecipeOverride
-from cdmw.ui.new_item.ui_kit import compact_table_height
 from cdmw.ui.new_item.choice_model import set_choice_rows
 from cdmw.services.new_item_panel_search import recipe_choices
 
@@ -71,7 +70,7 @@ class RecipeEditor(QWidget):
         self.inputs.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         self.inputs.cellChanged.connect(self._commit)
         self.inputs.setToolTip("Item key 0 means the new item. Ingredient costs are separate from purchase prices.")
-        input_layout.addWidget(self.inputs)
+        input_layout.addWidget(self.inputs, 1)
         row = QHBoxLayout()
         self.add = QPushButton("Add ingredient")
         self.add.clicked.connect(self._add)
@@ -88,7 +87,7 @@ class RecipeEditor(QWidget):
         self.outputs.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         self.outputs.cellChanged.connect(self._commit)
         tabs.addTab(self.outputs, "Outputs")
-        layout.addWidget(tabs)
+        layout.addWidget(tabs, 1)
         row = QHBoxLayout()
         self.reset = QPushButton("Inherit all recipes")
         self.reset.clicked.connect(lambda: self._reset(None))
@@ -101,7 +100,6 @@ class RecipeEditor(QWidget):
         self.state = QLabel()
         self.state.setWordWrap(True)
         layout.addWidget(self.state)
-        layout.addStretch(1)
         controller.authoring_index_ready.connect(self._ready)
         controller.authoring_index_failed.connect(self._failed)
         controller.snapshot_ready.connect(self._snapshot)
@@ -219,8 +217,8 @@ class RecipeEditor(QWidget):
         self._syncing = False
 
     def _resize_tables(self):
-        compact_table_height(self.inputs, self.inputs.rowCount(), minimum_rows=2, maximum_rows=5)
-        compact_table_height(self.outputs, self.outputs.rowCount(), minimum_rows=1, maximum_rows=5)
+        self.inputs.resizeRowsToContents()
+        self.outputs.resizeRowsToContents()
 
     def _input_row(self, value):
         row = self.inputs.rowCount()

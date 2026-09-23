@@ -47,10 +47,8 @@ def test_effect_library_controls_leave_the_viewport_full_height(monkeypatch, wid
     layout.addWidget(tabs)
     controller = _Controller()
     workspace = GuidedEffectsWorkspace(controller)
-    tabs.addTab(QWidget(), "Perks (experimental)")
     tabs.addTab(workspace, "Effects")
-    tabs.addTab(QWidget(), "Available sockets")
-    tabs.addTab(QWidget(), "Inherent bonuses")
+    tabs.addTab(QWidget(), "Experimental Features (Perks, Sockets, Bonuses)")
     tabs.setCurrentWidget(workspace)
     tabs.setCornerWidget(workspace.library_controls, Qt.Corner.TopLeftCorner)
     root.resize(width, height)
@@ -69,7 +67,7 @@ def test_effect_library_controls_leave_the_viewport_full_height(monkeypatch, wid
         assert root.size().height() == height
         assert workspace.placement is None
         assert workspace.library_toggle.isVisibleTo(root)
-        assert not workspace.library_panel.isVisibleTo(workspace)
+        assert workspace.library_panel.isVisibleTo(workspace)
         assert workspace.splitter.y() <= 1
         assert workspace.placement_holder.y() == 0
         assert workspace.height() - workspace.splitter.geometry().bottom() - 1 <= workspace.caution.fontMetrics().height() + 16
@@ -83,7 +81,9 @@ def test_effect_library_controls_leave_the_viewport_full_height(monkeypatch, wid
         assert workspace.selected_effect_label.width() <= 240
 
         original_placeholder = workspace.placeholder
-        workspace.library_toggle.click()
+        workspace.library_toggle.setChecked(False)
+        settle()
+        workspace.library_toggle.setChecked(True)
         settle()
         assert workspace.library_panel.isVisibleTo(workspace)
         toggle_center = workspace.library_toggle.mapTo(workspace.library_panel, workspace.library_toggle.rect().center())
@@ -171,7 +171,7 @@ def test_styled_effect_tools_are_compact_and_do_not_overlap(monkeypatch, width, 
             assert control.width() <= control.sizeHint().width() + 4
             assert workspace.playback_controls.rect().contains(control.geometry())
         if width == 1600:
-            assert workspace.playback_controls._columns == 5
+            assert workspace.playback_controls._columns == len(workspace.playback_controls._controls)
             assert workspace.playback_controls.height() < 40
 
         tabs.setCurrentIndex(3)

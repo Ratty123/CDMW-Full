@@ -800,7 +800,7 @@ class _TabAuthoringMixin:
             placement = effects.placement
             self.assertIsNotNone(placement)
             inner = placement.preview_splitter.sizes()
-            self.assertEqual(outer[0], 0)
+            self.assertGreaterEqual(outer[0], 300)
             self.assertGreater(inner[0], inner[1])
             self.assertEqual(
                 [placement.inspector_tabs.tabText(i) for i in range(placement.inspector_tabs.count())],

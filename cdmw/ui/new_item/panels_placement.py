@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QSize, Qt, Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QPushButton,
     QRadioButton,
+    QScrollArea,
     QSpinBox,
     QTabWidget,
     QVBoxLayout,
@@ -24,21 +25,6 @@ from PySide6.QtWidgets import (
 from cdmw.domain.new_item.spec import ItemGroupsChoice, PlacementKind
 from cdmw.ui.new_item.controller import NewItemStudioController
 from cdmw.ui.new_item.ui_kit import OK, WARN, NoteLabel
-
-class _DistributionTabs(QTabWidget):
-    """Let the active route page determine the surrounding scroll-area height."""
-
-    def sizeHint(self) -> QSize:
-        page = self.currentWidget()
-        height = page.sizeHint().height() if page is not None else 0
-        return QSize(super().sizeHint().width(), height + self.tabBar().sizeHint().height() + 4)
-
-    def heightForWidth(self, width: int) -> int:
-        page = self.currentWidget()
-        if page is not None and page.hasHeightForWidth():
-            return page.heightForWidth(width) + self.tabBar().sizeHint().height() + 4
-        return self.sizeHint().height()
-
 
 class PlacementPanel(QGroupBox):
     set_copper_price_requested = Signal()
@@ -147,12 +133,15 @@ class PlacementPanel(QGroupBox):
         shop_page = QWidget()
         page_layout = QVBoxLayout(shop_page)
         page_layout.addLayout(columns, 1)
-        self.routes_view = _DistributionTabs()
-        self.routes_view.currentChanged.connect(self.routes_view.updateGeometry)
-        self.routes_view.addTab(shop_page, "Shops")
+        shop_scroll = QScrollArea()
+        shop_scroll.setWidgetResizable(True)
+        shop_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        shop_scroll.setWidget(shop_page)
+        self.routes_view = QTabWidget()
+        self.routes_view.addTab(shop_scroll, "Shops")
         from cdmw.ui.new_item.reward_editor import RewardEditor
         self.rewards = RewardEditor(controller)
-        self.routes_view.addTab(self.rewards, "Loot and rewards")
+        self.routes_view.addTab(self.rewards, "Loot and rewards (experimental)")
         self.groups_page = groups
         self.routes_view.addTab(groups, "Item groups")
         layout.addWidget(self.routes_view, 1)
@@ -169,7 +158,7 @@ class PlacementPanel(QGroupBox):
     def mount_recipes(self, recipes: QWidget) -> None:
         """Move the existing recipe editor here; keep its controller and signals."""
         self.recipes = recipes
-        self.routes_view.insertTab(1, recipes, "Recipes")
+        self.routes_view.insertTab(1, recipes, "Recipes (experimental)")
 
     # ------------------------------------------------------------------ shop
 

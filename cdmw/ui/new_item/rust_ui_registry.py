@@ -42,6 +42,10 @@ class ControlRegistry:
         # Children have their own identities/revisions. Updating a log or a sibling
         # must not invalidate text being edited in another control.
         own = {key: value for key, value in node.items() if key not in {"children", "revision"}}
+        # Tab-corner controls are independent children too. Their visibility and
+        # selected-effect label must not invalidate an in-flight tab click.
+        if node.get("kind") == "tabs":
+            own["props"] = {key: value for key, value in node["props"].items() if key != "corners"}
         fingerprint = hashlib.blake2s(json.dumps(own, ensure_ascii=False, sort_keys=True,
                                                 allow_nan=False).encode("utf-8")).digest()
         if self._fingerprints.get(identifier) != fingerprint:

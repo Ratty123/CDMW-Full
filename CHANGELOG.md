@@ -13,6 +13,8 @@ The format is intentionally simple:
 
 ### Changed
 
+- Create New Item opens Effects first with Browse effects expanded. Perks, sockets and bonuses share one Experimental Features tab with aligned, resizable panes and hover help. Recipes and Loot and rewards are marked experimental.
+- Installed overlays includes a right-hand preview of the selected installed item, with an item selector for multi-item overlays and cancellable background loading.
 - Create New Item (Rust) prepares its interface in the background after startup and reuses it when opened. Its loading message identifies New Item correctly.
 - Effects leads with the specific variant and retains its source family, numeric identity and ambiguous codes. The library shows readable categories, avoids substring misclassification, adds missing visual categories, groups named family variants, and searches/sorts by readable metadata. Layers and emitters use matching labels while retaining custom names and exact export references. Missing timing metadata appears as Unknown instead of One-shot.
 - Perks & Effects gives the viewport more height by moving Browse effects and the selected name into the left end of the tab bar, directly above the library. Browse effects is larger and accented for visibility; the shorter search and category filters stay inside the library, and the preview notice is compact.
@@ -48,6 +50,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Create New Item (Rust) restores the effects library at a usable width, keeps playback controls together and emitter values aligned, and gives sockets and recipe tables their available workspace height. Tab navigation no longer fails when an unrelated preview label changes; input errors go to Activity. Installed overlay selection enables removal review reliably.
 - Create New Item gives Stats & Prices full-height, resizable table panes in Classic and Rust, keeping short lists visible and editable. Removed the Recipes shortcut from Stats & Prices; recipes remain under Distribution.
 - Create New Item (Rust) no longer deadlocks when focus leaves a selected template row. A stalled Rust interface can be hidden and stopped without blocking CDMW, preserving access to the draft in Classic.
 - Create New Item (Rust) keeps the Template list full height, including its final page. Scrolling requests more results only once at the end of the loaded list, preventing repeated refreshes and flicker.

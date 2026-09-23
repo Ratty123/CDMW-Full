@@ -410,7 +410,7 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         perks.own_perks.setChecked(True)
         self.assertTrue(perks.perk_results.isVisibleTo(perks))
         self.assertFalse(perks.catalogue.isVisibleTo(perks), "the legacy combo is data-only")
-        self.assertEqual([perks.tabs.tabText(index) for index in range(perks.tabs.count())], ["Perks (experimental)", "Effects", "Available sockets", "Inherent bonuses"])
+        self.assertEqual([perks.tabs.tabText(index) for index in range(perks.tabs.count())], ["Effects", "Experimental Features (Perks, Sockets, Bonuses)"])
         self.assertIs(perks.tabs.currentWidget(), perks.perks_page, "customizing perks reveals the Perks tab")
         perks.tabs.setCurrentWidget(perks.effects_page)
         self.assertFalse(perks._legacy_intro.isVisibleTo(perks), "the retired page intro does not float over the tabs")
@@ -441,7 +441,7 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         for index in range(tab.steps.count()):
             tab.show_step(index)
             self.app.processEvents()
-            if index in {1, 2, 4}:
+            if index in {1, 2, 4, 5, 6}:
                 self.assertNotIsInstance(tab.pages.currentWidget(), QScrollArea)
             else:
                 self.assertIsInstance(tab.pages.currentWidget(), QScrollArea)

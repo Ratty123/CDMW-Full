@@ -1,6 +1,5 @@
 """Compact controls for the resident effect simulation."""
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QWidget, QGridLayout, QHBoxLayout, QPushButton, QDoubleSpinBox, QSpinBox, QComboBox, QLabel, QSizePolicy
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QDoubleSpinBox, QSpinBox, QComboBox, QLabel, QSizePolicy
 
 
 class EffectPlaybackControls(QWidget):
@@ -9,7 +8,7 @@ class EffectPlaybackControls(QWidget):
         self.setObjectName('effect_playback_controls')
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         self.placement = placement
-        layout = QGridLayout(self)
+        layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(4)
         restart = QPushButton('Restart')
@@ -68,11 +67,17 @@ class EffectPlaybackControls(QWidget):
             return
         self._columns = columns
         while layout.count():
-            layout.takeAt(0)
-        for column in range(len(self._controls) + 1):
-            layout.setColumnStretch(column, 1 if column == columns else 0)
-        for index, control in enumerate(self._controls):
-            layout.addWidget(control, index // columns, index % columns, Qt.AlignmentFlag.AlignLeft)
+            old_row = layout.takeAt(0).layout()
+            while old_row.count():
+                old_row.takeAt(0)
+            old_row.deleteLater()
+        for start in range(0, len(self._controls), columns):
+            row = QHBoxLayout()
+            row.setSpacing(4)
+            for control in self._controls[start:start + columns]:
+                row.addWidget(control)
+            row.addStretch(1)
+            layout.addLayout(row)
         self.updateGeometry()
 
     def send(self, **values):

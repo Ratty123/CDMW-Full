@@ -26,7 +26,6 @@ pub struct PresentationView {
     menu_positions: HashMap<String, egui::Pos2>,
     crop_origin: HashMap<String, egui::Pos2>,
     pub textures: HashMap<String, egui::TextureHandle>,
-    pub feedback: String,
     strings: BTreeMap<String, String>,
     compact_depth: usize,
 }
@@ -89,14 +88,6 @@ impl PresentationView {
         self.errors.clear();
         ui.painter()
             .rect_filled(ui.max_rect(), 0.0, ui.visuals().panel_fill);
-        if !self.feedback.is_empty() {
-            egui::Frame::new()
-                .fill(ui.visuals().extreme_bg_color)
-                .inner_margin(8.0)
-                .show(ui, |ui| {
-                    ui.label(RichText::new(&self.feedback).color(ui.visuals().warn_fg_color));
-                });
-        }
         if !state.unsupported.is_empty() {
             ui.colored_label(ui.visuals().error_fg_color,
                 "This page contains controls that the Rust interface cannot yet display. Use Classic for this workflow.");
@@ -821,9 +812,22 @@ impl PresentationView {
             }
         }
         let mut sizes = entry.1.clone();
-        if sizes.len() <= *indices.iter().max().unwrap_or(&0) {
-            sizes.resize(node.children.len(), 1.0);
+        let required = indices.iter().max().copied().unwrap_or(0) + 1;
+        if sizes.len() < required {
+            sizes.resize(required, 0.0);
         }
+        // Qt reports zero for hidden panes. Reopening a pane must recover a usable
+        // width, while retaining ratios the user already dragged in this view.
+        for index in &indices {
+            if sizes[*index] <= 0.0 {
+                sizes[*index] = node.array("sizes").get(*index)
+                    .and_then(Value::as_f64).unwrap_or(0.0) as f32;
+                if sizes[*index] <= 0.0 {
+                    sizes[*index] = available / indices.len() as f32;
+                }
+            }
+        }
+        entry.1 = sizes.clone();
         let total = indices
             .iter()
             .map(|index| sizes[*index])
@@ -1575,6 +1579,9 @@ impl PresentationView {
                             let cell = &row["cells"][col];
                             ui.push_id(col, |ui| {
                                 ui.allocate_ui_with_layout(Vec2::new(*width, control_height(ui)), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                                    // Empty/check-only cells still occupy their column.
+                                    // Otherwise the next editor slides left on those rows.
+                                    ui.set_min_width(*width);
                                     if col == 0 && node.flag("tree") {
                                         ui.add_space(depth as f32 * 14.0);
                                         if row["children"] == true && ui.small_button(if row["expanded"] == true { "−" } else { "+" }).clicked() {

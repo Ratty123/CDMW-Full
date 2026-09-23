@@ -567,7 +567,7 @@ class NewItemStudioTab(QWidget):
         panel.setObjectName("new_item_step")
         panel.setTitle("")
         panel.setProperty("guidedPage", True)
-        if index in {1, 2, 4, 6}:
+        if index in {1, 2, 4, 5, 6}:
             panel.setProperty("guidedFullHeight", True)
             return panel
         page = QScrollArea()
@@ -1171,7 +1171,10 @@ class NewItemStudioTab(QWidget):
     # ------------------------------------------------------------------ lifecycle
 
     def iter_shutdown_workers(self):
+        from cdmw.ui.new_item.overlay_manager_dialog import OverlayManagerDialog
         workers = list(self.controller.iter_shutdown_workers())
+        for dialog in self.findChildren(OverlayManagerDialog):
+            workers.extend(dialog.iter_shutdown_workers())
         workers.extend(self._migration_preview_lane.iter_shutdown_workers())
         if self._panels_built:
             workers.extend(self.model_panel.iter_shutdown_workers())
@@ -1180,6 +1183,9 @@ class NewItemStudioTab(QWidget):
         return tuple(workers)
 
     def request_shutdown(self) -> None:
+        from cdmw.ui.new_item.overlay_manager_dialog import OverlayManagerDialog
+        for dialog in self.findChildren(OverlayManagerDialog):
+            dialog.request_shutdown()
         self._migration_preview_lane.request_shutdown()
         self.controller.request_shutdown()
         if self._panels_built:

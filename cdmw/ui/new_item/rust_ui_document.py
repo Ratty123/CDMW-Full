@@ -186,6 +186,10 @@ class PresentationDocument:
         elif widget.__class__.__name__ == "_BusySpinner":
             node["kind"] = "progress"
             props.update(indeterminate=True, text=widget.accessibleName())
+        elif widget.__class__.__name__ == "EffectPlaybackControls":
+            # Reflow against the rendered pane's width, not the hidden Qt pane.
+            node["kind"] = "row"
+            node["children"] = self._widgets(widget._controls)
         elif widget.__class__.__name__ == "IconRegionSelector":
             node["kind"] = "image_crop"
             selection = widget.source_selection_rect()
@@ -248,6 +252,8 @@ class PresentationDocument:
                 {"text": widget.tabText(i), "enabled": widget.isTabEnabled(i),
                  "visible": widget.isTabVisible(i), "tooltip": widget.tabToolTip(i)} for i in range(widget.count())])
             child = self.widget(widget.currentWidget(), force=True)
+            if child:
+                child["stretch"] = 1
             node["children"] = [child] if child else []
             props["corners"] = self._widgets(widget.cornerWidget(corner) for corner in
                                              (Qt.TopLeftCorner, Qt.TopRightCorner))

@@ -538,6 +538,52 @@ fn template_selection_can_transfer_focus_to_search_without_deadlocking() {
 }
 
 #[test]
+fn reopened_effect_library_recovers_zero_size_without_resetting_dragged_panes() {
+    let mut split = control("effects-split", "split", "", json!({
+        "horizontal":true,"sizes":[0,900],"indices":[0,1]}));
+    split.children = vec![control("library", "viewport", "", json!({})),
+                          control("effect-view", "viewport", "", json!({}))];
+    let mut state = state(split);
+    let context = egui::Context::default();
+    let mut view = PresentationView::default();
+    apply_theme(&context, &state.theme);
+    let size = egui::vec2(1440.0, 900.0);
+    for _ in 0..3 { frame(&context, &mut view, &state, size, vec![]); }
+    assert!(view.portals[0].rect[2] > 300.0, "{:?}", view.portals);
+    view.split_sizes.insert("effects-split".into(), (1, vec![350.0, 1000.0]));
+    let library = state.root.children.remove(0);
+    state.root.props["indices"] = json!([1]);
+    state.root.props["sizes"] = json!([0,900]);
+    frame(&context, &mut view, &state, size, vec![]);
+    state.root.children.insert(0, library);
+    state.root.props["indices"] = json!([0,1]);
+    for _ in 0..3 { frame(&context, &mut view, &state, size, vec![]); }
+    let width = view.portals[0].rect[2];
+    assert!(width > 300.0 && width < 450.0, "dragged ratio was lost: {width}");
+}
+
+#[test]
+fn checked_and_empty_cells_keep_editors_aligned_with_their_column() {
+    let mut table = control("emitters", "table", "", json!({"headers":true,"total":2,
+        "columns":[{"index":0,"text":"Use","width":60},
+                   {"index":1,"text":"Property","width":200},
+                   {"index":2,"text":"Value","width":180}]}));
+    table.props["rows"] = json!((0..2).map(|row| json!({"path":[row],"cells":[
+        if row == 0 {json!({"text":"","check":0,"enabled":true})} else {json!({"text":"","enabled":false})},
+        {"text":"Spawn maximum","enabled":true},
+        {"control":control(&format!("value-{row}"),"number","",json!({"value":8,"minimum":0,"maximum":10000}))}
+    ]})).collect::<Vec<_>>());
+    let state = state(table);
+    let context = egui::Context::default();
+    let mut view = PresentationView::default();
+    apply_theme(&context, &state.theme);
+    for _ in 0..3 { frame(&context, &mut view, &state, egui::vec2(960.0,720.0), vec![]); }
+    let first = view.rects.iter().find(|item| item.id == "value-0").unwrap();
+    let second = view.rects.iter().find(|item| item.id == "value-1").unwrap();
+    assert!((first.rect[0] - second.rect[0]).abs() < 1.0, "{first:?} {second:?}");
+}
+
+#[test]
 fn column_drag_keeps_the_full_distance_on_release_and_after_row_updates() {
     let context = egui::Context::default();
     let mut view = PresentationView::default();
