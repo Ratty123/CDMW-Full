@@ -25,6 +25,17 @@ mutation service, and confirmations. File and colour pickers remain native
 dialogs. Closing the Rust renderer or retrying it does not discard the draft;
 the Classic button remains available if the helper cannot start.
 
+After the main window is visible and startup dialogs finish, the shell prepares
+the Rust tab and its renderer in the background. Opening it reuses that process;
+hidden state polling stops after the first acknowledgement. An early click can
+still show New Item's loading message while preparation finishes. The renderer
+remains owned by the tab and participates in normal asynchronous shutdown.
+
+The embedded child takes keyboard focus on clicks and supplies its actual Win32
+focus state to egui. Field edits finish before navigation or dialog actions hide
+their controls. Font size and button colors come from the current application
+theme; hover changes color without expanding the controls.
+
 `rust_ui_document.py` projects the current controls, layouts, models and dialogs;
 `rust_ui_actions.py` routes allowlisted input through their original handlers.
 `rust_ui_bridge.py` checks session, control revisions, enabled/visible state and
@@ -39,7 +50,10 @@ After changing the native UI, build the local pinned helper with
 `./build_pyside6_app.ps1 -Mode onefile -BuildProfile release -NativeHelpersOnly`.
 The owned headless layout and live transport probes are
 `tools/new_item_rust_ui_harness.py` and `tools/new_item_rust_live_harness.py`;
-neither uses an installed game. The live probe's `--preview` option loads an owned
+neither uses an installed game. The live probe prewarms a hidden renderer, opens
+the tab with the same process, and clicks and types through Win32 into the original
+Name and Find fields. It also checks that page switches do not reject a finishing
+edit. Its `--preview` option loads an owned
 synthetic mesh into the pinned preview helper and checks camera captures, crop,
 renderer retry, Classic switching and process cleanup. See `docs/test-matrix.md`
 for focused checks. Helper builds do not repack the main application executable;

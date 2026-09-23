@@ -6,6 +6,7 @@ import importlib
 from pathlib import Path
 from typing import Callable
 
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication, QWidget
 
 from cdmw.ui.shell.lazy_tool_tab import LazyToolTab, as_label, created_tool_widget
@@ -537,6 +538,25 @@ class ShellToolTabsMixin:
         tab.open_archive_entry_requested.connect(self.textures._show_archive_browser_from_texture_editor)
         return tab
 
+    def _schedule_new_item_rust_prewarm(self) -> None:
+        timer = QTimer(self)
+        timer.setInterval(1000)
+
+        def prepare_when_idle():
+            container = self.new_item_rust_studio_tab
+            if getattr(self, "_shutting_down", False) or container._shutdown_requested:
+                timer.stop()
+                return
+            if (not self.isVisible() or getattr(self, "_startup_splash_window", None) is not None
+                    or QApplication.activeModalWidget() is not None):
+                return
+            timer.stop()
+            container.when_created(lambda widget: widget.prewarm())
+            container.request_widget()
+
+        timer.timeout.connect(prepare_when_idle)
+        timer.start()
+
     def open_new_item_studio(
         self,
         template_key: int | None = None,
@@ -620,6 +640,7 @@ class ShellToolTabsMixin:
         self.new_item_rust_studio_tab = self._add_lazy_shell_tool(
             "Create New Item (Rust)", "new_item_rust_studio", self._create_new_item_rust_studio_tab
         )
+        self._schedule_new_item_rust_prewarm()
         self.replace_assistant_tab = self._add_lazy_shell_tool(
             "Texture Replacer",
             "replace_assistant",

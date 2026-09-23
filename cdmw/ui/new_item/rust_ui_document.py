@@ -10,9 +10,9 @@ import hashlib
 import re
 
 from PySide6.QtCore import QByteArray, QBuffer, QIODevice, Qt
-from PySide6.QtGui import QAction, QFontInfo, QPalette, QTextDocument
+from PySide6.QtGui import QAction, QPalette, QTextDocument
 from PySide6.QtWidgets import (
-    QAbstractButton, QAbstractItemView, QBoxLayout, QCheckBox, QComboBox,
+    QAbstractButton, QAbstractItemView, QApplication, QBoxLayout, QCheckBox, QComboBox,
     QDialog, QDialogButtonBox, QDoubleSpinBox, QFormLayout, QFrame, QGridLayout, QGroupBox,
     QLabel, QLineEdit, QMenu, QPlainTextEdit, QProgressBar, QRadioButton,
     QScrollArea, QSlider, QSpinBox, QSplitter, QStackedWidget, QTabWidget,
@@ -24,6 +24,7 @@ from cdmw.services.active_ui_translation import active_ui_localizer, translate_a
 from cdmw.ui.new_item.rust_ui_models import ModelProjection
 from cdmw.ui.new_item.rust_ui_registry import ControlRegistry
 from cdmw.ui.new_item.workflow_header import WorkflowHeader
+from cdmw.ui.themes import get_theme
 
 
 def plain_text(value):
@@ -77,9 +78,17 @@ def theme_snapshot(widget):
              "accent": QPalette.Highlight, "accent_text": QPalette.HighlightedText,
              "link": QPalette.Link}
     result = {key: palette.color(role).name() for key, role in roles.items()}
+    app = QApplication.instance()
+    theme_key = app.property("_cdmw_theme_key") if app is not None else None
+    if theme_key:
+        theme = get_theme(str(theme_key))
+        for key in ("button_hover", "button_pressed", "button_border"):
+            result[key] = theme[key]
     result["disabled"] = palette.color(QPalette.Disabled, QPalette.WindowText).name()
-    result["font_family"] = widget.font().family()
-    result["font_pixels"] = max(14, QFontInfo(widget.font()).pixelSize())
+    font = widget.font()
+    result["font_family"] = font.family()
+    pixels = font.pixelSize() if font.pixelSize() > 0 else font.pointSizeF() * widget.logicalDpiY() / 72
+    result["font_pixels"] = max(8, round(pixels))
     result["dark"] = palette.color(QPalette.Window).lightnessF() < 0.5
     localizer = active_ui_localizer()
     result["language"] = str(getattr(localizer, "language_code", "en"))

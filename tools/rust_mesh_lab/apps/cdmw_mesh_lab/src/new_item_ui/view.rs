@@ -153,6 +153,13 @@ impl PresentationView {
                 self.input(dialog, "close_dialog", Value::Null);
             }
         }
+        // Headers and dialog actions are drawn before their fields. Complete
+        // edits first, as Qt does on focus loss, before an action hides them.
+        self.inputs.sort_by_key(|input| match input.action {
+            "text" | "number" | "cell" => 0,
+            "finish_edit" | "submit" => 1,
+            _ => 2,
+        });
     }
 
     fn input(&mut self, node: &Node, action: &'static str, value: Value) {
@@ -1615,15 +1622,26 @@ pub fn apply_theme(context: &egui::Context, theme: &Value) {
         &mut style.visuals.widgets.open,
     ] {
         visuals.fg_stroke.color = foreground;
+        visuals.expansion = 0.0;
     }
     style.visuals.weak_text_color = Some(color("muted", Color32::GRAY));
     style.visuals.selection.bg_fill = color("accent", style.visuals.selection.bg_fill);
     style.visuals.selection.stroke.color = color("accent_text", Color32::WHITE);
     style.visuals.hyperlink_color = color("link", style.visuals.hyperlink_color);
-    style.visuals.widgets.inactive.bg_fill =
-        color("button", style.visuals.widgets.inactive.bg_fill);
-    style.visuals.widgets.inactive.bg_stroke =
-        egui::Stroke::new(1.0, color("border", Color32::GRAY));
+    let button = color("button", style.visuals.widgets.inactive.bg_fill);
+    let hover = color("button_hover", style.visuals.widgets.hovered.bg_fill);
+    let pressed = color("button_pressed", style.visuals.widgets.active.bg_fill);
+    let border = color("button_border", color("border", Color32::GRAY));
+    for (visuals, fill) in [
+        (&mut style.visuals.widgets.inactive, button),
+        (&mut style.visuals.widgets.hovered, hover),
+        (&mut style.visuals.widgets.active, pressed),
+        (&mut style.visuals.widgets.open, pressed),
+    ] {
+        visuals.bg_fill = fill;
+        visuals.weak_bg_fill = fill;
+        visuals.bg_stroke = egui::Stroke::new(1.0, border);
+    }
     style.visuals.widgets.noninteractive.bg_stroke.color = color(
         "border",
         style.visuals.widgets.noninteractive.bg_stroke.color,
@@ -1631,13 +1649,13 @@ pub fn apply_theme(context: &egui::Context, theme: &Value) {
     let font = theme["font_pixels"]
         .as_f64()
         .unwrap_or(14.0)
-        .clamp(14.0, 32.0) as f32;
+        .clamp(8.0, 64.0) as f32;
     for kind in [TextStyle::Body, TextStyle::Button, TextStyle::Monospace] {
         style.text_styles.insert(kind, FontId::proportional(font));
     }
     style.text_styles.insert(
         TextStyle::Small,
-        FontId::proportional((font - 1.0).max(12.0)),
+        FontId::proportional((font - 1.0).max(8.0)),
     );
     style
         .text_styles

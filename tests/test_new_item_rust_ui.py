@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 import pytest
 from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QListWidget, QMessageBox, QPushButton,
     QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
 
@@ -20,7 +21,7 @@ from cdmw.services.new_item_rust_protocol import (
     JsonLineReader, PROTOCOL, PresentationProtocolError, decode_message, encode_message,
 )
 from cdmw.ui.new_item.rust_ui_bridge import NewItemPresentationBridge
-from cdmw.ui.new_item.rust_ui_document import PresentationDocument
+from cdmw.ui.new_item.rust_ui_document import PresentationDocument, theme_snapshot
 import test_new_item_studio_tab as _support
 
 TEMPLATE = _support.TEMPLATE
@@ -204,6 +205,88 @@ def test_switching_presentation_preserves_the_same_live_workflow(studio):
             tab.setParent(None)
             experimental.request_shutdown()
             experimental.deleteLater()
+
+
+def test_prewarm_publishes_hidden_state_then_idles_and_does_not_restart(studio):
+    _, tab, _ = studio
+    from cdmw.ui.new_item.rust_ui_tab import RustNewItemStudioTab
+
+    with patch.object(RustNewItemStudioTab, "_start_prepare") as prepare:
+        experimental = RustNewItemStudioTab(workflow=tab)
+        messages = []
+        experimental._send = messages.append
+        try:
+            experimental.prewarm()
+            assert prepare.call_count == 1
+            experimental._bridge = NewItemPresentationBridge(tab)
+            experimental._ready = True
+            experimental._timer.start()
+            experimental._publish_state()
+            assert messages[-1]["type"] == "state"
+            experimental._handle_message({"type": "state_received",
+                "session": experimental._bridge.session, "generation": experimental._sent_generation})
+            assert not experimental._prewarming
+            assert not experimental._timer.isActive()
+            assert not tab.isVisible()
+            experimental.prewarm()
+            experimental.show()
+            QApplication.processEvents()
+            assert prepare.call_count == 1
+            assert experimental._timer.isActive()
+            experimental.request_shutdown()
+            experimental.prewarm()
+            assert prepare.call_count == 1
+            assert not experimental._timer.isActive()
+        finally:
+            experimental.request_shutdown()
+            tab.setParent(None)
+            experimental.deleteLater()
+
+
+def test_prewarm_failure_is_retained_without_a_background_error_notification(studio):
+    _, tab, _ = studio
+    from cdmw.ui.new_item.rust_ui_tab import RustNewItemStudioTab
+
+    with patch.object(RustNewItemStudioTab, "_start_prepare"):
+        experimental = RustNewItemStudioTab(workflow=tab)
+        errors = []
+        experimental.status_message_requested.connect(lambda *args: errors.append(args))
+        try:
+            experimental.prewarm()
+            experimental._fail("Owned startup failure")
+            assert experimental._host._status_label.text() == "Owned startup failure"
+            assert not errors
+            assert not experimental._prewarming
+            assert not experimental._timer.isActive()
+        finally:
+            experimental.request_shutdown()
+            tab.setParent(None)
+            experimental.deleteLater()
+
+
+@pytest.mark.parametrize("font_pixels", [11, 13, 22])
+def test_theme_snapshot_retains_small_fonts_and_active_button_states(font_pixels):
+    from cdmw.ui.theme_schemes import UI_THEME_SCHEMES
+    from cdmw.ui.themes import build_app_palette
+
+    app = QApplication.instance() or QApplication([])
+    previous_theme = app.property("_cdmw_theme_key")
+    widget = QWidget()
+    font = QFont(widget.font())
+    font.setPixelSize(font_pixels)
+    widget.setFont(font)
+    try:
+        for key, palette in UI_THEME_SCHEMES.items():
+            app.setProperty("_cdmw_theme_key", key)
+            widget.setPalette(build_app_palette(key))
+            theme = theme_snapshot(widget)
+            assert theme["font_pixels"] == font_pixels
+            assert theme["background"] == palette["window"]
+            for name in ("button", "button_hover", "button_pressed", "button_border"):
+                assert theme[name] == palette[name]
+    finally:
+        app.setProperty("_cdmw_theme_key", previous_theme)
+        widget.deleteLater()
 
 
 def test_list_widget_and_readonly_table_preserve_selection_and_edit_contract():

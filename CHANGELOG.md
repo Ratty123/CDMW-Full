@@ -13,6 +13,7 @@ The format is intentionally simple:
 
 ### Changed
 
+- Create New Item (Rust) prepares its interface in the background after startup and reuses it when opened. Its loading message identifies New Item correctly.
 - Effects leads with the specific variant and retains its source family, numeric identity and ambiguous codes. The library shows readable categories, avoids substring misclassification, adds missing visual categories, groups named family variants, and searches/sorts by readable metadata. Layers and emitters use matching labels while retaining custom names and exact export references. Missing timing metadata appears as Unknown instead of One-shot.
 - Perks & Effects gives the viewport more height by moving Browse effects and the selected name into the left end of the tab bar, directly above the library. Browse effects is larger and accented for visibility; the shorter search and category filters stay inside the library, and the preview notice is compact.
 - Create New Item keeps Model & Placement loading progress below the scrolling inspector and shows camera help only once in Template. Shader experiments mark incompatible options as unavailable and explain their material requirements; every Glow animation setting has hover help.
@@ -46,6 +47,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Create New Item (Rust) accepts typing in Name, Find and other text fields, finishes edits before changing pages, follows the application's font size and button colors, and highlights hovered controls without enlarging them.
 - Glow supports skin materials in Mesh Editor and Create New Item by baking their colour, normal and nonmetal surface maps into an Emissive material. Restore and Undo retain the original skin material. Unsupported-material errors identify the shader; translucency conflicts are reported only when translucency is actually involved.
 - Effects start at the item's center and keep the chosen position when switching effects, including after moving the gizmo to zero or browsing through No effect. Saved placements and recipe layer positions remain intact.
 - Effects with dense item or character surfaces load from smaller, faster-to-prepare preview manifests without losing geometry. Oversized builds fail before replacing the current scene, and Retry keeps its package available instead of reporting a missing `manifest.json`.

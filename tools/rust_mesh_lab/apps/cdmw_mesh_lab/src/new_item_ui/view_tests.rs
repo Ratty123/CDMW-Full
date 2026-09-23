@@ -56,6 +56,65 @@ fn click(context: &egui::Context, view: &mut PresentationView, state: &State, po
 }
 
 #[test]
+fn host_font_and_button_colors_are_used_without_hover_expansion() {
+    let context = egui::Context::default();
+    for font in [11.0, 13.0, 22.0] {
+        for dark in [false, true] {
+            apply_theme(
+                &context,
+                &json!({"dark":dark,"font_pixels":font,
+                "button":"#234567","button_hover":"#345678","button_pressed":"#123456",
+                "button_border":"#789abc"}),
+            );
+            let style = context.style_of(if dark {
+                egui::Theme::Dark
+            } else {
+                egui::Theme::Light
+            });
+            assert_eq!(style.text_styles[&TextStyle::Body].size, font as f32);
+            assert_eq!(style.text_styles[&TextStyle::Button].size, font as f32);
+            for (visuals, expected) in [
+                (&style.visuals.widgets.inactive, "#234567"),
+                (&style.visuals.widgets.hovered, "#345678"),
+                (&style.visuals.widgets.active, "#123456"),
+                (&style.visuals.widgets.open, "#123456"),
+            ] {
+                assert_eq!(visuals.bg_fill, Color32::from_hex(expected).unwrap());
+                assert_eq!(visuals.weak_bg_fill, visuals.bg_fill);
+                assert_eq!(visuals.expansion, 0.0);
+                assert_eq!(
+                    visuals.bg_stroke,
+                    egui::Stroke::new(1.0, Color32::from_hex("#789abc").unwrap())
+                );
+            }
+            let mut view = PresentationView::default();
+            let state = state(control("button", "button", "Continue", json!({})));
+            for _ in 0..3 {
+                frame(
+                    &context,
+                    &mut view,
+                    &state,
+                    egui::vec2(960.0, 720.0),
+                    vec![],
+                );
+            }
+            let rect = view.rects[0].rect;
+            frame(
+                &context,
+                &mut view,
+                &state,
+                egui::vec2(960.0, 720.0),
+                vec![egui::Event::PointerMoved(egui::pos2(
+                    rect[0] + 5.0,
+                    rect[1] + 5.0,
+                ))],
+            );
+            assert_eq!(view.rects[0].rect, rect);
+        }
+    }
+}
+
+#[test]
 fn actual_egui_button_click_preserves_identity_and_disabled_state() {
     let context = egui::Context::default();
     let mut view = PresentationView::default();
@@ -116,6 +175,145 @@ fn acknowledged_text_does_not_erase_newer_typing_and_external_edits_replace_it()
     );
     view.reject_edits();
     assert!(view.edits.is_empty());
+}
+
+#[test]
+fn typing_into_a_clicked_field_survives_idle_frames_and_host_acknowledgements() {
+    let context = egui::Context::default();
+    let mut view = PresentationView::default();
+    let mut state = state(control(
+        "name",
+        "text",
+        "Name",
+        json!({"text":"", "maximum":32767}),
+    ));
+    apply_theme(&context, &state.theme);
+    for _ in 0..3 {
+        frame(
+            &context,
+            &mut view,
+            &state,
+            egui::vec2(960.0, 720.0),
+            vec![],
+        );
+    }
+    let rect = view
+        .rects
+        .iter()
+        .find(|rect| rect.id == "name")
+        .unwrap()
+        .rect;
+    click(
+        &context,
+        &mut view,
+        &state,
+        egui::pos2(rect[0] + 30.0, rect[1] + rect[3] / 2.0),
+    );
+    let mut expected = String::new();
+    for character in ["N", "a", "m", "e"] {
+        expected.push_str(character);
+        frame(
+            &context,
+            &mut view,
+            &state,
+            egui::vec2(960.0, 720.0),
+            vec![egui::Event::Text(character.into())],
+        );
+        let input = view
+            .inputs
+            .iter()
+            .find(|input| input.action == "text")
+            .expect("Click then keyboard text must emit an edit");
+        assert_eq!(input.value, json!(expected));
+        view.acknowledge(&input.clone());
+        state.root.revision += 1;
+        state.root.props["text"] = json!(expected);
+        for _ in 0..3 {
+            frame(
+                &context,
+                &mut view,
+                &state,
+                egui::vec2(960.0, 720.0),
+                vec![],
+            );
+        }
+    }
+}
+
+#[test]
+fn navigation_finishes_the_focused_field_before_hiding_its_page() {
+    let context = egui::Context::default();
+    let mut view = PresentationView::default();
+    let mut root = control("root", "column", "", json!({}));
+    root.children = vec![
+        control(
+            "steps",
+            "steps",
+            "",
+            json!({"selected":1,"steps":[{"text":"Template"},{"text":"Identity"}]}),
+        ),
+        control("name", "text", "Name", json!({"text":""})),
+    ];
+    let state = state(root);
+    apply_theme(&context, &state.theme);
+    for _ in 0..3 {
+        frame(
+            &context,
+            &mut view,
+            &state,
+            egui::vec2(960.0, 720.0),
+            vec![],
+        );
+    }
+    let rect = view
+        .rects
+        .iter()
+        .find(|rect| rect.id == "name")
+        .unwrap()
+        .rect;
+    click(
+        &context,
+        &mut view,
+        &state,
+        egui::pos2(rect[0] + 20.0, rect[1] + rect[3] / 2.0),
+    );
+    let rect = view
+        .rects
+        .iter()
+        .find(|rect| rect.id == "steps")
+        .unwrap()
+        .rect;
+    let point = egui::pos2(rect[0] + 20.0, rect[1] + rect[3] / 2.0);
+    frame(
+        &context,
+        &mut view,
+        &state,
+        egui::vec2(960.0, 720.0),
+        vec![
+            egui::Event::PointerMoved(point),
+            egui::Event::PointerButton {
+                pos: point,
+                button: egui::PointerButton::Primary,
+                pressed: true,
+                modifiers: egui::Modifiers::NONE,
+            },
+            egui::Event::PointerButton {
+                pos: point,
+                button: egui::PointerButton::Primary,
+                pressed: false,
+                modifiers: egui::Modifiers::NONE,
+            },
+        ],
+    );
+    assert_eq!(
+        view.inputs
+            .iter()
+            .map(|input| input.action)
+            .collect::<Vec<_>>(),
+        vec!["finish_edit", "tab"]
+    );
+    assert_eq!(view.inputs[0].control, "name");
+    assert_eq!(view.inputs[1].value, json!(0));
 }
 
 #[test]

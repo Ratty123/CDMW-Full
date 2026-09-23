@@ -20036,7 +20036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 167,
+          "line": 175,
           "sink": "show_loading"
         }
       ]
@@ -22156,7 +22156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 61,
+          "line": 62,
           "sink": "QPushButton"
         }
       ]
@@ -24386,7 +24386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 146,
+          "line": 154,
           "sink": "emit"
         }
       ]
@@ -25691,7 +25691,7 @@
         },
         {
           "path": "cdmw/ui/new_item/rust_ui_document.py",
-          "line": 108,
+          "line": 117,
           "sink": "translate_active_ui_text"
         },
         {
@@ -35546,7 +35546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 58,
+          "line": 59,
           "sink": "QLabel"
         }
       ]
@@ -64141,7 +64141,7 @@
         },
         {
           "path": "cdmw/ui/new_item/rust_ui_document.py",
-          "line": 110,
+          "line": 119,
           "sink": "translate_active_ui_text"
         },
         {
@@ -79566,7 +79566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 571,
+          "line": 591,
           "sink": "pump_startup_splash"
         }
       ]
@@ -79646,7 +79646,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 72,
+          "line": 73,
+          "sink": "show_loading"
+        },
+        {
+          "path": "cdmw/ui/new_item/rust_ui_tab.py",
+          "line": 210,
           "sink": "show_loading"
         }
       ]
@@ -83216,7 +83221,7 @@
         },
         {
           "path": "cdmw/ui/new_item/rust_ui_document.py",
-          "line": 109,
+          "line": 118,
           "sink": "translate_active_ui_text"
         },
         {
@@ -87996,7 +88001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 605,
+          "line": 625,
           "sink": "pump_startup_splash"
         }
       ]
@@ -94556,7 +94561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 60,
+          "line": 61,
           "sink": "QPushButton"
         }
       ]
@@ -110851,7 +110856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 300,
+          "line": 315,
           "sink": "_fail"
         }
       ]
@@ -110861,7 +110866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 313,
+          "line": 328,
           "sink": "_fail"
         }
       ]
@@ -110871,7 +110876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 87,
+          "line": 88,
           "sink": "_fail"
         }
       ]
@@ -110881,7 +110886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 284,
+          "line": 298,
           "sink": "_fail"
         }
       ]
@@ -110891,7 +110896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 331,
+          "line": 346,
           "sink": "show_error"
         }
       ]
@@ -137201,12 +137206,12 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 344,
+          "line": 345,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 674,
+          "line": 695,
           "sink": "_register_detachable_tool"
         }
       ]
@@ -138656,7 +138661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 681,
+          "line": 702,
           "sink": "_register_detachable_tool"
         },
         {
@@ -140131,7 +140136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 670,
+          "line": 691,
           "sink": "_register_detachable_tool"
         }
       ]

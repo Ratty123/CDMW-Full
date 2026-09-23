@@ -369,7 +369,22 @@ impl Application {
 
     fn send_next(&mut self) -> Result<()> {
         if self.in_flight.is_none() {
-            if let Some(input) = self.requests.pop_front() {
+            while let Some(input) = self.requests.pop_front() {
+                // A final blur can also arrive from the old layout while a
+                // navigation request is awaiting its state. Once the host has
+                // removed that field, this lifecycle notification has no target.
+                // Keep substantive stale edits subject to the host's rejection.
+                if input.action == "finish_edit"
+                    && self.state.as_ref().is_some_and(|state| {
+                        state.root.find_revision(&input.control).is_none()
+                            && state
+                                .dialogs
+                                .iter()
+                                .all(|dialog| dialog.find_revision(&input.control).is_none())
+                    })
+                {
+                    continue;
+                }
                 self.next_request += 1;
                 emit(
                     &json!({"protocol":PROTOCOL,"type":"input","session":self.session,
@@ -377,6 +392,7 @@ impl Application {
                     "action":input.action,"value":input.value}),
                 )?;
                 self.in_flight = Some((self.next_request, input));
+                break;
             }
         }
         Ok(())
@@ -386,11 +402,19 @@ impl Application {
         let Some(window) = self.window.clone() else {
             return Ok(());
         };
-        let input = self
+        let mut input = self
             .input
             .as_mut()
             .context("Missing New Item input")?
             .take_egui_input(&window);
+        let focused = cdmw_win32_embed::has_keyboard_focus(&window)?;
+        input.focused = focused;
+        if let Some(viewport) = input.viewports.get_mut(&egui::ViewportId::ROOT) {
+            viewport.focused = Some(focused);
+        }
+        input
+            .events
+            .retain(|event| !matches!(event, egui::Event::WindowFocused(_)));
         let output = self.context.run_ui(input, |ui| {
             if let Some(state) = &self.state {
                 self.view.draw(ui, state);
@@ -499,6 +523,17 @@ impl ApplicationHandler for Application {
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         let mut repaint = false;
+        if matches!(
+            event,
+            WindowEvent::MouseInput {
+                state: winit::event::ElementState::Pressed,
+                ..
+            }
+        ) {
+            if let Some(window) = &self.window {
+                let _ = cdmw_win32_embed::focus_child_window(window);
+            }
+        }
         if let (Some(input), Some(window)) = (&mut self.input, &self.window) {
             repaint = input.on_window_event(window, &event).repaint;
         }

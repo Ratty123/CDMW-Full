@@ -10,12 +10,13 @@ import time
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QThread, QTimer
+from PySide6.QtCore import QThread, QTimer, Qt
 from PySide6.QtWidgets import QApplication, QProgressBar, QTabWidget, QWidget
 
 from cdmw.ui.shell.lazy_tool_tab import LazyToolTab
@@ -163,6 +164,54 @@ class LazyToolTabTests(unittest.TestCase):
         self.assertTrue(self._process_until(lambda: not tuple(lazy.iter_shutdown_workers())))
         self.assertEqual([], builds)
         self.assertIsNone(lazy.widget_if_created())
+
+    def test_rust_prewarm_waits_for_startup_and_leaves_current_tool_selected(self) -> None:
+        from cdmw.ui.shell.tool_tabs import ShellToolTabsMixin
+
+        class Shell(QWidget, ShellToolTabsMixin):
+            pass
+
+        for shutdown in (False, True):
+            with self.subTest(shutdown=shutdown):
+                shell = Shell()
+                shell.setAttribute(Qt.WA_DontShowOnScreen)
+                tabs = QTabWidget(shell)
+                current = QWidget()
+                tabs.addTab(current, "Current")
+                warmed = []
+                tool = _ProbeTool()
+                tool.prewarm = lambda: warmed.append(tool)
+                lazy = LazyToolTab(lambda: tool)
+                tabs.addTab(lazy, "Rust")
+                shell.new_item_rust_studio_tab = lazy
+                shell._schedule_new_item_rust_prewarm()
+                timer = shell.findChild(QTimer)
+                try:
+                    timer.timeout.emit()
+                    self.assertFalse(lazy._load_requested)
+                    shell.show()
+                    shell._startup_splash_window = object()
+                    timer.timeout.emit()
+                    self.assertFalse(lazy._load_requested)
+                    shell._startup_splash_window = None
+                    with patch.object(QApplication, "activeModalWidget", return_value=object()):
+                        timer.timeout.emit()
+                    self.assertFalse(lazy._load_requested)
+                    shell._shutting_down = shutdown
+                    timer.timeout.emit()
+                    self.assertFalse(timer.isActive())
+                    if shutdown:
+                        self.assertFalse(lazy._load_requested)
+                        self.assertEqual([], warmed)
+                    else:
+                        self.assertTrue(self._process_until(lambda: bool(warmed)))
+                        self.assertEqual([tool], warmed)
+                        self.assertIs(tabs.currentWidget(), current)
+                        self.assertFalse(tool.isVisible())
+                finally:
+                    lazy.request_shutdown()
+                    shell.close()
+                    shell.deleteLater()
 
     def test_shutdown_between_construction_and_publication_drops_created_callbacks(self) -> None:
         built = _ProbeTool()

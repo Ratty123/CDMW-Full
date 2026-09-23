@@ -59,6 +59,55 @@ pub fn window_hwnd(window: &Window) -> Result<u64, EmbeddedWindowError> {
     }
 }
 
+// Child HWNDs do not receive the top-level WM_NCACTIVATE sequence that winit
+// combines with WM_SETFOCUS. Query keyboard focus on the owning event thread.
+#[cfg(target_os = "windows")]
+mod keyboard_focus {
+    #[link(name = "user32")]
+    unsafe extern "system" {
+        fn GetFocus() -> isize;
+        fn SetFocus(window: isize) -> isize;
+    }
+
+    pub fn current() -> isize {
+        // SAFETY: GetFocus has no parameters and only reads this thread's queue.
+        unsafe { GetFocus() }
+    }
+
+    pub fn set(window: isize) {
+        // SAFETY: callers obtain this live HWND from their retained winit Window.
+        // No foreground-window activation or cross-thread input attachment occurs.
+        unsafe {
+            SetFocus(window);
+        }
+    }
+}
+
+pub fn has_keyboard_focus(window: &Window) -> Result<bool, EmbeddedWindowError> {
+    #[cfg(target_os = "windows")]
+    {
+        Ok(keyboard_focus::current() == window_hwnd(window)? as isize)
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = window;
+        Err(EmbeddedWindowError::UnsupportedPlatform)
+    }
+}
+
+pub fn focus_child_window(window: &Window) -> Result<bool, EmbeddedWindowError> {
+    #[cfg(target_os = "windows")]
+    {
+        keyboard_focus::set(window_hwnd(window)? as isize);
+        has_keyboard_focus(window)
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = window;
+        Err(EmbeddedWindowError::UnsupportedPlatform)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

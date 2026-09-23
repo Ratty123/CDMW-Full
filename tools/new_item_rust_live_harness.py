@@ -10,6 +10,7 @@ import ctypes
 import json
 import os
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import time
@@ -43,6 +44,9 @@ def main():
     checks = []
     errors = []
     experimental = None
+    sent_states = []
+    native_inputs = []
+    rejected_inputs = []
     preview_host = None
     preview_root = tempfile.TemporaryDirectory(prefix="cdmw-new-item-native-preview-") if args.preview else None
     user32 = ctypes.WinDLL("user32", use_last_error=True)
@@ -74,6 +78,66 @@ def main():
                 dialog.reject()
     crop_timer.timeout.connect(decline_owned_capture)
     crop_timer.start()
+
+    def pump(seconds=0.1):
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline:
+            QApplication.processEvents()
+            if experimental is not None and experimental._host.child_hwnd:
+                user32.PostMessageW(experimental._host.child_hwnd, 0x000F, 0, 0)
+            time.sleep(0.005)
+
+    def click_native_control(widget, index=0):
+        """Locate a real control and click only this probe's owned child HWND."""
+        from ctypes import wintypes
+        experimental._state_fingerprint = b""
+        experimental._publish_state()
+        pump(0.2)
+        state = sent_states[-1]
+        identifier = experimental._bridge.document.registry.identify(widget)
+        rectangle = wintypes.RECT()
+        child = experimental._host.child_hwnd
+        user32.GetClientRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
+        user32.GetDpiForWindow.argtypes = [wintypes.HWND]
+        user32.GetDpiForWindow.restype = ctypes.c_uint
+        assert user32.GetClientRect(child, ctypes.byref(rectangle))
+        scale = user32.GetDpiForWindow(child) / 96.0
+        root = Path(settings_root.name)
+        document, report = root / "input-state.json", root / "input-layout.json"
+        document.write_text(json.dumps(state), encoding="utf-8")
+        result = subprocess.run([str(args.renderer.resolve()), "--new-item-ui-document", str(document),
+            "--new-item-ui-report", str(report), "--width", str(round(rectangle.right / scale)),
+            "--height", str(round(rectangle.bottom / scale))], capture_output=True, text=True, timeout=20,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        assert result.returncode == 0, result.stderr
+        controls = json.loads(report.read_text(encoding="utf-8"))["controls"]
+        rect = [control["rect"] for control in controls if control["id"] == identifier][index]
+        x, y = round((rect[0] + min(20, rect[2]/2)) * scale), round((rect[1] + rect[3]/2) * scale)
+        position = (y << 16) | x
+        # Send only to this owned child. The renderer must acquire focus from
+        # the click itself, including under a hidden parent.
+        user32.PostMessageW(child, 0x0200, 0, position)
+        pump()
+        # Deliver a complete click in one burst. Separating press/release with
+        # idle frames lets Windows synthesize mouse-leave on a hidden parent.
+        user32.PostMessageW(child, 0x0200, 0, position + 1)
+        user32.PostMessageW(child, 0x0201, 1, position)
+        user32.PostMessageW(child, 0x0200, 1, position)
+        user32.PostMessageW(child, 0x0202, 0, position)
+        pump()
+        return child, identifier
+
+    def type_in_native_field(widget, text):
+        """Exercise Win32 -> winit -> egui -> stdio -> the original Qt field."""
+        child, identifier = click_native_control(widget)
+        for character in text:
+            key = ord(character.upper())
+            scan = user32.MapVirtualKeyW(key, 0)
+            user32.PostMessageW(child, 0x0100, key, 1 | (scan << 16))
+            user32.PostMessageW(child, 0x0102, ord(character), 1 | (scan << 16))
+            user32.PostMessageW(child, 0x0101, key, 1 | (scan << 16) | 0xC0000000)
+            pump(0.15)
+        until(lambda: widget.text() == text, "native_mouse_and_keyboard_reached_" + identifier, timeout=3)
 
     def prepare(session, _log, stop):
         if stop.is_set():
@@ -109,24 +173,45 @@ def main():
         workflow.prefill_template(support.TEMPLATE)
         with patch("cdmw.ui.new_item.rust_ui_tab.prepare_new_item_ui", prepare):
             experimental = RustNewItemStudioTab(workflow=workflow)
+            send = experimental._send
+            handle = experimental._handle_message
+            def record_send(message):
+                if message.get("type") == "state":
+                    sent_states[:] = [message]
+                elif message.get("type") == "rejected":
+                    rejected_inputs.append(message)
+                return send(message)
+            def record_input(message):
+                if message.get("type") == "input":
+                    native_inputs.append(message)
+                return handle(message)
+            experimental._send = record_send
+            experimental._handle_message = record_input
             experimental.status_message_requested.connect(lambda text, error: errors.append(text) if error else None)
             experimental.setAttribute(Qt.WA_DontShowOnScreen, True)
             experimental.resize(1280, 850)
+            experimental.prewarm()
+            until(lambda: experimental._ready and experimental._received_generation > 0,
+                  "hidden_prewarm_ready_and_state_acknowledged")
+            warm_pid = experimental._process.processId()
+            assert not experimental.isVisible() and not experimental._timer.isActive()
             experimental.show()
             until(lambda: experimental._ready and experimental._received_generation > 0, "real_child_ready_and_state_acknowledged")
+            assert experimental._process.processId() == warm_pid
+            checks.append("opening_reuses_prewarmed_process")
             user32.IsWindowVisible.argtypes = [ctypes.c_void_p]
             user32.IsWindowVisible.restype = ctypes.c_int
             assert not user32.IsWindowVisible(int(experimental.winId())), "The owned probe must remain hidden"
-            workflow.show_step(1)
-            experimental._publish_state()
-            until(lambda: experimental._received_generation == experimental._sent_generation, "identity_document_acknowledged")
+            click_native_control(workflow.steps, 1)
+            until(lambda: workflow.steps.currentRow() == 1, "native_navigation_opens_identity")
             bridge = experimental._bridge
-            bridge.snapshot()
-            identifier = bridge.document.registry.identify(workflow.identity_panel.display_name)
-            node = bridge.document.registry.current[identifier]
-            experimental._handle_message({"protocol": PROTOCOL, "type": "input", "session": bridge.session,
-                "request": 1, "control": identifier, "revision": node["revision"], "action": "text", "value": "Hidden Rust round trip"})
-            until(lambda: "Hidden Rust round trip" in workflow.controller.draft.display_names.values(), "queued_input_reached_existing_draft")
+            type_in_native_field(workflow.identity_panel.display_name, "test")
+            until(lambda: "test" in workflow.controller.draft.display_names.values(), "native_typing_reached_existing_draft")
+            click_native_control(workflow.steps, 0)
+            until(lambda: workflow.steps.currentRow() == 0, "native_navigation_returns_to_template")
+            workflow.template_panel.filter_edit.clear()
+            type_in_native_field(workflow.template_panel.filter_edit, "blade")
+            assert not rejected_inputs, rejected_inputs
             original = workflow.controller.draft
             experimental.use_classic()
             experimental.use_rust()
@@ -212,7 +297,8 @@ def main():
             preview_root.cleanup()
         assert not any(root.exists() for root in launches), "Owned launch manifests were not cleaned"
         args.report.parent.mkdir(parents=True, exist_ok=True)
-        args.report.write_text(json.dumps({"checks": checks, "errors": errors, "hidden": True,
+        args.report.write_text(json.dumps({"checks": checks, "errors": errors, "native_inputs": native_inputs,
+            "rejected_inputs": rejected_inputs, "hidden": True,
             "renderer": str(args.renderer.resolve()), "source": "owned_synthetic_fixture"}, indent=2), encoding="utf-8")
     print(json.dumps({"passed": len(checks), "report": str(args.report)}))
 

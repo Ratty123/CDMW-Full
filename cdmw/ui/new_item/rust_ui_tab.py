@@ -41,6 +41,7 @@ class RustNewItemStudioTab(QWidget):
         self._prepare_worker = None
         self._launch = None
         self._ready = False
+        self._prewarming = False
         self._stopping = False
         self._restart_pending = False
         self._reader = JsonLineReader()
@@ -96,6 +97,13 @@ class RustNewItemStudioTab(QWidget):
 
     def open_model_source(self, path):
         self.workflow.open_model_source(path)
+
+    def prewarm(self):
+        """Prepare this tab's owned renderer without selecting or focusing it."""
+        if self._closed or self.isVisible() or self._bridge is not None:
+            return
+        self._prewarming = True
+        self.use_rust()
 
     def showEvent(self, event):  # noqa: N802
         super().showEvent(event)
@@ -199,6 +207,7 @@ class RustNewItemStudioTab(QWidget):
         process.finished.connect(self._process_finished)
         process.errorOccurred.connect(self._process_error)
         parent_hwnd = self._host.prepare_launch()
+        self._host.show_loading("Preparing the Rust New Item interface…")
         process.setProgram(launch.executable)
         process.setArguments(["--cdmw-new-item-session", str(launch.manifest), "--embedded-parent-hwnd", str(parent_hwnd)])
         process.start()
@@ -255,6 +264,11 @@ class RustNewItemStudioTab(QWidget):
             if type(generation) is not int or not self._received_generation <= generation <= self._sent_generation:
                 raise PresentationProtocolError("Invalid presentation state acknowledgement.")
             self._received_generation = generation
+            if self._prewarming and generation == self._sent_generation:
+                self._prewarming = False
+                if not self.isVisible():
+                    self._timer.stop()
+                    self.workflow.hide()
         elif kind == "layout":
             if message.get("generation") == self._sent_generation and self._rust_mode and self.isVisible():
                 self._portals.update(self._bridge.document, message)
@@ -283,7 +297,8 @@ class RustNewItemStudioTab(QWidget):
                 and self._state_delivery.elapsed() > 10000 and self._ready and not self._stopping):
             self._fail("The Rust interface stopped acknowledging updates. Your item remains available in Classic.")
             return
-        if (not self._ready or self._closed or not self._rust_mode or self._stopping or not self.isVisible()
+        if (not self._ready or self._closed or not self._rust_mode or self._stopping
+                or (not self.isVisible() and not self._prewarming)
                 or self._sent_generation > self._received_generation or self._bridge is None):
             return
         try:
@@ -334,7 +349,8 @@ class RustNewItemStudioTab(QWidget):
     def _fail(self, message):
         self._restart_pending = False
         self._host.show_error(message)
-        self.status_message_requested.emit(message, True)
+        if not self._prewarming or self.isVisible():
+            self.status_message_requested.emit(message, True)
         self._stop_renderer()
 
     @Slot()
@@ -345,6 +361,7 @@ class RustNewItemStudioTab(QWidget):
             self._restart_pending = True
 
     def _stop_renderer(self):
+        self._prewarming = False
         self._timer.stop()
         self._startup_deadline.stop()
         self._stopping = True
