@@ -360,5 +360,7 @@ class PresentationDocument:
             children.append(child)
         return {"kind": "grid" if grid else "row" if horizontal else "column",
                 "name": layout.objectName(), "enabled": True, "label": "", "tooltip": "",
-                "props": {"form": isinstance(layout, QFormLayout), "spacing": max(4, min(12, layout.spacing()))},
+                "props": {"form": isinstance(layout, QFormLayout), "spacing": max(4, min(12, layout.spacing())),
+                          "dialog_actions": horizontal and any(isinstance(layout.itemAt(i).widget(), QDialogButtonBox)
+                                                               for i in range(layout.count()))},
                 "children": children}

@@ -1,6 +1,6 @@
 """Experimental equipment visibility choices for the current variant."""
 from PySide6.QtCore import Signal
-from PySide6.QtWidgets import QCheckBox, QGroupBox, QLabel, QVBoxLayout
+from PySide6.QtWidgets import QCheckBox, QGroupBox, QVBoxLayout
 
 from cdmw.domain.new_item.body_visibility import BodyVisibilityChoice
 
@@ -21,10 +21,8 @@ class BodyVisibilityEditor(QGroupBox):
         self.keep_hair.setToolTip("Ask this equipment variant to preserve character hair and beard. Helmet-owned item hair keeps its template rules.")
         layout.addWidget(self.keep_skin)
         layout.addWidget(self.keep_hair)
-        note = QLabel("Applies to the current equipment variant, across its materials. Whole-part hiding applies to its entire prefab. "
-                      "Test in game: the preview does not simulate these rules, and other equipment may still hide parts.")
-        note.setWordWrap(True)
-        layout.addWidget(note)
+        self.setToolTip("Applies to the current equipment variant, across its materials. Whole-part hiding applies to its entire prefab. "
+                        "Test in game: the preview does not simulate these rules, and other equipment may still hide parts.")
         self._loading = False
         self.keep_skin.toggled.connect(self._changed)
         self.keep_hair.toggled.connect(self._changed)

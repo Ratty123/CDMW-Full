@@ -393,6 +393,40 @@ def test_modal_confirmation_is_projected_and_returns_original_no_result(studio):
         dialogs.close()
 
 
+def test_dialog_operation_row_stays_with_close_and_help_is_on_the_control(studio):
+    _, workflow, _ = studio
+    from cdmw.ui.new_item.mod_merge_dialog import ModMergeDialog
+    dialog = ModMergeDialog(workflow.controller, parent=workflow)
+    try:
+        dialog.show()
+        QApplication.processEvents()
+        bridge = NewItemPresentationBridge(workflow, dialogs=lambda: (dialog,))
+        state = bridge.snapshot()
+        assert not state["unsupported"]
+
+        def action_rows(node):
+            if node["props"].get("dialog_actions"):
+                yield node
+                return
+            for child in node["children"]:
+                yield from action_rows(child)
+
+        rows = list(action_rows(state["dialogs"][0]))
+        assert len(rows) == 1 and rows[0]["kind"] == "row"
+
+        def buttons(node):
+            if node["kind"] == "button":
+                yield node["label"]
+            for child in node["children"]:
+                yield from buttons(child)
+
+        assert set(buttons(rows[0])) == {"Check compatibility", "Write merged mod", "Close"}
+        assert "Independent changes" in dialog.scan_button.toolTip()
+    finally:
+        dialog.close()
+        QApplication.processEvents()
+
+
 def test_persistent_workspaces_share_allocations_and_refuse_concurrent_plans(studio):
     fixture, first, _ = studio
     second = fixture._tab()

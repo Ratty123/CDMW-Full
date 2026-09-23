@@ -113,8 +113,10 @@ class ModelPanelPreviewMixin:
 
     def _refresh_apply_status(self) -> None:
         self.apply_button.setVisible(self._controller.model_import is not None)
+        self.apply_status.setToolTip("")
         if self._controller.model_import is None:
-            self.apply_status.set_note("Template edits are included when you build the plan." if self._controller.draft.template_key else "", None)
+            self.apply_status.set_note("Included in Build plan." if self._controller.draft.template_key else "", None)
+            self.apply_status.setToolTip("Template edits are included when you build the plan.")
             return
         if getattr(self, "_apply_error", ""):
             self.apply_status.set_note(self._apply_error, WARN)

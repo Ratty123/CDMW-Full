@@ -71,6 +71,7 @@ def main():
     parser.add_argument("--language", default="en")
     parser.add_argument("--authored", action="store_true")
     parser.add_argument("--material-controls", action="store_true", help="Populate owned synthetic material controls for layout checks")
+    parser.add_argument("--audit", action="store_true", help="Include optional editing states and owned dialogs; never write game data")
     parser.add_argument("--icon-crop-image", type=Path, help="Render the original icon crop dialog using an owned capture")
     args = parser.parse_args()
     from PySide6.QtCore import QSettings
@@ -86,6 +87,7 @@ def main():
     from cdmw.ui.themes import build_app_palette, build_app_stylesheet
     from cdmw.ui.localization import UiLocalizer
     app = QApplication.instance()
+    app.setProperty("_cdmw_theme_key", args.theme)
     app.setPalette(build_app_palette(args.theme))
     app.setStyleSheet(build_app_stylesheet(args.theme, base_font_size=args.font_pixels))
     font = app.font()
@@ -130,7 +132,15 @@ def main():
             layout = json.loads(report.read_text(encoding="utf-8"))
             if layout["errors"] or layout["unsupported"]:
                 raise RuntimeError(f"{name}: renderer coverage: {layout['errors']} {layout['unsupported']}")
-            check_control_overlaps(layout)
+            if state["dialogs"]:
+                def ids(node):
+                    yield node.get("id")
+                    for child in node.get("children", []):
+                        yield from ids(child)
+                active = set(ids(state["dialogs"][-1]))
+                check_control_overlaps({"controls": [control for control in layout["controls"] if control["id"] in active]})
+            else:
+                check_control_overlaps(layout)
             row["rendered_controls"] = len(layout["controls"])
             row["report"] = str(report)
         evidence.append(row)
@@ -207,9 +217,74 @@ def main():
                 if step == 4:
                     tab._perks_panel.effects_workspace.library_toggle.setChecked(True)
                     emit("step-5-effect-library")
+            if args.audit:
+                from PySide6.QtWidgets import QCheckBox
+                # Exercise opt-in editors as well as their inherited/empty states.
+                # These are in-memory controls on the owned archive fixture.
+                for widget in tab.pages.currentWidget().findChildren(QCheckBox):
+                    if widget.isVisibleTo(tab) and widget.isEnabled() and not widget.isChecked():
+                        widget.setChecked(True)
+                if step == 0:
+                    tab.template_panel.filter_edit.clear()
+                if step == 5:
+                    tab.placement_panel.insert.setChecked(True)
+                emit(f"step-{step + 1}-editing")
+                if args.nested:
+                    nested(tab.pages.currentWidget(), f"step-{step + 1}-editing")
+                if step == 2 and args.material_controls:
+                    from PySide6.QtCore import QSignalBlocker, Qt
+                    panel = tab.model_panel
+                    panel.inspector_tabs.setCurrentWidget(panel.appearance_page)
+                    panel.glow_box.setChecked(True)
+                    panel.glow_animation.setChecked(True)
+                    panel.glow_animation.rgb_box.setChecked(True)
+                    panel.translucency_editor.setChecked(True)
+                    with QSignalBlocker(panel.translucency_editor):
+                        panel.translucency_editor.select_all.click()
+                        panel.translucency_editor.advanced.setChecked(True)
+                    with QSignalBlocker(panel.glow_parts):
+                        if panel.glow_parts.count():
+                            panel.glow_parts.item(0).setCheckState(Qt.Checked)
+                    editor = panel.shader_controls_editor
+                    with QSignalBlocker(editor):
+                        for index in range(editor.family.count()):
+                            editor.family.setCurrentIndex(index)
+                            emit(f"step-3-shader-{index}")
             for widget in reversed(expanded):
                 if isValid(widget):
                     widget.setChecked(False)
+        if args.audit and args.step in (None, 6):
+            from PySide6.QtWidgets import QInputDialog, QMenu, QMessageBox
+            from cdmw.ui.new_item.mod_merge_dialog import ModMergeDialog
+            from cdmw.ui.new_item.mod_update_dialog import ModUpdateDialog
+            from cdmw.ui.new_item.overlay_manager_dialog import OverlayManagerDialog
+
+            def capture_dialog(name, dialog):
+                owned_dialogs.append(dialog)
+                try:
+                    dialog.show()
+                    emit(name)
+                finally:
+                    dialog.close()
+                    owned_dialogs.clear()
+                settle()
+
+            capture_dialog("dialog-merge", ModMergeDialog(tab.controller, str(fixture.root), tab))
+            capture_dialog("dialog-update", ModUpdateDialog(tab.controller, str(fixture.root), tab))
+            capture_dialog("dialog-overlays", OverlayManagerDialog(tab.controller, fixture.root, None, tab))
+            name_dialog = QInputDialog(tab)
+            name_dialog.setWindowTitle("Save effect")
+            name_dialog.setLabelText("Name:")
+            name_dialog.setTextValue("Owned fixture effect")
+            capture_dialog("dialog-effect-name", name_dialog)
+            confirmation = QMessageBox(QMessageBox.Question, "Owned fixture confirmation",
+                "Apply the changes to this owned fixture?", QMessageBox.Yes | QMessageBox.No, tab)
+            confirmation.setDefaultButton(QMessageBox.No)
+            capture_dialog("dialog-confirmation", confirmation)
+            menu = QMenu(tab)
+            menu.addAction("Copy Filename")
+            menu.addAction("Open In Archive Browser")
+            capture_dialog("menu-template", menu)
         if args.icon_crop_image:
             from PySide6.QtCore import QRect
             from PySide6.QtGui import QImage

@@ -629,19 +629,24 @@ class StatsPanel(QGroupBox):
         """Say what shipped equipment carries for this stat, and start the value there."""
 
         key = self.new_stat.currentData()
+        self.stat_range_note.setToolTip("")
         if key is None:
             self.stat_range_note.set_note("", None)
             return
         measured = self._controller.status_value_range(int(key))
         label = self.new_stat.currentText().split(" — ")[0]
         if measured is None:
-            self.stat_range_note.set_note(f"No shipped equipment carries {label}, so there is no value to go by; whatever you type here is a guess.", WARN)
+            self.stat_range_note.set_note(f"No shipped reference for {label}.", WARN)
+            self.stat_range_note.setToolTip(f"No shipped equipment carries {label}, so there is no value to go by; whatever you type here is a guess.")
             return
         entries, low, middle, high = measured
         self.stat_range_note.set_note(
-            f"Shipped equipment carries {label} between {low:,} and {high:,} (median {middle:,}, {entries:,} entrie(s)). "
-            "A value far outside that range has crashed the game when the item is bought.",
+            f"Shipped range: {low:,}–{high:,}; median {middle:,}.",
             None,
+        )
+        self.stat_range_note.setToolTip(
+            f"Shipped equipment carries {label} between {low:,} and {high:,} (median {middle:,}, {entries:,} entrie(s)). "
+            "A value far outside that range has crashed the game when the item is bought."
         )
         if not self.new_stat_value.hasFocus():
             self.new_stat_value.setValue(int(middle))

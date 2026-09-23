@@ -40,6 +40,10 @@ theme; hover changes color without expanding the controls.
 Buttons fit their labels and related actions stay together. Inspector lists fit
 their contents, the navigation footer stays compact, and expanding Quick turn or
 other inspector sections preserves the viewport size and splitter position.
+Editable choices keep their text field and dropdown arrow on one row. Short
+tables use their actual row and font heights, and narrow split panels scroll to
+keep every inspector reachable. Context menus open beside the pointer; small
+dialogs fit their fields and keep related actions together below the content.
 Instructional detail is available on hover over the relevant control or section;
 validation messages remain visible. Popup and tooltip rectangles mask the native
 preview underneath so their complete contents remain visible and clickable.
@@ -67,7 +71,11 @@ After changing the native UI, build the local pinned helper with
 `./build_pyside6_app.ps1 -Mode onefile -BuildProfile release -NativeHelpersOnly`.
 The owned headless layout and live transport probes are
 `tools/new_item_rust_ui_harness.py` and `tools/new_item_rust_live_harness.py`;
-neither uses an installed game. The live probe prewarms a hidden renderer, opens
+neither uses an installed game. The layout probe's `--audit --material-controls`
+options include optional editing states, material sections and owned dialogs.
+The ignored Rust test `render_owned_ui_popups_and_scrolled_panels` reads captures
+under `CDMW_UI_AUDIT_ROOT` and writes popup and scroll captures for inspection.
+The live probe prewarms a hidden renderer, opens
 the tab with the same process, and clicks and types through Win32 into the original
 Name and Find fields. It also checks that page switches do not reject a finishing
 edit. Its `--preview` option loads an owned

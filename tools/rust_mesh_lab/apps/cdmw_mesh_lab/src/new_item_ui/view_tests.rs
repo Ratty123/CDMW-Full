@@ -589,6 +589,253 @@ fn column_drag_keeps_the_full_distance_on_release_and_after_row_updates() {
 }
 
 #[test]
+fn editable_choice_uses_one_row_and_preserves_typing_and_selection() {
+    let context = egui::Context::default();
+    let mut view = PresentationView::default();
+    let state = state(control("part", "choice", "", json!({"editable":true,"text":"Blade",
+        "selected":0,"options":[{"index":0,"text":"Blade"},{"index":1,"text":"Handle"}]})));
+    apply_theme(&context, &state.theme);
+    let size = egui::vec2(960.0, 720.0);
+    for _ in 0..3 { frame(&context, &mut view, &state, size, vec![]); }
+    assert_eq!(view.rects.len(), 2);
+    let field = view.rects[0].rect;
+    let arrow = view.rects[1].rect;
+    assert!((field[1] - arrow[1]).abs() < 2.0);
+    assert!(field[0] + field[2] <= arrow[0]);
+    click(&context, &mut view, &state, egui::pos2(field[0] + 20.0, field[1] + 10.0));
+    frame(&context, &mut view, &state, size, vec![egui::Event::Text("Custom".into())]);
+    assert!(view.inputs.iter().any(|input| input.action == "text" && input.value.as_str().unwrap().contains("Custom")));
+    click(&context, &mut view, &state, egui::pos2(arrow[0] + 10.0, arrow[1] + 10.0));
+    for _ in 0..3 { frame(&context, &mut view, &state, size, vec![]); }
+    let popup = context.memory(|memory| memory.areas().visible_layer_ids().into_iter()
+        .filter(|layer| layer.order == egui::Order::Foreground)
+        .find_map(|layer| memory.area_rect(layer.id))).unwrap();
+    assert!(popup.width() >= field[2], "editable choices must span their field: {popup:?}");
+    click(&context, &mut view, &state, popup.min + egui::vec2(24.0, 40.0));
+    assert!(view.inputs.iter().any(|input| input.action == "choose" && input.value == 1));
+}
+
+#[test]
+fn empty_lists_and_nested_action_rows_do_not_reserve_dead_space() {
+    let context = egui::Context::default();
+    let mut list = control("empty", "table", "", json!({"total":0,"columns":[{"index":0,"width":100}],"rows":[]}));
+    list.stretch = 1;
+    let mut root = control("inspector", "scroll", "", json!({}));
+    root.children = vec![list, control("add", "button", "Add", json!({}))];
+    let state = state(root);
+    apply_theme(&context, &state.theme);
+    let mut view = PresentationView::default();
+    for _ in 0..3 { frame(&context, &mut view, &state, egui::vec2(320.0, 600.0), vec![]); }
+    let button = view.rects.iter().find(|rect| rect.id == "add").unwrap();
+    assert!(button.rect[1] < 40.0, "empty list gap: {:?}", button.rect);
+}
+
+#[test]
+fn short_tables_fit_their_actual_font_height_without_clipping_the_last_row() {
+    for font in [14.0, 20.0, 22.0] {
+        let context = egui::Context::default();
+        let mut table = control("list", "table", "", json!({"total":3,"headers":true,
+            "columns":[{"index":0,"text":"A long heading that should stay on one line","width":100}]}));
+        table.props["rows"] = json!((0..3).map(|index| json!({"path":[index],
+            "cells":[{"text":format!("Part {index}"),"enabled":true}]})).collect::<Vec<_>>());
+        let mut root = control("inspector", "scroll", "", json!({}));
+        root.children = vec![table, control("add", "button", "Add", json!({}))];
+        let mut state = state(root);
+        state.theme["font_pixels"] = json!(font);
+        apply_theme(&context, &state.theme);
+        let mut view = PresentationView::default();
+        for _ in 0..4 { frame(&context, &mut view, &state, egui::vec2(320.0, 600.0), vec![]); }
+        let table = view.rects.iter().find(|rect| rect.id == "list").unwrap();
+        let button = view.rects.iter().find(|rect| rect.id == "add").unwrap();
+        assert!(table.rect[3] + 1.0 >= 4.0 * button.rect[3] + 3.0 * 4.0, "font {font}: {table:?}, {button:?}");
+        assert!(table.rect[1] + table.rect[3] <= button.rect[1]);
+    }
+}
+
+#[test]
+fn narrow_split_keeps_the_stacked_inspector_reachable_by_scrolling() {
+    let context = egui::Context::default();
+    let mut viewport = control("view", "column", "", json!({}));
+    viewport.children = vec![control("tools", "button", "Frame", json!({})),
+        control("preview", "viewport", "", json!({}))];
+    let mut inspector = control("inspector", "scroll", "", json!({}));
+    inspector.children = vec![control("apply", "button", "Apply placement", json!({}))];
+    let mut split = control("split", "split", "", json!({"horizontal":true,"sizes":[650,380]}));
+    split.children = vec![viewport, inspector];
+    let state = state(split);
+    apply_theme(&context, &state.theme);
+    let mut view = PresentationView::default();
+    let size = egui::vec2(640.0, 400.0);
+    for _ in 0..4 { frame(&context, &mut view, &state, size, vec![]); }
+    for _ in 0..8 {
+        frame(&context, &mut view, &state, size, vec![egui::Event::PointerMoved(egui::pos2(620.0, 200.0)),
+            egui::Event::MouseWheel {unit:egui::MouseWheelUnit::Point,delta:egui::vec2(0.0,-160.0),phase:egui::TouchPhase::Move,modifiers:egui::Modifiers::NONE}]);
+    }
+    let button = view.rects.iter().find(|rect| rect.id == "apply").unwrap();
+    assert!(button.rect[1] >= button.clip[1] && button.rect[1] + button.rect[3] <= button.clip[1] + button.clip[3], "{button:?}");
+}
+
+#[test]
+fn compact_input_dialog_keeps_buttons_below_the_field_at_each_font_size() {
+    for font in [11.0, 14.0, 22.0] {
+        let context = egui::Context::default();
+        let mut state = state(control("background", "label", "", json!({"text":"Workspace"})));
+        state.theme["font_pixels"] = json!(font);
+        let mut actions = control("actions", "row", "", json!({"dialog_actions":true}));
+        actions.children = vec![control("ok", "button", "OK", json!({"default":true})), control("cancel", "button", "Cancel", json!({}))];
+        let mut dialog = control("save", "dialog", "Save effect", json!({}));
+        dialog.children = vec![control("label", "label", "", json!({"text":"Name:"})),
+            control("name", "text", "", json!({"text":"Owned fixture effect"})), actions];
+        state.dialogs.push(dialog);
+        apply_theme(&context, &state.theme);
+        let mut view = PresentationView::default();
+        for _ in 0..5 { frame(&context, &mut view, &state, egui::vec2(640.0, 480.0), vec![]); }
+        let field = view.rects.iter().find(|rect| rect.id == "name").unwrap().rect;
+        for id in ["ok", "cancel"] {
+            let action = view.rects.iter().find(|rect| rect.id == id).unwrap();
+            assert!(action.rect[1] >= field[1] + field[3], "{font}: {:?}, {field:?}", action.rect);
+            assert!(action.rect[1] + action.rect[3] <= action.clip[1] + action.clip[3] + 1.0);
+        }
+    }
+}
+
+#[test]
+fn context_menu_is_compact_and_outside_click_closes_only_the_menu() {
+    let context = egui::Context::default();
+    let mut state = state(control("background", "button", "Continue", json!({})));
+    let mut menu = control("menu", "menu", "", json!({}));
+    menu.children = vec![control("copy", "action", "Copy Filename", json!({})),
+        control("open", "action", "Open In Archive Browser", json!({}))];
+    state.dialogs.push(menu);
+    apply_theme(&context, &state.theme);
+    let mut view = PresentationView::default();
+    for _ in 0..4 { frame(&context, &mut view, &state, egui::vec2(960.0, 720.0),
+        vec![egui::Event::PointerMoved(egui::pos2(450.0, 300.0))]); }
+    let action = view.rects.iter().find(|rect| rect.id == "copy").unwrap();
+    assert!(action.rect[2] < 300.0);
+    assert!(action.rect[0] >= 440.0 && action.rect[1] >= 290.0);
+    click(&context, &mut view, &state, egui::pos2(10.0, 10.0));
+    assert!(view.inputs.iter().any(|input| input.control == "menu" && input.action == "close_dialog"));
+    assert!(!view.inputs.iter().any(|input| input.control == "background"));
+}
+
+/// Optional rendered audit over documents from new_item_rust_ui_harness.py.
+/// No game data or live workflow actions are involved: only renderer input.
+#[test]
+#[ignore = "requires owned documents in CDMW_UI_AUDIT_ROOT; writes GPU captures beside them"]
+fn render_owned_ui_popups_and_scrolled_panels() {
+    use std::path::{Path, PathBuf};
+    fn documents(root: &Path, found: &mut Vec<PathBuf>) {
+        for entry in std::fs::read_dir(root).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                if path.file_name().unwrap() != "interactions" { documents(&path, found); }
+            } else if path.extension().is_some_and(|ext| ext == "json")
+                && !path.to_string_lossy().ends_with(".layout.json") {
+                found.push(path);
+            }
+        }
+    }
+    fn nodes(node: &Node, found: &mut Vec<Node>) {
+        found.push(node.clone());
+        for child in node.children.iter().chain(node.embedded_nodes().iter()) { nodes(child, found); }
+    }
+    fn draw(context: &egui::Context, view: &mut PresentationView, state: &State, size: Vec2,
+        tick: &mut f64, textures: &mut egui::TexturesDelta, events: Vec<egui::Event>) -> egui::FullOutput {
+        *tick += 0.25;
+        let mut output = context.run_ui(egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+            time: Some(*tick), events, ..Default::default()
+        }, |ui| view.draw(ui, state));
+        textures.append(std::mem::take(&mut output.textures_delta));
+        output
+    }
+    fn capture(path: &Path, context: &egui::Context, output: egui::FullOutput,
+        size: Vec2, textures: &egui::TexturesDelta) {
+        let jobs = context.tessellate(output.shapes, output.pixels_per_point);
+        pollster::block_on(super::super::capture::write_png(path, [size.x as u32, size.y as u32],
+            output.pixels_per_point, &jobs, textures)).unwrap();
+    }
+    let root = PathBuf::from(std::env::var("CDMW_UI_AUDIT_ROOT").expect("owned document directory"));
+    let mut paths = Vec::new();
+    documents(&root, &mut paths);
+    paths.sort();
+    let mut seen = std::collections::HashSet::new();
+    let mut evidence = Vec::new();
+    for path in paths {
+        let Ok(state) = serde_json::from_slice::<State>(&std::fs::read(&path).unwrap()) else { continue; };
+        let layout_path = path.with_extension("layout.json");
+        let Ok(layout) = std::fs::read(&layout_path) else { continue; };
+        let layout: Value = serde_json::from_slice(&layout).unwrap();
+        let size = egui::vec2(layout["size"][0].as_f64().unwrap() as f32, layout["size"][1].as_f64().unwrap() as f32);
+        let output_dir = path.parent().unwrap().join("interactions");
+        std::fs::create_dir_all(&output_dir).unwrap();
+        let stem = path.file_stem().unwrap().to_str().unwrap();
+        let context = egui::Context::default();
+        apply_theme(&context, &state.theme);
+        let mut view = PresentationView::default();
+        super::super::load_images(&context, &mut view, &state).unwrap();
+        let mut tick = 0.0;
+        let mut textures = egui::TexturesDelta::default();
+        for _ in 0..4 { draw(&context, &mut view, &state, size, &mut tick, &mut textures, vec![]); }
+        let mut controls = Vec::new();
+        nodes(state.dialogs.last().unwrap_or(&state.root), &mut controls);
+        // Inspect both panes after each scroll; this reaches controls below the
+        // initial fold without assuming a fixed inspector height or font size.
+        for scroll in 0..12 {
+            for node in controls.iter().filter(|node| node.kind == "choice" || node.flag("instant_menu")) {
+                let key = format!("{size:?}:{:?}:{}:{}:{}:{}", state.theme, node.kind, node.name, node.label, node.props);
+                if seen.contains(&key) { continue; }
+                let rect = view.rects.iter().rev().find(|rect| rect.id == node.id && rect.enabled
+                    && rect.rect[0] >= rect.clip[0] && rect.rect[1] >= rect.clip[1]
+                    && rect.rect[0] + rect.rect[2] <= rect.clip[0] + rect.clip[2] + 1.0
+                    && rect.rect[1] + rect.rect[3] <= rect.clip[1] + rect.clip[3] + 1.0);
+                let Some(rect) = rect else { continue; };
+                seen.insert(key);
+                let point = egui::pos2(rect.rect[0] + rect.rect[2] / 2.0, rect.rect[1] + rect.rect[3] / 2.0);
+                for pressed in [true, false] {
+                    draw(&context, &mut view, &state, size, &mut tick, &mut textures, vec![
+                        egui::Event::PointerMoved(point), egui::Event::PointerButton {
+                            pos:point,button:egui::PointerButton::Primary,pressed,modifiers:egui::Modifiers::NONE}]);
+                }
+                for _ in 0..3 { draw(&context, &mut view, &state, size, &mut tick, &mut textures, vec![]); }
+                let output = draw(&context, &mut view, &state, size, &mut tick, &mut textures, vec![]);
+                let areas = context.memory(|memory| memory.areas().visible_layer_ids().into_iter()
+                    .filter(|layer| layer.order == egui::Order::Foreground)
+                    .filter_map(|layer| memory.area_rect(layer.id)).collect::<Vec<_>>());
+                assert!(!areas.is_empty(), "popup did not open: {path:?} {}", node.id);
+                for area in &areas {
+                    assert!(area.min.x >= -1.0 && area.min.y >= -1.0 && area.max.x <= size.x + 1.0 && area.max.y <= size.y + 1.0,
+                        "popup outside window: {path:?} {} {area:?}", node.id);
+                }
+                let file = output_dir.join(format!("{stem}-{}-popup.png", node.id));
+                capture(&file, &context, output, size, &textures);
+                evidence.push(json!({"document":path,"control":node.id,"name":node.name,"label":node.label,"capture":file}));
+                draw(&context, &mut view, &state, size, &mut tick, &mut textures, vec![egui::Event::Key {
+                    key:egui::Key::Escape,physical_key:None,pressed:true,repeat:false,modifiers:egui::Modifiers::NONE}]);
+                for _ in 0..2 { draw(&context, &mut view, &state, size, &mut tick, &mut textures, vec![]); }
+            }
+            if !state.dialogs.is_empty() { break; }
+            for x in [0.25, 0.9] {
+                draw(&context, &mut view, &state, size, &mut tick, &mut textures, vec![
+                    egui::Event::PointerMoved(egui::pos2(size.x * x, size.y * 0.65)),
+                    egui::Event::MouseWheel {unit:egui::MouseWheelUnit::Point,delta:egui::vec2(0.0,-320.0),phase:egui::TouchPhase::Move,modifiers:egui::Modifiers::NONE}]);
+                for _ in 0..3 { draw(&context, &mut view, &state, size, &mut tick, &mut textures, vec![]); }
+            }
+            if scroll == 11 {
+                let output = draw(&context, &mut view, &state, size, &mut tick, &mut textures, vec![]);
+                capture(&output_dir.join(format!("{stem}-scrolled.png")), &context, output, size, &textures);
+            }
+        }
+        textures.clear();
+        println!("Audited {}", path.display());
+    }
+    assert!(!evidence.is_empty());
+    std::fs::write(root.join("popup-evidence.json"), serde_json::to_vec_pretty(&evidence).unwrap()).unwrap();
+    println!("Captured {} popup states", evidence.len());
+}
+
+#[test]
 fn inspector_expansion_does_not_resize_the_viewport_and_short_lists_are_compact() {
     let mut table = control("parts", "table", "", json!({"total":3,
         "columns":[{"index":0,"width":120}], "rows":[]}));

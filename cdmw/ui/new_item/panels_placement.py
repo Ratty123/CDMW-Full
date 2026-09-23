@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
 
 from cdmw.domain.new_item.spec import ItemGroupsChoice, PlacementKind
 from cdmw.ui.new_item.controller import NewItemStudioController
-from cdmw.ui.new_item.ui_kit import OK, WARN, NoteLabel, intro_label
+from cdmw.ui.new_item.ui_kit import OK, WARN, NoteLabel
 
 class _DistributionTabs(QTabWidget):
     """Let the active route page determine the surrounding scroll-area height."""
@@ -51,7 +51,7 @@ class PlacementPanel(QGroupBox):
         self._group_lookup.completed.connect(self._publish_groups)
         self._group_lookup.failed.connect(self._group_lookup_failed)
         layout = QVBoxLayout(self)
-        layout.addWidget(intro_label("Choose shops, crafting recipes or existing reward sources, and review group memberships."))
+        self.setToolTip("Choose shops, crafting recipes or existing reward sources, and review group memberships.")
 
         shop = QGroupBox("Shop")
         shop_layout = QVBoxLayout(shop)
@@ -270,6 +270,7 @@ class PlacementPanel(QGroupBox):
 
     def _refresh_requirement_note(self) -> None:
         draft = self._controller.draft
+        self.requirement_note.setToolTip("")
         requirement = self._controller.line_requirement(draft.store_name, draft.old_item_name)
         if self._controller.snapshot and draft.store_name and draft.stock_index is not None:
             entry = next((e for e in self._controller.snapshot.store(draft.store_name).entries if e.stock_index == draft.stock_index),None)
@@ -277,7 +278,8 @@ class PlacementPanel(QGroupBox):
             row = self._controller.snapshot.rows.get(key)
             requirement = row.string_key if row else str(key or "")
         if draft.placement_kind is PlacementKind.NONE:
-            self.requirement_note.set_note("No current shop placement. Saved shop routes, crafting and rewards are reviewed in Output.", WARN)
+            self.requirement_note.set_note("No current shop placement.", WARN)
+            self.requirement_note.setToolTip("Saved shop routes, crafting and rewards are reviewed in Output.")
         elif draft.placement_kind is PlacementKind.INSERT:
             self.requirement_note.set_note(f"A new line in {draft.store_name or 'the chosen shop'}: the item sells there freely, next to what the shop already has.", OK)
         elif not requirement:

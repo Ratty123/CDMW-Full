@@ -160,14 +160,11 @@ class AlignmentIconSelectionDialog(QDialog):
         self.resize(860, 620)
 
         layout = QVBoxLayout(self)
-        instructions = QLabel(
+        self.selector = IconRegionSelector(image, self)
+        self.selector.setToolTip(
             "Drag a rectangle around the area to use. The selection is fitted into the "
             "512 x 512 icon with its aspect ratio preserved; unused space is padded."
         )
-        instructions.setWordWrap(True)
-        layout.addWidget(instructions)
-
-        self.selector = IconRegionSelector(image, self)
         layout.addWidget(self.selector, 1)
 
         self.selection_status = QLabel(self)
@@ -177,6 +174,7 @@ class AlignmentIconSelectionDialog(QDialog):
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Cancel, parent=self)
         self.reset_button = buttons.addButton("Reset to Full Frame", QDialogButtonBox.ButtonRole.ResetRole)
         self.use_selection_button = buttons.addButton("Use Selection", QDialogButtonBox.ButtonRole.AcceptRole)
+        self.use_selection_button.setToolTip(self.selector.toolTip())
         self.use_selection_button.setDefault(True)
         self.reset_button.clicked.connect(self.selector.reset_selection)
         self.use_selection_button.clicked.connect(self.accept)
