@@ -76,6 +76,8 @@ and retaining a layout placeholder for interface switches.
 
 `rust_ui_document.py` projects the current controls, layouts, models and dialogs;
 `rust_ui_actions.py` routes allowlisted input through their original handlers.
+Checkable sections, including Glow and Translucency, preserve their checked state
+and original toggle/click handlers when switched on or off from Rust.
 `rust_ui_bridge.py` checks session, control revisions, enabled/visible state and
 modal ownership. Large result lists and review text are paged; Copy retains the
 complete source text. Editable descriptions support up to 1,048,576 characters.
