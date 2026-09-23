@@ -182,8 +182,8 @@ class LazyToolTabTests(unittest.TestCase):
                 tool = _ProbeTool()
                 tool.prewarm = lambda: warmed.append(tool)
                 lazy = LazyToolTab(lambda: tool)
-                tabs.addTab(lazy, "Rust")
-                shell.new_item_rust_studio_tab = lazy
+                tabs.addTab(lazy, "Create New Item")
+                shell.new_item_studio_tab = lazy
                 shell._schedule_new_item_rust_prewarm()
                 timer = shell.findChild(QTimer)
                 try:

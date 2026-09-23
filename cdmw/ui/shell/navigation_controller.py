@@ -39,6 +39,8 @@ class NavigationControllerMixin:
             self._activate_tool_key("archive_browser")
             return
         saved_key = str(self.settings.value("ui/active_tool_key", "") or "").strip()
+        if saved_key == "new_item_rust_studio":
+            saved_key = "new_item_studio"
         if saved_key == "dashboard":
             self._activate_tool_key("archive_browser")
             return
@@ -179,6 +181,8 @@ class NavigationControllerMixin:
         widget.show()
         widget.updateGeometry()
         geometry = self.settings.value(f"window/detached/{key}/geometry")
+        if not geometry and key == "new_item_studio":
+            geometry = self.settings.value("window/detached/new_item_rust_studio/geometry")
         if geometry:
             window.restoreGeometry(geometry)
         else:
@@ -263,6 +267,8 @@ class NavigationControllerMixin:
         return True
 
     def _activate_tool_key(self, key: str) -> None:
+        if key == "new_item_rust_studio":
+            key = "new_item_studio"
         from cdmw.ui.texture_workflow.job import TEXTURE_TOOL_ALIASES
         if key in TEXTURE_TOOL_ALIASES:
             self.textures.activate_texture_alias(key)

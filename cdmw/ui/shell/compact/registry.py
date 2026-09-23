@@ -20,7 +20,6 @@ COMPACT_TOOL_SPECS = (
     CompactToolSpec("model_library", "Model Library", "Assets", "model"),
     CompactToolSpec("item_icons", "Item Icons", "Assets", "image"),
     CompactToolSpec("new_item_studio", "Create New Item", "Assets", "add"),
-    CompactToolSpec("new_item_rust_studio", "Create New Item (Rust)", "Assets", "add"),
     CompactToolSpec("mesh_editor", "Mesh Editor", "Authoring", "mesh"),
     CompactToolSpec("placement_studio", "Placement & Animations", "Authoring", "person"),
     CompactToolSpec("textures", "Textures", "Authoring", "brush"),

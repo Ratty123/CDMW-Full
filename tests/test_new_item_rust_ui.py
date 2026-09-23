@@ -1,4 +1,4 @@
-"""Headless input-through-workflow checks for the optional Rust presentation."""
+"""Headless input-through-workflow checks for Create New Item's Rust presentation."""
 
 from __future__ import annotations
 
@@ -340,7 +340,7 @@ def test_numeric_zero_and_model_replacement_are_preserved_and_revisioned():
         root.deleteLater()
 
 
-def test_switching_presentation_preserves_the_same_live_workflow(studio):
+def test_classic_request_cannot_expose_the_retained_workflow(studio):
     _, tab, _ = studio
     from cdmw.ui.new_item.rust_ui_tab import RustNewItemStudioTab
 
@@ -349,10 +349,16 @@ def test_switching_presentation_preserves_the_same_live_workflow(studio):
         try:
             tab.controller.draft.internal_name = "Keep_This_Draft"
             original = tab.controller.draft
+            assert tab.testAttribute(Qt.WA_DontShowOnScreen)
+            assert not any(button.text() in {"Classic", "Rust"}
+                           for button in experimental.findChildren(QPushButton))
             experimental.use_rust()
             assert tab.testAttribute(Qt.WA_DontShowOnScreen)
             experimental.use_classic()
-            assert not tab.testAttribute(Qt.WA_DontShowOnScreen)
+            assert tab.testAttribute(Qt.WA_DontShowOnScreen)
+            assert experimental._rust_mode
+            assert experimental.layout().count() == 1
+            assert experimental.layout().itemAt(0).widget() is experimental._host
             assert experimental.workflow is tab
             assert experimental.controller.draft is original
             assert original.internal_name == "Keep_This_Draft"
@@ -363,8 +369,7 @@ def test_switching_presentation_preserves_the_same_live_workflow(studio):
             experimental.deleteLater()
 
 
-@pytest.mark.parametrize("rust", [False, True], ids=["classic", "rust"])
-def test_shell_model_loading_uses_compact_status_bar_and_keeps_cancel(studio, rust):
+def test_shell_model_loading_uses_compact_status_bar_and_keeps_cancel(studio):
     from PySide6.QtWidgets import QLabel, QProgressBar
     from shiboken6 import isValid
 
@@ -381,10 +386,9 @@ def test_shell_model_loading_uses_compact_status_bar_and_keeps_cancel(studio, ru
         set_status_message=Mock(),
         textures=SimpleNamespace(_show_archive_browser_from_texture_editor=Mock()),
     )
-    key = "new_item_rust_studio" if rust else "new_item_studio"
-    constructor = "cdmw.ui.new_item.rust_ui_tab.NewItemStudioTab" if rust else "cdmw.ui.new_item.NewItemStudioTab"
-    factory = (ShellToolTabsMixin._create_new_item_rust_studio_tab if rust
-               else ShellToolTabsMixin._create_new_item_studio_tab)
+    key = "new_item_studio"
+    constructor = "cdmw.ui.new_item.rust_ui_tab.NewItemStudioTab"
+    factory = ShellToolTabsMixin._create_new_item_studio_tab
     root = QWidget()
     layout = QVBoxLayout(root)
 
@@ -396,6 +400,7 @@ def test_shell_model_loading_uses_compact_status_bar_and_keeps_cancel(studio, ru
             patch.object(workflow.controller, "persist_issued_identities"), \
             patch.object(RustNewItemStudioTab, "_start_prepare"):
         presentation = factory(owner)
+        assert isinstance(presentation, RustNewItemStudioTab)
         assert not workflow._panels_built
         workflow.prefill_template(TEMPLATE)
         workflow.show_step(2)
@@ -445,11 +450,10 @@ def test_shell_model_loading_uses_compact_status_bar_and_keeps_cancel(studio, ru
             bridge = NewItemPresentationBridge(workflow)
             bridge.snapshot()
             assert bridge.document.registry.identify(banner) not in bridge.document.registry.current
-            if rust:
-                presentation.use_classic()
-                presentation.use_rust()
-                assert strip.isAncestorOf(banner)
-                assert banner.isVisible()
+            presentation.hide()
+            presentation.show()
+            assert strip.isAncestorOf(banner)
+            assert banner.isVisible()
 
             with patch.object(controller, "cancel_operation", return_value=True) as cancel:
                 panel.cancel_operation_button.click()
@@ -553,7 +557,7 @@ def test_stalled_renderer_recovers_without_waiting_on_its_window(studio):
         ShowWindowAsync=Mock(return_value=True),
         SetFocus=Mock(side_effect=AssertionError("The error page must not focus the stalled child")),
     )
-    with patch.object(RustNewItemStudioTab, "_start_prepare"), \
+    with patch.object(RustNewItemStudioTab, "_start_prepare") as prepare, \
             patch("cdmw.ui.mesh_editor.rust_host._windows_api", return_value=api):
         experimental = RustNewItemStudioTab(workflow=tab)
         try:
@@ -588,9 +592,13 @@ def test_stalled_renderer_recovers_without_waiting_on_its_window(studio):
             process.kill.assert_called_once()
             process.state.return_value = QProcess.NotRunning
             experimental._process_finished()
-            experimental.use_classic()
+            prepare.reset_mock()
+            experimental._host.retry_requested.emit()
+            prepare.assert_called_once_with()
             assert experimental.controller.draft is draft
-            assert experimental._pages.currentWidget() is experimental._classic_page
+            assert tab.testAttribute(Qt.WA_DontShowOnScreen)
+            assert experimental._rust_mode
+            assert "Classic" not in experimental._host._status_label.text()
             assert experimental._host.child_hwnd == 0
             assert experimental._process is None
         finally:

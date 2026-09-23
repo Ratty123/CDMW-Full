@@ -11913,11 +11913,6 @@
           "path": "cdmw/ui/shell/compact/registry.py",
           "line": 22,
           "sink": "CompactToolSpec"
-        },
-        {
-          "path": "cdmw/ui/shell/compact/registry.py",
-          "line": 23,
-          "sink": "CompactToolSpec"
         }
       ]
     },
@@ -22232,16 +22227,6 @@
       ]
     },
     {
-      "key": "Classic",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 62,
-          "sink": "QPushButton"
-        }
-      ]
-    },
-    {
       "key": "Classic Workspace",
       "origins": [
         {
@@ -24463,16 +24448,6 @@
           "path": "cdmw/ui/archive_browser/mesh_swap_scope_dialog.py",
           "line": 261,
           "sink": "QLabel"
-        }
-      ]
-    },
-    {
-      "key": "Complete the open dialog before changing interface.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 154,
-          "sink": "emit"
         }
       ]
     },
@@ -26997,16 +26972,6 @@
         {
           "path": "cdmw/ui/shell/compact/registry.py",
           "line": 22,
-          "sink": "CompactToolSpec"
-        }
-      ]
-    },
-    {
-      "key": "Create New Item (Rust)",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/compact/registry.py",
-          "line": 23,
           "sink": "CompactToolSpec"
         }
       ]
@@ -35673,16 +35638,6 @@
           "path": "cdmw/ui/archive_browser/attachment_plan.py",
           "line": 548,
           "sink": "add_row"
-        }
-      ]
-    },
-    {
-      "key": "Experimental interface · same item workflow",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 59,
-          "sink": "QLabel"
         }
       ]
     },
@@ -78987,6 +78942,21 @@
       ]
     },
     {
+      "key": "Preparing Create New Item…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/rust_ui_tab.py",
+          "line": 61,
+          "sink": "show_loading"
+        },
+        {
+          "path": "cdmw/ui/new_item/rust_ui_tab.py",
+          "line": 175,
+          "sink": "show_loading"
+        }
+      ]
+    },
+    {
       "key": "Preparing DDS import preview for {value_0} using {value_1}...",
       "origins": [
         {
@@ -79923,21 +79893,6 @@
           "path": "cdmw/ui/new_item/tab.py",
           "line": 413,
           "sink": "_append_log"
-        }
-      ]
-    },
-    {
-      "key": "Preparing the Rust New Item interface…",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 73,
-          "sink": "show_loading"
-        },
-        {
-          "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 210,
-          "sink": "show_loading"
         }
       ]
     },
@@ -94888,16 +94843,6 @@
           "path": "cdmw/ui/new_item/read_failure.py",
           "line": 62,
           "sink": "python-return:_report_text"
-        }
-      ]
-    },
-    {
-      "key": "Rust",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 61,
-          "sink": "QPushButton"
         }
       ]
     },
@@ -111367,21 +111312,21 @@
       ]
     },
     {
-      "key": "The Rust interface stopped acknowledging updates. Your item remains available in Classic.",
+      "key": "The Rust interface stopped acknowledging updates. Use Retry to reopen the same item draft.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 299,
+          "line": 264,
           "sink": "_fail"
         }
       ]
     },
     {
-      "key": "The Rust interface stopped. Your item remains available in Classic.\n{value_0}",
+      "key": "The Rust interface stopped. Use Retry to reopen the same item draft.\n{value_0}",
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 347,
+          "line": 312,
           "sink": "show_error"
         }
       ]

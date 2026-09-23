@@ -254,7 +254,7 @@ def main():
             pages.addWidget(other)
             container = LazyToolTab(lambda: experimental)
             pages.addWidget(container)
-            for title, page in [("Create New Item (Rust)", container), ("Other tool", other)]:
+            for title, page in [("Create New Item", container), ("Other tool", other)]:
                 button = QPushButton(title)
                 navigation.addWidget(button)
                 button.clicked.connect(lambda _checked=False, page=page: pages.setCurrentWidget(page))
@@ -353,9 +353,9 @@ def main():
             type_in_native_field(workflow.template_panel.filter_edit, "blade")
             assert not rejected_inputs, rejected_inputs
             original = workflow.controller.draft
-            experimental.use_classic()
-            experimental.use_rust()
-            until(lambda: experimental._ready and experimental._bridge.session != bridge.session, "rapid_classic_to_rust_restarts_after_drain")
+            experimental._stop_renderer()
+            experimental._retry()
+            until(lambda: experimental._ready and experimental._bridge.session != bridge.session, "retry_restarts_after_drain")
             assert workflow.controller.draft is original
             workflow.show_step(2)
             experimental._state_fingerprint = b""
@@ -410,20 +410,20 @@ def main():
             until(lambda: experimental._ready and experimental._bridge.session != session_before_failure,
                   "retry_starts_fresh_renderer_with_same_draft")
             assert workflow.controller.draft is original
-            experimental.use_classic()
+            experimental._portals.restore()
+            experimental._stop_renderer()
             assert viewport.parentWidget() is attached[1]
             assert viewport.mask().isEmpty()
             until(lambda: experimental._process is None and experimental._prepare_thread is None, "cooperative_renderer_shutdown")
             assert workflow.controller.draft is original
             assert not errors, errors
-            checks.append("classic_retains_draft_and_viewport_owner")
+            checks.append("renderer_stop_retains_draft_and_viewport_owner")
             if args.preview:
                 assert preview_host.controller.process_id == preview_process
-                # Classic opens its native crop dialog. This final capture only
-                # probes renderer continuity; the Rust capture/crop path above
-                # already exercised the real dialog without showing a window.
+                # Probe preview continuity after stopping the UI renderer. The
+                # capture/crop path above already exercised the real dialog.
                 workflow.model_panel.preview.captured.disconnect(workflow.model_panel._inline_capture_done)
-                capture("native_preview_after_classic_switch")
+                capture("native_preview_after_ui_stop")
     finally:
         crop_timer.stop()
         if experimental is not None:

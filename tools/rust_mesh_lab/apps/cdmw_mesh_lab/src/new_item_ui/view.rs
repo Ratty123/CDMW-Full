@@ -90,7 +90,7 @@ impl PresentationView {
             .rect_filled(ui.max_rect(), 0.0, ui.visuals().panel_fill);
         if !state.unsupported.is_empty() {
             ui.colored_label(ui.visuals().error_fg_color,
-                "This page contains controls that the Rust interface cannot yet display. Use Classic for this workflow.");
+                "This page contains controls that Create New Item cannot display. Please report the affected workflow.");
         }
         ui.add_enabled_ui(state.dialogs.is_empty() && !state.native_modal, |ui| {
             self.node(ui, &state.root)

@@ -11,19 +11,20 @@ Owns the Create New Item tab: clone an equipment item into a brand-new one with
 its own identity, model, icon, stats, shop placement and item groups, then write
 it as a loose mod or install it.
 
-## Optional Rust interface
+## Rust interface
 
-**Create New Item (Rust)** opens a separate, opt-in workspace. **Rust** and
-**Classic** in its top bar switch the presentation of that same live draft,
-including its current plan and running operations. The ordinary **Create New
-Item** entry remains the default. Opening both entries creates independent
-drafts; their issued item keys and model names are coordinated before planning.
+**Create New Item** always opens the Rust interface. The separate Rust entry and
+the Rust/Classic presentation switch are removed. The Classic implementation is
+retained in source as the offscreen workflow used by the Rust bridge, but cannot
+be opened from the application. Both former saved tool keys resolve to the one
+workspace, including Model Library and template handoffs, status, and detaching.
 
 The Rust interface uses native egui controls and the existing native preview
 windows. Python still owns the workflow, validations, workers, exports, archive
 mutation service, and confirmations. File and colour pickers remain native
-dialogs. Closing the Rust renderer or retrying it does not discard the draft;
-the Classic button remains available if the helper cannot start.
+dialogs. Closing the Rust renderer or retrying it does not discard the draft or
+plan. If the helper cannot start or stops responding, **Retry** reopens the Rust
+interface for that same workflow without exposing Classic.
 
 After the main window is visible and startup dialogs finish, the shell prepares
 the Rust tab and its renderer in the background. Opening it reuses that process;
@@ -39,7 +40,7 @@ their controls. Font size and button colors come from the current application
 theme; hover changes color without expanding the controls.
 Selecting a template and then moving focus to Find or another control keeps the
 renderer responsive. If the renderer stops replying, its window is hidden
-asynchronously so CDMW can stop it and keep the same draft available in Classic.
+asynchronously so CDMW can stop it and retry with the same draft.
 Buttons fit their labels and related actions stay together. Inspector lists fit
 their contents, the navigation footer stays compact, and expanding Quick turn or
 other inspector sections preserves the viewport size and splitter position.
@@ -74,7 +75,7 @@ requests more source rows only at the end of the loaded results, once per unchan
 model and page. Previous and Next navigate the projected pages.
 Internal Name starts wider and header edges resize columns. Preview portals move
 the complete native host, keeping its loading/status overlays in one stable slot
-and retaining a layout placeholder for interface switches.
+and retaining a layout placeholder while the renderer is restarted.
 
 `rust_ui_document.py` projects the current controls, layouts, models and dialogs;
 `rust_ui_actions.py` routes allowlisted input through their original handlers.
@@ -83,7 +84,7 @@ and original toggle/click handlers when switched on or off from Rust.
 `rust_ui_bridge.py` checks session, control revisions, enabled/visible state and
 modal ownership. Large result lists and review text are paged; Copy retains the
 complete source text. Editable descriptions support up to 1,048,576 characters.
-`rust_ui_portals.py` retains preview window identity across interface switches.
+`rust_ui_portals.py` retains preview window identity across renderer restarts.
 Captured icons use a native image-crop control with the original Reset and Use
 Selection handlers. Dialog action buttons remain visible below scrolling content.
 
@@ -101,10 +102,10 @@ the tab with the same process, and clicks and types through Win32 into the origi
 Name and Find fields. It also checks that page switches do not reject a finishing
 edit. Its `--preview` option loads an owned
 synthetic mesh into the pinned preview helper and checks camera captures, crop
-dialog cancellation, renderer retry, Classic switching and process cleanup.
+dialog cancellation, renderer retry and process cleanup.
 `--visible --interactive --preview` exposes the owned fixture with a second tool
 in its sidebar for normal Windows typing, column dragging, dialog, navigation and
-interface-switch checks. It asserts stable preview geometry from loading to ready.
+tool-switch checks. It asserts stable preview geometry from loading to ready.
 See `docs/test-matrix.md`
 for focused checks. Helper builds do not repack the main application executable;
 use a source launch to try this workspace before the next application package.
@@ -932,7 +933,7 @@ A textureless exported material still keeps its authored
 `TEXCOORD_0` channel instead of triggering an unnecessary auto-unwrap. Generated material
 synthesis is deduplicated across identical submesh inputs.
 In the compact shell, model import, Apply and preview loading appear beside Ready
-and Cache Healthy in the bottom status bar, for both Classic and Rust. The controls
+and Cache Healthy in the bottom status bar. The controls
 use one compact row, with full status text on hover, and take no space from the
 right inspector. They hide when idle or when another tool is active. Standalone
 and legacy-shell workspaces retain their loading bar above the placement actions.

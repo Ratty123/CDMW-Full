@@ -1,4 +1,4 @@
-"""Opt-in Rust presentation with its intact Classic workflow available in-session."""
+"""Create New Item's Rust presentation over the retained offscreen Qt workflow."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import hashlib
 import json
 
 from PySide6.QtCore import QElapsedTimer, QEvent, QProcess, QThread, QTimer, Qt, Signal, Slot
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QStackedWidget, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QVBoxLayout, QWidget
 from shiboken6 import isValid
 
 from cdmw.services.new_item_rust_protocol import JsonLineReader, PROTOCOL, PresentationProtocolError, encode_message
@@ -27,9 +27,11 @@ class RustNewItemStudioTab(QWidget):
 
     def __init__(self, parent=None, *, window=None, service=None, workflow=None):
         super().__init__(parent)
-        self.setObjectName("new_item_rust_studio")
+        self.setObjectName("new_item_studio")
         self._window = window
         self.workflow = workflow or NewItemStudioTab(window=window, service=service)
+        self.workflow.hide()
+        self.workflow.setAttribute(Qt.WA_DontShowOnScreen, True)
         self.controller = self.workflow.controller
         self.log = self.workflow.log
         self.workflow.status_message_requested.connect(self.status_message_requested.emit)
@@ -54,29 +56,11 @@ class RustNewItemStudioTab(QWidget):
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(6)
-        bar = QHBoxLayout()
-        self._mode_note = QLabel("Experimental interface · same item workflow")
-        bar.addWidget(self._mode_note, 1)
-        self._rust_button = QPushButton("Rust")
-        self._classic_button = QPushButton("Classic")
-        for button in (self._rust_button, self._classic_button):
-            button.setCheckable(True)
-            bar.addWidget(button)
-        self._rust_button.clicked.connect(self.use_rust)
-        self._classic_button.clicked.connect(self.use_classic)
-        layout.addLayout(bar)
-        self._pages = QStackedWidget()
-        layout.addWidget(self._pages, 1)
         self._host = RustMeshEditorHostFrame()
         self._host.setObjectName("NewItemRustHost")
-        self._host.show_loading("Preparing the Rust New Item interface…")
+        self._host.show_loading("Preparing Create New Item…")
         self._host.retry_requested.connect(self._retry)
-        self._pages.addWidget(self._host)
-        self._classic_page = QWidget()
-        self._classic_layout = QVBoxLayout(self._classic_page)
-        self._classic_layout.setContentsMargins(0, 0, 0, 0)
-        self._pages.addWidget(self._classic_page)
+        layout.addWidget(self._host, 1)
         self._portals = PreviewPortals(self._host)
         self._dialogs = PresentationDialogs(self.workflow, self)
         self._dialogs.changed.connect(self._publish_state)
@@ -90,7 +74,6 @@ class RustNewItemStudioTab(QWidget):
         self._stop_deadline.setSingleShot(True)
         self._stop_deadline.timeout.connect(self._kill_process)
         self._input_received.connect(self._dispatch_input, Qt.QueuedConnection)
-        self._rust_button.setChecked(True)
 
     def prefill_template(self, key):
         self.workflow.prefill_template(key)
@@ -129,10 +112,6 @@ class RustNewItemStudioTab(QWidget):
         if self._rust_mode and not self._stopping and (self._process is not None or self._prepare_thread is not None):
             return
         self._rust_mode = True
-        self._rust_button.setChecked(True)
-        self._classic_button.setChecked(False)
-        self._pages.setCurrentWidget(self._host)
-        self._classic_layout.removeWidget(self.workflow)
         self.workflow.setParent(None, Qt.Tool | Qt.FramelessWindowHint)
         localizer = active_ui_localizer()
         if localizer is not None:
@@ -150,22 +129,8 @@ class RustNewItemStudioTab(QWidget):
 
     @Slot()
     def use_classic(self):
-        if self._dialogs.dialogs() or self._dialogs.native_modal():
-            self.status_message_requested.emit("Complete the open dialog before changing interface.", True)
-            return
-        self._rust_mode = False
-        self._restart_pending = False
-        self._rust_button.setChecked(False)
-        self._classic_button.setChecked(True)
-        self._dialogs.active = False
-        self._portals.restore()
-        self._stop_renderer()
-        self.workflow.hide()
-        self.workflow.setAttribute(Qt.WA_DontShowOnScreen, False)
-        self.workflow.setParent(self._classic_page)
-        self._classic_layout.addWidget(self.workflow)
-        self._pages.setCurrentWidget(self._classic_page)
-        self.workflow.show()
+        """Keep older callers on Rust; the Classic presentation is disabled."""
+        self.use_rust()
 
     def _start_prepare(self):
         self._stopping = False
@@ -207,7 +172,7 @@ class RustNewItemStudioTab(QWidget):
         process.finished.connect(self._process_finished)
         process.errorOccurred.connect(self._process_error)
         parent_hwnd = self._host.prepare_launch()
-        self._host.show_loading("Preparing the Rust New Item interface…")
+        self._host.show_loading("Preparing Create New Item…")
         process.setProgram(launch.executable)
         process.setArguments(["--cdmw-new-item-session", str(launch.manifest), "--embedded-parent-hwnd", str(parent_hwnd)])
         process.start()
@@ -296,7 +261,7 @@ class RustNewItemStudioTab(QWidget):
     def _publish_state(self):
         if (self._sent_generation > self._received_generation and self._state_delivery.isValid()
                 and self._state_delivery.elapsed() > 10000 and self._ready and not self._stopping):
-            self._fail("The Rust interface stopped acknowledging updates. Your item remains available in Classic.")
+            self._fail("The Rust interface stopped acknowledging updates. Use Retry to reopen the same item draft.")
             return
         if (not self._ready or self._closed or not self._rust_mode or self._stopping
                 or (not self.isVisible() and not self._prewarming)
@@ -344,7 +309,7 @@ class RustNewItemStudioTab(QWidget):
             self._launch.cleanup()
             self._launch = None
         if not self._stopping and not self._closed and self._rust_mode:
-            self._host.show_error("The Rust interface stopped. Your item remains available in Classic.\n" + self._stderr[-2000:])
+            self._host.show_error("The Rust interface stopped. Use Retry to reopen the same item draft.\n" + self._stderr[-2000:])
         self._restart_if_idle()
 
     def _fail(self, message):
@@ -412,7 +377,7 @@ class RustNewItemStudioTab(QWidget):
         self.workflow.hide()
         # Rust mode uses an offscreen top-level QWidget. Return its ownership
         # before this container is destroyed after the shell drains its workers.
-        self.workflow.setParent(self._classic_page)
+        self.workflow.setParent(self)
 
     def shutdown(self):
         self.request_shutdown()

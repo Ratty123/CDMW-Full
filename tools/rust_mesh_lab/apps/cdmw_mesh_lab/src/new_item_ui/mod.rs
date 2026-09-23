@@ -479,7 +479,7 @@ impl ApplicationHandler for Application {
         let result = (|| -> Result<()> {
             let attributes = cdmw_win32_embed::with_parent_window(
                 Window::default_attributes()
-                    .with_title("Create New Item — Rust")
+                    .with_title("Create New Item")
                     .with_decorations(false)
                     .with_inner_size(winit::dpi::LogicalSize::new(1280, 900)),
                 self.parent,

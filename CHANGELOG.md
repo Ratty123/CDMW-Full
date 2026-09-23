@@ -13,6 +13,7 @@ The format is intentionally simple:
 
 ### Changed
 
+- Create New Item now uses Rust exclusively under the single Create New Item name. The Classic entry and presentation switch are disabled while its source and shared workflow remain intact. Saved workspace selections and model/template handoffs open Rust; Retry preserves the same draft after a renderer failure.
 - Create New Item uses left-aligned Rust lists and plain column headings. Effects combines viewport controls and Show gizmo in one compact toolbar, groups library actions, opens Preview options by default, and lets Placement collapse. Individual perk names omit the experimental suffix; the feature tab and hover details retain that context. Navigation and the bottom status strip use less height, with model progress percentages beside the operation text.
 - Create New Item opens Effects first with Browse effects expanded. Perks, sockets and bonuses share one Experimental Features tab with aligned, resizable panes and hover help. Recipes and Loot and rewards are marked experimental.
 - Installed overlays includes a right-hand preview of the selected installed item, with an item selector for multi-item overlays and cancellable background loading.
@@ -31,7 +32,7 @@ The format is intentionally simple:
 
 - Create New Item has per-part Surface colour and reflections controls for imported models, with Match glow colour, independent roughness/metallic edits, a Low-shine preset and source reset. Settings follow variants, previews and exported textures without changing glow strength or transparency.
 - Create New Item offers experimental per-variant controls to keep underlying skin/head and hair/beard. Exports isolate shrink and whole-part hide rules for the new item, preserve template hide conditions for the default comparison, and report unsupported inputs. In-game visibility still needs A/B testing; the preview does not simulate these rules.
-- Create New Item has an optional Rust interface alongside the existing workspace. Its Rust/Classic switch preserves the live draft and plan, reuses the existing workflow and native previews, and retains confirmation, cancellation, retry, localization and theme behavior. The ordinary Create New Item entry remains the default.
+- Create New Item's Rust interface reuses the existing workflow and native previews, including confirmation, cancellation, retry, localization and theme behavior.
 - Create New Item warns immediately when Glow and Translucency select the same part, distinguishing the static-glow brightness caveat from unsupported animated/RGB glow and explaining how to resolve it.
 - Translucency has Select all and Clear selection actions that update the preview once while retaining each part's settings.
 - Material emission has a bloom halo in the shared Rust renderer. Model & Placement includes a preview-only Dark mode that dims scene lighting while retaining emission, including animated and RGB glow.

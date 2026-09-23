@@ -80,8 +80,7 @@ _LAZY_TOOL_UI_MODULES: dict[str, tuple[str, ...]] = {
     "mesh_editor": ("cdmw.ui.mesh_editor.tab",),
     "model_library": ("cdmw.ui.model_library",),
     "item_icons": ("cdmw.ui.item_icons",),
-    "new_item_studio": ("cdmw.ui.new_item",),
-    "new_item_rust_studio": ("cdmw.ui.new_item.rust_ui_tab",),
+    "new_item_studio": ("cdmw.ui.new_item.rust_ui_tab",),
     "replace_assistant": ("cdmw.ui.replace_assistant_tab",),
     "recolor_variants": ("cdmw.ui.recolor_variants_tab",),
     "texture_editor": ("cdmw.ui.texture_editor_tab",),
@@ -92,8 +91,6 @@ _LAZY_TOOL_UI_MODULES: dict[str, tuple[str, ...]] = {
     "research": ("cdmw.ui.research",),
     "text_search": ("cdmw.ui.text_search",),
 }
-
-_LAZY_TOOL_PRELOAD_MODULES["new_item_rust_studio"] = _LAZY_TOOL_PRELOAD_MODULES["new_item_studio"]
 
 
 def _preload_lazy_tool_modules(module_names: tuple[str, ...]) -> None:
@@ -510,12 +507,12 @@ class ShellToolTabsMixin:
         accept a resolved Model Library source in its normal Model step.
         """
 
-        from cdmw.ui.new_item import NewItemStudioTab
+        from cdmw.ui.new_item.rust_ui_tab import RustNewItemStudioTab
 
-        tab = NewItemStudioTab(window=self, service=self.app_context.services.new_items)
+        tab = RustNewItemStudioTab(window=self, service=self.app_context.services.new_items)
         workspace = getattr(self, "compact_workspace", None)
         if workspace is not None:
-            tab.set_model_status_host(workspace.status_strip.tool_status_host("new_item_studio"))
+            tab.workflow.set_model_status_host(workspace.status_strip.tool_status_host("new_item_studio"))
         # the identities the studio hands out are remembered between sessions, so a second
         # item never takes the first one's key and stem
         tab.controller.persist_issued_identities()
@@ -528,28 +525,12 @@ class ShellToolTabsMixin:
         tab.open_archive_entry_requested.connect(self.textures._show_archive_browser_from_texture_editor)
         return tab
 
-    def _create_new_item_rust_studio_tab(self) -> QWidget:
-        from cdmw.ui.new_item.rust_ui_tab import RustNewItemStudioTab
-
-        tab = RustNewItemStudioTab(window=self, service=self.app_context.services.new_items)
-        workspace = getattr(self, "compact_workspace", None)
-        if workspace is not None:
-            tab.workflow.set_model_status_host(workspace.status_strip.tool_status_host("new_item_rust_studio"))
-        tab.controller.persist_issued_identities()
-        tab.status_message_requested.connect(
-            lambda message, is_error=False: self.set_status_message(
-                message, error=is_error, tool_key="new_item_rust_studio"
-            )
-        )
-        tab.open_archive_entry_requested.connect(self.textures._show_archive_browser_from_texture_editor)
-        return tab
-
     def _schedule_new_item_rust_prewarm(self) -> None:
         timer = QTimer(self)
         timer.setInterval(1000)
 
         def prepare_when_idle():
-            container = self.new_item_rust_studio_tab
+            container = self.new_item_studio_tab
             if getattr(self, "_shutting_down", False) or container._shutdown_requested:
                 timer.stop()
                 return
@@ -643,9 +624,6 @@ class ShellToolTabsMixin:
         self.new_item_studio_tab = self._add_lazy_shell_tool(
             "Create New Item", "new_item_studio", self._create_new_item_studio_tab
         )
-        self.new_item_rust_studio_tab = self._add_lazy_shell_tool(
-            "Create New Item (Rust)", "new_item_rust_studio", self._create_new_item_rust_studio_tab
-        )
         self._schedule_new_item_rust_prewarm()
         self.replace_assistant_tab = self._add_lazy_shell_tool(
             "Texture Replacer",
@@ -702,7 +680,6 @@ class ShellToolTabsMixin:
         self._register_detachable_tool("text_search", self.text_search_tab, "Text Search")
         self._register_detachable_tool("item_icons", self.item_icons_tab, "Icon Creator")
         self._register_detachable_tool("new_item_studio", self.new_item_studio_tab, "Create New Item")
-        self._register_detachable_tool("new_item_rust_studio", self.new_item_rust_studio_tab, "Create New Item (Rust)")
         self._register_detachable_tool("mod_package_retrofit", self.mod_package_retrofit_tab, "Retrofit/Repackage")
         self._register_detachable_tool("placement_studio", self.placement_studio_tab, "Placement & Animation Studio")
         self._register_detachable_tool("settings", self.settings_tab, "Settings")

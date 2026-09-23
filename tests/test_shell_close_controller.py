@@ -296,7 +296,7 @@ def test_prewarmed_rust_new_item_process_uses_shell_process_tracking() -> None:
         _prepare_thread=None, _process=process,
     )
     tab.iter_shutdown_workers = MethodType(RustNewItemStudioTab.iter_shutdown_workers, tab)
-    window.new_item_rust_studio_tab = tab
+    window.new_item_studio_tab = tab
     window._tracked_worker_threads = lambda: list(iter_tab_shutdown_workers(window))
     window._running_worker_thread_entries = MethodType(CloseControllerMixin._running_worker_thread_entries, window)
     window._running_owned_process_entries = MethodType(CloseControllerMixin._running_owned_process_entries, window)
