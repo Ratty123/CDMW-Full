@@ -47,6 +47,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Create New Item (Rust) keeps its viewport stable when inspector sections expand, sizes buttons and short lists to their contents, groups related actions, and uses a compact footer. Instructions appear as hover help, dropdowns and tooltips stay above native previews, and the Auto overlay folder field accepts numeric input without validator errors. Mesh and item viewport wheel zoom follows the pointer.
 - Create New Item viewports frame newly selected templates reliably during rapid switches and otherwise retain the live camera across effect loading, material and model updates, character visibility, variants, display modes and tab switches. Model gizmos stay centered on visible geometry, and a shared Show gizmo checkbox in item and effect viewports remembers its state across restarts while keeping the orientation control available.
 - Create New Item (Rust) fills the workspace on its first opening after background preparation, without needing to switch to Classic and back.
 - Create New Item (Rust) keeps the application responsive when projected dialogs open and close. Template results fill the available height, Internal Name starts wider, and column edges can be dragged without losing the final width. Preview loading keeps a stable slot, and long model choices stay within their inspector.

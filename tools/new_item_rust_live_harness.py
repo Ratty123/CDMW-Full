@@ -30,6 +30,7 @@ def main():
     parser.add_argument("--preview", action="store_true", help="Also exercise the pinned native preview with an owned synthetic mesh")
     parser.add_argument("--visible", action="store_true", help="Show only the owned synthetic test window")
     parser.add_argument("--interactive", action="store_true", help="Leave the owned window open for normal input checks")
+    parser.add_argument("--material-controls", action="store_true", help="Populate owned material controls for inspector and popup checks")
     args = parser.parse_args()
     if args.interactive and not args.visible:
         parser.error("--interactive requires --visible")
@@ -56,6 +57,7 @@ def main():
     native_inputs = []
     rejected_inputs = []
     geometry_checks = []
+    view_states = []
     preview_host = None
     preview_root = tempfile.TemporaryDirectory(prefix="cdmw-new-item-native-preview-") if args.preview else None
     user32 = ctypes.WinDLL("user32", use_last_error=True)
@@ -165,6 +167,26 @@ def main():
             pump(0.15)
         until(lambda: widget.text() == text, "native_mouse_and_keyboard_reached_" + identifier, timeout=3)
 
+    def check_cursor_zoom():
+        preview_child = preview_host._embedded_child_hwnd
+        rectangle = wintypes.RECT()
+        assert user32.GetClientRect(preview_child, ctypes.byref(rectangle))
+        point = (round(rectangle.bottom * 0.25) << 16) | round(rectangle.right * 0.75)
+        def wheel(amount):
+            count = len(view_states)
+            user32.PostMessageW(preview_child, 0x0200, 0, point)
+            user32.PostMessageW(preview_child, 0x020A, (amount & 0xFFFF) << 16, 0)
+            until(lambda: len(view_states) > count, "native_cursor_zoom_" + str(amount))
+            return view_states[-1]["view_contexts"][0]["camera"]
+        baseline = wheel(0)
+        closer = wheel(120)
+        restored = wheel(-120)
+        assert closer["distance"] < baseline["distance"]
+        assert any(abs(a-b) > 1e-5 for a,b in zip(closer["pan"], baseline["pan"]))
+        assert abs(restored["distance"] - baseline["distance"]) < 1e-4
+        assert all(abs(a-b) < 1e-4 for a,b in zip(restored["pan"], baseline["pan"]))
+        checks.append("native_wheel_anchors_off_center_pointer_and_restores_on_zoom_out")
+
     def prepare(session, _log, stop):
         if stop.is_set():
             raise RuntimeError("Owned probe cancelled")
@@ -197,6 +219,10 @@ def main():
     try:
         workflow = fixture._tab()
         workflow.prefill_template(support.TEMPLATE)
+        if args.material_controls:
+            from new_item_rust_ui_harness import prepare_material_controls
+            workflow.show_step(2)
+            prepare_material_controls(workflow)
         with patch("cdmw.ui.new_item.rust_ui_tab.prepare_new_item_ui", prepare):
             experimental = RustNewItemStudioTab(workflow=workflow)
             send = experimental._send
@@ -265,7 +291,7 @@ def main():
             user32.IsWindowVisible.argtypes = [ctypes.c_void_p]
             user32.IsWindowVisible.restype = ctypes.c_int
             assert bool(user32.IsWindowVisible(experimental._host.child_hwnd)) == args.visible
-            if args.interactive:
+            if args.interactive or args.material_controls:
                 workflow.template_panel.filter_edit.clear()
                 workflow.identity_panel.display_name.setText("Owned fixture")
                 if args.preview:
@@ -273,6 +299,7 @@ def main():
                     from tests.test_effect_placement_dialog import _blade
                     assert workflow.model_panel.preview._ensure_host()
                     preview_host = workflow.model_panel.preview.host
+                    preview_host.controller.view_state_changed.connect(view_states.append)
                     experimental._state_fingerprint = b""
                     experimental._publish_state()
                     until(lambda: bool(experimental._portals._attached), "interactive_preview_slot_ready")
@@ -287,6 +314,25 @@ def main():
                     pump(0.3)
                     assert preview_host.geometry() == loading_geometry, (loading_geometry, preview_host.geometry())
                     checks.append("preview_slot_stable_from_loading_to_ready")
+                    if args.material_controls:
+                        panel = workflow.model_panel
+                        panel.preview.is_ready = True
+                        panel.preview._loaded_is_placement = True
+                        panel.preview._placement = workflow.controller.model_placement
+                        panel._refresh_placement_enabled()
+                        before_turn = preview_host.geometry()
+                        click_native_control(panel.quick_turn_section.toggle)
+                        until(lambda: panel.quick_turn_section.toggle.isChecked(), "native_quick_turn_expanded")
+                        pump(0.3)
+                        assert preview_host.geometry() == before_turn, (before_turn, preview_host.geometry())
+                        click_native_control(panel.quick_turn_section.toggle)
+                        until(lambda: not panel.quick_turn_section.toggle.isChecked(), "native_quick_turn_collapsed")
+                        pump(0.3)
+                        assert preview_host.geometry() == before_turn, (before_turn, preview_host.geometry())
+                        checks.append("quick_turn_keeps_native_viewport_geometry")
+                        check_cursor_zoom()
+                if not args.interactive:
+                    return
                 print("interactive_owned_fixture_ready", flush=True)
                 deadline = time.monotonic() + 600
                 while shell.isVisible() and time.monotonic() < deadline:
@@ -324,6 +370,7 @@ def main():
                 from cdmw.services.mesh_rust_preview_package import build_rust_preview_package
                 from tests.test_effect_placement_dialog import _blade
                 preview_host = viewport if hasattr(viewport, "controller") else attached[1]
+                preview_host.controller.view_state_changed.connect(view_states.append)
                 package = build_rust_preview_package(_blade(), output_root=preview_root.name,
                     include_material_resources=False, interaction_profile="static_replacement")
                 assert preview_host.load_package(package)
@@ -345,6 +392,7 @@ def main():
                 assert preview_host.set_view(yaw=35, pitch=65)
                 after = capture("native_preview_after_camera")
                 assert before != after, "The actual renderer must apply the camera change"
+                check_cursor_zoom()
             shell.resize(1100, 720)
             QApplication.processEvents()
             check_geometry("preview_resize_child_fills_host")
@@ -398,6 +446,7 @@ def main():
         args.report.parent.mkdir(parents=True, exist_ok=True)
         args.report.write_text(json.dumps({"checks": checks, "errors": errors, "native_inputs": native_inputs,
             "geometry": geometry_checks,
+            "view_states": view_states,
             "rejected_inputs": rejected_inputs, "hidden": not args.visible,
             "renderer": str(args.renderer.resolve()), "source": "owned_synthetic_fixture"}, indent=2), encoding="utf-8")
     print(json.dumps({"passed": len(checks), "report": str(args.report)}))

@@ -30,9 +30,7 @@ class ShaderControlsEditor(QGroupBox):
         self.fields = QWidget()
         self.form = QFormLayout(self.fields)
         layout.addWidget(self.fields)
-        notice = QLabel("Test the result in game; the viewport does not reproduce every game shader pass.")
-        notice.setWordWrap(True)
-        layout.addWidget(notice)
+        self.setToolTip("Test the result in game; the viewport does not reproduce every game shader pass.")
         self.reset = QPushButton("Restore source shader controls")
         layout.addWidget(self.reset)
         self.part.currentIndexChanged.connect(self._show_part)
@@ -96,11 +94,14 @@ class ShaderControlsEditor(QGroupBox):
                 self.form.removeRow(0)
             self._rows = []
             self.reset.setEnabled(choice is not None)
+            source = (self._source_options or {}).get(str(self.part.currentData()).casefold(), ("", ()))[0]
+            self.note.setText(f"Source shader: {source}" if source else "")
+            self.note.setVisible(bool(source))
             if choice is None:
-                self.note.setText(self._source_note() or "Choose a compatible shader experiment for this part. Unchecked fields keep source values. Object dissolve is available for static objects in Mesh Editor.")
+                self.family.setToolTip(self._source_note() or "Choose a compatible shader experiment for this part. Unchecked fields keep source values. Object dissolve is available for static objects in Mesh Editor.")
                 return
             family = family_for(choice.shader)
-            self.note.setText(" ".join(value for value in (self._source_note(), family.note) if value))
+            self.family.setToolTip(" ".join(value for value in (self._source_note(), family.note) if value))
             values = dict(choice.values)
             for field in family.fields:
                 enabled = QCheckBox(field.label)

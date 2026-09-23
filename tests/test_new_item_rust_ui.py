@@ -86,6 +86,24 @@ def test_identity_actions_reach_existing_draft_and_invalidate_plan(studio):
     assert not tab.controller.has_current_plan
 
 
+def test_overlay_folder_projects_numeric_typing_and_preserves_auto(studio):
+    _, tab, bridge = studio
+    tab.show_step(6)
+    field = tab.output_panel.overlay_directory
+    field.show()
+    node = bridge.document.widget(field, force=True)
+    assert node["props"]["text"] == ""
+    assert node["props"]["placeholder"] == "Auto"
+    assert node["props"]["digits_only"] is True
+    # The real validator accepts each partial edit, including leading zeros.
+    from cdmw.ui.new_item.rust_ui_actions import _set_text
+    for value in ("0", "00", "003", "0036", "", "9", "99", "999", "9999", ""):
+        _set_text(field, value)
+        assert field.text() == value
+    with pytest.raises(PresentationProtocolError, match="validator"):
+        _set_text(field, "oops")
+
+
 def test_same_controls_produce_same_spec_and_planned_bytes(studio):
     fixture, rust, bridge = studio
     classic = fixture._tab()
@@ -667,6 +685,18 @@ def test_preview_portal_scales_clips_and_restores_the_original_layout():
         assert viewport.parentWidget() is host
         assert viewport.geometry() == QRect(30,45,150,120)
         assert viewport.mask().boundingRect() == QRect(30,0,60,90)
+        message["portals"][0]["occlusions"] = [[50, 40, 10, 20]]
+        portals.update(document, message)
+        from PySide6.QtCore import QPoint
+        assert not viewport.mask().contains(QPoint(50, 25))
+        assert viewport.mask().contains(QPoint(35, 25))
+        message["portals"][0]["occlusions"] = [[0, 0, 800, 600]]
+        portals.update(document, message)
+        assert viewport.isHidden()  # An empty Qt mask would otherwise expose it all.
+        message["portals"][0]["occlusions"] = []
+        portals.update(document, message)
+        assert not viewport.isHidden()
+        assert viewport.mask().contains(QPoint(50, 25))
         placeholder = layout.itemAt(1).widget()
         assert placeholder.minimumSize() == viewport.minimumSize()
         projection = PresentationDocument()

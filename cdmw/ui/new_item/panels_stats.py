@@ -87,7 +87,8 @@ class StatsPanel(QGroupBox):
         self.recipes = RecipeEditor(controller)
         self.views.addTab(self.recipes, "Enhancement and crafting recipes")
         layout.addWidget(self.views, 1)
-        self.recipe_button = QPushButton("Edit crafting and enhancement recipes")
+        self.recipe_button = QPushButton("Recipes…")
+        self.recipe_button.setToolTip("Edit crafting and enhancement recipes.")
         self.recipe_button.clicked.connect(self.recipes_requested.emit)
         recipe_row = QHBoxLayout()
         layout.removeWidget(self.experimental)
@@ -112,7 +113,8 @@ class StatsPanel(QGroupBox):
     # ------------------------------------------------------------------ construction
 
     def _build_ladder_group(self) -> QGroupBox:
-        ladder = QGroupBox("Enhancement ladder: raw stats and the price at each level")
+        ladder = QGroupBox("Enhancement ladder")
+        ladder.setToolTip("Raw stats and the price at each enhancement level.")
         ladder_layout = QVBoxLayout(ladder)
         self.table = QTableWidget(0, 0)
         self.table.setAlternatingRowColors(True)
@@ -161,8 +163,11 @@ class StatsPanel(QGroupBox):
         advanced_layout = QVBoxLayout(advanced)
         self.advanced_warning = NoteLabel("")
         self.advanced_warning.set_note(
-            "These controls write raw fields. Values far outside the range used by the game's own equipment have crashed the game when an item was bought.",
+            "Extreme raw values can crash the game.",
             WARN,
+        )
+        self.advanced_warning.setToolTip(
+            "These controls write raw fields. Values far outside the range used by the game's own equipment have crashed the game when an item was bought."
         )
         advanced_layout.addWidget(self.advanced_warning)
 
@@ -344,12 +349,10 @@ class StatsPanel(QGroupBox):
             return
         template_stats = [column.label for column in grid.columns if column.kind == STAT_KIND and column.key not in draft.extra_stat_keys]
         added_stats = [column.label for column in grid.columns if column.kind == STAT_KIND and column.key in draft.extra_stat_keys]
-        sentences = [
-            f"The template carries {', '.join(template_stats) or 'no raw stat'} per level. "
-            "Blue cells differ from it; select a cell to see the exact change and shipped range."
-        ]
+        sentences = [f"Template stats: {', '.join(template_stats) or 'none'}."]
+        self.carries.setToolTip("Blue cells differ from the template; select a cell to see the exact change and shipped range.")
         if added_stats:
-            sentences.append(f"Added here: {', '.join(added_stats)} (written into the row when the plan is built).")
+            sentences.append(f"Added: {', '.join(added_stats)}.")
         self.carries.setText(" ".join(sentences))
         self._refresh_status_choices()
         self.table.setColumnCount(len(grid.columns))

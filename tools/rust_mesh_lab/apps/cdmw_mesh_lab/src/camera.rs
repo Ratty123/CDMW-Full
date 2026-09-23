@@ -352,6 +352,21 @@ impl OrbitCamera {
         self.bump_revision();
     }
 
+    /// Keep the view-plane point under the cursor stationary while dollying.
+    pub fn zoom_at(&mut self, wheel_delta: f32, point: Vec2, rectangle: Rect) {
+        if !wheel_delta.is_finite() || wheel_delta == 0.0 {
+            return;
+        }
+        let anchor = self.point_on_view_plane(point, self.target, rectangle);
+        self.zoom(wheel_delta);
+        if let (Some(before), Some(after)) = (
+            anchor,
+            self.point_on_view_plane(point, self.target, rectangle),
+        ) {
+            self.target += before - after;
+        }
+    }
+
     pub fn set_orbit_state_with_roll(
         &mut self,
         yaw: f32,
@@ -664,6 +679,28 @@ mod tests {
         let after_orbit = camera.revision();
         camera.zoom(120.0);
         assert!(camera.revision() > after_orbit);
+    }
+
+    #[test]
+    fn cursor_zoom_preserves_the_point_under_the_pointer_in_and_out() {
+        for viewport in [rectangle(1200.0, 500.0), rectangle(500.0, 900.0)] {
+            for relative in [Vec2::new(0.2, 0.3), Vec2::new(0.8, 0.7)] {
+                let mut camera = OrbitCamera::default();
+                camera.orbit(Vec2::new(23.0, -17.0));
+                let point = Vec2::new(viewport.left(), viewport.top())
+                    + relative * Vec2::new(viewport.width(), viewport.height());
+                let anchor = camera.point_on_view_plane(point, camera.target, viewport).unwrap();
+                let original_distance = camera.distance;
+                let original_target = camera.target;
+                camera.zoom_at(120.0, point, viewport);
+                assert!(camera.distance < original_distance);
+                assert!(camera.target.distance(original_target) > 0.001);
+                assert!(camera.project(anchor, viewport).unwrap().screen.distance(point) < 0.01);
+                camera.zoom_at(-120.0, point, viewport);
+                assert!((camera.distance - original_distance).abs() < 0.0001);
+                assert!(camera.project(anchor, viewport).unwrap().screen.distance(point) < 0.01);
+            }
+        }
     }
 
     #[test]

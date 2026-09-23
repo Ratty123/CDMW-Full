@@ -260,7 +260,7 @@ def test_template_and_import_shader_options_follow_the_output_route(monkeypatch)
             available = [widget.family.itemData(i) for i in range(1, widget.family.count())
                          if widget.family.model().item(i).isEnabled()]
             assert available == [shader]
-            assert family_for(shader).label in widget.note.text()
+            assert family_for(shader).label in widget.family.toolTip()
             for index in range(1, widget.family.count()):
                 item = widget.family.model().item(index)
                 if not item.isEnabled():

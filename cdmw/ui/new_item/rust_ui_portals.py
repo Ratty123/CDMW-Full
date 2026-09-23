@@ -57,6 +57,12 @@ class PreviewPortals:
             clip = self._rectangle(item.get("clip"), ratio).intersected(self.host.rect()).intersected(rect)
             if clip.isEmpty():
                 continue
+            occlusions = item.get("occlusions", [])
+            if not isinstance(occlusions, list) or len(occlusions) > 32:
+                raise PresentationProtocolError("Invalid viewport occlusions.")
+            region = QRegion(clip)
+            for exclusion in occlusions:
+                region -= QRegion(self._rectangle(exclusion, ratio))
             if identifier not in self._attached:
                 parent = viewport.parentWidget()
                 layout = parent.layout() if parent is not None else None
@@ -69,9 +75,12 @@ class PreviewPortals:
                 self._attached[identifier] = (viewport, parent, layout, position)
                 viewport.setParent(self.host)
             viewport.setGeometry(rect)
-            viewport.setMask(QRegion(clip.translated(-rect.x(), -rect.y())))
-            viewport.show()
-            viewport.raise_()
+            if region.isEmpty():
+                viewport.hide()
+            else:
+                viewport.setMask(region.translated(-rect.x(), -rect.y()))
+                viewport.show()
+                viewport.raise_()
             visible.add(identifier)
         for identifier in self._attached.keys() - visible:
             viewport = self._attached[identifier][0]

@@ -108,13 +108,11 @@ class TranslucencyEditor(QGroupBox):
         self.advanced_fields.setVisible(False)
         self.advanced.toggled.connect(self.advanced_fields.setVisible)
         details.addWidget(self.controls)
-        hint = QLabel(
+        self.setToolTip(
             "Approximate viewport preview; game refraction and lighting may differ. "
             "Uses Plain PBR materials. Authored glass is preserved automatically; these controls override selected parts. "
             "Glow maps and colours are kept; brightness and tint may differ in game."
         )
-        hint.setWordWrap(True)
-        details.addWidget(hint)
         layout.addWidget(self.details)
         self.parts.itemChanged.connect(self._part_checked)
         self.parts.currentItemChanged.connect(self._show_current)

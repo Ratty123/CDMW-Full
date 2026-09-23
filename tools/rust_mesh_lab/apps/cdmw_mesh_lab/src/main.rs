@@ -5446,7 +5446,9 @@ impl LabApplication {
             });
             if wheel.abs() > f32::EPSILON {
                 self.cancel_active_gesture("Camera zoom took pointer ownership");
-                self.camera.zoom(wheel);
+                if let Some(point) = response.hover_pos() {
+                    self.camera.zoom_at(wheel, Vec2::new(point.x, point.y), rectangle);
+                }
                 self.projection = None;
                 self.status = "Camera zoom".to_owned();
             }

@@ -10,7 +10,7 @@ import hashlib
 import re
 
 from PySide6.QtCore import QByteArray, QBuffer, QIODevice, Qt
-from PySide6.QtGui import QAction, QPalette, QTextDocument
+from PySide6.QtGui import QAction, QIntValidator, QPalette, QTextDocument
 from PySide6.QtWidgets import (
     QAbstractButton, QAbstractItemView, QApplication, QBoxLayout, QCheckBox, QComboBox,
     QDialog, QDialogButtonBox, QDoubleSpinBox, QFormLayout, QFrame, QGridLayout, QGroupBox,
@@ -205,6 +205,9 @@ class PresentationDocument:
                          readonly=widget.isReadOnly(), maximum=widget.maxLength(),
                          password=widget.echoMode() != QLineEdit.Normal, multiline=False,
                          acceptable=widget.hasAcceptableInput())
+            validator = widget.validator()
+            if isinstance(validator, QIntValidator) and validator.bottom() >= 0:
+                props["digits_only"] = True
         elif isinstance(widget, (QPlainTextEdit, QTextEdit)):
             node["kind"] = "text"
             text = widget.toPlainText()

@@ -217,6 +217,7 @@ pub struct Portal {
     pub id: String,
     pub rect: [f32; 4],
     pub clip: [f32; 4],
+    pub occlusions: Vec<[f32; 4]>,
 }
 
 pub fn rect_array(rect: egui::Rect) -> [f32; 4] {

@@ -2782,7 +2782,11 @@ impl ApplicationHandler for PreviewApplication {
                     MouseScrollDelta::LineDelta(_, y) => y * 120.0,
                     MouseScrollDelta::PixelDelta(position) => position.y as f32,
                 };
-                self.camera.zoom(amount);
+                if let Some(point) = self.pointer {
+                    self.camera.zoom_at(amount, point, self.viewport_rect());
+                } else {
+                    self.camera.zoom(amount);
+                }
                 self.emit_view_state("zoom");
                 window.request_redraw();
             }

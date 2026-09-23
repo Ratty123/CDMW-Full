@@ -589,6 +589,147 @@ fn column_drag_keeps_the_full_distance_on_release_and_after_row_updates() {
 }
 
 #[test]
+fn inspector_expansion_does_not_resize_the_viewport_and_short_lists_are_compact() {
+    let mut table = control("parts", "table", "", json!({"total":3,
+        "columns":[{"index":0,"width":120}], "rows":[]}));
+    table.props["rows"] = json!((0..3).map(|index| json!({"path":[index],
+        "cells":[{"text":format!("Part {index}"),"enabled":true,"check":0}]})).collect::<Vec<_>>());
+    let mut group = control("appearance", "group", "Appearance", json!({}));
+    group.children = vec![table, control("quick", "button", "Quick turn", json!({}))];
+    let mut inspector = control("inspector", "scroll", "", json!({}));
+    inspector.children.push(group);
+    let mut split = control("split", "split", "", json!({"horizontal":true,"sizes":[640,320]}));
+    split.name = "new_item_model_workspace_splitter".into();
+    split.children = vec![control("preview", "viewport", "", json!({})), inspector];
+    split.slot = "body".into();
+    let mut root = control("workspace", "workspace", "", json!({}));
+    root.children.push(split);
+    let mut state = state(root);
+    let context = egui::Context::default();
+    apply_theme(&context, &state.theme);
+    let mut view = PresentationView::default();
+    let size = egui::vec2(960.0, 720.0);
+    for _ in 0..3 { frame(&context, &mut view, &state, size, vec![]); }
+    let before = view.portals[0].rect;
+    assert!(before[3] > 640.0, "{before:?}");
+    let list = view.rects.iter().find(|control| control.id == "parts").unwrap();
+    assert!(list.rect[3] < 100.0, "Three parts must not reserve an empty panel: {list:?}");
+    let split = &mut state.root.children[0];
+    split.revision += 1;
+    split.props["sizes"] = json!([580,380]); // hidden Qt layout changed its size hint
+    split.props["horizontal"] = json!(false);
+    for index in 0..30 {
+        split.children[1].children[0].children.push(control(&format!("turn-{index}"), "button", "Turn", json!({})));
+    }
+    for _ in 0..3 { frame(&context, &mut view, &state, size, vec![]); }
+    assert_eq!(view.portals[0].rect, before);
+}
+
+#[test]
+fn combo_popup_masks_the_native_portal_and_survives_a_state_refresh() {
+    let mut root = control("root", "column", "", json!({}));
+    root.children = vec![control("shader", "choice", "", json!({"text":"Blade","selected":0,
+        "options":[{"index":0,"text":"Blade","enabled":true},
+                   {"index":1,"text":"Handle","enabled":true}]})),
+        control("preview", "viewport", "", json!({}))];
+    let mut state = state(root);
+    let context = egui::Context::default();
+    apply_theme(&context, &state.theme);
+    let mut view = PresentationView::default();
+    let size = egui::vec2(960.0, 720.0);
+    for _ in 0..3 { frame(&context, &mut view, &state, size, vec![]); }
+    let field = view.rects.iter().find(|item| item.id == "shader").unwrap().rect;
+    click(&context, &mut view, &state, egui::pos2(field[0]+20.0, field[1]+field[3]/2.0));
+    state.root.children[0].revision += 1;
+    frame(&context, &mut view, &state, size, vec![]);
+    let portal = &view.portals[0];
+    let popup = portal.occlusions.first().expect("Combo must occlude the native viewport");
+    assert!(popup[1]+popup[3] > portal.rect[1]);
+    let style = context.style_of(egui::Theme::Dark);
+    let y = popup[1] + egui::Frame::popup(&style).total_margin().top
+        + style.spacing.interact_size.y * 1.5 + style.spacing.item_spacing.y;
+    let point = egui::pos2(popup[0]+20.0, y);
+    click(&context, &mut view, &state, point);
+    assert!(view.inputs.iter().any(|input| input.control == "shader" && input.action == "choose" && input.value == 1), "{:?}", view.inputs);
+}
+
+#[test]
+fn compact_action_buttons_stay_together_at_different_font_and_window_sizes() {
+    for font in [11.0, 14.0, 22.0] {
+        for width in [320.0, 960.0] {
+            let context = egui::Context::default();
+            let mut root = control("actions", "row", "", json!({}));
+            root.children = vec![control("fit", "button", "Fit", json!({"grow_x":true})),
+                control("reset", "button", "Reset", json!({"grow_x":true}))];
+            let mut state = state(root);
+            state.theme["font_pixels"] = json!(font);
+            apply_theme(&context, &state.theme);
+            let mut view = PresentationView::default();
+            for _ in 0..3 { frame(&context, &mut view, &state, egui::vec2(width, 720.0), vec![]); }
+            let a = &view.rects[0].rect;
+            let b = &view.rects[1].rect;
+            assert!(a[2] < 100.0 && b[2] < 120.0, "{a:?} {b:?}");
+            let gap = b[0] - a[0] - a[2];
+            assert!((0.0..=8.0).contains(&gap), "Related actions must stay together: {gap}");
+            assert_eq!(a[1], b[1]);
+        }
+    }
+}
+
+#[test]
+fn choice_and_section_help_appears_on_hover_including_disabled_controls() {
+    for kind in ["choice", "group"] {
+        for enabled in [true, false] {
+            let context = egui::Context::default();
+            let mut help = control("help", kind, "Shader experiments", json!({"text":"Keep source"}));
+            help.tooltip = "These are the source material requirements.".into();
+            help.enabled = enabled;
+            let mut root = control("root", "column", "", json!({}));
+            root.children = vec![help, control("preview", "viewport", "", json!({}))];
+            let state = state(root);
+            apply_theme(&context, &state.theme);
+            let mut style = (*context.style_of(egui::Theme::Dark)).clone();
+            style.interaction.tooltip_delay = 0.0;
+            style.interaction.show_tooltips_only_when_still = false;
+            context.set_style_of(egui::Theme::Dark, style);
+            let mut view = PresentationView::default();
+            let size = egui::vec2(960.0,720.0);
+            for _ in 0..3 { frame(&context, &mut view, &state, size, vec![]); }
+            let rect = view.rects.iter().find(|item| item.id == "help").unwrap().rect;
+            let point = egui::pos2(rect[0]+10.0, rect[1]+rect[3]/2.0);
+            for _ in 0..4 { frame(&context, &mut view, &state, size, vec![egui::Event::PointerMoved(point)]); }
+            assert!(!view.portals[0].occlusions.is_empty(), "Missing help: {kind} enabled={enabled}");
+            assert!(view.inputs.is_empty());
+        }
+    }
+}
+
+#[test]
+fn numeric_text_filters_invalid_keys_and_accepts_a_leading_zero_folder_number() {
+    let context = egui::Context::default();
+    let mut view = PresentationView::default();
+    let mut state = state(control("folder", "text", "", json!({"text":"","placeholder":"Auto","maximum":4,"digits_only":true})));
+    apply_theme(&context, &state.theme);
+    let size = egui::vec2(960.0, 720.0);
+    for _ in 0..3 { frame(&context, &mut view, &state, size, vec![]); }
+    let rect = view.rects[0].rect;
+    click(&context, &mut view, &state, egui::pos2(rect[0]+12.0,rect[1]+rect[3]/2.0));
+    for (key, expected) in [("a",""),("0","0"),("0","00"),("x","00"),("3","003"),("6","0036")] {
+        frame(&context, &mut view, &state, size, vec![egui::Event::Text(key.into())]);
+        if key == "a" || key == "x" {
+            assert!(!view.inputs.iter().any(|input| input.action == "text"));
+        } else {
+            let input = view.inputs.iter().find(|input| input.action == "text").unwrap().clone();
+            assert_eq!(input.value, json!(expected));
+            view.acknowledge(&input);
+        }
+        state.root.revision += 1;
+        state.root.props["text"] = json!(expected);
+        frame(&context, &mut view, &state, size, vec![]);
+    }
+}
+
+#[test]
 fn icon_crop_drag_maps_back_to_source_pixels_and_obeys_disabled_state() {
     let context = egui::Context::default();
     let mut view = PresentationView::default();

@@ -214,9 +214,7 @@ class EffectRecipePanel(QWidget):
             row.addWidget(button)
         row.addStretch(1)
         col.addLayout(row)
-        label = QLabel('Saved effects retain all layers, placements and emitter settings.')
-        label.setWordWrap(True)
-        col.addWidget(label)
+        self.saved.setToolTip('Saved effects retain all layers, placements and emitter settings.')
         row = QHBoxLayout()
         for title, callback in (('Import recipe…', self.import_recipe), ('Export recipe…', self.export_recipe)):
             button = QPushButton(title)

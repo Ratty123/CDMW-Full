@@ -1,6 +1,6 @@
 """Compact emission animation controls; all texture preparation stays in workers."""
 from PySide6.QtCore import Signal
-from PySide6.QtWidgets import QCheckBox, QDoubleSpinBox, QFormLayout, QGroupBox, QLabel
+from PySide6.QtWidgets import QCheckBox, QDoubleSpinBox, QFormLayout, QGroupBox
 
 from cdmw.domain.mesh.emission import GlowAnimation, RgbGlow
 from cdmw.ui.wheel_guard import enable_focused_wheel
@@ -30,15 +30,12 @@ class GlowAnimationEditor(QGroupBox):
             form.addRow(label, spin)
             form.labelForField(spin).setToolTip(description)
             self.spins[name] = spin
-        note = QLabel("Zero speed is static. Scroll affects the glow map only; a solid map cannot show movement. "
+        self.setToolTip("Zero speed is static. Scroll affects the glow map only; a solid map cannot show movement. "
                       "Pulse floor is a brightness floor, capped by the glow at each pixel. "
                       "Animated glow cannot share a part with translucency. Preview timing is approximate.")
-        note.setWordWrap(True)
-        form.addRow(note)
         self.rgb_box = QGroupBox("Use RGB glow map")
         self.rgb_box.setCheckable(True)
         self.rgb_box.setChecked(False)
-        self.rgb_box.setToolTip("Use the source glow texture's colours and alpha mask. RGB strength replaces the ordinary Strength setting.")
         rgb_form = QFormLayout(self.rgb_box)
         self.rgb_spins = {}
         for name, label, minimum, value, description in (
@@ -60,11 +57,9 @@ class GlowAnimationEditor(QGroupBox):
         self.rgb_inverse.setToolTip("Reverses the source red-channel mask so the opposite areas appear first as Reveal increases.")
         self.rgb_inverse.toggled.connect(lambda _on: self.changed.emit())
         rgb_form.addRow(self.rgb_inverse)
-        description = QLabel("Requires the source glow map. RGB supplies the colours, alpha masks their intensity, "
+        self.rgb_box.setToolTip("Requires the source glow map. RGB supplies the colours, alpha masks their intensity, "
             "and red is the reveal mask. Uses RGB strength instead of the single-colour strength above. "
             "Reveal 0 is off; 1 shows the full glow. Game brightness may differ.")
-        description.setWordWrap(True)
-        rgb_form.addRow(description)
         self.rgb_box.toggled.connect(lambda _on: self.changed.emit())
         form.addRow(self.rgb_box)
 

@@ -205,7 +205,8 @@ class OutputPanel(QGroupBox):
         self.build_button.setProperty("newItemPrimary", True)
         self.build_button.setToolTip("Validate the draft, allocate its key and stem, and compose every table change and file. Nothing is written yet.")
         self.build_button.clicked.connect(self._build)
-        self.plan_state = NoteLabel("Not built yet. Every change on the other steps clears the plan, so build it last.", WARN)
+        self.plan_state = NoteLabel("Plan not built.", WARN)
+        self.plan_state.setToolTip("Every change on the other steps clears the plan, so build it last.")
 
         self.sidebar = QGroupBox("Destination")
         self.sidebar.setMinimumWidth(320)
@@ -287,13 +288,14 @@ class OutputPanel(QGroupBox):
         self.overlay_controls = QWidget()
         install = QVBoxLayout(self.overlay_controls)
         install.setContentsMargins(0, 0, 0, 0)
-        install.addWidget(QLabel("Overlay folder"))
+        install.addWidget(QLabel("Overlay folder number"))
         self.overlay_directory = QLineEdit()
         self.overlay_directory.setPlaceholderText("Auto")
         self.overlay_directory.setMaxLength(4)
         self.overlay_directory.setMaximumWidth(90)
         self.overlay_directory.setValidator(QIntValidator(OVERLAY_DIRECTORY_FIRST, 9999, self))
         self.overlay_directory.setToolTip(
+            "Leave blank for Auto, or enter a folder number from 0036 to 9999. "
             "Auto reuses CDMW's overlay or finds a free number. Game and other mod-manager folders are reserved."
         )
         install.addWidget(self.overlay_directory)
@@ -304,9 +306,6 @@ class OutputPanel(QGroupBox):
         )
         self.install_overlay_button.clicked.connect(self.install_overlay_requested.emit)
         self.install_overlay_button.setProperty("newItemPrimary", True)
-        overlay_note = QLabel("Auto reuses CDMW's overlay or chooses a free number.")
-        overlay_note.setWordWrap(True)
-        install.addWidget(overlay_note)
         write_layout.addWidget(self.overlay_controls)
         write.setToolTip(
             "Export a mod folder or install as an overlay. Overlay installation keeps the shipped archive payloads intact."
@@ -521,7 +520,7 @@ class OutputPanel(QGroupBox):
         if plan is None:
             self.build_button.setText(self.tr("Build plan"))
             self._summary_writer.set_text("")
-            self.plan_state.set_note("Not built yet. Every change on the other steps clears the plan, so build it last.", WARN)
+            self.plan_state.set_note("Plan not built.", WARN)
             return
         self.build_button.setText(self.tr("Rebuild plan"))
         warnings = len(plan.warnings)

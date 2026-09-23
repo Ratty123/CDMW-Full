@@ -37,6 +37,15 @@ The embedded child takes keyboard focus on clicks and supplies its actual Win32
 focus state to egui. Field edits finish before navigation or dialog actions hide
 their controls. Font size and button colors come from the current application
 theme; hover changes color without expanding the controls.
+Buttons fit their labels and related actions stay together. Inspector lists fit
+their contents, the navigation footer stays compact, and expanding Quick turn or
+other inspector sections preserves the viewport size and splitter position.
+Instructional detail is available on hover over the relevant control or section;
+validation messages remain visible. Popup and tooltip rectangles mask the native
+preview underneath so their complete contents remain visible and clickable.
+Wheel zoom keeps the view-plane point under the cursor in place in both preview
+and authoring viewports. The overlay folder field accepts digits; leave it blank
+for Auto or enter a folder number from 0036 to 9999.
 Projected dialogs retain their original results and block edits behind them in
 the bridge without registering a second hidden Qt modal window, which would
 disable the visible application. Template results fill the available height;

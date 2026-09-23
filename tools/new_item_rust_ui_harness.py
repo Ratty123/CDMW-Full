@@ -20,6 +20,42 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
 
+def prepare_material_controls(tab):
+    """Populate inspector controls from owned labels without loading game assets."""
+    parts = tuple((name.lower(), name) for name in ("Blade", "Handle", "Skull"))
+    tab.controller.material_parts = lambda: parts
+    tab.controller.material_shader_options = lambda: None
+    panel = tab.model_panel
+    panel.refresh_glow_parts()
+    panel._set_placement_visible(True)
+    panel.placement_group.setEnabled(True)
+    panel.dyes.setEnabled(True)
+    panel.dyes.setChecked(True)
+    for combo in (panel.dyes.source, panel.dyes.target):
+        combo.addItems([label for _, label in parts])
+    panel.preview._ensure_host()
+
+
+def check_control_overlaps(layout):
+    """Compare visible leaf rectangles, excluding containers and native popups."""
+    kinds = {"button", "check", "radio", "choice", "number", "text", "label"}
+    controls = [item for item in layout["controls"] if item["kind"] in kinds]
+
+    def bounds(item):
+        x, y, width, height = item["rect"]
+        left, top, clip_width, clip_height = item["clip"]
+        return max(x, left), max(y, top), min(x + width, left + clip_width), min(y + height, top + clip_height)
+
+    for index, first in enumerate(controls):
+        a = bounds(first)
+        for second in controls[index + 1:]:
+            if first["id"] == second["id"]:
+                continue
+            b = bounds(second)
+            if min(a[2], b[2]) - max(a[0], b[0]) > 1 and min(a[3], b[3]) - max(a[1], b[1]) > 1:
+                raise AssertionError(f"Overlapping controls: {first} and {second}")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-root", required=True, type=Path)
@@ -34,6 +70,7 @@ def main():
     parser.add_argument("--font-pixels", type=int, default=14)
     parser.add_argument("--language", default="en")
     parser.add_argument("--authored", action="store_true")
+    parser.add_argument("--material-controls", action="store_true", help="Populate owned synthetic material controls for layout checks")
     parser.add_argument("--icon-crop-image", type=Path, help="Render the original icon crop dialog using an owned capture")
     args = parser.parse_args()
     from PySide6.QtCore import QSettings
@@ -68,6 +105,8 @@ def main():
 
     def emit(name):
         settle()
+        if args.material_controls:
+            tab.model_panel.placement_group.setEnabled(True)
         localizer.apply(tab)
         for dialog in owned_dialogs:
             localizer.apply(dialog)
@@ -91,6 +130,7 @@ def main():
             layout = json.loads(report.read_text(encoding="utf-8"))
             if layout["errors"] or layout["unsupported"]:
                 raise RuntimeError(f"{name}: renderer coverage: {layout['errors']} {layout['unsupported']}")
+            check_control_overlaps(layout)
             row["rendered_controls"] = len(layout["controls"])
             row["report"] = str(report)
         evidence.append(row)
@@ -151,6 +191,8 @@ def main():
         bridge = NewItemPresentationBridge(tab, dialogs=lambda: owned_dialogs)
         for step in range(7) if args.step is None else (args.step,):
             tab.show_step(step)
+            if args.material_controls and step == 2:
+                prepare_material_controls(tab)
             if args.authored and step == 6:
                 tab.controller.start_plan()
             emit(f"step-{step + 1}")
