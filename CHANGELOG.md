@@ -25,6 +25,7 @@ The format is intentionally simple:
 
 ### Added
 
+- Create New Item has an optional Rust interface alongside the existing workspace. Its Rust/Classic switch preserves the live draft and plan, reuses the existing workflow and native previews, and retains confirmation, cancellation, retry, localization and theme behavior. The ordinary Create New Item entry remains the default.
 - Create New Item warns immediately when Glow and Translucency select the same part, distinguishing the static-glow brightness caveat from unsupported animated/RGB glow and explaining how to resolve it.
 - Translucency has Select all and Clear selection actions that update the preview once while retaining each part's settings.
 - Material emission has a bloom halo in the shared Rust renderer. Model & Placement includes a preview-only Dark mode that dims scene lighting while retaining emission, including animated and RGB glow.

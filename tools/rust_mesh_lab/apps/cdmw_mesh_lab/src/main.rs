@@ -22,6 +22,7 @@ mod headless_tests;
 #[cfg(test)]
 mod headless_ui_tests;
 mod loader;
+mod new_item_ui;
 mod preview_core_material;
 mod preview_effects;
 mod preview_effect_lightning;
@@ -90,6 +91,9 @@ fn main() -> Result<()> {
         .with_writer(std::io::stderr)
         .try_init()
         .ok();
+    if new_item_ui::try_run()? {
+        return Ok(());
+    }
     let options = parse_startup_options()?;
     if let Some(path) = options.control_contract_json {
         control_contract::write_control_contract(&path)?;

@@ -434,6 +434,7 @@ dependencies = [
  "egui-wgpu",
  "egui-winit",
  "glam",
+ "png",
  "pollster",
  "rfd",
  "serde",

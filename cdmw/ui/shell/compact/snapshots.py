@@ -17,6 +17,7 @@ _TOOL_CONTAINER_ATTRIBUTES = {
     "model_library": "model_library_tab",
     "item_icons": "item_icons_tab",
     "new_item_studio": "new_item_studio_tab",
+    "new_item_rust_studio": "new_item_rust_studio_tab",
     "mesh_editor": "mesh_editor_tab",
     "placement_studio": "placement_studio_tab",
     "mod_package_retrofit": "mod_package_retrofit_tab",
@@ -61,6 +62,8 @@ def _sources_for(owner: object, tool_key: str) -> tuple[object, ...]:
     widget = _existing_tool_widget(owner, tool_key)
     if tool_key == "archive_browser":
         return (owner.archive,)
+    if tool_key == "new_item_rust_studio" and widget is not None:
+        return (widget.workflow, widget)
     return (widget,) if widget is not None else ()
 
 
@@ -373,6 +376,7 @@ _SNAPSHOT_PROVIDERS: dict[str, Callable[[object, str], CompactStatusSnapshot]] =
     "model_library": _model_library_snapshot,
     "item_icons": _item_icons_snapshot,
     "new_item_studio": _new_item_snapshot,
+    "new_item_rust_studio": _new_item_snapshot,
     "mesh_editor": _mesh_editor_snapshot,
     "placement_studio": _placement_snapshot,
     "textures": _textures_snapshot,

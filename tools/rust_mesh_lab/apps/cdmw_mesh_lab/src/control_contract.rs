@@ -261,6 +261,7 @@ pub fn write_control_contract(path: &Path) -> Result<()> {
         "invalid_product_anchor_rows": invalid_product_anchor_rows,
         "runtime_route_registry": "compiled_rust_integrated_ui_v2",
         "preview_contract": preview_contract,
+        "new_item_ui": crate::new_item_ui::control_contract(),
         "rows": rows,
         "product_contract": {
             "fields": PRODUCT_ROW_FIELDS,

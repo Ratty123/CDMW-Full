@@ -2076,7 +2076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
-          "line": 330,
+          "line": 331,
           "sink": "setToolTip"
         }
       ]
@@ -6996,7 +6996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 320,
+          "line": 344,
           "sink": "on_error"
         }
       ]
@@ -7503,6 +7503,16 @@
           "path": "cdmw/services/archive_overlay_manager.py",
           "line": 468,
           "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
+      "key": "Another Create New Item workspace is building a plan. Wait for it to finish before allocating another item.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/controller_task_mixin.py",
+          "line": 213,
+          "sink": "emit"
         }
       ]
     },
@@ -11691,7 +11701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/registry.py",
-          "line": 29,
+          "line": 30,
           "sink": "CompactToolSpec"
         }
       ]
@@ -11837,6 +11847,11 @@
         {
           "path": "cdmw/ui/shell/compact/registry.py",
           "line": 22,
+          "sink": "CompactToolSpec"
+        },
+        {
+          "path": "cdmw/ui/shell/compact/registry.py",
+          "line": 23,
           "sink": "CompactToolSpec"
         }
       ]
@@ -12566,17 +12581,17 @@
         },
         {
           "path": "cdmw/ui/shell/compact/registry.py",
-          "line": 23,
-          "sink": "CompactToolSpec"
-        },
-        {
-          "path": "cdmw/ui/shell/compact/registry.py",
           "line": 24,
           "sink": "CompactToolSpec"
         },
         {
           "path": "cdmw/ui/shell/compact/registry.py",
           "line": 25,
+          "sink": "CompactToolSpec"
+        },
+        {
+          "path": "cdmw/ui/shell/compact/registry.py",
+          "line": 26,
           "sink": "CompactToolSpec"
         }
       ]
@@ -14661,12 +14676,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
-          "line": 328,
+          "line": 329,
           "sink": "QTableWidgetItem"
         },
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
-          "line": 330,
+          "line": 331,
           "sink": "setToolTip"
         }
       ]
@@ -15821,12 +15836,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 263,
+          "line": 287,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 277,
+          "line": 301,
           "sink": "emit"
         },
         {
@@ -16833,6 +16848,16 @@
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
           "line": 849,
           "sink": "show_result"
+        }
+      ]
+    },
+    {
+      "key": "CDMW did not create a native Mesh Editor host window",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/rust_host.py",
+          "line": 200,
+          "sink": "python-return:attach_child_window"
         }
       ]
     },
@@ -17931,7 +17956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 386,
+          "line": 410,
           "sink": "emit"
         },
         {
@@ -18206,7 +18231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace_authoring.py",
-          "line": 155,
+          "line": 154,
           "sink": "setText"
         }
       ]
@@ -18366,7 +18391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_library_model.py",
-          "line": 325,
+          "line": 324,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -20007,6 +20032,16 @@
       ]
     },
     {
+      "key": "Checking the Rust helper and preparing the interface…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/rust_ui_tab.py",
+          "line": 167,
+          "sink": "show_loading"
+        }
+      ]
+    },
+    {
       "key": "Checking the prepared Mesh Editor session...",
       "origins": [
         {
@@ -21366,7 +21401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 211,
+          "line": 235,
           "sink": "emit"
         }
       ]
@@ -22117,6 +22152,16 @@
       ]
     },
     {
+      "key": "Classic",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/rust_ui_tab.py",
+          "line": 61,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Classic Workspace",
       "origins": [
         {
@@ -22726,7 +22771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_library_model.py",
-          "line": 323,
+          "line": 322,
           "sink": "python-return:data"
         }
       ]
@@ -23216,7 +23261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/close_controller.py",
-          "line": 482,
+          "line": 483,
           "sink": "set_status_message"
         }
       ]
@@ -23226,7 +23271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/close_controller.py",
-          "line": 398,
+          "line": 399,
           "sink": "set_status_message"
         }
       ]
@@ -23901,7 +23946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/snapshots.py",
-          "line": 387,
+          "line": 391,
           "sink": "RuntimeError"
         }
       ]
@@ -23911,7 +23956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/registry.py",
-          "line": 37,
+          "line": 38,
           "sink": "RuntimeError"
         }
       ]
@@ -23921,7 +23966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/registry.py",
-          "line": 35,
+          "line": 36,
           "sink": "RuntimeError"
         }
       ]
@@ -24333,6 +24378,16 @@
           "path": "cdmw/ui/archive_browser/mesh_swap_scope_dialog.py",
           "line": 261,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Complete the open dialog before changing interface.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/rust_ui_tab.py",
+          "line": 146,
+          "sink": "emit"
         }
       ]
     },
@@ -25635,6 +25690,11 @@
           "sink": "setText"
         },
         {
+          "path": "cdmw/ui/new_item/rust_ui_document.py",
+          "line": 108,
+          "sink": "translate_active_ui_text"
+        },
+        {
           "path": "cdmw/ui/shell/compact/drawer.py",
           "line": 53,
           "sink": "QPushButton"
@@ -26842,6 +26902,16 @@
         {
           "path": "cdmw/ui/shell/compact/registry.py",
           "line": 22,
+          "sink": "CompactToolSpec"
+        }
+      ]
+    },
+    {
+      "key": "Create New Item (Rust)",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/compact/registry.py",
+          "line": 23,
           "sink": "CompactToolSpec"
         }
       ]
@@ -30381,7 +30451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 270,
+          "line": 294,
           "sink": "emit"
         }
       ]
@@ -32731,7 +32801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/registry.py",
-          "line": 28,
+          "line": 29,
           "sink": "CompactToolSpec"
         },
         {
@@ -33286,7 +33356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
-          "line": 377,
+          "line": 378,
           "sink": "setText"
         }
       ]
@@ -33366,7 +33436,7 @@
       "origins": [
         {
           "path": "cdmw/workers/new_item_cleanup_worker.py",
-          "line": 61,
+          "line": 66,
           "sink": "ValueError"
         }
       ]
@@ -33391,12 +33461,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
-          "line": 449,
+          "line": 450,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
-          "line": 499,
+          "line": 500,
           "sink": "warning"
         }
       ]
@@ -33406,12 +33476,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
-          "line": 459,
+          "line": 460,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
-          "line": 491,
+          "line": 492,
           "sink": "warning"
         }
       ]
@@ -33581,12 +33651,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
-          "line": 442,
+          "line": 443,
           "sink": "getOpenFileName:filter-label"
         },
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
-          "line": 452,
+          "line": 453,
           "sink": "getSaveFileName:filter-label"
         }
       ]
@@ -33596,12 +33666,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
-          "line": 442,
+          "line": 443,
           "sink": "getOpenFileName"
         },
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
-          "line": 452,
+          "line": 453,
           "sink": "getSaveFileName"
         }
       ]
@@ -33621,7 +33691,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
-          "line": 446,
+          "line": 447,
           "sink": "ValueError"
         }
       ]
@@ -33862,6 +33932,16 @@
       ]
     },
     {
+      "key": "Embedded Mesh Editor is supported on Windows only",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/rust_host.py",
+          "line": 197,
+          "sink": "python-return:attach_child_window"
+        }
+      ]
+    },
+    {
       "key": "Embedded Mesh Editor part action failed: {value_0}: {value_1}",
       "origins": [
         {
@@ -34026,7 +34106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
-          "line": 413,
+          "line": 414,
           "sink": "getColor"
         }
       ]
@@ -34036,7 +34116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
-          "line": 377,
+          "line": 378,
           "sink": "setText"
         }
       ]
@@ -35462,6 +35542,16 @@
       ]
     },
     {
+      "key": "Experimental interface · same item workflow",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/rust_ui_tab.py",
+          "line": 58,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
       "key": "Experimental read-only decode. Strings, references, offsets, count/table candidates, and numeric rows are shown for schema recovery; writing is disabled until safe rebuilds are proven.",
       "origins": [
         {
@@ -36671,7 +36761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
-          "line": 452,
+          "line": 453,
           "sink": "getSaveFileName"
         }
       ]
@@ -41111,7 +41201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
-          "line": 330,
+          "line": 331,
           "sink": "setToolTip"
         }
       ]
@@ -46761,7 +46851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
-          "line": 442,
+          "line": 443,
           "sink": "getOpenFileName"
         }
       ]
@@ -48586,7 +48676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/registry.py",
-          "line": 27,
+          "line": 28,
           "sink": "CompactToolSpec"
         }
       ]
@@ -52256,12 +52346,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
-          "line": 328,
+          "line": 329,
           "sink": "QTableWidgetItem"
         },
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
-          "line": 330,
+          "line": 331,
           "sink": "setToolTip"
         }
       ]
@@ -56906,7 +56996,7 @@
         },
         {
           "path": "cdmw/ui/shell/compact/registry.py",
-          "line": 23,
+          "line": 24,
           "sink": "CompactToolSpec"
         },
         {
@@ -60396,7 +60486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_library_model.py",
-          "line": 332,
+          "line": 331,
           "sink": "python-return:data"
         }
       ]
@@ -62931,7 +63021,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
-          "line": 482,
+          "line": 483,
           "sink": "getText"
         },
         {
@@ -63757,6 +63847,26 @@
       ]
     },
     {
+      "key": "New Item UI startup cancelled.",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_rust_runtime.py",
+          "line": 31,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/new_item_rust_runtime.py",
+          "line": 43,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/new_item_rust_runtime.py",
+          "line": 49,
+          "sink": "raise_if_cancelled"
+        }
+      ]
+    },
+    {
       "key": "New Item manifest is too large: {value_0}",
       "origins": [
         {
@@ -64028,6 +64138,11 @@
           "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
           "line": 84,
           "sink": "QPushButton"
+        },
+        {
+          "path": "cdmw/ui/new_item/rust_ui_document.py",
+          "line": 110,
+          "sink": "translate_active_ui_text"
         },
         {
           "path": "cdmw/ui/text_search/tab.py",
@@ -65521,7 +65636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 257,
+          "line": 281,
           "sink": "emit"
         },
         {
@@ -71296,12 +71411,12 @@
         },
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 405,
+          "line": 429,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 416,
+          "line": 440,
           "sink": "emit"
         },
         {
@@ -76606,7 +76721,7 @@
         },
         {
           "path": "cdmw/ui/shell/compact/registry.py",
-          "line": 24,
+          "line": 25,
           "sink": "CompactToolSpec"
         },
         {
@@ -79451,7 +79566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 555,
+          "line": 571,
           "sink": "pump_startup_splash"
         }
       ]
@@ -79523,6 +79638,16 @@
           "path": "cdmw/ui/new_item/tab.py",
           "line": 412,
           "sink": "_append_log"
+        }
+      ]
+    },
+    {
+      "key": "Preparing the Rust New Item interface…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/rust_ui_tab.py",
+          "line": 72,
+          "sink": "show_loading"
         }
       ]
     },
@@ -80812,11 +80937,41 @@
       ]
     },
     {
+      "key": "Preview child window could not be attached to CDMW",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/rust_host.py",
+          "line": 218,
+          "sink": "python-return:attach_child_window"
+        }
+      ]
+    },
+    {
+      "key": "Preview child window is not owned by the launched process",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/rust_host.py",
+          "line": 213,
+          "sink": "python-return:attach_child_window"
+        }
+      ]
+    },
+    {
+      "key": "Preview child-window validation failed: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/rust_host.py",
+          "line": 221,
+          "sink": "python-return:attach_child_window"
+        }
+      ]
+    },
+    {
       "key": "Preview cleanup must stay inside its output root.",
       "origins": [
         {
           "path": "cdmw/workers/new_item_cleanup_worker.py",
-          "line": 59,
+          "line": 64,
           "sink": "ValueError"
         }
       ]
@@ -80958,6 +81113,16 @@
           "path": "cdmw/ui/preview/dotnet_session.py",
           "line": 1894,
           "sink": "_fail_current_process"
+        }
+      ]
+    },
+    {
+      "key": "Preview did not report a valid child window or process",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/rust_host.py",
+          "line": 204,
+          "sink": "python-return:attach_child_window"
         }
       ]
     },
@@ -82292,6 +82457,26 @@
       ]
     },
     {
+      "key": "Preview reported a stale or mismatched embedded parent window",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/rust_host.py",
+          "line": 202,
+          "sink": "python-return:attach_child_window"
+        }
+      ]
+    },
+    {
+      "key": "Preview reported a window that no longer exists",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/rust_host.py",
+          "line": 209,
+          "sink": "python-return:attach_child_window"
+        }
+      ]
+    },
+    {
       "key": "Preview resources loaded; waiting for visible preview panel.",
       "origins": [
         {
@@ -83028,6 +83213,11 @@
           "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
           "line": 83,
           "sink": "QPushButton"
+        },
+        {
+          "path": "cdmw/ui/new_item/rust_ui_document.py",
+          "line": 109,
+          "sink": "translate_active_ui_text"
         },
         {
           "path": "tools/placement_studio/move_preview.py",
@@ -84316,7 +84506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 194,
+          "line": 218,
           "sink": "emit"
         },
         {
@@ -87806,7 +87996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 589,
+          "line": 605,
           "sink": "pump_startup_splash"
         }
       ]
@@ -88851,7 +89041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/registry.py",
-          "line": 26,
+          "line": 27,
           "sink": "CompactToolSpec"
         }
       ]
@@ -94362,6 +94552,16 @@
       ]
     },
     {
+      "key": "Rust",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/rust_ui_tab.py",
+          "line": 60,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "SOCKET  {value_0}",
       "origins": [
         {
@@ -94836,7 +95036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
-          "line": 482,
+          "line": 483,
           "sink": "getText"
         }
       ]
@@ -95971,7 +96171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/registry.py",
-          "line": 30,
+          "line": 31,
           "sink": "CompactToolSpec"
         }
       ]
@@ -103121,12 +103321,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
-          "line": 328,
+          "line": 329,
           "sink": "QTableWidgetItem"
         },
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
-          "line": 330,
+          "line": 331,
           "sink": "setToolTip"
         }
       ]
@@ -105166,12 +105366,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
-          "line": 328,
+          "line": 329,
           "sink": "QTableWidgetItem"
         },
         {
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
-          "line": 330,
+          "line": 331,
           "sink": "setToolTip"
         }
       ]
@@ -106701,7 +106901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 312,
+          "line": 336,
           "sink": "emit"
         }
       ]
@@ -106731,7 +106931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/close_controller.py",
-          "line": 382,
+          "line": 383,
           "sink": "set_status_message"
         }
       ]
@@ -110211,7 +110411,7 @@
         },
         {
           "path": "cdmw/ui/shell/compact/registry.py",
-          "line": 25,
+          "line": 26,
           "sink": "CompactToolSpec"
         },
         {
@@ -110627,12 +110827,72 @@
       ]
     },
     {
+      "key": "The Rust New Item interface cannot start: {value_0}.",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_rust_runtime.py",
+          "line": 35,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
       "key": "The Rust editor controls currently remain in English. The surrounding app and this guide use the selected interface language.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 331,
           "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
+      "key": "The Rust interface could not prepare this page: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/rust_ui_tab.py",
+          "line": 300,
+          "sink": "_fail"
+        }
+      ]
+    },
+    {
+      "key": "The Rust interface could not start: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/rust_ui_tab.py",
+          "line": 313,
+          "sink": "_fail"
+        }
+      ]
+    },
+    {
+      "key": "The Rust interface did not finish starting within 30 seconds.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/rust_ui_tab.py",
+          "line": 87,
+          "sink": "_fail"
+        }
+      ]
+    },
+    {
+      "key": "The Rust interface stopped acknowledging updates. Your item remains available in Classic.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/rust_ui_tab.py",
+          "line": 284,
+          "sink": "_fail"
+        }
+      ]
+    },
+    {
+      "key": "The Rust interface stopped. Your item remains available in Classic.\n{value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/rust_ui_tab.py",
+          "line": 331,
+          "sink": "show_error"
         }
       ]
     },
@@ -110851,7 +111111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 88,
+          "line": 89,
           "sink": "emit"
         }
       ]
@@ -111846,7 +112106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 215,
+          "line": 239,
           "sink": "emit"
         },
         {
@@ -111880,6 +112140,16 @@
       "key": "The imported skin weights reference bones outside the target palette.",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "The installed Rust helper does not contain the New Item interface. Rebuild the native helpers before opening this tool.",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_rust_runtime.py",
+          "line": 42,
+          "sink": "RuntimeError"
+        }
+      ]
     },
     {
       "key": "The interactive preview appears here.",
@@ -112136,7 +112406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 257,
+          "line": 281,
           "sink": "emit"
         }
       ]
@@ -112661,7 +112931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 247,
+          "line": 271,
           "sink": "emit"
         }
       ]
@@ -113281,7 +113551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 123,
+          "line": 124,
           "sink": "emit"
         }
       ]
@@ -113616,7 +113886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace_authoring.py",
-          "line": 178,
+          "line": 177,
           "sink": "tr"
         }
       ]
@@ -114806,7 +115076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace_authoring.py",
-          "line": 159,
+          "line": 158,
           "sink": "setText"
         }
       ]
@@ -114816,7 +115086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace_authoring.py",
-          "line": 179,
+          "line": 178,
           "sink": "tr"
         }
       ]
@@ -114826,7 +115096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace_authoring.py",
-          "line": 176,
+          "line": 175,
           "sink": "setText"
         }
       ]
@@ -115051,7 +115321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_library_model.py",
-          "line": 327,
+          "line": 326,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -119561,11 +119831,6 @@
         },
         {
           "path": "cdmw/ui/shell/compact/registry.py",
-          "line": 26,
-          "sink": "CompactToolSpec"
-        },
-        {
-          "path": "cdmw/ui/shell/compact/registry.py",
           "line": 27,
           "sink": "CompactToolSpec"
         },
@@ -119582,6 +119847,11 @@
         {
           "path": "cdmw/ui/shell/compact/registry.py",
           "line": 30,
+          "sink": "CompactToolSpec"
+        },
+        {
+          "path": "cdmw/ui/shell/compact/registry.py",
+          "line": 31,
           "sink": "CompactToolSpec"
         },
         {
@@ -125791,7 +126061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 69,
+          "line": 70,
           "sink": "_run"
         }
       ]
@@ -129711,7 +129981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 266,
+          "line": 290,
           "sink": "_run"
         }
       ]
@@ -131551,7 +131821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 285,
+          "line": 309,
           "sink": "_run"
         }
       ]
@@ -134776,12 +135046,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 291,
+          "line": 315,
           "sink": "_run"
         },
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 297,
+          "line": 321,
           "sink": "_run"
         },
         {
@@ -135261,7 +135531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 259,
+          "line": 283,
           "sink": "_run"
         }
       ]
@@ -136931,12 +137201,12 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 341,
+          "line": 344,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 655,
+          "line": 674,
           "sink": "_register_detachable_tool"
         }
       ]
@@ -138386,7 +138656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 661,
+          "line": 681,
           "sink": "_register_detachable_tool"
         },
         {
@@ -138866,7 +139136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 125,
+          "line": 126,
           "sink": "_run"
         }
       ]
@@ -139861,7 +140131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 651,
+          "line": 670,
           "sink": "_register_detachable_tool"
         }
       ]
@@ -145971,7 +146241,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_library_model.py",
-          "line": 168,
+          "line": 167,
           "sink": "python-return:effect_display_label"
         },
         {
@@ -147536,7 +147806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_library_model.py",
-          "line": 334,
+          "line": 333,
           "sink": "python-return:data"
         }
       ]

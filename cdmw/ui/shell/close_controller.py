@@ -29,6 +29,7 @@ WORKER_TAB_NAMES = (
     "format_explorer_tab",
     "translation_studio_tab",
     "new_item_studio_tab",
+    "new_item_rust_studio_tab",
     "settings_tab",
 )
 

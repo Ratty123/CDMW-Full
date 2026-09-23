@@ -22,6 +22,7 @@ egui-wgpu.workspace = true
 egui-winit.workspace = true
 glam.workspace = true
 pollster.workspace = true
+png.workspace = true
 rfd.workspace = true
 serde.workspace = true
 serde_json.workspace = true

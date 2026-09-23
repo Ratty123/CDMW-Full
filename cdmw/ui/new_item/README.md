@@ -11,6 +11,40 @@ Owns the Create New Item tab: clone an equipment item into a brand-new one with
 its own identity, model, icon, stats, shop placement and item groups, then write
 it as a loose mod or install it.
 
+## Optional Rust interface
+
+**Create New Item (Rust)** opens a separate, opt-in workspace. **Rust** and
+**Classic** in its top bar switch the presentation of that same live draft,
+including its current plan and running operations. The ordinary **Create New
+Item** entry remains the default. Opening both entries creates independent
+drafts; their issued item keys and model names are coordinated before planning.
+
+The Rust interface uses native egui controls and the existing native preview
+windows. Python still owns the workflow, validations, workers, exports, archive
+mutation service, and confirmations. File and colour pickers remain native
+dialogs. Closing the Rust renderer or retrying it does not discard the draft;
+the Classic button remains available if the helper cannot start.
+
+`rust_ui_document.py` projects the current controls, layouts, models and dialogs;
+`rust_ui_actions.py` routes allowlisted input through their original handlers.
+`rust_ui_bridge.py` checks session, control revisions, enabled/visible state and
+modal ownership. Large result lists and review text are paged; Copy retains the
+complete source text. Editable descriptions support up to 1,048,576 characters.
+`rust_ui_portals.py` retains preview window identity across interface switches.
+Captured icons use a native image-crop control with the original Reset and Use
+Selection handlers. Dialog action buttons remain visible below scrolling content.
+
+The helper's hashed control contract must advertise `cdmw_new_item_ui_v1`.
+After changing the native UI, build the local pinned helper with
+`./build_pyside6_app.ps1 -Mode onefile -BuildProfile release -NativeHelpersOnly`.
+The owned headless layout and live transport probes are
+`tools/new_item_rust_ui_harness.py` and `tools/new_item_rust_live_harness.py`;
+neither uses an installed game. The live probe's `--preview` option loads an owned
+synthetic mesh into the pinned preview helper and checks camera captures, crop,
+renderer retry, Classic switching and process cleanup. See `docs/test-matrix.md`
+for focused checks. Helper builds do not repack the main application executable;
+use a source launch to try this workspace before the next application package.
+
 Current Tool Log is available as soon as the tab opens. The same bounded document
 keeps archive-read progress, template changes, preview status, effect indexing and
 Output messages, including messages emitted before the workspace is built. These

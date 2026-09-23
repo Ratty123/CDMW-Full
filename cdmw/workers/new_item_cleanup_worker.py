@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 from PySide6.QtCore import QObject, QProcess, QThread, Qt, QTimer
+from shiboken6 import isValid
 
 from cdmw.workers.new_item_workers import model_source_cleanup_task
 from cdmw.workers.utility_workers import UtilityWorker
@@ -24,15 +25,19 @@ def preview_process_barrier(controller: object) -> threading.Event:
     children = getattr(controller, "findChildren", None)
     pending = set(children(QProcess) if callable(children) else ())
 
-    def settled(process: QProcess) -> None:
-        if process.state() == QProcess.NotRunning:
-            pending.discard(process)
+    def retired(process: QProcess) -> None:
+        pending.discard(process)
         if not pending:
             ready.set()
+
+    def settled(process: QProcess) -> None:
+        if not isValid(process) or process.state() == QProcess.NotRunning:
+            retired(process)
 
     for process in tuple(pending):
         process.finished.connect(lambda *_args, process=process: settled(process))
         process.errorOccurred.connect(lambda *_args, process=process: settled(process))
+        process.destroyed.connect(lambda *_args, process=process: retired(process))
         settled(process)
     if not pending:
         ready.set()

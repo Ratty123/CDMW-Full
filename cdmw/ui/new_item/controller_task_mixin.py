@@ -4,6 +4,7 @@ from __future__ import annotations
 import copy
 import sys
 import threading
+import weakref
 from dataclasses import replace
 from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
@@ -127,6 +128,12 @@ class NewItemTaskControllerMixin:
     # ------------------------------------------------------------------ issued identities
 
     _ISSUED_SETTING = "ui/new_item_issued_identities"
+    _identity_peers = weakref.WeakSet()
+
+    def _live_identity_peers(self):
+        from shiboken6 import isValid
+        return tuple(peer for peer in self._identity_peers
+                     if isValid(peer) and not peer._shutdown_requested)
 
     def _settings(self):
         from PySide6.QtCore import QSettings
@@ -139,6 +146,13 @@ class NewItemTaskControllerMixin:
 
         self._persist_identities = True
         self._load_issued_identities()
+        for peer in self._live_identity_peers():
+            self.issued_keys.update(peer.issued_keys)
+            self.issued_stems.update(peer.issued_stems)
+        for peer in self._live_identity_peers():
+            peer.issued_keys.update(self.issued_keys)
+            peer.issued_stems.update(self.issued_stems)
+        self._identity_peers.add(self)
 
     def _load_issued_identities(self) -> None:
         import json
@@ -167,6 +181,10 @@ class NewItemTaskControllerMixin:
             self.issued_stems.add(str(stem))
         if not self._persist_identities:
             return
+        self._load_issued_identities()
+        for peer in self._live_identity_peers():
+            peer.issued_keys.update(self.issued_keys)
+            peer.issued_stems.update(self.issued_stems)
         try:
             payload = [{"key": value, "stem": ""} for value in sorted(self.issued_keys)[-200:]]
             payload += [{"key": 0, "stem": value} for value in sorted(self.issued_stems)[-200:]]
@@ -188,6 +206,12 @@ class NewItemTaskControllerMixin:
         return f"{chosen.name} already holds a mod and is selected as the base." if chosen is not None else ""
 
     def start_plan(self) -> bool:
+        if self._persist_identities and any(
+            peer is not self and peer.busy and peer._lane == "plan"
+            for peer in self._live_identity_peers()
+        ):
+            self.status_message.emit("Another Create New Item workspace is building a plan. Wait for it to finish before allocating another item.", True)
+            return False
         self.invalidate_plan()
         revision = self._draft_revision
         if self.snapshot is None:

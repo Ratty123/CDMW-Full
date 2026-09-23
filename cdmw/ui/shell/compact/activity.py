@@ -169,7 +169,7 @@ def tool_log_adapter_for(owner: object, tool_key: str) -> ToolLogAdapter:
     widget = created_tool_widget(container)
     if not isinstance(widget, QWidget):
         return ToolLogAdapter(key, compact_tool_label(key, key))
-    if key == "new_item_studio":
+    if key in {"new_item_studio", "new_item_rust_studio"}:
         document = _document_from_widget(widget, ("log",))
         clear_callback = getattr(getattr(widget, "log", None), "clear", None)
         return ToolLogAdapter(
