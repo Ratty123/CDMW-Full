@@ -246,8 +246,11 @@ on or off. Short and thin locks anywhere inside the brush circle can be groomed;
 the character reference and nearer hair still block edits to hidden locks.
 **Physics** paints regions along locks with **Static** or **Physical**. Blue marks
 fixed rows and orange marks moving rows. Roots always remain fixed. The brush
-affects visible hair, respects the current selection, and uses explicit symmetry
-pairs. Paint is retained in drafts and Undo/Redo and follows cuts and grooming.
+affects visible hair without needing a selection, even when other locks are
+selected. Enable **Selected locks only** to restrict painting to the selection;
+with that option enabled, an empty selection paints nothing. The brush uses
+explicit symmetry pairs. Paint is retained in drafts and Undo/Redo and follows
+cuts and grooming.
 Static rows and their follower cards stay attached to the head during preview.
 Output disables retained PAC cloth bindings at static rows, including lower LODs
 through nearest-vertex transfer from LOD0. Physical restores the template's cloth

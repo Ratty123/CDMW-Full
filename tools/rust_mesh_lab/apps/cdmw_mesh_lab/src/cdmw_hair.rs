@@ -129,6 +129,7 @@ pub(super) struct HairEditor {
     pub radius: f32,
     pub strength: f32,
     pub(super) paint_static: bool,
+    pub(super) physics_selected_only: bool,
     pub symmetry: bool,
     pub width: f32,
     pub density: u32,
@@ -193,6 +194,7 @@ impl Default for HairEditor {
             radius: 35.0,
             strength: 0.25,
             paint_static: true,
+            physics_selected_only: false,
             symmetry: false,
             width: 0.01,
             density: 6,
@@ -1005,7 +1007,7 @@ impl LabApplication {
                 Some(HairTool::Cut)=>"Point at a lock and click to remove hair beyond the cut marker.",
                 Some(HairTool::Lengthen)=>"Click a hair lock and drag to extend its tip. An existing selection stays selected.",
                 Some(HairTool::Root)=>"Click the scalp to attach the selected sections as one lock. Select sections sharing a material.",
-                Some(HairTool::Physics)=>"Paint where hair stays fixed or moves. Only visible hair is painted; an existing selection limits the brush. Roots stay fixed.",
+                Some(HairTool::Physics)=>"Paint Static or Physical directly on visible hair. No selection is needed. Roots stay fixed.",
                 _=>"Drag over highlighted hair. Only selected or brushed locks change."
             };ui.label(help);
             if self.hair.tool == Some(HairTool::Physics) {
@@ -1013,6 +1015,11 @@ impl LabApplication {
                     ui.selectable_value(&mut self.hair.paint_static, true, "Static");
                     ui.selectable_value(&mut self.hair.paint_static, false, "Physical");
                 });
+                ui.checkbox(&mut self.hair.physics_selected_only, "Selected locks only")
+                    .on_hover_text("Restrict painting to selected locks. Turn off to brush any visible hair.");
+                if self.hair.physics_selected_only && self.hair.selected.is_empty() {
+                    ui.weak("Select locks, or turn off Selected locks only to paint visible hair.");
+                }
                 ui.colored_label(Color32::from_rgb(60, 190, 245), "Blue: static");
                 ui.colored_label(Color32::from_rgb(245, 155, 60), "Orange: physical");
             }

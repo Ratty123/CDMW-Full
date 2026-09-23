@@ -184,7 +184,9 @@ impl LabApplication {
             if !all_rows && ids.range((id, 0)..=(id, usize::MAX)).next().is_some() {
                 return;
             }
-            if all_rows && !self.hair.selected.is_empty() && !self.hair.selected.contains(&(id as usize)) {
+            // Physics paint follows the brush unless selection masking is
+            // explicitly enabled; a leftover grooming selection is not a mask.
+            if all_rows && self.hair.physics_selected_only && !self.hair.selected.contains(&(id as usize)) {
                 return;
             }
             let projected = |vertex: u32| {
@@ -527,7 +529,6 @@ impl LabApplication {
                     rows.extend(self.brushed_hair_rows(previous.lerp(pointer, sample as f32 / steps as f32), rect, true));
                 }
                 for (id, row) in rows {
-                    if !self.hair.selected.is_empty() && !self.hair.selected.contains(&(id as usize)) { continue; }
                     let Some(lock) = state.locks.iter().find(|lock| lock.id == id) else { continue; };
                     let Some(gi) = lock.guide else {
                         self.hair.feedback = "Set a grooming root before painting physics on this section.".into();

@@ -52,6 +52,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Hair Tools' Physics brush paints Static or Physical on visible hair without selecting it first. Existing selections no longer silently restrict painting; **Selected locks only** makes that restriction explicit when needed.
 - Placement & Animations projects rigid weapons and static body meshes in bulk, reducing CPU work during playback and camera movement while preserving viewport detail, lighting and picking.
 - Create New Item lets the Emitters property table use spare inspector height instead of limiting it to a short scrolling list. Curve, texture and reset controls remain below the table, with Apply placement kept reachable.
 - Create New Item (Rust) no longer raises an unhandled exception when toggling checkable sections such as Glow and Translucency; their settings and click handlers update normally.

@@ -2270,6 +2270,70 @@ fn hair_shaping_tools_change_rendered_hair_keep_roots_and_lengthen_only_tips() {
 }
 
 #[test]
+fn hair_physics_brush_paints_and_restores_without_selecting_target_locks() {
+    for selection in ["none", "other lock", "all"] {
+        let (mut app, rect) = ready_hair_app();
+        let before = app.hair.state.clone().unwrap();
+        let scene = app.hair.scene.as_ref().unwrap();
+        let (point, id, guide_index) = scene.frame.indices.chunks_exact(3).find_map(|face| {
+            let center = face.iter().map(|i| Vec3::from(scene.frame.positions[*i as usize])).sum::<Vec3>() / 3.0;
+            let screen = app.camera.project(center, rect)?.screen;
+            let (id, segment, _) = app.lock_at(screen, rect)?;
+            let gi = before.locks.iter().find(|l| l.id == id)?.guide? as usize;
+            (4..=9).contains(&segment).then_some((screen, id, gi))
+        }).expect("visible interior hair row");
+        app.hair.tool = Some(HairTool::Physics);
+        app.hair.radius = 12.0;
+        app.hair.selected = match selection {
+            "other lock" => HashSet::from([
+                before.locks.iter().find(|lock| lock.id != id).unwrap().id as usize,
+            ]),
+            "all" => before.locks.iter().map(|lock| lock.id as usize).collect(),
+            _ => HashSet::new(),
+        };
+        let selected = app.hair.selected.clone();
+        let end = point + Vec2::X * 8.0;
+        for paint_static in [true, false] {
+            let revision = app.hair.state.as_ref().unwrap().revision;
+            app.hair.paint_static = paint_static;
+            app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryPressed(point), rect, false, false, false);
+            app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryMoved(end), rect, false, false, false);
+            app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryReleased(end), rect, false, false, false);
+            await_hair(&mut app);
+            let painted = app.hair.state.as_ref().unwrap();
+            assert_eq!(painted.revision, revision + 1,
+                "physics brush did nothing with {selection} selected, static={paint_static}");
+            assert_eq!(painted.guides[guide_index].pinned.iter().any(|p| *p), paint_static);
+            for (guide, original) in painted.guides.iter().zip(&before.guides) {
+                assert_eq!(guide.points, original.points);
+                assert!(guide.is_pinned(0), "the root must remain fixed");
+                if !paint_static {
+                    assert!(guide.pinned.iter().all(|p| !p), "Physical must undo Static over the same stroke");
+                }
+            }
+            assert_eq!(app.hair.selected, selected, "painting must preserve the grooming selection");
+            painted.validate().unwrap();
+        }
+    }
+}
+
+#[test]
+fn hair_physics_brush_selected_only_with_no_selection_leaves_hair_unchanged() {
+    let (mut app, rect) = ready_hair_app();
+    let (point, _) = visible_lock(&app, rect);
+    app.hair.tool = Some(HairTool::Physics);
+    app.hair.physics_selected_only = true;
+    app.hair.selected.clear();
+    app.hair.radius = 120.0;
+    let before = app.hair.state.clone();
+    app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryPressed(point), rect, false, false, false);
+    app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryMoved(point + Vec2::X * 10.0), rect, false, false, false);
+    app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryReleased(point + Vec2::X * 10.0), rect, false, false, false);
+    assert!(!app.hair.preparing(), "an empty selection must not publish an edit");
+    assert_eq!(app.hair.state, before);
+}
+
+#[test]
 fn hair_physics_brush_paints_partial_rows_and_keeps_fixed_cards_still() {
     let (mut app, rect) = ready_hair_app();
     let before = app.hair.state.clone().unwrap();
@@ -2282,6 +2346,7 @@ fn hair_physics_brush_paints_partial_rows_and_keeps_fixed_cards_still() {
         (segment >= 4 && segment <= 9).then_some((screen, id, gi))
     }).expect("visible interior hair row");
     app.hair.tool = Some(HairTool::Physics);
+    app.hair.physics_selected_only = true;
     app.hair.radius = 12.0;
     app.hair.selected = HashSet::from([id as usize]);
     app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryPressed(point), rect, false, false, false);

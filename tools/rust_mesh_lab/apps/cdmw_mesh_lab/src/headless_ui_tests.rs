@@ -3337,10 +3337,15 @@ fn integrated_inspector_hair_physics_brush_exposes_static_and_physical_modes() -
     let mut ui = integrated_hair_inspector(egui::vec2(1440.0, 980.0), 11.0, "normal");
     ui.click("Physics")?;
     assert_eq!(ui.application.hair.tool, Some(HairTool::Physics));
+    assert!(!ui.application.hair.physics_selected_only);
     ui.click("Physical")?;
     assert!(!ui.application.hair.paint_static);
     ui.click("Static")?;
     assert!(ui.application.hair.paint_static);
+    ui.click("Selected locks only")?;
+    assert!(ui.application.hair.physics_selected_only);
+    ui.click("Selected locks only")?;
+    assert!(!ui.application.hair.physics_selected_only);
     Ok(())
 }
 
