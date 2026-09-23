@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 from cdmw.domain.new_item.effect_authoring import EMITTER_FIELDS, INTEGER_FIELDS, VECTOR_FIELDS, VECTOR_COMPONENTS, EffectLayer, EmitterEdit
 from cdmw.services.effect_library_store import recipe_json, read_recipe
 from cdmw.ui.new_item.state import EffectWorkspaceState
+from cdmw.ui.new_item.effect_library_model import effect_display_label
 
 
 class EffectUserLibrary:
@@ -230,7 +231,7 @@ class EffectRecipePanel(QWidget):
         self.syncing = True
         self.layers.clear()
         for layer in state.resolved_layers():
-            item = QListWidgetItem(layer.name or layer.stem)
+            item = QListWidgetItem(layer.name or effect_display_label(layer.stem))
             item.setToolTip(layer.stem)
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEditable)
             item.setCheckState(Qt.CheckState.Checked if layer.enabled else Qt.CheckState.Unchecked)
@@ -248,7 +249,8 @@ class EffectRecipePanel(QWidget):
         index = self.emitter.currentIndex()
         self.emitter.clear()
         for slot in getattr(preview, 'editor_emitters', ()):
-            self.emitter.addItem(slot['name'].rsplit('/', 1)[-1], slot)
+            self.emitter.addItem(effect_display_label(slot['name']), slot)
+            self.emitter.setItemData(self.emitter.count() - 1, slot['name'], Qt.ItemDataRole.ToolTipRole)
         self.emitter.setCurrentIndex(max(0, min(index, self.emitter.count() - 1)))
         self.syncing = False
         if preview is None or not editing:
@@ -267,7 +269,10 @@ class EffectRecipePanel(QWidget):
             return
         layers = list(self.state.resolved_layers())
         index = self.layers.row(item)
-        layers[index] = replace(layers[index], name=item.text()[:128], enabled=item.checkState() == Qt.CheckState.Checked)
+        previous = layers[index]
+        display = previous.name or effect_display_label(previous.stem)
+        name = previous.name if item.text() == display else item.text()[:128]
+        layers[index] = replace(previous, name=name, enabled=item.checkState() == Qt.CheckState.Checked)
         self._publish(layers)
 
     def add_layer(self):
@@ -301,8 +306,9 @@ class EffectRecipePanel(QWidget):
         index = self.emitter.currentIndex()
         edit = next((e for e in self.state.emitter_edits if e.index == index), EmitterEdit(max(0,index), enabled=slot.get('enabled', True)))
         self.emitter_enabled.setChecked(edit.enabled)
-        self.parameters.setRowCount(0)
+        # Release our wrappers before Qt tears down the previous cell widgets.
         self._fields.clear()
+        self.parameters.setRowCount(0)
         values = dict(edit.values)
         descriptions = [(k,l,lo,hi,d,1) for k,l,lo,hi,d in EMITTER_FIELDS]
         descriptions += [(k,l,-1000.,1000.,0.,VECTOR_COMPONENTS.get(k, 3)) for k,l in VECTOR_FIELDS]

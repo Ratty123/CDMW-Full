@@ -85,11 +85,10 @@ class GuidedEffectsWorkspace(EffectWorkspaceAuthoringMixin, QWidget):
         horizontal_header.setStretchLastSection(False)
         # Bound metadata sizing even before the hidden page has a viewport layout.
         horizontal_header.setResizeContentsPrecision(32)
-        horizontal_header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+        horizontal_header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         horizontal_header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         horizontal_header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         horizontal_header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
-        horizontal_header.resizeSection(0, 24)
         self.library_view.selectionModel().currentChanged.connect(self._library_selection_changed)
         library_layout.addWidget(self.library_view, 1)
 
@@ -542,11 +541,13 @@ class GuidedEffectsWorkspace(EffectWorkspaceAuthoringMixin, QWidget):
 
     def _refresh_selection_detail(self, stem: str) -> None:
         exact = str(stem or "").strip()
+        index = self.library_model.index_for_stem(exact)
+        tooltip = self.library_model.data(index, int(Qt.ItemDataRole.ToolTipRole)) if index.isValid() and exact else exact
         self.selection_detail.setText(exact)
-        self.selection_detail.setToolTip(exact)
+        self.selection_detail.setToolTip(tooltip)
         self.selection_detail.setVisible(bool(exact))
         self.selected_effect_label.setText(self._label_by_stem.get(exact, effect_display_label(exact)) if exact else self.tr("No effect"))
-        self.selected_effect_label.setToolTip(exact)
+        self.selected_effect_label.setToolTip(tooltip)
         self._sync_library_tools(exact)
 
     def _sync_placement_from_state(self) -> None:

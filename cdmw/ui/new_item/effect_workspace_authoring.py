@@ -67,7 +67,6 @@ class EffectWorkspaceAuthoringMixin:
     def _thumbnail_size_changed(self, large):
         self.library_view.setIconSize(QSize(48,48) if large else QSize(20,20))
         self.library_view.verticalHeader().setDefaultSectionSize(56 if large else 24)
-        self.library_view.horizontalHeader().resizeSection(0, 56 if large else 24)
         self._thumbnail_timer.start()
 
     def _load_visible_thumbnails(self):
@@ -84,6 +83,11 @@ class EffectWorkspaceAuthoringMixin:
 
     @staticmethod
     def _effect_family(stem):
+        # The catalogue's double underscore separates an authored family from
+        # its named variants (e.g. smoke, fire and sparks), not just a number.
+        family, separator, _variant = stem.casefold().partition('__')
+        if family and separator:
+            return family
         # Consume variant suffixes once from the right; ambiguous regex repetitions
         # can stall the UI on catalogue names that almost match the suffix grammar.
         text = stem.casefold()

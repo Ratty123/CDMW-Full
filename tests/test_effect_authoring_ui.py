@@ -49,15 +49,37 @@ def test_layer_selection_keeps_edits_and_visibility_independent():
     panel = EffectRecipePanel(EffectUserLibrary())
     panel.changed.connect(panel.set_state)
     panel.set_state(EffectWorkspaceState.from_layers((EffectLayer('fx_fire'), EffectLayer('fx_sparks', offset=(1,2,3)))))
+    assert panel.layers.item(0).text() == 'Fire'
     panel.layers.setCurrentRow(1)
     assert panel.state.offset == (1,2,3)
     panel.layers.item(0).setCheckState(Qt.CheckState.Unchecked)
     layers = panel.state.resolved_layers()
     assert not layers[0].enabled and layers[1].enabled
+    assert layers[0].name == '', 'Toggling visibility must not save a generated display name'
     panel.duplicate_layer()
     assert len(panel.state.resolved_layers()) == 3
     panel.remove_layer()
     assert len(panel.state.resolved_layers()) == 2
+    panel.close()
+    shiboken6.delete(panel)
+
+
+def test_friendly_layer_and_emitter_names_preserve_custom_names_and_source_identity():
+    panel = EffectRecipePanel(EffectUserLibrary())
+    panel.changed.connect(panel.set_state)
+    panel.set_state(EffectWorkspaceState.from_layers((EffectLayer('fx_aftertaa_a__lightning_att1'),
+        EffectLayer('fx_family_a__fire2', name='My shoulder glow'))))
+    assert panel.layers.item(0).text() == 'Lightning ATT 1 · Aftertaa A'
+    assert panel.layers.item(0).toolTip() == 'fx_aftertaa_a__lightning_att1'
+    assert panel.layers.item(1).text() == 'My shoulder glow'
+    panel.layers.item(0).setText('Renamed layer')
+    assert panel.state.resolved_layers()[0].name == 'Renamed layer'
+    assert panel.state.resolved_layers()[0].stem == 'fx_aftertaa_a__lightning_att1'
+    slot = {'index':0, 'name':'emitter/cdem_last_groundhit_001a', 'enabled':True, 'resolved':True}
+    panel.set_preview(SimpleNamespace(editor_emitters=(slot,)))
+    assert panel.emitter.itemText(0) == 'Last Ground Hit 001a'
+    assert panel.emitter.itemData(0) == slot
+    assert panel.emitter.itemData(0, Qt.ItemDataRole.ToolTipRole) == slot['name']
     panel.close()
     shiboken6.delete(panel)
 

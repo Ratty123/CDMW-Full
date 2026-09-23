@@ -328,15 +328,39 @@ class EffectWorkspaceTests(unittest.TestCase):
         )
         self.assertEqual(
             effect_display_label("fx_action_boss_hit_01__metal_spark_k5", "A vague authoring name"),
-            "Boss Hit 01 · Metal Spark K5",
+            "Metal Spark K5 · Boss Hit 01",
         )
         self.assertEqual(effect_display_label("cdfx_flash_01a"), "Flash 01a")
         self.assertEqual(
             effect_display_label("fx_cc_firesweapon_a__fire1"),
-            "CC Firesweapon A · Fire 1",
+            "Fire 1 · CC Firesweapon A",
         )
         labels = _unique_effect_labels(("fx_action_hit__spark_a", "pafx_action_hit__spark_a"))
         self.assertEqual(len(set(labels.values())), 2)
+
+    def test_readable_names_categories_search_and_family_keep_the_exact_selection(self) -> None:
+        controller = _Controller()
+        controller.stems = ("fx_fire_family_a__smoke1", "fx_fire_family_a__groundhit2", "fx_else__smoke2")
+        workspace, _controller, _confirmations = self._workspace(controller)
+        workspace.library_toggle.setChecked(True)
+        workspace.search.setText("ground hit")
+        self._settle(lambda: not workspace._library_timer.isActive())
+        self.assertEqual(workspace.library_model.rowCount(), 2)
+        workspace.choose_effect("fx_fire_family_a__groundhit2")
+        self.assertEqual(workspace.selected_effect_label.text(), "Ground Hit 2 · Fire Family A")
+        self.assertEqual(workspace.selection_detail.text(), "fx_fire_family_a__groundhit2")
+        workspace._reset_filters()
+        workspace.family_only.click()
+        self._settle(lambda: not workspace._library_timer.isActive())
+        self.assertEqual({row.stem for row in workspace.library_model._rows},
+                         {"", "fx_fire_family_a__smoke1", "fx_fire_family_a__groundhit2"})
+        workspace.choose_effect("fx_fire_family_a__smoke1")
+        workspace.category_choice.setCurrentIndex(workspace.category_choice.findData("Smoke"))
+        self._settle(lambda: not workspace._library_timer.isActive())
+        self.assertEqual(workspace.library_model.rowCount(), 2)
+        self.assertIn("Smoke", workspace.selected_effect_label.toolTip())
+        workspace.apply_staged()
+        self.assertEqual(controller.draft.effect_stem, "fx_fire_family_a__smoke1")
 
     def test_no_effect_uses_the_pinned_row_without_repeating_empty_status(self) -> None:
         workspace, _controller, _confirmations = self._workspace()
@@ -380,11 +404,11 @@ class EffectWorkspaceTests(unittest.TestCase):
         self.assertEqual(model.columnCount(), 4)
         self.assertEqual(
             [model.headerData(column, Qt.Orientation.Horizontal) for column in range(model.columnCount())],
-            ["", "Effect", "Type", "Size"],
+            ["Category", "Effect", "Type", "Size"],
         )
         self.assertEqual(model.data(model.index(0, 0), EffectLibraryModel.StemRole), "")
         self.assertEqual(model.data(model.index(6000, 0), EffectLibraryModel.StemRole), "fx_5999")
-        self.assertEqual(model.data(model.index(6000, 0), int(Qt.ItemDataRole.SizeHintRole)).height(), 24)
+        self.assertEqual(model.data(model.index(6000, 1), int(Qt.ItemDataRole.SizeHintRole)).height(), 24)
 
     def test_unchanged_library_rows_preserve_the_selected_model_index(self) -> None:
         from dataclasses import replace
@@ -437,7 +461,7 @@ class EffectWorkspaceTests(unittest.TestCase):
         self.assertIsInstance(view, QTableView)
         self.assertEqual(
             [model.data(model.index(index.row(), column)) for column in range(model.columnCount())],
-            ["♨", "Fire Hit", "One-shot", "2.5×2.53×2.64"],
+            ["Fire", "Fire Hit", "One-shot", "2.5×2.53×2.64"],
         )
         self.assertEqual(view.rowHeight(index.row()), 24)
         self.assertFalse(view.font().bold())
@@ -891,7 +915,7 @@ class EffectWorkspaceTests(unittest.TestCase):
         workspace.family_only.click()
         self._settle(lambda: not workspace._library_timer.isActive())
         stems = [workspace.library_model.row(row).stem for row in range(workspace.library_model.rowCount())]
-        self.assertEqual(stems, ["", "fx_fire-03", "fx_fire_01", "fx_fire__02a", "fx_fire__a"])
+        self.assertEqual(stems, ["", "fx_fire__02a", "fx_fire__a", "fx_fire_01", "fx_fire-03"])
         workspace.search.setText("no match")
         self._settle(lambda: not workspace._library_timer.isActive())
         stems = [workspace.library_model.row(row).stem for row in range(workspace.library_model.rowCount())]
@@ -1038,7 +1062,7 @@ class EffectWorkspaceTests(unittest.TestCase):
         self.app.processEvents()
         resident = workspace.placement
         self.assertTrue(workspace.library_panel.isHidden())
-        self.assertEqual(workspace.selected_effect_label.toolTip(), "fx_fire_ring_loop")
+        self.assertIn("fx_fire_ring_loop", workspace.selected_effect_label.toolTip().splitlines())
         for expanded in (True, False, True):
             workspace.library_toggle.setChecked(expanded)
             self.app.processEvents()

@@ -13,6 +13,7 @@ The format is intentionally simple:
 
 ### Changed
 
+- Effects leads with the specific variant and retains its source family, numeric identity and ambiguous codes. The library shows readable categories, avoids substring misclassification, adds missing visual categories, groups named family variants, and searches/sorts by readable metadata. Layers and emitters use matching labels while retaining custom names and exact export references. Missing timing metadata appears as Unknown instead of One-shot.
 - Perks & Effects gives the viewport more height by moving Browse effects and the selected name into the left end of the tab bar, directly above the library. Browse effects is larger and accented for visibility; the shorter search and category filters stay inside the library, and the preview notice is compact.
 - Create New Item keeps Model & Placement loading progress below the scrolling inspector and shows camera help only once in Template. Shader experiments mark incompatible options as unavailable and explain their material requirements; every Glow animation setting has hover help.
 - Mesh Editor's glow, translucency and shader experiment numbers have sliders with editable values. Create New Item's material numbers and absorption slider accept mouse-wheel adjustments while focused, keeping unfocused page scrolling from changing a material.

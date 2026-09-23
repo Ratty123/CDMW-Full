@@ -1361,6 +1361,18 @@ def _python_ui_catalogue_sources(
         names = ("COMPACT_CATEGORY_ORDER",)
     elif relative == "tools/format_explorer/catalogue.py":
         names = ("TOOLS", "_TEXT_TOOL", "_NO_TOOL", "READ_WORDS", "WRITE_WORDS")
+    elif relative == "cdmw/ui/new_item/effect_library_model.py":
+        # Only the first cell is a user-facing category. The other cells are
+        # matching tokens, not translatable labels or source identifiers.
+        for table in assignments.get("CATEGORY_RULES", ()):
+            if isinstance(table, (ast.Tuple, ast.List)):
+                for row in table.elts:
+                    if isinstance(row, (ast.Tuple, ast.List)) and row.elts:
+                        node = row.elts[0]
+                        source = _python_source_value(node)
+                        if source:
+                            yield source, node, "python-data:CATEGORY_RULES"
+        return
     else:
         return
     for name in names:

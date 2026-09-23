@@ -1433,6 +1433,9 @@ def test_manifest_extracts_only_declared_registry_and_catalogue_labels(
             "READ_WORDS = {'Unrelated status': 'Unrelated status label'}\n"
             "TOOLS = {'Unrelated extension': 'Unrelated tool'}\n"
         ),
+        "cdmw/ui/new_item/effect_library_model.py": (
+            "CATEGORY_RULES = (('Effect category label', ('internal-token', 'another-token')), )\n"
+        ),
     }
     for relative, text in sources.items():
         path = tmp_path / relative
@@ -1449,6 +1452,7 @@ def test_manifest_extracts_only_declared_registry_and_catalogue_labels(
         "First tool", "Second tool", "Alternative tool",
         "External editor guidance", "Unavailable guidance",
         "Read status label", "Write status label",
+        "Effect category label",
     }
     assert origins["Keyword label"][0]["sink"] == "CompactToolSpec"
     assert origins["Read status label"][0]["sink"] == "python-data:READ_WORDS"
@@ -1456,6 +1460,7 @@ def test_manifest_extracts_only_declared_registry_and_catalogue_labels(
 
 
 def test_generated_manifest_covers_current_registry_and_catalogue_labels() -> None:
+    from cdmw.ui.new_item.effect_library_model import CATEGORY_RULES
     from cdmw.ui.shell.compact.registry import COMPACT_CATEGORY_ORDER, COMPACT_TOOL_SPECS
     from tools.format_explorer.catalogue import (
         READ_WORDS, TOOLS, WRITE_WORDS, _NO_TOOL, _TEXT_TOOL,
@@ -1474,6 +1479,7 @@ def test_generated_manifest_covers_current_registry_and_catalogue_labels() -> No
     for relative, labels in (
         ("cdmw/ui/shell/compact/registry.py", compact_labels),
         ("tools/format_explorer/catalogue.py", format_labels),
+        ("cdmw/ui/new_item/effect_library_model.py", {name for name, _tokens in CATEGORY_RULES}),
     ):
         assert labels <= entries.keys()
         for label in labels:
@@ -1492,8 +1498,40 @@ def test_reviewed_navigation_and_authoring_labels_translate_at_runtime(
         "Search File Text", "No tool yet",
         "Any text editor (extract, edit, repack)",
         "Choose experiment", "Review the plan", "Apply shader controls",
+        "Fire", "Water", "Lightning",
+        "Categories are inferred from names; preview the effect to check its appearance.",
+        "Timing metadata is unavailable or incomplete.",
     ):
         assert localizer.translate_rendered(source) != source, (code, source)
+
+
+def test_effect_category_translation_preserves_filter_and_resource_identity(tmp_path: Path) -> None:
+    from PySide6.QtWidgets import QTableView
+    from cdmw.ui.new_item.effect_library_model import EffectLibraryModel, EffectLibraryRow
+
+    app = _app()
+    view = QTableView()
+    model = EffectLibraryModel(view)
+    row = EffectLibraryRow.from_stem("fx_family_a__fire2", None)
+    model.replace_rows((row,))
+    view.setModel(model)
+    localizer = UiLocalizer(language_dir=tmp_path, language_code="de")
+    try:
+        localizer.activate_runtime_tracking(view, application=app)
+        localizer.apply(view)
+        index = model.index(0, 0)
+        assert model.data(index) == "Feuer"
+        assert model.data(index, model.CategoryRole) == "Fire"
+        assert model.data(index, model.StemRole) == row.stem
+        assert model.data(model.index(0, 1)) == row.label
+        notice = "Categories are inferred from names; preview the effect to check its appearance."
+        assert localizer.translate_rendered(notice) in model.data(index, Qt.ItemDataRole.ToolTipRole)
+        localizer.load_language("en")
+        localizer.apply_registered_roots()
+        assert model.data(index) == "Fire"
+    finally:
+        localizer.shutdown()
+        view.deleteLater()
 
 
 def test_generated_manifest_freshness_ignores_only_source_line_movement() -> None:

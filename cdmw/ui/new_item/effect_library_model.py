@@ -6,24 +6,110 @@ from typing import Optional
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, QSize, Qt
 from PySide6.QtWidgets import QWidget
 from cdmw.services.effect_catalogue import EffectFacts
+from cdmw.services.active_ui_translation import translate_active_ui_text
 
 CATEGORY_RULES = (
-    ("Fire", ("fire", "flame", "ember", "burn")),
-    ("Frost", ("ice", "frost", "frozen", "freeze")),
-    ("Lightning", ("lightning", "electric", "shock", "thunder")),
-    ("Glow", ("glow", "emissive")),
+    ("Fire", ("fire", "flame", "flames", "ember", "embers", "burn", "burning", "fireball", "flamethrower", "lava")),
+    ("Frost", ("ice", "frost", "frozen", "freeze", "icicle")),
+    ("Lightning", ("lightning", "electric", "electricity", "thunder")),
+    ("Poison", ("poison", "toxic", "venom")),
+    ("Healing", ("heal", "healing")),
+    ("Glow", ("glow", "emissive", "light", "flare")),
     ("Aura", ("aura",)),
-    ("Trail", ("trail",)),
-    ("Sparks", ("spark",)),
-    ("Smoke", ("smoke", "fog", "mist")),
-    ("Dust", ("dust", "sand")),
-    ("Water", ("water", "splash", "puddle", "rain")),
-    ("Blood", ("blood", "bleed")),
-    ("Explosion", ("explosion", "explode", "blast", "_exp_")),
-    ("Debris", ("debris", "breakable", "fragment")),
+    ("Trail", ("trail", "ribbon", "slash")),
+    ("Sparks", ("spark", "sparks", "fireworks")),
+    ("Smoke", ("smoke", "fog", "mist", "steam")),
+    ("Dust", ("dust", "sand", "dirt", "sandstorm")),
+    ("Water", ("water", "splash", "puddle", "rain", "waterfall", "fountain", "underwater", "bubble", "bubbles", "foam", "ripple")),
+    ("Blood", ("blood", "bleed", "bleeding")),
+    ("Explosion", ("explosion", "explode", "blast", "bomb", "detonation")),
+    ("Debris", ("debris", "breakable", "fragment", "fragments", "rubble")),
+    ("Beam", ("beam", "laser")),
+    ("Projectile", ("projectile", "arrow", "bullet")),
+    ("Decal", ("decal", "footprint")),
+    ("Portal", ("portal", "teleport")),
+    ("Distortion", ("distortion", "distort", "refraction")),
     ("Dark", ("dark", "shadow", "antumbra")),
-    ("Environment", ("wind", "leaf", "leaves", "snow", "weather")),
+    ("Wildlife", ("bug", "bugs", "butterfly", "firefly", "dragonfly", "bee", "beetle", "swallowtail", "fritillary", "crow", "bird")),
+    ("Environment", ("wind", "leaf", "leaves", "snow", "weather", "tornado", "grass", "petal")),
+    ("Impact", ("hit", "impact", "shock", "shockwave", "smash", "break")),
 )
+
+# Split only reviewed compounds. Never scan arbitrary substrings: firefly is not
+# fire, medicine/juice are not ice, and training is not rain. Artist/character
+# names and ambiguous source codes (ATT, EXP, CC, TPL) remain intact.
+_COMPOUND_WORDS = {
+    "groundhit": ("ground", "hit"), "groundhitfront": ("ground", "hit", "front"),
+    "charactereffect": ("character", "effect"), "charactermesh": ("character", "mesh"),
+    "auraburst": ("aura", "burst"), "bloodhit": ("blood", "hit"),
+    "swordlong": ("long", "sword"), "swordtrail": ("sword", "trail"),
+    "swordon": ("sword", "on"), "swordoff": ("sword", "off"),
+    "firesword": ("fire", "sword"), "firearrow": ("fire", "arrow"),
+    "firebash": ("fire", "bash"), "bluefireheavy": ("blue", "fire", "heavy"),
+    "lightningheavy": ("lightning", "heavy"), "iceheavy": ("ice", "heavy"),
+    "weaponr": ("right", "weapon"), "weaponl": ("left", "weapon"),
+    "swingr": ("right", "swing"), "swingl": ("left", "swing"),
+    "shieldmetal": ("metal", "shield"), "shieldwood": ("wood", "shield"),
+    "weapondecal": ("weapon", "decal"), "dropdecal": ("drop", "decal"),
+    "fallingdebris": ("falling", "debris"), "bashtrail": ("bash", "trail"),
+    "slashline": ("slash", "line"), "halfcircle": ("half", "circle"),
+    "lensflare": ("lens", "flare"), "commonlight": ("common", "light"),
+    "eyelight": ("eye", "light"), "tornadocloud": ("tornado", "cloud"),
+    "sandfall": ("sand", "fall"), "lavafall": ("lava", "fall"),
+    "waterfallcol": ("waterfall", "col"), "waterplant": ("water", "plant"),
+}
+_ACRONYMS = frozenset({"aoe", "att", "bg", "cc", "col", "dds", "exp", "gpu", "hp", "lod", "mp", "npc", "pc", "pvp", "rgb", "sp", "taa", "tpl", "uv", "vfx"})
+_PREFIXES = frozenset({"fx", "pafx", "vfx", "effect", "cdem", "cdfx"})
+_CAMEL_BOUNDARY = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
+_NAME_TOKENS = re.compile(r"[A-Za-z]+\d+[A-Za-z]*|\d+[A-Za-z]*|[A-Za-z]+")
+
+
+def _effect_leaf(value: str) -> str:
+    source = str(value or "").replace("\\", "/").rsplit("/", 1)[-1]
+    return re.sub(r"\.(?:(?:action|level)\.)?effect$|\.(?:pae|paem|pafx|dds|pam|pac|parg|pasg)$", "", source, flags=re.I)
+
+
+def _name_tokens(value: str) -> tuple[str, ...]:
+    return tuple(_NAME_TOKENS.findall(_CAMEL_BOUNDARY.sub("_", value)))
+
+
+def _semantic_words(value: str) -> frozenset[str]:
+    words = set()
+    for token in _name_tokens(_effect_leaf(value)):
+        head = re.match(r"[A-Za-z]+", token)
+        if head:
+            word = head.group().casefold()
+            words.update(_COMPOUND_WORDS.get(word, (word,)))
+    return frozenset(words)
+
+
+def _categories(values) -> tuple[str, ...]:
+    words = frozenset(word for value in values for word in _semantic_words(value))
+    return tuple(category for category, tokens in CATEGORY_RULES if words.intersection(tokens))
+
+
+def _effect_classification(stem: str, name: str, facts: Optional[EffectFacts]) -> tuple[str, ...]:
+    family, separator, variant = _effect_leaf(stem).partition("__")
+    # Lead with the variant and retain other explicitly named family traits:
+    # Ground Hit in an Ice family is both Impact and Frost. Reused emitter names
+    # must not override this identity (e.g. a poison breath using a flame emitter).
+    named = (*_categories((variant,) if separator else ()), *_categories((family,)))
+    if named:
+        return tuple(dict.fromkeys(named))
+    categories = _categories((name,))
+    if categories:
+        return categories
+    if facts is not None:
+        categories = _categories(facts.emitters)
+        if categories:
+            return categories
+        # Utility masks, normals and UV distortion do not describe appearance.
+        resources = (path for path in (*facts.textures, *facts.meshes)
+                     if not _semantic_words(path).intersection({"noise", "uvnoise", "mask", "normal", "distort", "vectorfield"}))
+        categories = _categories(resources)
+        if categories:
+            return categories
+    return ("Other",)
 
 CATEGORY_GLYPHS = {
     "Fire": "♨",
@@ -37,57 +123,48 @@ CATEGORY_GLYPHS = {
 }
 
 def effect_category(stem: str, authoring_name: str = "") -> str:
-    """Deterministic first-match category using the product's fixed token rules."""
-
-    text = f"{stem} {authoring_name}".casefold()
-    for category, tokens in CATEGORY_RULES:
-        if any(token in text for token in tokens):
-            return category
-    return "Other"
+    """Prefer the specific variant's traits over its broader source family."""
+    return _effect_classification(stem, authoring_name, None)[0]
 
 
 def effect_tags(stem: str, name: str = "", facts: Optional[EffectFacts] = None) -> tuple[str, ...]:
-    text = f"{stem} {name} {facts.search_text() if facts else ''}".casefold()
-    return tuple(category for category, tokens in CATEGORY_RULES if any(token in text for token in tokens)) or ("Other",)
+    return _effect_classification(stem, name, facts)
 
 
 def effect_display_label(stem: str, authoring_name: str = "") -> str:
-    """Return a neutral, stem-authoritative label with stable token casing."""
+    """Lead with the named variant; retain family, numeric identity and unknown codes."""
 
-    source = str(stem or authoring_name or "").replace("\\", "/").rsplit("/", 1)[-1]
-    source = re.sub(r"\.(?:level\.)?effect$", "", source, flags=re.I)
-    source = re.sub(r"\.(?:pae|paem|pafx)$", "", source, flags=re.I)
+    source = _effect_leaf(stem or authoring_name)
     sections = source.split("__", 1)
-    acronyms = {"aoe", "cc", "dds", "lod", "npc", "pvp", "uv", "vfx"}
 
     def words(section: str, *, first: bool) -> str:
-        separated = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", section)
-        tokens = re.findall(r"[A-Za-z]+\d+[A-Za-z]*|\d+[A-Za-z]*|[A-Za-z]+", separated)
-        while tokens and tokens[0].casefold() in {"fx", "pafx", "vfx", "effect", "cdem", "cdfx"}:
+        tokens = list(_name_tokens(section))
+        while tokens and tokens[0].casefold() in _PREFIXES:
             tokens.pop(0)
         if first and tokens and tokens[0].casefold() == "action":
             tokens.pop(0)
         rendered = []
+        def word(value: str) -> str:
+            return value.upper() if value.casefold() in _ACRONYMS or (value.isupper() and len(value) <= 4) else value.capitalize()
         for token in tokens:
             match = re.fullmatch(r"([A-Za-z]+)(\d+[A-Za-z]*)", token)
             if match:
                 head, tail = match.groups()
-                if len(head) <= 2 or head.casefold() in acronyms or (head.isupper() and len(head) <= 4):
-                    rendered.append((head.upper() if len(head) <= 4 else head.capitalize()) + tail)
+                if len(head) <= 2 and head.casefold() not in _ACRONYMS:
+                    rendered.append(head.upper() + tail)
                 else:
-                    rendered.extend((head.capitalize(), tail.casefold()))
+                    rendered.extend(word(part) for part in _COMPOUND_WORDS.get(head.casefold(), (head,)))
+                    rendered.append(tail.casefold())
             elif re.fullmatch(r"\d+[A-Za-z]+", token):
                 rendered.append(token.casefold())
-            elif token.casefold() in acronyms or (token.isupper() and len(token) <= 4):
-                rendered.append(token.upper())
             else:
-                rendered.append(token.capitalize())
+                rendered.extend(word(part) for part in _COMPOUND_WORDS.get(token.casefold(), (token,)))
         return " ".join(rendered)
 
     family = words(sections[0], first=True)
     variant = words(sections[1], first=False) if len(sections) > 1 else ""
     if family and variant:
-        return f"{family} · {variant}"
+        return f"{variant} · {family}"
     return family or variant or str(stem or "No effect")
 
 
@@ -104,20 +181,19 @@ class EffectLibraryRow:
     @classmethod
     def from_stem(cls, stem: str, facts: Optional[EffectFacts]) -> "EffectLibraryRow":
         name = facts.name if facts is not None else ""
-        loops = (
-            bool(facts.loops) or (bool(facts.walk_note) and "loop" in stem.casefold())
-            if facts is not None
-            else "loop" in stem.casefold()
-        )
-        behavior = "Loop" if loops else "One-shot"
+        incomplete = facts is None or bool(facts.walk_note or getattr(facts, "missing_dependencies", ()) or getattr(facts, "dependency_notes", ()))
+        loops = bool(facts and facts.loops) or (incomplete and "loop" in _semantic_words(stem))
+        behavior = "Loop" if loops else "Unknown" if incomplete else "One-shot"
+        label = effect_display_label(stem, name)
+        tags = effect_tags(stem, name, facts)
         return cls(
             stem=stem,
-            label=effect_display_label(stem, name),
-            category=effect_category(stem, name),
+            label=label,
+            category=tags[0],
             behavior=behavior,
             facts=facts,
-            tags=effect_tags(stem, name, facts),
-            search_text=" ".join((stem, effect_display_label(stem, name), facts.search_text() if facts else "")).casefold(),
+            tags=tags,
+            search_text=" ".join((stem, label, *tags, behavior, facts.search_text() if facts else "")).casefold(),
         )
 
 
@@ -159,7 +235,7 @@ def _effect_dimensions(facts: Optional[EffectFacts]) -> str:
 
 
 class EffectLibraryModel(QAbstractTableModel):
-    COLUMN_HEADERS = ("", "Effect", "Type", "Size")
+    COLUMN_HEADERS = ("Category", "Effect", "Type", "Size")
     StemRole = int(Qt.ItemDataRole.UserRole) + 1
     LabelRole = StemRole + 1
     CategoryRole = StemRole + 2
@@ -235,18 +311,19 @@ class EffectLibraryModel(QAbstractTableModel):
         if role == int(Qt.ItemDataRole.DecorationRole) and index.column() == 0:
             return self._thumbnails.get(item.stem)
         if role == int(Qt.ItemDataRole.DisplayRole):
-            if index.column() == 0 and item.stem in self._thumbnails:
-                return ''
             return (
-                CATEGORY_GLYPHS.get(item.category, CATEGORY_GLYPHS["Other"]),
+                translate_active_ui_text(item.category) if item.stem else "",
                 item.label,
-                item.behavior,
+                translate_active_ui_text(item.behavior),
                 dimensions,
             )[index.column()]
         if role == int(Qt.ItemDataRole.ToolTipRole):
             if not item.stem:
                 return "Clear the visual effect and all placement/look tuning."
-            details = [item.stem, ', '.join(item.tags)]
+            details = [item.label, item.stem, ', '.join(translate_active_ui_text(tag) for tag in item.tags)]
+            details.append(translate_active_ui_text("Categories are inferred from names; preview the effect to check its appearance."))
+            if item.behavior == "Unknown":
+                details.append(translate_active_ui_text("Timing metadata is unavailable or incomplete."))
             if item.facts is not None:
                 for path in getattr(item.facts, 'missing_dependencies', ()):
                     details.append('Missing: ' + path)
@@ -263,7 +340,7 @@ class EffectLibraryModel(QAbstractTableModel):
         if role == int(Qt.ItemDataRole.SizeHintRole):
             # Metadata columns use the delegate's font-aware width so translated
             # types and dimensions do not clip inside a fixed pixel allocation.
-            return QSize((24, 170)[index.column()], 24) if index.column() < 2 else None
+            return QSize(170, 24) if index.column() == 1 else None
         if role == self.StemRole:
             return item.stem
         if role == self.LabelRole:

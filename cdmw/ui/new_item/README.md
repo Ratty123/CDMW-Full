@@ -533,8 +533,9 @@ the evidence-backed default cap and five to eight requires an explicit experimen
 opt-in. Effect support is structural rather than equipment-name based: the service
 dry-runs the real component graft against every prefab the item will own, accepts only
 an all-target success, and never edits a shared borrowed prefab. The Effects tab uses
-24 px virtualized table rows with neutral stem-derived names, separated numeric suffixes,
-and compact Type and approximate Size columns; the exact stem stays searchable and
+24 px virtualized table rows with the specific variant before its source family,
+reviewed word splits, preserved numeric suffixes and visible Category, Type and
+approximate Size columns; the exact stem stays searchable and
 appears in selection details and tooltips instead of being repeated under every row. `No effect` is the
 empty-state row. **Browse effects** opens the library on demand from the left end of the
 Effects tab bar, above the library and alongside the selected effect name. Its larger,
@@ -543,10 +544,21 @@ library is folded. The library keeps a short search field below
 its heading and result count, with the category selector beside All / Loops / One-shot.
 There is no separate search row above the viewport. A compact footer keeps the preview
 notice and compatibility messages visible when the library is folded. Search matches words in the
-readable name, exact stem, emitter, texture, mesh and preset metadata. The background
+readable name, category, exact stem, emitter, texture, mesh and preset metadata.
+For example, `fx_aftertaa_a__lightning_att1` appears as **Lightning ATT 1 · Aftertaa A**.
+Unknown artist/character names and ambiguous codes such as ATT and EXP remain intact.
+Categories match complete words and reviewed compounds, so fireflies are Wildlife,
+medicine is not Frost, and generic shock effects are Impact rather than Lightning.
+The specific variant supplies the primary category, with other explicit family
+traits retained as filter tags. Authoring, emitter and non-utility resource names
+are fallbacks only when the effect's own name supplies no category. Tooltips make
+this inference explicit; names do not prove appearance or game compatibility.
+The background
 index follows emitter and render/simulation preset dependencies once per definition;
 schema 2 invalidates old caches and includes dependency paths and archive locations.
 Missing definitions are shown in tooltips without hiding otherwise usable effects.
+Effects with missing or incomplete timing metadata show **Unknown**, rather than
+being assumed to be one-shot. Explicit loop flags or a loop-name hint remain usable.
 Labelled All / Loops / One-shot filters,
 a result count and Reset filters make browsing explicit; the staged selection remains
 visible even when it falls outside the filters. Library labels and facts are
@@ -556,9 +568,11 @@ sizing samples a bounded number of rows even while the page is hidden. Returning
 to Effects keeps the resident scene; changed inputs and failed updates still retry.
 Favourites and Variants narrow the library. The star, filters and Large thumbnails
 show their selected state, and library buttons respond visibly to hovering and pressing.
-Variant families remove numeric and
-letter suffixes in one scan, so long or malformed names cannot trigger regex
-backtracking during filtering. **Capture thumbnail** saves the current preview
+Variant families use the source prefix before `__`, grouping named smoke, fire and
+spark variants together. Names without that separator retain the bounded numeric
+suffix grouping. Generated layer and emitter labels use the same readable names;
+custom layer names and exact exported effect references stay unchanged.
+**Capture thumbnail** saves the current preview
 frame into the local library and reports capture progress, success or failure. A saved
 capture immediately replaces the displayed image and enables **Large thumbnails**,
 which expands the rows and loads only visible cached images. Failed captures retain
