@@ -600,7 +600,6 @@ class NewItemStudioTab(QWidget):
             panel.recipes.setParent(panel)
             panel.recipes.hide()
             panel.views.tabBar().hide()
-            panel.recipes_requested.connect(self._show_recipes)
             panel.rebuild()
         elif index == 4:
             panel = self._perks_panel = PerksPanel(controller)

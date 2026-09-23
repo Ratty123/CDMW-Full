@@ -958,7 +958,7 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
             self.app.setPalette(old_palette)
             self.app.processEvents()
 
-    def test_identity_checks_and_recipe_shortcut_follow_their_owning_steps(self) -> None:
+    def test_identity_checks_and_recipes_follow_their_owning_steps(self) -> None:
         tab = self._tab()
         tab.prefill_template(TEMPLATE)
         tab.identity_panel.display_name.setText("A named item")
@@ -982,7 +982,9 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         recipe = tab.stats_panel.recipes
         recipe.search.setText("keep this search")
         tab.show_step(3)
-        tab.stats_panel.recipe_button.click()
+        self.assertFalse(hasattr(tab.stats_panel, "recipe_button"))
+        tab.show_step(5)
+        tab.placement_panel.crafting.click()
         self.assertEqual(tab.pages.currentIndex(), 5)
         self.assertIs(tab.placement_panel.routes_view.currentWidget(), recipe)
         self.assertEqual(recipe.search.text(), "keep this search")

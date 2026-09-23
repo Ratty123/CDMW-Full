@@ -1444,11 +1444,12 @@ impl PresentationView {
             control_height(ui) + ui.spacing().item_spacing.y
         } else { 0.0 };
         let height = (bounded_height(ui) - paging_height).max(100.0);
-        let fill_height = self.compact_depth == 0 && total > 8;
+        let fill_height = self.compact_depth == 0 && layout_flexible(node);
         let rows = total.max(1) as f32;
         let rows = if self.compact_depth > 0 { rows.min(8.0) } else { rows };
-        let height = height.min(rows * (control_height(ui) + ui.spacing().item_spacing.y)
-            + header_space);
+        let height = if fill_height { height } else {
+            height.min(rows * (control_height(ui) + ui.spacing().item_spacing.y) + header_space)
+        };
         let mut at_end = false;
         let response = egui::ScrollArea::horizontal().id_salt("table-columns").auto_shrink([false,!fill_height])
             .max_height(height).show(ui, |ui| {
@@ -1697,7 +1698,7 @@ fn control_height(ui: &Ui) -> f32 {
 
 fn layout_flexible(node: &Node) -> bool {
     match node.kind.as_str() {
-        "table" => node.number("total", 0.0) > 8.0,
+        "table" => node.stretch > 0 || node.number("total", 0.0) > 8.0,
         "viewport" | "scroll" | "image_crop" => true,
         "text" => node.flag("multiline"),
         _ => node.children.iter().any(layout_flexible),

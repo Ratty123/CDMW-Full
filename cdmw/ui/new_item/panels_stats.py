@@ -14,7 +14,9 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QHBoxLayout,
     QPushButton,
+    QScrollArea,
     QSpinBox,
+    QSplitter,
     QTableWidget,
     QTableWidgetItem,
     QTabWidget,
@@ -25,7 +27,7 @@ from PySide6.QtWidgets import (
 
 from cdmw.ui.new_item.controller import NewItemStudioController
 from cdmw.ui.new_item.state import BUY_PRICE_KIND, STAT_KIND, StatGrid, scaled_grid_values, stats_summary
-from cdmw.ui.new_item.ui_kit import EDIT, WARN, NoteLabel, compact_table_height, elided, intro_label, note
+from cdmw.ui.new_item.ui_kit import EDIT, WARN, NoteLabel, elided, intro_label, note
 
 _MAX_EXTRA_LEVELS = 8
 #: how far outside the shipped range a value may sit before the note turns amber
@@ -48,7 +50,6 @@ class StatsPanel(QGroupBox):
     """
 
     price_state_changed = Signal()
-    recipes_requested = Signal()
 
     def __init__(self, controller: NewItemStudioController, parent=None) -> None:
         super().__init__("4. Combat stats and prices", parent)
@@ -69,33 +70,25 @@ class StatsPanel(QGroupBox):
         layout.addWidget(self.experimental)
         self.carries = intro_label("")
         layout.addWidget(self.carries)
-        tables = QHBoxLayout()
-        self.tables_layout = tables
+        tables = self.tables_splitter = QSplitter(Qt.Horizontal)
+        tables.setChildrenCollapsible(False)
         self.ladder_group = self._build_ladder_group()
         self.base_group = self._build_base_group()
-        self.base_group.setMaximumWidth(380)
-        tables.addWidget(self.ladder_group, 3, Qt.AlignmentFlag.AlignTop)
-        tables.addWidget(self.base_group, 1, Qt.AlignmentFlag.AlignTop)
+        tables.addWidget(self.ladder_group)
+        tables.addWidget(self.base_group)
+        tables.setStretchFactor(0, 3)
+        tables.setStretchFactor(1, 1)
+        tables.setSizes([900, 350])
         stats_page = QWidget()
         stats_layout = QVBoxLayout(stats_page)
         stats_layout.setContentsMargins(0,0,0,0)
-        stats_layout.addLayout(tables)
-        stats_layout.addStretch(1)
+        stats_layout.addWidget(tables, 1)
         self.views = QTabWidget()
         self.views.addTab(stats_page, "Stats and prices")
         from cdmw.ui.new_item.recipe_editor import RecipeEditor
         self.recipes = RecipeEditor(controller)
         self.views.addTab(self.recipes, "Enhancement and crafting recipes")
         layout.addWidget(self.views, 1)
-        self.recipe_button = QPushButton("Recipes…")
-        self.recipe_button.setToolTip("Edit crafting and enhancement recipes.")
-        self.recipe_button.clicked.connect(self.recipes_requested.emit)
-        recipe_row = QHBoxLayout()
-        layout.removeWidget(self.experimental)
-        recipe_row.addWidget(self.experimental)
-        recipe_row.addStretch(1)
-        recipe_row.addWidget(self.recipe_button)
-        layout.insertLayout(0, recipe_row)
         controller.template_changed.connect(self.rebuild)
 
     def resizeEvent(self, event):
@@ -107,8 +100,8 @@ class StatsPanel(QGroupBox):
         # than stacking all supported laptop widths below a fixed 1400 px threshold.
         needed = max(500, self.ladder_group.minimumSizeHint().width(), self.table.columnCount() * 100) + self.base_group.minimumSizeHint().width() + 48
         available = min(self.width(), self.parentWidget().width()) if self.parentWidget() else self.width()
-        direction = QHBoxLayout.TopToBottom if available < needed else QHBoxLayout.LeftToRight
-        self.tables_layout.setDirection(direction)
+        orientation = Qt.Vertical if available < needed else Qt.Horizontal
+        self.tables_splitter.setOrientation(orientation)
 
     # ------------------------------------------------------------------ construction
 
@@ -127,7 +120,7 @@ class StatsPanel(QGroupBox):
         )
         self.table.cellChanged.connect(self._cell_changed)
         self.table.currentCellChanged.connect(self._selected_cell_changed)
-        ladder_layout.addWidget(self.table)
+        ladder_layout.addWidget(self.table, 1)
         self.selection_note = NoteLabel("")
         ladder_layout.addWidget(self.selection_note)
         quick = QHBoxLayout()
@@ -154,8 +147,14 @@ class StatsPanel(QGroupBox):
         quick.addStretch(1)
         ladder_layout.addLayout(quick)
         self.advanced = self._build_advanced_group()
-        self.advanced.setVisible(False)
-        ladder_layout.addWidget(self.advanced)
+        self.advanced_scroll = QScrollArea()
+        self.advanced_scroll.setWidgetResizable(True)
+        self.advanced_scroll.setFrameShape(QScrollArea.NoFrame)
+        self.advanced_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.advanced_scroll.setWidget(self.advanced)
+        self.advanced_scroll.setMaximumHeight(300)
+        self.advanced_scroll.setVisible(False)
+        ladder_layout.addWidget(self.advanced_scroll, 1)
         return ladder
 
     def _build_advanced_group(self) -> QGroupBox:
@@ -287,11 +286,10 @@ class StatsPanel(QGroupBox):
         self.max_stack.valueChanged.connect(self._stack_changed)
         stack_form.addRow("Max stack:", self.max_stack)
         base_layout.addLayout(stack_form)
-        base_layout.addStretch(1)
         return base
 
     def _toggle_advanced(self, checked: bool) -> None:
-        self.advanced.setVisible(bool(checked))
+        self.advanced_scroll.setVisible(bool(checked))
         self.advanced_toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
         self._fit_tables()
 
@@ -329,9 +327,12 @@ class StatsPanel(QGroupBox):
         if grid is None:
             self._table_resize_pending = False
             return
-        rows = grid.level_count + self._controller.draft.extra_levels
-        compact_table_height(self.table, rows)
-        compact_table_height(self.price_table, len(grid.price_items), minimum_rows=1, maximum_rows=6)
+        for table, rows in ((self.table, 2), (self.price_table, 1)):
+            table.setMinimumHeight(
+                table.horizontalHeader().height()
+                + rows * table.verticalHeader().defaultSectionSize()
+                + 2 * table.frameWidth() + 4
+            )
         self._table_resize_pending = False
 
     def _fill_tables(self) -> None:

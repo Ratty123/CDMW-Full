@@ -515,18 +515,19 @@ class _TabAuthoringMixin:
         tab.start_snapshot()
         tab.show()
         self.app.processEvents()
-        original = panels_stats.compact_table_height
+        original = panels_stats.StatsPanel._resize_tables
         with patch.object(ItemPreviewFrame, "_start_package", lambda *_args, **_kwargs: None), patch.object(
-            panels_stats,
-            "compact_table_height",
-            wraps=original,
-        ) as compact:
+            panels_stats.StatsPanel,
+            "_resize_tables",
+            autospec=True,
+            side_effect=original,
+        ) as resize:
             tab.prefill_template(TEMPLATE)
-            self.assertEqual(compact.call_count, 0, "a template choice must not lay out a hidden stats step")
+            self.assertEqual(resize.call_count, 0, "a template choice must not lay out a hidden stats step")
             self.assertTrue(tab.stats_panel._table_resize_pending)
             tab.show_step(3)
             self.app.processEvents()
-            self.assertEqual(compact.call_count, 2, "both stats tables size once when their step becomes visible")
+            self.assertEqual(resize.call_count, 1, "both stats tables size once when their step becomes visible")
             self.assertFalse(tab.stats_panel._table_resize_pending)
         tab.shutdown()
         tab.close()

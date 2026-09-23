@@ -243,7 +243,7 @@ class PresentationDocument:
             props.update(value=widget.value(), minimum=widget.minimum(), maximum=widget.maximum(),
                          text=widget.text(), indeterminate=widget.maximum() == widget.minimum())
         elif isinstance(widget, QTabWidget):
-            node["kind"] = "tabs"
+            node["kind"] = "column" if widget.tabBar().isHidden() else "tabs"
             props.update(selected=widget.currentIndex(), tabs=[
                 {"text": widget.tabText(i), "enabled": widget.isTabEnabled(i),
                  "visible": widget.isTabVisible(i), "tooltip": widget.tabToolTip(i)} for i in range(widget.count())])

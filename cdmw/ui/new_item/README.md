@@ -1076,8 +1076,12 @@ never silently removes perks. Normal limits remain four embedded perks and five
 slots, with the existing eight-entry experimental limit visibly separate.
 
 **Distribution → Recipes** owns enhancement/crafting recipe authoring, alongside
-Shops, Loot and rewards, and Item groups. Stats & Prices has a shortcut to the same
-recipe editor, retaining its current selection and edits. A selected
+Shops, Loot and rewards, and Item groups. Stats & Prices stays on its own step;
+its enhancement and shop-price tables fill the available height, with an adjustable
+divider between them. Both presentations retain cell editing and table scrolling;
+the panes stack in narrow windows, and expanded Advanced controls scroll separately
+so they cannot collapse the stats table. Open recipes directly under Distribution,
+retaining the editor's current selection and edits. A selected
 recipe is copied with owned DropSet outputs and reconnected to the new item.
 On the current generation, inheriting recipes automatically creates those owned
 connections while preserving costs and requirements, even when the recipe editor

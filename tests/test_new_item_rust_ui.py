@@ -152,6 +152,45 @@ def test_stats_cell_edit_uses_existing_validation_and_preserves_zero(studio):
     assert node["props"]["rows"][0]["cells"][0]["text"] == "0"
 
 
+def test_stats_and_prices_fill_the_workspace_and_keep_both_tables_editable(studio):
+    _, tab, bridge = studio
+    tab.show_step(3)
+    panel = tab.stats_panel
+    heights = []
+    for height in (720, 1080):
+        tab.resize(1440, height)
+        for _ in range(3):
+            QApplication.processEvents()
+        for table in (panel.table, panel.price_table):
+            assert table.height() > tab.pages.height() * 0.5
+            assert table.visualItemRect(table.item(0, 0)).intersects(table.viewport().rect())
+        heights.append((panel.table.height(), panel.price_table.height()))
+    assert all(after > before + 250 for before, after in zip(*heights))
+    _send(bridge, panel.table, "cell", {"path": [0], "column": 0, "text": "12345"})
+    price_key = panel._grid.price_items[0][0]
+    _send(bridge, panel.price_table, "cell", {"path": [0], "column": 1, "text": "0"})
+    assert tab.controller.draft.grid_values[(0, 0)] == 12345
+    assert tab.controller.draft.price_values[price_key] == 0
+    bridge.snapshot()
+    registry = bridge.document.registry
+    assert registry.current[registry.identify(panel.views)]["kind"] == "column"
+    assert registry.current[registry.identify(panel.tables_splitter)]["kind"] == "split"
+    for table in (panel.table, panel.price_table):
+        node = registry.current[registry.identify(table)]
+        assert node["stretch"] == 1
+        assert node["props"]["rows"]
+    assert not any(node["label"] == "Recipes…" for node in registry.current.values())
+    tab.resize(1280, 720)
+    panel.advanced_toggle.setChecked(True)
+    for _ in range(3):
+        QApplication.processEvents()
+    assert tab.pages.currentWidget().horizontalScrollBar().maximum() == 0
+    assert panel.table.viewport().height() >= panel.table.rowHeight(0)
+    assert panel.price_table.viewport().height() >= panel.price_table.rowHeight(0)
+    bridge.snapshot()
+    assert registry.current[registry.identify(panel.advanced_scroll)]["kind"] == "scroll"
+
+
 def test_outdated_disabled_hidden_and_wrong_session_inputs_are_rejected(studio):
     _, tab, bridge = studio
     tab.show_step(1)

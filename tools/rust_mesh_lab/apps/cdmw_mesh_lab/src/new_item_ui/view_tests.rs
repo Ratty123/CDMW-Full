@@ -680,6 +680,53 @@ fn short_tables_fit_their_actual_font_height_without_clipping_the_last_row() {
     }
 }
 
+#[test]
+fn stats_and_price_tables_fill_their_panes_even_with_few_rows() {
+    for rows in [2, 16] {
+        for font in [14, 22] {
+            let context = egui::Context::default();
+            let mut panes = control("stats-split", "split", "", json!({"horizontal":true,"sizes":[900,350]}));
+            for (id, title, count) in [("ladder", "Enhancement ladder", rows), ("prices", "Shop price and stack size", 2)] {
+                let mut table = control(id, "table", "", json!({"total":count,"headers":true,
+                    "columns":[{"index":0,"text":"Value","width":200}]}));
+                table.stretch = 1;
+                table.props["rows"] = json!((0..count).map(|index| json!({"path":[index],
+                    "cells":[{"text":format!("{}", index + 100),"editable":true,"enabled":true}]})).collect::<Vec<_>>());
+                let mut contents = control("", "column", "", json!({}));
+                contents.children = vec![table, control(&format!("{id}-action"), "button", "Restore", json!({}))];
+                let mut group = control(&format!("{id}-group"), "group", title, json!({}));
+                group.children.push(contents);
+                panes.children.push(group);
+            }
+            let mut page = control("page", "scroll", "", json!({}));
+            page.slot = "body".into();
+            page.children = vec![control("summary", "label", "", json!({"text":"Template stats"})), panes];
+            let mut next = control("continue", "button", "Continue", json!({}));
+            next.slot = "next".into();
+            let mut root = control("workspace", "workspace", "", json!({}));
+            root.children = vec![page, next];
+            let mut state = state(root);
+            state.theme["font_pixels"] = json!(font);
+            apply_theme(&context, &state.theme);
+            let mut view = PresentationView::default();
+            for size in [egui::vec2(1280.0, 720.0), egui::vec2(1920.0, 1080.0)] {
+                for _ in 0..4 { frame(&context, &mut view, &state, size, vec![]); }
+                let footer = view.rects.iter().find(|rect| rect.id == "continue").unwrap().rect;
+                for id in ["ladder", "prices"] {
+                    let table = view.rects.iter().find(|rect| rect.id == id).unwrap();
+                    let action = view.rects.iter().find(|rect| rect.id == format!("{id}-action")).unwrap().rect;
+                    assert!(table.rect[3] > size.y * 0.65, "rows {rows}, font {font}: {table:?}");
+                    assert!(table.clip[3] >= table.rect[3]);
+                    assert!(table.rect[1] + table.rect[3] <= action[1] + 1.0);
+                    assert!(action[1] + action[3] <= footer[1], "actions must remain above navigation");
+                    assert!(footer[1] - action[1] - action[3] < 32.0, "unused pane height: {action:?}");
+                }
+                assert!(view.errors.is_empty());
+            }
+        }
+    }
+}
+
 fn template_results_state(total: u64, offset: u64, preview: bool) -> State {
     let end = (offset + 128).min(total);
     let mut table = control("matches", "table", "", json!({"total":total,"offset":offset,"end":end,

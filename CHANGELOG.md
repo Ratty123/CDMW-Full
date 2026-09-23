@@ -48,6 +48,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Create New Item gives Stats & Prices full-height, resizable table panes in Classic and Rust, keeping short lists visible and editable. Removed the Recipes shortcut from Stats & Prices; recipes remain under Distribution.
 - Create New Item (Rust) no longer deadlocks when focus leaves a selected template row. A stalled Rust interface can be hidden and stopped without blocking CDMW, preserving access to the draft in Classic.
 - Create New Item (Rust) keeps the Template list full height, including its final page. Scrolling requests more results only once at the end of the loaded list, preventing repeated refreshes and flicker.
 - Create New Item (Rust) keeps editable dropdowns on one row, opens compact context menus, fits small dialogs to their fields, and groups dialog actions below scrolling content. Empty lists no longer reserve blank space, table rows accommodate the selected font, and narrow panels keep their inspectors reachable. Additional instructions appear in hover help.
