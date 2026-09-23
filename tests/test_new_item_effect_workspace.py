@@ -496,6 +496,7 @@ class EffectWorkspaceTests(unittest.TestCase):
         self.assertTrue(workspace.has_staged_changes())
         workspace._reset_view_next = False
 
+        controller.draft.template_key = 2
         controller.template_changed.emit(2)
 
         self.assertEqual(workspace.staged_state, EffectWorkspaceState.from_draft(controller.draft))
@@ -503,7 +504,7 @@ class EffectWorkspaceTests(unittest.TestCase):
         self.assertTrue(workspace._reset_view_next)
         self.assertTrue(workspace.selection_timer.isActive())
 
-    def test_a_wearable_effect_defaults_to_the_applied_model_origin(self) -> None:
+    def test_a_wearable_effect_defaults_beside_the_model_and_body(self) -> None:
         controller = _Controller()
         helmet = _mesh()
         helmet._cdmw_effect_item_origin = (0.01, 1.76, -0.05)
@@ -514,10 +515,26 @@ class EffectWorkspaceTests(unittest.TestCase):
         workspace.selection_timer.stop()
         workspace._rebuild_preview()
 
-        self._settle(lambda: workspace.staged_state.offset == (0.01, 1.76, -0.05))
-        self.assertEqual(workspace.staged_state.offset, (0.01, 1.76, -0.05))
-        self.assertEqual(workspace.placement.offset, (0.01, 1.76, -0.05))
-        self.assertTrue(workspace.has_staged_changes(), "the head-height default is saved on Apply")
+        self._settle(lambda: workspace._placement_position is not None)
+        from cdmw.services.effect_placement_preview import framing_bounds_for
+
+        low, high = framing_bounds_for(helmet)
+        self.assertGreater(workspace.staged_state.offset[0], high[0])
+        self.assertTrue(low[1] <= workspace.staged_state.offset[1] <= high[1])
+        self.assertEqual(workspace.placement.offset, workspace.staged_state.offset)
+        self.assertTrue(workspace.has_staged_changes(), "the starting position is saved on Apply")
+
+    def test_only_a_new_template_requests_camera_framing(self) -> None:
+        workspace, controller, _confirmations = self._workspace()
+        workspace._reset_view_next = False
+        for signal in (controller.model_changed, controller.model_import_changed, controller.model_placement_changed):
+            signal.emit(None)
+            self.assertFalse(workspace._reset_view_next)
+        controller.draft.template_key = 2
+        controller.template_changed.emit(2)
+        self.assertTrue(workspace._reset_view_next)
+        workspace._character_fit_changed(1)
+        self.assertTrue(workspace._reset_view_next, "a subsequent body change must not consume pending template framing")
 
     def test_effect_switches_keep_the_dragged_position_through_real_package_reloads(self) -> None:
         from dataclasses import replace
@@ -527,10 +544,17 @@ class EffectWorkspaceTests(unittest.TestCase):
             return EffectPlacementWorkspace(parent, host_factory=_Host, **kwargs)
 
         workspace, controller, _confirmations = self._workspace(placement_factory=placement_factory)
+        # Exercise the real package lane and placement signals without rebuilding
+        # the unrelated emitter table's native cell widgets on each offscreen load.
+        self._settle(lambda: workspace.placement is not None)
+        workspace.placement.effect_preview_ready.disconnect(workspace.recipe_panel.set_preview)
         workspace.choose_effect("fx_fire_hit")
         self._settle(lambda: workspace.placement is not None and workspace.placement._preview is not None)
         placement = workspace.placement
-        self.assertEqual(placement.offset, (0.05, 0.0, -0.5), "first placement starts at the item's center")
+        from cdmw.services.effect_placement_preview import framing_bounds_for
+
+        initial_offset = placement.offset
+        self.assertGreater(initial_offset[0], framing_bounds_for(_mesh())[1][0])
         self.assertEqual(workspace.staged_state.offset, placement.offset)
         workspace._staged = replace(workspace.staged_state, scale=0.034)
         workspace._sync_placement_from_state()
@@ -538,7 +562,7 @@ class EffectWorkspaceTests(unittest.TestCase):
         self.assertTrue(workspace.apply_staged())
         placement.host.alignment_drag_finished.emit(0.4, 0.3, 0.2)
         position = placement.offset
-        self.assertEqual(position, (0.45, 0.3, -0.3))
+        self.assertEqual(position, tuple(round(a + b, 4) for a, b in zip(initial_offset, (0.4, 0.3, 0.2))))
 
         for stem in ("", "fx_frost_loop", "fx_fire_ring_loop", "fx_fire_hit"):
             previous = placement._preview
@@ -547,7 +571,7 @@ class EffectWorkspaceTests(unittest.TestCase):
             self.assertEqual(workspace.staged_state.offset, position if stem else (0.0, 0.0, 0.0))
             self.assertEqual(placement.offset, position)
             self.assertEqual(placement.host.transforms[-1]["translation"], position)
-        self.assertEqual(controller.draft.effect_offset, (0.05, 0.0, -0.5), "browsing remains staged")
+        self.assertEqual(controller.draft.effect_offset, initial_offset, "browsing remains staged")
         self.assertTrue(workspace.apply_staged())
         self.assertEqual(controller.draft.effect_offset, position)
 
@@ -558,7 +582,7 @@ class EffectWorkspaceTests(unittest.TestCase):
         controller.item_mesh_as_planned = lambda: (helmet, "applied")
         workspace, _controller, _confirmations = self._workspace(controller)
         workspace.choose_effect("fx_fire_hit")
-        self._settle(lambda: workspace.placement is not None and workspace.staged_state.offset == helmet._cdmw_effect_item_origin)
+        self._settle(lambda: workspace.placement is not None and workspace._placement_position is not None)
         self.assertTrue(workspace.apply_staged())
         placement = workspace.placement
         placement._set_numbers((0.0, 0.0, 0.0), 1.0)
@@ -609,7 +633,8 @@ class EffectWorkspaceTests(unittest.TestCase):
         self.app.processEvents()
         self.assertEqual(workspace.staged_state.offset, (0.0, 0.0, 0.0))
         workspace.show()
-        self._settle(lambda: workspace.staged_state.offset == (0.01, 1.76, -0.05))
+        self._settle(lambda: workspace._placement_position is not None)
+        self.assertGreater(workspace.staged_state.offset[0], helmet.bbox_max[0])
 
     def test_show_retries_a_transient_selected_template_preview(self) -> None:
         controller = _Controller()

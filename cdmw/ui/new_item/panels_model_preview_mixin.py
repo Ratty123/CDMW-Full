@@ -55,7 +55,7 @@ class ModelPanelPreviewMixin:
                 self.dyes.state.setText(str(exc))
                 return
             self._preview_mesh_token=token
-            self.preview.show(build,token=token)
+            self.preview.show(build, token=token, framing_key=self._controller.draft.template_key)
             return
         show_character = self.show_character.isChecked()
         source = self._controller.item_preview_source(include_character=show_character)
@@ -84,6 +84,7 @@ class ModelPanelPreviewMixin:
                     else None
                 ),
                 gizmo_enabled=imported is not None or template_model,
+                framing_key=self._controller.draft.template_key,
             )
             self._refresh_placement_enabled()
             return
@@ -91,7 +92,7 @@ class ModelPanelPreviewMixin:
             return
         self._preview_mesh_token = token
         self.capture_inline_button.setEnabled(False)
-        self.preview.show(build, token=token)
+        self.preview.show(build, token=token, framing_key=self._controller.draft.template_key)
 
     def _pick_model_file(self) -> None:
         settings = QSettings("CrimsonDesertModWorkbench", "CrimsonDesertModWorkbench")

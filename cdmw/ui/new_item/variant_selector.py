@@ -1,11 +1,11 @@
-"""Exact variant selection and camera restoration after a replacement is ready."""
+"""Exact variant selection without changing the resident preview camera."""
 from PySide6.QtWidgets import QWidget, QHBoxLayout, QLabel, QComboBox
 
 
 class VariantSelector(QWidget):
     def __init__(self, controller, panel):
         super().__init__(panel)
-        self.controller,self.panel,self._restore = controller,panel,None
+        self.controller,self.panel = controller,panel
         self._choices = None
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0,0,0,0)
@@ -19,9 +19,7 @@ class VariantSelector(QWidget):
         layout.addWidget(self.state)
         controller.template_changed.connect(self.refresh)
         controller.plan_invalidated.connect(self.refresh)
-        controller.variant_about_to_change.connect(self._save_camera)
         controller.variant_changed.connect(self._changed)
-        panel.preview.ready.connect(self._ready)
         self.refresh()
 
     def refresh(self,*_):
@@ -53,15 +51,7 @@ class VariantSelector(QWidget):
         if identity is not None:
             self.controller.select_variant(identity)
 
-    def _save_camera(self,identity):
-        state = self.controller._variant_states.get(identity)
-        host = self.panel.preview.host
-        if state is not None and host is not None:
-            state.camera = host.view_state_snapshot()
-
     def _changed(self,identity):
-        state = self.controller._variant_states.get(identity)
-        self._restore = (identity,state.camera) if state is not None and state.camera else None
         self.panel._preview_mesh_token = None
         self.panel._sync_placement_numbers(self.controller.model_placement)
         for control,value in ((self.panel.plain_pbr,self.controller.draft.material_route.value=="plain_pbr"),
@@ -71,11 +61,3 @@ class VariantSelector(QWidget):
             control.blockSignals(False)
         self.refresh()
         self.panel.refresh_preview()
-
-    def _ready(self):
-        if self._restore is None or self.panel.preview.host is None:
-            return
-        identity,state = self._restore
-        if identity == self.controller.current_variant_identity() and self.panel.preview._loaded_token == self.panel._preview_mesh_token:
-            self.panel.preview.host.restore_view_state(state)
-            self._restore = None

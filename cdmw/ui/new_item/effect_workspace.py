@@ -253,6 +253,7 @@ class GuidedEffectsWorkspace(EffectWorkspaceAuthoringMixin, QWidget):
         self._staged = self._committed
         self._syncing = False
         self._reset_view_next = True
+        self._preview_template_key = controller.draft.template_key
         self._preview_dirty = True
         self._preview_retry_remaining = 1
         self._placement_position = self._committed.offset if self._committed.stem else None
@@ -710,7 +711,9 @@ class GuidedEffectsWorkspace(EffectWorkspaceAuthoringMixin, QWidget):
         self._staged = self._committed
         self.character_fit_choice.setEnabled(self._controller.draft.template_key is not None)
         self._placement_position = self._committed.offset if self._committed.stem else None
-        self._reset_view_next = True
+        template_key = self._controller.draft.template_key
+        self._reset_view_next = self._reset_view_next or template_key != self._preview_template_key
+        self._preview_template_key = template_key
         self._preview_retry_remaining = 1
         if self._library_snapshot is not getattr(self._controller, "snapshot", None):
             self._start_library()
@@ -726,7 +729,6 @@ class GuidedEffectsWorkspace(EffectWorkspaceAuthoringMixin, QWidget):
     def _character_fit_changed(self, _index: int) -> None:
         # The choice changes only the reference body. Keep the reader's camera and stage
         # one immutable rig ID into the existing cancellable latest-wins package lane.
-        self._reset_view_next = False
         self._schedule_preview()
 
     def _schedule_preview(self, delay_ms: int = 150) -> None:
@@ -820,19 +822,16 @@ class GuidedEffectsWorkspace(EffectWorkspaceAuthoringMixin, QWidget):
             return
         self._preview_retry_remaining = 1
         if self._placement_position is None:
-            raw_origin = getattr(mesh, "_cdmw_effect_item_origin", None)
-            try:
-                item_origin = tuple(float(value) for value in raw_origin)
-            except (TypeError, ValueError):
-                item_origin = ()
-            if len(item_origin) != 3:
-                low, high = mesh.bbox_min, mesh.bbox_max
-                item_origin = tuple((float(low[axis]) + float(high[axis])) * 0.5 for axis in range(3))
+            from cdmw.services.effect_placement_preview import effect_start_position, framing_bounds_for
+
+            offset = getattr(self.placement, "default_offset", None)
+            if offset is None:
+                offset = effect_start_position(*framing_bounds_for(mesh))
             # Pick an initial point once per item. An explicit move to zero is
             # also a chosen position; later effect or texture loads must keep it.
-            self._placement_position = item_origin
+            self._placement_position = offset
             if self._staged.stem:
-                self._staged = replace(self._staged, offset=item_origin)
+                self._staged = replace(self._staged, offset=offset)
         self._sync_placement_from_state()
 
     def iter_shutdown_workers(self):

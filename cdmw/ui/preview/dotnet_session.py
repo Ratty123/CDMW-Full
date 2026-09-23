@@ -1547,7 +1547,10 @@ class RustPreviewSessionController(
             return
         self._package_timer.stop()
         self._pending_package_generation = 0
-        self._accept_applied_package(self.desired_package_path, self._package_generation)
+        self._accept_applied_package(
+            self.desired_package_path, self._package_generation,
+            preserve_camera=self.profile is DotNetPreviewProfile.PREVIEW,
+        )
 
     def _handle_package_failed(self, payload: Mapping[str, object]) -> None:
         if not self._package_event_is_current(payload):
@@ -1561,7 +1564,9 @@ class RustPreviewSessionController(
         )
         self._fail_current_package(message)
 
-    def _accept_applied_package(self, package_path: str, generation: int) -> None:
+    def _accept_applied_package(
+        self, package_path: str, generation: int, *, preserve_camera: bool = False,
+    ) -> None:
         if generation != self._package_generation or package_path != self.desired_package_path:
             return
         self._applied_package_path = package_path
@@ -1573,7 +1578,7 @@ class RustPreviewSessionController(
             getattr(self._applied_package, "material_signature", "") or ""
         )
         self._retain_package_leases({package_path})
-        self._replay_resident_state()
+        self._replay_resident_state(preserve_camera=preserve_camera)
         if self.profile is DotNetPreviewProfile.AUTHORING:
             self.rehydrate_requested.emit(self._process_generation)
             if self._authoring_rehydrator is not None:
@@ -1594,8 +1599,13 @@ class RustPreviewSessionController(
         if self._visible:
             self._activate()
 
-    def _replay_resident_state(self) -> None:
+    def _replay_resident_state(self, *, preserve_camera: bool = False) -> None:
         for _key, (event, payload) in tuple(self._resident_state.items()):
+            if preserve_camera and event == "presentation_state_update":
+                # A resident load already retained the live camera or fitted the
+                # requested new template. Replaying a previous host camera would
+                # undo that, including gestures made while the package loaded.
+                payload = {key: value for key, value in payload.items() if key != "camera"}
             self.send_correlated(event, payload)
 
     def _activate(self) -> bool:

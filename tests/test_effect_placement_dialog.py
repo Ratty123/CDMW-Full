@@ -179,6 +179,7 @@ class _DialogTestCase(unittest.TestCase):
         cls.app = QApplication.instance() or QApplication([])
 
     def _dialog(self, **overrides) -> EffectPlacementDialog:
+        overrides.setdefault("offset", (0.0, 0.0, 0.0))
         dialog = EffectPlacementDialog(
             item_mesh=_blade(), box_min=(-11.0, -10.0, -11.0), box_max=(11.0, 17.0, 11.0),
             host_factory=lambda parent: _Host(parent), **overrides,
@@ -465,6 +466,8 @@ class DialogTests(_DialogPresentationMixin, _DialogTestCase):
         self.assertEqual(dialog.host.view_roles, [], "the package-authored Front camera owns the opening fit")
 
         dialog._fit_reach_to_item()
+        self.assertEqual(dialog.host.view_roles, [], "resizing the effect leaves the camera alone")
+        dialog._frame_subject()
         self.assertEqual(dialog.host.view_roles[-1], "replacement", "Fit keeps driving the visible overlay")
         self.assertEqual(dialog.host.view_fit_roles[-1], "reference", "Fit remains centred on the item")
         self.assertEqual(dialog.host.zooms[-1], 1.0, "an item-sized reach uses the item fit")
@@ -485,7 +488,7 @@ class DialogTests(_DialogPresentationMixin, _DialogTestCase):
         places["Middle"].click()
         self.assertAlmostEqual(dialog.offset[2], -0.35, places=3)
 
-    def test_a_wearable_origin_starts_the_gizmo_on_the_applied_helmet(self) -> None:
+    def test_a_wearable_starts_beside_the_subject_and_keeps_its_origin_anchor(self) -> None:
         helmet = _blade()
         helmet._cdmw_effect_item_origin = (0.01, 1.76, -0.05)
         workspace = EffectPlacementWorkspace(
@@ -508,11 +511,15 @@ class DialogTests(_DialogPresentationMixin, _DialogTestCase):
 
         workspace._sync_host()
 
-        self.assertEqual(workspace.offset, (0.01, 1.76, -0.05))
+        from cdmw.services.effect_placement_preview import framing_bounds_for
+
+        low, high = framing_bounds_for(helmet)
+        self.assertGreater(workspace.offset[0], high[0])
+        self.assertTrue(low[1] <= workspace.offset[1] <= high[1])
         self.assertEqual(
             workspace.host.transforms[-1]["translation"],
-            (0.01, 1.76, -0.05),
-            "neutral placement sends the resident gizmo to the applied model origin",
+            workspace.offset,
+            "initial placement is beside the subject",
         )
         workspace._put_it_at("origin")
         self.assertEqual(workspace.offset, (0.01, 1.76, -0.05))
@@ -545,6 +552,7 @@ class DialogTests(_DialogPresentationMixin, _DialogTestCase):
     def test_embedded_gizmo_keeps_working_without_solid_helpers_at_any_effect_scale(self) -> None:
         workspace = EffectPlacementWorkspace(
             item_mesh=_blade(), box_min=(-1, -1, -1), box_max=(1, 1, 1),
+            offset=(0, 0, 0),
             host_factory=lambda parent: _Host(parent), compatibility_ui=False,
         )
         workspace._initial_package_timer.stop()
@@ -579,19 +587,18 @@ class DialogTests(_DialogPresentationMixin, _DialogTestCase):
         self.assertTrue(workspace.host.alignment_states[-1])
         self.assertEqual(workspace.host.transforms[-1]["translation"], (0.25, 0, 0))
 
-    def test_showing_the_reach_zooms_out_far_enough_to_see_it(self) -> None:
-        """The frame of an effect made for a boss is twenty metres across a one-metre
-        sword: shown at the item's own zoom it is off every edge of the view, so ticking
-        the box changed nothing anyone could see."""
+    def test_reach_visibility_keeps_the_camera_and_explicit_frame_fits_it(self) -> None:
 
         dialog = self._dialog()
         dialog.show_reach.setChecked(True)
+        self.assertFalse(dialog.host.zooms, "visibility is not a camera command")
+        dialog._frame_subject()
         self.assertTrue(dialog.host.zooms, "the camera was sent")
         zoomed = dialog.host.zooms[-1]
         self.assertLess(zoomed, 0.2, "the view holds a reach twenty times the item")
         self.assertGreaterEqual(zoomed, 0.1, "and no further than the host allows")
         dialog.show_reach.setChecked(False)
-        self.assertEqual(dialog.host.zooms[-1], 1.0, "back to the item")
+        self.assertEqual(dialog.host.zooms, [zoomed], "hiding reach leaves the camera alone")
         # a standing view keeps whatever the subject needs
         dialog.show_reach.setChecked(True)
         dialog.view_buttons[1].click()
@@ -1156,7 +1163,7 @@ class DialogTests(_DialogPresentationMixin, _DialogTestCase):
             self.assertFalse(first_dir.exists())
             self.assertTrue(second_dir.is_dir())
             self.assertIs(workspace._preview, second)
-            self.assertEqual(workspace.host.restored_views[-1]["role"], "reference")
+            self.assertFalse(workspace.host.restored_views, "a resident refresh keeps the live camera")
             workspace.request_shutdown()
             self._settle(lambda: not workspace.iter_shutdown_workers())
             self.assertFalse(second_dir.exists())

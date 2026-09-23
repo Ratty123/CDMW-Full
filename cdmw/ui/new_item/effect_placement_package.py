@@ -214,6 +214,10 @@ class EffectPlacementPackageMixin:
             self._remove_owned_package(result)
             return
         self._content_failed = False
+        if result.default_offset is not None:
+            self.default_offset = result.default_offset
+            if self._default_offset_pending:
+                self._set_numbers(self.default_offset, self.scale)
         if resolved_mesh is not None:
             self._item_mesh = resolved_mesh
             self._item_origin = placed_item_origin(resolved_mesh)
@@ -246,17 +250,7 @@ class EffectPlacementPackageMixin:
         self._loading_preview = result
         self._loading_content_generation = int(generation)
         self._loading_sockets = tuple(sockets or ())
-        self._loading_view_state = None
         reset_view = bool(reset_view or self._reset_view_pending)
-        if not bool(reset_view):
-            snapshot = getattr(self.host, "view_state_snapshot", None)
-            if callable(snapshot):
-                try:
-                    value = snapshot()
-                except Exception:  # noqa: BLE001 - package loading must still proceed
-                    value = None
-                if isinstance(value, dict):
-                    self._loading_view_state = dict(value)
         if self.host.load_package(result.package_dir, reset_view=bool(reset_view)):
             self.host.set_display_mode("overlay")
             self.status.setText("Loading the viewport...")
@@ -264,8 +258,8 @@ class EffectPlacementPackageMixin:
                 self._package_load_applied(str(result.package_dir), 0)
         else:
             self._content_failed = True
-            # The host's Retry action retains this path. Keep its input and
-            # camera snapshot until a successful replacement or shutdown.
+            # The host's Retry action retains this path until a successful
+            # replacement or shutdown. The renderer owns the live camera.
             self.status.setText("The resident viewport rejected the placement package.")
 
     def _package_load_applied(self, package_path: object, _generation: object = 0) -> None:
@@ -282,7 +276,6 @@ class EffectPlacementPackageMixin:
         if self._loading_content_generation == self._package_generation:
             self._reset_view_pending = False
         self._loading_preview = None
-        preserved_view, self._loading_view_state = self._loading_view_state, None
         self._effect_sockets = self._loading_sockets
         self._loading_sockets = ()
         self._frame = PlacementFrame(loading.item_rotation)
@@ -297,12 +290,6 @@ class EffectPlacementPackageMixin:
         self._show_caveats()
         self._sync_host()
         self._apply_scene_visibility()
-        restore_view = getattr(self.host, "restore_view_state", None)
-        if preserved_view is not None and callable(restore_view):
-            try:
-                restore_view(preserved_view)
-            except Exception:  # noqa: BLE001 - the loaded scene remains usable
-                pass
         self.preview_presented.emit(getattr(self, '_loading_content_generation', self._package_generation))
 
     def _package_failed(self, message: object) -> None:

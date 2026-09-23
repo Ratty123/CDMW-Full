@@ -219,7 +219,11 @@ Every shared preview keeps the
 current orbit, pan and zoom controls in a footer outside the native viewport. Initial
 package framing survives helper startup and progressive texture state replay, while
 later explicit camera commands remain authoritative. Camera resets survive
-superseded geometry and texture loads until the renderer acknowledges the new model.
+superseded geometry and texture loads until the renderer acknowledges the new template.
+Only selecting a different template frames automatically. Switching tabs, variants,
+character references, display modes, imports, materials or effects keeps the live
+camera, including gestures made while a package is loading. Frame and the camera
+view controls remain explicit ways to reposition it.
 Template, Identity and Model share a **Show gizmo**
 checkbox next to the viewport; Effects and its placement dialog expose the same
 preference. It updates open New Item views and survives application restarts. Hiding
@@ -251,7 +255,7 @@ current camera's depth order. New Item previews use a horizontal Y-up ground gri
 for every equipment shape. The camera selects the model's broadside independently:
 standing models keep Y upright and open slightly from above; horizontal models
 open from above with their longest axis across the viewport. Frame restores that
-view without changing model placement, grip/socket alignment or wearable fitting. A new model
+view without changing model placement, grip/socket alignment or wearable fitting. A new template
 resets the camera even when its textured package arrives without a geometry preview.
 Texture upgrades for the same model preserve the user's orbit, pan and zoom. Older
 cached New Item previews rebuild once to replace sideways grids.
@@ -676,8 +680,9 @@ quality support repeatable comparisons; playback settings do not change exported
 it never changes the draft, placement or camera. Move, Rotate and Scale use the thin
 transform handles. The solid origin and axis helper meshes stay hidden, including
 after scaling or restarting the renderer, so they cannot cover the effect. The reach
-cage remains optional through **Show the reach**. Initial placement starts at the
-item's center, or the applied origin for wearables. Choosing another effect keeps
+cage remains optional through **Show the reach**; toggling it does not move the camera.
+Initial placement starts beside the combined item and character bounds with a small
+gap, converted back to item coordinates for held weapons. Choosing another effect keeps
 the current position, including a deliberate move to zero or browsing through
 **No effect**. Saved positions and explicit layer changes retain their own placement;
 changing the item or choosing Discard restores the draft's placement. Selection,
@@ -756,8 +761,8 @@ creature- and vehicle-mounted equipment stays in its upright authored bind frame
 and the established right-hand/basic pair are only fallbacks when template metadata is
 missing or malformed. The placed preview
 bakes manual rotation and scale around the same fitted source origin that Model & Placement
-and the final Builder use; for a wearable, neutral effect placement starts at that applied
-origin so the gizmo opens on the helmet or armour rather than at the character's feet. A
+and the final Builder use. The Origin anchor targets that applied origin for wearables;
+the initial effect position remains beside the subject. A
 feet-at-zero bind-space stand-in is used when the matching archive body is unavailable.
 
 The Model & Placement step puts a tall resident preview beside one resizable inspector.

@@ -118,6 +118,22 @@ class AnchorAndScaleTests(unittest.TestCase):
 
 
 class PackageTests(unittest.TestCase):
+    def test_initial_offset_is_beside_the_character_in_both_item_frames(self) -> None:
+        from cdmw.services.effect_character_reference import rotate_point
+
+        body = _blade()
+        body.submeshes[0].vertices = [(-2, 0, -0.4), (2, 0, -0.4), (2, 3, 0.4), (-2, 3, 0.4)]
+        body.bbox_min, body.bbox_max = (-2, 0, -0.4), (2, 3, 0.4)
+        for rotation in (None, (0, 0, 1, 0, 1, 0, -1, 0, 0)):
+            with self.subTest(rotation=rotation), tempfile.TemporaryDirectory() as folder:
+                preview = build_effect_placement_package(
+                    _blade(), (-1, -1, -1), (1, 1, 1), output_root=Path(folder),
+                    character_mesh=body, item_rotation=rotation,
+                )
+                point = rotate_point(preview.default_offset, rotation) if rotation else preview.default_offset
+                self.assertGreater(point[0], 2, "the origin is outside even a wide character")
+                self.assertAlmostEqual(point[1], 1.5)
+
     def test_imported_item_keeps_direct_textures_when_combined_with_placement_helpers(self) -> None:
         from cdmw.models import PreviewMaterialTextureInput
         from cdmw.services import mesh_rust_authoring

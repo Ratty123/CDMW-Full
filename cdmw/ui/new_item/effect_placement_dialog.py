@@ -42,6 +42,7 @@ from cdmw.services.effect_placement_preview import (
     ANCHOR_TINT,
     EFFECT_AXIS_TINTS,
     framing_bounds_for,
+    effect_start_position,
     BODY_TINT,
     ITEM_TINT,
     REACH_TINT,
@@ -109,7 +110,7 @@ class EffectPlacementWorkspace(
         item_mesh: Optional[ParsedMesh],
         box_min: Vec3,
         box_max: Vec3,
-        offset: Vec3 = (0.0, 0.0, 0.0),
+        offset: Optional[Vec3] = None,
         rotation: Vec3 = (0.0, 0.0, 0.0),
         scale: float = 1.0,
         effect_label: str = "",
@@ -141,12 +142,9 @@ class EffectPlacementWorkspace(
         self._item_mesh_builder = item_mesh_builder
         self._item_origin = placed_item_origin(item_mesh)
         self._box = (tuple(float(v) for v in box_min), tuple(float(v) for v in box_max))
-        initial_offset = tuple(float(v) for v in offset)
-        if (
-            all(abs(value) < 1e-9 for value in initial_offset)
-            and any(abs(value) >= 1e-9 for value in self._item_origin)
-        ):
-            initial_offset = self._item_origin
+        self.default_offset = effect_start_position(*framing_bounds_for(item_mesh))
+        self._default_offset_pending = offset is None
+        initial_offset = tuple(float(v) for v in (self.default_offset if offset is None else offset))
         self.offset: Vec3 = initial_offset  # type: ignore[assignment]
         self.rotation: Vec3 = tuple(wrap_degrees(float(v)) for v in rotation)  # type: ignore[assignment]
         self.scale: float = float(scale)
@@ -182,7 +180,6 @@ class EffectPlacementWorkspace(
         self._loading_preview: Optional[EffectPlacementPreview] = None
         self._reset_view_pending = False
         self._loading_sockets: tuple = ()
-        self._loading_view_state: Optional[dict[str, object]] = None
         self._retired_previews: list[EffectPlacementPreview] = []
         self._package_ack_connected = False
         self._closed = False
@@ -446,7 +443,6 @@ class EffectPlacementWorkspace(
     def _reach_toggled(self) -> None:
         self._apply_scene_visibility()
         self._refresh_size_label()
-        self._point_camera()
 
     def _fit_reach_to_item(self) -> None:
         """A scale that makes the effect's reach about the item's own length: a starting
@@ -461,11 +457,7 @@ class EffectPlacementWorkspace(
         # the frame is what was just fitted, so it is shown whether or not it dwarfed the
         # item a moment ago: fitting a frame and leaving it hidden answers nothing
         if not self.show_reach.isChecked():
-            self.show_reach.setChecked(True)  # `_reach_toggled` re-points the camera
-        else:
-            # the view was framed to hold twenty metres; the reach is now the item's own
-            # length, and left where it was the item sits tiny in the middle of it
-            self._point_camera()
+            self.show_reach.setChecked(True)
         self._sync_host()
         self._apply_scene_visibility()
 
@@ -574,6 +566,7 @@ class EffectPlacementWorkspace(
         )
 
     def _set_numbers(self, offset: Vec3, scale: float, rotation: Optional[Vec3] = None) -> None:
+        self._default_offset_pending = False
         self.offset = tuple(round(float(v), 4) for v in offset)  # type: ignore[assignment]
         if rotation is not None:
             # rounded the way the rotation boxes round, for the same reason the scale is
@@ -597,6 +590,7 @@ class EffectPlacementWorkspace(
         self.transform_changed.emit()
 
     def _numbers_edited(self, *_args) -> None:
+        self._default_offset_pending = False
         self.offset = tuple(float(spin.value()) for spin in self.offset_spins)  # type: ignore[assignment]
         self.rotation = tuple(wrap_degrees(float(spin.value())) for spin in self.rotation_spins)  # type: ignore[assignment]
         self.scale = float(self.scale_spin.value())
@@ -676,7 +670,6 @@ class EffectPlacementWorkspace(
         for retired in self._retired_previews:
             self._remove_owned_package(retired)
         self._loading_preview = None
-        self._loading_view_state = None
         self._retired_previews = []
 
     def _remove_owned_package(self, preview: Optional[EffectPlacementPreview]) -> bool:

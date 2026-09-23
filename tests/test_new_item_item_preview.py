@@ -940,9 +940,8 @@ class ItemPreviewFrameTests(unittest.TestCase):
             host.calls,
             [
                 ("set_display_mode", ("side_by_side",), {}),
-                ("reset_view", (), {}),
             ],
-            "showing a different role layout must immediately frame both visible models",
+            "changing visible roles must leave the camera alone",
         )
         frame.set_gizmo_enabled(False)
         self.assertFalse(next(c for c in reversed(host.calls) if c[0] == "set_alignment_state")[2]["enabled"])

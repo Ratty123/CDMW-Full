@@ -623,6 +623,8 @@ class ItemPreviewFrame(QWidget):
         #: stale echo of the package before, and must not take the placement or the gizmo.
         self._loaded_token: Hashable = None
         self._loaded_geometry_token: Hashable = _UNSET
+        self._pending_framing_key: Hashable = _UNSET
+        self._loaded_framing_key: Hashable = _UNSET
         self._loaded_is_placement = False
         self._pending_capture: Optional[Path] = None
         self._loaded = False
@@ -721,21 +723,26 @@ class ItemPreviewFrame(QWidget):
 
         self.show(mesh, token=id(mesh) if mesh is not None else None)
 
-    def show(self, source: Any, *, token: Hashable = None) -> None:
+    def show(self, source: Any, *, token: Hashable = None, framing_key: Hashable = _UNSET) -> None:
         """Show `source`: a `ModelPreviewData` (textures resolved), a `ParsedMesh`, or a
         callable `(stop_event) -> one of those` run off the UI thread. None clears the
         view. `token` names the source; the same token while a build of it is running or
         shown asks for nothing new. A build already running for something else is
         superseded when it finishes. A plain source carries no placement: the gizmo goes,
-        and the last placement is forgotten (it belonged to the scene before)."""
+        and the last placement is forgotten (it belonged to the scene before).
+        ``framing_key`` identifies the template; geometry changes under that key
+        preserve the camera. Standalone callers default to the source geometry."""
 
         self._placement = None
         self._placement_base = None
         self._last_pushed_placement = None
         self._placement_grid_normal_axis = "y"
-        self._show(source, token=token, is_placement=False)
+        self._show(source, token=token, is_placement=False, framing_key=framing_key)
 
-    def _show(self, source: Any, *, token: Hashable = None, is_placement: bool = False) -> None:
+    def _show(
+        self, source: Any, *, token: Hashable = None, is_placement: bool = False,
+        framing_key: Hashable = _UNSET,
+    ) -> None:
         if self._closed:
             return
         if source is None:
@@ -767,6 +774,7 @@ class ItemPreviewFrame(QWidget):
             if callable(forget):
                 forget("material_parameters")
         self._pending = (token, source)
+        self._pending_framing_key = framing_key
         self._pending_is_placement = bool(is_placement)
         self._upgrade_request = None
         self._full_texture_upgrade_from_fast = False
@@ -812,6 +820,7 @@ class ItemPreviewFrame(QWidget):
         model_bounds: Any = None,
         grid_bounds: Any = None,
         gizmo_enabled: bool = True,
+        framing_key: Hashable = _UNSET,
     ) -> None:
         """Show a `PlacementScene` (or a callable producing one) with the model at
         `placement` (`model_bounds`: the model's own-space bounds, for the host's
@@ -836,7 +845,7 @@ class ItemPreviewFrame(QWidget):
                 if previous_placement != placement:
                     self._push_placement()
             return
-        self._show(source, token=token, is_placement=True)
+        self._show(source, token=token, is_placement=True, framing_key=framing_key)
 
     # ------------------------------------------------------------------ placement
 
@@ -873,12 +882,9 @@ class ItemPreviewFrame(QWidget):
         mode = str(mode or "overlay").strip().lower()
         if mode not in PLACEMENT_VIEW_MODES:
             return
-        changed = mode != self._view_mode
         self._view_mode = mode
         if self.is_ready and self.host is not None and self._placement is not None:
-            applied = self.host.set_display_mode(mode)
-            if changed and applied:
-                self.fit_view()
+            self.host.set_display_mode(mode)
 
     def set_grid_visible(self, visible: bool) -> None:
         self._grid_visible = bool(visible)
@@ -1173,11 +1179,19 @@ class ItemPreviewFrame(QWidget):
                 return
         previous = self._package_dir
         previous_stage = self._loaded_stage
-        # A new scene needs its own framing even if geometry was skipped or failed.
-        # Later material tiers for that same scene keep the user's camera.
+        # The panel identifies the selected template independently of geometry:
+        # body visibility, variants, imports and materials retain the live view.
         source = self._pending[1] if self._pending is not None and self._pending[0] == token else None
         geometry_token = self._source_geometry_token(token, source)
-        reset_view = previous is None or self._loaded_geometry_token != geometry_token
+        framing_key = self._pending_framing_key
+        if framing_key is _UNSET:
+            framing_key = geometry_token
+        reset_view = previous is None or self._loaded_framing_key != framing_key
+        if self._loaded_geometry_token != geometry_token:
+            # Package-owned matrices/pivots must change even when the camera stays.
+            forget = getattr(self.host.controller, "forget_state", None)
+            if callable(forget):
+                forget("scene")
         if self.host.load_package(result, reset_view=reset_view):
             self._last_pushed_placement = None
             self._package_dir = result
@@ -1186,6 +1200,7 @@ class ItemPreviewFrame(QWidget):
             self._loaded = True
             self._loaded_token = token
             self._loaded_geometry_token = geometry_token
+            self._loaded_framing_key = framing_key
             self._loaded_is_placement = bool(is_placement)
             self._loaded_stage = stage
             self._full_texture_upgrade_from_fast = stage == "materials" and previous_stage == "fast_materials"

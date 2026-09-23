@@ -507,6 +507,41 @@ def test_stale_or_finished_package_progress_cannot_suspend_a_new_load(tmp_path: 
     controller.shutdown()
 
 
+@pytest.mark.parametrize("reset_view", [False, True])
+def test_resident_preview_load_never_replays_an_old_camera(tmp_path: Path, reset_view: bool) -> None:
+    controller, process, _first = _start_controller(tmp_path)
+    controller._test_handshake_capabilities = ("semantic_framing_v1",)
+    host = DotNetPreviewHostFrame(profile="preview", controller=controller)
+    _make_ready(controller)
+    controller.set_visible(True)
+    try:
+        host.set_view(yaw=12, pitch=25, zoom_factor=1.4, fit_to_view=True)
+        assert host.load_package(_package(tmp_path, "next").package_dir, reset_view=reset_view)
+        request = next(row for row in reversed(process.writes) if row.get("event") == "package_load_request")
+        # An explicit view, followed by a renderer gesture during the load. The
+        # host's restart payload still contains the earlier explicit camera.
+        host.set_view(yaw=20, pitch=30, zoom_factor=1.6, fit_to_view=True)
+        host._handle_view_state_payload({
+            "active_camera_context": "editable",
+            "view_contexts": [{"id": "editable", "camera": {
+                "yaw_degrees": 41, "pitch_degrees": 16, "roll_degrees": 5,
+                "fit_relative_zoom": 2.2, "pan": [0.7, -0.2], "fit_mode": "manual",
+            }}],
+        })
+        host.set_grid_visible(False)
+        latest_view = host.view_state_snapshot()
+        process.writes.clear()
+        controller._handle_protocol_event({**request, "event": "package_load_applied"}, controller.process_generation)
+        presentation = [row for row in process.writes if row.get("event") == "presentation_state_update"]
+        assert presentation and all("camera" not in row for row in presentation)
+        assert presentation[-1]["display"]["grid_visible"] is False
+        assert host.view_state_snapshot() == latest_view
+        assert "camera" in controller._resident_state["presentation"][1], "restart state is retained"
+    finally:
+        controller.shutdown()
+        host.deleteLater()
+
+
 def test_latest_package_generation_rejects_stale_apply(tmp_path: Path) -> None:
     controller, process, first = _start_controller(tmp_path)
     assert controller.process_id == 4242

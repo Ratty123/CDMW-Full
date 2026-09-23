@@ -43,6 +43,7 @@ __all__ = [
     "EffectPlacementPreview",
     "anchor_mesh",
     "build_effect_placement_package",
+    "effect_start_position",
     "framing_bounds_for",
     "mesh_names_textures",
     "next_scale",
@@ -472,6 +473,12 @@ def framing_bounds_for(
     )
 
 
+def effect_start_position(low: Vec3, high: Vec3) -> Vec3:
+    """Start beside the item and body, with a small gap in the scene's metres."""
+    gap = max(0.25, max(high[axis] - low[axis] for axis in range(3)) * 0.15)
+    return high[0] + gap, (low[1] + high[1]) * 0.5, (low[2] + high[2]) * 0.5
+
+
 @dataclass(frozen=True, slots=True)
 class EffectPlacementPreview:
     """A built package: where it is, which submesh is the anchor, which is the reach cage,
@@ -497,6 +504,8 @@ class EffectPlacementPreview:
     #: the 3x3 the item was turned by to join the character, or None when the scene is the
     #: item's own frame; an offset in the item's frame reaches the scene through it
     item_rotation: Optional[Tuple[float, ...]] = None
+    #: Suggested first placement in item coordinates, beside the complete subject.
+    default_offset: Optional[Vec3] = None
 
     @property
     def solid_helper_submesh_indices(self) -> Tuple[int, ...]:
@@ -754,6 +763,11 @@ def build_effect_placement_package(
         include_body=include_body,
         body_mesh=character_mesh if include_body else None,
     )
+    default_offset = effect_start_position(frame_low, frame_high)
+    if rotation is not None:
+        from cdmw.services.effect_character_reference import unrotate_point
+
+        default_offset = unrotate_point(default_offset, rotation)
     from cdmw.services.mesh_rust_preview_package import semantic_initial_view
 
     package = build_rust_preview_package(
@@ -777,6 +791,7 @@ def build_effect_placement_package(
         body_submesh_index=body_index,
         body_submesh_count=body_count,
         item_rotation=rotation,
+        default_offset=default_offset,
         package_dir=Path(package.package_dir),
         box_submesh_index=0,
         item_submesh_count=len(item_mesh.submeshes),

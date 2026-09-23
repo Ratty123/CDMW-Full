@@ -141,7 +141,7 @@ def test_variant_plan_holds_all_sources_until_worker_exit(tmp_path):
     assert all(not source.model_path.exists() for source in sources)
 
 
-def test_variant_selector_restores_camera_only_for_matching_ready_package(tmp_path):
+def test_variant_selector_keeps_the_live_camera_across_variant_switches(tmp_path):
     from PySide6.QtCore import QObject, Signal
     from PySide6.QtWidgets import QWidget,QCheckBox
     from unittest.mock import Mock
@@ -167,7 +167,7 @@ def test_variant_selector_restores_camera_only_for_matching_ready_package(tmp_pa
     assert selector.choice.currentData()==first
     second_index=next(i for i in range(selector.choice.count()) if selector.choice.itemData(i)==second)
     selector.choice.setCurrentIndex(second_index)
-    assert controller._variant_states[first].camera=={"yaw":17}
+    panel.preview.host.view_state_snapshot.assert_not_called()
     first_index=next(i for i in range(selector.choice.count()) if selector.choice.itemData(i)==first)
     selector.choice.setCurrentIndex(first_index)
     panel._preview_mesh_token="current"
@@ -176,5 +176,5 @@ def test_variant_selector_restores_camera_only_for_matching_ready_package(tmp_pa
     panel.preview.host.restore_view_state.assert_not_called()
     panel.preview._loaded_token="current"
     panel.preview.ready.emit()
-    panel.preview.host.restore_view_state.assert_called_once_with({"yaw":17})
+    panel.preview.host.restore_view_state.assert_not_called()
     controller.shutdown()
