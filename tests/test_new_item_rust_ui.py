@@ -102,6 +102,39 @@ def test_underlying_parts_controls_reach_draft_through_rust_bridge(studio):
     assert not tab.controller.current_spec().body_visibility.wanted
 
 
+@pytest.mark.parametrize("effect", ["glow", "translucency"])
+def test_checkable_material_sections_toggle_through_rust_bridge(studio, effect):
+    _, tab, bridge = studio
+    tab.show_step(2)
+    panel = tab.model_panel
+    _send(bridge, panel.inspector_tabs, "tab", 1)
+    with patch.object(tab.controller, "material_parts", return_value=(("Blade", "Blade edge"),)):
+        panel.refresh_glow_parts()
+        group, parts = ((panel.glow_box, panel.glow_parts) if effect == "glow"
+                        else (panel.translucency_editor, panel.translucency_editor.parts))
+        clicked, toggled = [], []
+        no_argument_click = Mock()
+        group.clicked.connect(no_argument_click)
+        group.clicked[bool].connect(clicked.append)
+        group.toggled.connect(toggled.append)
+        before = tab.controller._draft_revision
+
+        assert _send(bridge, group, "toggle", True)["type"] == "ack"
+        assert group.isChecked()
+        assert parts.isVisibleTo(tab) and parts.isEnabled()
+        _send(bridge, parts, "check_cell", {"path": [0], "column": 0, "check": 2})
+        draft = tab.controller.draft
+        assert (draft.glow_parts if effect == "glow" else draft.translucency.parts) == ("Blade",)
+        assert tab.controller._draft_revision > before
+
+        assert _send(bridge, group, "toggle", False)["type"] == "ack"
+        assert not group.isChecked()
+        assert not parts.isVisibleTo(tab)
+        assert (draft.glow_parts if effect == "glow" else draft.translucency) == (() if effect == "glow" else None)
+        assert clicked == toggled == [True, False]
+        assert no_argument_click.call_count == 2
+
+
 def test_overlay_folder_projects_numeric_typing_and_preserves_auto(studio):
     _, tab, bridge = studio
     tab.show_step(6)

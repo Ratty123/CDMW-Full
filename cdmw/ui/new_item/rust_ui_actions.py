@@ -53,7 +53,8 @@ def apply_action(document, widget, node, action, value):
             return
         if isinstance(widget, QGroupBox) and widget.isCheckable():
             widget.setChecked(checked)
-            widget.clicked.emit(checked)
+            # PySide defaults QGroupBox.clicked to the zero-argument overload.
+            widget.clicked[bool].emit(checked)
             return
     elif action == "text":
         _set_text(widget, value)
