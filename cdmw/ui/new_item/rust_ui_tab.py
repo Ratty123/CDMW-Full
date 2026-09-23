@@ -395,8 +395,8 @@ class RustNewItemStudioTab(QWidget):
         workers = list(self.workflow.iter_shutdown_workers())
         if self._prepare_thread is not None:
             workers.append(("new_item_rust_prepare", self._prepare_thread, self._prepare_worker))
-        if self._process is not None and self._process.state() != QProcess.NotRunning:
-            workers.append(("new_item_rust_process", self._process, self))
+        # The shell discovers our parented QProcess separately. Its worker
+        # entries must support QThread.wait(0), which QProcess does not.
         return tuple(workers)
 
     def request_shutdown(self):

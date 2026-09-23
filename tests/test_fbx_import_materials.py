@@ -3,6 +3,7 @@
 import hashlib
 import json
 import struct
+import threading
 import zipfile
 from pathlib import Path
 from types import SimpleNamespace
@@ -69,14 +70,17 @@ def _import_source(tmp_path, monkeypatch, *, fbx=True, declared=(), metallic=Tru
                 package.writestr(f"textures/{name}", valid_image_bytes())
         before = hashlib.sha256(archive.read_bytes()).digest()
 
-        def convert(source, blender, *, output_dir, on_log):
+        cancellation = threading.Event()
+
+        def convert(source, blender, *, output_dir, on_log, stop_event):
+            assert stop_event is cancellation
             assert source.read_bytes() == b"FBX conversion fixture"
             path = output_dir / "sword.glb"
             path.write_bytes(payload)
             return SimpleNamespace(glb=path)
 
         monkeypatch.setattr("cdmw.ui.new_item.model_import.convert_fbx_to_glb", convert)
-        result = load_model_import_source(archive, extract_root=output)
+        result = load_model_import_source(archive, extract_root=output, stop_event=cancellation)
         assert hashlib.sha256(archive.read_bytes()).digest() == before
         return result
     textures = tmp_path / "textures"

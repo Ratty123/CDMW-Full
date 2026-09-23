@@ -24,6 +24,7 @@ from cdmw.domain.archives.overlay_merge import (
     OverlayConflict, legacy_texture_baseline, merge_overlay_files, owned_item_references,
 )
 from cdmw.domain.cancellation import raise_if_cancelled
+from cdmw.services.application_shutdown_service import archive_write_scope
 from cdmw.services.archive_overlay_install import (
     OVERLAY_OWNER_BYTES, OVERLAY_OWNER_MARKER, OverlayInstallResult,
     is_cdmw_overlay_directory, overlay_baseline_files, overlay_directory_name, _processed_payload,
@@ -479,6 +480,7 @@ def prepare_overlay_retirement(package_root, *, stop_event=None):
         inventory, mount, uuid.uuid4().hex)
 
 
+@archive_write_scope()
 def apply_overlay_retirement(preparation, *, confirmed, backup, restore_backup,
                              game_running=None, stop_event=None, on_log=None):
     if not confirmed:
@@ -696,6 +698,7 @@ def _verify_backup(backup_dir, expected):
         raise ValueError('The overlay backup did not preserve every confirmed original file.')
 
 
+@archive_write_scope()
 def apply_overlay_change(preparation, *, confirmed, backup, restore_backup, game_running=None, stop_event=None, on_log=None):
     if not isinstance(preparation, OverlayChangePreparation):
         raise TypeError('Overlay changes require a prepared change.')

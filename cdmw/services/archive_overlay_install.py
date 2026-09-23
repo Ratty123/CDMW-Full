@@ -33,6 +33,7 @@ from cdmw.core.archive_overlay import OverlayFile, build_overlay_archive
 from cdmw.core.papgt_format import PAPGT_DEFAULT_FLAGS, papgt_with_directory, parse_papgt
 from cdmw.domain.archives.mutation import ArchiveAddRequest, ArchivePatchRequest
 from cdmw.domain.cancellation import raise_if_cancelled
+from cdmw.services.application_shutdown_service import archive_write_scope
 
 __all__ = [
     "OVERLAY_DIRECTORY_FIRST",
@@ -268,6 +269,7 @@ def _validate_staged_overlay(preparation: OverlayInstallPreparation) -> None:
         raise RuntimeError("Staged overlay index references bytes outside its payload")
 
 
+@archive_write_scope()
 def apply_overlay_install(
     preparation: OverlayInstallPreparation,
     *,
@@ -373,6 +375,7 @@ def apply_overlay_install(
     )
 
 
+@archive_write_scope()
 def restore_last_overlay_install(
     receipt_path: Path | str,
     *,

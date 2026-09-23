@@ -21,9 +21,12 @@ import os
 import subprocess
 import sys
 import tempfile
+import threading
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Optional, Sequence, Tuple
+
+from cdmw.core.common import ProcessTimeoutExpired, raise_if_cancelled, run_process_with_cancellation
 
 if TYPE_CHECKING:
     from cdmw.models import ModelPreviewData
@@ -286,6 +289,7 @@ def convert_fbx_to_glb(
     on_log: Optional[Callable[[str], None]] = None,
     timeout_seconds: int = _TIMEOUT_SECONDS,
     run: Optional[Callable[[Sequence[str]], object]] = None,
+    stop_event: Optional[threading.Event] = None,
 ) -> BlenderConversion:
     """`source` (an `.fbx`) as a GLB written beside it, through `blender`.
 
@@ -294,6 +298,7 @@ def convert_fbx_to_glb(
     import failed" is not something a reader can act on.
     """
 
+    raise_if_cancelled(stop_event)
     path = Path(source)
     executable = Path(str(blender or ""))
     if not is_blender_executable(executable):
@@ -320,14 +325,15 @@ def convert_fbx_to_glb(
             finished = run(command)
         else:
             try:
-                finished = subprocess.run(
-                    command, capture_output=True, text=True, timeout=max(10, int(timeout_seconds)),
-                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                code, stdout, stderr = run_process_with_cancellation(
+                    command, stop_event=stop_event, timeout_seconds=max(10, int(timeout_seconds)),
                 )
-            except subprocess.TimeoutExpired as exc:
+                finished = subprocess.CompletedProcess(command, code, stdout, stderr)
+            except ProcessTimeoutExpired as exc:
                 raise RuntimeError(f"Blender did not finish converting {path.name} within {timeout_seconds}s.") from exc
             except OSError as exc:
                 raise RuntimeError(f"Blender could not be run: {exc}") from exc
+        raise_if_cancelled(stop_event)
         code = int(getattr(finished, "returncode", 1) or 0)
         out = str(getattr(finished, "stdout", "") or "")
         err = str(getattr(finished, "stderr", "") or "")

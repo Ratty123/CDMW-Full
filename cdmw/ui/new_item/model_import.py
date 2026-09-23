@@ -1172,7 +1172,7 @@ def _fbx_converted_to_glb(
     else:
         return None
     raise_if_cancelled(stop_event)
-    return convert_fbx_to_glb(source, blender, output_dir=root, on_log=on_log).glb
+    return convert_fbx_to_glb(source, blender, output_dir=root, on_log=on_log, stop_event=stop_event).glb
 
 
 def _file_fingerprint(path: Path, stop_event: Optional[threading.Event]) -> str:

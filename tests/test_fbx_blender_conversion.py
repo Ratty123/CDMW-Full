@@ -15,9 +15,11 @@ from __future__ import annotations
 
 import sys
 import tempfile
+import threading
 import unittest
 from dataclasses import dataclass
 from pathlib import Path
+from unittest.mock import patch
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
@@ -58,6 +60,44 @@ class ConversionTests(unittest.TestCase):
 
         self.commands: list = []
         return run
+
+    def test_conversion_forwards_cancellation_to_owned_process_runner(self) -> None:
+        from cdmw.models import RunCancelled
+
+        stop = threading.Event()
+        with patch("cdmw.services.fbx_blender_conversion.run_process_with_cancellation",
+                   side_effect=RunCancelled("Processing stopped by user.")) as run:
+            with self.assertRaises(RunCancelled):
+                convert_fbx_to_glb(self.fbx, self.blender, output_dir=self.folder, stop_event=stop)
+        self.assertIs(run.call_args.kwargs["stop_event"], stop)
+        self.assertEqual(run.call_args.kwargs["timeout_seconds"], 180)
+
+    def test_cancelled_import_never_launches_blender(self) -> None:
+        from cdmw.models import RunCancelled
+
+        stop = threading.Event()
+        stop.set()
+        with patch("cdmw.services.fbx_blender_conversion.run_process_with_cancellation") as run:
+            with self.assertRaises(RunCancelled):
+                convert_fbx_to_glb(self.fbx, self.blender, stop_event=stop)
+        run.assert_not_called()
+
+    def test_owned_process_runner_preserves_success_output(self) -> None:
+        (self.folder / "MagicSword.glb").write_bytes(b"glTF" + bytes(64))
+        output = 'CDMW_FBX_RESULT {"objects": 1, "vertices": 42, "materials": ["Steel"], "images": []}'
+        with patch("cdmw.services.fbx_blender_conversion.run_process_with_cancellation",
+                   return_value=(0, output, "")):
+            result = convert_fbx_to_glb(self.fbx, self.blender, output_dir=self.folder)
+        self.assertEqual(result.vertices, 42)
+        self.assertEqual(result.materials, ("Steel",))
+
+    def test_owned_process_timeout_keeps_the_blender_error_specific(self) -> None:
+        from cdmw.core.common import ProcessTimeoutExpired
+
+        with patch("cdmw.services.fbx_blender_conversion.run_process_with_cancellation",
+                   side_effect=ProcessTimeoutExpired([str(self.blender)], 180)):
+            with self.assertRaisesRegex(RuntimeError, "Blender did not finish converting MagicSword.fbx within 180s"):
+                convert_fbx_to_glb(self.fbx, self.blender, output_dir=self.folder)
 
     def test_no_blender_is_refused_by_name_rather_than_attempted(self) -> None:
         with self.assertRaises(BlenderNotConfigured) as caught:

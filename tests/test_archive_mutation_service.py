@@ -8,10 +8,50 @@ from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from cdmw.core import archive_patching
 from cdmw.models import RunCancelled
 from cdmw.services.archive_mutation_service import ArchiveMutationService, ArchivePatchRequest
 from tests.test_archive_patch_preflight import _write_test_archive
+
+
+def test_shutdown_retains_archive_write_ownership_until_rollback_finishes(tmp_path, monkeypatch):
+    from cdmw.services import application_shutdown_service as shutdown
+
+    monkeypatch.setattr(shutdown, "_shutdown_started_at", None)
+    entry = _write_test_archive(tmp_path)
+    originals = {path: path.read_bytes() for path in (tmp_path / "meta" / "0.papgt", entry.pamt_path, entry.paz_file)}
+    service = ArchiveMutationService()
+    plan = service.prepare_patch(ArchivePatchRequest(entry, b"new-payload"), confirmed=True)
+    stop = threading.Event()
+    write = archive_patching._write_paz_payload
+    restore = archive_patching.restore_archive_patch_backup
+    restored = []
+
+    def write_then_close(request_entry, payload):
+        assert shutdown.archive_write_in_progress()
+        result = write(request_entry, payload)
+        shutdown._shutdown_started_at = 0.0
+        stop.set()
+        return result
+
+    def restore_during_close(backup, **kwargs):
+        assert shutdown.archive_write_in_progress()
+        restored.append(backup)
+        return restore(backup, **kwargs)
+
+    monkeypatch.setattr(archive_patching, "ARCHIVE_PATCH_BACKUP_ROOT", tmp_path / "backups")
+    monkeypatch.setattr(archive_patching, "_write_paz_payload", write_then_close)
+    monkeypatch.setattr(archive_patching, "restore_archive_patch_backup", restore_during_close)
+    with pytest.raises(RunCancelled, match="restoring the backup"):
+        service.apply_patch(plan, stop_event=stop)
+    assert restored
+    assert not shutdown.archive_write_in_progress()
+    assert {path: path.read_bytes() for path in originals} == originals
+    with pytest.raises(RunCancelled, match="CDMW is closing"):
+        service.apply_patch(plan)
+    assert {path: path.read_bytes() for path in originals} == originals
 
 
 class ArchiveMutationServiceTests(unittest.TestCase):

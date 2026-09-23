@@ -30,6 +30,7 @@ from cdmw.core.archive_format import parse_archive_pamt
 from cdmw.core.archive_overlay import OverlayFile, build_overlay_archive
 from cdmw.core.papgt_format import PapgtDirectory, papgt_with_directory, parse_papgt, serialize_papgt
 from cdmw.domain.cancellation import raise_if_cancelled
+from cdmw.services.application_shutdown_service import archive_write_scope
 from cdmw.services.archive_overlay_install import (
     OVERLAY_OWNER_BYTES,
     OVERLAY_OWNER_MARKER,
@@ -197,6 +198,7 @@ def plan_migration(
     )
 
 
+@archive_write_scope()
 def migrate_into_overlay(
     package_root: Path,
     *,
@@ -302,6 +304,7 @@ def migrate_into_overlay(
     )
 
 
+@archive_write_scope()
 def remove_overlay(
     package_root: Path,
     *,

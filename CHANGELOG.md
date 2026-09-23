@@ -47,6 +47,8 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Closing CDMW handles the prewarmed Rust New Item process correctly and has a 15-second final cutoff for stuck background work. Active archive writes and restores finish safely before that cutoff can take effect. Windows startup now stops with a specific error if helper-process cleanup cannot be guaranteed, and closing during an FBX import cancels its Blender process.
+
 - Create New Item (Rust) accepts typing in Name, Find and other text fields, finishes edits before changing pages, follows the application's font size and button colors, and highlights hovered controls without enlarging them.
 - Glow supports skin materials in Mesh Editor and Create New Item by baking their colour, normal and nonmetal surface maps into an Emissive material. Restore and Undo retain the original skin material. Unsupported-material errors identify the shader; translucency conflicts are reported only when translucency is actually involved.
 - Effects start at the item's center and keep the chosen position when switching effects, including after moving the gizmo to zero or browsing through No effect. Saved placements and recipe layer positions remain intact.

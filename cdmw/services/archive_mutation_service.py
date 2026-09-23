@@ -10,6 +10,7 @@ from cdmw.domain.archives.mutation import ArchiveAddRequest, ArchivePatchRequest
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.archives.safety import ArchiveMutationSafety, require_explicit_archive_mutation
 from cdmw.models import RunCancelled
+from cdmw.services.application_shutdown_service import archive_write_scope
 
 
 def _archive_patching():
@@ -99,6 +100,7 @@ class ArchiveMutationService:
         raise_if_cancelled(stop_event, "Archive patch cancelled after preflight.")
         return plan
 
+    @archive_write_scope()
     def create_backup(
         self,
         plan: ArchiveMutationPlan,
@@ -124,6 +126,7 @@ class ArchiveMutationService:
             on_log=on_log,
         )
 
+    @archive_write_scope()
     def backup_files(
         self,
         paths: Iterable[Path],
@@ -143,6 +146,7 @@ class ArchiveMutationService:
             raise ValueError("A backup needs at least one file.")
         return _archive_patching()._create_backup(targets, description=str(description or "Archive backup"), on_log=on_log)
 
+    @archive_write_scope()
     def apply_patch(
         self,
         plan: ArchiveMutationPlan,
@@ -188,6 +192,7 @@ class ArchiveMutationService:
     def list_backups(self, *, limit: Optional[int] = None) -> list[Path]:
         return _archive_patching().list_archive_patch_backups(limit=limit)
 
+    @archive_write_scope()
     def restore_backup(
         self,
         backup: Path | str,

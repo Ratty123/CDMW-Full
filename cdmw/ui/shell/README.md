@@ -35,6 +35,17 @@ offers retry, cancel, or a legacy scan for the current process only. Explicit
 session fallback cancels tracked requests, restores the legacy tree model, and
 requests nonblocking worker shutdown without persisting a setting.
 
+Shell close tracks `QThread` workers and parented `QProcess` helpers separately.
+Windows startup requires a kill-on-close job before launching helpers. Closing
+requests cooperative cancellation, stops remaining owned process trees after
+eight seconds, and arms a separate 15-second process-exit watchdog. The watchdog
+also covers interpreter teardown and is never rearmed by repeated close requests.
+Archive patch, overlay, backup and restore transactions retain a shutdown barrier
+through commit or rollback; new transactions are refused once closing starts.
+The shell remains visible with a closing status while that barrier is held, then
+closes normally or reaches the final cutoff. The game is explicitly allowed to
+outlive CDMW. See `docs/runbooks/worker-lifecycle.md` for the ownership contract.
+
 Keep this package focused on application frame behavior. Feature tabs belong in
 `cdmw/ui/<feature>/`; business coordination belongs in `cdmw/services/`; slow
 work belongs in `cdmw/workers/`. `MainWindow` uses the shell-owned `WorkbenchWindow`;

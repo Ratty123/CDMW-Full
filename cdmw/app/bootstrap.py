@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import os
 import traceback
 from typing import Optional, Sequence
 
@@ -19,7 +20,8 @@ from cdmw.app.startup_splash import (
     update_pyinstaller_boot_splash,
 )
 from cdmw.services.orphan_helper_reaper import reap_orphaned_helper_processes
-from cdmw.services.process_job_service import bind_process_tree_to_app_lifetime
+from cdmw.services.application_shutdown_service import begin_application_shutdown
+from cdmw.services.process_job_service import app_lifetime_job_failure, bind_process_tree_to_app_lifetime
 
 
 def _reap_stranded_helpers() -> None:
@@ -59,7 +61,19 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     # Before anything can spawn a helper. The helper modes above return early
     # on purpose: they are already children of a bound app process, and their
     # own job would only nest pointlessly.
-    bind_process_tree_to_app_lifetime()
+    contained = bind_process_tree_to_app_lifetime()
+    if os.name == "nt" and not contained:
+        detail = (
+            "CDMW could not enable automatic cleanup of its helper processes. "
+            "Startup stopped before launching any helpers.\n"
+            + (app_lifetime_job_failure() or "Windows did not accept the application job object.")
+        )
+        write_bootstrap_report("process_containment_failed", "CDMW startup stopped", detail)
+        if gui_startup_smoke_requested():
+            write_gui_startup_smoke_result(ok=False, stage="process_containment", detail=detail)
+            update_pyinstaller_boot_splash("Could not enable helper process cleanup.")
+            return 3
+        raise RuntimeError(detail)
     # Synchronous, and before the archive cache is touched: a stranded worker
     # holds a mapped cache file this session would otherwise fail to replace.
     _reap_stranded_helpers()
@@ -109,6 +123,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         )
         raise
     finally:
+        # Also bound interpreter teardown when the event loop exits without a
+        # window close event, or the workflow raises with Python workers alive.
+        begin_application_shutdown()
         if run_gui_mode:
             close_external_startup_splash()
             release_single_instance_guard()

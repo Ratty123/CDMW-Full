@@ -31,6 +31,7 @@ _JOB_OBJECT_EXTENDED_LIMIT_INFORMATION = 9
 # helpers down mid-session.
 _app_job_handle: int = 0
 _app_job_bound: bool | None = None
+_app_job_failure = ""
 
 
 def _extended_limit_information_type():
@@ -77,11 +78,11 @@ def bind_process_tree_to_app_lifetime() -> bool:
     """Join a kill-on-close job so no owned child can outlive this process.
 
     Idempotent, and a no-op off Windows. Returns whether the binding is in
-    effect; a false return means helpers fall back to the graceful close path
-    alone, which is why this is best effort rather than fatal.
+    effect. Windows bootstrap must stop before launching helpers on failure;
+    ``app_lifetime_job_failure`` retains the failing Windows operation.
     """
 
-    global _app_job_handle, _app_job_bound
+    global _app_job_handle, _app_job_bound, _app_job_failure
 
     if _app_job_bound is not None:
         return _app_job_bound
@@ -92,6 +93,8 @@ def bind_process_tree_to_app_lifetime() -> bool:
     import ctypes
     from ctypes import wintypes
 
+    handle = None
+    close_handle = None
     try:
         kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
         create_job_object = kernel32.CreateJobObjectW
@@ -119,8 +122,7 @@ def bind_process_tree_to_app_lifetime() -> bool:
         # cannot hold the job open past this process's death.
         handle = create_job_object(None, None)
         if not handle:
-            _app_job_bound = False
-            return False
+            raise OSError(f"CreateJobObjectW: {ctypes.WinError(ctypes.get_last_error())}")
 
         information = _extended_limit_information_type()()
         information.BasicLimitInformation.LimitFlags = (
@@ -132,23 +134,23 @@ def bind_process_tree_to_app_lifetime() -> bool:
             ctypes.byref(information),
             ctypes.sizeof(information),
         ):
-            close_handle(handle)
-            _app_job_bound = False
-            return False
+            raise OSError(f"SetInformationJobObject: {ctypes.WinError(ctypes.get_last_error())}")
 
         # Nested jobs are supported from Windows 8 on, so an outer job (a CI
         # runner, a debugger, a terminal that sandboxes its children) does not
-        # block this. Where it does fail, the graceful close path still runs.
+        # block this. If Windows does refuse it, bootstrap must not proceed.
         if not assign_process_to_job_object(handle, get_current_process()):
+            raise OSError(f"AssignProcessToJobObject: {ctypes.WinError(ctypes.get_last_error())}")
+    except (AttributeError, OSError, ValueError) as exc:
+        if handle and close_handle is not None:
             close_handle(handle)
-            _app_job_bound = False
-            return False
-    except (AttributeError, OSError, ValueError):
+        _app_job_failure = str(exc)
         _app_job_bound = False
         return False
 
     _app_job_handle = int(handle)
     _app_job_bound = True
+    _app_job_failure = ""
     return True
 
 
@@ -156,6 +158,12 @@ def app_lifetime_job_is_bound() -> bool:
     """Whether owned children are currently tied to this process's lifetime."""
 
     return bool(_app_job_bound)
+
+
+def app_lifetime_job_failure() -> str:
+    """Retained Windows error explaining why helper containment failed."""
+
+    return _app_job_failure
 
 
 def breakaway_creation_flags() -> int:
@@ -179,6 +187,7 @@ __all__ = [
     "JOB_OBJECT_LIMIT_BREAKAWAY_OK",
     "JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE",
     "app_lifetime_job_is_bound",
+    "app_lifetime_job_failure",
     "bind_process_tree_to_app_lifetime",
     "breakaway_creation_flags",
 ]

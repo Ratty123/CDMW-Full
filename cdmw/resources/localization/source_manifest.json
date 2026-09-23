@@ -11367,6 +11367,16 @@
       ]
     },
     {
+      "key": "Archive write cancelled because CDMW is closing.",
+      "origins": [
+        {
+          "path": "cdmw/services/application_shutdown_service.py",
+          "line": 33,
+          "sink": "RunCancelled"
+        }
+      ]
+    },
+    {
       "key": "Archive {value_0} is not owned by CDMW.",
       "origins": [
         {
@@ -16848,6 +16858,16 @@
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
           "line": 849,
           "sink": "show_result"
+        }
+      ]
+    },
+    {
+      "key": "CDMW could not enable automatic cleanup of its helper processes. Startup stopped before launching any helpers.\n",
+      "origins": [
+        {
+          "path": "cdmw/app/bootstrap.py",
+          "line": 76,
+          "sink": "RuntimeError"
         }
       ]
     },
@@ -26253,6 +26273,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_preview_part_02.py",
           "line": 312,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Could not enable helper process cleanup.",
+      "origins": [
+        {
+          "path": "cdmw/app/bootstrap.py",
+          "line": 74,
+          "sink": "update_pyinstaller_boot_splash"
         }
       ]
     },
@@ -40288,6 +40318,16 @@
           "path": "cdmw/ui/texture_workflow/workers.py",
           "line": 537,
           "sink": "append_log"
+        }
+      ]
+    },
+    {
+      "key": "Finishing archive writes or recovery before closing...",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/close_controller.py",
+          "line": 371,
+          "sink": "set_status_message"
         }
       ]
     },

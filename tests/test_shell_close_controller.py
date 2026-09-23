@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import threading
 import os
+import sys
+import time
+from types import MethodType, SimpleNamespace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QObject, QThread, QTimer
+from PySide6.QtCore import QObject, QProcess, QThread, QTimer
 from PySide6.QtWidgets import QApplication, QDialog, QMainWindow
+from shiboken6 import isValid
 
 from cdmw.ui.shell import close_controller as close_controller_module
 from cdmw.ui.shell.close_controller import CloseControllerMixin
@@ -274,5 +278,71 @@ def test_deferred_close_quits_application_after_hidden_window_is_finalized() -> 
     fallback_exit.stop()
 
     assert exit_code == 0
+    assert window._close_finalized
+    assert not window.isVisible()
+
+
+def test_prewarmed_rust_new_item_process_uses_shell_process_tracking() -> None:
+    from cdmw.ui.new_item.rust_ui_tab import RustNewItemStudioTab
+    from cdmw.ui.mesh_editor.process_io import stop_qprocess_async
+    from cdmw.ui.shell.close_controller import iter_tab_shutdown_workers
+
+    app = QApplication.instance() or QApplication([])
+    window = _ShutdownCoordinatorWindow()
+    process = QProcess(window)
+    process.setObjectName("new_item_rust_process")
+    tab = SimpleNamespace(
+        workflow=SimpleNamespace(iter_shutdown_workers=lambda: ()),
+        _prepare_thread=None, _process=process,
+    )
+    tab.iter_shutdown_workers = MethodType(RustNewItemStudioTab.iter_shutdown_workers, tab)
+    window.new_item_rust_studio_tab = tab
+    window._tracked_worker_threads = lambda: list(iter_tab_shutdown_workers(window))
+    window._running_worker_thread_entries = MethodType(CloseControllerMixin._running_worker_thread_entries, window)
+    window._running_owned_process_entries = MethodType(CloseControllerMixin._running_owned_process_entries, window)
+    window._request_tracked_workers_to_stop = lambda: stop_qprocess_async(process, grace_ms=1)
+    window.archive_backend_client.shutdown = lambda: setattr(window.archive_backend_client.state, "value", "stopped")
+    process.start(sys._base_executable, ["-c", "import time; time.sleep(60)"])
+    try:
+        assert process.waitForStarted(5000)
+        assert window._running_worker_thread_entries() == []
+        assert window._running_owned_process_entries() == [("new_item_rust_process", process)]
+        window.show()
+        window.close()
+        assert window._close_after_workers_requested
+        deadline = time.monotonic() + 5
+        while not window._close_finalized and time.monotonic() < deadline:
+            app.processEvents()
+            window._finish_deferred_close_if_workers_stopped()
+            time.sleep(0.005)
+        assert window._close_finalized
+        assert not isValid(process) or process.state() == QProcess.NotRunning
+    finally:
+        if isValid(process) and process.state() != QProcess.NotRunning:
+            process.kill()
+            process.waitForFinished(5000)
+        window.archive_backend_client.state.value = "stopped"
+        window._close_force_accept = True
+        window.close()
+
+
+def test_active_archive_transaction_keeps_closing_window_visible(monkeypatch) -> None:
+    from cdmw.services.application_shutdown_service import archive_write_scope
+
+    app = QApplication.instance() or QApplication([])
+    window = _ShutdownCoordinatorWindow()
+    window.archive_backend_client.shutdown = lambda: setattr(window.archive_backend_client.state, "value", "stopped")
+    monkeypatch.setattr(close_controller_module, "begin_application_shutdown", lambda: None)
+    window.show()
+    with archive_write_scope():
+        window.close()
+        window._close_pending_started_at = time.monotonic() - 600
+        window._finish_deferred_close_if_workers_stopped()
+        assert window.isVisible()
+        assert not window._close_finalized
+        assert not window._close_force_stop_requested
+        assert "archive writes or recovery" in window.status_messages[-1]
+    window._finish_deferred_close_if_workers_stopped()
+    app.processEvents()
     assert window._close_finalized
     assert not window.isVisible()

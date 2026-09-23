@@ -9,6 +9,7 @@ from PySide6.QtCore import QProcess, Qt, QThread, QTimer
 from PySide6.QtWidgets import QApplication, QMainWindow
 
 from cdmw.services.process_control_service import force_stop_windows_process_tree
+from cdmw.services.application_shutdown_service import archive_write_in_progress, begin_application_shutdown
 from cdmw.ui.widgets import flush_pending_tree_column_saves
 
 
@@ -366,6 +367,10 @@ class CloseControllerMixin:
     def _finish_deferred_close_if_workers_stopped(self) -> None:
         if not self._close_after_workers_requested:
             return
+        if archive_write_in_progress():
+            self.set_status_message("Finishing archive writes or recovery before closing...")
+            return
+        self.hide()
         running_entries = self._running_worker_thread_entries()
         running_processes = self._running_owned_process_entries()
         backend_ready = self._archive_backend_shutdown_complete()
@@ -443,7 +448,8 @@ class CloseControllerMixin:
             close_phase="begin_deferred",
             worker_count=len(initial_entries),
         )
-        self.hide()
+        if not archive_write_in_progress():
+            self.hide()
         tray_icon = getattr(self, "app_tray_icon", None)
         if tray_icon is not None:
             try:
@@ -585,6 +591,10 @@ class CloseControllerMixin:
                 pass
             self._finish_deferred_close_if_workers_stopped()
             return
+        # Arm before discovering workers or invoking feature shutdown hooks:
+        # either can be the source of a stalled close. Archive transactions
+        # retain their own safe completion barrier through the final deadline.
+        begin_application_shutdown()
         self._begin_deferred_close_for_workers(event, self._running_worker_thread_entries())
 
 
