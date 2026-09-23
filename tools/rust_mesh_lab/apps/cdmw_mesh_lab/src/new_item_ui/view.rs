@@ -1379,11 +1379,13 @@ impl PresentationView {
             .get(&node.id)
             .copied()
             .unwrap_or_else(|| ui.id().with("table-focus"));
-        let focused = ui.memory(|memory| {
-            memory.has_focus(focus_id)
-                || memory.had_focus_last_frame(focus_id)
-                    && !ui.input(|input| input.pointer.any_pressed())
+        let (focused, previously_focused) = ui.memory(|memory| {
+            (memory.has_focus(focus_id), memory.had_focus_last_frame(focus_id))
         });
+        // Both memory and input lock the same egui context. Release the memory
+        // read before input takes its write lock when a row loses focus.
+        let focused = focused
+            || previously_focused && !ui.input(|input| input.pointer.any_pressed());
         if focused {
             for (key, name) in [
                 (egui::Key::ArrowUp, "Up"),

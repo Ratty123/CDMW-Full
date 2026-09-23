@@ -29,6 +29,7 @@ _SWP_NOZORDER = 0x0004
 _SWP_NOACTIVATE = 0x0010
 _SWP_FRAMECHANGED = 0x0020
 _SWP_NOOWNERZORDER = 0x0200
+_SWP_ASYNCWINDOWPOS = 0x4000
 
 
 def _windows_api() -> object:
@@ -54,8 +55,8 @@ def _windows_api() -> object:
         wintypes.UINT,
     ]
     user32.SetWindowPos.restype = wintypes.BOOL
-    user32.ShowWindow.argtypes = [hwnd, ctypes.c_int]
-    user32.ShowWindow.restype = wintypes.BOOL
+    user32.ShowWindowAsync.argtypes = [hwnd, ctypes.c_int]
+    user32.ShowWindowAsync.restype = wintypes.BOOL
     user32.SetFocus.argtypes = [hwnd]
     user32.SetFocus.restype = hwnd
     user32.GetWindowLongPtrW.argtypes = [hwnd, ctypes.c_int]
@@ -270,7 +271,7 @@ class RustMeshEditorHostFrame(QFrame):
             height = max(0, int(rect.bottom - rect.top))
             if width <= 0 or height <= 0:
                 return
-            flags = _SWP_NOZORDER | _SWP_NOACTIVATE | _SWP_NOOWNERZORDER
+            flags = _SWP_NOZORDER | _SWP_NOACTIVATE | _SWP_NOOWNERZORDER | _SWP_ASYNCWINDOWPOS
             if force_frame_refresh:
                 flags |= _SWP_FRAMECHANGED
             user32.SetWindowPos(child, None, 0, 0, width, height, flags)
@@ -284,7 +285,9 @@ class RustMeshEditorHostFrame(QFrame):
             user32 = _windows_api()
             child = wintypes.HWND(self._child_hwnd)
             if user32.IsWindow(child):
-                user32.ShowWindow(child, _SW_SHOW if visible else _SW_HIDE)
+                # The renderer may have stopped pumping its window queue. A
+                # synchronous hide would block Qt before its kill timer runs.
+                user32.ShowWindowAsync(child, _SW_SHOW if visible else _SW_HIDE)
         except (AttributeError, OSError, TypeError, ValueError):
             return
 
@@ -354,7 +357,7 @@ class RustMeshEditorHostFrame(QFrame):
                 self._geometry_sync_timer.start(0)
         elif event_type == QEvent.Type.Hide:
             self._set_child_visible(False)
-        elif event_type == QEvent.Type.FocusIn and self._child_hwnd > 0:
+        elif event_type == QEvent.Type.FocusIn and self._editor_visible and self._child_hwnd > 0:
             try:
                 _windows_api().SetFocus(wintypes.HWND(self._child_hwnd))
             except (AttributeError, OSError, TypeError, ValueError):

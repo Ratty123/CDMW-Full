@@ -510,6 +510,34 @@ fn table_pointer_selection_and_keyboard_navigation_reach_the_original_view() {
 }
 
 #[test]
+fn template_selection_can_transfer_focus_to_search_without_deadlocking() {
+    let context = egui::Context::default();
+    let mut view = PresentationView::default();
+    let state = template_results_state(900, 0, false);
+    apply_theme(&context, &state.theme);
+    let size = egui::vec2(960.0, 720.0);
+    for _ in 0..3 { frame(&context, &mut view, &state, size, vec![]); }
+    let rect = view.rects.iter().find(|rect| rect.id == "matches").unwrap().rect;
+    let row = egui::pos2(rect[0] + 100.0, rect[1] + 40.0);
+    click(&context, &mut view, &state, row);
+    assert!(view.inputs.iter().any(|input| input.action == "select"));
+    frame(&context, &mut view, &state, size, vec![]);
+    let focus = view.table_focus["matches"];
+    assert!(context.memory(|memory| memory.has_focus(focus)));
+
+    // Pressing Find transfers focus before the table is drawn. Reading input
+    // inside the table's memory transaction used to deadlock this frame.
+    let rect = view.rects.iter().find(|rect| rect.id == "find").unwrap().rect;
+    click(&context, &mut view, &state, egui::pos2(rect[0] + 50.0, rect[1] + rect[3] / 2.0));
+    assert!(!context.memory(|memory| memory.has_focus(focus)));
+    frame(&context, &mut view, &state, size, vec![egui::Event::Text("Dragon".into())]);
+    assert!(view.inputs.iter().any(|input| input.control == "find"
+        && input.action == "text" && input.value == "Dragon"));
+    click(&context, &mut view, &state, row);
+    assert!(view.inputs.iter().any(|input| input.action == "select"));
+}
+
+#[test]
 fn column_drag_keeps_the_full_distance_on_release_and_after_row_updates() {
     let context = egui::Context::default();
     let mut view = PresentationView::default();

@@ -6,13 +6,14 @@ import json
 import os
 import sys
 from pathlib import Path
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 sys.path.insert(0, str(Path(__file__).parent))
 
 import pytest
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QEvent, QProcess, Qt, QTimer
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QListWidget, QMessageBox, QPushButton,
     QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
@@ -292,6 +293,67 @@ def test_prewarm_failure_is_retained_without_a_background_error_notification(stu
             assert not experimental._prewarming
             assert not experimental._timer.isActive()
         finally:
+            experimental.request_shutdown()
+            tab.setParent(None)
+            experimental.deleteLater()
+
+
+def test_stalled_renderer_recovers_without_waiting_on_its_window(studio):
+    from cdmw.ui.new_item.rust_ui_tab import RustNewItemStudioTab
+
+    _, tab, _ = studio
+    process = Mock(spec=QProcess)
+    process.state.return_value = QProcess.Running
+    process.bytesToWrite.return_value = 0
+    api = SimpleNamespace(
+        IsWindow=lambda _hwnd: True,
+        ShowWindow=Mock(side_effect=AssertionError("Synchronous hide waits on the stalled renderer")),
+        ShowWindowAsync=Mock(return_value=True),
+        SetFocus=Mock(side_effect=AssertionError("The error page must not focus the stalled child")),
+    )
+    with patch.object(RustNewItemStudioTab, "_start_prepare"), \
+            patch("cdmw.ui.mesh_editor.rust_host._windows_api", return_value=api):
+        experimental = RustNewItemStudioTab(workflow=tab)
+        try:
+            experimental.use_rust()
+            experimental._bridge = NewItemPresentationBridge(tab)
+            experimental._process = process
+            experimental._ready = True
+            experimental._host._child_hwnd = 123
+            experimental._sent_generation = 2
+            experimental._received_generation = 1
+            experimental._state_delivery = SimpleNamespace(isValid=lambda: True, elapsed=lambda: 10001)
+            draft = tab.controller.draft
+            experimental._timer.start()
+
+            experimental._publish_state()
+
+            api.ShowWindow.assert_not_called()
+            assert api.ShowWindowAsync.call_args.args[1] == 0
+            assert "stopped acknowledging" in experimental._host._status_label.text()
+            assert not experimental._ready
+            assert not experimental._timer.isActive()
+            assert experimental._stop_deadline.isActive()
+            assert decode_message(process.write.call_args.args[0])["type"] == "shutdown"
+            experimental._host.event(QEvent(QEvent.Type.FocusIn))
+            api.SetFocus.assert_not_called()
+            beats = []
+            QTimer.singleShot(0, lambda: beats.append(True))
+            QApplication.processEvents()
+            assert beats == [True]
+
+            experimental._stop_deadline.timeout.emit()
+            process.kill.assert_called_once()
+            process.state.return_value = QProcess.NotRunning
+            experimental._process_finished()
+            experimental.use_classic()
+            assert experimental.controller.draft is draft
+            assert experimental._pages.currentWidget() is experimental._classic_page
+            assert experimental._host.child_hwnd == 0
+            assert experimental._process is None
+        finally:
+            experimental._host._child_hwnd = 0
+            experimental._process = None
             experimental.request_shutdown()
             tab.setParent(None)
             experimental.deleteLater()

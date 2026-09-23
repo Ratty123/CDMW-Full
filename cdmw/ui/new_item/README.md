@@ -37,6 +37,9 @@ The embedded child takes keyboard focus on clicks and supplies its actual Win32
 focus state to egui. Field edits finish before navigation or dialog actions hide
 their controls. Font size and button colors come from the current application
 theme; hover changes color without expanding the controls.
+Selecting a template and then moving focus to Find or another control keeps the
+renderer responsive. If the renderer stops replying, its window is hidden
+asynchronously so CDMW can stop it and keep the same draft available in Classic.
 Buttons fit their labels and related actions stay together. Inspector lists fit
 their contents, the navigation footer stays compact, and expanding Quick turn or
 other inspector sections preserves the viewport size and splitter position.

@@ -52,10 +52,11 @@ class _FakeUser32:
         return True
 
     def SetWindowPos(self, _child: object, _after: object, _x: int, _y: int, width: int, height: int, flags: int) -> bool:  # noqa: N802
+        assert flags & 0x4000, "Resizing must not wait on the child window thread"
         self.positions.append((int(width), int(height), int(flags)))
         return True
 
-    def ShowWindow(self, _hwnd: object, state: int) -> bool:  # noqa: N802
+    def ShowWindowAsync(self, _hwnd: object, state: int) -> bool:  # noqa: N802
         self.visible.append(state)
         return True
 
