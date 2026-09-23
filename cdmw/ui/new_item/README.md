@@ -47,6 +47,9 @@ Rust lists and table headings align left. Headings use plain text with sorting
 indicators where supported, and draggable edges retain manually chosen widths.
 Content-sized columns reserve room for their headings and values; stretch columns
 take the remaining pane width without hiding the final price or parameter editor.
+Material checklists keep long names within their pane and show the full label on
+hover. Dropdown menus fit their option labels, including effect categories, up to
+the window width. Colour indicators remain inset inside their buttons.
 The navigation footer fits one control row, and the shell status strip has a 30 px
 minimum height that can grow for the active font. Model loading keeps its label,
 percentage bar and Cancel adjacent; percentages use reported work counts, while

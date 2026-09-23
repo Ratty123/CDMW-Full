@@ -51,6 +51,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Create New Item (Rust) keeps long material names from stretching Model & Placement checklists into horizontal scrolling, keeps colour indicators inside their buttons, and fits dropdown menus to their options so effect categories remain readable.
 - Rust Create New Item sizes table columns within their panes, keeping shop prices, effect categories and inherent bonus names readable without unnecessary horizontal scrolling. Available and selected perks share aligned list and action rows.
 - Create New Item (Rust) restores the effects library at a usable width, keeps playback controls together and emitter values aligned, and gives sockets and recipe tables their available workspace height. Tab navigation no longer fails when an unrelated preview label changes; input errors go to Activity. Installed overlay selection enables removal review reliably.
 - Create New Item gives Stats & Prices full-height, resizable table panes in Classic and Rust, keeping short lists visible and editable. Removed the Recipes shortcut from Stats & Prices; recipes remain under Distribution.

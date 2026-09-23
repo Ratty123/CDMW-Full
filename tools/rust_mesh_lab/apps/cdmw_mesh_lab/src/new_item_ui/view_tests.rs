@@ -740,6 +740,58 @@ fn content_columns_keep_effect_headings_and_values_readable() {
 }
 
 #[test]
+fn compact_choice_popup_fits_category_names_and_preserves_selection() {
+    for font in [14.0, 22.0] {
+        for width in [320.0, 960.0] {
+            let context = egui::Context::default();
+            let mut root = control("filters", "row", "", json!({}));
+            let options: Vec<_> = ["All", "Explosion", "Projectile", "Distortion", "Environment",
+                "Fire", "Smoke", "Dust", "Water", "Blood", "Debris", "Beam", "Decal",
+                "Portal", "Dark", "Wildlife", "Impact", "Other"].iter().enumerate()
+                .map(|(index, label)| json!({"index":index,"text":label})).collect();
+            root.children = vec![control("category", "choice", "", json!({"text":"All", "selected":0,"options":options})),
+                control("search", "text", "", json!({"grow_x":true}))];
+            let mut state = state(root);
+            state.theme["font_pixels"] = json!(font);
+            apply_theme(&context, &state.theme);
+            let mut view = PresentationView::default();
+            let size = egui::vec2(width, 720.0);
+            for _ in 0..4 { frame(&context, &mut view, &state, size, vec![]); }
+            let field = view.rects.iter().find(|rect| rect.id == "category").unwrap().rect;
+            let point = egui::pos2(field[0] + 20.0, field[1] + field[3] / 2.0);
+            for pressed in [true, false] {
+                frame(&context, &mut view, &state, size, vec![egui::Event::PointerMoved(point),
+                    egui::Event::PointerButton { pos:point, button:egui::PointerButton::Primary,
+                        pressed, modifiers:egui::Modifiers::NONE }]);
+            }
+            for _ in 0..4 { frame(&context, &mut view, &state, size, vec![]); }
+            let output = context.run_ui(egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+                ..Default::default()
+            }, |ui| view.draw(ui, &state));
+            let mut select = None;
+            for expected in ["Explosion", "Projectile", "Distortion", "Environment"] {
+                let (clip, text) = output.shapes.iter().find_map(|shape| match &shape.shape {
+                    egui::epaint::Shape::Text(text) if text.galley.job.text == expected => Some((shape.clip_rect, text)),
+                    _ => None,
+                }).unwrap_or_else(|| panic!("missing {expected}"));
+                assert!(!text.galley.elided, "{expected} is truncated at width={width}, font={font}");
+                assert!(text.pos.x + text.galley.size().x <= clip.right() + 1.0,
+                    "{expected} is clipped at width={width}, font={font}");
+                if expected == "Explosion" { select = Some(text.pos + text.galley.size() / 2.0); }
+            }
+            let point = select.unwrap();
+            for pressed in [true, false] {
+                frame(&context, &mut view, &state, size, vec![egui::Event::PointerMoved(point),
+                    egui::Event::PointerButton { pos:point, button:egui::PointerButton::Primary,
+                        pressed, modifiers:egui::Modifiers::NONE }]);
+            }
+            assert!(view.inputs.iter().any(|input| input.control == "category" && input.action == "choose" && input.value == 1));
+        }
+    }
+}
+
+#[test]
 fn editable_choice_uses_one_row_and_preserves_typing_and_selection() {
     let context = egui::Context::default();
     let mut view = PresentationView::default();
@@ -1117,6 +1169,45 @@ fn render_owned_ui_popups_and_scrolled_panels() {
     assert!(!evidence.is_empty());
     std::fs::write(root.join("popup-evidence.json"), serde_json::to_vec_pretty(&evidence).unwrap()).unwrap();
     println!("Captured {} popup states", evidence.len());
+}
+
+#[test]
+fn compact_material_checklist_has_no_horizontal_overflow() {
+    for font in [14.0, 22.0] {
+        for width in [300.0, 300.5, 560.0, 560.5] {
+            let context = egui::Context::default();
+            let mut view = PresentationView::default();
+            view.compact_depth = 1;
+            let mut table = control("glow-parts", "table", "", json!({"total":12,
+                "columns":[{"index":0,"width":160}], "rows":[]}));
+            table.props["rows"] = json!((0..12).map(|index| json!({"path":[index],
+                "cells":[{"text":(["lambert1","Gem_outside","Gem_inside","Very_Long_Material_Name_With_Multiple_Surface_And_Shader_Identifiers"][index % 4]),
+                    "enabled":true,"check":if index == 0 {0} else {2}}]})).collect::<Vec<_>>());
+            apply_theme(&context, &json!({"font_pixels":font}));
+            let size = egui::vec2(width, 480.0);
+            let mut scroll_id = egui::Id::NULL;
+            for tick in 0..8 {
+                let mut output = context.run_ui(egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+                    time: Some(tick as f64), ..Default::default()
+                }, |ui| {
+                    scroll_id = ui.make_persistent_id(egui::IdSalt::new("table-columns"));
+                    view.table(ui, &table);
+                });
+                output.textures_delta.clear();
+            }
+            let mut scroll = egui::scroll_area::State::load(&context, scroll_id).unwrap();
+            scroll.offset.x = 1000.0;
+            scroll.store(&context, scroll_id);
+            let mut output = context.run_ui(egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+                time: Some(9.0), ..Default::default()
+            }, |ui| view.table(ui, &table));
+            output.textures_delta.clear();
+            let scroll = egui::scroll_area::State::load(&context, scroll_id).unwrap();
+            assert_eq!(scroll.offset.x, 0.0, "Material names must fit without horizontal scrolling: width={width}, font={font}");
+        }
+    }
 }
 
 #[test]

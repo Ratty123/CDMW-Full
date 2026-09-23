@@ -1036,9 +1036,9 @@ impl PresentationView {
         );
         if let Ok(swatch) = Color32::from_hex(node.text("swatch")) {
             ui.painter().hline(
-                response.rect.x_range(),
-                response.rect.bottom() - 2.0,
-                egui::Stroke::new(4.0, swatch),
+                response.rect.shrink(4.0).x_range(),
+                response.rect.bottom() - 3.0,
+                egui::Stroke::new(2.0, swatch),
             );
         }
         if response.clicked() {
@@ -1191,8 +1191,14 @@ impl PresentationView {
     }
 
     fn choice_options(&mut self, ui: &mut Ui, node: &Node) {
-        let width = ui.available_width().min(ui.ctx().content_rect().width() - 32.0);
-        ui.set_max_width(width);
+        let option_width = node.array("options").iter().map(|option| {
+            ui.painter().layout_no_wrap(option["text"].as_str().unwrap_or("").to_owned(),
+                TextStyle::Button.resolve(ui.style()), ui.visuals().text_color()).size().x
+        }).fold(0.0, f32::max) + 2.0 * ui.spacing().button_padding.x + 4.0;
+        // The closed field may only say "All"; its menu still needs to fit
+        // longer choices and the current font, within the window's bounds.
+        let width = ui.available_width().max(option_width).min(ui.ctx().content_rect().width() - 32.0);
+        ui.set_width(width);
         for option in node.array("options") {
             let selected = option["index"].as_f64().unwrap_or(-1.0) == node.number("selected", -1.0);
             let label = option["text"].as_str().unwrap_or("");
@@ -1637,9 +1643,14 @@ impl PresentationView {
                                         self.node(ui, &control);
                                     } else if let Some(check) = cell["check"].as_u64() {
                                         let mut checked = check == 2;
-                                        if ui.add_enabled(cell["enabled"] != false, egui::Checkbox::new(&mut checked, cell["text"].as_str().unwrap_or(""))).changed() {
+                                        let label = cell["text"].as_str().unwrap_or("");
+                                        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Truncate);
+                                        let response = ui.add_enabled(cell["enabled"] != false, egui::Checkbox::new(&mut checked, label));
+                                        if response.changed() {
                                             self.input(node, "check_cell", json!({"path": row["path"], "column": col, "check": if checked {2} else {0}}));
                                         }
+                                        let tooltip = cell["tooltip"].as_str().filter(|text| !text.is_empty()).unwrap_or(label);
+                                        response.on_hover_text(tooltip).on_disabled_hover_text(tooltip);
                                     } else if cell["editable"] == true {
                                         let key = format!("{}:{}:{}", node.id, row["path"], col);
                                         let mut text = self.edit_text(&key, node.revision, cell["text"].as_str().unwrap_or(""));
