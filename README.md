@@ -367,7 +367,10 @@ If preparation fails, **Try again** reads the current path again. Equipment and
 armour changes keep the last usable scene visible until the new selection is
 ready; cancelled or superseded work cannot replace it.
 Playback reuses bone lookup, bind-transform and mesh-topology data and projects
-the skeleton in batches without reducing the displayed mesh detail.
+the skeleton in batches without reducing the displayed mesh detail. Rigid weapons
+and static body meshes reuse their lighting coordinates for bulk projection during
+playback and camera movement, preserving detail, lighting and picking in both the
+main viewport and Before/After comparison.
 
 When Full's archive catalogue is available, Placement reuses it for baseline files,
 wearables and clips. First use prepares the selected character's geometry; other

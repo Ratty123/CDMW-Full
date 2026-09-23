@@ -670,41 +670,20 @@ class SkeletonViewport(GizmoMixin, QWidget):
             if mesh is None or not getattr(mesh, "triangles", ()):
                 continue
 
-            # Project inline into plain floats. Going through `_project` meant a `_view_frame`
-            # call and a QPointF per vertex, then six QPointF accessor calls per triangle for
-            # the winding test — about 400,000 Qt calls a frame on Damian. Qt objects are now
-            # built only for triangles that survive.
-            # A posed mesh hands over its vertices as an array. Building 3,000+ Vec3
-            # objects a frame purely to read three floats off each was costing more than
-            # the projection itself.
-            points = getattr(mesh, "points", None)
-            if points is not None:
-                rel = points - _np.array((ex, ey, ez))
-                depth_arr = rel @ _np.array((fx, fy, fz))
-                inv = scale / _np.where(depth_arr > 0.02, depth_arr, 1.0)
-                sx_arr = cx + (rel @ _np.array((rgt.x, rgt.y, rgt.z))) * inv
-                sy_arr = cy - (rel @ _np.array((upv.x, upv.y, upv.z))) * inv
-                behind = depth_arr <= 0.02
-                sx_arr[behind] = 0.0
-                sy_arr[behind] = 0.0
-                sx, sy, depths = sx_arr, sy_arr, depth_arr
-            else:
-                sx = []
-                sy = []
-                depths = []
-                for vertex in mesh.vertices:
-                    rx = vertex.x - ex
-                    ry = vertex.y - ey
-                    rz = vertex.z - ez
-                    depth = rx * fx + ry * fy + rz * fz
-                    depths.append(depth)
-                    if depth <= 0.02:
-                        sx.append(0.0)
-                        sy.append(0.0)
-                        continue
-                    inv = scale / depth
-                    sx.append(cx + (rx * rgt.x + ry * rgt.y + rz * rgt.z) * inv)
-                    sy.append(cy - (rx * upv.x + ry * upv.y + rz * upv.z) * inv)
+            # Rigid meshes need the same coordinate array for lighting. Reuse it for
+            # projection too, instead of walking every Vec3 in Python first. Posed
+            # bodies already supply an array; unchanged rigid vertices use the cache.
+            world = self._world_points(mesh, getattr(mesh, "points", None))
+            if world is None or not len(world):
+                continue
+            rel = world - _np.array((ex, ey, ez))
+            depths = rel @ _np.array((fx, fy, fz))
+            inv = scale / _np.where(depths > 0.02, depths, 1.0)
+            sx = cx + (rel @ _np.array((rgt.x, rgt.y, rgt.z))) * inv
+            sy = cy - (rel @ _np.array((upv.x, upv.y, upv.z))) * inv
+            behind = depths <= 0.02
+            sx[behind] = 0.0
+            sy[behind] = 0.0
 
             clipping = self._clipping
             is_weapon = mesh is self._weapon
@@ -756,7 +735,6 @@ class SkeletonViewport(GizmoMixin, QWidget):
             # positions, so nothing has to be carried through skinning — and it is turned
             # towards the eye, which makes it independent of winding. That matters because the
             # body is back-face culled and the weapon deliberately is not.
-            world = self._world_points(mesh, points)
             levels: Optional[list] = None
             if world is not None and len(picked):
                 corner = world[i0[picked]]
