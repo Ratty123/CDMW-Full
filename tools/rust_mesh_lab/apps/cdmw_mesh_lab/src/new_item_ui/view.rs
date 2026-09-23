@@ -518,7 +518,9 @@ impl PresentationView {
         if children.is_empty() {
             return;
         }
-        if self.compact_depth > 0 {
+        let compact = self.compact_depth > 0;
+        let flexible = |node: &Node| if compact { has_stretched_table(node) } else { layout_flexible(node) };
+        if compact && !children.iter().any(flexible) {
             for (index, node) in children.iter().enumerate() {
                 ui.push_id(index, |ui| self.node(ui, node));
             }
@@ -530,13 +532,13 @@ impl PresentationView {
             .map(|node| estimate_height(ui, node, ui.available_width()))
             .collect();
         let fixed: f32 = children.iter().zip(&natural)
-            .filter(|(node, _)| !layout_flexible(node)).map(|(_, height)| *height).sum();
+            .filter(|(node, _)| !flexible(node)).map(|(_, height)| *height).sum();
         let extra = (bounded_height(ui) - fixed
             - spacing * children.len().saturating_sub(1) as f32).max(0.0);
         let weights: Vec<_> = children
             .iter()
             .map(|node| {
-                if layout_flexible(node) {
+                if flexible(node) {
                     node.stretch.max(1) as f32
                 } else {
                     0.0
@@ -545,9 +547,9 @@ impl PresentationView {
             .collect();
         let weight = weights.iter().sum::<f32>().max(1.0);
         for (index, node) in children.iter().enumerate() {
-            let height = if layout_flexible(node) { extra * weights[index] / weight } else { natural[index] };
+            let height = if flexible(node) { extra * weights[index] / weight } else { natural[index] };
             ui.push_id(index, |ui| {
-                if layout_flexible(node) {
+                if flexible(node) {
                     ui.allocate_ui_with_layout(
                         Vec2::new(ui.available_width(), height),
                         egui::Layout::top_down(egui::Align::Min),
@@ -1492,9 +1494,9 @@ impl PresentationView {
             control_height(ui) + ui.spacing().item_spacing.y
         } else { 0.0 };
         let height = (bounded_height(ui) - paging_height).max(100.0);
-        let fill_height = self.compact_depth == 0 && layout_flexible(node);
+        let fill_height = if self.compact_depth > 0 { has_stretched_table(node) } else { layout_flexible(node) };
         let rows = total.max(1) as f32;
-        let rows = if self.compact_depth > 0 { rows.min(8.0) } else { rows };
+        let rows = if self.compact_depth > 0 && !fill_height { rows.min(8.0) } else { rows };
         let height = if fill_height { height } else {
             height.min(rows * (control_height(ui) + ui.spacing().item_spacing.y) + header_space)
         };
@@ -1767,6 +1769,13 @@ fn layout_flexible(node: &Node) -> bool {
         "text" => node.flag("multiline"),
         _ => node.children.iter().any(layout_flexible),
     }
+}
+
+fn has_stretched_table(node: &Node) -> bool {
+    // An explicitly expanding editor can fill an inspector without stretching
+    // every short list that happens to share the scroll area.
+    node.kind == "table" && node.stretch > 0 && node.number("total", 0.0) > 0.0
+        || node.children.iter().any(has_stretched_table)
 }
 
 fn dialog_body(node: &Node, actions: &mut Vec<Node>) -> Option<Node> {

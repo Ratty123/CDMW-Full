@@ -192,6 +192,20 @@ def test_styled_effect_tools_are_compact_and_do_not_overlap(monkeypatch, width, 
             for spin in holder.findChildren(type(workspace.scale_spin)):
                 assert holder.rect().contains(spin.geometry()), (row, spin.geometry(), holder.rect())
 
+        from cdmw.ui.new_item.rust_ui_document import PresentationDocument
+        emitter_page = tabs.currentWidget().widget()
+        projected = PresentationDocument().layout(emitter_page.layout())
+        parameters = next(node for node in projected["children"] if node["kind"] == "table")
+        assert parameters["stretch"] == 1
+        before_height = recipe.parameters.height()
+        before_page_height = emitter_page.height()
+        root.resize(width, height + 240)
+        for _ in range(3):
+            _APP.processEvents()
+        page_growth = emitter_page.height() - before_page_height
+        assert page_growth > 0
+        assert recipe.parameters.height() == before_height + page_growth
+
         for index in (4, 2):
             tabs.setCurrentIndex(index)
             for _ in range(3):

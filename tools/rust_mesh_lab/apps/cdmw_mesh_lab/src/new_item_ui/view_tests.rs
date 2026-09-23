@@ -856,6 +856,61 @@ fn short_tables_fit_their_actual_font_height_without_clipping_the_last_row() {
 }
 
 #[test]
+fn emitter_properties_expand_inside_the_inspector_and_keep_actions_visible() {
+    for font in [14, 22] {
+        let mut parameters = control("parameters", "table", "", json!({"total":30,"headers":true,
+            "columns":[{"index":0,"text":"Use","width":50,"size_to_contents":true},
+                       {"index":1,"text":"Property","width":200},
+                       {"index":2,"text":"Value","width":140,"stretch":true}]}));
+        parameters.stretch = 1;
+        parameters.props["rows"] = json!((0..30).map(|index| json!({"path":[index],"cells":[
+            {"text":"","check":0,"enabled":true}, {"text":format!("Emitter property {index}")},
+            {"control":control(&format!("value-{index}"), "number", "", json!({"value":1}))}
+        ]})).collect::<Vec<_>>());
+        let mut contents = control("emitter-page", "column", "", json!({}));
+        contents.children = vec![control("emitter", "choice", "", json!({"text":"White Dome Glow"})),
+            control("enabled", "check", "Enabled", json!({})), parameters];
+        for id in ["Colour curve", "Size curve", "Opacity curve"] {
+            let mut curve = control(id, "row", "", json!({}));
+            curve.children = vec![control(&format!("{id}-enabled"), "check", id, json!({})),
+                control(&format!("{id}-value"), "number", "", json!({"value":1}))];
+            contents.children.push(curve);
+        }
+        contents.children.extend([control("texture", "text", "", json!({"placeholder":"Sprite DDS archive path"})),
+            control("status", "label", "", json!({"text":"Editing this emitter's exported data."})),
+            control("reset", "button", "Reset emitter", json!({}))]);
+        let mut scroll = control("inspector", "scroll", "", json!({}));
+        scroll.children.push(contents);
+        let mut tabs = control("tabs", "tabs", "", json!({"selected":0,"tabs":[{"text":"Emitters"}]}));
+        tabs.children.push(scroll);
+        let mut root = control("root", "column", "", json!({}));
+        root.children = vec![tabs, control("apply", "button", "Apply placement", json!({}))];
+        let mut state = state(root);
+        state.theme["font_pixels"] = json!(font);
+        let context = egui::Context::default();
+        apply_theme(&context, &state.theme);
+        let mut view = PresentationView::default();
+        let mut previous_height = None;
+        for height in [720.0, 1080.0] {
+            for _ in 0..4 { frame(&context, &mut view, &state, egui::vec2(560.0,height), vec![]); }
+            let rect = |id| view.rects.iter().find(|rect| rect.id == id).unwrap().rect;
+            let table = rect("parameters");
+            let curve = rect("Colour curve-enabled");
+            let reset = rect("reset");
+            let apply = rect("apply");
+            assert!(table[1] + table[3] <= curve[1] + 1.0);
+            assert!(reset[1] + reset[3] <= apply[1]);
+            assert!(apply[1] + apply[3] <= height);
+            assert!(apply[1] - reset[1] - reset[3] < 32.0, "Unused inspector height: font={font}, height={height}, reset={reset:?}, apply={apply:?}");
+            if let Some(previous) = previous_height {
+                assert!(table[3] >= previous + 300.0, "Emitter properties must use the taller pane: {previous} -> {}", table[3]);
+            }
+            previous_height = Some(table[3]);
+        }
+    }
+}
+
+#[test]
 fn stats_and_price_tables_fill_their_panes_even_with_few_rows() {
     for rows in [2, 16] {
         for font in [14, 22] {

@@ -51,6 +51,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Create New Item lets the Emitters property table use spare inspector height instead of limiting it to a short scrolling list. Curve, texture and reset controls remain below the table, with Apply placement kept reachable.
 - Create New Item (Rust) no longer raises an unhandled exception when toggling checkable sections such as Glow and Translucency; their settings and click handlers update normally.
 - Create New Item (Rust) keeps long material names from stretching Model & Placement checklists into horizontal scrolling, keeps colour indicators inside their buttons, and fits dropdown menus to their options so effect categories remain readable.
 - Rust Create New Item sizes table columns within their panes, keeping shop prices, effect categories and inherent bonus names readable without unnecessary horizontal scrolling. Available and selected perks share aligned list and action rows.
