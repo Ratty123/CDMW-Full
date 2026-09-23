@@ -595,11 +595,21 @@ class RustPreviewSessionController(
                 return False
         else:
             self._follow_preview_package_session(resolved, scene_session_id)
+        # A faster material tier can supersede the geometry load before its
+        # camera reset is applied. Carry that reset to the surviving request.
+        pending_reset = bool(reset_view or self._desired_reset_view)
+        if pending_reset and self.profile is DotNetPreviewProfile.PREVIEW and identity != self._applied_package_identity:
+            # Placement matrices and pivots belong to the previous model. The
+            # new package supplies its own scene before its caller reapplies edits.
+            self._resident_state.pop("scene", None)
         if not force_reload and identity == self._desired_package_identity:
-            self._desired_reset_view = bool(reset_view)
+            self._desired_reset_view = pending_reset
             if reset_view:
                 self._resident_state.pop("presentation", None)
             if self._visible and identity == self._applied_package_identity:
+                self._desired_reset_view = False
+                if reset_view and "semantic_framing_v1" in self._capabilities:
+                    self.send_correlated("canonical_view_request")
                 self._activate()
                 return True
             if (
@@ -633,7 +643,7 @@ class RustPreviewSessionController(
         self._package_generation += 1
         self._desired_package = resolved
         self._desired_package_identity = identity
-        self._desired_reset_view = bool(reset_view)
+        self._desired_reset_view = pending_reset
         if reset_view:
             self._resident_state.pop("presentation", None)
         if (
@@ -1558,6 +1568,7 @@ class RustPreviewSessionController(
         self._applied_package_generation = generation
         self._applied_package = self._desired_package
         self._applied_package_identity = self._desired_package_identity
+        self._desired_reset_view = False
         self._resident_material_signature = str(
             getattr(self._applied_package, "material_signature", "") or ""
         )

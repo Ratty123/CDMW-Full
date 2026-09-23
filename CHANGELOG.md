@@ -47,6 +47,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Create New Item previews retain camera framing when rapid model switches supersede geometry with textures. Model gizmos stay centered on visible geometry, and a shared Show gizmo checkbox in item and effect viewports remembers its state across restarts while keeping the orientation control available.
 - Create New Item (Rust) fills the workspace on its first opening after background preparation, without needing to switch to Classic and back.
 - Create New Item (Rust) keeps the application responsive when projected dialogs open and close. Template results fill the available height, Internal Name starts wider, and column edges can be dragged without losing the final width. Preview loading keeps a stable slot, and long model choices stay within their inspector.
 - Closing CDMW handles the prewarmed Rust New Item process correctly and has a 15-second final cutoff for stuck background work. Active archive writes and restores finish safely before that cutoff can take effect. Windows startup now stops with a specific error if helper-process cleanup cannot be guaranteed, and closing during an FBX import cancels its Blender process.

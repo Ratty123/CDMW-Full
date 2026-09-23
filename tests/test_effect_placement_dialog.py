@@ -1161,7 +1161,7 @@ class DialogTests(_DialogPresentationMixin, _DialogTestCase):
             self._settle(lambda: not workspace.iter_shutdown_workers())
             self.assertFalse(second_dir.exists())
 
-    def test_rapid_rebuilds_publish_only_the_latest_package_and_keep_the_camera(self) -> None:
+    def test_rapid_rebuilds_publish_only_the_latest_package_and_keep_the_initial_fit(self) -> None:
         started = False
         calls = []
         with tempfile.TemporaryDirectory() as folder:
@@ -1210,12 +1210,12 @@ class DialogTests(_DialogPresentationMixin, _DialogTestCase):
                 self._settle(lambda: len(workspace.host.loaded_requests) == 1)
                 loaded, reset = workspace.host.loaded_requests[0]
                 self.assertEqual(loaded, root / "package_2")
-                self.assertFalse(reset, "effect/look rebuilds preserve the camera")
+                self.assertTrue(reset, "the cancelled initial load has not framed the model yet")
                 self.assertFalse(workspace.show_reach.isChecked(), "oversized bounds fold away instead of reframing the item")
                 self.assertFalse((root / "package_1").exists(), "the stale build was discarded")
                 workspace.host.controller.package_applied.emit(str(loaded), 2)
                 self.assertIsNotNone(workspace._preview)
-                self.assertEqual(workspace.host.restored_views[-1]["zoom_factor"], 1.25)
+                self.assertFalse(workspace.host.restored_views, "the initial fit must not restore a pre-load camera")
                 workspace.request_shutdown()
                 self._settle(lambda: workspace._thread is None)
 

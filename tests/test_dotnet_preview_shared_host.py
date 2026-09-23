@@ -517,14 +517,16 @@ def test_latest_package_generation_rejects_stale_apply(tmp_path: Path) -> None:
 
     second = _package(tmp_path, "package-b")
     third = _package(tmp_path, "package-c")
+    controller.remember_state("scene", "scene_state_update", {"placement_pivot": [0, 20, 0]})
     assert controller.load_package(second, reset_view=True)
+    assert "scene" not in controller._resident_state, "old model placement must not replay onto the new one"
     second_request = next(payload for payload in reversed(process.writes) if payload.get("event") == "package_load_request")
     assert controller.load_package(third, reset_view=False)
     third_request = next(payload for payload in reversed(process.writes) if payload.get("event") == "package_load_request")
     assert second_request["generation"] == 2
     assert third_request["generation"] == 3
     assert second_request["reset_view"] is True
-    assert third_request["reset_view"] is False
+    assert third_request["reset_view"] is True, "the superseded load has not framed the new model yet"
 
     controller._handle_protocol_event(  # noqa: SLF001
         {**second_request, "event": "package_load_applied"},
@@ -537,6 +539,9 @@ def test_latest_package_generation_rejects_stale_apply(tmp_path: Path) -> None:
     )
     assert applied[-1] == (str(third.package_dir), 3)
     assert controller.applied_package_path == str(third.package_dir)
+    assert controller.load_package(_package(tmp_path, "package-c-textures"), reset_view=False)
+    texture_request = next(payload for payload in reversed(process.writes) if payload.get("event") == "package_load_request")
+    assert texture_request["reset_view"] is False, "an applied reset must not reset later material updates"
     controller.shutdown()
     assert controller.process_id == 0
 
@@ -1944,6 +1949,23 @@ def test_preview_host_fit_requests_package_authored_canonical_view(tmp_path: Pat
     request = process.writes[-1]
     assert request["event"] == "canonical_view_request"
     assert request["request_id"] > 0
+    controller.set_visible(True)
+    process.writes.clear()
+    assert host.load_package(package, reset_view=True)
+    assert any(item.get("event") == "canonical_view_request" for item in process.writes)
+    assert not controller._desired_reset_view, "an already resident package needs no deferred reset"
+    controller.shutdown()
+
+
+def test_preview_host_centers_model_gizmo_without_hiding_orientation_control(tmp_path: Path) -> None:
+    controller, process, _package = _start_controller(tmp_path)
+    _make_ready(controller)
+    host = DotNetPreviewHostFrame(profile="preview", controller=controller)
+    assert host.set_alignment_state(enabled=True, centered=True)
+    assert process.writes[-1]["display"] == {"gizmo_visible": True, "gizmo_centered": True}
+    assert host.set_alignment_state(enabled=False)
+    assert process.writes[-1]["display"] == {"gizmo_visible": False}
+    assert controller._resident_state["presentation"][1]["display"]["gizmo_centered"] is True
     controller.shutdown()
 
 

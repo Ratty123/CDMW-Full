@@ -102,6 +102,10 @@ class EffectPlacementConstructionMixin:
         showing.setVisible(has_model_context)
 
     def _build_viewport(self, body: QHBoxLayout, host_factory) -> None:
+        from cdmw.ui.new_item.preview_controls import PreviewGizmoCheckBox
+
+        self.gizmo_visible = PreviewGizmoCheckBox(self)
+        self.gizmo_visible.toggled.connect(self._gizmo_visibility_changed)
         self.host = None
         try:
             self.host = host_factory(self)
@@ -120,6 +124,7 @@ class EffectPlacementConstructionMixin:
             self.host.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
             viewport_column = QVBoxLayout()
             viewport_column.setContentsMargins(0, 0, 0, 0)
+            viewport_column.addWidget(self.gizmo_visible)
             viewport_column.addWidget(self.host, 1)
             views = QHBoxLayout()
             view_caption = QLabel("View")

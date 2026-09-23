@@ -180,6 +180,7 @@ class EffectPlacementWorkspace(
         self._content_failed = False
         self._pending_package: Optional[tuple] = None
         self._loading_preview: Optional[EffectPlacementPreview] = None
+        self._reset_view_pending = False
         self._loading_sockets: tuple = ()
         self._loading_view_state: Optional[dict[str, object]] = None
         self._retired_previews: list[EffectPlacementPreview] = []
@@ -334,6 +335,10 @@ class EffectPlacementWorkspace(
                 )
             except Exception:  # noqa: BLE001 - a host without the call keeps its own
                 pass
+
+    def _gizmo_visibility_changed(self, visible: bool) -> None:
+        if self.host is not None:
+            self.host.set_alignment_state(enabled=bool(visible))
 
     def _show_particles(self, visible: bool) -> None:
         """Draw or hide the particle layer; the anchor and the reach do not depend on it."""

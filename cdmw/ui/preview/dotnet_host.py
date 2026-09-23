@@ -785,18 +785,22 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
         self,
         *,
         enabled: bool,
+        centered: bool | None = None,
         source_submesh_indices: Sequence[int] = (),
         translation_sensitivity: float = 0.85,
         rotation_degrees_per_pixel: float = 0.18,
     ) -> bool:
         del translation_sensitivity, rotation_degrees_per_pixel
         display = dict(self._presentation_state.get("display", {}))
-        display["gizmo_visible"] = bool(enabled)
+        patch = {"gizmo_visible": bool(enabled)}
+        if centered is not None:
+            patch["gizmo_centered"] = bool(centered)
+        display.update(patch)
         self._presentation_state["display"] = display
         if source_submesh_indices:
             self.set_highlighted_source_submeshes(source_submesh_indices)
         return self._remember_presentation_state(
-            {"display": {"gizmo_visible": bool(enabled)}}
+            {"display": patch}
         )
 
     def remember_editable_local_bounds(self, minimum: Sequence[float], maximum: Sequence[float]) -> None:

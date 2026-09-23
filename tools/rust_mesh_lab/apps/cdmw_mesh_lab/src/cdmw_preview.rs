@@ -301,6 +301,7 @@ struct GizmoDrag {
     start_placement: Value,
     start_model_matrix: Mat4,
     start_pivot: Vec3,
+    start_anchor: Vec3,
 }
 
 #[derive(Debug, Clone)]
@@ -1522,9 +1523,10 @@ impl PreviewApplication {
                 .and_then(|value| value.get("visible"))
                 .and_then(Value::as_bool)
                 .unwrap_or(true);
-        if gizmo_visible && !capture {
-            let pivot = vec3_value(self.state.scene.get("placement_pivot"), Vec3::ZERO);
-
+        if gizmo_visible
+            && !capture
+            && let Some(pivot) = self.scene_view().gizmo_anchor()
+        {
             let selected = self
                 .gizmo_drag
                 .as_ref()
@@ -2228,7 +2230,7 @@ impl PreviewApplication {
             return None;
         }
         let rectangle = self.viewport_rect();
-        let pivot = vec3_value(self.state.scene.get("placement_pivot"), Vec3::ZERO);
+        let pivot = self.scene_view().gizmo_anchor()?;
         let pivot_screen = self.camera.project(pivot, rectangle)?.screen;
         let scale = self.ui_scale();
         let handle = self.gizmo_dimensions()[1] / self.camera.world_units_per_pixel(rectangle);
@@ -2362,6 +2364,9 @@ impl PreviewApplication {
         let tool = self.gizmo_tool();
         let start_placement = self.placement_payload();
         let start_pivot = vec3_value(self.state.scene.get("placement_pivot"), Vec3::ZERO);
+        let Some(start_anchor) = self.scene_view().gizmo_anchor() else {
+            return false;
+        };
         self.emit_gizmo("begin", &tool, &handle, &start_placement);
         self.gizmo_drag = Some(GizmoDrag {
             tool,
@@ -2370,6 +2375,7 @@ impl PreviewApplication {
             start_placement,
             start_model_matrix: role_model_matrix(&self.state.scene, "editable"),
             start_pivot,
+            start_anchor,
         });
         true
     }
@@ -2444,7 +2450,7 @@ impl PreviewApplication {
         };
         let delta = point - drag.start_pointer;
         let mut placement = drag.start_placement.clone();
-        let pivot = drag.start_pivot;
+        let pivot = drag.start_anchor;
         match drag.tool.as_str() {
             "rotate" => {
                 let start = vec3_value(placement.get("rotation_degrees"), Vec3::ZERO);

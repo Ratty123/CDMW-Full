@@ -30,6 +30,7 @@ from cdmw.domain.cancellation import RunCancelled
 from cdmw.models import ModelPreviewRenderSettings, clamp_model_preview_render_settings
 from cdmw.services.mesh_workflow_service import ParsedMesh
 from cdmw.ui.new_item.model_import import ModelPlacement, mesh_bounds
+from cdmw.ui.new_item.preview_controls import PreviewGizmoCheckBox
 from cdmw.ui.new_item.item_preview_materials import (
     PlacementScene,
     as_parsed_mesh as _as_parsed_mesh,
@@ -644,13 +645,16 @@ class ItemPreviewFrame(QWidget):
         self._upgrade_request: Optional[tuple[Hashable, Any, bool, Path]] = None
         self._loaded_stage = ""
         self._full_texture_upgrade_from_fast = False
-        self._reset_view_on_ready = True
+        self._reset_view_on_ready = False
         self._retire_after_ready: list[Path] = []
         #: the build in flight was stopped for a newer request; its error is not the user's
         self._superseded = False
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(4)
+        self.gizmo_visible = PreviewGizmoCheckBox(self)
+        self.gizmo_visible.toggled.connect(lambda _checked: self.set_gizmo_enabled(self._gizmo_enabled))
+        layout.addWidget(self.gizmo_visible)
         self.placeholder = QLabel("The viewport starts when there is a mesh to show.")
         self.placeholder.setAlignment(Qt.AlignCenter)
         self.placeholder.setWordWrap(True)
@@ -672,7 +676,7 @@ class ItemPreviewFrame(QWidget):
             return False
         self.host.setMinimumSize(420, 300)
         self.host.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.layout().insertWidget(0, self.host, 1)
+        self.layout().insertWidget(1, self.host, 1)
         self.placeholder.setVisible(False)
         self.host.controller.state_changed.connect(self._host_state)
         self.host.controller.capture_completed.connect(self._capture_completed)
@@ -828,7 +832,7 @@ class ItemPreviewFrame(QWidget):
                 if previous_model_bounds != model_bounds and model_bounds is not None:
                     self.host.remember_editable_local_bounds(model_bounds[0], model_bounds[1])
                 if previous_gizmo_enabled != self._gizmo_enabled:
-                    self.host.set_alignment_state(enabled=self._gizmo_enabled)
+                    self.set_gizmo_enabled(self._gizmo_enabled)
                 if previous_placement != placement:
                     self._push_placement()
             return
@@ -859,7 +863,9 @@ class ItemPreviewFrame(QWidget):
     def set_gizmo_enabled(self, enabled: bool) -> None:
         self._gizmo_enabled = bool(enabled)
         if self.is_ready and self.host is not None and self._placement is not None:
-            self.host.set_alignment_state(enabled=self._gizmo_enabled)
+            self.host.set_alignment_state(
+                enabled=self._gizmo_enabled and self.gizmo_visible.isChecked(), centered=True,
+            )
 
     def set_view_mode(self, mode: str) -> None:
         """One of PLACEMENT_VIEW_MODES: overlay, side_by_side, replacement_only, original_only."""
@@ -889,7 +895,7 @@ class ItemPreviewFrame(QWidget):
         if callable(lighting):
             lighting(self._lighting_preset)
         # no source highlight: the model draws as itself (textured), not as the Builder's yellow wire
-        host.set_alignment_state(enabled=self._gizmo_enabled)
+        self.set_gizmo_enabled(self._gizmo_enabled)
         host.set_alignment_gizmo_tool(self._gizmo_tool)
         bounds = self._model_bounds
         if bounds is not None and hasattr(host, "remember_editable_local_bounds"):
@@ -1183,7 +1189,7 @@ class ItemPreviewFrame(QWidget):
             self._loaded_is_placement = bool(is_placement)
             self._loaded_stage = stage
             self._full_texture_upgrade_from_fast = stage == "materials" and previous_stage == "fast_materials"
-            self._reset_view_on_ready = reset_view
+            self._reset_view_on_ready = self._reset_view_on_ready or reset_view
             self.host.set_display_mode(self._view_mode if is_placement else "replacement_only")
             self.status_changed.emit(
                 "Fast textures are visible; loading full textures…"
@@ -1211,9 +1217,10 @@ class ItemPreviewFrame(QWidget):
                 # running, so the scene on screen is not the one the placement belongs to
                 return
             self.is_ready = True
+            reset_view, self._reset_view_on_ready = self._reset_view_on_ready, False
             if self._loaded_is_placement and self._placement is not None:
                 self.host.set_icon_capture_mode(False)
-                self._apply_placement_presentation(fit_view=self._reset_view_on_ready)
+                self._apply_placement_presentation(fit_view=reset_view)
             else:
                 self.host.set_display_mode("replacement_only")
                 self.host.set_alignment_state(enabled=False)

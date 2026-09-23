@@ -218,8 +218,17 @@ Template does not repeat it in another group or add a second camera explanation.
 Every shared preview keeps the
 current orbit, pan and zoom controls in a footer outside the native viewport. Initial
 package framing survives helper startup and progressive texture state replay, while
-later explicit camera commands remain authoritative. Single-template geometry uses the
-same replacement-only layout as its textured package so the initial camera stays centered
+later explicit camera commands remain authoritative. Camera resets survive
+superseded geometry and texture loads until the renderer acknowledges the new model.
+Template, Identity and Model share a **Show gizmo**
+checkbox next to the viewport; Effects and its placement dialog expose the same
+preference. It updates open New Item views and survives application restarts. Hiding
+the transform handles leaves the upper-right orientation control available.
+Model handles follow the center of the visible editable geometry, including its
+current transform and comparison layout. Authored placement pivots and exported
+transforms retain their existing meaning; an effect's handles stay at its chosen anchor.
+Single-template geometry uses the same replacement-only layout as its textured
+package so the initial camera stays centered
 when host presentation arrives. Model and Effect Placement use
 one neutral studio lighting setup without a lighting-mode selector. Imported glTF
 emissive factors also work without an emissive texture, including explicit zero strength.

@@ -1326,6 +1326,34 @@ class ItemPreviewFrameTests(unittest.TestCase):
         self.assertTrue((output / "full").exists())
         frame.shutdown()
 
+    def test_fast_materials_cannot_consume_a_pending_model_camera_reset(self) -> None:
+        from cdmw.ui.new_item.item_preview import ItemPreviewFrame
+        from cdmw.ui.new_item.model_import import ModelPlacement
+
+        class CanonicalHost(self._fake_host_class()):
+            def request_canonical_view(self):
+                self.calls.append(("request_canonical_view", (), {}))
+                return True
+
+        with tempfile.TemporaryDirectory(prefix="cdmw_switch_camera_") as temporary:
+            root = Path(temporary)
+            frame = ItemPreviewFrame(output_root=root, host_factory=CanonicalHost)
+            self.addCleanup(frame.shutdown)
+            frame._ensure_host()
+            frame._placement = ModelPlacement()
+            for switch, token in enumerate(("mask", "gloves", "mask", "gloves")):
+                frame._pending = (token, object())
+                frame.host.calls.clear()
+                for stage in ("geometry", "fast_materials", "materials"):
+                    package = root / f"{switch}_{stage}"
+                    package.mkdir()
+                    frame._package_ready(package, token, True, stage)
+                # All tiers arrived before the renderer acknowledged the last.
+                frame._host_state("ready", "")
+                frame._host_state("ready", "")
+                fits = [call for call in frame.host.calls if call[0] == "request_canonical_view"]
+                self.assertEqual(len(fits), 1, "the surviving model needs one fit, without duplicate-ready resets")
+
     def test_progressive_template_loads_geometry_then_materials_without_camera_reset(self) -> None:
         from PySide6.QtCore import QEventLoop
 

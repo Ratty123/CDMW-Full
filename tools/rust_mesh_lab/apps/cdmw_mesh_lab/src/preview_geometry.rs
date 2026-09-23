@@ -338,6 +338,27 @@ pub struct SceneView<'a> {
     pub geometry: &'a PreviewGeometry,
 }
 impl SceneView<'_> {
+    /// The on-model handles follow visible editable geometry, independently of
+    /// the authored placement pivot (which must stay unchanged for export).
+    pub fn gizmo_anchor(&self) -> Option<Vec3> {
+        if self.presentation["display"]["gizmo_centered"].as_bool() != Some(true) {
+            return Some(vector(self.scene.get("placement_pivot"), Vec3::ZERO));
+        }
+        let editable = editable_indices(self.scene);
+        let visible = self.visible_submeshes();
+        let mut bounds: Option<(Vec3, Vec3)> = None;
+        for part in &self.geometry.parts {
+            if !editable.contains(&part.submesh) || !visible.contains(&part.submesh) {
+                continue;
+            }
+            let (low, high) = part.bounds(self.submesh_model_matrix(part.submesh));
+            if low.is_finite() && high.is_finite() {
+                bounds = Some(bounds.map_or((low, high), |(a, b)| (a.min(low), b.max(high))));
+            }
+        }
+        bounds.map(|(low, high)| (low + high) * 0.5)
+    }
+
     pub fn submesh_model_matrix(&self, source_submesh: u32) -> Mat4 {
         let editable = editable_indices(self.scene);
         let reference = reference_indices(self.scene);
@@ -571,6 +592,37 @@ pub fn prepare_snapshot(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn centered_gizmo_tracks_visible_editable_geometry_and_keeps_the_authored_pivot() {
+        let geometry = PreviewGeometry { parts: vec![
+            PartGeometry::new(0, vec![[Vec3::new(-2., 8., 0.), Vec3::new(2., 8., 0.), Vec3::new(0., 10., 0.)]]),
+            PartGeometry::new(1, vec![[Vec3::ZERO, Vec3::X * 100., Vec3::Y * 100.]]),
+        ] };
+        let mut scene = serde_json::json!({
+            "placement_pivot": [0, 0, 0],
+            "framing": {"extent": 2},
+            "roles": {
+                "editable": {"submesh_indices": [0], "model_matrix": Mat4::IDENTITY.to_cols_array()},
+                "reference": {"submesh_indices": [1]}
+            }
+        });
+        let mut presentation = serde_json::json!({"comparison_mode": "overlay", "display": {"gizmo_centered": true}});
+        let anchor = |scene: &Value, presentation: &Value| SceneView { scene, presentation, geometry: &geometry }.gizmo_anchor();
+        assert_eq!(anchor(&scene, &presentation), Some(Vec3::new(0., 9., 0.)));
+        scene["roles"]["editable"]["model_matrix"] = serde_json::json!(Mat4::from_translation(Vec3::new(3., 2., 1.)).to_cols_array());
+        assert_eq!(anchor(&scene, &presentation), Some(Vec3::new(3., 11., 1.)));
+        presentation["comparison_mode"] = serde_json::json!("side_by_side");
+        assert!(anchor(&scene, &presentation).unwrap().abs_diff_eq(Vec3::new(5.6, 11., 1.), 1e-5));
+        presentation["comparison_mode"] = serde_json::json!("original_only");
+        assert_eq!(anchor(&scene, &presentation), None, "a hidden model has no transform handles");
+        presentation["comparison_mode"] = serde_json::json!("overlay");
+        presentation["visibility"] = serde_json::json!({"hidden_submesh_indices": [0]});
+        assert_eq!(anchor(&scene, &presentation), None);
+        presentation["display"]["gizmo_centered"] = serde_json::json!(false);
+        assert_eq!(anchor(&scene, &presentation), Some(Vec3::ZERO), "effect anchors retain their authored position");
+        assert_eq!(scene["placement_pivot"], serde_json::json!([0, 0, 0]));
+    }
 
     #[test]
     fn texture_upgrade_retains_the_completed_drag_and_new_scene_data() {

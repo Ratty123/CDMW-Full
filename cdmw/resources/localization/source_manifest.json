@@ -102012,6 +102012,16 @@
       ]
     },
     {
+      "key": "Show gizmo",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/preview_controls.py",
+          "line": 18,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Show guides",
       "origins": [
         {
@@ -102382,6 +102392,16 @@
         {
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_shell_part_02.py",
           "line": 58,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Show the model or effect transform handles. The upper-right orientation control stays available.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/preview_controls.py",
+          "line": 20,
           "sink": "setToolTip"
         }
       ]

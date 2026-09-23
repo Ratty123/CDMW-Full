@@ -119,6 +119,7 @@ class EffectPlacementGuidedMixin:
         from cdmw.ui.new_item.effect_playback import EffectPlaybackControls
         self.playback_controls = EffectPlaybackControls(self)
         layout.addWidget(self.playback_controls)
+        layout.addWidget(self.gizmo_visible)
         if self.host is not None:
             self.host.setMinimumSize(480, 360)
             layout.addWidget(self.host, 1)

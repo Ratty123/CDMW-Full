@@ -89,6 +89,7 @@ class EffectPlacementPackageMixin:
     def _start_package(self, *, reset_view: bool = True) -> None:
         if self._closed:
             return
+        self._reset_view_pending = self._reset_view_pending or bool(reset_view)
         self._package_generation += 1
         acquire_usage = self._model_source_usage
         source_usage = acquire_usage() if callable(acquire_usage) else None
@@ -246,6 +247,7 @@ class EffectPlacementPackageMixin:
         self._loading_content_generation = int(generation)
         self._loading_sockets = tuple(sockets or ())
         self._loading_view_state = None
+        reset_view = bool(reset_view or self._reset_view_pending)
         if not bool(reset_view):
             snapshot = getattr(self.host, "view_state_snapshot", None)
             if callable(snapshot):
@@ -277,6 +279,8 @@ class EffectPlacementPackageMixin:
         if previous is not None and previous is not loading:
             self._retired_previews.append(previous)
         self._preview = loading
+        if self._loading_content_generation == self._package_generation:
+            self._reset_view_pending = False
         self._loading_preview = None
         preserved_view, self._loading_view_state = self._loading_view_state, None
         self._effect_sockets = self._loading_sockets
@@ -342,7 +346,7 @@ class EffectPlacementPackageMixin:
                 self._set_viewport_controls_available(True)
             self.host.set_display_mode("overlay")
             self.host.set_viewport_display_mode("textured")
-            self.host.set_alignment_state(enabled=True)
+            self._gizmo_visibility_changed(self.gizmo_visible.isChecked())
             self._backdrop_changed()
             self._apply_orbit_preferences()
             self._sync_host()
