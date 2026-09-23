@@ -1309,30 +1309,40 @@ impl PresentationView {
                             // Reserve the edge for dragging. Overlapping the
                             // button lets its click sense steal native drags.
                             let rect = egui::Rect::from_center_size(egui::pos2(header_rect.right(),header_rect.center().y),Vec2::new(8.0,header_rect.height()));
-                            let drag = ui.interact(rect,ui.id().with(("column-width",column["index"].as_u64())),egui::Sense::drag()).on_hover_cursor(egui::CursorIcon::ResizeHorizontal);
+                            ui.interact(rect,ui.id().with(("column-width",column["index"].as_u64())),egui::Sense::drag()).on_hover_cursor(egui::CursorIcon::ResizeHorizontal);
                             let key = (node.id.clone(), column["index"].as_u64().unwrap_or(0));
-                            if drag.drag_started() {
-                                let origin = ui.input(|input| input.pointer.press_origin().or_else(||
-                                    input.raw.events.iter().find_map(|event| match event {
-                                        egui::Event::PointerButton {pos, pressed:true, ..} => Some(*pos),
-                                        _ => None,
-                                    })));
-                                if let Some(origin) = origin {
-                                    self.column_drag_origins.insert(key.clone(), (origin.x, *width));
-                                }
-                            }
-                            if drag.dragged() || drag.drag_stopped() {
-                                // Include a final move delivered with release;
-                                // Response::drag_delta is zero on that frame.
-                                if let (Some((start, original)), Some(pointer)) =
-                                    (self.column_drag_origins.get(&key), drag.interact_pointer_pos()) {
-                                    self.column_widths.insert(key.clone(), (*original + pointer.x - *start).clamp(40.0, 4000.0));
-                                }
-                            }
-                            if drag.drag_stopped() {
+                            if !ui.is_enabled() {
                                 self.column_drag_origins.remove(&key);
-                                let resized = self.column_widths.get(&key).copied().unwrap_or(*width);
-                                self.input(node,"resize_column",json!({"column":column["index"],"width":resized.round().clamp(24.0,4000.0) as u64}));
+                            }
+                            // Preserve event order: a press and its first move
+                            // can share a frame. egui's final-position hit test
+                            // then misses a grab that started on this edge.
+                            for event in ui.input(|input| input.raw.events.clone()) {
+                                match event {
+                                    egui::Event::PointerButton {pos, button:egui::PointerButton::Primary, pressed:true, ..} => {
+                                        self.column_drag_origins.remove(&key);
+                                        if ui.is_enabled() && rect.contains(pos) && ui.clip_rect().contains(pos)
+                                            && ui.ctx().layer_id_at(pos) == Some(ui.layer_id()) {
+                                            self.column_drag_origins.insert(key.clone(), (pos.x, *width));
+                                        }
+                                    }
+                                    egui::Event::PointerMoved(pos) => {
+                                        if let Some((start, original)) = self.column_drag_origins.get(&key) {
+                                            self.column_widths.insert(key.clone(), (*original + pos.x - *start).clamp(40.0,4000.0));
+                                        }
+                                    }
+                                    egui::Event::PointerButton {pos, button:egui::PointerButton::Primary, pressed:false, ..} => {
+                                        if let Some((start, original)) = self.column_drag_origins.remove(&key) {
+                                            let resized = (original + pos.x - start).clamp(40.0,4000.0);
+                                            self.column_widths.insert(key.clone(), resized);
+                                            self.input(node,"resize_column",json!({"column":column["index"],"width":resized.round() as u64}));
+                                        }
+                                    }
+                                    _ => {}
+                                }
+                            }
+                            if !ui.input(|input| input.pointer.primary_down()) {
+                                self.column_drag_origins.remove(&key);
                             }
                         }
                     }

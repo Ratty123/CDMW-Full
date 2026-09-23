@@ -514,7 +514,7 @@ fn column_drag_keeps_the_full_distance_on_release_and_after_row_updates() {
     let context = egui::Context::default();
     let mut view = PresentationView::default();
     let mut state = state(control("table", "table", "", json!({
-        "headers": true, "columns": [
+        "headers": true, "sortable": true, "columns": [
             {"index":0,"width":100,"text":"Internal name","resizable":true},
             {"index":1,"width":100,"text":"Name","resizable":true}],
         "total":0,"rows":[]
@@ -550,6 +550,42 @@ fn column_drag_keeps_the_full_distance_on_release_and_after_row_updates() {
             pos:end,button:egui::PointerButton::Primary,pressed:false,modifiers:egui::Modifiers::NONE}]);
     let resize = view.inputs.iter().find(|input| input.action == "resize_column").expect("coalesced header drag");
     assert_eq!(resize.value["width"], 612);
+
+    frame(&context, &mut view, &state, size, vec![]);
+    let start = egui::pos2(611.0, 13.0);
+    let end = egui::pos2(531.0, 13.0);
+    frame(&context, &mut view, &state, size, vec![
+        egui::Event::PointerMoved(start), egui::Event::PointerButton {
+            pos:start,button:egui::PointerButton::Primary,pressed:true,modifiers:egui::Modifiers::NONE},
+        egui::Event::PointerMoved(end)]);
+    frame(&context, &mut view, &state, size, vec![egui::Event::PointerButton {
+            pos:end,button:egui::PointerButton::Primary,pressed:false,modifiers:egui::Modifiers::NONE}]);
+    let resize = view.inputs.iter().find(|input| input.action == "resize_column").expect("press and first move in one frame");
+    assert_eq!(resize.value["width"], 532);
+
+    frame(&context, &mut view, &state, size, vec![]);
+    let start = egui::pos2(531.0, 13.0);
+    let end = egui::pos2(571.0, 13.0);
+    frame(&context, &mut view, &state, size, vec![
+        egui::Event::PointerMoved(start), egui::Event::PointerButton {
+            pos:start,button:egui::PointerButton::Primary,pressed:true,modifiers:egui::Modifiers::NONE},
+        egui::Event::PointerMoved(end), egui::Event::PointerButton {
+            pos:end,button:egui::PointerButton::Primary,pressed:false,modifiers:egui::Modifiers::NONE}]);
+    assert_eq!(view.inputs.len(), 1);
+    assert_eq!(view.inputs[0].action, "resize_column");
+    assert_eq!(view.inputs[0].value["width"], 572);
+
+    state.root.enabled = false;
+    frame(&context, &mut view, &state, size, vec![]);
+    let start = egui::pos2(571.0, 13.0);
+    let end = egui::pos2(491.0, 13.0);
+    frame(&context, &mut view, &state, size, vec![
+        egui::Event::PointerMoved(start), egui::Event::PointerButton {
+            pos:start,button:egui::PointerButton::Primary,pressed:true,modifiers:egui::Modifiers::NONE},
+        egui::Event::PointerMoved(end), egui::Event::PointerButton {
+            pos:end,button:egui::PointerButton::Primary,pressed:false,modifiers:egui::Modifiers::NONE}]);
+    assert!(view.inputs.is_empty());
+    assert_eq!(view.column_widths[&("table".into(), 0)], 572.0);
 }
 
 #[test]
