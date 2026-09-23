@@ -650,6 +650,12 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self.translucency_editor.changed.connect(self._translucency_changed)
         self.translucency_editor.refresh(self._controller.material_parts(), self._controller.draft.translucency)
         model_layout.addWidget(self.translucency_editor)
+        from cdmw.ui.new_item.body_visibility_editor import BodyVisibilityEditor
+        self.body_visibility_editor = BodyVisibilityEditor(self)
+        self.body_visibility_editor.refresh(self._controller.draft.body_visibility,
+                                            enabled=self._controller.current_variant_identity() is not None)
+        self.body_visibility_editor.changed.connect(self._body_visibility_changed)
+        model_layout.addWidget(self.body_visibility_editor)
         from cdmw.ui.new_item.shader_controls_editor import ShaderControlsEditor
         self.shader_controls_editor = ShaderControlsEditor(self)
         self.shader_controls_editor.refresh(self._controller.material_parts(), self._controller.draft.shader_controls,
@@ -913,6 +919,8 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self._set_glow_swatch()
         parts = self._controller.material_parts()
         self.translucency_editor.refresh(parts, self._controller.draft.translucency)
+        self.body_visibility_editor.refresh(self._controller.draft.body_visibility,
+                                            enabled=self._controller.current_variant_identity() is not None)
         self.shader_controls_editor.refresh(parts, self._controller.draft.shader_controls,
                                             self._controller.material_shader_options())
         self.glow_parts.blockSignals(True)
@@ -995,6 +1003,10 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
             self.plain_pbr.setChecked(True)
         self._controller.invalidate_plan()
         self._sync_glow_preview()
+
+    def _body_visibility_changed(self, choice) -> None:
+        self._controller.draft.body_visibility = choice
+        self._controller.invalidate_plan()
 
     def _shader_controls_changed(self, choices) -> None:
         previous = self._controller.draft.shader_controls

@@ -3691,7 +3691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 802,
+          "line": 808,
           "sink": "setToolTip"
         }
       ]
@@ -3812,6 +3812,16 @@
         {
           "path": "cdmw/services/new_item_skinning.py",
           "line": 79,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "A visibility string is shared with an unselected field; refusing to change that field.",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_body_visibility.py",
+          "line": 155,
           "sink": "ValueError"
         }
       ]
@@ -6316,7 +6326,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 873,
+          "line": 879,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -7991,7 +8001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1139,
+          "line": 1151,
           "sink": "set_note"
         },
         {
@@ -8033,6 +8043,16 @@
           "path": "tools/placement_studio/window_rig_behaviour.py",
           "line": 129,
           "sink": "setHorizontalHeaderLabels"
+        }
+      ]
+    },
+    {
+      "key": "Applies to the current equipment variant, across its materials. Whole-part hiding applies to its entire prefab. Test in game: the preview does not simulate these rules, and other equipment may still hide parts.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/body_visibility_editor.py",
+          "line": 24,
+          "sink": "QLabel"
         }
       ]
     },
@@ -11557,6 +11577,26 @@
       ]
     },
     {
+      "key": "Ask this equipment variant to preserve character hair and beard. Helmet-owned item hair keeps its template rules.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/body_visibility_editor.py",
+          "line": 21,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Ask this equipment variant to preserve the body and head beneath it. Turn off to use template rules.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/body_visibility_editor.py",
+          "line": 20,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Asking the provider...",
       "origins": [
         {
@@ -14126,7 +14166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 873,
+          "line": 879,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -18022,6 +18062,16 @@
       ]
     },
     {
+      "key": "Cannot copy prefab {value_0}: {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_variants.py",
+          "line": 316,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Cannot extend a different baseline directory",
       "origins": [
         {
@@ -18131,7 +18181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 740,
+          "line": 746,
           "sink": "setToolTip"
         }
       ]
@@ -21181,7 +21231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/state.py",
-          "line": 406,
+          "line": 409,
           "sink": "ValueError"
         }
       ]
@@ -21191,7 +21241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 937,
+          "line": 945,
           "sink": "setToolTip"
         }
       ]
@@ -21521,7 +21571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 758,
+          "line": 764,
           "sink": "QPushButton"
         }
       ]
@@ -21826,7 +21876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 873,
+          "line": 879,
           "sink": "getOpenFileName"
         }
       ]
@@ -23711,7 +23761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1069,
+          "line": 1081,
           "sink": "setText"
         },
         {
@@ -23776,7 +23826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/state.py",
-          "line": 508,
+          "line": 512,
           "sink": "python-return:stats_summary"
         }
       ]
@@ -23786,7 +23836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/state.py",
-          "line": 522,
+          "line": 526,
           "sink": "python-return:stats_summary"
         }
       ]
@@ -30881,7 +30931,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 709,
+          "line": 715,
           "sink": "QPushButton"
         },
         {
@@ -30931,7 +30981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 710,
+          "line": 716,
           "sink": "setToolTip"
         }
       ]
@@ -38251,7 +38301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 759,
+          "line": 765,
           "sink": "setToolTip"
         }
       ]
@@ -38261,7 +38311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 773,
+          "line": 779,
           "sink": "setText"
         }
       ]
@@ -38271,7 +38321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 860,
+          "line": 866,
           "sink": "setText"
         }
       ]
@@ -38281,7 +38331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 894,
+          "line": 900,
           "sink": "emit"
         }
       ]
@@ -40561,7 +40611,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1097,
+          "line": 1109,
           "sink": "setText"
         }
       ]
@@ -40791,7 +40841,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 659,
+          "line": 665,
           "sink": "QCheckBox"
         }
       ]
@@ -41211,7 +41261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 862,
+          "line": 868,
           "sink": "setText"
         }
       ]
@@ -41326,7 +41376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 767,
+          "line": 773,
           "sink": "QPushButton"
         }
       ]
@@ -42758,6 +42808,16 @@
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
           "line": 835,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Generated variant {value_0} matches an existing hide suffix; choose another item name.",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_body_visibility.py",
+          "line": 48,
+          "sink": "ValueError"
         }
       ]
     },
@@ -46866,7 +46926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 725,
+          "line": 731,
           "sink": "setText"
         }
       ]
@@ -46926,7 +46986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 701,
+          "line": 707,
           "sink": "QPushButton"
         }
       ]
@@ -47286,7 +47346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 693,
+          "line": 699,
           "sink": "QRadioButton"
         }
       ]
@@ -51177,6 +51237,16 @@
       ]
     },
     {
+      "key": "Keep hair/beard",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/body_visibility_editor.py",
+          "line": 18,
+          "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
       "key": "Keep original",
       "origins": [
         {
@@ -51358,6 +51428,16 @@
           "path": "cdmw/ui/new_item/panels_model.py",
           "line": 363,
           "sink": "QRadioButton"
+        }
+      ]
+    },
+    {
+      "key": "Keep underlying skin/head",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/body_visibility_editor.py",
+          "line": 16,
+          "sink": "QCheckBox"
         }
       ]
     },
@@ -60961,12 +61041,12 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 680,
+          "line": 686,
           "sink": "QGroupBox"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 682,
+          "line": 688,
           "sink": "setAccessibleName"
         },
         {
@@ -64061,7 +64141,7 @@
         },
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 153,
+          "line": 154,
           "sink": "raise_if_cancelled"
         },
         {
@@ -65786,22 +65866,22 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 717,
+          "line": 723,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 723,
+          "line": 729,
           "sink": "NoteLabel"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1108,
+          "line": 1120,
           "sink": "set_note"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1109,
+          "line": 1121,
           "sink": "setText"
         }
       ]
@@ -65832,6 +65912,16 @@
         {
           "path": "cdmw/services/mod_update_service.py",
           "line": 258,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "No isolated equipment visibility identity is available for {value_0}.",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_body_visibility.py",
+          "line": 58,
           "sink": "ValueError"
         }
       ]
@@ -67717,6 +67807,16 @@
       ]
     },
     {
+      "key": "No unused {value_0}-byte visibility tag is available for {value_1}.",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_body_visibility.py",
+          "line": 31,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "No usable skeleton could be resolved. Continue with a mesh-only FBX export?",
       "origins": [
         {
@@ -68266,7 +68366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1141,
+          "line": 1153,
           "sink": "set_note"
         },
         {
@@ -70406,12 +70506,12 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 732,
+          "line": 738,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 847,
+          "line": 853,
           "sink": "setText"
         }
       ]
@@ -70766,7 +70866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 733,
+          "line": 739,
           "sink": "setToolTip"
         }
       ]
@@ -76421,7 +76521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 702,
+          "line": 708,
           "sink": "setToolTip"
         }
       ]
@@ -76641,7 +76741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1137,
+          "line": 1149,
           "sink": "setToolTip"
         }
       ]
@@ -76651,7 +76751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1137,
+          "line": 1149,
           "sink": "setToolTip"
         }
       ]
@@ -77266,7 +77366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 784,
+          "line": 790,
           "sink": "QCheckBox"
         }
       ]
@@ -77566,7 +77666,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 777,
+          "line": 799,
           "sink": "log"
         }
       ]
@@ -79876,7 +79976,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 794,
+          "line": 816,
           "sink": "add"
         }
       ]
@@ -90871,7 +90971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1097,
+          "line": 1109,
           "sink": "setText"
         }
       ]
@@ -92566,7 +92666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 688,
+          "line": 694,
           "sink": "setToolTip"
         }
       ]
@@ -92891,7 +92991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 847,
+          "line": 853,
           "sink": "setText"
         }
       ]
@@ -98961,7 +99061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_variant_mixin.py",
-          "line": 90,
+          "line": 91,
           "sink": "ValueError"
         }
       ]
@@ -102721,7 +102821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 795,
+          "line": 801,
           "sink": "setToolTip"
         }
       ]
@@ -103671,7 +103771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 786,
+          "line": 792,
           "sink": "setToolTip"
         }
       ]
@@ -107736,7 +107836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 694,
+          "line": 700,
           "sink": "setToolTip"
         }
       ]
@@ -109046,7 +109146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 801,
+          "line": 807,
           "sink": "QCheckBox"
         }
       ]
@@ -109076,7 +109176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 687,
+          "line": 693,
           "sink": "QRadioButton"
         }
       ]
@@ -111636,7 +111736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1059,
+          "line": 1071,
           "sink": "getColor"
         }
       ]
@@ -111812,6 +111912,16 @@
         {
           "path": "cdmw/ui/mesh_editor/archive_refit_flow.py",
           "line": 51,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The edited visibility components did not decode identically.",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_body_visibility.py",
+          "line": 149,
           "sink": "ValueError"
         }
       ]
@@ -113452,6 +113562,16 @@
       ]
     },
     {
+      "key": "The selected equipment has no supported shrink or postfix rules to override.",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_body_visibility.py",
+          "line": 174,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "The selected extraction target already contains files or folders.",
       "origins": [
         {
@@ -113591,7 +113711,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 315,
+          "line": 318,
           "sink": "ValueError"
         }
       ]
@@ -113811,7 +113931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 888,
+          "line": 894,
           "sink": "emit"
         }
       ]
@@ -115046,7 +115166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_variant_mixin.py",
-          "line": 122,
+          "line": 124,
           "sink": "ValueError"
         }
       ]
@@ -117067,6 +117187,16 @@
       ]
     },
     {
+      "key": "Underlying parts (experimental)",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/body_visibility_editor.py",
+          "line": 13,
+          "sink": "setTitle"
+        }
+      ]
+    },
+    {
       "key": "Understand a selected file",
       "origins": [
         {
@@ -118851,7 +118981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 739,
+          "line": 745,
           "sink": "QPushButton"
         }
       ]
@@ -119291,7 +119421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 793,
+          "line": 799,
           "sink": "QCheckBox"
         }
       ]
@@ -120446,7 +120576,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 317,
+          "line": 320,
           "sink": "add"
         }
       ]
@@ -121591,7 +121721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 965,
+          "line": 973,
           "sink": "set_note"
         }
       ]
@@ -121611,7 +121741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 965,
+          "line": 973,
           "sink": "set_note"
         }
       ]
@@ -131046,7 +131176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 660,
+          "line": 666,
           "sink": "setToolTip"
         }
       ]
@@ -131641,7 +131771,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 668,
+          "line": 685,
           "sink": "add"
         }
       ]
@@ -138976,7 +139106,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 629,
+          "line": 646,
           "sink": "add"
         }
       ]
@@ -140201,7 +140331,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 617,
+          "line": 634,
           "sink": "add"
         }
       ]
@@ -142611,7 +142741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1136,
+          "line": 1148,
           "sink": "setText"
         }
       ]
@@ -142621,7 +142751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1127,
+          "line": 1139,
           "sink": "setText"
         }
       ]
@@ -144741,7 +144871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 891,
+          "line": 897,
           "sink": "emit"
         }
       ]
@@ -146796,7 +146926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/state.py",
-          "line": 475,
+          "line": 479,
           "sink": "python-return:effect_reference"
         }
       ]
@@ -146816,12 +146946,12 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 604,
+          "line": 621,
           "sink": "add"
         },
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 617,
+          "line": 634,
           "sink": "add"
         },
         {
@@ -147067,6 +147197,26 @@
       ]
     },
     {
+      "key": "{value_0}: component {value_1} has ambiguous mesh bindings.",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_body_visibility.py",
+          "line": 118,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "{value_0}: component {value_1} has ambiguous shrink tags.",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_body_visibility.py",
+          "line": 124,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "{value_0}: could not encode the translucent surface texture.",
       "origins": [
         {
@@ -147162,6 +147312,16 @@
       ]
     },
     {
+      "key": "{value_0}: no exact SkinnedMeshComponent for visibility selection: {value_1}.",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_body_visibility.py",
+          "line": 144,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "{value_0}: no recorded baseline for {value_1}. Re-export this item with CDMW.",
       "origins": [
         {
@@ -147231,7 +147391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1138,
+          "line": 1150,
           "sink": "note"
         }
       ]
@@ -147272,6 +147432,16 @@
       ]
     },
     {
+      "key": "{value_0}: visibility requires a complete, unambiguous component decode.",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_body_visibility.py",
+          "line": 107,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "{value_0}: {value_1}",
       "origins": [
         {
@@ -147285,8 +147455,13 @@
           "sink": "ValueError"
         },
         {
+          "path": "cdmw/services/new_item_body_visibility.py",
+          "line": 158,
+          "sink": "ValueError"
+        },
+        {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 604,
+          "line": 621,
           "sink": "add"
         },
         {
@@ -147711,7 +147886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1126,
+          "line": 1138,
           "sink": "note"
         }
       ]
@@ -148023,6 +148198,16 @@
           "path": "cdmw/ui/new_item/controller.py",
           "line": 304,
           "sink": "python-return:suggest_internal_name"
+        }
+      ]
+    },
+    {
+      "key": "{value_0}_bv{value_1}_{value_2}",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_body_visibility.py",
+          "line": 57,
+          "sink": "python-return:_isolated_stem"
         }
       ]
     },

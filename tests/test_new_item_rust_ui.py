@@ -86,6 +86,21 @@ def test_identity_actions_reach_existing_draft_and_invalidate_plan(studio):
     assert not tab.controller.has_current_plan
 
 
+def test_underlying_parts_controls_reach_draft_through_rust_bridge(studio):
+    from cdmw.domain.new_item.body_visibility import BodyVisibilityChoice
+    _, tab, bridge = studio
+    tab.show_step(2)
+    _send(bridge, tab.model_panel.inspector_tabs, "tab", 1)
+    editor = tab.model_panel.body_visibility_editor
+    _send(bridge, editor.keep_skin, "toggle", True)
+    assert tab.controller.current_spec().body_visibility == BodyVisibilityChoice(keep_skin=True)
+    _send(bridge, editor.keep_hair, "toggle", True)
+    assert tab.controller.current_spec().body_visibility == BodyVisibilityChoice(True, True)
+    _send(bridge, editor.keep_skin, "toggle", False)
+    _send(bridge, editor.keep_hair, "toggle", False)
+    assert not tab.controller.current_spec().body_visibility.wanted
+
+
 def test_overlay_folder_projects_numeric_typing_and_preserves_auto(studio):
     _, tab, bridge = studio
     tab.show_step(6)

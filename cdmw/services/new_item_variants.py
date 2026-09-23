@@ -310,7 +310,10 @@ def plan_variant_files(planner):
                              "appearance":"custom model" if imported else "owned template copy",
                              "companion":choice is None,"material_route":model.material_route if model else "template"})
         target = part.record.cloned(new_stem).prefab_path
-        result = rewrite_prefab_paths_any_length(snapshot.payload(part.prefab_path),paths)
+        try:
+            result = rewrite_prefab_paths_any_length(planner.prefab_source(part.prefab_path),paths)
+        except ValueError as exc:
+            raise ValueError(f"Cannot copy prefab {part.prefab_path}: {exc}") from exc
         if not result.edits:
             raise ValueError("The selected variant prefab has no exact model binding to repoint.")
         payload = planner._graft_effect(result.data,donor,target) if donor is not None else result.data

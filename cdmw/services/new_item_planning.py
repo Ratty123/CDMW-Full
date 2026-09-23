@@ -137,6 +137,7 @@ class _Planner(EffectPlanningMixin):
     recipe_source_keys: Optional[Tuple[int, ...]] = None
     variant_models: Mapping[tuple, ModelFiles] = field(default_factory=dict)
     variant_plan: object = None
+    body_visibility_plan: object = None
     #: What the graft names: the shipped effect, or the clone with the item's look.
     effect_reference: str = ""
     effect_outputs: List[tuple] = field(default_factory=list)
@@ -195,7 +196,16 @@ class _Planner(EffectPlanningMixin):
 
         if self.variant_plan is not None:
             return self.variant_plan.stem_map
+        if self.body_visibility_plan is not None:
+            return self.body_visibility_plan.stem_map
         return {part.stem: self.family.rename_stem(part.stem, self.new_stem) for part in self.family.owned_parts if part.record is not None}
+
+    def prefab_source(self, path: str) -> bytes:
+        if self.body_visibility_plan is not None:
+            payload = self.body_visibility_plan.prefabs.get(path.replace("\\", "/").casefold())
+            if payload is not None:
+                return payload
+        return self.snapshot.payload(path)
 
     @property
     def owns_sheathed_parts(self) -> bool:
@@ -557,6 +567,10 @@ class _Planner(EffectPlanningMixin):
             return
         family = self.family
         renamed = {old: (role, new) for role, old, new in family.renamed(self.new_stem)}
+        if self.body_visibility_plan is not None:
+            for part in family.owned_parts:
+                if part.record is not None:
+                    renamed[part.prefab_path] = ("prefab", part.record.cloned(self.owned_stem_map()[part.stem]).prefab_path)
         pac_files = [item for item in family.files_for("pac") if item.exists]
         if not pac_files:
             raise NewItemPlanError(f"{self.template.string_key}'s family has no .pac to replace")
@@ -589,7 +603,10 @@ class _Planner(EffectPlanningMixin):
             if role == "pac":
                 payload = self.model.pac_data if item.path == old_pac else self.model.side_files.get(item.path, self.snapshot.payload(item.path))
             elif role == "prefab":
-                result = rewrite_prefab_paths_any_length(self.snapshot.payload(item.path), pac_map)
+                try:
+                    result = rewrite_prefab_paths_any_length(self.prefab_source(item.path), pac_map)
+                except ValueError as exc:
+                    raise NewItemPlanError(f"Cannot copy prefab {item.path}: {exc}") from exc
                 if not result.edits:
                     raise NewItemPlanError(f"{item.path} names none of the family's meshes, so it cannot be re-pathed")
                 payload = result.data
@@ -767,6 +784,11 @@ def build_plan(
         "icon_source": spec.icon.value,
     })
     try:
+        from cdmw.services.new_item_body_visibility import prepare_body_visibility
+        try:
+            planner.body_visibility_plan = prepare_body_visibility(planner)
+        except ValueError as exc:
+            raise NewItemPlanError(f"Cannot prepare equipment visibility rules: {exc}") from exc
         for step, label in (
             (planner.plan_strings, "strings"), (planner.plan_part_prefabs, "part prefabs"), (planner.plan_enhancements, "enhancement rows"),
             (planner.plan_acquisition, "reward acquisition"), (planner.plan_item_row, "item row"),

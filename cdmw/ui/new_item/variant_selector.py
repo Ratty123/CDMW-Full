@@ -41,7 +41,7 @@ class VariantSelector(QWidget):
             self.choice.setToolTip(f"Prefab: {identity[0]}\nModel: {identity[1]}")
         authored = sum(bool(state.appearance.custom_model or state.appearance.dyes != ()
                             or state.appearance.glow_parts or state.appearance.translucency is not None or state.appearance.shader_controls
-                            or state.appearance.template_transform)
+                            or state.appearance.template_transform or state.appearance.body_visibility.wanted)
                        for state in self.controller._variant_states.values())
         self.state.setText(f"{authored}/{self.choice.count()}")
         self.state.setToolTip(f"{authored} customized / {self.choice.count()} bindings")

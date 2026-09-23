@@ -382,6 +382,37 @@ unticking the part restores its authored material. Viewport timing and brightnes
 are approximations of decoded shader behavior; this feature has synthetic GPU and
 export tests, not game calibration. Mesh Editor has the same controls in Parts.
 
+The Appearance page offers **Underlying parts (experimental)** beside translucency.
+**Keep underlying skin/head** and **Keep hair/beard** default off and follow the
+current equipment variant. They affect all components using that variant's mesh,
+across its materials. Whole-part hide conditions apply to the entire prefab, so
+skin/hair choices from its mesh bindings are combined. Other equipped items can
+still hide the restored parts. Helmet-owned item hair retains its template rules.
+
+Build plan gives the item owned prefab copies and named shrink profiles in
+`character/descriptors/partshrinkdesc.xml`. Profiles omit the requested receivers,
+retain incoming relationships and copy relevant depth settings. Matching conditions
+from `conditionalpartprefab_postfix.xml` are copied to isolated prefab names with
+only the selected skin/hair Hide targets removed. Normal appearance copies also
+preserve these filename-based conditions when their new names lose the original
+suffix: leaving the options off retains the template's hiding rules for comparison.
+Profile names retain each original tag's byte length, avoiding binary relocation
+for visibility edits. Unknown or absent component tags produce a partial-support
+warning; incomplete prefabs and unsupported descriptor forms fail planning instead
+of guessing. Separately, the existing mesh-path cloner may reject a readable
+prefab with ambiguous pointer lengths; the error identifies that prefab and cause.
+
+These are export experiments, with **no simulation of game cut behavior in the
+preview**. Metadata checks do not establish in-game visibility. For A/B testing,
+export the same translucent item once with both options off and once with the
+desired option on, then compare one version at a time with the same character,
+hair, pose and other equipment. Test skin and hair separately before combining
+them. Other cut volumes or absent body geometry may still prevent visibility.
+The plan records each selected binding, component tag and generated profile in
+`new-item.json`. Shared descriptor files travel through ordinary loose export,
+overlay installation and recovery. Use the previous exported mod as the base when
+combining items; separately exported descriptors can overwrite one another's rules.
+
 The Appearance page offers **Translucency (experimental)** for both template and imported models.
 Enable it and tick the material parts to change, or use **Select all** to check every
 part with one preview update. **Clear selection** restores source materials with

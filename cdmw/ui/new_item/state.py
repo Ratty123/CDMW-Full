@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from cdmw.domain.mesh.emission import GlowAnimation, RgbGlow
 from cdmw.domain.mesh.shader_controls import ShaderControls
+from cdmw.domain.new_item.body_visibility import BodyVisibilityChoice
 
 from dataclasses import dataclass, field, replace
 from typing import Dict, List, Mapping, Optional, Sequence, Tuple
@@ -246,6 +247,7 @@ class NewItemDraft:
     translucency: Optional[TranslucencyChoice] = None
     template_transform: Tuple[float, ...] = ()
     shader_controls: tuple[tuple[str, ShaderControls], ...] = ()
+    body_visibility: BodyVisibilityChoice = BodyVisibilityChoice()
 
     def reset_for_template(self, template_key: Optional[int]) -> None:
         self.template_key = template_key
@@ -265,6 +267,7 @@ class NewItemDraft:
         self.variants = None
         self.translucency = None
         self.shader_controls = ()
+        self.body_visibility = BodyVisibilityChoice()
         self.template_transform = ()
         self.glow_parts = ()
 
@@ -433,6 +436,7 @@ def spec_from_draft(draft: NewItemDraft, grid: Optional[StatGrid]) -> NewItemSpe
         keep_template_physics=draft.keep_template_physics,
         glow=glow_choice(draft),
         translucency=draft.translucency, shader_controls=draft.shader_controls,
+        body_visibility=draft.body_visibility,
         template_transform=draft.template_transform,
         icon=draft.icon,
         stat_edits=stats,

@@ -177,6 +177,17 @@ def validate_spec(spec: NewItemSpec) -> Tuple[ValidationIssue, ...]:
         return _validate_effect_layers(spec)
 
     issues: list[ValidationIssue] = []
+    from cdmw.domain.new_item.body_visibility import BodyVisibilityChoice
+    visibility_choices = [("body_visibility", spec.body_visibility)]
+    visibility_choices.extend((f"variants[{i}].body_visibility", value.body_visibility)
+                              for i, value in enumerate(spec.variants or ()))
+    for field_name, choice in visibility_choices:
+        try:
+            if not isinstance(choice, BodyVisibilityChoice):
+                raise ValueError("Invalid underlying-parts choice.")
+            choice.validate()
+        except ValueError as exc:
+            issues.append(_issue("body_visibility.invalid", field_name, str(exc)))
     from cdmw.domain.mesh.shader_controls import validate_choices
     try:
         validate_choices(spec.shader_controls, glow_parts=spec.glow.parts if spec.glow else (),

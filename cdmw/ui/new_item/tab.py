@@ -87,7 +87,7 @@ def _workflow_step_for_issue(issue: object) -> int:
         return 3
     if code.startswith("template.") or field == "template_key":
         return 0
-    if code.startswith(("model", "variant")) or field in {"model", "variants", "dyes"}:
+    if code.startswith(("model", "variant", "body_visibility")) or field in {"model", "variants", "dyes"}:
         return 2
     if code.startswith(("stat.", "buy_price.", "price.", "max_stack.", "enhancement.")) or field in {
         "stat_edits",
