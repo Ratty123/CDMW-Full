@@ -241,6 +241,118 @@ def test_switching_presentation_preserves_the_same_live_workflow(studio):
             experimental.deleteLater()
 
 
+@pytest.mark.parametrize("rust", [False, True], ids=["classic", "rust"])
+def test_shell_model_loading_uses_compact_status_bar_and_keeps_cancel(studio, rust):
+    from PySide6.QtWidgets import QLabel, QProgressBar
+    from shiboken6 import isValid
+
+    from cdmw.ui.new_item.rust_ui_tab import RustNewItemStudioTab
+    from cdmw.ui.shell.compact.status_strip import CompactBottomStatusStrip
+    from cdmw.ui.shell.tool_tabs import ShellToolTabsMixin
+
+    fixture, _, _ = studio
+    workflow = fixture._tab()
+    strip = CompactBottomStatusStrip(QLabel("Ready"), QProgressBar(), QLabel("Cache: Healthy"))
+    owner = SimpleNamespace(
+        compact_workspace=SimpleNamespace(status_strip=strip),
+        app_context=SimpleNamespace(services=SimpleNamespace(new_items=None)),
+        set_status_message=Mock(),
+        textures=SimpleNamespace(_show_archive_browser_from_texture_editor=Mock()),
+    )
+    key = "new_item_rust_studio" if rust else "new_item_studio"
+    constructor = "cdmw.ui.new_item.rust_ui_tab.NewItemStudioTab" if rust else "cdmw.ui.new_item.NewItemStudioTab"
+    factory = (ShellToolTabsMixin._create_new_item_rust_studio_tab if rust
+               else ShellToolTabsMixin._create_new_item_studio_tab)
+    root = QWidget()
+    layout = QVBoxLayout(root)
+
+    def settle():
+        QApplication.processEvents()
+        QApplication.processEvents()
+
+    with patch(constructor, return_value=workflow), \
+            patch.object(workflow.controller, "persist_issued_identities"), \
+            patch.object(RustNewItemStudioTab, "_start_prepare"):
+        presentation = factory(owner)
+        assert not workflow._panels_built
+        workflow.prefill_template(TEMPLATE)
+        workflow.show_step(2)
+        panel = workflow.model_panel
+        banner = panel.operation_banner
+        layout.addWidget(presentation, 1)
+        layout.addWidget(strip)
+        strip.set_active_tool(key)
+        root.resize(1280, 720)
+        root.show()
+        try:
+            panel.preview.status_changed.emit("Full textures loaded.")
+            settle()
+            assert strip.isAncestorOf(banner)
+            assert panel.model_icon_column.layout().indexOf(banner) == -1
+            inspector_height = panel.model_icon_scroll.height()
+            strip_height = strip.height()
+            assert strip_height == 42
+            assert banner.parentWidget().isHidden()
+
+            controller = workflow.controller
+            controller._lane = "model_import"
+            controller.busy_changed.emit(True)
+            detail = "Preparing imported model textures and materials " * 8
+            controller.operation_progress.emit("model_import", 3, 8, detail)
+            settle()
+            assert banner.isVisible()
+            assert panel.operation_spinner._timer.isActive()
+            assert (panel.busy_bar.maximum(), panel.busy_bar.value()) == (8, 3)
+            assert not panel.operation_label.wordWrap()
+            assert panel.operation_label.toolTip() == detail
+            assert panel.operation_label.width() > 40
+            assert banner.parentWidget().x() > strip.cache_label.geometry().right()
+            assert panel.cancel_operation_button.isVisible()
+            assert panel.model_icon_scroll.height() == inspector_height
+            assert strip.height() == strip_height
+            assert strip.ready_label.text() == "Ready"
+            assert strip.cache_label.text() == "Cache: Healthy"
+            bridge = NewItemPresentationBridge(workflow)
+            bridge.snapshot()
+            assert bridge.document.registry.identify(banner) not in bridge.document.registry.current
+            if rust:
+                presentation.use_classic()
+                presentation.use_rust()
+                assert strip.isAncestorOf(banner)
+                assert banner.isVisible()
+
+            with patch.object(controller, "cancel_operation", return_value=True) as cancel:
+                panel.cancel_operation_button.click()
+                cancel.assert_called_once_with("model_import")
+                assert not panel.cancel_operation_button.isEnabled()
+                assert panel.operation_label.toolTip() == "Cancelling…"
+            controller._lane = ""
+            controller.busy_changed.emit(False)
+            panel.preview.status_changed.emit("Fast textures are visible; loading full textures…")
+            settle()
+            assert banner.isVisible()
+            assert not panel.cancel_operation_button.isVisible()
+            assert panel.operation_label.toolTip() == "Fast textures are visible; loading full textures…"
+            strip.set_active_tool("archive")
+            assert not banner.isVisible()
+            strip.set_active_tool(key)
+            assert banner.isVisible()
+            panel.preview.status_changed.emit("Full textures loaded.")
+            settle()
+            assert banner.parentWidget().isHidden()
+            assert not panel.operation_spinner._timer.isActive()
+        finally:
+            root.hide()
+            presentation.request_shutdown()
+            workflow.close()
+            workflow.deleteLater()
+            QApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+            QApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+            assert not isValid(banner)
+            root.deleteLater()
+            QApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+
+
 def test_prewarm_publishes_hidden_state_then_idles_and_does_not_restart(studio):
     _, tab, _ = studio
     from cdmw.ui.new_item.rust_ui_tab import RustNewItemStudioTab

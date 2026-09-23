@@ -513,6 +513,9 @@ class ShellToolTabsMixin:
         from cdmw.ui.new_item import NewItemStudioTab
 
         tab = NewItemStudioTab(window=self, service=self.app_context.services.new_items)
+        workspace = getattr(self, "compact_workspace", None)
+        if workspace is not None:
+            tab.set_model_status_host(workspace.status_strip.tool_status_host("new_item_studio"))
         # the identities the studio hands out are remembered between sessions, so a second
         # item never takes the first one's key and stem
         tab.controller.persist_issued_identities()
@@ -529,6 +532,9 @@ class ShellToolTabsMixin:
         from cdmw.ui.new_item.rust_ui_tab import RustNewItemStudioTab
 
         tab = RustNewItemStudioTab(window=self, service=self.app_context.services.new_items)
+        workspace = getattr(self, "compact_workspace", None)
+        if workspace is not None:
+            tab.workflow.set_model_status_host(workspace.status_strip.tool_status_host("new_item_rust_studio"))
         tab.controller.persist_issued_identities()
         tab.status_message_requested.connect(
             lambda message, is_error=False: self.set_status_message(

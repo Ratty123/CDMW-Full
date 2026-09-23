@@ -64,6 +64,7 @@ class CompactBottomStatusStrip(QFrame):
         self._active_tool_key = ""
         self._snapshots: dict[str, CompactStatusSnapshot] = {}
         self._messages: dict[str, tuple[str, str]] = {}
+        self._tool_status_hosts: dict[str, QWidget] = {}
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(10, 0, 10, 0)
@@ -110,7 +111,41 @@ class CompactBottomStatusStrip(QFrame):
 
     def set_active_tool(self, tool_key: str) -> None:
         self._active_tool_key = str(tool_key or "")
+        self._refresh_tool_status_hosts()
         self._refresh_text()
+
+    def tool_status_host(self, tool_key: str) -> QWidget:
+        """Mount a tool's existing progress controls beside the cache status."""
+        if tool_key not in self._tool_status_hosts:
+            host = QWidget(self)
+            host.setMaximumWidth(460)
+            host.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+            row = QHBoxLayout(host)
+            row.setContentsMargins(0, 0, 0, 0)
+            row.setSpacing(0)
+            self._tool_status_hosts[tool_key] = host
+            self.layout().insertWidget(3, host, stretch=1)
+            host.installEventFilter(self)
+            host.hide()
+        return self._tool_status_hosts[tool_key]
+
+    def _refresh_tool_status_hosts(self) -> None:
+        for key, host in self._tool_status_hosts.items():
+            row = host.layout()
+            has_status = any(not row.itemAt(index).widget().isHidden() for index in range(row.count()))
+            host.setVisible(key == self._active_tool_key and has_status)
+
+    def eventFilter(self, watched, event) -> bool:
+        hosts = self._tool_status_hosts.values()
+        if watched in hosts:
+            if event.type() == QEvent.ChildAdded and event.child().isWidgetType():
+                event.child().installEventFilter(self)
+            elif event.type() == QEvent.LayoutRequest:
+                self._refresh_tool_status_hosts()
+        elif event.type() in (QEvent.ShowToParent, QEvent.HideToParent) and watched.parent() in hosts:
+            # A hidden host does not receive layout requests when its child shows.
+            self._refresh_tool_status_hosts()
+        return super().eventFilter(watched, event)
 
     def set_snapshot(self, snapshot: CompactStatusSnapshot) -> None:
         self._snapshots[snapshot.tool_key] = snapshot

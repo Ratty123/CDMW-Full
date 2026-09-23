@@ -150,6 +150,7 @@ class NewItemStudioTab(QWidget):
         self._pending_template: Optional[int] = None
         self._pending_model_import: Optional[Path] = None
         self._panels_built = False
+        self._model_status_host = None
         self._stats_panel = None
         self._perks_panel = None
         self._placement_panel = None
@@ -442,6 +443,11 @@ class NewItemStudioTab(QWidget):
         archive_root = getattr(getattr(self._window, "archive", None), "archive_cache_root", None)
         return runtime_cache_layout(archive_root).native_preview_root if archive_root is not None else None
 
+    def set_model_status_host(self, host: QWidget) -> None:
+        self._model_status_host = host
+        if self._panels_built:
+            self.model_panel.set_operation_status_host(host)
+
     def _mount_panels(self) -> None:
         if self._panels_built:
             return
@@ -455,6 +461,8 @@ class NewItemStudioTab(QWidget):
             controller,
             native_preview_core_cache_root=self._native_preview_core_cache_root(),
         )
+        if self._model_status_host is not None:
+            self.model_panel.set_operation_status_host(self._model_status_host)
         self.model_panel.preview.set_render_settings(self._preview_render_settings)
         self.model_panel.preview.set_cache_mode(self._preview_cache_mode)
         controller._template_preview_context = dict(

@@ -235,6 +235,7 @@ class ModelPanelPreviewMixin:
             self.part_editor_status.setVisible(True)
             self.part_editor_status.set_note("Preparing the Mesh Editor changes...", EDIT)
             self.operation_label.setText("Preparing Mesh Editor changes…")
+        self.operation_label.setToolTip(self.operation_label.text())
         self._refresh_placement_enabled()
         if not busy:
             self._refresh_apply_status()
@@ -243,6 +244,7 @@ class ModelPanelPreviewMixin:
         if str(lane) not in {"model_import", "model_apply", "model_part_edit"}:
             return
         self.operation_label.setText(str(detail or "Working…"))
+        self.operation_label.setToolTip(self.operation_label.text())
         if int(total) > 0:
             self.busy_bar.setRange(0, int(total))
             self.busy_bar.setValue(max(0, min(int(total), int(current))))
@@ -253,6 +255,7 @@ class ModelPanelPreviewMixin:
         lane = str(getattr(self._controller, "_lane", "") or "")
         if self._controller.cancel_operation(lane):
             self.operation_label.setText("Cancelling…")
+            self.operation_label.setToolTip(self.operation_label.text())
             self.cancel_operation_button.setEnabled(False)
 
     def _preview_status(self, text: str) -> None:
@@ -272,6 +275,7 @@ class ModelPanelPreviewMixin:
             self.busy_bar.setVisible(self._preview_busy)
             if self._preview_busy:
                 self.operation_label.setText(message.replace("...", "…"))
+                self.operation_label.setToolTip(self.operation_label.text())
         self._refresh_placement_enabled()
 
     def _refresh_placement_enabled(self) -> None:

@@ -460,6 +460,30 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self._preview_mesh_token: object = None
         self._preview_busy = False
 
+    def set_operation_status_host(self, host: QWidget) -> None:
+        """Keep progress and cancellation together in the shell's status row."""
+        banner = self.operation_banner
+        if banner.parentWidget() is host:
+            return
+        hidden = banner.isHidden()
+        self.model_icon_column.layout().removeWidget(banner)
+        banner.setParent(host)
+        banner.setFrameShape(QFrame.Shape.NoFrame)
+        banner.setMinimumHeight(0)
+        layout = banner.layout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.removeWidget(self.busy_bar)
+        layout.itemAt(0).layout().insertWidget(2, self.busy_bar)
+        self.busy_bar.setFixedSize(76, 6)
+        self.operation_label.setWordWrap(False)
+        self.operation_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self.operation_label.setToolTip(self.operation_label.text())
+        self.cancel_operation_button.setStyleSheet("padding: 2px 6px;")
+        host.layout().addWidget(banner)
+        banner.setVisible(not hidden)
+        # The status bar presents this widget; the model panel retains its lifetime.
+        self.destroyed.connect(banner.deleteLater)
+
     def _build_placement_controls(self) -> None:
         self.placement_group = QGroupBox("Placement")
         self.placement_group.setTitle("")

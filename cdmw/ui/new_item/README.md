@@ -879,11 +879,14 @@ deduplication. Imported preview caches rebuild when this material handoff change
 A textureless exported material still keeps its authored
 `TEXCOORD_0` channel instead of triggering an unnecessary auto-unwrap. Generated material
 synthesis is deduplicated across identical submesh inputs.
-The loading bar stays below the right inspector's scroll area, above the placement
-actions, so scrolling through Appearance never hides progress.
+In the compact shell, model import, Apply and preview loading appear beside Ready
+and Cache Healthy in the bottom status bar, for both Classic and Rust. The controls
+use one compact row, with full status text on hover, and take no space from the
+right inspector. They hide when idle or when another tool is active. Standalone
+and legacy-shell workspaces retain their loading bar above the placement actions.
 Apply runs through the controller's cancellable progress lane; its spinner, current phase,
 percentage when available and Cancel action remain live while conflicting placement edits
-are disabled. Preview-loading text stays in that pinned operation bar while errors and
+are disabled. Preview-loading text stays in that operation bar while errors and
 ready/capture messages remain below the viewport. The fast-texture state explicitly says
 that full quality is still loading, and the final state confirms whether that texture pass
 completed or failed. Imported-material, Glow and
