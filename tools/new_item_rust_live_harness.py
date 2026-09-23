@@ -1,7 +1,8 @@
-"""Owned hidden-window probe of the real New Item helper and Qt transport.
+"""Owned fixture probe of the real New Item helper and Qt transport.
 
-No computer use, installed game or visible application window is involved. The
-development executable is explicit; this probe does not claim package provenance.
+The default probe is hidden. --visible --interactive exposes the same fixture
+for normal Windows interaction checks. No installed game is used. The explicit
+development executable does not by itself establish package provenance.
 """
 from __future__ import annotations
 
@@ -26,9 +27,13 @@ def main():
     parser.add_argument("--renderer", required=True, type=Path)
     parser.add_argument("--report", required=True, type=Path)
     parser.add_argument("--preview", action="store_true", help="Also exercise the pinned native preview with an owned synthetic mesh")
+    parser.add_argument("--visible", action="store_true", help="Show only the owned synthetic test window")
+    parser.add_argument("--interactive", action="store_true", help="Leave the owned window open for normal input checks")
     args = parser.parse_args()
+    if args.interactive and not args.visible:
+        parser.error("--interactive requires --visible")
     from PySide6.QtCore import QCoreApplication, QEvent, QSettings, QTimer, Qt
-    from PySide6.QtWidgets import QApplication
+    from PySide6.QtWidgets import QApplication, QHBoxLayout, QPushButton, QStackedWidget, QVBoxLayout, QWidget
     from cdmw.services.new_item_rust_runtime import NewItemUiLaunch
     from cdmw.services.new_item_rust_protocol import PROTOCOL
     from cdmw.ui.new_item.rust_ui_tab import RustNewItemStudioTab
@@ -44,6 +49,7 @@ def main():
     checks = []
     errors = []
     experimental = None
+    shell = None
     sent_states = []
     native_inputs = []
     rejected_inputs = []
@@ -65,14 +71,10 @@ def main():
             try:
                 state = bridge.snapshot()
                 assert not state["unsupported"],state["unsupported"]
-                for widget,action,value in [(dialog.selector,"crop",[8,10,120,140]),(dialog,"close_dialog",None)]:
-                    bridge.snapshot()
-                    identifier = bridge.document.registry.identify(widget)
-                    node = bridge.document.registry.current[identifier]
-                    bridge.dispatch({"protocol":PROTOCOL,"type":"input","session":bridge.session,
-                        "request":bridge._last_request+1,"control":identifier,"revision":node["revision"],
-                        "action":action,"value":value})
-                checks.append("native_capture_crop_projected_and_cancelled")
+                # Do not synthesize bridge requests alongside the real client:
+                # that consumes its request sequence and masks later input.
+                dialog.reject()
+                checks.append("native_capture_dialog_projected_and_cancelled")
             except BaseException as error:
                 errors.append(str(error))
                 dialog.reject()
@@ -188,7 +190,7 @@ def main():
             experimental._send = record_send
             experimental._handle_message = record_input
             experimental.status_message_requested.connect(lambda text, error: errors.append(text) if error else None)
-            experimental.setAttribute(Qt.WA_DontShowOnScreen, True)
+            experimental.setAttribute(Qt.WA_DontShowOnScreen, not args.visible)
             experimental.resize(1280, 850)
             experimental.prewarm()
             until(lambda: experimental._ready and experimental._received_generation > 0,
@@ -201,7 +203,55 @@ def main():
             checks.append("opening_reuses_prewarmed_process")
             user32.IsWindowVisible.argtypes = [ctypes.c_void_p]
             user32.IsWindowVisible.restype = ctypes.c_int
-            assert not user32.IsWindowVisible(int(experimental.winId())), "The owned probe must remain hidden"
+            assert bool(user32.IsWindowVisible(int(experimental.winId()))) == args.visible
+            if args.interactive:
+                shell = QWidget()
+                shell.setWindowTitle(f"CDMW Rust UI - {args.report.stem}")
+                shell.resize(1500, 950)
+                shell_layout = QHBoxLayout(shell)
+                navigation = QVBoxLayout()
+                shell_layout.addLayout(navigation)
+                pages = QStackedWidget()
+                pages.addWidget(experimental)
+                other = QPushButton("Other tool remains responsive")
+                pages.addWidget(other)
+                for title, page in [("Create New Item (Rust)", experimental), ("Other tool", other)]:
+                    button = QPushButton(title)
+                    navigation.addWidget(button)
+                    button.clicked.connect(lambda _checked=False, page=page: pages.setCurrentWidget(page))
+                navigation.addStretch()
+                shell_layout.addWidget(pages, 1)
+                workflow.template_panel.filter_edit.clear()
+                workflow.identity_panel.display_name.setText("Owned fixture")
+                shell.show()
+                if args.preview:
+                    from cdmw.services.mesh_rust_preview_package import build_rust_preview_package
+                    from tests.test_effect_placement_dialog import _blade
+                    assert workflow.model_panel.preview._ensure_host()
+                    preview_host = workflow.model_panel.preview.host
+                    experimental._state_fingerprint = b""
+                    experimental._publish_state()
+                    until(lambda: bool(experimental._portals._attached), "interactive_preview_slot_ready")
+                    pump(0.3)
+                    loading_geometry = preview_host.geometry()
+                    package = build_rust_preview_package(_blade(), output_root=preview_root.name,
+                        include_material_resources=False, interaction_profile="static_replacement")
+                    assert preview_host.load_package(package)
+                    until(lambda: preview_host.controller._renderer_ready_announced
+                          and preview_host.controller.applied_package_generation > 0,
+                          "interactive_preview_ready")
+                    pump(0.3)
+                    assert preview_host.geometry() == loading_geometry, (loading_geometry, preview_host.geometry())
+                    checks.append("preview_slot_stable_from_loading_to_ready")
+                print("interactive_owned_fixture_ready", flush=True)
+                deadline = time.monotonic() + 600
+                while shell.isVisible() and time.monotonic() < deadline:
+                    QApplication.processEvents()
+                    time.sleep(0.005)
+                print(json.dumps({"filter": workflow.template_panel.filter_edit.text(),
+                    "names": workflow.controller.draft.display_names,
+                    "native_inputs": native_inputs, "rejected_inputs": rejected_inputs}), flush=True)
+                return
             click_native_control(workflow.steps, 1)
             until(lambda: workflow.steps.currentRow() == 1, "native_navigation_opens_identity")
             bridge = experimental._bridge
@@ -229,7 +279,7 @@ def main():
             if args.preview:
                 from cdmw.services.mesh_rust_preview_package import build_rust_preview_package
                 from tests.test_effect_placement_dialog import _blade
-                preview_host = attached[1]
+                preview_host = viewport if hasattr(viewport, "controller") else attached[1]
                 package = build_rust_preview_package(_blade(), output_root=preview_root.name,
                     include_material_resources=False, interaction_profile="static_replacement")
                 assert preview_host.load_package(package)
@@ -286,11 +336,15 @@ def main():
         if experimental is not None:
             experimental.request_shutdown()
             until(lambda: not experimental.iter_shutdown_workers()
+                  and experimental._process is None and experimental._prepare_thread is None
                   and (preview_host is None or not preview_host.controller.is_running),
                   "all_owned_workers_drained", timeout=10)
             workflow.setParent(None)
             experimental.deleteLater()
             QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+        if shell is not None:
+            shell.close()
+            shell.deleteLater()
         fixture.tearDown()
         settings_root.cleanup()
         if preview_root is not None:
@@ -298,7 +352,7 @@ def main():
         assert not any(root.exists() for root in launches), "Owned launch manifests were not cleaned"
         args.report.parent.mkdir(parents=True, exist_ok=True)
         args.report.write_text(json.dumps({"checks": checks, "errors": errors, "native_inputs": native_inputs,
-            "rejected_inputs": rejected_inputs, "hidden": True,
+            "rejected_inputs": rejected_inputs, "hidden": not args.visible,
             "renderer": str(args.renderer.resolve()), "source": "owned_synthetic_fixture"}, indent=2), encoding="utf-8")
     print(json.dumps({"passed": len(checks), "report": str(args.report)}))
 

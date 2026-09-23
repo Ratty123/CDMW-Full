@@ -35,6 +35,12 @@ The embedded child takes keyboard focus on clicks and supplies its actual Win32
 focus state to egui. Field edits finish before navigation or dialog actions hide
 their controls. Font size and button colors come from the current application
 theme; hover changes color without expanding the controls.
+Projected dialogs retain their original results and block edits behind them in
+the bridge without registering a second hidden Qt modal window, which would
+disable the visible application. Template results fill the available height;
+Internal Name starts wider and header edges resize columns. Preview portals move
+the complete native host, keeping its loading/status overlays in one stable slot
+and retaining a layout placeholder for interface switches.
 
 `rust_ui_document.py` projects the current controls, layouts, models and dialogs;
 `rust_ui_actions.py` routes allowlisted input through their original handlers.
@@ -54,8 +60,12 @@ neither uses an installed game. The live probe prewarms a hidden renderer, opens
 the tab with the same process, and clicks and types through Win32 into the original
 Name and Find fields. It also checks that page switches do not reject a finishing
 edit. Its `--preview` option loads an owned
-synthetic mesh into the pinned preview helper and checks camera captures, crop,
-renderer retry, Classic switching and process cleanup. See `docs/test-matrix.md`
+synthetic mesh into the pinned preview helper and checks camera captures, crop
+dialog cancellation, renderer retry, Classic switching and process cleanup.
+`--visible --interactive --preview` exposes the owned fixture with a second tool
+in its sidebar for normal Windows typing, column dragging, dialog, navigation and
+interface-switch checks. It asserts stable preview geometry from loading to ready.
+See `docs/test-matrix.md`
 for focused checks. Helper builds do not repack the main application executable;
 use a source launch to try this workspace before the next application package.
 

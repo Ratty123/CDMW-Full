@@ -293,7 +293,7 @@ class TemplatePanel(QGroupBox):
                 type_width = max(110, round(available * 0.17))
                 capability_width = max(90, round(available * 0.12))
                 name_width = max(120, available - key_width - type_width - capability_width)
-                internal_width = round(name_width * 0.30)
+                internal_width = round(name_width * 0.60)
                 widths = (internal_width, name_width - internal_width, key_width, type_width, capability_width)
                 for column, width in enumerate(widths):
                     header.resizeSection(column, width)

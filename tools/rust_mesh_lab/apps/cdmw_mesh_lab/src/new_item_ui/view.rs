@@ -20,6 +20,8 @@ pub struct PresentationView {
     accepted_edits: HashMap<String, Value>,
     split_sizes: HashMap<String, (u64, Vec<f32>)>,
     table_focus: HashMap<String, egui::Id>,
+    column_widths: HashMap<(String, u64), f32>,
+    column_drag_origins: HashMap<(String, u64), (f32, f32)>,
     crop_origin: HashMap<String, egui::Pos2>,
     pub textures: HashMap<String, egui::TextureHandle>,
     pub feedback: String,
@@ -789,6 +791,9 @@ impl PresentationView {
             .inner_margin(10.0)
             .show(ui, |ui| {
                 ui.set_min_width((ui.available_width() - 2.0).max(0.0));
+                if node.flexible() {
+                    ui.set_min_height(bounded_height(ui));
+                }
                 if node.flag("checkable") {
                     let mut checked = node.flag("checked");
                     let response = ui.checkbox(&mut checked, RichText::new(&node.label).strong());
@@ -1024,6 +1029,7 @@ impl PresentationView {
         }
         let response = egui::ComboBox::from_id_salt("choices")
             .selected_text(node.text("text"))
+            .truncate()
             .width(ui.available_width().max(80.0))
             .height(350.0)
             .show_ui(ui, |ui| {
@@ -1260,7 +1266,7 @@ impl PresentationView {
             .map(|column| column["width"].as_f64().unwrap_or(160.0))
             .sum::<f64>()
             .max(1.0);
-        let widths: Vec<_> = columns
+        let mut widths: Vec<_> = columns
             .iter()
             .map(|column| {
                 ((width - 8.0 * columns.len() as f32)
@@ -1268,6 +1274,11 @@ impl PresentationView {
                     .max(65.0)
             })
             .collect();
+        for (column, width) in columns.iter().zip(&mut widths) {
+            if let Some(resized) = self.column_widths.get(&(node.id.clone(), column["index"].as_u64().unwrap_or(0))) {
+                *width = *resized;
+            }
+        }
         let height = (bounded_height(ui)
             - if node.number("total", 0.0) > 128.0 {
                 36.0
@@ -1286,15 +1297,42 @@ impl PresentationView {
                         if column["index"].as_f64() == Some(node.number("sort_column",-1.0)) && node.flag("sortable") {
                             text.push_str(if node.flag("sort_descending") {" ▾"} else {" ▴"});
                         }
-                        let response = ui.add_sized(Vec2::new(*width,26.0),egui::Button::new(text));
+                        let (header_rect, _) = ui.allocate_exact_size(Vec2::new(*width,26.0),egui::Sense::hover());
+                        let mut button_rect = header_rect;
+                        if column["resizable"] == true { button_rect.max.x -= 4.0; }
+                        let response = ui.put(button_rect,egui::Button::new(text));
+                        ui.advance_cursor_after_rect(header_rect);
                         if response.clicked() && node.flag("sortable") {
                             self.input(node,"sort",json!({"column":column["index"],"descending":!node.flag("sort_descending")}));
                         }
                         if column["resizable"] == true {
-                            let rect = egui::Rect::from_center_size(egui::pos2(response.rect.right(),response.rect.center().y),Vec2::new(7.0,response.rect.height()));
+                            // Reserve the edge for dragging. Overlapping the
+                            // button lets its click sense steal native drags.
+                            let rect = egui::Rect::from_center_size(egui::pos2(header_rect.right(),header_rect.center().y),Vec2::new(8.0,header_rect.height()));
                             let drag = ui.interact(rect,ui.id().with(("column-width",column["index"].as_u64())),egui::Sense::drag()).on_hover_cursor(egui::CursorIcon::ResizeHorizontal);
+                            let key = (node.id.clone(), column["index"].as_u64().unwrap_or(0));
+                            if drag.drag_started() {
+                                let origin = ui.input(|input| input.pointer.press_origin().or_else(||
+                                    input.raw.events.iter().find_map(|event| match event {
+                                        egui::Event::PointerButton {pos, pressed:true, ..} => Some(*pos),
+                                        _ => None,
+                                    })));
+                                if let Some(origin) = origin {
+                                    self.column_drag_origins.insert(key.clone(), (origin.x, *width));
+                                }
+                            }
+                            if drag.dragged() || drag.drag_stopped() {
+                                // Include a final move delivered with release;
+                                // Response::drag_delta is zero on that frame.
+                                if let (Some((start, original)), Some(pointer)) =
+                                    (self.column_drag_origins.get(&key), drag.interact_pointer_pos()) {
+                                    self.column_widths.insert(key.clone(), (*original + pointer.x - *start).clamp(40.0, 4000.0));
+                                }
+                            }
                             if drag.drag_stopped() {
-                                self.input(node,"resize_column",json!({"column":column["index"],"width":(*width+drag.drag_delta().x).round().clamp(24.0,4000.0) as u64}));
+                                self.column_drag_origins.remove(&key);
+                                let resized = self.column_widths.get(&key).copied().unwrap_or(*width);
+                                self.input(node,"resize_column",json!({"column":column["index"],"width":resized.round().clamp(24.0,4000.0) as u64}));
                             }
                         }
                     }

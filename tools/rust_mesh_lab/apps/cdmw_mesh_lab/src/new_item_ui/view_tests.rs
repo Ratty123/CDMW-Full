@@ -510,6 +510,49 @@ fn table_pointer_selection_and_keyboard_navigation_reach_the_original_view() {
 }
 
 #[test]
+fn column_drag_keeps_the_full_distance_on_release_and_after_row_updates() {
+    let context = egui::Context::default();
+    let mut view = PresentationView::default();
+    let mut state = state(control("table", "table", "", json!({
+        "headers": true, "columns": [
+            {"index":0,"width":100,"text":"Internal name","resizable":true},
+            {"index":1,"width":100,"text":"Name","resizable":true}],
+        "total":0,"rows":[]
+    })));
+    apply_theme(&context, &state.theme);
+    let size = egui::vec2(960.0, 720.0);
+    for _ in 0..3 { frame(&context, &mut view, &state, size, vec![]); }
+    for (x, pressed) in [(471.0, Some(true)), (511.0, None), (551.0, None), (551.0, Some(false))] {
+        let point = egui::pos2(x, 13.0);
+        let mut events = vec![egui::Event::PointerMoved(point)];
+        if let Some(pressed) = pressed {
+            events.push(egui::Event::PointerButton {pos:point,button:egui::PointerButton::Primary,
+                pressed,modifiers:egui::Modifiers::NONE});
+        }
+        frame(&context, &mut view, &state, size, events);
+    }
+    let resize = view.inputs.iter().find(|input| input.action == "resize_column").expect("header drag");
+    assert_eq!(resize.value["column"], 0);
+    assert_eq!(resize.value["width"], 552);
+    state.root.revision += 1;
+    state.root.props["columns"][0]["width"] = json!(552);
+    frame(&context, &mut view, &state, size, vec![]);
+    assert_eq!(view.column_widths[&("table".into(), 0)], 552.0);
+
+    // Windows can deliver the final move and release before the next paint.
+    let start = egui::pos2(551.0, 13.0);
+    let end = egui::pos2(611.0, 13.0);
+    frame(&context, &mut view, &state, size, vec![
+        egui::Event::PointerMoved(start), egui::Event::PointerButton {
+            pos:start,button:egui::PointerButton::Primary,pressed:true,modifiers:egui::Modifiers::NONE}]);
+    frame(&context, &mut view, &state, size, vec![
+        egui::Event::PointerMoved(end), egui::Event::PointerButton {
+            pos:end,button:egui::PointerButton::Primary,pressed:false,modifiers:egui::Modifiers::NONE}]);
+    let resize = view.inputs.iter().find(|input| input.action == "resize_column").expect("coalesced header drag");
+    assert_eq!(resize.value["width"], 612);
+}
+
+#[test]
 fn icon_crop_drag_maps_back_to_source_pixels_and_obeys_disabled_state() {
     let context = egui::Context::default();
     let mut view = PresentationView::default();

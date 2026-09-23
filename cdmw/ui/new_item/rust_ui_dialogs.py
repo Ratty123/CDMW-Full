@@ -49,6 +49,12 @@ class PresentationDialogs(QObject):
                     watched.setParent(self.visible_parent, watched.windowFlags())
             else:
                 watched.setAttribute(Qt.WA_DontShowOnScreen, True)
+                if isinstance(watched, QDialog) and kind == QEvent.Show:
+                    # Rust presents this modal and the bridge enforces its input
+                    # boundary. A hidden Qt modal disables the visible host HWND
+                    # too, leaving the projected buttons unable to dismiss it.
+                    # Clear exec()'s flag just before Qt registers the window.
+                    watched.setAttribute(Qt.WA_ShowModal, False)
                 if watched not in self._dialogs:
                     self._dialogs.append(watched)
             self.changed.emit()

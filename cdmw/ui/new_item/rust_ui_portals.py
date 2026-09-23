@@ -6,15 +6,36 @@ import math
 
 from PySide6.QtCore import QRect
 from PySide6.QtGui import QRegion
+from PySide6.QtWidgets import QWidget
 from shiboken6 import isValid
 
 from cdmw.services.new_item_rust_protocol import PresentationProtocolError
+
+
+class _PreviewPlaceholder(QWidget):
+    """Preserve the authoritative layout while its native preview is displayed elsewhere."""
+
+    def __init__(self, preview, parent):
+        super().__init__(parent)
+        self.preview = preview
+        self._hint = preview.sizeHint()
+        self._minimum_hint = preview.minimumSizeHint()
+        self.setSizePolicy(preview.sizePolicy())
+        self.setMinimumSize(preview.minimumSize())
+        self.setMaximumSize(preview.maximumSize())
+
+    def sizeHint(self):
+        return self._hint
+
+    def minimumSizeHint(self):
+        return self._minimum_hint
 
 
 class PreviewPortals:
     def __init__(self, host):
         self.host = host
         self._attached = {}
+        self._placeholders = {}
 
     def update(self, document, message):
         scale = message.get("pixels_per_point")
@@ -40,8 +61,11 @@ class PreviewPortals:
                 parent = viewport.parentWidget()
                 layout = parent.layout() if parent is not None else None
                 position = layout.indexOf(viewport) if layout else -1
-                if layout:
-                    layout.removeWidget(viewport)
+                if layout and position >= 0:
+                    placeholder = _PreviewPlaceholder(viewport, parent)
+                    layout.replaceWidget(viewport, placeholder)
+                    placeholder.show()
+                    self._placeholders[identifier] = placeholder
                 self._attached[identifier] = (viewport, parent, layout, position)
                 viewport.setParent(self.host)
             viewport.setGeometry(rect)
@@ -63,16 +87,24 @@ class PreviewPortals:
         return QRect(*(round(v * ratio) for v in value))
 
     def restore(self):
-        for viewport, parent, layout, position in self._attached.values():
+        for identifier, (viewport, parent, layout, position) in self._attached.items():
             if not isValid(viewport):
                 continue
             viewport.clearMask()
             if parent is not None and isValid(parent):
                 viewport.setParent(parent)
                 if layout is not None and isValid(layout):
-                    if hasattr(layout, "insertWidget"):
+                    placeholder = self._placeholders.get(identifier)
+                    if placeholder is not None and isValid(placeholder):
+                        layout.replaceWidget(placeholder, viewport)
+                    elif hasattr(layout, "insertWidget"):
                         layout.insertWidget(max(0, position), viewport, 1)
                     else:
                         layout.addWidget(viewport)
                 viewport.show()
+        for placeholder in self._placeholders.values():
+            if isValid(placeholder):
+                placeholder.hide()
+                placeholder.deleteLater()
+        self._placeholders.clear()
         self._attached.clear()

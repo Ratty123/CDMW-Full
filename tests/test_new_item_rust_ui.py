@@ -337,6 +337,7 @@ def test_modal_confirmation_is_projected_and_returns_original_no_result(studio):
             dialog = dialogs.dialogs()[-1]
             assert isinstance(dialog, QMessageBox)
             assert dialog.testAttribute(Qt.WA_DontShowOnScreen)
+            assert QApplication.activeModalWidget() is None
             assert not bridge.snapshot()["unsupported"]
             with pytest.raises(PresentationProtocolError, match="active dialog"):
                 _send(bridge, workflow.continue_button, "activate")
@@ -409,6 +410,32 @@ def test_busy_spinner_and_rich_status_keep_native_semantics(studio):
         spinner.deleteLater()
 
 
+def test_horizontal_search_stretch_does_not_consume_table_height(studio):
+    _, tab, bridge = studio
+    bridge.snapshot()
+    identifier = bridge.document.registry.identify(tab.template_panel.filter_edit)
+    node = bridge.document.registry.current[identifier]
+    assert node["props"]["grow_x"]
+    assert not node.get("stretch", 0)
+    header = tab.template_panel.matches.header()
+    assert header.sectionSize(0) > header.sectionSize(1)
+
+
+def test_native_preview_status_uses_one_stable_portal(studio):
+    _, tab, bridge = studio
+    preview = tab.model_panel.preview
+    assert preview._ensure_host()
+    host = preview.host
+    before = bridge.document.widget(host, force=True)
+    assert before["kind"] == "viewport"
+    assert not before["children"]
+    assert bridge.document.portals[before["id"]] is host
+    host._status_panel.hide()
+    host._resident_banner.show()
+    after = bridge.document.widget(host, force=True)
+    assert after == before
+
+
 def test_template_deliberate_selection_uses_existing_immediate_click_handler(studio):
     _, tab, bridge = studio
     panel = tab.template_panel
@@ -452,6 +479,7 @@ def test_context_menu_returns_the_original_selected_action(studio):
     def choose():
         try:
             assert menu in dialogs.dialogs()
+            assert QApplication.activePopupWidget() is None
             assert not bridge.snapshot()["unsupported"]
             _send(bridge, selected, "activate")
         except BaseException as error:
@@ -627,6 +655,7 @@ def test_preview_portal_scales_clips_and_restores_the_original_layout():
     layout = QVBoxLayout(original)
     layout.addWidget(QPushButton("Before"))
     viewport = QWidget()
+    viewport.setMinimumSize(40, 30)
     layout.addWidget(viewport)
     layout.addWidget(QPushButton("After"))
     portals = PreviewPortals(host)
@@ -638,6 +667,10 @@ def test_preview_portal_scales_clips_and_restores_the_original_layout():
         assert viewport.parentWidget() is host
         assert viewport.geometry() == QRect(30,45,150,120)
         assert viewport.mask().boundingRect() == QRect(30,0,60,90)
+        placeholder = layout.itemAt(1).widget()
+        assert placeholder.minimumSize() == viewport.minimumSize()
+        projection = PresentationDocument()
+        assert projection.widget(placeholder)["id"] == projection.registry.identify(viewport)
         portals.update(document, {"pixels_per_point":3.0,"portals":[]})
         assert viewport.isHidden()
         portals.restore()

@@ -141,6 +141,9 @@ class PresentationDocument:
     def widget(self, widget, *, force=False):
         if widget is None or (widget.isHidden() and not force):
             return None
+        from cdmw.ui.new_item.rust_ui_portals import _PreviewPlaceholder
+        if isinstance(widget, _PreviewPlaceholder):
+            return self.widget(widget.preview, force=True)
         self._depth += 1
         self._nodes += 1
         if self._depth > MAX_DEPTH or self._nodes > MAX_NODES:
@@ -189,11 +192,11 @@ class PresentationDocument:
             props.update(image=self.image(widget._image), width=widget._image.width(), height=widget._image.height(),
                          selection=[selection.x(),selection.y(),selection.width(),selection.height()])
         elif widget.__class__.__name__ == "RustPreviewHostFrame":
-            # A portal may temporarily be hidden/reparented by the native host.
-            # Its visibility is owned by this preview, not its temporary parent.
-            viewport = self.widget(widget._viewport, force=True)
-            node["children"] = [viewport] + self._widgets((widget._status_panel,
-                                              widget._resident_banner, widget._camera_hint))
+            # Keep the preview and its loading/retry overlays together. They
+            # share one slot, so status changes never resize the rendered mesh.
+            node["kind"] = "viewport"
+            self.portals[identifier] = widget
+            props.update(min_height=260)
         elif isinstance(widget, QAbstractButton):
             self._button(widget, node)
         elif isinstance(widget, QLineEdit):
@@ -332,6 +335,7 @@ class PresentationDocument:
     def layout(self, layout):
         children = []
         grid = isinstance(layout, (QGridLayout, QFormLayout))
+        horizontal = isinstance(layout, QBoxLayout) and layout.direction() in (QBoxLayout.LeftToRight, QBoxLayout.RightToLeft)
         for index in range(layout.count()):
             item = layout.itemAt(index)
             child = self.widget(item.widget()) if item.widget() is not None else self.layout(item.layout()) if item.layout() is not None else None
@@ -346,9 +350,11 @@ class PresentationDocument:
                 child["cell"] = [row, 0 if role == QFormLayout.SpanningRole else int(role.value),
                                  1, 2 if role == QFormLayout.SpanningRole else 1]
             if isinstance(layout, QBoxLayout):
-                child["stretch"] = layout.stretch(index)
+                if horizontal:
+                    child["props"]["grow_x"] = bool(layout.stretch(index)) or child["props"].get("grow_x", False)
+                else:
+                    child["stretch"] = layout.stretch(index)
             children.append(child)
-        horizontal = isinstance(layout, QBoxLayout) and layout.direction() in (QBoxLayout.LeftToRight, QBoxLayout.RightToLeft)
         return {"kind": "grid" if grid else "row" if horizontal else "column",
                 "name": layout.objectName(), "enabled": True, "label": "", "tooltip": "",
                 "props": {"form": isinstance(layout, QFormLayout), "spacing": max(4, min(12, layout.spacing()))},
