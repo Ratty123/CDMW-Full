@@ -39,7 +39,7 @@ def apply_translucency_surface(text, settings, surfaces, model_path, read_textur
     return rewrite_translucency(text, settings, material_paths=paths), files
 
 
-def _encode_surface(payload, values, *, part_name, stop_event):
+def _encode_surface(payload, values, *, part_name, stop_event, regions=((0.0, 0.0, 1.0, 1.0),)):
     from PIL import Image
     from cdmw.core.texture_native import ensure_directxtex_dds_preview_png, encode_dds_with_directxtex
     from cdmw.domain.textures.output import max_mips_for_size
@@ -65,7 +65,10 @@ def _encode_surface(payload, values, *, part_name, stop_event):
                 # before rounding, including JSON's 0.899999976 form of 0.9.
                 f32_value = struct.unpack("<f", struct.pack("<f", value))[0]
                 scaled = struct.unpack("<f", struct.pack("<f", f32_value * 255))[0]
-                channels[index] = Image.new("L", rgba.size, round(scaled))
+                for x, y, w, h in regions:
+                    box = (round(x * rgba.width), round((1 - y - h) * rgba.height),
+                           round((x + w) * rgba.width), round((1 - y) * rgba.height))
+                    channels[index].paste(round(scaled), box)
         output = root / "surface.png"
         Image.merge("RGBA", channels).save(output)
         raise_if_cancelled(stop_event)

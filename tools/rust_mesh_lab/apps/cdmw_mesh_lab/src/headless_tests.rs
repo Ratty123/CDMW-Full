@@ -2225,6 +2225,16 @@ fn offscreen_d3d12_translucency_responds_to_absorption_and_texture_alpha() -> Te
 #[test]
 #[ignore = "requires a local Direct3D 12 adapter"]
 fn offscreen_d3d12_translucency_surface_matches_exported_channels() -> TestResult {
+    surface_matches_exported_channels(Some([0.4, 0.6]))
+}
+
+#[test]
+#[ignore = "requires a local Direct3D 12 adapter"]
+fn offscreen_d3d12_opaque_surface_matches_exported_channels() -> TestResult {
+    surface_matches_exported_channels(None)
+}
+
+fn surface_matches_exported_channels(translucency: Option<[f32; 2]>) -> TestResult {
     let mut document = triangle_application()?.document.clone().ok_or("missing document")?;
     let mut reference = document.lods[0].submeshes[0].clone();
     reference.material = "unselected reference".to_owned();
@@ -2256,7 +2266,7 @@ fn offscreen_d3d12_translucency_surface_matches_exported_channels() -> TestResul
         ];
         let factors = [HeadlessMaterialFactors {
             factors: MaterialPreviewFactors {
-                translucency: Some([0.4, 0.6]), translucency_surface: surface,
+                translucency, translucency_surface: surface,
                 category_code: Some(7), category_confidence: Some(1.0),
                 emissive_color: Some([0.1, 0.8, 0.3]), emissive_intensity: Some(if glow { 4.0 } else { 0.0 }),
                 ..MaterialPreviewFactors::default()
@@ -2279,7 +2289,9 @@ fn offscreen_d3d12_translucency_surface_matches_exported_channels() -> TestResul
     assert_ne!(captures[0], captures[1], "surface controls did not affect pixels");
     assert_eq!(captures[1], captures[2], "live surface must match exported G/B channels");
     assert_eq!(captures[3], captures[4], "surface edits must retain emission");
-    assert!(lumas[1] < lumas[0], "low-shine surface should reduce reflected light: {lumas:?}");
+    if translucency.is_some() {
+        assert!(lumas[1] < lumas[0], "low-shine glass should reduce reflected light: {lumas:?}");
+    }
     assert!(lumas[3] > lumas[1] + 5.0, "emission disappeared: {lumas:?}");
     assert!(base_captures.iter().all(|pixels| *pixels == base_captures[0]), "surface edits changed absorption");
     assert!(references.iter().all(|value| *value == references[0]), "unselected part changed");

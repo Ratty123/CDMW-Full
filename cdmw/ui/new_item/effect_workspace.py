@@ -694,7 +694,7 @@ class GuidedEffectsWorkspace(EffectWorkspaceAuthoringMixin, QWidget):
         draft = self._controller.draft
         return (draft.model_source, draft.material_route, draft.glow_parts, draft.glow_color,
                 draft.glow_intensity, draft.glow_animation, draft.glow_rgb, draft.translucency,
-                draft.shader_controls, draft.template_transform, draft.variants)
+                draft.shader_controls, draft.surface_settings, draft.template_transform, draft.variants)
 
     def _appearance_changed(self) -> None:
         if self._library_closed:

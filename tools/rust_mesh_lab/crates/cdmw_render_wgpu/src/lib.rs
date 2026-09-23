@@ -811,13 +811,11 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
     }
     // Explicit surface edits replace packed G/B, matching the exported DDS.
     // Apply after source layers and factors; never alter absorption or emission.
-    if material.translucency_factors.z > 0.5 {
-        if material.translucency_surface.z > 0.5 {
-            roughness = clamp(round(material.translucency_surface.x * 255.0) / 255.0, 0.04, 1.0);
-        }
-        if material.translucency_surface.w > 0.5 {
-            metalness = clamp(round(material.translucency_surface.y * 255.0) / 255.0, 0.0, 1.0);
-        }
+    if material.translucency_surface.z > 0.5 {
+        roughness = clamp(round(material.translucency_surface.x * 255.0) / 255.0, 0.04, 1.0);
+    }
+    if material.translucency_surface.w > 0.5 {
+        metalness = clamp(round(material.translucency_surface.y * 255.0) / 255.0, 0.0, 1.0);
     }
     var raw_occlusion = 1.0;
     if (material.flags & MATERIAL_OCCLUSION) != 0u {

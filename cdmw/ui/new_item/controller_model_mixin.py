@@ -268,6 +268,7 @@ class NewItemModelControllerMixin:
             self.draft.glow_parts = ()
             self.draft.translucency = None
             self.draft.shader_controls = ()
+            self.draft.surface_settings = ()
             if self.model_result is not None:
                 self.set_imported_model(None, None)
             self.draft.model_source = ModelSource.IMPORTED
@@ -476,6 +477,11 @@ class NewItemModelControllerMixin:
             source._baked_scene_mesh = baked._baked_scene_mesh
             source._baked_preview_mesh = baked._baked_preview_mesh
             source.applied = None
+            from cdmw.services.new_item_materials import appearance_preview_part_names
+            remaining_parts = {name.casefold() for part in edited_scene.mesh.submeshes
+                               for name in appearance_preview_part_names(part)}
+            self.draft.surface_settings = tuple((name, choice) for name, choice in self.draft.surface_settings
+                                                if name.casefold() in remaining_parts)
             self._material_parts = ()
             if self.model_result is not None:
                 self.set_imported_model(None, None)
@@ -502,6 +508,7 @@ class NewItemModelControllerMixin:
         self.draft.glow_parts = ()
         self.draft.translucency = None
         self.draft.shader_controls = ()
+        self.draft.surface_settings = ()
         if self.model_result is not None:
             self.set_imported_model(None, None)
         else:

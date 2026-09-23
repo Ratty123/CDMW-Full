@@ -135,6 +135,56 @@ def test_checkable_material_sections_toggle_through_rust_bridge(studio, effect):
         assert no_argument_click.call_count == 2
 
 
+def test_surface_controls_reach_preview_spec_and_variant_through_rust_bridge(studio):
+    from cdmw.domain.new_item.spec import ModelSource
+    from cdmw.domain.new_item.surface import SurfaceEdit
+    from cdmw.ui.new_item.model_import import ModelImportSource
+    from tests.test_new_item_glow_preview import _mesh
+
+    _, tab, bridge = studio
+    controller, panel = tab.controller, tab.model_panel
+    mesh = _mesh()
+    source = ModelImportSource(Path("source.gltf"), Path("source.gltf"), SimpleNamespace(mesh=mesh), None, None,
+                               preview_mesh=mesh)
+    controller.model_import = source
+    controller.draft.model_source = ModelSource.IMPORTED
+    controller.draft.glow_parts = ("blade",)
+    controller.draft.glow_color = (1.0, 0.0, 0.0)
+    sender = Mock(return_value=True)
+    tab.show_step(2)
+    _send(bridge, panel.inspector_tabs, "tab", 1)
+    with patch.object(controller, "material_parts", return_value=(("blade", "Gem"), ("guard", "Guard"))), \
+         patch.object(type(panel.preview), "showing_placement", property(lambda self: True)), \
+         patch.object(panel.preview.host, "apply_material_parameter_groups", sender):
+        panel.refresh_glow_parts()
+        editor = panel.surface_editor
+        revision = controller._draft_revision
+        assert _send(bridge, editor, "toggle", True)["type"] == "ack"
+        assert _send(bridge, editor.match_glow, "activate")["type"] == "ack"
+        assert _send(bridge, editor.preset, "choose", 1)["type"] == "ack"
+        choices = (("blade", SurfaceEdit((1, 0, 0), 0.9, 0)),)
+        assert controller.draft.surface_settings == choices
+        assert controller.current_spec().surface_settings == choices
+        assert controller._draft_revision > revision
+        groups = sender.call_args.args[0]
+        edited = next(group for group in reversed(groups) if "translucency_surface" in group)
+        assert edited["translucency_surface"] == [0.9, 0]
+        assert edited["glow_surface_color"] == [1, 0, 0]
+        identity = controller.current_variant_identity()
+        controller._capture_variant(identity)
+        assert controller._variant_states[identity].appearance.surface_settings == choices
+        other = next(key for key, _ in controller.variant_choices() if key != identity)
+        # Avoid preparing an unrelated viewport while exercising stored variants.
+        with patch.object(panel, "refresh_preview"), patch.object(controller, "item_preview_source", return_value=None):
+            controller.select_variant(other)
+            assert controller.draft.surface_settings == ()
+            controller.select_variant(identity)
+        assert controller.draft.surface_settings == choices
+        assert _send(bridge, editor, "toggle", False)["type"] == "ack"
+        assert controller.draft.surface_settings == ()
+        assert all("translucency_surface" not in group for group in sender.call_args.args[0])
+
+
 def test_overlay_folder_projects_numeric_typing_and_preserves_auto(studio):
     _, tab, bridge = studio
     tab.show_step(6)

@@ -209,6 +209,7 @@ class NewItemPreviewControllerMixin:
             template_key=self.draft.template_key,
             glow=glow_choice(self.draft),
             translucency=self.draft.translucency, shader_controls=self.draft.shader_controls,
+            surface_settings=self.draft.surface_settings,
             material_route=self.draft.material_route,
             template_build=template[1] if template else None,
             preview_context=context,

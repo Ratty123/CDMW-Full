@@ -112,6 +112,9 @@ def prepare_variant_models(spec, snapshot, models, scenes, *, on_log=None, on_pr
             from cdmw.services.new_item_skinning import rebind_armour_from_body
             files = rebind_armour_from_body(snapshot, appearance.model_path, files, stop_event=stop_event)
             validate_variant_rig(snapshot, appearance.model_path, files.pac_data, prefab_path=appearance.prefab_path)
+        from cdmw.services.new_item_surface import apply_surface_settings
+        files = apply_surface_settings(files, appearance.surface_settings, result=model,
+                                       scene=scenes.get(appearance.identity), stop_event=stop_event)
         from cdmw.services.new_item_shader_controls import apply_shader_controls
         result[appearance.identity] = apply_shader_controls(
             files, appearance.shader_controls, result=model, scene=scenes.get(appearance.identity))

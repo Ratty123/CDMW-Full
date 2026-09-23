@@ -55,8 +55,11 @@ def test_cold_preview_refresh_never_bakes_geometry(studio, monkeypatch):
 
 
 def test_mesh_editor_acceptance_prepares_both_caches_on_worker(studio, monkeypatch):
+    from cdmw.domain.new_item.surface import SurfaceEdit
     app, tab = studio
     source = _import(tab)
+    retained_surface = ("steel", SurfaceEdit(metallic=0))
+    tab.controller.draft.surface_settings = (retained_surface, ("removed_gem", SurfaceEdit((1, 0, 0))))
     main = threading.get_ident()
     baked_on = []
     original = ModelImportSource.baked_scene_mesh
@@ -71,6 +74,7 @@ def test_mesh_editor_acceptance_prepares_both_caches_on_worker(studio, monkeypat
     assert source.mesh_generation == 1
     assert source._baked_scene_mesh is not None and source._baked_preview_mesh is not None
     assert baked_on and all(thread != main for thread in baked_on)
+    assert tab.controller.draft.surface_settings == (retained_surface,)
 
 
 def test_zip_precheck_yields_and_cancels_before_extraction(studio, tmp_path, monkeypatch):

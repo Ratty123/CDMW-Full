@@ -25,6 +25,7 @@ class PlannedEffectItemSource:
     template_build: object = None
     preview_context: object = None
     shader_controls: tuple = ()
+    surface_settings: tuple = ()
 
     def consume(self, stop_event, consumer):
         """Keep prepared native textures leased until the Effects package owns them."""
@@ -122,6 +123,8 @@ class PlannedEffectItemSource:
         preview = translucency_preview_mesh(
             preview, self.translucency, source_transmission=self.material_route is MaterialRoute.PLAIN_PBR,
         )
+        from cdmw.services.new_item_surface import surface_preview_mesh
+        preview = surface_preview_mesh(preview, self.surface_settings)
         from cdmw.services.shader_controls_preview import shader_preview_mesh
         try:
             preview = shader_preview_mesh(preview, self.shader_controls, snapshot=self.snapshot, stop_event=stop_event,

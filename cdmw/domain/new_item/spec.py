@@ -146,6 +146,7 @@ from cdmw.domain.new_item.translucency import TranslucencyChoice
 from cdmw.domain.new_item.body_visibility import BodyVisibilityChoice
 from cdmw.domain.mesh.emission import GlowAnimation, RgbGlow
 from cdmw.domain.mesh.shader_controls import ShaderControls
+from cdmw.domain.new_item.surface import SurfaceEdit
 
 
 @dataclass(frozen=True, slots=True)
@@ -250,6 +251,7 @@ class NewItemSpec:
     template_transform: Tuple[float, ...] = ()
     shader_controls: tuple[tuple[str, ShaderControls], ...] = ()
     body_visibility: BodyVisibilityChoice = BodyVisibilityChoice()
+    surface_settings: tuple[tuple[str, SurfaceEdit], ...] = ()
 
     @property
     def active_effect_layers(self) -> Tuple[EffectLayer, ...]:

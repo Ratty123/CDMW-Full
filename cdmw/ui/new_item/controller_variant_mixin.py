@@ -64,7 +64,8 @@ class NewItemVariantControllerMixin:
                              material_route=self.draft.material_route.value,keep_template_physics=self.draft.keep_template_physics,
                              glow_parts=tuple(self.draft.glow_parts),glow_color=tuple(self.draft.glow_color),
                              glow_intensity=self.draft.glow_intensity,glow_animation=self.draft.glow_animation,glow_rgb=self.draft.glow_rgb,translucency=self.draft.translucency,shader_controls=self.draft.shader_controls,
-                             template_transform=self.draft.template_transform, body_visibility=self.draft.body_visibility)
+                             template_transform=self.draft.template_transform, body_visibility=self.draft.body_visibility,
+                             surface_settings=self.draft.surface_settings)
         self._variant_states[identity] = VariantModelState(appearance,self.model_import,self.model_result,self.model_entry,
             self.model_scene,self.model_placement,tuple(self.draft.glow_parts),tuple(self.draft.glow_color),self.draft.glow_intensity,
             prior.camera if prior else None, dyes_edited)
@@ -107,6 +108,7 @@ class NewItemVariantControllerMixin:
         self.draft.glow_animation = state.appearance.glow_animation
         self.draft.glow_rgb = state.appearance.glow_rgb
         self.draft.translucency = state.appearance.translucency
+        self.draft.surface_settings = state.appearance.surface_settings
         self.draft.shader_controls = state.appearance.shader_controls
         self.draft.body_visibility = state.appearance.body_visibility
         self.draft.template_transform = state.appearance.template_transform

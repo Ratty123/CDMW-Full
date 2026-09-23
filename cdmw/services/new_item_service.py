@@ -268,7 +268,7 @@ class NewItemService:
                 glow_parts=glow.parts if glow else (),glow_color=glow.color if glow else (1.0,1.0,1.0),
                 glow_intensity=glow.intensity if glow else 4.0,
                 glow_animation=glow.animation if glow else GlowAnimation(),glow_rgb=glow.rgb if glow else None,shader_controls=spec.shader_controls,
-                translucency=spec.translucency, body_visibility=spec.body_visibility)
+                translucency=spec.translucency, body_visibility=spec.body_visibility, surface_settings=spec.surface_settings)
             spec = replace(spec,variants=(appearance,))
         if snapshot.provenance:
             snapshot.provenance.capture().validate(stop_event)
@@ -304,6 +304,8 @@ class NewItemService:
                                            transform=allocated.template_transform, on_log=report,
                                            on_progress=on_progress, stop_event=stop_event)
         if files is not None and model is not None:
+            from cdmw.services.new_item_surface import apply_surface_settings
+            files = apply_surface_settings(files, allocated.surface_settings, result=model, scene=scene, stop_event=stop_event)
             from cdmw.services.new_item_shader_controls import apply_shader_controls
             files = apply_shader_controls(files, allocated.shader_controls, result=model, scene=scene)
         built = icon

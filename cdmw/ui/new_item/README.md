@@ -323,6 +323,20 @@ and alpha; atlas edits follow only the selected materials' cells. Shared texture
 receive a separate output so unselected parts retain their colours. Unticking a part
 restores its authored colours in preview and when rebuilding the plan. This does not
 remove lighting, metallic reflections or the experimental glass approximation.
+
+**Surface colour and reflections**, under Model & Placement → Appearance, edits
+imported Plain PBR materials independently of Glow and Translucency. Choose a part,
+enable **Surface colour** or use **Match glow colour**, then adjust **Roughness** and
+**Metallic**. **Low-shine** sets roughness to 0.9 and metallic to 0.0. Surface colour
+replaces hue while retaining texture brightness and alpha; explicit surface colour
+takes precedence over Glow's surface recolour without changing its emission.
+Unticked channels inherit the source or the selected Translucency surface settings.
+**Restore source surface** clears the selected part; switching the group off clears
+all active surface overrides. Edits follow the selected variant, Effects and dye
+previews, and Build plan. Shared textures and atlas regions remain separate, so
+unselected parts keep their appearance. The controls affect the exported textures;
+game lighting, reflections and experimental glass can still differ from the viewport.
+
 Source glow strength takes precedence over the template, faint emission keeps
 its colour, and an unavailable declared emissive texture blocks export.
 The default single-colour glow route reduces multicoloured emission to an

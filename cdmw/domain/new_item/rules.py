@@ -189,6 +189,17 @@ def validate_spec(spec: NewItemSpec) -> Tuple[ValidationIssue, ...]:
         except ValueError as exc:
             issues.append(_issue("body_visibility.invalid", field_name, str(exc)))
     from cdmw.domain.mesh.shader_controls import validate_choices
+    from cdmw.domain.new_item.surface import validate_surface_settings
+    surface_choices = [("surface_settings", spec.surface_settings, spec.model_source is ModelSource.IMPORTED, spec.material_route)]
+    surface_choices.extend((f"variants[{i}].surface_settings", value.surface_settings, value.custom_model,
+                            value.material_route) for i, value in enumerate(spec.variants or ()))
+    for field_name, choices, imported, route in surface_choices:
+        try:
+            validate_surface_settings(choices)
+            if choices and (not imported or route != MaterialRoute.PLAIN_PBR):
+                raise ValueError("Surface edits require an imported model with Plain PBR materials.")
+        except ValueError as exc:
+            issues.append(_issue("surface_settings.invalid", field_name, str(exc)))
     try:
         validate_choices(spec.shader_controls, glow_parts=spec.glow.parts if spec.glow else (),
                          translucent_parts=spec.translucency.parts if spec.translucency else (), equipment=True)

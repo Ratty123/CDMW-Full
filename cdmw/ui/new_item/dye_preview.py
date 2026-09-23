@@ -35,6 +35,7 @@ def variant_dye_preview_source(controller):
         from cdmw.services.new_item_planning import ModelFiles, model_files_from_import
         from cdmw.services.new_item_materials import route_model_files
         from cdmw.services.new_item_shader_controls import apply_shader_controls
+        from cdmw.services.new_item_surface import apply_surface_settings
         if result is None:
             if choice.glow_parts or choice.translucency is not None or choice.shader_controls or choice.template_transform:
                 from cdmw.services.new_item_template_model import prepare_template_model
@@ -45,10 +46,12 @@ def variant_dye_preview_source(controller):
         if isinstance(result,ModelFiles):
             from cdmw.services.new_item_translucency import apply_prebuilt_translucency
             files = apply_prebuilt_translucency(result,MaterialRoute(choice.material_route),choice.translucency,stop_event=stop_event)
+            files = apply_surface_settings(files, choice.surface_settings, stop_event=stop_event)
             return apply_shader_controls(files, choice.shader_controls)
         files = model_files_from_import(result,family=variant_family(snapshot.family(template_key),choice))
         files = route_model_files(files,MaterialRoute(choice.material_route),result=result,scene=scene,
                                  glow=choice.glow_choice(),translucency=choice.translucency,stop_event=stop_event)
+        files = apply_surface_settings(files, choice.surface_settings, result=result, scene=scene, stop_event=stop_event)
         return apply_shader_controls(files, choice.shader_controls, result=result, scene=scene)
 
     def geometry(stop_event):
@@ -80,7 +83,7 @@ def variant_dye_preview_source(controller):
                 masks[assignment.target_submesh] = path
         parts,material = prepare_dye_assignments(row,payloads.get(material_path,snapshot.payload(material_path)),
             snapshot.payload(material_path),choice.dyes,imported=choice.custom_model,mask_paths=masks,
-            preserve_materials=bool(choice.glow_parts or choice.translucency is not None or choice.shader_controls))
+            preserve_materials=bool(choice.glow_parts or choice.translucency is not None or choice.shader_controls or choice.surface_settings))
         payloads[material_path] = material
         body,header = prepare_dye_preview_table(index,row,parts)
         payloads[index.pair.payload_entry.path],payloads[index.pair.header_entry.path] = body,header

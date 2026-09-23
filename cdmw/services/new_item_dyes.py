@@ -114,7 +114,7 @@ def plan_variant_dye(planner,old_model,new_model,material,choice,imported):
         planner.add(snapshot.entry(old_model),target,data,f"Dye mask: {target}")
         masks[assignment.target_submesh] = target
     submeshes,material = prepare_dye_assignments(source,material,source_material,assignments,imported=imported,mask_paths=masks,
-        preserve_materials=bool(choice and (choice.glow_parts or choice.translucency is not None or choice.shader_controls)))
+        preserve_materials=bool(choice and (choice.glow_parts or choice.translucency is not None or choice.shader_controls or choice.surface_settings)))
     if imported and assignments is None and source.submeshes and not submeshes:
         warning = f"Template dyes were omitted for {old_model}: the imported materials do not support the template dye setup. Add explicit dye mappings to enable dyes."
         planner.warnings.append(warning)

@@ -5,6 +5,7 @@ from cdmw.domain.mesh.shader_controls import ShaderControls
 from dataclasses import dataclass
 from cdmw.domain.new_item.translucency import TranslucencyChoice
 from cdmw.domain.new_item.body_visibility import BodyVisibilityChoice
+from cdmw.domain.new_item.surface import SurfaceEdit
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,6 +96,7 @@ class VariantAppearance:
     template_transform: tuple[float, ...] = ()
     shader_controls: tuple[tuple[str, ShaderControls], ...] = ()
     body_visibility: BodyVisibilityChoice = BodyVisibilityChoice()
+    surface_settings: tuple[tuple[str, SurfaceEdit], ...] = ()
 
     def glow_choice(self):
         from cdmw.domain.new_item.spec import GlowChoice
