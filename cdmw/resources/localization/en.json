@@ -3704,7 +3704,6 @@
     "Give this weapon the other grip's animations — the two-hand set for a one-hand weapon, or the reverse.\n\nThe chosen animation is written in place of the old one, so the game keeps asking for the same file and gets the new motion.\n\nYou are shown every file it would touch before anything is changed.": "Give this weapon the other grip's animations — the two-hand set for a one-hand weapon, or the reverse.\n\nThe chosen animation is written in place of the old one, so the game keeps asking for the same file and gets the new motion.\n\nYou are shown every file it would touch before anything is changed.",
     "Gives the weapon the other grip's animation set — the two-hand animations for a one-hand weapon, or the reverse.": "Gives the weapon the other grip's animation set — the two-hand animations for a one-hand weapon, or the reverse.",
     "Gizmo": "Gizmo",
-    "Gizmo:": "Gizmo:",
     "Glob": "Glob",
     "Global": "Global",
     "Global DDS rebuild defaults used by the workflow.": "Global DDS rebuild defaults used by the workflow.",

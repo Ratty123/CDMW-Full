@@ -3704,7 +3704,6 @@
     "Give this weapon the other grip's animations — the two-hand set for a one-hand weapon, or the reverse.\n\nThe chosen animation is written in place of the old one, so the game keeps asking for the same file and gets the new motion.\n\nYou are shown every file it would touch before anything is changed.": "Bu silaha diğer kabzanın animasyonlarını verin (tek elli silah için iki el seti veya tam tersi).\n\nSeçilen animasyon eskisinin yerine yazılır, böylece oyun aynı dosyayı istemeye devam eder ve yeni hareketi alır.\n\nHerhangi bir değişiklik yapılmadan önce dokunacağı her dosya size gösterilir.",
     "Gives the weapon the other grip's animation set — the two-hand animations for a one-hand weapon, or the reverse.": "Silahlara diğer kabzanın animasyon setini verir (tek elli silah için iki elli animasyonlar veya tam tersi).",
     "Gizmo": "Gizmo",
-    "Gizmo:": "Gizmo:",
     "Glob": "Glob deseni",
     "Global": "Genel",
     "Global DDS rebuild defaults used by the workflow.": "İş akışı tarafından kullanılan genel DDS yeniden oluşturma varsayılanları.",

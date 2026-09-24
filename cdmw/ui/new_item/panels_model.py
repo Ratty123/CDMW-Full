@@ -7,6 +7,7 @@ from pathlib import Path
 from PySide6.QtCore import QEvent, QSettings, QSignalBlocker, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import (
+    QButtonGroup,
     QCheckBox,
     QComboBox,
     QDoubleSpinBox,
@@ -32,6 +33,7 @@ from PySide6.QtWidgets import (
 )
 
 from cdmw.domain.new_item.spec import IconSource, MaterialRoute, ModelSource, SheathedModel
+from cdmw.ui.mesh_editor.icons import mesh_editor_action_icon
 from cdmw.ui.new_item.controller import NewItemStudioController
 from cdmw.ui.new_item.item_preview import GIZMO_TOOLS, ItemPreviewFrame
 from cdmw.ui.new_item.model_import import ModelPlacement
@@ -40,6 +42,7 @@ from cdmw.ui.new_item.panels_model_preview_mixin import (
 )
 from cdmw.ui.new_item.state import glow_choice
 from cdmw.ui.new_item.ui_kit import BLOCK, EDIT, OK, WARN, NoteLabel, elided, note
+from cdmw.ui.wrapping_layout import WrappingLayout
 
 #: what a Blender looks like on each platform, for the dialog that points the studio at one
 BLENDER_FILE_FILTER = "Blender (blender.exe blender);;All files (*)"
@@ -528,24 +531,39 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self.frame_view_button = QPushButton("Frame")
         self.frame_view_button.setToolTip("Bring the camera back onto the model where it sits now.")
         self.frame_view_button.clicked.connect(self.preview.fit_view)
-        view_row.addWidget(self.frame_view_button)
         toolbar_layout.addLayout(view_row)
-        gizmo_row = QHBoxLayout()
-        gizmo_row.addWidget(QLabel("Gizmo:"))
+        self.gizmo_toolbar = QWidget(self.preview)
+        gizmo_policy = QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
+        gizmo_policy.setHeightForWidth(True)
+        self.gizmo_toolbar.setSizePolicy(gizmo_policy)
+        gizmo_row = WrappingLayout(self.gizmo_toolbar)
+        gizmo_row.setSpacing(4)
+        self.gizmo_button_group = QButtonGroup(self.gizmo_toolbar)
         self.gizmo_buttons = {
-            "move": QRadioButton("Move"),
-            "rotate": QRadioButton("Rotate"),
-            "scale": QRadioButton("Scale"),
+            "move": QPushButton("Move"),
+            "rotate": QPushButton("Rotate"),
+            "scale": QPushButton("Scale"),
         }
         for tool in GIZMO_TOOLS:
             button = self.gizmo_buttons[tool]
+            button.setCheckable(True)
+            button.setToolTip(button.text())
+            button.setIcon(mesh_editor_action_icon(f"transform_{tool}", self.palette()))
+            button.setIconSize(QSize(14, 14))
+            button.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
+            self.gizmo_button_group.addButton(button)
             button.toggled.connect(
                 lambda checked, t=tool: self.preview.set_gizmo_tool(t) if checked else None
             )
             gizmo_row.addWidget(button)
         self.gizmo_buttons["move"].setChecked(True)
-        gizmo_row.addStretch(1)
-        toolbar_layout.addLayout(gizmo_row)
+        self.frame_view_button.setIcon(mesh_editor_action_icon("frame", self.palette()))
+        self.frame_view_button.setIconSize(QSize(14, 14))
+        self.frame_view_button.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
+        gizmo_row.addWidget(self.frame_view_button)
+        self.preview.layout().removeWidget(self.preview.gizmo_visible)
+        gizmo_row.addWidget(self.preview.gizmo_visible)
+        self.preview.layout().insertWidget(0, self.gizmo_toolbar)
         numbers = QGridLayout()
         numbers.setHorizontalSpacing(6)
         numbers.setVerticalSpacing(4)

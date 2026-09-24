@@ -918,7 +918,13 @@ the initial effect position remains beside the subject. A
 feet-at-zero bind-space stand-in is used when the matching archive body is unavailable.
 
 The Model & Placement step puts a tall resident preview beside one resizable inspector.
-Model selection, import actions, variant selection, preview controls, status and icon
+**Move**, **Rotate**, **Scale**, **Frame** and **Show gizmo** sit directly above the
+viewport in a compact toolbar that wraps when space is limited. Select Rotate to drag
+the model's rotation rings; Move and Scale select the corresponding handles. The toolbar
+travels with the shared preview into Template and Identity, keeps the selected tool,
+and stays accessible while using Appearance, Dyes or Icon. Gizmo edits update the
+Placement values; selecting a tool keeps the camera and placement unchanged.
+Model selection, import actions, variant selection, display controls, status and icon
 capture share the right inspector with Placement, Appearance, Dyes and Icon. The viewport
 uses the full left column; Apply placement stays fixed beneath the inspector's scroll area.
 The active tab uses its natural height as sections expand or collapse, keeping spare

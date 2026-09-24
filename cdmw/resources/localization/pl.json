@@ -3704,7 +3704,6 @@
     "Give this weapon the other grip's animations — the two-hand set for a one-hand weapon, or the reverse.\n\nThe chosen animation is written in place of the old one, so the game keeps asking for the same file and gets the new motion.\n\nYou are shown every file it would touch before anything is changed.": "Nadaj tej broni inne animacje chwytu — zestaw dwuręczny dla broni jednoręcznej lub odwrotnie.\n\nWybrana animacja jest zapisywana w miejsce starej, więc gra ciągle pyta o ten sam plik i pobiera nowy ruch.\n\nWyświetlany jest każdy plik, którego dotknie, zanim cokolwiek ulegnie zmianie.",
     "Gives the weapon the other grip's animation set — the two-hand animations for a one-hand weapon, or the reverse.": "Przydziela broni zestaw animacji drugiego chwytu — animacje oburęczne dla broni jednoręcznej lub odwrotnie.",
     "Gizmo": "gadżet",
-    "Gizmo:": "Gizmo:",
     "Glob": "Wzorzec glob",
     "Global": "Globalny",
     "Global DDS rebuild defaults used by the workflow.": "Globalne ustawienia domyślne przebudowy DDS używane w przepływie pracy.",

@@ -13,6 +13,7 @@ The format is intentionally simple:
 
 ### Changed
 
+- Create New Item puts Move, Rotate, Scale, Frame and Show gizmo directly above the shared model viewport, keeping transform tools accessible alongside the Placement values and while editing appearance.
 - Create New Item, Merge mods and game-update exports produce lean DMM folders containing the packed mod, required texture registry, package metadata and README. Authoring and compatibility history stays in CDMW's local data for later editing, merging and updates; DMM rebuilds its own mount list.
 - Create New Item now uses Rust exclusively under the single Create New Item name. The Classic entry and presentation switch are disabled while its source and shared workflow remain intact. Saved workspace selections and model/template handoffs open Rust; Retry preserves the same draft after a renderer failure.
 - Create New Item uses left-aligned Rust lists and plain column headings. Effects combines viewport controls and Show gizmo in one compact toolbar, groups library actions, opens Preview options by default, and lets Placement collapse. Individual perk names omit the experimental suffix; the feature tab and hover details retain that context. Navigation and the bottom status strip use less height, with model progress percentages beside the operation text.

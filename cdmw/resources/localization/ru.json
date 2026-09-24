@@ -3704,7 +3704,6 @@
     "Give this weapon the other grip's animations — the two-hand set for a one-hand weapon, or the reverse.\n\nThe chosen animation is written in place of the old one, so the game keeps asking for the same file and gets the new motion.\n\nYou are shown every file it would touch before anything is changed.": "Придайте этому оружию анимацию другого хвата — набор для двуручного оружия для одноручного оружия или наоборот.\n\nВыбранная анимация записывается вместо старой, поэтому игра продолжает запрашивать тот же файл и получает новое движение.\n\nВам будет показан каждый файл, к которому оно прикоснется, прежде чем что-либо будет изменено.",
     "Gives the weapon the other grip's animation set — the two-hand animations for a one-hand weapon, or the reverse.": "Придает оружию набор анимации другого захвата — анимацию двуручного оружия для одноручного оружия или наоборот.",
     "Gizmo": "Гизмо",
-    "Gizmo:": "Гизмо:",
     "Glob": "Шаблон glob",
     "Global": "Глобальная",
     "Global DDS rebuild defaults used by the workflow.": "Глобальные настройки DDS по умолчанию перестраиваются, используемые в рабочем процессе.",

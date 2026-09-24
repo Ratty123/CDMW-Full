@@ -1,14 +1,17 @@
 """New Item's shared preview controls, through Qt and the Rust input bridge."""
 
 from weakref import WeakSet
+from types import SimpleNamespace
+from unittest.mock import PropertyMock, patch
 
 import pytest
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication
 
 from cdmw.services.effect_placement_preview import EffectPlacementPreview
+from cdmw.domain.new_item.spec import ModelSource
 from cdmw.ui.new_item.effect_placement_dialog import EffectPlacementWorkspace
-from cdmw.ui.new_item.model_import import ModelPlacement
+from cdmw.ui.new_item.model_import import ModelImportSource, ModelPlacement
 from cdmw.ui.new_item import preview_controls
 from cdmw.ui.new_item.rust_ui_document import PresentationDocument
 from tests.test_effect_placement_dialog import _AckHost, _blade
@@ -55,6 +58,100 @@ def test_gizmo_toggle_follows_every_shared_preview_page_and_survives_recreation(
         assert not reopened.isChecked()
     finally:
         reopened.deleteLater()
+
+
+def test_model_toolbar_projects_and_dispatches_outside_the_inspector(studio):
+    _, tab, bridge = studio
+    tab.show_step(2)
+    panel = tab.model_panel
+    frame = panel.preview
+    frame._host_factory = item_preview_tests.ItemPreviewFrameTests._fake_host_class()
+    assert frame._ensure_host()
+    QApplication.processEvents()
+    frame.is_ready = True
+    frame._loaded_is_placement = True
+    frame.set_placement(ModelPlacement())
+    panel._refresh_placement_enabled()
+    panel.inspector_tabs.setCurrentWidget(panel.appearance_page)
+    toolbar = bridge.document.widget(panel.gizmo_toolbar, force=True)["children"][0]
+    assert toolbar["kind"] == "row"
+    assert [node["label"] for node in toolbar["children"]] == ["Move", "Rotate", "Scale", "Frame", "Show gizmo"]
+    assert all(node["props"]["image"] for node in toolbar["children"][:4])
+    assert frame.isAncestorOf(panel.gizmo_toolbar)
+    assert not panel.model_icon_column.isAncestorOf(panel.gizmo_toolbar)
+    for tool in ("rotate", "scale", "move", "rotate"):
+        frame.host.calls.clear()
+        _send(bridge, panel.gizmo_buttons[tool], "activate")
+        assert frame.host.calls == [("set_alignment_gizmo_tool", (tool,), {})]
+        assert [name for name, button in panel.gizmo_buttons.items() if button.isChecked()] == [tool]
+        assert frame.placement == ModelPlacement()
+    _send(bridge, panel.gizmo_buttons["rotate"], "activate")
+    assert panel.gizmo_buttons["rotate"].isChecked(), "the active tool cannot be deselected"
+    for step in (0, 1, 2):
+        tab.show_step(step)
+        assert panel.gizmo_toolbar.isVisibleTo(tab)
+        assert panel.gizmo_buttons["rotate"].isChecked()
+        bridge.snapshot()
+        node = bridge.document.registry.current[bridge.document.registry.identify(panel.gizmo_buttons["rotate"])]
+        assert node["props"]["checked"]
+    QApplication.processEvents()
+    frame.is_ready = True
+    frame._loaded_is_placement = True
+    frame.set_placement(ModelPlacement())
+    panel._refresh_placement_enabled()
+    frame.host.calls.clear()
+    _send(bridge, panel.frame_view_button, "activate")
+    assert frame.host.calls == [("reset_view", (), {})]
+    with patch.object(type(tab.controller), "busy", new_callable=PropertyMock, return_value=True):
+        panel._refresh_placement_enabled()
+        assert all(not button.isEnabled() for button in panel.gizmo_buttons.values())
+    frame.is_ready = False
+    panel._refresh_placement_enabled()
+    assert all(not button.isEnabled() for button in panel.gizmo_buttons.values())
+
+
+@pytest.mark.parametrize("imported", [False, True], ids=["template", "imported"])
+@pytest.mark.parametrize("tool, field, delta", [
+    ("move", "offset", (0.25, -0.5, 0.75)),
+    ("rotate", "rotation", (0.0, 45.0, 90.0)),
+    ("scale", "scale", (0.5, 1.0, 0.25)),
+])
+def test_model_toolbar_gizmo_drags_update_placement_values(studio, tmp_path, imported, tool, field, delta):
+    _, tab, bridge = studio
+    tab.show_step(2)
+    controller = tab.controller
+    panel = tab.model_panel
+    if imported:
+        controller.draft.model_source = ModelSource.IMPORTED
+        controller.model_import = ModelImportSource(
+            tmp_path / "blade.obj", tmp_path / "blade.obj", SimpleNamespace(mesh=None), None, None,
+        )
+    frame = panel.preview
+    frame._host_factory = item_preview_tests.ItemPreviewFrameTests._fake_host_class()
+    assert frame._ensure_host()
+    frame.is_ready = True
+    frame._loaded_is_placement = True
+    initial = ModelPlacement()
+    frame.set_placement(initial)
+    panel._sync_placement_numbers(initial)
+    panel._refresh_placement_enabled()
+    _send(bridge, panel.gizmo_buttons[tool], "activate")
+    frame.host.calls.clear()
+    frame.host.alignment_drag_started.emit()
+    changed, finished = {
+        "move": (frame.host.alignment_drag_changed, frame.host.alignment_drag_finished),
+        "rotate": (frame.host.alignment_rotation_changed, frame.host.alignment_rotation_finished),
+        "scale": (frame.host.alignment_scale_changed, frame.host.alignment_scale_finished),
+    }[tool]
+    changed.emit(*delta)
+    expected = initial.with_values(**{field: tuple(a + b for a, b in zip(getattr(initial, field), delta))})
+    spins = {"move": panel.offset_spins, "rotate": panel.rotation_spins, "scale": panel.scale_spins}[tool]
+    assert tuple(spin.value() for spin in spins) == pytest.approx(getattr(expected, field))
+    assert controller.model_placement == initial, "unfinished drags only update the preview and numbers"
+    finished.emit(*delta)
+    assert controller.model_placement == expected
+    assert tuple(spin.value() for spin in spins) == pytest.approx(getattr(expected, field))
+    assert not any(call[0] in {"reset_view", "set_view", "request_canonical_view"} for call in frame.host.calls)
 
 
 @pytest.mark.parametrize("compatibility_ui", [False, True])

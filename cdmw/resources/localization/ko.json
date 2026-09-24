@@ -3704,7 +3704,6 @@
     "Give this weapon the other grip's animations — the two-hand set for a one-hand weapon, or the reverse.\n\nThe chosen animation is written in place of the old one, so the game keeps asking for the same file and gets the new motion.\n\nYou are shown every file it would touch before anything is changed.": "이 무기에 다른 그립의 애니메이션(한손 무기에 대한 양손 세트 또는 그 반대)을 지정합니다.\n\n선택한 애니메이션이 이전 애니메이션 대신 작성되므로 게임은 계속해서 동일한 파일을 요청하고 새 모션을 얻습니다.\n\n변경되기 전에 접촉할 모든 파일이 표시됩니다.",
     "Gives the weapon the other grip's animation set — the two-hand animations for a one-hand weapon, or the reverse.": "무기에 다른 그립의 애니메이션 세트(한손 무기에 대한 양손 애니메이션 또는 그 반대)를 제공합니다.",
     "Gizmo": "기즈모",
-    "Gizmo:": "기즈모:",
     "Glob": "glob 패턴",
     "Global": "글로벌",
     "Global DDS rebuild defaults used by the workflow.": "워크플로에서 사용되는 전역 DDS 재구축 기본값.",

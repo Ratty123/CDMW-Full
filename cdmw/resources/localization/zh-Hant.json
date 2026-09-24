@@ -3704,7 +3704,6 @@
     "Give this weapon the other grip's animations — the two-hand set for a one-hand weapon, or the reverse.\n\nThe chosen animation is written in place of the old one, so the game keeps asking for the same file and gets the new motion.\n\nYou are shown every file it would touch before anything is changed.": "為此武器提供另一個握把的動畫 - 雙手設定為單手武器，或相反。\n\n所選動畫是在舊動畫的位置寫入的，因此遊戲會不斷要求相同的檔案並獲取新的動作。\n\n在任何內容發生更改之前，您都會看到它會觸及的每個文件。",
     "Gives the weapon the other grip's animation set — the two-hand animations for a one-hand weapon, or the reverse.": "為武器提供另一個握把的動畫集 - 為單手武器提供雙手動畫，反之亦然。",
     "Gizmo": "小發明",
-    "Gizmo:": "操縱桿：",
     "Glob": "Glob 模式",
     "Global": "全域",
     "Global DDS rebuild defaults used by the workflow.": "工作流程使用的全域 DDS 重建預設值。",
