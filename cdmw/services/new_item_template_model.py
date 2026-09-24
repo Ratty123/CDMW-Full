@@ -232,7 +232,7 @@ def prepare_template_model(snapshot, paths, *, glow=None, translucency=None, sha
                 return sources.get(texture.casefold()) if texture.casefold() in sources else (
                     snapshot.payload(texture) if snapshot.has_entry(texture) else None)
             text, textures, matched = rewrite_new_item_shader_controls(text, shader_controls, path,
-                read_shader_texture, stop_event=stop_event, allow_missing=True)
+                read_shader_texture, stop_event=stop_event, allow_missing=True, on_log=on_log)
             side.update(textures)
             found_controls.update(matched)
         if emission or glass or shader_controls:

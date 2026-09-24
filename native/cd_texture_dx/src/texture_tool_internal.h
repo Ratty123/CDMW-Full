@@ -57,6 +57,8 @@ std::string metadata_json(
     const char* status
 );
 std::string encode_dds_job(const EncodeJob& job);
+HRESULT compress_bc7_repeated_blocks(
+    const DirectX::ScratchImage& source, DXGI_FORMAT format, DirectX::ScratchImage& output);
 std::string decode_preview_job(const PreviewJob& job);
 bool texture_codec_self_test(std::string& failed_component);
 int write_batch_exception_report(

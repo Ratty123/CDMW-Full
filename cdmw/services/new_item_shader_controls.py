@@ -52,7 +52,7 @@ def shader_control_bindings(files, choices, *, result=None, scene=None):
     return bindings
 
 
-def rewrite_new_item_shader_controls(text, choices, model_path, read_texture, *, stop_event=None, allow_missing=False):
+def rewrite_new_item_shader_controls(text, choices, model_path, read_texture, *, stop_event=None, allow_missing=False, on_log=None):
     from cdmw.services.new_item_eye_cover import prepare_eye_cover_textures
     # Validate the material contract before decoding/encoding any textures.
     from cdmw.core.material_shader_controls import validate_source, _parameter_rows
@@ -63,12 +63,12 @@ def rewrite_new_item_shader_controls(text, choices, model_path, read_texture, *,
         if wrapper.submesh_name.casefold() in settings:
             validate_source(wrapper.shader, settings[wrapper.submesh_name.casefold()],
                             _parameter_rows(text[wrapper.start:wrapper.end]))
-    paths, textures = prepare_eye_cover_textures(text, choices, model_path, read_texture, stop_event=stop_event)
+    paths, textures = prepare_eye_cover_textures(text, choices, model_path, read_texture, stop_event=stop_event, on_log=on_log)
     edited, matched = rewrite_shader_controls(text, choices, texture_paths=paths, allow_missing=allow_missing)
     return edited, textures, matched
 
 
-def apply_shader_controls(files, choices, *, result=None, scene=None, stop_event=None):
+def apply_shader_controls(files, choices, *, result=None, scene=None, stop_event=None, on_log=None):
     if not choices:
         return files
     side = dict(files.side_files)
@@ -76,7 +76,7 @@ def apply_shader_controls(files, choices, *, result=None, scene=None, stop_event
     for path, mapped in shader_control_bindings(files, choices, result=result, scene=scene).items():
         data = side[path]
         text, textures, _ = rewrite_new_item_shader_controls(data.decode("utf-8-sig"), mapped, path,
-            lambda texture: sources.get(texture.replace("\\", "/").casefold()), stop_event=stop_event)
+            lambda texture: sources.get(texture.replace("\\", "/").casefold()), stop_event=stop_event, on_log=on_log)
         side.update(textures)
         side[path] = (b"\xef\xbb\xbf" if data.startswith(b"\xef\xbb\xbf") else b"") + text.encode("utf-8")
     notes = ("Experimental shader controls applied to selected materials; game validation is still required.",)

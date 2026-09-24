@@ -44,7 +44,15 @@ def test_eye_cover_compatible_sources_and_typed_byte(source):
 
 
 @pytest.mark.parametrize("route", ["template", "prepared"])
-def test_private_bc7_textures_preserve_source_and_other_materials(route):
+def test_private_bc7_textures_preserve_source_and_other_materials(route, monkeypatch):
+    from cdmw.core import texture_native
+    real_encode = texture_native.encode_dds_with_directxtex
+    logs = []
+    def encode_with_heartbeat(*args, on_log=None, **kwargs):
+        if on_log:
+            on_log("Native texture encode is still running after 30s (timeout 120s).")
+        return real_encode(*args, on_log=on_log, **kwargs)
+    monkeypatch.setattr(texture_native, "encode_dds_with_directxtex", encode_with_heartbeat)
     files = source_files()
     original = dict(files.side_files)
     settings = (("Blade", controls(_eyeCoverDiffuseParameter=.2, surface_alpha=.3, material_red=.1,
@@ -52,9 +60,15 @@ def test_private_bc7_textures_preserve_source_and_other_materials(route):
     if route == "template":
         payloads = {PAC: files.pac_data, **files.side_files}
         snapshot = SimpleNamespace(payload=payloads.__getitem__, has_entry=payloads.__contains__)
-        output = prepare_template_model(snapshot, [PAC], shader_controls=settings)
+        output = prepare_template_model(snapshot, [PAC], shader_controls=settings, on_log=logs.append)
     else:
-        output = apply_shader_controls(files, settings)
+        output = apply_shader_controls(files, settings, on_log=logs.append)
+    for role in ("surface alpha", "material"):
+        messages = [line for line in logs if line.startswith(f"Blade: EyeCover {role}:")]
+        assert "Preparing texture" in messages[0]
+        assert any("BC7 texture" in line and "mip levels" in line for line in messages)
+        assert any("still running after 30s" in line for line in messages)
+        assert "Encoded texture in" in messages[-1]
     assert files.side_files == original and output.pac_data == files.pac_data
     wrappers = find_material_wrappers(output.side_files[XML].decode())
     old = find_material_wrappers(original[XML].decode())
@@ -207,10 +221,12 @@ def test_rust_bridge_exposes_controls_updates_draft_and_restores(studio):
 
 
 @pytest.mark.parametrize("variant", [False, True])
-def test_complete_plan_and_loose_export_include_owned_eye_cover_maps(tmp_path, variant):
+@pytest.mark.parametrize("imported", [False, True])
+def test_complete_plan_and_loose_export_include_owned_eye_cover_maps(tmp_path, variant, imported, monkeypatch):
     from cdmw.core.archive_format import parse_archive_pamt
     from cdmw.services.new_item_service import NewItemService
     from cdmw.services.new_item_variants import xml_path
+    from cdmw.domain.new_item.spec import ModelSource
     from tests.test_new_item_provenance import current_files, spec
     from tests.test_new_item_service import PAC as TEMPLATE_PAC, PAC_XML, build_package, _read
     from tests.test_new_item_variant_authoring import selections
@@ -224,10 +240,23 @@ def test_complete_plan_and_loose_export_include_owned_eye_cover_maps(tmp_path, v
     snapshot = service.build_snapshot(parse_archive_pamt(build_package(tmp_path / "fixture", data)), read_entry=_read)
     settings = (("Blade", controls(_eyeCoverDiffuseParameter=.35, surface_alpha=.25, material_red=.1)),)
     request = replace(spec(), shader_controls=settings)
+    kwargs = {}
+    if imported:
+        # These plan/export fixtures have opaque geometry; rig parsing has its own tests.
+        monkeypatch.setattr("cdmw.services.new_item_variants.validate_variant_rig", lambda *_args, **_kwargs: None)
+        request = replace(request, model_source=ModelSource.IMPORTED)
+        imported_side = dict(owned.side_files)
+        imported_side[PAC_XML] = imported_side.pop(XML)
+        kwargs["model"] = replace(owned, pac_data=data[TEMPLATE_PAC], side_files=imported_side)
     if variant:
         binding = next(value for value in selections(snapshot) if value.model_path == TEMPLATE_PAC)
-        request = replace(request, variants=(replace(binding, shader_controls=settings),))
-    plan = service.plan(request, snapshot)
+        request = replace(request, variants=(replace(binding, shader_controls=settings, custom_model=imported),))
+        if imported:
+            kwargs = {"variant_models": {binding.identity: kwargs["model"]}}
+    logs = []
+    plan = service.plan(request, snapshot, on_log=logs.append, **kwargs)
+    assert any("EyeCover material: Encoding" in line for line in logs)
+    assert any("EyeCover material: Encoded" in line for line in logs)
     output = next(path for path in plan.loose_files if path.endswith(".pac"))
     blade = find_material_wrappers(plan.loose_files[xml_path(output)].decode("utf-8-sig"))[0]
     assert blade.shader == EYE_COVER.shader

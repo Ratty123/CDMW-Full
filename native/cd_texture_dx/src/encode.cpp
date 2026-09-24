@@ -1,14 +1,18 @@
 #include "texture_tool_internal.h"
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <cctype>
+#include <cstring>
 #include <exception>
 #include <filesystem>
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <string_view>
+#include <unordered_map>
 #include <vector>
 
 #include "../../common/native_diagnostics.h"
@@ -81,7 +85,99 @@ size_t maximum_mip_count(size_t width, size_t height) {
     return levels;
 }
 
+using RgbaBlock = std::array<uint8_t, 64>;
+
+struct RgbaBlockHash {
+    size_t operator()(const RgbaBlock& block) const noexcept {
+        return std::hash<std::string_view>{}(
+            std::string_view(reinterpret_cast<const char*>(block.data()), block.size()));
+    }
+};
+
+RgbaBlock rgba_block(const DirectX::Image& image, size_t index) {
+    const size_t columns = (image.width + 3) / 4;
+    const size_t x = (index % columns) * 4;
+    const size_t y = (index / columns) * 4;
+    const size_t width = std::min<size_t>(4, image.width - x);
+    const size_t height = std::min<size_t>(4, image.height - y);
+    RgbaBlock block;
+    // Match DirectXTex's partial-block replication, including 1/2/3-pixel mips.
+    constexpr size_t replicate[] = {0, 0, 0, 1};
+    for (size_t row = 0; row < height; ++row) {
+        const uint8_t* source = image.pixels + (y + row) * image.rowPitch + x * 4;
+        std::memcpy(block.data() + row * 16, source, width * 4);
+        for (size_t column = width; column < 4; ++column) {
+            std::memcpy(block.data() + row * 16 + column * 4, block.data() + row * 16 + replicate[column] * 4, 4);
+        }
+    }
+    for (size_t row = height; row < 4; ++row) {
+        std::memcpy(block.data() + row * 16, block.data() + replicate[row] * 16, 16);
+    }
+    return block;
+}
+
 }  // namespace
+
+HRESULT compress_bc7_repeated_blocks(
+    const DirectX::ScratchImage& source, DXGI_FORMAT format, DirectX::ScratchImage& output) {
+    auto metadata = source.GetMetadata();
+    if ((format != DXGI_FORMAT_BC7_UNORM && format != DXGI_FORMAT_BC7_UNORM_SRGB) ||
+        (metadata.format != DXGI_FORMAT_R8G8B8A8_UNORM && metadata.format != DXGI_FORMAT_R8G8B8A8_UNORM_SRGB)) {
+        return E_INVALIDARG;
+    }
+    metadata.format = format;
+    HRESULT hr = output.Initialize(metadata);
+    if (FAILED(hr)) return hr;
+    if (source.GetImageCount() != output.GetImageCount()) return E_FAIL;
+
+    // Bound scratch memory independently of texture size. BC7 encodes each 4x4
+    // block independently: identical RGBA bytes need the same expensive search
+    // only once. Keep the original compressor, flags, mip pixels and output order.
+    constexpr size_t chunk_blocks = 65536;
+    constexpr size_t atlas_columns = 256;
+    for (size_t image_index = 0; image_index < source.GetImageCount(); ++image_index) {
+        const auto& image = source.GetImages()[image_index];
+        const auto& destination = output.GetImages()[image_index];
+        const size_t columns = (image.width + 3) / 4;
+        const size_t block_count = columns * ((image.height + 3) / 4);
+        for (size_t start = 0; start < block_count; start += chunk_blocks) {
+            const size_t count = std::min(chunk_blocks, block_count - start);
+            std::unordered_map<RgbaBlock, size_t, RgbaBlockHash> unique;
+            unique.reserve(count);
+            std::vector<size_t> indices;
+            indices.reserve(count);
+            for (size_t index = 0; index < count; ++index) {
+                const auto [entry, inserted] = unique.try_emplace(rgba_block(image, start + index), unique.size());
+                indices.push_back(entry->second);
+            }
+            const size_t packed_columns = std::min(atlas_columns, unique.size());
+            const size_t packed_rows = (unique.size() + packed_columns - 1) / packed_columns;
+            DirectX::ScratchImage packed;
+            hr = packed.Initialize2D(image.format, packed_columns * 4, packed_rows * 4, 1, 1);
+            if (FAILED(hr)) return hr;
+            std::memset(packed.GetPixels(), 0, packed.GetPixelsSize());
+            const auto& atlas = packed.GetImages()[0];
+            for (const auto& [block, index] : unique) {
+                uint8_t* target = atlas.pixels + (index / packed_columns) * 4 * atlas.rowPitch + (index % packed_columns) * 16;
+                for (size_t row = 0; row < 4; ++row) {
+                    std::memcpy(target + row * atlas.rowPitch, block.data() + row * 16, 16);
+                }
+            }
+            DirectX::ScratchImage compressed;
+            hr = DirectX::Compress(atlas, format, DirectX::TEX_COMPRESS_PARALLEL,
+                                   DirectX::TEX_THRESHOLD_DEFAULT, compressed);
+            if (FAILED(hr)) return hr;
+            const auto& encoded = compressed.GetImages()[0];
+            for (size_t index = 0; index < count; ++index) {
+                const size_t original = start + index;
+                const size_t distinct = indices[index];
+                std::memcpy(destination.pixels + (original / columns) * destination.rowPitch + (original % columns) * 16,
+                            encoded.pixels + (distinct / packed_columns) * encoded.rowPitch + (distinct % packed_columns) * 16, 16);
+            }
+        }
+    }
+    return S_OK;
+}
 
 static DirectX::WIC_FLAGS source_policy_wic_flags(const std::string& source_color_policy) {
     DirectX::WIC_FLAGS wic_flags = DirectX::WIC_FLAGS_NONE;
@@ -224,15 +320,19 @@ std::string encode_dds_job(const EncodeJob& job) {
     DirectX::ScratchImage compressed_or_final;
     DirectX::ScratchImage* final_image = working;
     if (DirectX::IsCompressed(target_format)) {
-        hr = DirectX::Compress(
-            working->GetImages(),
-            working->GetImageCount(),
-            working->GetMetadata(),
-            target_format,
-            DirectX::TEX_COMPRESS_PARALLEL,
-            DirectX::TEX_THRESHOLD_DEFAULT,
-            compressed_or_final
-        );
+        if (target_format == DXGI_FORMAT_BC7_UNORM || target_format == DXGI_FORMAT_BC7_UNORM_SRGB) {
+            hr = compress_bc7_repeated_blocks(*working, target_format, compressed_or_final);
+        } else {
+            hr = DirectX::Compress(
+                working->GetImages(),
+                working->GetImageCount(),
+                working->GetMetadata(),
+                target_format,
+                DirectX::TEX_COMPRESS_PARALLEL,
+                DirectX::TEX_THRESHOLD_DEFAULT,
+                compressed_or_final
+            );
+        }
         if (FAILED(hr)) {
             return encode_error(job, hresult_message("Compress", hr));
         }

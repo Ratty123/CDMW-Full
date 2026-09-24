@@ -28,6 +28,15 @@ cd-texture-dx.exe batch-preview-json job.json report.json
 
 `batch-preview-json` accepts protocol-v2 decode requests with `input`, `output`, `slot`, `normal_space`, `max_dimension`, `requested_mip`, and `output_pixel_type`. `batch-encode-json` accepts explicit DDS format, dimensions, mip count, overwrite, source-color, mip-alpha, coverage-reference, and DDS alpha-metadata policies. Source-colour policy is `auto`, `ignore_srgb_metadata`, or `assume_srgb`; the last option preserves untagged presentation-space colour bytes when targeting an sRGB DDS. The helper writes all outputs and a single report JSON so Python can batch texture work through one native process.
 
+BC7 compression deduplicates identical RGBA 4x4 blocks within bounded chunks
+before calling the same DirectXTex compressor. It preserves compression flags,
+pixel values, partial-block padding, mip order, and compressed output bytes;
+scratch memory does not grow with the total texture size. This reduces CPU work
+for repetitive material maps without a faster-quality preset or a GPU dependency.
+The native self-test compares every output byte with ordinary DirectXTex BC7
+compression for linear/sRGB inputs, alpha, narrow and odd dimensions, full mip
+chains, and a texture spanning multiple chunks.
+
 The batch parser is a bounded, allocation-light JSON scanner rather than
 `std::regex`; this keeps preview decoding reliable while the main application is
 holding a large archive index. `self-test` verifies nested job arrays, escaped

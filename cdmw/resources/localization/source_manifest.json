@@ -34432,6 +34432,16 @@
       ]
     },
     {
+      "key": "Encoded texture in {value_0}s.",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_eye_cover.py",
+          "line": 89,
+          "sink": "on_log"
+        }
+      ]
+    },
+    {
       "key": "Encoding a solid _sp for {value_0} (roughness {value_1}, metalness {value_2}) -> {value_3}",
       "origins": [
         {
@@ -34502,6 +34512,16 @@
         {
           "path": "cdmw/services/new_item_translucency.py",
           "line": 42,
+          "sink": "on_log"
+        }
+      ]
+    },
+    {
+      "key": "Encoding {value_0} x {value_1} BC7 texture ({value_2} mip levels)...",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_eye_cover.py",
+          "line": 80,
           "sink": "on_log"
         }
       ]
@@ -79928,6 +79948,16 @@
           "path": "cdmw/ui/shell/texture_workspace_layout.py",
           "line": 58,
           "sink": "pump_startup_splash"
+        }
+      ]
+    },
+    {
+      "key": "Preparing texture...",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_eye_cover.py",
+          "line": 42,
+          "sink": "report"
         }
       ]
     },
@@ -147523,6 +147553,16 @@
           "path": "cdmw/ui/archive_browser/binary_sidecar_actions.py",
           "line": 342,
           "sink": "getItem"
+        }
+      ]
+    },
+    {
+      "key": "{value_0}: EyeCover {value_1}: {value_2}",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_eye_cover.py",
+          "line": 41,
+          "sink": "on_log"
         }
       ]
     },

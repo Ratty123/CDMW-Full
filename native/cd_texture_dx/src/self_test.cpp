@@ -3,6 +3,7 @@
 #include <wincodec.h>
 
 #include <chrono>
+#include <cstring>
 #include <cstdint>
 #include <filesystem>
 #include <string>
@@ -101,6 +102,66 @@ static const char* assumed_srgb_policy_failure(const fs::path& root) {
     return nullptr;
 }
 
+static const char* repeated_bc7_failure() {
+    struct Case { size_t width, height; bool srgb; };
+    // Odd/narrow images exercise DirectXTex's partial-block padding at every mip.
+    const Case cases[] = {{13, 11, false}, {13, 11, true}, {1, 17, false},
+                          {18, 2, true}, {3, 3, false}, {12, 4, false}};
+    for (const auto& item : cases) {
+        const auto input_format = item.srgb ? DXGI_FORMAT_R8G8B8A8_UNORM_SRGB : DXGI_FORMAT_R8G8B8A8_UNORM;
+        const auto output_format = item.srgb ? DXGI_FORMAT_BC7_UNORM_SRGB : DXGI_FORMAT_BC7_UNORM;
+        DirectX::ScratchImage source;
+        HRESULT hr = source.Initialize2D(input_format, item.width, item.height, 1, 1);
+        if (FAILED(hr)) return "initialize_repeated_bc7";
+        const auto& frame = source.GetImages()[0];
+        for (size_t y = 0; y < frame.height; ++y) {
+            for (size_t x = 0; x < frame.width; ++x) {
+                uint8_t* pixel = frame.pixels + y * frame.rowPitch + x * 4;
+                pixel[0] = static_cast<uint8_t>(((x % 12) * 17 + (y % 20) * 3) & 255);
+                pixel[1] = static_cast<uint8_t>(((x % 12) * 5 + (y % 20) * 13) & 255);
+                pixel[2] = static_cast<uint8_t>(((x % 12) * 11 + (y % 20) * 7) & 255);
+                pixel[3] = static_cast<uint8_t>(((x % 12) * 23 + (y % 20) * 29) & 255);
+            }
+        }
+        DirectX::ScratchImage mips, reference, repeated;
+        hr = DirectX::GenerateMipMaps(frame, DirectX::TEX_FILTER_DEFAULT, 0, mips);
+        if (FAILED(hr)) return "mips_repeated_bc7";
+        hr = DirectX::Compress(mips.GetImages(), mips.GetImageCount(), mips.GetMetadata(), output_format,
+                               DirectX::TEX_COMPRESS_PARALLEL, DirectX::TEX_THRESHOLD_DEFAULT, reference);
+        if (FAILED(hr)) return "reference_repeated_bc7";
+        hr = compress_bc7_repeated_blocks(mips, output_format, repeated);
+        if (FAILED(hr)) return "compress_repeated_bc7";
+        if (reference.GetPixelsSize() != repeated.GetPixelsSize() ||
+            std::memcmp(reference.GetPixels(), repeated.GetPixels(), reference.GetPixelsSize()) != 0) {
+            return "compare_repeated_bc7_bytes";
+        }
+        if (item.width == 12 && item.height == 4) {
+            // Cross the chunk boundary without making the startup/package
+            // self-test recompress tens of thousands of identical reference blocks.
+            DirectX::ScratchImage tiled, tiled_result;
+            hr = tiled.Initialize2D(input_format, 1024, 1028, 1, 1);
+            if (FAILED(hr)) return "initialize_chunked_bc7";
+            const auto& large = tiled.GetImages()[0];
+            const size_t columns = large.width / 4;
+            const size_t blocks = columns * (large.height / 4);
+            for (size_t index = 0; index < blocks; ++index) {
+                for (size_t row = 0; row < 4; ++row) {
+                    std::memcpy(large.pixels + ((index / columns) * 4 + row) * large.rowPitch + (index % columns) * 16,
+                                frame.pixels + row * frame.rowPitch + (index % 3) * 16, 16);
+                }
+            }
+            hr = compress_bc7_repeated_blocks(tiled, output_format, tiled_result);
+            if (FAILED(hr)) return "compress_chunked_bc7";
+            for (size_t index = 0; index < blocks; ++index) {
+                if (std::memcmp(tiled_result.GetPixels() + index * 16, reference.GetPixels() + (index % 3) * 16, 16) != 0) {
+                    return "compare_chunked_bc7_bytes";
+                }
+            }
+        }
+    }
+    return nullptr;
+}
+
 bool texture_codec_self_test(std::string& failed_component) {
     if (win32_file_path(L"C:\\cache\\.\\maps\\..\\base.dds") != L"\\\\?\\C:\\cache\\base.dds" ||
         win32_file_path(L"\\\\server\\share\\base.dds") != L"\\\\?\\UNC\\server\\share\\base.dds" ||
@@ -128,6 +189,7 @@ bool texture_codec_self_test(std::string& failed_component) {
     const fs::path source_png = root / L"source.png";
     if (const char* failure = write_color_source_png(source_png)) return finish(false, failure);
     if (const char* failure = assumed_srgb_policy_failure(root)) return finish(false, failure);
+    if (const char* failure = repeated_bc7_failure()) return finish(false, failure);
     HRESULT hr = S_OK;
 
     EncodeJob linear_job;

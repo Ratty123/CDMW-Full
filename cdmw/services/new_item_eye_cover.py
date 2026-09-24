@@ -1,5 +1,6 @@
 """Owned texture channels for the experimental EyeCover equipment export."""
 import hashlib
+import time
 from pathlib import Path, PurePosixPath
 from tempfile import TemporaryDirectory
 
@@ -8,7 +9,7 @@ from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.mesh.shader_controls import EYE_COVER, EYE_COVER_TEXTURE_FIELDS
 
 
-def prepare_eye_cover_textures(text, choices, model_path, read_texture, *, stop_event=None):
+def prepare_eye_cover_textures(text, choices, model_path, read_texture, *, stop_event=None, on_log=None):
     """Return private bindings/payloads; never change a shared source texture."""
     settings = {name.casefold(): controls for name, controls in choices if controls.shader == EYE_COVER.shader}
     paths, files = {}, {}
@@ -34,7 +35,13 @@ def prepare_eye_cover_textures(text, choices, model_path, read_texture, *, stop_
                 raise ValueError(f"{wrapper.submesh_name}: missing EyeCover source texture {source}.")
             # Explicit neutral defaults avoid the EyeCover material's stock face maps.
             default = (255, 255, 255, 255) if parameter == "_alphaTexture" else (0, 0, 0, 255)
-            data = _encode_channels(payload, channels, default, wrapper.submesh_name, stop_event=stop_event)
+            label = "surface alpha" if parameter == "_alphaTexture" else "material"
+            def report(message):
+                if on_log:
+                    on_log(f"{wrapper.submesh_name}: EyeCover {label}: {message}")
+            report("Preparing texture...")
+            data = _encode_channels(payload, channels, default, wrapper.submesh_name,
+                                    stop_event=stop_event, on_log=report)
             identity = hashlib.sha256(parameter.encode() + data).hexdigest()[:16]
             path = f"{stem}_cdmw_eyecover_{identity}.dds"
             files[path] = data
@@ -42,7 +49,7 @@ def prepare_eye_cover_textures(text, choices, model_path, read_texture, *, stop_
     return paths, files
 
 
-def _encode_channels(payload, channels, default, part_name, *, stop_event=None):
+def _encode_channels(payload, channels, default, part_name, *, stop_event=None, on_log=None):
     from PIL import Image
     from cdmw.core.texture_native import ensure_directxtex_dds_preview_png, encode_dds_with_directxtex
     from cdmw.domain.textures.output import max_mips_for_size
@@ -54,7 +61,7 @@ def _encode_channels(payload, channels, default, part_name, *, stop_event=None):
             source = root / "source.dds"
             source.write_bytes(payload)
             decoded = ensure_directxtex_dds_preview_png(source, max_dimension=0, slot_kind="material",
-                                                       srgb="off", stop_event=stop_event)
+                                                       srgb="off", stop_event=stop_event, on_log=on_log)
             if decoded is None:
                 raise ValueError(f"{part_name}: cannot decode the EyeCover source texture.")
             with Image.open(decoded) as image:
@@ -68,10 +75,16 @@ def _encode_channels(payload, channels, default, part_name, *, stop_event=None):
         Image.merge("RGBA", planes).save(source)
         output = root / "channels.dds"
         raise_if_cancelled(stop_event)
+        mip_count = max_mips_for_size(*rgba.size)
+        if on_log:
+            on_log(f"Encoding {rgba.width} x {rgba.height} BC7 texture ({mip_count} mip levels)...")
+        started = time.monotonic()
         report = encode_dds_with_directxtex(source, output, dds_format="BC7_UNORM",
-            width=rgba.width, height=rgba.height, mip_count=max_mips_for_size(*rgba.size),
-            source_color_policy="ignore_srgb_metadata", stop_event=stop_event)
+            width=rgba.width, height=rgba.height, mip_count=mip_count,
+            source_color_policy="ignore_srgb_metadata", stop_event=stop_event, on_log=on_log)
         raise_if_cancelled(stop_event)
         if not report or not output.is_file() or not output.stat().st_size:
             raise ValueError(f"{part_name}: cannot encode the EyeCover texture.")
+        if on_log:
+            on_log(f"Encoded texture in {time.monotonic() - started:.1f}s.")
         return output.read_bytes()

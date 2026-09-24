@@ -307,7 +307,7 @@ class NewItemService:
             from cdmw.services.new_item_surface import apply_surface_settings
             files = apply_surface_settings(files, allocated.surface_settings, result=model, scene=scene, stop_event=stop_event)
             from cdmw.services.new_item_shader_controls import apply_shader_controls
-            files = apply_shader_controls(files, allocated.shader_controls, result=model, scene=scene, stop_event=stop_event)
+            files = apply_shader_controls(files, allocated.shader_controls, result=model, scene=scene, stop_event=stop_event, on_log=report)
         built = icon
         prepared_variants = {}
         if allocated.variants is not None:
