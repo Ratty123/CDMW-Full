@@ -911,6 +911,115 @@ fn emitter_properties_expand_inside_the_inspector_and_keep_actions_visible() {
 }
 
 #[test]
+fn output_columns_keep_long_review_and_activity_inside_the_workspace() {
+    let mut summary = control("summary", "text", "", json!({
+        "multiline":true,"readonly":true,"text":"Warning and file details\n".repeat(500)}));
+    summary.stretch = 1;
+    let mut tabs = control("review-tabs", "tabs", "", json!({"selected":1,
+        "tabs":[{"text":"File changes","enabled":true},{"text":"Details and warnings","enabled":true}]}));
+    tabs.children.push(summary);
+    let mut review = control("review", "column", "", json!({}));
+    review.children = vec![control("build", "button", "Build plan", json!({})), tabs,
+        control("checklist", "button", "After installing, check in game", json!({}))];
+    let mut review_scroll = control("review-scroll", "scroll", "", json!({}));
+    review_scroll.children.push(review);
+    let mut log = control("log", "text", "", json!({"multiline":true,"readonly":true,
+        "follow_tail":true,"text":"Activity event\n".repeat(500)}));
+    log.stretch = 1;
+    let mut activity = control("activity", "group", "Activity log", json!({}));
+    activity.children.push(log);
+    let mut destination = control("destination", "group", "Destination", json!({}));
+    destination.children = vec![control("folder", "text", "", json!({"text":"C:/Mods"})),
+        control("export", "button", "Write mod folder", json!({}))];
+    let mut split = control("output", "split", "", json!({"horizontal":true,"sizes":[460,460,320]}));
+    split.children = vec![review_scroll, activity, destination];
+    let mut root = control("root", "column", "", json!({}));
+    root.children = vec![split, control("back", "button", "Back", json!({}))];
+    let state = state(root);
+    for font in [14, 22, 28] {
+        for (width, height) in [(1280.0,720.0), (1920.0,1080.0), (2560.0,1440.0),
+            (3440.0,1440.0), (3840.0,2160.0)] {
+            let context = egui::Context::default();
+            apply_theme(&context, &json!({"font_pixels":font}));
+            let mut view = PresentationView::default();
+            for _ in 0..4 { frame(&context, &mut view, &state, egui::vec2(width,height), vec![]); }
+            let rect = |id| view.rects.iter().find(|rect| rect.id == id).unwrap().rect;
+            let summary = rect("summary");
+            let log = rect("log");
+            let folder = rect("folder");
+            assert!(summary[0] + summary[2] < log[0], "{summary:?}, {log:?}");
+            assert!(log[0] + log[2] < folder[0], "{log:?}, {folder:?}");
+            for id in ["summary", "log", "checklist", "export", "back"] {
+                let item = view.rects.iter().find(|rect| rect.id == id).unwrap();
+                assert!(item.rect[1] >= item.clip[1] - 1.0
+                    && item.rect[1] + item.rect[3] <= item.clip[1] + item.clip[3] + 1.0
+                    && item.rect[1] + item.rect[3] <= height,
+                    "font={font}, size={width}x{height}, {item:?}");
+            }
+            assert!(summary[3] > height * 0.6 && log[3] > height * 0.6);
+        }
+    }
+}
+
+#[test]
+fn activity_scroll_follows_new_events_and_allows_reading_history_between_events() {
+    let context = egui::Context::default();
+    let mut view = PresentationView::default();
+    let text = "Earlier activity\n".repeat(500) + "Latest event";
+    let mut log = control("log", "text", "", json!({"multiline":true,"readonly":true,
+        "follow_tail":true,"text":text,"total":text.len()}));
+    let mut tick = 0;
+    let mut draw = |view: &mut PresentationView, node: &Node, events: Vec<egui::Event>| {
+        tick += 1;
+        let mut scroll_id = egui::Id::NULL;
+        let mut rect = egui::Rect::NOTHING;
+        let mut output = context.run_ui(egui::RawInput {
+            screen_rect:Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(480.0,320.0))),
+            time:Some(tick as f64), events, ..Default::default()
+        }, |ui| {
+            scroll_id = ui.make_persistent_id(egui::IdSalt::new("text-scroll"));
+            rect = view.text(ui, node).rect;
+            assert!(ui.min_rect().bottom() <= 320.0, "Text must not grow the page");
+        });
+        output.textures_delta.clear();
+        (scroll_id, rect, output)
+    };
+    for _ in 0..4 { draw(&mut view, &log, vec![]); }
+    let (scroll_id, rect, output) = draw(&mut view, &log, vec![]);
+    let tail_offset = egui::scroll_area::State::load(&context, scroll_id).unwrap().offset.y;
+    assert!(tail_offset > 1000.0);
+    let latest_is_visible = |output: &egui::FullOutput, marker: &str, rect: egui::Rect| {
+        output.shapes.iter().any(|shape| match &shape.shape {
+            egui::epaint::Shape::Text(text) if text.galley.job.text.ends_with(marker) => {
+                let bottom = text.pos.y + text.galley.rect.bottom();
+                bottom > rect.top() && bottom <= rect.bottom() + 1.0
+            },
+            _ => false,
+        })
+    };
+    assert!(latest_is_visible(&output, "Latest event", rect));
+    draw(&mut view, &log, vec![egui::Event::PointerMoved(rect.center()), egui::Event::MouseWheel {
+        unit:egui::MouseWheelUnit::Point, delta:egui::vec2(0.0,500.0), modifiers:egui::Modifiers::NONE,
+        phase:egui::TouchPhase::Move,
+    }]);
+    for _ in 0..3 { draw(&mut view, &log, vec![]); }
+    assert!(egui::scroll_area::State::load(&context, scroll_id).unwrap().offset.y < tail_offset);
+    log.props["text"] = json!(text + "\nNew event after reading history");
+    log.props["total"] = json!(log.text("text").len());
+    log.revision += 1;
+    for _ in 0..4 { draw(&mut view, &log, vec![]); }
+    let (_, rect, output) = draw(&mut view, &log, vec![]);
+    assert!(latest_is_visible(&output, "New event after reading history", rect),
+        "tail={tail_offset}, scroll={:?}, rect={rect:?}, text={:?}",
+        egui::scroll_area::State::load(&context, scroll_id).unwrap().offset,
+        output.shapes.iter().filter_map(|shape| match &shape.shape {
+            egui::epaint::Shape::Text(text) => Some((text.pos, text.galley.rect, text.galley.job.text.len())),
+            _ => None,
+        }).collect::<Vec<_>>());
+    assert!(egui::scroll_area::State::load(&context, scroll_id).unwrap().offset.y > tail_offset);
+}
+
+#[test]
 fn stats_and_price_tables_fill_their_panes_even_with_few_rows() {
     for rows in [2, 16] {
         for font in [14, 22] {

@@ -4616,8 +4616,8 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 341,
-          "sink": "setText"
+          "line": 346,
+          "sink": "QGroupBox"
         }
       ]
     },

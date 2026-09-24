@@ -523,7 +523,7 @@ impl PresentationView {
             return;
         }
         let compact = self.compact_depth > 0;
-        let flexible = |node: &Node| if compact { has_stretched_table(node) } else { layout_flexible(node) };
+        let flexible = |node: &Node| if compact { has_stretched_editor(node) } else { layout_flexible(node) };
         if compact && !children.iter().any(flexible) {
             for (index, node) in children.iter().enumerate() {
                 ui.push_id(index, |ui| self.node(ui, node));
@@ -1079,6 +1079,11 @@ impl PresentationView {
     }
 
     fn text(&mut self, ui: &mut Ui, node: &Node) -> egui::Response {
+        let follow_tail = node.flag("follow_tail")
+            && node.number("offset", 0.0) + node.number("maximum", 65536.0)
+                >= node.number("total", 0.0);
+        let new_tail = follow_tail && self.edits.get(&node.id)
+            .is_none_or(|edit| edit.authority != node.text("text"));
         let mut text = self.edit_text(&node.id, node.revision, node.text("text"));
         let original = text.clone();
         let multiline = node.flag("multiline");
@@ -1095,17 +1100,34 @@ impl PresentationView {
         .desired_width(f32::INFINITY)
         .password(node.flag("password"))
         .char_limit(node.number("maximum", 65536.0) as usize);
-        let response = ui.add_sized(
-            Vec2::new(
-                ui.available_width(),
-                if multiline {
-                    (bounded_height(ui) - if readonly { control_height(ui) + ui.spacing().item_spacing.y } else { 0.0 }).max(78.0)
-                } else {
-                    control_height(ui)
-                },
-            ),
-            edit,
-        );
+        let response = if multiline && readonly {
+            let footer = control_height(ui) + ui.spacing().item_spacing.y;
+            let height = (bounded_height(ui) - footer).max(0.0);
+            let output = egui::ScrollArea::vertical()
+                .id_salt("text-scroll")
+                .min_scrolled_height(0.0)
+                .max_height(height)
+                .auto_shrink([false, false])
+                .stick_to_bottom(follow_tail)
+                .show(ui, |ui| {
+                    ui.add_sized(Vec2::new(ui.available_width(), height), edit)
+                });
+            if new_tail {
+                let mut state = output.state;
+                state.offset.y = (output.content_size.y - output.inner_rect.height()).max(0.0);
+                state.store(ui.ctx(), output.id);
+                ui.request_repaint();
+            }
+            let mut response = output.inner;
+            // Expose the viewport to hit testing and layout audits, not the
+            // potentially thousands of lines inside its scrolling contents.
+            response.rect = output.inner_rect;
+            response.interact_rect = response.interact_rect.intersect(output.inner_rect);
+            response
+        } else {
+            let height = if multiline { bounded_height(ui).max(78.0) } else { control_height(ui) };
+            ui.add_sized(Vec2::new(ui.available_width(), height), edit)
+        };
         if response.changed() && !readonly {
             if node.flag("digits_only") {
                 // Match QLineEdit's numeric input filtering instead of sending
@@ -1498,7 +1520,7 @@ impl PresentationView {
             control_height(ui) + ui.spacing().item_spacing.y
         } else { 0.0 };
         let height = (bounded_height(ui) - paging_height).max(100.0);
-        let fill_height = if self.compact_depth > 0 { has_stretched_table(node) } else { layout_flexible(node) };
+        let fill_height = if self.compact_depth > 0 { has_stretched_editor(node) } else { layout_flexible(node) };
         let rows = total.max(1) as f32;
         let rows = if self.compact_depth > 0 && !fill_height { rows.min(8.0) } else { rows };
         let height = if fill_height { height } else {
@@ -1775,11 +1797,12 @@ fn layout_flexible(node: &Node) -> bool {
     }
 }
 
-fn has_stretched_table(node: &Node) -> bool {
+fn has_stretched_editor(node: &Node) -> bool {
     // An explicitly expanding editor can fill an inspector without stretching
     // every short list that happens to share the scroll area.
     node.kind == "table" && node.stretch > 0 && node.number("total", 0.0) > 0.0
-        || node.children.iter().any(has_stretched_table)
+        || node.kind == "text" && node.flag("multiline") && node.flag("readonly") && node.stretch > 0
+        || node.children.iter().any(has_stretched_editor)
 }
 
 fn dialog_body(node: &Node, actions: &mut Vec<Node>) -> Option<Node> {
@@ -1862,6 +1885,15 @@ fn estimate_height(ui: &Ui, node: &Node, width: f32) -> f32 {
             }
         }
         "separator" => 8.0,
+        "button" | "action" => {
+            if !node.text("image").is_empty() { return control_height(ui); }
+            let label = if node.label.is_empty() { &node.tooltip } else { &node.label };
+            let text_width = (minimum_width(ui, node).min(width)
+                - 2.0 * ui.spacing().button_padding.x).max(1.0);
+            let text = ui.painter().layout(label.clone(), TextStyle::Button.resolve(ui.style()),
+                ui.visuals().text_color(), text_width);
+            (text.size().y + 2.0 * ui.spacing().button_padding.y).max(control_height(ui))
+        }
         "text" if node.flag("multiline") => 100.0,
         "table" => node.number("total", 0.0).clamp(1.0, 8.0) as f32
             * (control_height(ui) + ui.spacing().item_spacing.y)

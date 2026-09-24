@@ -973,6 +973,47 @@ def test_expanded_tree_budget_preserves_paging_for_later_branches():
         tree.deleteLater()
 
 
+def test_output_projects_three_columns_and_log_resumes_latest_page_after_new_activity(studio):
+    from cdmw.services.new_item_rust_protocol import MAX_TEXT_CHARS
+
+    _, tab, bridge = studio
+    tab.show_step(6)
+    panel = tab.output_panel
+    panel.append_log(("Earlier activity 中文 " * 20 + "\n") * 300 + "Latest event")
+    state = bridge.snapshot()
+    registry = bridge.document.registry
+    split = registry.current[registry.identify(panel.workspace_splitter)]
+    assert not state["unsupported"]
+    assert split["props"]["horizontal"]
+    assert split["props"]["indices"] == [0, 1, 2]
+    assert [child["id"] for child in split["children"]] == [
+        registry.identify(panel.workspace_splitter.widget(index)) for index in range(3)
+    ]
+    identifier = registry.identify(panel.log)
+    props = registry.current[identifier]["props"]
+    assert props["follow_tail"] is True
+    assert props["offset"] == len(panel.log.toPlainText()) - MAX_TEXT_CHARS
+    assert len(props["text"]) == MAX_TEXT_CHARS
+    assert props["text"].endswith("Latest event")
+    _send(bridge, panel.log, "range", {"offset": 0})
+    for _ in range(2):
+        bridge.snapshot()
+        assert registry.current[identifier]["props"]["offset"] == 0
+    panel.append_log("New event after browsing history")
+    bridge.snapshot()
+    props = registry.current[identifier]["props"]
+    assert props["offset"] == len(panel.log.toPlainText()) - MAX_TEXT_CHARS
+    assert props["text"].endswith("New event after browsing history")
+    _send(bridge, panel.log, "copy")
+    assert QApplication.clipboard().text() == panel.log.toPlainText()
+    panel.log.clear()
+    panel.append_log("First event after clearing")
+    bridge.snapshot()
+    props = registry.current[identifier]["props"]
+    assert props["offset"] == 0
+    assert props["text"] == "First event after clearing"
+
+
 def test_splitter_and_header_resize_and_large_description_keep_original_values():
     from PySide6.QtWidgets import QHeaderView, QPlainTextEdit, QSplitter
     app = QApplication.instance() or QApplication([])

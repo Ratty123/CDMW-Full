@@ -857,7 +857,7 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         tab.close()
         tab.deleteLater()
 
-    def test_distribution_and_output_fit_at_common_window_heights(self) -> None:
+    def test_distribution_fits_at_common_window_heights(self) -> None:
         from PySide6.QtGui import QPalette
         from PySide6.QtWidgets import QTabWidget
         from cdmw.ui.themes import build_app_palette, build_app_stylesheet
@@ -896,6 +896,32 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
                 self.assertGreater(placement.group_list.height(), placement.groups_page.height() // 2)
                 placement.routes_view.setCurrentIndex(0)
 
+        finally:
+            tab.request_shutdown()
+            tab.shutdown()
+            host.close()
+            host.deleteLater()
+            self.app.setStyleSheet(old_stylesheet)
+            self.app.setPalette(old_palette)
+            self.app.processEvents()
+
+    def test_output_fits_at_common_window_heights(self) -> None:
+        from PySide6.QtGui import QPalette
+        from PySide6.QtWidgets import QTabWidget
+        from cdmw.ui.themes import build_app_palette, build_app_stylesheet
+
+        old_palette = QPalette(self.app.palette())
+        old_stylesheet = self.app.styleSheet()
+        self.app.setPalette(build_app_palette("graphite"))
+        self.app.setStyleSheet(build_app_stylesheet("graphite"))
+        tab = self._tab()
+        host = QTabWidget()
+        host.addTab(tab, "Create New Item")
+        try:
+            host.show()
+            tab.prefill_template(TEMPLATE)
+            for width, height in ((1280, 720), (1600, 900)):
+                host.resize(width, height)
                 tab.show_step(6)
                 for _ in range(3):
                     self.app.processEvents()
@@ -911,12 +937,12 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
                 self.assertTrue(output.actions.isVisibleTo(tab))
                 self.assertTrue(output.sidebar.isAncestorOf(output.actions))
                 self.assertFalse(output.sidebar_scroll.isAncestorOf(output.actions))
-                self.assertFalse(output.log.isVisibleTo(tab))
-                left, right = (output.workspace_splitter.widget(i) for i in range(2))
-                self.assertGreater(right.x(), left.geometry().right())
-                self.assertGreater(left.width(), right.width())
+                self.assertTrue(output.log.isVisibleTo(tab))
+                left, activity, right = (output.workspace_splitter.widget(i) for i in range(3))
+                self.assertGreater(activity.x(), left.geometry().right())
+                self.assertGreater(right.x(), activity.geometry().right())
                 self.assertGreater(output.review_tabs.height(), output.height() * 0.6)
-                output.workspace_splitter.setSizes((width, 0))
+                output.workspace_splitter.setSizes((width, 0, 0))
                 self.app.processEvents()
                 self.assertGreaterEqual(right.width(), 320)
                 self.assertLessEqual(output.actions.minimumSizeHint().width(), right.width())
@@ -924,20 +950,25 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
                     output.sidebar_scroll.widget().minimumSizeHint().width(),
                     output.sidebar_scroll.viewport().width(),
                 )
-                output.workspace_splitter.setSizes((0, width))
+                output.workspace_splitter.setSizes((0, 0, width))
                 self.app.processEvents()
                 self.assertLessEqual(
                     output.workflow_scroll.widget().minimumSizeHint().width(),
                     output.workflow_scroll.viewport().width(),
                 )
-                output.workspace_splitter.setSizes((760, 320))
+                output.workspace_splitter.setSizes((460, 460, 320))
                 self.app.processEvents()
                 action_geometry = output.actions.geometry()
-                output.log_toggle.click()
+                output.append_log("Retained activity\n" * 1000)
                 self.app.processEvents()
                 self.assertTrue(output.log.isVisibleTo(tab))
-                self.assertGreaterEqual(output.log.height(), 120)
-                self.assertLessEqual(output.log.height(), 180)
+                self.assertGreater(output.log.height(), output.height() * 0.6)
+                log_scroll = output.log.verticalScrollBar()
+                log_scroll.setValue(0)
+                output.append_log("Latest event")
+                self.app.processEvents()
+                self.assertGreater(log_scroll.maximum(), 0)
+                self.assertEqual(log_scroll.value(), log_scroll.maximum())
                 self.assertEqual(output.actions.geometry(), action_geometry)
                 output.checklist.toggle.setChecked(True)
                 self.app.processEvents()
@@ -945,7 +976,6 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
                 scroll.setValue(scroll.maximum())
                 self.assertEqual(output.actions.geometry(), action_geometry)
                 output.checklist.toggle.setChecked(False)
-                output.log_toggle.click()
                 self.assertFalse(tab.continue_button.isVisibleTo(tab))
                 self.assertTrue(output.export_button.isVisibleTo(tab))
                 self.assertFalse(output.install_overlay_button.isVisibleTo(tab))

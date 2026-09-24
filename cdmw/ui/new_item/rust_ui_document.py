@@ -105,6 +105,7 @@ class PresentationDocument:
         self._nodes = 0
         self._images = {}
         self.portals = {}
+        self._text_revisions = {}
 
     def snapshot(self, root, *, dialogs=()):
         self.registry.begin()
@@ -217,6 +218,15 @@ class PresentationDocument:
             text = widget.toPlainText()
             offset = self.models.ranges.get((identifier, ()), 0) if widget.isReadOnly() else 0
             limit = MAX_TEXT_CHARS if widget.isReadOnly() else MAX_EDITABLE_TEXT_CHARS
+            if widget.isReadOnly() and widget.property("followTail"):
+                revision = widget.document().revision()
+                if self._text_revisions.get(identifier) != revision:
+                    # New activity resumes the latest page; explicit history paging
+                    # remains stable between messages. Copy still uses all text.
+                    offset = max(0, len(text) - limit)
+                    self.models.ranges[(identifier, ())] = offset
+                    self._text_revisions[identifier] = revision
+                props["follow_tail"] = True
             props.update(text=text[offset:offset + limit], total=len(text), offset=offset,
                          readonly=widget.isReadOnly(), multiline=True,
                          placeholder=widget.placeholderText(), maximum=limit)

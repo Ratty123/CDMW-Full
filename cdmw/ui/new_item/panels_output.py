@@ -343,21 +343,15 @@ class OutputPanel(QGroupBox):
         review_layout.setContentsMargins(0, 0, 0, 0)
         review_layout.setSpacing(6)
         self._build_plan_review(review_layout)
-        self.log_toggle = QToolButton()
-        self.log_toggle.setText("Activity log")
-        self.log_toggle.setCheckable(True)
-        self.log_toggle.setArrowType(Qt.ArrowType.RightArrow)
-        self.log_toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        self.log_toggle.setAutoRaise(True)
-        review_layout.addWidget(self.log_toggle)
+        self.activity = QGroupBox("Activity log")
+        self.activity.setMinimumWidth(260)
+        activity_layout = QVBoxLayout(self.activity)
         self.log = QPlainTextEdit()
         self.log.setReadOnly(True)
+        self.log.setProperty("followTail", True)
         self.log.setPlaceholderText("Build progress, exports, installs, and other messages appear here.")
         self.log.setMinimumHeight(_COMPACT_SUMMARY_HEIGHT)
-        self.log.setMaximumHeight(180)
-        self.log.hide()
-        self.log_toggle.toggled.connect(self._toggle_log)
-        review_layout.addWidget(self.log)
+        activity_layout.addWidget(self.log, 1)
         review_layout.addWidget(self.checklist)
         self.workflow_scroll = QScrollArea()
         self.workflow_scroll.setWidgetResizable(True)
@@ -367,10 +361,12 @@ class OutputPanel(QGroupBox):
         layout.addWidget(self.workflow_scroll, 1)
         self._build_overlay_tools(layout)
 
+        self.workspace_splitter.addWidget(self.activity)
         self.workspace_splitter.addWidget(self.sidebar)
         self.workspace_splitter.setStretchFactor(0, 1)
-        self.workspace_splitter.setStretchFactor(1, 0)
-        self.workspace_splitter.setSizes((760, 320))
+        self.workspace_splitter.setStretchFactor(1, 1)
+        self.workspace_splitter.setStretchFactor(2, 0)
+        self.workspace_splitter.setSizes((460, 460, 320))
         self.actions = QWidget()
         actions = QVBoxLayout(self.actions)
         actions.setContentsMargins(0, 0, 0, 0)
@@ -447,10 +443,6 @@ class OutputPanel(QGroupBox):
         self.install_overlay_button.setVisible(not folder)
         self._mod_base_changed()
 
-    def _toggle_log(self, expanded: bool) -> None:
-        self.log.setVisible(expanded)
-        self.log_toggle.setArrowType(Qt.ArrowType.DownArrow if expanded else Qt.ArrowType.RightArrow)
-
     def _toggle_overlay_tools(self, expanded: bool) -> None:
         self.overlay_tools.setVisible(expanded)
         self.overlay_tools_toggle.setArrowType(Qt.ArrowType.DownArrow if expanded else Qt.ArrowType.RightArrow)
@@ -501,11 +493,11 @@ class OutputPanel(QGroupBox):
 
     def append_log(self, message: str) -> None:
         self.log.appendPlainText(str(message))
+        self.log.verticalScrollBar().setValue(self.log.verticalScrollBar().maximum())
 
     def _operation_message(self, message: str, error: bool) -> None:
         if error:
             self.append_log(message)
-            self.log_toggle.setChecked(True)
 
     def _show_plan(self, plan: Optional[NewItemPlan] = None) -> None:
         self.mod_name.setPlaceholderText(self._controller.draft.display_names.get("eng", "") or self.tr("Mod name"))

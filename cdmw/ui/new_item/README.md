@@ -707,10 +707,13 @@ any reparented Rust viewport until shutdown finishes. Overlays without mounted
 item models show an empty state. Remove selected uses the selected inventory row
 and keeps its existing review, confirmation, backup and rollback flow; unmounted
 history points to Check game updates or Start fresh instead.
-**Build plan** stays beside the review heading, and the adjustable divider gives
-the review most of the page width. **Activity log** expands below the review and
-starts collapsed; collapsing it retains its messages, and an output error opens it.
-The left review area scrolls independently, keeping progress and output actions visible.
+Output has three adjustable columns: **File changes / Details and warnings**,
+**Activity log**, and **Destination**. **Build plan** stays beside the review
+heading. Review text and activity scroll inside their panes without making the
+page taller. The log is always visible and returns to the latest event when a
+message arrives, including beyond a full text page. Older activity remains
+available through scrolling and paging; **Copy** includes every retained message.
+Progress and output actions stay visible beside the review.
 An overlay installation failure also opens a warning and keeps the reason visible
 on Output after the worker stops; the plan remains available for review or retry.
 The confirmed install automatically handles a stale previous set whose folder is
