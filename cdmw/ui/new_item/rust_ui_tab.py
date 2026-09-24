@@ -44,6 +44,7 @@ class RustNewItemStudioTab(QWidget):
         self._launch = None
         self._ready = False
         self._prewarming = False
+        self._snapshot_prewarm_requested = False
         self._stopping = False
         self._restart_pending = False
         self._reader = JsonLineReader()
@@ -82,8 +83,17 @@ class RustNewItemStudioTab(QWidget):
         self.workflow.open_model_source(path)
 
     def prewarm(self):
-        """Prepare this tab's owned renderer without selecting or focusing it."""
-        if self._closed or self.isVisible() or self._bridge is not None:
+        """Prepare the template workspace and renderer after shell startup."""
+        if self._closed:
+            return
+        # The shell calls this after startup even if this was the restored tab
+        # or an early click already started the renderer. Reuse any snapshot or
+        # read in progress, and leave a failed automatic read available for Retry.
+        if not self._snapshot_prewarm_requested:
+            self._snapshot_prewarm_requested = True
+            if self.controller.snapshot is None and not self.controller.busy:
+                self.workflow.start_snapshot()
+        if self.isVisible() or self._bridge is not None:
             return
         self._prewarming = True
         self.use_rust()

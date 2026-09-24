@@ -27,10 +27,15 @@ plan. If the helper cannot start or stops responding, **Retry** reopens the Rust
 interface for that same workflow without exposing Classic.
 
 After the main window is visible and startup dialogs finish, the shell prepares
-the Rust tab and its renderer in the background. Opening it reuses that process;
-hidden state polling stops after the first acknowledgement. An early click can
-still show New Item's loading message while preparation finishes. The renderer
-remains owned by the tab and participates in normal asynchronous shutdown.
+the Rust tab, its renderer and the archive tables in the background. The existing
+cancellable snapshot worker loads the Template workspace automatically, without
+requiring **Read the archives**. Opening the tab reuses that snapshot and process;
+hidden renderer polling stops after the first acknowledgement. An early click or
+restoring this tab after an app restart can still show loading until preparation
+finishes. The archive read starts after startup even if the tab is already open.
+An existing snapshot or read in progress is reused; a failed read keeps its error
+and **Try again** action instead of retrying repeatedly in the background. The
+worker and renderer remain owned by the tab for normal asynchronous shutdown.
 The native window resizes after Qt settles its container geometry, so the first
 opening fills the workspace even when preparation happened in a hidden tab.
 

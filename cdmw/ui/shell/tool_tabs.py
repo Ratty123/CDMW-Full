@@ -501,10 +501,10 @@ class ShellToolTabsMixin:
     def _create_new_item_studio_tab(self) -> QWidget:
         """Clone an equipment item into a brand-new one, then export or install it.
 
-        Lazy like the rest: opening it reads the item, string, store, group and language
-        tables once (seconds), which must not run at startup. It takes the window so it
-        can read the scanned archive list, reach the mutation service for an install, and
-        accept a resolved Model Library source in its normal Model step.
+        Construction stays lazy; post-startup prewarming reads the item, string,
+        store, group and language tables on the controller's worker. It takes the
+        window so it can read the scanned archive list, reach the mutation service
+        for an install, and accept a Model Library source in its normal Model step.
         """
 
         from cdmw.ui.new_item.rust_ui_tab import RustNewItemStudioTab
