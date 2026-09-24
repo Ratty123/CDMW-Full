@@ -127,6 +127,7 @@ fn all_anchors_present(source: &str, anchors: &str) -> bool {
 // its concrete control/action/command anchor must also exist in the runtime source.
 const CDMW_UI_SOURCE: &str = concat!(
     include_str!("cdmw_ui.rs"),
+    include_str!("cdmw_islands.rs"),
     "\n",
     include_str!("cdmw_rig.rs"),
     "\n",
@@ -140,6 +141,7 @@ const CDMW_UI_SOURCE: &str = concat!(
 );
 const MAIN_SOURCE: &str = concat!(
     include_str!("main.rs"),
+    include_str!("cdmw_islands.rs"),
     "\n",
     include_str!("cdmw_hair.rs"),
     "\n",
@@ -750,6 +752,11 @@ output.host_handoff|import_output_export|"Finish Edit Mesh"|UiAction::FinishCdmw
 replacement.import|import_output_export|"replacement_choose"|UiAction::CdmwCommand
 replacement.mapping|import_output_export|"replacement_apply"|UiAction::CdmwCommand
 replacement.inclusion|parts|"replacement_include"|UiAction::CdmwCommand
+islands.selection|parts|"Mesh islands"|UiAction::SelectIsland
+islands.visibility|parts|"View"|UiAction::SetIslandVisibility
+islands.isolate|parts|"Isolate"|UiAction::IsolateIsland
+islands.show_all|parts|"Show all islands"|UiAction::ShowAllIslands
+islands.inclusion|parts|"replacement_islands"|UiAction::CdmwCommand
 replacement.fit|transform|"replacement_fit"|UiAction::CdmwCommand
 replacement.reset|transform|"replacement_reset"|UiAction::CdmwCommand
 replacement.preview|camera_display|"replacement_compare"|UiAction::CdmwCommand

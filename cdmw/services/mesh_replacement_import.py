@@ -244,6 +244,7 @@ def compose_import(pending, source_targets, *, material_choice="original", compa
         setattr(imported, PART_ID_ATTRIBUTE, binding.part_id)
         candidate.submeshes[index] = imported
         parts.append(replace(binding, included=True, material_choice=material_choice,
+            excluded_island_faces=(),
             source_label=Path(pending.source_path).name,
             source_part_ids=tuple(f"{pending.source_sha256}:{i}" for i in source_indices),
             import_positions=tuple(tuple(float(v) for v in position) for position in imported.vertices),

@@ -66,6 +66,8 @@ pub struct WorkingMesh {
     vertices: SlotMap<VertexHandle, Vertex>,
     shader_masks: SecondaryMap<VertexHandle, [f32; 3]>,
     faces: SlotMap<FaceHandle, Face>,
+    // Presentation only. Authored geometry, history and serialization retain all faces.
+    viewport_hidden_faces: HashSet<FaceHandle>,
     edges: SlotMap<EdgeHandle, Edge>,
     edge_by_pair: HashMap<(VertexHandle, VertexHandle), EdgeHandle>,
     pub selection: Selection,
@@ -139,6 +141,7 @@ impl WorkingMesh {
             vertices: SlotMap::with_key(),
             shader_masks: SecondaryMap::new(),
             faces: SlotMap::with_key(),
+            viewport_hidden_faces: HashSet::new(),
             edges: SlotMap::with_key(),
             edge_by_pair: HashMap::new(),
             selection: Selection::default(),
@@ -172,6 +175,18 @@ impl WorkingMesh {
         self.faces.iter()
     }
 
+    pub fn viewport_hidden_faces(&self) -> &HashSet<FaceHandle> {
+        &self.viewport_hidden_faces
+    }
+
+    pub fn set_viewport_hidden_faces(&mut self, faces: HashSet<FaceHandle>) -> Result<(), MeshError> {
+        if faces.iter().any(|handle| !self.faces.contains_key(*handle)) {
+            return Err(MeshError::StaleHandle);
+        }
+        self.viewport_hidden_faces = faces;
+        Ok(())
+    }
+
     pub fn edges(&self) -> impl Iterator<Item = (EdgeHandle, &Edge)> {
         self.edges.iter()
     }
@@ -190,14 +205,19 @@ impl WorkingMesh {
             .faces
             .iter()
             .filter_map(|(handle, face)| {
-                visible_submeshes.contains(&face.submesh).then_some(handle)
+                (visible_submeshes.contains(&face.submesh)
+                    && !self.viewport_hidden_faces.contains(&handle)).then_some(handle)
             })
             .collect::<HashSet<_>>();
+        let hidden_vertices: HashSet<_> = self.viewport_hidden_faces.iter()
+            .filter_map(|handle| self.faces.get(*handle))
+            .flat_map(|face| face.vertices).collect();
         let mut vertices = self
             .vertices
             .iter()
             .filter_map(|(handle, vertex)| match vertex.provenance {
-                Provenance::Source { submesh, .. } if visible_submeshes.contains(&submesh) => {
+                Provenance::Source { submesh, .. }
+                    if visible_submeshes.contains(&submesh) && !hidden_vertices.contains(&handle) => {
                     Some(handle)
                 }
                 Provenance::Source { .. } | Provenance::Generated { .. } => None,
@@ -1214,7 +1234,9 @@ impl WorkingMesh {
         let elements = self.element_handles_for_submeshes(visible_submeshes);
         self.draw_snapshot_with_elements(
             Some(&elements),
-            filtered_draw_revision(self.geometry_revision, visible_submeshes),
+            filtered_draw_revision(
+                self.geometry_revision, visible_submeshes, &self.viewport_hidden_faces,
+            ),
         )
     }
 
@@ -1290,7 +1312,11 @@ impl WorkingMesh {
     }
 }
 
-fn filtered_draw_revision(geometry_revision: u64, visible_submeshes: &HashSet<u32>) -> u64 {
+fn filtered_draw_revision(
+    geometry_revision: u64,
+    visible_submeshes: &HashSet<u32>,
+    hidden_faces: &HashSet<FaceHandle>,
+) -> u64 {
     let mut revision = 0xcbf2_9ce4_8422_2325_u64;
     for byte in geometry_revision.to_le_bytes() {
         revision ^= u64::from(byte);
@@ -1300,6 +1326,15 @@ fn filtered_draw_revision(geometry_revision: u64, visible_submeshes: &HashSet<u3
     ordered.sort_unstable();
     for submesh in ordered {
         for byte in submesh.to_le_bytes() {
+            revision ^= u64::from(byte);
+            revision = revision.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+    }
+    let mut faces = hidden_faces.iter()
+        .map(|face| face.data().as_ffi()).collect::<Vec<_>>();
+    faces.sort_unstable();
+    for face in faces {
+        for byte in face.to_le_bytes() {
             revision ^= u64::from(byte);
             revision = revision.wrapping_mul(0x0000_0100_0000_01b3);
         }

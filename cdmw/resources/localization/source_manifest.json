@@ -7256,7 +7256,7 @@
         },
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 148,
+          "line": 153,
           "sink": "ValueError"
         },
         {
@@ -11076,7 +11076,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 42,
+          "line": 44,
           "sink": "setText"
         }
       ]
@@ -19766,7 +19766,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 38,
+          "line": 40,
           "sink": "QPushButton"
         }
       ]
@@ -20156,7 +20156,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7237,
+          "line": 7239,
           "sink": "report"
         }
       ]
@@ -21096,7 +21096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 58,
+          "line": 60,
           "sink": "QLabel"
         }
       ]
@@ -21352,6 +21352,16 @@
         {
           "path": "cdmw/services/mesh_rust_hair.py",
           "line": 257,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Choose a valid included part before changing islands.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_island_authoring.py",
+          "line": 77,
           "sink": "ValueError"
         }
       ]
@@ -22147,11 +22157,21 @@
       ]
     },
     {
+      "key": "Choose valid island faces from the current part.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_island_authoring.py",
+          "line": 86,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Choose valid parts to include in the mod.",
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_import.py",
-          "line": 290,
+          "line": 291,
           "sink": "ValueError"
         }
       ]
@@ -23411,7 +23431,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 134,
+          "line": 139,
           "sink": "ValueError"
         }
       ]
@@ -23446,7 +23466,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 131,
+          "line": 136,
           "sink": "ValueError"
         }
       ]
@@ -32251,7 +32271,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 386,
+          "line": 393,
           "sink": "ValueError"
         }
       ]
@@ -32761,7 +32781,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 9497,
+          "line": 9501,
           "sink": "RuntimeError"
         }
       ]
@@ -40407,6 +40427,16 @@
       ]
     },
     {
+      "key": "Finish the hair workflow before changing island output.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_island_authoring.py",
+          "line": 73,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Finish the hair workflow before changing shader controls.",
       "origins": [
         {
@@ -41381,7 +41411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 48,
+          "line": 50,
           "sink": "setToolTip"
         }
       ]
@@ -43176,7 +43206,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 195,
+          "line": 211,
           "sink": "ValueError"
         }
       ]
@@ -43216,7 +43246,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 145,
+          "line": 150,
           "sink": "ValueError"
         }
       ]
@@ -43616,7 +43646,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 199,
+          "line": 215,
           "sink": "ValueError"
         }
       ]
@@ -46991,7 +47021,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_import.py",
-          "line": 300,
+          "line": 301,
           "sink": "ValueError"
         }
       ]
@@ -47221,7 +47251,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_import.py",
-          "line": 325,
+          "line": 326,
           "sink": "ValueError"
         }
       ]
@@ -49366,7 +49396,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 162,
+          "line": 167,
           "sink": "_overlay_services"
         }
       ]
@@ -49386,7 +49416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 31,
+          "line": 33,
           "sink": "QPushButton"
         }
       ]
@@ -49641,7 +49671,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 216,
+          "line": 232,
           "sink": "ValueError"
         }
       ]
@@ -49727,6 +49757,16 @@
       ]
     },
     {
+      "key": "Invalid island inclusion request.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_island_authoring.py",
+          "line": 68,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Invalid jiggle reset request.",
       "origins": [
         {
@@ -49752,6 +49792,16 @@
         {
           "path": "cdmw/services/mod_update_service.py",
           "line": 224,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Invalid mesh island exclusion mapping.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_draft.py",
+          "line": 199,
           "sink": "ValueError"
         }
       ]
@@ -49861,17 +49911,17 @@
         },
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 160,
+          "line": 165,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 163,
+          "line": 168,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 205,
+          "line": 221,
           "sink": "ValueError"
         },
         {
@@ -49916,7 +49966,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 119,
+          "line": 123,
           "sink": "ValueError"
         }
       ]
@@ -49926,7 +49976,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 384,
+          "line": 391,
           "sink": "ValueError"
         }
       ]
@@ -49936,7 +49986,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 128,
+          "line": 133,
           "sink": "ValueError"
         }
       ]
@@ -49946,7 +49996,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 107,
+          "line": 111,
           "sink": "ValueError"
         }
       ]
@@ -49956,7 +50006,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 173,
+          "line": 178,
           "sink": "ValueError"
         }
       ]
@@ -49966,7 +50016,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 188,
+          "line": 193,
           "sink": "ValueError"
         }
       ]
@@ -50275,6 +50325,26 @@
       "key": "Invert sphere mask",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Island draft has no excluded faces.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_draft.py",
+          "line": 207,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Island inclusion requires unchanged source topology. Use Free Edit to delete rebuilt geometry.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_island_authoring.py",
+          "line": 101,
+          "sink": "ValueError"
+        }
+      ]
     },
     {
       "key": "Issues",
@@ -51306,7 +51376,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 137,
+          "line": 142,
           "sink": "ValueError"
         }
       ]
@@ -55266,7 +55336,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 89,
+          "line": 93,
           "sink": "ValueError"
         }
       ]
@@ -56816,7 +56886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 28,
+          "line": 30,
           "sink": "QLabel"
         }
       ]
@@ -56826,7 +56896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 35,
+          "line": 37,
           "sink": "QPushButton"
         }
       ]
@@ -60841,7 +60911,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 26,
+          "line": 28,
           "sink": "QLabel"
         }
       ]
@@ -62421,7 +62491,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8828,
+          "line": 8832,
           "sink": "RuntimeError"
         }
       ]
@@ -62501,7 +62571,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8758,
+          "line": 8762,
           "sink": "RuntimeError"
         }
       ]
@@ -62511,7 +62581,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8754,
+          "line": 8758,
           "sink": "RuntimeError"
         }
       ]
@@ -62521,7 +62591,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8729,
+          "line": 8733,
           "sink": "RuntimeError"
         }
       ]
@@ -62731,27 +62801,27 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 120,
+          "line": 125,
           "sink": "_overlay_services"
-        },
-        {
-          "path": "cdmw/ui/tools/mod_management.py",
-          "line": 130,
-          "sink": "warning"
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
           "line": 135,
-          "sink": "_overlay_services"
+          "sink": "warning"
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
           "line": 140,
+          "sink": "_overlay_services"
+        },
+        {
+          "path": "cdmw/ui/tools/mod_management.py",
+          "line": 145,
           "sink": "information"
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 144,
+          "line": 149,
           "sink": "question"
         }
       ]
@@ -62761,7 +62831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 47,
+          "line": 49,
           "sink": "QPushButton"
         }
       ]
@@ -62821,7 +62891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 144,
+          "line": 149,
           "sink": "question"
         }
       ]
@@ -68271,7 +68341,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 186,
+          "line": 191,
           "sink": "ValueError"
         }
       ]
@@ -68281,7 +68351,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 176,
+          "line": 181,
           "sink": "ValueError"
         }
       ]
@@ -68921,7 +68991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 140,
+          "line": 145,
           "sink": "information"
         }
       ]
@@ -74606,7 +74676,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 364,
+          "line": 371,
           "sink": "ValueError"
         }
       ]
@@ -74616,7 +74686,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 358,
+          "line": 365,
           "sink": "ValueError"
         }
       ]
@@ -74626,7 +74696,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 376,
+          "line": 383,
           "sink": "ValueError"
         }
       ]
@@ -76536,7 +76606,7 @@
         },
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 166,
+          "line": 171,
           "sink": "ValueError"
         },
         {
@@ -78086,7 +78156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 114,
+          "line": 119,
           "sink": "warning"
         }
       ]
@@ -79206,7 +79276,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7235,
+          "line": 7237,
           "sink": "report"
         }
       ]
@@ -79686,7 +79756,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7790,
+          "line": 7792,
           "sink": "progress"
         }
       ]
@@ -79696,7 +79766,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7101,
+          "line": 7103,
           "sink": "report"
         }
       ]
@@ -79706,7 +79776,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7125,
+          "line": 7127,
           "sink": "report"
         }
       ]
@@ -80016,7 +80086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 598,
+          "line": 608,
           "sink": "pump_startup_splash"
         }
       ]
@@ -85331,7 +85401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 126,
+          "line": 131,
           "sink": "emit"
         }
       ]
@@ -86631,7 +86701,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 332,
+          "line": 339,
           "sink": "ValueError"
         }
       ]
@@ -87526,7 +87596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 137,
+          "line": 142,
           "sink": "emit"
         }
       ]
@@ -88476,7 +88546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 632,
+          "line": 642,
           "sink": "pump_startup_splash"
         }
       ]
@@ -88781,7 +88851,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 203,
+          "line": 219,
           "sink": "ValueError"
         }
       ]
@@ -88791,7 +88861,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 168,
+          "line": 173,
           "sink": "ValueError"
         }
       ]
@@ -88801,7 +88871,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 170,
+          "line": 175,
           "sink": "ValueError"
         }
       ]
@@ -89991,12 +90061,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_import.py",
-          "line": 261,
+          "line": 262,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mesh_replacement_import.py",
-          "line": 272,
+          "line": 273,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -90046,7 +90116,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 218,
+          "line": 234,
           "sink": "ValueError"
         }
       ]
@@ -90086,7 +90156,22 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 179,
+          "line": 184,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Replacement draft island masks exceed the face limit.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_draft.py",
+          "line": 54,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/mesh_replacement_draft.py",
+          "line": 202,
           "sink": "ValueError"
         }
       ]
@@ -90106,7 +90191,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 207,
+          "line": 223,
           "sink": "ValueError"
         }
       ]
@@ -90116,7 +90201,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 112,
+          "line": 116,
           "sink": "ValueError"
         }
       ]
@@ -90126,7 +90211,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 109,
+          "line": 113,
           "sink": "ValueError"
         }
       ]
@@ -90176,7 +90261,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 209,
+          "line": 225,
           "sink": "ValueError"
         }
       ]
@@ -90241,12 +90326,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_import.py",
-          "line": 265,
+          "line": 266,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_replacement_import.py",
-          "line": 269,
+          "line": 270,
           "sink": "ValueError"
         }
       ]
@@ -90491,7 +90576,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 329,
+          "line": 336,
           "sink": "ValueError"
         }
       ]
@@ -90771,7 +90856,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 378,
+          "line": 385,
           "sink": "ValueError"
         }
       ]
@@ -93617,6 +93702,26 @@
       ]
     },
     {
+      "key": "Reversible island exclusion requires an original PAC mesh.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_output.py",
+          "line": 331,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Reversible island inclusion requires an original PAC at LOD0.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_island_authoring.py",
+          "line": 71,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Revert line",
       "origins": [
         {
@@ -95547,6 +95652,16 @@
       ]
     },
     {
+      "key": "Save and reopen the imported PAC before using reversible island inclusion.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_island_authoring.py",
+          "line": 79,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Save anyway - I have read the warnings above",
       "origins": [
         {
@@ -95746,12 +95861,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 183,
+          "line": 188,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_replacement_import.py",
-          "line": 329,
+          "line": 330,
           "sink": "ValueError"
         }
       ]
@@ -100232,6 +100347,16 @@
       ]
     },
     {
+      "key": "Select whole mesh islands before changing their output inclusion.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_island_authoring.py",
+          "line": 90,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Selected",
       "origins": [
         {
@@ -101731,7 +101856,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 150,
+          "line": 155,
           "sink": "ValueError"
         }
       ]
@@ -101751,7 +101876,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 193,
+          "line": 209,
           "sink": "ValueError"
         }
       ]
@@ -101761,7 +101886,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 153,
+          "line": 158,
           "sink": "ValueError"
         }
       ]
@@ -108381,7 +108506,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 155,
+          "line": 160,
           "sink": "ValueError"
         },
         {
@@ -111861,7 +111986,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 110,
+          "line": 115,
           "sink": "warning"
         },
         {
@@ -112101,7 +112226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 130,
+          "line": 135,
           "sink": "warning"
         }
       ]
@@ -113411,7 +113536,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_import.py",
-          "line": 320,
+          "line": 321,
           "sink": "ValueError"
         }
       ]
@@ -115311,7 +115436,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_import.py",
-          "line": 327,
+          "line": 328,
           "sink": "ValueError"
         }
       ]
@@ -116776,7 +116901,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 201,
+          "line": 217,
           "sink": "ValueError"
         }
       ]
@@ -116831,7 +116956,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 139,
+          "line": 144,
           "sink": "ValueError"
         }
       ]
@@ -116851,7 +116976,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 197,
+          "line": 213,
           "sink": "ValueError"
         }
       ]
@@ -116871,7 +116996,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 142,
+          "line": 147,
           "sink": "ValueError"
         }
       ]
@@ -118716,7 +118841,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_replacement.py",
-          "line": 147,
+          "line": 151,
           "sink": "ValueError"
         }
       ]
@@ -118726,7 +118851,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 97,
+          "line": 101,
           "sink": "ValueError"
         }
       ]
@@ -121521,7 +121646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 32,
+          "line": 34,
           "sink": "setToolTip"
         }
       ]
@@ -129721,7 +129846,7 @@
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7383,
+          "line": 7385,
           "sink": "open_edit_session"
         },
         {
@@ -138036,7 +138161,7 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 702,
+          "line": 712,
           "sink": "_register_detachable_tool"
         }
       ]
@@ -139496,7 +139621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 709,
+          "line": 719,
           "sink": "_register_detachable_tool"
         },
         {
@@ -140971,7 +141096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 698,
+          "line": 708,
           "sink": "_register_detachable_tool"
         }
       ]

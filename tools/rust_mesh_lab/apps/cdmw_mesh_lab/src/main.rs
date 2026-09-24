@@ -10,6 +10,7 @@ mod cdmw_rig;
 mod cdmw_session;
 use cdmw_ui::layout as cdmw_layout;
 mod cdmw_ui;
+mod cdmw_islands;
 mod cdmw_emission;
 mod cdmw_shader_controls;
 mod cdmw_vertex_inspector;
@@ -1503,6 +1504,20 @@ enum UiAction {
         params: Value,
     },
     SetPartSelection(Vec<u32>),
+    SelectIsland {
+        part: u32,
+        faces: Vec<u32>,
+    },
+    SetIslandVisibility {
+        part: u32,
+        faces: Vec<u32>,
+        visible: bool,
+    },
+    IsolateIsland {
+        part: u32,
+        faces: Vec<u32>,
+    },
+    ShowAllIslands,
     Hair(HairAction),
     SetPartVisibility {
         indices: Vec<u32>,
@@ -2038,6 +2053,7 @@ struct LabApplication {
     material_factor_entries: Vec<MaterialFactorInspectorEntry>,
     cdmw_texture_resources: Vec<LoadedTexture>,
     cdmw_hidden_parts: HashSet<u32>,
+    cdmw_hidden_islands: Vec<cdmw_islands::HiddenIsland>,
     cdmw_material_presentations: Vec<SessionMaterialPresentation>,
     cdmw_material_key: String,
     cdmw_uploaded_texture_count: usize,
@@ -2207,6 +2223,7 @@ impl LabApplication {
             material_factor_entries: Vec::new(),
             cdmw_texture_resources: Vec::new(),
             cdmw_hidden_parts: HashSet::new(),
+            cdmw_hidden_islands: Vec::new(),
             cdmw_material_presentations: Vec::new(),
             cdmw_material_key: String::new(),
             cdmw_uploaded_texture_count: 0,
@@ -3160,6 +3177,7 @@ impl LabApplication {
     }
 
     fn apply_cdmw_selection_state(&mut self, force_snapshot: bool) {
+        self.sync_island_visibility();
         let visible_submeshes = self.cdmw_visible_submeshes();
         let Some(mesh) = &mut self.mesh else {
             return;
@@ -4777,6 +4795,15 @@ impl LabApplication {
                     params,
                 } => self.submit_cdmw_topology(action, label, params),
                 UiAction::Hair(action) => self.run_hair_action(action),
+                UiAction::SelectIsland { part, faces } => self.select_island(part, faces),
+                UiAction::SetIslandVisibility { part, faces, visible } => {
+                    self.set_island_visibility(part, faces, visible);
+                }
+                UiAction::IsolateIsland { part, faces } => self.isolate_island(part, faces),
+                UiAction::ShowAllIslands => {
+                    self.cdmw_hidden_islands.clear();
+                    self.publish_mesh_snapshot();
+                }
                 UiAction::SetPartSelection(indices) => {
                     let visible_submeshes = self.cdmw_visible_submeshes();
                     if let Some(mesh) = &mut self.mesh {
@@ -5193,6 +5220,7 @@ impl LabApplication {
         self.projection = None;
         self.ensure_deformation_reference();
         self.refresh_jiggle_regions();
+        self.sync_island_visibility();
         let visible_submeshes = self.cdmw_visible_submeshes();
         let snapshot = self.mesh.as_ref().map(|mesh| {
             visible_submeshes.as_ref().map_or_else(

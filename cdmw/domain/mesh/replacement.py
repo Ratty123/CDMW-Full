@@ -46,6 +46,8 @@ class ReplacementPart:
     translucency_surface: tuple[float | None, float | None] | None = None
     emission: EmissionChoice | None = None
     shader_controls: ShaderControls | None = None
+    # Retained original LOD0 triangle IDs; applied only to the exported PAC.
+    excluded_island_faces: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

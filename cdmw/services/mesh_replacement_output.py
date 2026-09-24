@@ -324,6 +324,13 @@ def prepare_replacement_output(snapshot) -> MeshReplacementOutput:
     if getattr(snapshot, "hair_state", None) is not None:
         from cdmw.services.mesh_hair_output import apply_hair_physics_paint
         data = apply_hair_physics_paint(data, snapshot)
+    island_exclusions = {part.target_index: part.excluded_island_faces for part in state.parts
+                         if part.included and part.excluded_island_faces}
+    if island_exclusions:
+        if original.format.lower() != "pac":
+            raise ValueError("Reversible island exclusion requires an original PAC mesh.")
+        from cdmw.modding.mesh_islands import apply_pac_island_exclusions
+        data = apply_pac_island_exclusions(data, snapshot.original_data, island_exclusions)
     parsed = parse_mesh(data, state.target_path)
     if not parsed.submeshes or len(parsed.submeshes) != len(original.submeshes):
         raise ValueError("Replacement writer changed the required target section layout.")

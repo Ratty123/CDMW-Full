@@ -35,6 +35,8 @@ The format is intentionally simple:
 
 ### Added
 
+- Mesh Editor's Parts inspector has mesh-island selection, viewport visibility and isolation, plus reversible original-PAC output exclusion across validated LODs. Island exclusions support Undo/Redo and saved drafts while preserving part materials and vertex data.
+
 - Create New Item offers a default-off Global EyeCover overlap test to investigate missing clothing behind EyeCover weapons. Exports change only EyeCover's stencil/depth states in the shared character render definition, warn that all EyeCover materials (including eyes) are affected, and reject unsupported definitions. In-game appearance remains experimental; the viewport does not simulate this test.
 - Create New Item offers experimental EyeCover blending per material part, with colour mixing, surface alpha, material red, roughness and metallic controls. Model & Placement, Effects and dye viewports show an explicitly approximate preview with independent colour coverage and surface detail/shine; the game's character-buffer blend, depth and shadows still require in-game testing. Exports use typed material parameters and private BC7 maps.
 - Create New Item has per-part Surface colour and reflections controls for imported models, with Match glow colour, independent roughness/metallic edits, a Low-shine preset and source reset. Settings follow variants, previews and exported textures without changing glow strength or transparency.

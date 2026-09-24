@@ -27,6 +27,32 @@ Replacement imports, reversible output inclusion, experimental translucency and 
 extend that foundation in the existing Parts panel. General material assignment, recolouring and
 in-game swaps remain separate workflows. Hair Appearance has a scoped DDS handoff.
 
+### Mesh islands
+
+Open **Parts**, select a part, and use **Mesh islands** to address disconnected
+pieces inside that part. Selecting an island selects its faces for the existing
+move, rotate, scale and Free Edit tools; it does not create a new material or part.
+Coincident UV-seam vertices are grouped at 1e-5 model-unit precision without
+welding or moving the model. Existing **Linked** selection still follows vertex
+indices when that stricter connectivity is wanted.
+
+- **View** hides only that island in the viewport and picking. **Isolate** shows
+  only that island within its part; **Show all islands** restores viewport masks.
+- **Mod** includes or excludes the island from the exported PAC, independently
+  of View. **Preview output** shows the export result. Undo/Redo and saved drafts
+  retain exclusions; re-enabling an island restores its source triangles.
+
+Mod inclusion requires an original PAC at LOD0 with unchanged topology. Every
+lower LOD must map unambiguously to source positions; unsupported simplification
+is rejected before changing the session. Save and reopen an imported PAC first.
+Keep at least one island included, or use the whole part's Mod checkbox. Exclusion
+suppresses only selected triangle indices across LODs and retains vertex data,
+materials and bindings. Drafts containing these masks use replacement version 13;
+older drafts remain readable. View masks are temporary presentation state.
+
+Overlapping translucent islands can still expose shader limits. See the
+[EyeCover overlap investigation](EYECOVER_OVERLAP.md).
+
 ### Glow on parts
 
 Select parts and expand **Glow (experimental)** for colour, strength, emission UV

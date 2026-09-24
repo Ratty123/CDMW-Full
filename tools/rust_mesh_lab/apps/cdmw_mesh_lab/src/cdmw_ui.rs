@@ -3902,6 +3902,7 @@ impl LabApplication {
         } else if !selected.is_empty() && selected.len() >= parts.len() {
             ui.small("Keep at least one part when deleting.");
         }
+        self.draw_cdmw_islands(ui, actions);
         self.draw_cdmw_translucency(ui, actions);
         self.draw_cdmw_emission(ui, actions);
         self.draw_cdmw_shader_controls(ui, actions);
@@ -3974,7 +3975,7 @@ impl LabApplication {
             return None;
         }
         let layers = self.cdmw_layer_visible_submeshes();
-        if self.cdmw_hidden_parts.is_empty() {
+        if self.cdmw_hidden_parts.is_empty() && self.cdmw_hidden_islands.is_empty() {
             return layers;
         }
         let mut visible = layers.unwrap_or_else(|| {

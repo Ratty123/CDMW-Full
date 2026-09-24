@@ -7062,6 +7062,8 @@ class RustMeshAuthoringSession:
     max_state_document_bytes: int = 0
     pending_replacement: object | None = None
     replacement_comparison: str = "edit"
+    mesh_island_cache: dict = field(default_factory=dict, repr=False)
+    mesh_island_focus: tuple[int, ...] = ()
     closed: bool = False
     _cancel_event: threading.Event = field(default_factory=threading.Event, repr=False)
     _lifecycle_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
@@ -8008,6 +8010,8 @@ class RustMeshAuthoringSession:
             state["loaded_mesh"] += " (neutral appearance)"
         from cdmw.services.mesh_rust_replacement import replacement_ui_state
         state["replacement"] = replacement_ui_state(self)
+        from cdmw.services.mesh_island_authoring import island_ui_state
+        state["mesh_islands"] = island_ui_state(self, state["replacement"])
         from cdmw.services.mesh_translucency import translucency_ui_state
         state["translucency"] = translucency_ui_state(self, state["replacement"])
         from cdmw.services.mesh_emission import emission_ui_state

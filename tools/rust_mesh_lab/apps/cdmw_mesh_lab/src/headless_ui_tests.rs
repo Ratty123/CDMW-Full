@@ -15,6 +15,7 @@ use tempfile::tempdir;
 use winit::event::DeviceId;
 
 mod cloth_preview_tests;
+mod island_controls_tests;
 mod guide_authoring_tests {
     use super::*;
 
