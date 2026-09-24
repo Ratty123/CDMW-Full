@@ -1,19 +1,12 @@
-"""Write a plan as an archive-group mod folder: the shape DMM mounts.
+"""Write a plan as a standalone archive-group package for DMM.
 
-A loose mod drops game-relative files into a folder and hopes the manager routes them.
-For the tables a new item rewrites -- a six-megabyte `iteminfo.pabgb` among them -- DMM
-does not route them that way: its own summary counts mods as JSON, browser/file,
-standalone-overlay or group-replace, and a table belongs to the last two. What it mounts
-is a prebuilt archive group, `<group>/0.pamt` and `0.paz` beside a `meta/0.papgt` naming
-it, which is the same directory the workbench installs into the game itself.
+The package uses ``0036/0.pamt`` and ``0036/0.paz``, independently of free slots
+in the game. DMM recognises that package name and assigns its own mounted group.
+Other numeric names take DMM's replacement route and lose newly added paths.
 
-This prepares that layout in staging, rather than in the game. Publication retains
-the authoring records in CDMW's local history and removes the supplied mount list,
-which DMM rebuilds itself. The archive is
-built by :func:`cdmw.core.archive_overlay.build_overlay_archive`, the one whose output
-reproduces a shipped archive byte for byte, and the mount list is the game's own with the
-group added -- the count in its header included, which is what the game reads to decide
-whether its installation is sound.
+The shared archive builder writes into staging. Publication retains authoring
+records in CDMW's local history and removes the supplied mount list, which DMM
+rebuilds itself. Texture registrations remain in ``meta/0.pathc``.
 """
 
 from __future__ import annotations
@@ -56,10 +49,8 @@ def export_overlay_mod(
 ) -> OverlayModExport:
     """Write `plan` into `package_root` as an archive group with its mount list.
 
-    `game_root` is the install the plan was built against; its `meta/0.papgt` is copied
-    with the group added, because a manager that mounts a prebuilt group needs to know
-    the group exists. Without it the folder still holds the archive, and the manager has
-    to name the group itself.
+    `game_root` supplies compatibility evidence and a temporary mount list. DMM
+    publication removes that list; the package group name selects standalone loading.
     """
 
     from cdmw.services.archive_overlay_package_service import export_archive_overlay_package
@@ -129,13 +120,14 @@ def export_overlay_mod(
                 "",
                 "What this is",
                 "------------",
-                f"An archive group ({name}/0.pamt and 0.paz) holding {shared.file_count} file(s), the shape a mod manager mounts",
+                f"A standalone archive group ({name}/0.pamt and 0.paz) holding {shared.file_count} file(s), the shape DMM mounts",
                 "ahead of the archives the game shipped. The shipped archives are not modified by installing it.",
                 "",
                 "How to use it",
                 "-------------",
                 "1. Place this folder inside your mod manager's mods folder.",
                 "2. Enable it and mount.",
+                f"Keep the {name} folder name inside this package; DMM selects the installed archive directory.",
                 "",
                 "Two of these cannot both be enabled: each carries the whole item table, so the one mounted last owns it.",
                 "Build the second item into the same folder instead, and one group holds both.",

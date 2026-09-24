@@ -47,10 +47,8 @@ GAME_EXECUTABLE = "CrimsonDesert.exe"
 #: The loose-mod layouts the Placement Studio's golden packages established, by manager.
 LOOSE_EXPORT_PROFILES: Mapping[str, Mapping[str, object]] = {
     "CDUMM": {"manager_targets": ("cdumm",), "structure": "files_wrapper", "create_manifest_json": True, "create_modinfo_json": True, "create_no_encrypt_file": True, "create_mod_json": False, "kind": "archive_loose_mod"},
-    # DMM mounts a prebuilt archive group rather than routing loose table files: its own
-    # mount summary counts mods as JSON, browser/file, standalone-overlay or group-replace,
-    # and a six-megabyte iteminfo.pabgb belongs to the last two. `archive_group` writes
-    # what it mounts.
+    # DMM needs a standalone archive group so it retains newly added paths as well
+    # as whole replacement tables. Its group-replacement route drops additions.
     "DMM": {"manager_targets": ("dmm",), "structure": "archive_group", "create_manifest_json": True, "create_modinfo_json": True, "create_no_encrypt_file": False, "create_mod_json": False, "kind": "archive_override_mod"},
     "JMM": {"manager_targets": ("jmm",), "structure": "game_relative", "create_manifest_json": False, "create_modinfo_json": False, "create_no_encrypt_file": False, "create_mod_json": False, "kind": "loose_mod"},
 }
@@ -459,7 +457,6 @@ class NewItemService:
         raise_if_cancelled(stop_event, "New item export cancelled.")
         written = export_overlay_mod(
             carried_plan, root,
-            group=group,
             title=str(getattr(info, "title", "") or ""),
             description=str(getattr(info, "description", "") or ""),
             author=str(getattr(info, "author", "") or ""),
@@ -469,6 +466,18 @@ class NewItemService:
             compatibility=compatibility,
             stop_event=stop_event,
         )
+        if group and group != written.group:
+            # Older exports used the next free game slot. Their contents have
+            # been carried into the standalone group; retire only the copied
+            # archive members in staging, before atomic package publication.
+            from cdmw.domain.archives.safety import safe_archive_output_path
+
+            for filename in ("0.pamt", "0.paz"):
+                old_file = safe_archive_output_path(root, f"{group}/{filename}",
+                    error_message="The previous archive group escapes the mod package.")
+                old_file.unlink(missing_ok=True)
+            if not any(old_file.parent.iterdir()):
+                old_file.parent.rmdir()
         return NewItemExportResult(
             package_root=root,
             manager=str(manager or "").upper() or "custom",

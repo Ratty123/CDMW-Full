@@ -13,11 +13,7 @@ from cdmw.core.papgt_format import papgt_with_directory
 from cdmw.domain.archives.mutation import ArchiveAddRequest, ArchivePatchRequest
 from cdmw.domain.archives.safety import safe_archive_output_path
 from cdmw.domain.cancellation import raise_if_cancelled
-from cdmw.services.archive_overlay_install import (
-    OVERLAY_DIRECTORY_FIRST,
-    _processed_payload,
-    overlay_directory_name,
-)
+from cdmw.services.archive_overlay_install import _processed_payload
 
 
 @dataclass(frozen=True, slots=True)
@@ -102,11 +98,11 @@ def export_archive_overlay_package(
     if not files:
         raise ValueError("An archive overlay package needs at least one file.")
 
-    name = str(group or "") or (
-        overlay_directory_name(Path(game_root))
-        if game_root is not None and Path(game_root).is_dir()
-        else f"{OVERLAY_DIRECTORY_FIRST:04d}"
-    )
+    # DMM recognises 0036 inside a package as a standalone overlay and chooses its
+    # installed destination itself. Other numeric names (e.g. a free game slot
+    # 0042) take its group-replacement path, which drops additions absent from
+    # vanilla. The live install's free-slot allocator is not a package format.
+    name = str(group or "0036")
     directory = _safe_overlay_package_output_path(
         root,
         name,

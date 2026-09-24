@@ -96,15 +96,45 @@ def test_history_failure_preserves_previous_export(tmp_path, monkeypatch, failur
     assert not list(history._history_root().glob(".history-*"))
 
 
-def test_dmm_extension_recovers_owned_item_history(tmp_path):
+@pytest.mark.parametrize("existing_group", ("0036", "0042"))
+def test_dmm_extension_recovers_owned_item_history(tmp_path, monkeypatch, existing_group):
+    from cdmw.domain.archives.mutation import ArchiveAddRequest
+    from cdmw.services.new_item_mod_base import mod_folder_payloads
+
     service, snapshot, _entries = setup_game(tmp_path)
     first = service.plan(replace(spec("First"), recipes=()), snapshot)
+    prior_asset = ArchiveAddRequest(_entries[0].pamt_path, "character/model/first-only.pac", b"first asset")
+    first = replace(first, additions=(*first.additions, prior_asset))
     folder = tmp_path / "mod"
     service.export_loose(first, folder, manager="DMM")
+    if existing_group != "0036":
+        # Recreate an older CDMW export, including history bound to those bytes.
+        for name in HISTORY_FILES:
+            shutil.copyfile(mod_metadata_path(folder, name), folder / name)
+        (folder / "0036").rename(folder / existing_group)
+        manifest = json.loads((folder / "manifest.json").read_bytes())
+        manifest["archive_group"] = existing_group
+        (folder / "manifest.json").write_text(json.dumps(manifest))
+        retain_dmm_history(folder)
     base = build_mod_base_snapshot(service, snapshot, folder, read_entry=snapshot.provenance.reader)
     assert base.base_manifest["item_key"] == first.spec.item_key
     second = service.plan(replace(spec("Second"), recipes=()), base)
+    if existing_group != "0036":
+        before = {p.relative_to(folder): p.read_bytes() for p in folder.rglob("*") if p.is_file()}
+
+        def fail_history(*_args, **_kwargs):
+            raise OSError("History storage unavailable")
+
+        with monkeypatch.context() as patch:
+            patch.setattr("cdmw.core.mod_export_history.retain_dmm_history", fail_history)
+            with pytest.raises(OSError, match="History storage unavailable"):
+                service.export_loose(second, folder, manager="DMM")
+        assert {p.relative_to(folder): p.read_bytes() for p in folder.rglob("*") if p.is_file()} == before
     service.export_loose(second, folder, manager="DMM")
+    assert {p.parent.name for p in folder.glob("*/0.pamt")} == {"0036"}
+    assert {p.parent.name for p in folder.glob("*/0.paz")} == {"0036"}
+    assert json.loads((folder / "manifest.json").read_bytes())["archive_group"] == "0036"
+    assert mod_folder_payloads(folder)[prior_asset.path].read_bytes() == prior_asset.payload_data
     record = json.loads(mod_metadata_path(folder, "new-item.json").read_bytes())
     assert first.spec.item_key in {item["item_key"] for item in record["previous_items"]}
     assert record["item_key"] == second.spec.item_key

@@ -1120,9 +1120,15 @@ New exports record the full available game build and executable fingerprint, fil
 hashes and original payloads in `cdmw-compatibility.json` and `cdmw-baseline.zip`.
 DMM exports keep these records and `new-item.json` under
 `%LOCALAPPDATA%/CrimsonDesertModWorkbench/mod_export_history`. The exported
-folder contains the archive group, `meta/0.pathc` when needed, `manifest.json`,
+folder contains the standalone archive group `0036/`, `meta/0.pathc` when needed, `manifest.json`,
 `modinfo.json` and `README.txt`. DMM rebuilds its own `meta/0.papgt`, so that file
 is omitted too. This applies to New Item, merged and updated DMM packages.
+DMM recognises `0036/` inside the package and chooses its own installed archive
+directory. Do not rename it to a free game slot: other numeric names select DMM's
+group-replacement route, which skips newly added paths. Re-exporting an older
+New Item package carries its prior assets into `0036/` and removes the old archive
+pair from staging before publication. Direct CDMW installation still allocates
+a free game directory independently.
 History lookup verifies the exported contents; copied or renamed folders remain
 usable on the same computer, while changed package contents cannot reuse stale
 history. Extension, merge and update read local history automatically. A shared
