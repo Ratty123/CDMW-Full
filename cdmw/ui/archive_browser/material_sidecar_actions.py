@@ -185,6 +185,7 @@ class ArchiveMaterialSidecarActionsMixin:
         edited_entry: ArchiveEntry,
     ) -> Optional[Tuple[ArchiveEntry, ...]]:
         dialog = QDialog(self)
+        dialog.setObjectName("layout_cdmw_ui_archive_browser_material_sidecar_actions__prompt_material_sidecar_related_files_dialog")
         dialog.setWindowTitle("Review Related Files")
         dialog.setModal(True)
         dialog.resize(920, 520)

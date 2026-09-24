@@ -74,6 +74,7 @@ class ArchiveMeshModifyOriginalMixin:
         ) -> Optional[ModifyOriginalWorkflowSelection]:
         default_parent = Path(self.shell._suggest_workspace_base_dir()).expanduser() / "modify_original"
         dialog = QDialog(self)
+        dialog.setObjectName("layout_cdmw_ui_archive_browser_mesh_modify_original__prompt_archive_modify_original_workspace_options_dialog")
         dialog.setWindowTitle("Modify Original")
         dialog.setModal(True)
         dialog.resize(800, 360)
@@ -494,6 +495,7 @@ class ArchiveMeshModifyOriginalMixin:
         if not drafts:
             return False, None
         dialog = QDialog(self)
+        dialog.setObjectName("layout_cdmw_ui_archive_browser_mesh_modify_original__prompt_modify_original_draft_choice_dialog")
         dialog.setWindowTitle("Resume Mesh Editor Draft")
         dialog.setModal(True)
         dialog.resize(680, 220)

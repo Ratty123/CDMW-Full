@@ -161,6 +161,7 @@ class ArchiveHkxDocumentActionsMixin:
                 member_by_key[self._attachment_package_entry_key(resolved_entry)] = member
 
         dialog = QDialog(self)
+        dialog.setObjectName("layout_cdmw_ui_archive_browser_hkx_document_actions__choose_archive_hkx_placement_candidate_dialog")
         dialog.setWindowTitle(f"Choose HKX Placement - {source_entry.basename}")
         dialog.resize(860, 420)
         layout = QVBoxLayout(dialog)

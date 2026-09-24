@@ -129,6 +129,7 @@ class ArchiveAttachmentSocketEditorMixin:
             )
             return
         dialog = QDialog(owner or self)
+        dialog.setObjectName("layout_cdmw_ui_archive_browser_attachment_socket_editor__open_archive_socket_xml_editor_dialog_dialog")
         dialog.setWindowTitle(f"Edit Socket Values - {socket_entry.basename}")
         dialog.resize(1180, 700)
         payload_task_controller = attachment_task_controller_for_guard(self, dialog)
@@ -579,6 +580,7 @@ class ArchiveAttachmentSocketEditorMixin:
 
         def _open_archive_socket_compare_picker() -> None:
             picker = QDialog(dialog)
+            picker.setObjectName("layout_cdmw_ui_archive_browser_attachment_socket_editor__open_archive_socket_compare_picker_picker")
             picker.setWindowTitle("Load Archive Socket XML To Compare")
             picker.resize(920, 520)
             picker_layout = QVBoxLayout(picker)

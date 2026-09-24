@@ -34,6 +34,7 @@ def choose_texture_source_dialog(
     role_label_for_slot: Callable[[str], str],
 ) -> str | None:
     picker_dialog = QDialog(parent)
+    picker_dialog.setObjectName("layout_cdmw_ui_archive_browser_static_replacement_texture_dialogs_choose_texture_source_dialog_picker_dialog")
     picker_dialog.setWindowTitle("Assign Override Source")
     picker_dialog.setModal(True)
     picker_dialog.resize(620, 520)
@@ -98,6 +99,7 @@ def confirm_texture_assignment_action(
         )
         return False
     confirm_dialog = QDialog(parent)
+    confirm_dialog.setObjectName("layout_cdmw_ui_archive_browser_static_replacement_texture_dialogs_confirm_texture_assignment_action_confirm_dialog")
     confirm_dialog.setWindowTitle(title)
     confirm_dialog.setModal(True)
     confirm_dialog.resize(940, 540)

@@ -24,6 +24,7 @@ pub struct PresentationView {
     column_widths: HashMap<(String, u64), f32>,
     column_drag_origins: HashMap<(String, u64), (f32, f32)>,
     menu_positions: HashMap<String, egui::Pos2>,
+    dialog_rects: HashMap<String, egui::Rect>,
     crop_origin: HashMap<String, egui::Pos2>,
     pub textures: HashMap<String, egui::TextureHandle>,
     strings: BTreeMap<String, String>,
@@ -126,23 +127,33 @@ impl PresentationView {
                 continue;
             }
             let mut open = true;
-            let width = (ui.ctx().content_rect().width() * 0.8)
+            let mut width = (ui.ctx().content_rect().width() * 0.8)
                 .min(if dialog.flexible() { 1000.0 } else { 520.0 });
             let max_height = (ui.ctx().content_rect().height() - 96.0).max(200.0);
-            let height = if dialog.flexible() {
+            let mut height = if dialog.flexible() {
                 max_height
             } else {
                 (estimate_height(ui, dialog, width) + 32.0).min(max_height)
             };
+            let mut position = ui.ctx().content_rect().center() - Vec2::new(width, height) / 2.0;
+            if let [x, y, w, h] = dialog.array("saved_rect")
+                && let (Some(x), Some(y), Some(w), Some(h)) = (x.as_f64(), y.as_f64(), w.as_f64(), h.as_f64())
+                && [x, y, w, h].iter().all(|n| n.is_finite())
+                && (120.0..=16000.0).contains(&w) && (80.0..=16000.0).contains(&h)
+            {
+                width = (w as f32).min(ui.ctx().content_rect().width() - 24.0).max(120.0);
+                height = (h as f32).min(max_height);
+                position = egui::pos2(x as f32, y as f32);
+            }
             let mut actions = Vec::new();
             let body = dialog_body(dialog, &mut actions);
-            egui::Window::new(&dialog.label)
+            let response = egui::Window::new(&dialog.label)
                 .id(egui::Id::new((&dialog.id, "dialog")))
                 .open(&mut open)
                 .collapsible(false)
                 .resizable(true)
                 .default_size(Vec2::new(width, height))
-                .default_pos(ui.ctx().content_rect().center() - Vec2::new(width, height) / 2.0)
+                .default_pos(position)
                 .max_height(max_height)
                 .show(ui.ctx(), |ui| {
                     ui.add_enabled_ui(index + 1 == state.dialogs.len(), |ui| {
@@ -174,6 +185,19 @@ impl PresentationView {
                         }
                     });
                 });
+            if let Some(response) = response {
+                let rect = response.response.rect;
+                let previous = self.dialog_rects.insert(dialog.id.clone(), rect);
+                if previous.is_some_and(|previous| previous != rect)
+                    && ui.input(|input| input.pointer.any_down() || input.pointer.any_released())
+                {
+                    self.input(dialog, "resize_dialog", json!([
+                        rect.min.x.round() as i32, rect.min.y.round() as i32,
+                        rect.width().max(120.0).round() as u32,
+                        rect.height().max(80.0).round() as u32
+                    ]));
+                }
+            }
             if !open {
                 self.input(dialog, "close_dialog", Value::Null);
             }
@@ -811,7 +835,7 @@ impl PresentationView {
                     .map(|value| value.as_f64().unwrap_or(1.0) as f32)
                     .collect(),
             );
-            if model_workspace && indices == [0, 1] {
+            if model_workspace && indices == [0, 1] && !node.flag("user_sized") {
                 let inspector = (520.0 * TextStyle::Body.resolve(ui.style()).size / 14.0)
                     .min(available * 0.45);
                 entry.1 = vec![available - inspector, inspector];

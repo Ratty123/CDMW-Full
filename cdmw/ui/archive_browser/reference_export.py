@@ -161,6 +161,7 @@ class ArchiveReferenceExportMixin:
 
         dialog_parent = parent if parent is not None else self
         dialog = QDialog(dialog_parent)
+        dialog.setObjectName("layout_cdmw_ui_archive_browser_reference_export__prompt_archive_reference_selection_dialog")
         dialog.setWindowTitle(title)
         dialog.setModal(True)
         dialog.resize(900, 520)

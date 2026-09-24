@@ -24,6 +24,59 @@ pub fn control_contract() -> Value {
            "headless_entry_point":"--new-item-ui-document","native_controls":true})
 }
 
+fn enqueue_input(requests: &mut VecDeque<Input>, input: Input) {
+    if matches!(input.action, "text" | "number" | "cell" | "range" | "resize_dialog") {
+        requests.retain(|queued| queued.edit_key() != input.edit_key() || queued.action != input.action);
+    }
+    if requests.len() < 128 {
+        requests.push_back(input);
+    }
+}
+
+fn rebase_pending_inputs(requests: &mut VecDeque<Input>, previous: &Input, state: &State) {
+    for pending in requests {
+        // Geometry acknowledgements change the dialog's presentation revision.
+        // Preserve the final drag sample and an immediately following close.
+        if pending.control == previous.control
+            && (matches!(pending.action, "text" | "number" | "cell" | "finish_edit" | "resize_dialog")
+                || previous.action == "resize_dialog" && pending.action == "close_dialog")
+            && let Some(revision) = state.root.find_revision(&pending.control)
+                .or_else(|| state.dialogs.iter().find_map(|dialog| dialog.find_revision(&pending.control)))
+        {
+            pending.revision = revision;
+        }
+    }
+}
+
+#[cfg(test)]
+mod layout_input_tests {
+    use super::*;
+
+    #[test]
+    fn persistent_dialog_drag_keeps_the_final_sample_across_delayed_acknowledgements() {
+        let mut requests = VecDeque::new();
+        let input = |action, value| Input { control: "dialog".into(), revision: 7, action, value };
+        for x in 0..300 {
+            enqueue_input(&mut requests, input("resize_dialog", json!([x, 60, 740, 500])));
+        }
+        enqueue_input(&mut requests, input("close_dialog", Value::Null));
+        assert_eq!(requests.len(), 2);
+        let state: State = serde_json::from_value(json!({"protocol": PROTOCOL,
+            "session": "layout", "generation": 2,
+            "root": {"id": "root", "kind": "column"},
+            "dialogs": [{"id": "dialog", "kind": "dialog", "revision": 8}]})).unwrap();
+        rebase_pending_inputs(&mut requests, &input("resize_dialog", json!([0, 60, 740, 500])), &state);
+        let final_drag = requests.pop_front().unwrap();
+        assert_eq!(final_drag.value, json!([299, 60, 740, 500]));
+        assert_eq!(final_drag.revision, 8);
+        let mut state = state;
+        state.dialogs[0].revision = 9;
+        rebase_pending_inputs(&mut requests, &final_drag, &state);
+        assert_eq!(requests.front().unwrap().action, "close_dialog");
+        assert_eq!(requests.front().unwrap().revision, 9);
+    }
+}
+
 pub fn try_run() -> Result<bool> {
     let args: Vec<_> = std::env::args().skip(1).collect();
     let Some(mode) = args.first().map(String::as_str) else {
@@ -314,24 +367,7 @@ impl Application {
                     if let Some((request, previous)) = &self.in_flight {
                         if state.last_request >= *request {
                             self.view.acknowledge(previous);
-                            for pending in &mut self.requests {
-                                if pending.control == previous.control
-                                    && matches!(
-                                        pending.action,
-                                        "text" | "number" | "cell" | "finish_edit"
-                                    )
-                                {
-                                    if let Some(revision) =
-                                        state.root.find_revision(&pending.control).or_else(|| {
-                                            state.dialogs.iter().find_map(|dialog| {
-                                                dialog.find_revision(&pending.control)
-                                            })
-                                        })
-                                    {
-                                        pending.revision = revision;
-                                    }
-                                }
-                            }
+                            rebase_pending_inputs(&mut self.requests, previous, &state);
                             self.in_flight = None;
                         }
                     }
@@ -368,7 +404,7 @@ impl Application {
                 // navigation request is awaiting its state. Once the host has
                 // removed that field, this lifecycle notification has no target.
                 // Keep substantive stale edits subject to the host's rejection.
-                if input.action == "finish_edit"
+                if matches!(input.action, "finish_edit" | "resize_dialog")
                     && self.state.as_ref().is_some_and(|state| {
                         state.root.find_revision(&input.control).is_none()
                             && state
@@ -438,14 +474,7 @@ impl Application {
             })?;
         }
         for input in self.view.inputs.drain(..) {
-            if matches!(input.action, "text" | "number" | "cell" | "range") {
-                self.requests.retain(|queued| {
-                    queued.edit_key() != input.edit_key() || queued.action != input.action
-                });
-            }
-            if self.requests.len() < 128 {
-                self.requests.push_back(input);
-            }
+            enqueue_input(&mut self.requests, input);
         }
         if let Some(state) = &self.state {
             let portals = self.view.portals.clone();

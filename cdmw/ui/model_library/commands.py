@@ -58,6 +58,7 @@ class ModelLibraryCommandsMixin:
     def _show_file_urls_for_payloads(self, payloads: list[dict[str, object]]) -> None:
         text = self._selected_file_url_text(payloads)
         dialog = QDialog(self)
+        dialog.setObjectName("layout_cdmw_ui_model_library_commands__show_file_urls_for_payloads_dialog")
         dialog.setWindowTitle("Model File URLs")
         dialog.setMinimumSize(760, 460)
         layout = QVBoxLayout(dialog)

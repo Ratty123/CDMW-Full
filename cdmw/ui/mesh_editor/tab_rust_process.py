@@ -315,6 +315,13 @@ class MeshEditorRustProcessMixin:
             return
         if event == "state_snapshot":
             return
+        if event == "layout_changed":
+            from cdmw.services.mesh_editor_layout import save_mesh_layout
+            from cdmw.ui.widgets import request_settings_sync
+
+            if save_mesh_layout(self.settings, payload.get("layout")):
+                request_settings_sync(self.settings)
+            return
         if event in {"renderer_failed", "renderer_recovered"}:
             self.standalone_rust_gpu_failed = event == "renderer_failed"
             self.standalone_rust_ready_timer.stop()

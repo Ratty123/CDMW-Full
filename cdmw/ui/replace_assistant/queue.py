@@ -779,6 +779,7 @@ class ReplaceAssistantQueueMixin:
             return None
 
         dialog = QDialog(self)
+        dialog.setObjectName("layout_cdmw_ui_replace_assistant_queue__pick_archive_original_dialog")
         dialog.setWindowTitle("Choose archive original DDS")
         dialog.resize(900, 620)
         layout = QVBoxLayout(dialog)

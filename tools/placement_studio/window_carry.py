@@ -774,6 +774,7 @@ class CarryPickerMixin:
         operations = self._edits.operations()
         loose = self._edits.loose_commands()
         dialog = QDialog(self)
+        dialog.setObjectName("layout_tools_placement_studio_window_carry__show_history_dialog")
         dialog.setWindowTitle("Recent actions")
         dialog.setMinimumSize(760, 420)
         listing = QListWidget()

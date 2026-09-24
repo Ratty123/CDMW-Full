@@ -538,6 +538,59 @@ fn template_selection_can_transfer_focus_to_search_without_deadlocking() {
 }
 
 #[test]
+fn persistent_model_split_uses_user_sizes_instead_of_native_default() {
+    let context = egui::Context::default();
+    let mut view = PresentationView::default();
+    let mut split = control("model", "split", "", json!({"horizontal": true,
+        "sizes": [1000, 280], "indices": [0, 1], "user_sized": true}));
+    split.name = "new_item_model_workspace_splitter".into();
+    split.children = vec![control("preview", "viewport", "", json!({})),
+                          control("inspector", "label", "Inspector", json!({}))];
+    let state = state(split);
+    for _ in 0..3 { frame(&context, &mut view, &state, egui::vec2(1440.0, 960.0), vec![]); }
+    assert_eq!(view.split_sizes["model"].1, vec![1000.0, 280.0]);
+}
+
+#[test]
+fn persistent_dialog_drag_restores_in_a_fresh_presentation() {
+    let context = egui::Context::default();
+    let mut view = PresentationView::default();
+    let mut state = state(control("root", "label", "Workspace", json!({})));
+    let mut dialog = control("dialog", "dialog", "Preview options", json!({"saved_rect": [90, 70, 460, 260]}));
+    dialog.children = vec![control("body", "viewport", "", json!({}))];
+    state.dialogs.push(dialog);
+    let size = egui::vec2(1280.0, 960.0);
+    for _ in 0..3 { frame(&context, &mut view, &state, size, vec![]); }
+    let before = view.dialog_rects["dialog"];
+    assert!((before.left() - 90.0).abs() <= 1.0);
+    let start = before.left_top() + egui::vec2(170.0, 12.0);
+    let end = start + egui::vec2(80.0, 55.0);
+    let button = |pos, pressed| egui::Event::PointerButton {
+        pos, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE,
+    };
+    frame(&context, &mut view, &state, size, vec![egui::Event::PointerMoved(start)]);
+    frame(&context, &mut view, &state, size, vec![button(start, true)]);
+    let mut saved = None;
+    for events in [vec![egui::Event::PointerMoved(end)], vec![button(end, false)], vec![]] {
+        frame(&context, &mut view, &state, size, events);
+        if let Some(input) = view.inputs.iter().find(|input| input.action == "resize_dialog") {
+            saved = Some(input.value.clone());
+        }
+    }
+    let saved = saved.expect("moving the native dialog publishes its bounds");
+    assert!(saved[0].as_f64().unwrap() > 140.0, "{saved}");
+    state.dialogs[0].props["saved_rect"] = saved.clone();
+    let reopened = egui::Context::default();
+    let mut view = PresentationView::default();
+    for _ in 0..3 { frame(&reopened, &mut view, &state, size, vec![]); }
+    let after = view.dialog_rects["dialog"];
+    assert!((after.left() - saved[0].as_f64().unwrap() as f32).abs() <= 1.0);
+    assert!((after.top() - saved[1].as_f64().unwrap() as f32).abs() <= 1.0);
+    assert!((after.width() - before.width()).abs() <= 2.0, "before={before:?}, after={after:?}, saved={saved}");
+    assert!((after.height() - before.height()).abs() <= 2.0, "before={before:?}, after={after:?}, saved={saved}");
+}
+
+#[test]
 fn reopened_effect_library_recovers_zero_size_without_resetting_dragged_panes() {
     let mut split = control("effects-split", "split", "", json!({
         "horizontal":true,"sizes":[0,900],"indices":[0,1]}));

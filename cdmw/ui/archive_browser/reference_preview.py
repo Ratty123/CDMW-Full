@@ -79,6 +79,7 @@ class ArchiveReferencePreviewMixin:
         result: ArchivePreviewResult,
     ) -> None:
         dialog = QDialog(self)
+        dialog.setObjectName("layout_cdmw_ui_archive_browser_reference_preview__show_archive_reference_preview_dialog_dialog")
         dialog.setWindowTitle(f"Referenced File Preview - {entry.basename}")
         dialog.setModal(True)
         dialog.resize(1040, 760)

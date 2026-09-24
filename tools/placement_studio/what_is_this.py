@@ -90,6 +90,7 @@ def show_guide(guide: Guide, parent=None) -> None:
     from PySide6.QtWidgets import QDialog, QDialogButtonBox, QTextBrowser, QVBoxLayout
 
     dialog = QDialog(parent)
+    dialog.setObjectName("layout_tools_placement_studio_what_is_this_show_guide_dialog")
     dialog.setWindowTitle(guide.title)
     dialog.resize(620, 520)
     layout = QVBoxLayout(dialog)

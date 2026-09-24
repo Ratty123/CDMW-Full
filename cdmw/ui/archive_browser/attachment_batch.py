@@ -59,6 +59,7 @@ class ArchiveAttachmentBatchMixin:
             return
 
         dialog = QDialog(self)
+        dialog.setObjectName("layout_cdmw_ui_archive_browser_attachment_batch__open_archive_bulk_attachment_placement_dialog_dialog")
         dialog.setWindowTitle(f"Weapon Placement Batch - {len(targets):,} target(s)")
         dialog.resize(1240, 760)
         layout = QVBoxLayout(dialog)

@@ -296,6 +296,10 @@ class ResponsivenessControllerMixin:
     def _fit_archive_files_pane_to_columns(self) -> None:
         if not hasattr(self.archive, "archive_splitter"):
             return
+        from cdmw.ui.layout_persistence import restore_splitter_layout
+
+        if restore_splitter_layout(self.archive.archive_splitter):
+            return
         sizes = self.archive.archive_splitter.sizes()
         if len(sizes) < 3:
             return
@@ -316,6 +320,10 @@ class ResponsivenessControllerMixin:
 
     def _apply_archive_preview_content_responsive_sizes(self) -> None:
         if not hasattr(self.archive, "archive_preview_content_splitter"):
+            return
+        from cdmw.ui.layout_persistence import restore_splitter_layout
+
+        if restore_splitter_layout(self.archive.archive_preview_content_splitter):
             return
         total_width = max(1, self.archive.archive_preview_content_splitter.width())
         if total_width <= 1:
@@ -430,6 +438,11 @@ class ResponsivenessControllerMixin:
             if restore_saved_splitters:
                 total_width = max(1, self.width() - 64)
                 self._apply_saved_splitter_sizes_if_enabled(total_width)
+                from cdmw.ui.layout_persistence import layout_policy
+
+                persistence = layout_policy()
+                if persistence is not None:
+                    persistence.restore_visible_splitters()
             if schedule_column_autofit:
                 self._schedule_column_autofit()
         finally:

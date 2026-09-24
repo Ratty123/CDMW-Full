@@ -30,6 +30,7 @@ class SupportDialogMixin:
 
     def show_support_dialog(self, _checked: bool = False) -> None:
         dialog = QDialog(self)
+        dialog.setObjectName("layout_cdmw_ui_shell_support_dialog_show_support_dialog_dialog")
         dialog.setWindowTitle(f"Support {APP_TITLE}")
         dialog.setMinimumWidth(440)
         layout = QVBoxLayout(dialog)

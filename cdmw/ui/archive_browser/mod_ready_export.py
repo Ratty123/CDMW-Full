@@ -65,6 +65,7 @@ class ArchiveModReadyExportMixin:
     ) -> Optional[Tuple[Path, ModPackageInfo, bool, bool, ModPackageExportOptions]]:
         dialog_parent = parent if parent is not None else self
         dialog = QDialog(dialog_parent)
+        dialog.setObjectName("layout_cdmw_ui_archive_browser_mod_ready_export__prompt_archive_mod_ready_export_target_dialog")
         dialog.setWindowTitle(dialog_title)
         dialog.setModal(True)
         dialog.resize(

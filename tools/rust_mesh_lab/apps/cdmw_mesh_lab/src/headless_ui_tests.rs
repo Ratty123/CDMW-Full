@@ -3350,6 +3350,25 @@ fn integrated_inspector_hair_physics_brush_exposes_static_and_physical_modes() -
 }
 
 #[test]
+fn persistent_editor_panels_restore_in_the_real_ui_across_display_sizes() -> TestResult {
+    use egui::containers::panel::PanelState;
+    for (width, height, font) in [(1920.0, 1080.0, 10.0), (2560.0, 1440.0, 12.0),
+                                  (3440.0, 1440.0, 14.0), (3840.0, 2160.0, 18.0)] {
+        let mut ui = HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(width, height));
+        ui.application.apply_cdmw_theme_payload(&json!({"font_point_size": font}));
+        crate::cdmw_layout::restore(&ui.application.egui_context,
+            &json!({"cdmw_tool_rail": 319.0, "cdmw_right_panels": 407.0}));
+        ui.settle_layout();
+        for (key, expected) in [("cdmw_tool_rail", 319.0), ("cdmw_right_panels", 407.0)] {
+            let panel = PanelState::load(&ui.application.egui_context, egui::Id::new(key)).ok_or(key)?;
+            assert!((panel.size().x - expected).abs() <= 1.0, "{width}x{height} {key}: {panel:?}");
+        }
+        assert!(ui.application.viewport_rect.ok_or("viewport")?.width() > 500.0);
+    }
+    Ok(())
+}
+
+#[test]
 fn integrated_inspector_long_hair_textures_keep_button_edges_clickable() -> TestResult {
     use crate::cdmw_hair::HairTool;
     let texture = "cd_phw_00_hair_base_youth_0010_haircard_alpha_diffuse_original_texture.dds";

@@ -413,6 +413,7 @@ class TextureJobUiMixin:
 
     def _build_texture_review(self) -> None:
         dialog = QDialog(self)
+        dialog.setObjectName("layout_cdmw_ui_texture_workflow_workspace_ui__build_texture_review_dialog")
         dialog.setWindowTitle("Review & Export")
         dialog.resize(1050, 730)
         layout = QVBoxLayout(dialog)

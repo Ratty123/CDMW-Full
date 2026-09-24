@@ -31,6 +31,7 @@ class TextureEditorDocumentUiMixin:
         keep_aspect_default: bool = False,
     ) -> Optional[Tuple[int, int, str]]:
         dialog = QDialog(self)
+        dialog.setObjectName("layout_cdmw_ui_texture_workflow_editor_document_ui__prompt_document_dimensions_dialog")
         dialog.setWindowTitle(title)
         layout = QVBoxLayout(dialog)
         form = QFormLayout()

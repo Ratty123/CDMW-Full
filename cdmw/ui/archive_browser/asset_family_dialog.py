@@ -264,6 +264,7 @@ class ArchiveAssetFamilyDialogMixin:
             return
 
         dialog = QDialog(self)
+        dialog.setObjectName("layout_cdmw_ui_archive_browser_asset_family_dialog__open_archive_asset_family_workspace_dialog_dialog")
         dialog.setWindowTitle(f"Asset Family - {source_entry.basename}")
         dialog.resize(980, 680)
         layout = QVBoxLayout(dialog)

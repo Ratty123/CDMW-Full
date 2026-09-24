@@ -529,6 +529,9 @@ class CloseControllerMixin:
         # Column layouts are written on a debounce, so a drag finished in the
         # last moments before closing is still only in memory.
         flush_pending_tree_column_saves()
+        layout_persistence = getattr(self, "_layout_persistence", None)
+        if layout_persistence is not None:
+            layout_persistence.flush()
         self._release_startup_splash()
         self._save_detached_tool_geometries()
         self._attach_all_detached_tools(select_after=False)

@@ -187,6 +187,7 @@ def make_tree_columns_persistent(
     sections_movable: bool = True,
 ) -> None:
     header = tree.header()
+    header.setProperty("cdmwColumnSettingsKey", settings_key)
     header.setSectionsMovable(bool(sections_movable))
 
     def _restore() -> None:

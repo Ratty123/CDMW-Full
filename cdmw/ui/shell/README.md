@@ -4,6 +4,25 @@ Owns the main window shell, workspace layout, tab registry, actions, menus,
 toolbar, status bar, settings/theme/language wiring, startup/close controllers,
 activation handling, diagnostics, and app-level dialogs.
 
+`cdmw.ui.layout_persistence` saves window/dialog geometry, splitter proportions
+and interactive column widths through the shell's existing portable `.cfg`
+settings. It covers late-created tools, detached windows, Placement & Animations,
+and New Item's offscreen Qt workflow. Existing main/detached-window and
+table-specific keys remain supported. New layouts use `ui/layout/v1`; splitter
+directions have separate saved proportions. The existing **Remember splitter
+sizes** preference applies to Qt panes and Rust Mesh Editor panel widths.
+
+Splitter gestures and Rust resize actions save the chosen sizes; responsive
+defaults and hiding a comparison pane do not replace them. Writes use the shared
+settings debounce and flush at shutdown. Window geometry is constrained to the
+current monitor's available area. Generic Qt dialogs need a stable `objectName`;
+widget class/attribute names provide stable pane identities without translated
+labels or runtime control IDs. Native New Item dialogs store logical client
+coordinates, while its columns and splitters share the Qt workflow's settings.
+Regression coverage lives in `test_ui_layout_persistence.py`,
+`test_shell_layout_persistence.py`, `test_new_item_layout_persistence.py` and
+`test_mesh_editor_layout_persistence.py` under `tests/`.
+
 `compact/` owns the restart-selected Compact Workspace presentation around the
 same authoritative tool widgets. Compact is the first-run default; an existing
 Classic or Compact choice remains authoritative. Compact mode

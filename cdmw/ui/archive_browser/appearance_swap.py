@@ -201,6 +201,7 @@ class ArchiveAppearanceSwapMixin:
         if len(candidate_entries) == 1:
             return candidate_entries[0]
         dialog = QDialog(self)
+        dialog.setObjectName("layout_cdmw_ui_archive_browser_appearance_swap__prompt_appearance_swap_target_model_dialog")
         dialog.setWindowTitle("Choose Target Model Path")
         layout = QVBoxLayout(dialog)
         layout.setContentsMargins(12, 12, 12, 12)
@@ -293,6 +294,7 @@ class ArchiveAppearanceSwapMixin:
             return
         path_index, basename_index = lookup_indexes
         dialog = QDialog(self)
+        dialog.setObjectName("layout_cdmw_ui_archive_browser_appearance_swap__open_archive_appearance_swap_review_dialog_dialog")
         dialog.setWindowTitle("Appearance Armor Swap Review")
         layout = QVBoxLayout(dialog)
         layout.setContentsMargins(12, 12, 12, 12)

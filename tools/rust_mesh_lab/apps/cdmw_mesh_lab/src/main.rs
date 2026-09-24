@@ -8,6 +8,7 @@ mod cdmw_jiggle;
 mod cdmw_preview;
 mod cdmw_rig;
 mod cdmw_session;
+use cdmw_ui::layout as cdmw_layout;
 mod cdmw_ui;
 mod cdmw_emission;
 mod cdmw_shader_controls;

@@ -441,6 +441,8 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         self.standalone_rust_material_wait_controller = None
 
     def _rust_theme_payload(self) -> dict[str, object]:
+        from cdmw.services.mesh_editor_layout import load_mesh_layout
+
         application = QApplication.instance()
         font = application.font() if application is not None else self.font()
         screen = application.primaryScreen() if application is not None else None
@@ -465,6 +467,7 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
             data_font_point_size = float(DEFAULT_UI_DATA_FONT_SIZE)
         return {
             "schema": "cdmw_ui_theme_v1",
+            "layout": load_mesh_layout(self.settings),
             "theme": theme_key,
             "variant": "dark" if window_colour.lightnessF() < 0.5 else "light",
             "palette": palette,

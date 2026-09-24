@@ -82,6 +82,7 @@ class ArchiveAppearanceCommonMixin:
             return candidate_entries[0]
 
         dialog = QDialog(self)
+        dialog.setObjectName("layout_cdmw_ui_archive_browser_appearance_common__select_archive_appearance_candidate_dialog")
         dialog.setWindowTitle("Choose Body Appearance Context")
         layout = QVBoxLayout(dialog)
         layout.setContentsMargins(12, 12, 12, 12)

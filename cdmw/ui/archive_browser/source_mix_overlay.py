@@ -109,6 +109,7 @@ class ArchiveSourceMixOverlayMixin:
         conflicts = [candidate for candidate in candidates if candidate.conflict_status == "conflict"]
         family_groups = group_source_mix_candidates_by_family(candidates)
         dialog = QDialog(self)
+        dialog.setObjectName("layout_cdmw_ui_archive_browser_source_mix_overlay__open_archive_loose_mod_overlay_dialog_dialog")
         dialog.setWindowTitle("Loose Mod Overlay Review")
         dialog.resize(1180, 760)
         layout = QVBoxLayout(dialog)

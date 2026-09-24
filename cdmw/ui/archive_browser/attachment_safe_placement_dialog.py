@@ -183,6 +183,7 @@ class ArchiveAttachmentSafePlacementDialogMixin:
             "donor": dict(_context_result.donor),
         }
         dialog = QDialog(self)
+        dialog.setObjectName("layout_cdmw_ui_archive_browser_attachment_safe_placement_dialog__open_archive_attachment_safe_placement_dialog_dialog")
         dialog.setWindowTitle(f"Safe Placement Editor - {target_entry.basename}")
         dialog.resize(1280, 780)
         context_task_controller = attachment_task_controller_for_guard(self, dialog)

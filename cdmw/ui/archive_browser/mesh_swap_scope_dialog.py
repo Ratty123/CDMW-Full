@@ -180,6 +180,7 @@ class ArchiveMeshSwapScopeDialogMixin:
         complete_swap_scope_default = not preserve_source_contract_default
 
         dialog = QDialog(self)
+        dialog.setObjectName("layout_cdmw_ui_archive_browser_mesh_swap_scope_dialog__prompt_archive_in_game_mesh_swap_scope_dialog")
         dialog.setWindowTitle("In-Game Mesh Swap Scope")
         dialog.setMinimumSize(980, 620)
         layout = QVBoxLayout(dialog)

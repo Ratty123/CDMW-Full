@@ -659,6 +659,7 @@ class ArchiveMeshPatchFlowMixin:
                         except RuntimeError:
                             blocker_parent = self
                         blocker_dialog = QDialog(blocker_parent)
+                        blocker_dialog.setObjectName("layout_cdmw_ui_archive_browser_mesh_patch_flow__handle_commit_complete_blocker_dialog")
                         blocker_dialog.setWindowTitle("Final Preflight Blocked Export")
                         blocker_dialog.resize(900, 560)
                         blocker_layout = QVBoxLayout(blocker_dialog)

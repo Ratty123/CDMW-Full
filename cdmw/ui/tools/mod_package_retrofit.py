@@ -12,6 +12,7 @@ from cdmw.ui.tools.mod_package_retrofit_widget import build_mod_package_retrofit
 class ArchiveModPackageRetrofitDialogMixin:
     def _show_mod_package_retrofit_dialog(self) -> None:
         dialog = QDialog(self)
+        dialog.setObjectName("layout_cdmw_ui_tools_mod_package_retrofit__show_mod_package_retrofit_dialog_dialog")
         dialog.setWindowTitle("Retrofit/Repackage Mods")
         dialog.setModal(True)
         dialog.resize(1120, 760)

@@ -249,6 +249,12 @@ class ArchiveAssetFamilyLayoutMixin:
             return
         if getattr(self, "_archive_preview_splitter_clamping", False):
             return
+        from cdmw.ui.layout_persistence import restore_splitter_layout, saved_splitter_sizes
+
+        if saved_splitter_sizes(self.archive_preview_content_splitter):
+            if prefer_default:
+                restore_splitter_layout(self.archive_preview_content_splitter)
+            return
         sizes = self.archive_preview_content_splitter.sizes()
         splitter_width = max(1, self.archive_preview_content_splitter.width())
         size_total = sum(sizes) if sizes else 0

@@ -95,6 +95,9 @@ class MeshEditorCharacterContextMixin:
             ):
                 request_package(entry)
             splitter.setSizes([max(640, sizes[0] if sizes else 920), 340])
+            from cdmw.ui.layout_persistence import restore_splitter_layout
+
+            restore_splitter_layout(splitter)
         else:
             splitter.setSizes([max(640, sizes[0] if sizes else 920), 0])
 

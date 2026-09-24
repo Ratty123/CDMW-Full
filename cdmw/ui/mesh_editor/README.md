@@ -1,5 +1,13 @@
 # Mesh Editor
 
+Tools, Inspector and pinned tool panel widths, plus floating tool positions,
+are saved in CDMW's user `.cfg` and restored for new editor sessions. The helper
+receives them in the initial theme's `layout` field and publishes bounded,
+session/generation-correlated `layout_changed` events. These presentation events
+bypass authoring workers, mesh revisions and Undo/Redo. The shared
+[layout persistence policy](../shell/README.md) also covers the Qt character
+context pane and detached editor window.
+
 [Shader experiments](SHADER_CONTROLS.md) extend
 the existing Parts workflow with captured material dependencies, Undo/Redo and
 replacement draft version 12. Static Dissolve stays object-only.

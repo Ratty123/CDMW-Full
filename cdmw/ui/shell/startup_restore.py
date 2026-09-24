@@ -85,6 +85,9 @@ class ShellStartupRestoreMixin:
         geometry = self.settings.value("window/geometry")
         if geometry:
             self.restoreGeometry(geometry)
+        from cdmw.ui.layout_persistence import install_layout_persistence
+
+        self._layout_persistence = install_layout_persistence(self, self.settings)
         QTimer.singleShot(0, self._connect_responsive_screen_signals)
         QTimer.singleShot(0, self._apply_initial_responsive_window_defaults)
         QTimer.singleShot(140, self._schedule_column_autofit)

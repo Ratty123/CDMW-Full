@@ -13,6 +13,7 @@ The format is intentionally simple:
 
 ### Changed
 
+- Window and dialog sizes, split panes, viewport proportions and manually resized columns are saved in the user CFG across restarts, including Browse Archives, Create New Item, Mesh Editor and Placement & Animations. Startup defaults respect saved layouts; restored windows remain bounded by the available screen.
 - Create New Item's Mod folder output has an editable Mod name for the title shown in mod managers. Leaving it blank uses the item's English display name, and naming the package does not require rebuilding the item plan.
 - Create New Item puts Move, Rotate, Scale, Frame and Show gizmo directly above the shared model viewport, keeping transform tools accessible alongside the Placement values and while editing appearance.
 - Create New Item, Merge mods and game-update exports produce lean DMM folders containing the packed mod, required texture registry, package metadata and README. Authoring and compatibility history stays in CDMW's local data for later editing, merging and updates; DMM rebuilds its own mount list.

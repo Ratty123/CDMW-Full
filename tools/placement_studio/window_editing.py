@@ -1117,6 +1117,7 @@ class EditPanelMixin:
             return None
 
         dialog = QDialog(self)
+        dialog.setObjectName("layout_tools_placement_studio_window_editing__select_package_operations_dialog")
         dialog.setWindowTitle("What to package")
         dialog.setMinimumSize(720, 420)
         modes = {

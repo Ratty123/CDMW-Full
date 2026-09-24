@@ -3,6 +3,189 @@
 use super::*;
 use egui::{Button, ComboBox, ScrollArea, Spinner};
 
+pub(super) mod layout {
+    //! Presentation-only geometry. The host persists it in its existing user cfg.
+
+    use egui::{Context, Id, Pos2, Rect, containers::panel::PanelState};
+    use serde_json::{Value, json};
+
+    const PANELS: [&str; 3] = [
+        "cdmw_tool_rail",
+        "cdmw_right_panels",
+        "cdmw_pinned_tool_settings",
+    ];
+
+    #[derive(Clone, Default)]
+    struct Layout {
+        values: Value,
+        dirty: bool,
+    }
+
+    fn state_id() -> Id {
+        Id::new("cdmw-persistent-layout")
+    }
+
+    pub(crate) fn restore(context: &Context, value: &Value) {
+        let mut values = json!({});
+        for key in PANELS {
+            if let Some(width) = value[key]
+                .as_f64()
+                .filter(|n| n.is_finite() && (64.0..=8192.0).contains(n))
+            {
+                let state = PanelState {
+                    outer_rect: Rect::from_min_size(Pos2::ZERO, egui::vec2(width as f32, 1.0)),
+                };
+                context.data_mut(|data| data.insert_persisted(Id::new(key), state));
+                values[key] = json!(width);
+            }
+        }
+        if value["floating"].is_object() {
+            values["floating"] = value["floating"].clone();
+        }
+        context.data_mut(|data| {
+            data.insert_temp(
+                state_id(),
+                Layout {
+                    values,
+                    dirty: false,
+                },
+            )
+        });
+    }
+
+    pub(crate) fn position(context: &Context, key: &str, fallback: Pos2) -> Pos2 {
+        context.data_mut(|data| {
+            let layout = data.get_temp::<Layout>(state_id()).unwrap_or_default();
+            let point = &layout.values["floating"][key];
+            match (point[0].as_f64(), point[1].as_f64()) {
+                (Some(x), Some(y))
+                    if x.is_finite() && y.is_finite() && x.abs() <= 32768.0 && y.abs() <= 32768.0 =>
+                {
+                    egui::pos2(x as f32, y as f32)
+                }
+                _ => fallback,
+            }
+        })
+    }
+
+    pub(crate) fn remember_position(context: &Context, key: &str, point: Pos2) {
+        context.data_mut(|data| {
+            let mut layout = data.get_temp::<Layout>(state_id()).unwrap_or_default();
+            layout.values["floating"][key] = json!([point.x, point.y]);
+            layout.dirty = true;
+            data.insert_temp(state_id(), layout);
+        });
+    }
+
+    pub(crate) fn changed(context: &Context) -> Option<Value> {
+        let mut layout =
+            context.data_mut(|data| data.get_temp::<Layout>(state_id()).unwrap_or_default());
+        for key in PANELS {
+            // This is egui's actual panel resize handle. Window/DPI changes and
+            // responsive constraints do not overwrite the user's stored width.
+            let dragging = context
+                .read_response(Id::new(key).with("__resize"))
+                .is_some_and(|response| response.dragged() || response.drag_stopped());
+            if dragging && let Some(panel) = PanelState::load(context, Id::new(key)) {
+                let width = json!(panel.size().x);
+                if layout.values[key] != width {
+                    layout.values[key] = width;
+                    layout.dirty = true;
+                }
+            }
+        }
+        let result = layout.dirty.then(|| layout.values.clone());
+        layout.dirty = false;
+        context.data_mut(|data| data.insert_temp(state_id(), layout));
+        result
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        fn frame(context: &Context, events: Vec<egui::Event>) -> Option<Value> {
+            let mut saved = None;
+            let mut output = context.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(Pos2::ZERO, egui::vec2(1200.0, 800.0))),
+                    events,
+                    ..Default::default()
+                },
+                |ui| {
+                    egui::Panel::left(PANELS[0])
+                        .default_size(264.0)
+                        .min_size(100.0)
+                        .max_size(600.0)
+                        .resizable(true)
+                        .show(ui, |ui| {
+                            ui.set_min_width(ui.available_width());
+                            ui.label("Tools");
+                        });
+                    if let Some(value) = changed(context) {
+                        saved = Some(value);
+                    }
+                },
+            );
+            output.textures_delta.clear();
+            saved
+        }
+
+        #[test]
+        fn persistent_panel_drag_round_trips_a_fresh_context() {
+            let context = Context::default();
+            restore(&context, &json!({PANELS[0]: 310.0}));
+            for _ in 0..3 {
+                assert!(frame(&context, vec![]).is_none());
+            }
+            let rect = PanelState::load(&context, Id::new(PANELS[0]))
+                .unwrap()
+                .outer_rect;
+            assert!((rect.width() - 310.0).abs() < 1.0, "{rect:?}");
+            let start = egui::pos2(rect.right(), rect.center().y);
+            let end = start + egui::vec2(82.0, 0.0);
+            let button = |pos, pressed| egui::Event::PointerButton {
+                pos,
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: egui::Modifiers::NONE,
+            };
+            frame(&context, vec![egui::Event::PointerMoved(start)]);
+            frame(&context, vec![button(start, true)]);
+            frame(&context, vec![egui::Event::PointerMoved(end)]);
+            let saved = frame(&context, vec![button(end, false)])
+                .expect("a real panel drag must publish geometry");
+            assert!(saved[PANELS[0]].as_f64().unwrap() > 380.0, "{saved}");
+            let reopened = Context::default();
+            restore(&reopened, &saved);
+            for _ in 0..3 {
+                assert!(frame(&reopened, vec![]).is_none());
+            }
+            let width = PanelState::load(&reopened, Id::new(PANELS[0]))
+                .unwrap()
+                .size()
+                .x;
+            assert!((f64::from(width) - saved[PANELS[0]].as_f64().unwrap()).abs() < 1.0);
+        }
+
+        #[test]
+        fn persistent_layout_keeps_floating_positions_and_ignores_invalid_widths() {
+            let context = Context::default();
+            restore(&context, &json!({PANELS[0]: -30.0, PANELS[1]: "wrong"}));
+            assert!(PanelState::load(&context, Id::new(PANELS[0])).is_none());
+            remember_position(&context, "Viewport", egui::pos2(120.0, 180.0));
+            let saved = changed(&context).unwrap();
+            let reopened = Context::default();
+            restore(&reopened, &saved);
+            assert_eq!(
+                position(&reopened, "Viewport", Pos2::ZERO),
+                egui::pos2(120.0, 180.0)
+            );
+            assert!(changed(&reopened).is_none());
+        }
+    }
+}
+
 const CDMW_VIEW_MODES: [(ViewMode, &str); 7] = [
     (ViewMode::TexturedSolid, "Solid (Textured)"),
     (ViewMode::Solid, "Faces (No Textures)"),
@@ -480,6 +663,7 @@ impl LabApplication {
             return;
         };
         self.apply_cdmw_theme_payload(&bridge.manifest().theme);
+        crate::cdmw_layout::restore(&self.egui_context, &bridge.manifest().theme["layout"]);
     }
 
     pub(super) fn apply_cdmw_theme_payload(&self, theme: &Value) {
@@ -663,6 +847,12 @@ impl LabApplication {
                     .contains(&CdmwSidebarPage::Tool(CdmwRailPage::VertexParameters))
             };
         self.tick_vertex_inspector(vertex_parameters_visible);
+        if let Some(layout) = crate::cdmw_layout::changed(&self.egui_context)
+            && let Some(bridge) = &self.cdmw_bridge
+            && let Err(error) = bridge.publish_layout(layout)
+        {
+            self.status = format!("Could not save editor layout: {error}");
+        }
         actions
     }
 
@@ -1174,7 +1364,7 @@ impl LabApplication {
             let area = egui::Area::new(page.layer().id)
                 .order(egui::Order::Foreground)
                 .movable(true)
-                .default_pos(position)
+                .default_pos(crate::cdmw_layout::position(&context, page.label(), position))
                 .constrain_to(bounds)
                 .default_size(egui::vec2(width, 0.0))
                 .show(&context, |ui| {
@@ -1199,6 +1389,7 @@ impl LabApplication {
                 });
             if area.response.dragged() {
                 context.set_cursor_icon(egui::CursorIcon::Grabbing);
+                crate::cdmw_layout::remember_position(&context, page.label(), area.response.rect.min);
             }
         }
         // Viewport input never dismisses tool windows. Escape closes only the

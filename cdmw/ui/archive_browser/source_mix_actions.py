@@ -275,6 +275,7 @@ class ArchiveSourceMixActionsMixin:
             return
         target_entries_by_virtual_path = self._source_mix_target_entries_by_virtual_path(target_entries)
         dialog = QDialog(self)
+        dialog.setObjectName("layout_cdmw_ui_archive_browser_source_mix_actions__open_archive_source_mix_package_dialog_dialog")
         dialog.setWindowTitle("Build Loose Package From Sources")
         dialog.setModal(True)
         dialog.resize(980, 520)

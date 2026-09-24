@@ -82,6 +82,7 @@ class ArchiveAppearanceCompositeMixin:
         if not components:
             return None
         dialog = QDialog(self)
+        dialog.setObjectName("layout_cdmw_ui_archive_browser_appearance_composite__prompt_appearance_composite_override_component_dialog")
         package_mode = str(purpose or "").strip().lower() == "package"
         dialog.setWindowTitle("Choose Target Component" if package_mode else "Choose Component To Replace")
         layout = QVBoxLayout(dialog)
@@ -170,6 +171,7 @@ class ArchiveAppearanceCompositeMixin:
         override_model_entry: Optional[ArchiveEntry] = None,
     ) -> Optional[Tuple[int, ...]]:
         dialog = QDialog(self)
+        dialog.setObjectName("layout_cdmw_ui_archive_browser_appearance_composite__prompt_appearance_composite_component_selection_dialog")
         dialog.setWindowTitle("Preview Composite Appearance")
         layout = QVBoxLayout(dialog)
         layout.setContentsMargins(12, 12, 12, 12)

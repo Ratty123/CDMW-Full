@@ -292,6 +292,11 @@ class TemplatePanel(QGroupBox):
         header = self.matches.header()
         self._resizing_match_columns = True
         try:
+            from cdmw.ui.layout_persistence import restore_header_layout
+
+            if changed_column < 0 and restore_header_layout(header):
+                self._column_widths_initialized = True
+                return
             if not self._column_widths_initialized:
                 key_width = max(80, round(available * 0.11))
                 type_width = max(110, round(available * 0.17))

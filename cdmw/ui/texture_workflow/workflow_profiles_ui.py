@@ -101,6 +101,7 @@ class TextureWorkflowProfilesUiMixin:
         filters_layout.addWidget(rules_group)
         filters_layout.addWidget(matched_group)
         dialog = QDialog(self)
+        dialog.setObjectName("layout_cdmw_ui_texture_workflow_workflow_profiles_ui__build_workflow_profiles_body_dialog")
         dialog.setWindowTitle("Workflow Profiles, Rules & Matches")
         dialog.resize(1060, 800)
         dialog_layout = QVBoxLayout(dialog)

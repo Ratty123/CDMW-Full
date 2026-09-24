@@ -197,6 +197,7 @@ class AboutControllerMixin:
 
     def show_about_dialog(self, _checked: bool = False) -> None:
         dialog = QDialog(self)
+        dialog.setObjectName("layout_cdmw_ui_shell_about_controller_show_about_dialog_dialog")
         dialog.setWindowTitle(f"About {APP_TITLE}")
         dialog.setMinimumSize(720, 520)
         dialog.resize(920, 680)

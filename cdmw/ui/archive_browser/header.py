@@ -86,6 +86,7 @@ class ArchiveBrowserHeaderMixin:
         header = self.archive_tree.header()
         if header is None:
             return
+        header.setProperty("cdmwColumnSettingsKey", "ui/archive_tree_v5")
         with self._archive_tree_header_programmatic():
             if self._archive_tree_columns_user_customized():
                 widths = self._parse_archive_tree_column_ints(

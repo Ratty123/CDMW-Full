@@ -66,6 +66,7 @@ class ArchiveSourcePickerDialogMixin:
         )
 
         dialog = QDialog(parent)
+        dialog.setObjectName("layout_cdmw_ui_archive_browser_source_picker_dialog__choose_archive_mesh_source_dialog_dialog")
         dialog.setWindowTitle(title)
         dialog.resize(1180, 700)
         layout = QVBoxLayout(dialog)

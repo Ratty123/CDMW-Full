@@ -277,6 +277,12 @@ class PresentationDocument:
         elif isinstance(widget, QSplitter):
             node["kind"] = "split"
             props.update(horizontal=widget.orientation() == Qt.Horizontal, sizes=widget.sizes())
+            from cdmw.ui.layout_persistence import saved_splitter_sizes
+
+            orientation = Qt.Horizontal if widget.objectName() == "new_item_model_workspace_splitter" else None
+            saved = saved_splitter_sizes(widget, orientation)
+            if saved:
+                props.update(sizes=saved, user_sized=True)
             props["indices"] = []
             for index in range(widget.count()):
                 child = self.widget(widget.widget(index))
@@ -293,9 +299,12 @@ class PresentationDocument:
                 props.update(checkable=widget.isCheckable(), checked=widget.isChecked(),
                              plain=bool(widget.property("guidedPage") or widget.property("titlelessSection")))
             elif isinstance(widget, QDialog):
+                from cdmw.ui.layout_persistence import native_dialog_layout
+
                 node["kind"] = "dialog"
                 node["label"] = widget.windowTitle()
                 props["modal"] = widget.isModal()
+                props["saved_rect"] = native_dialog_layout(widget)
             elif isinstance(widget, QDialogButtonBox):
                 props["dialog_actions"] = True
             elif isinstance(widget, QFrame) and widget.frameShape() in (QFrame.HLine, QFrame.VLine):

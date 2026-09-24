@@ -264,6 +264,10 @@ class ModPackageRetrofitUi:
         self.table.itemChanged.connect(self._handle_table_item_changed)
 
     def _apply_content_splitter_sizes(self) -> None:
+        from cdmw.ui.layout_persistence import restore_splitter_layout
+
+        if restore_splitter_layout(self.content_splitter):
+            return
         width = max(1, self.content_splitter.width())
         left_width = max(540, int(width * 0.56))
         right_width = max(420, width - left_width)
@@ -504,6 +508,7 @@ class ModPackageRetrofitUi:
             if result.processed or result.failed else "No packages were selected for processing."
         )
         dialog = QDialog(self.parent)
+        dialog.setObjectName("layout_cdmw_ui_tools_mod_package_retrofit_widget__handle_conversion_completed_dialog")
         dialog.setWindowTitle(self.dialog_title)
         dialog.resize(880, 620)
         layout = QVBoxLayout(dialog)

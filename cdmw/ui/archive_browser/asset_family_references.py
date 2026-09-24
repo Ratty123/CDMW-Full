@@ -560,6 +560,7 @@ class ArchiveAssetFamilyReferenceMixin:
             return default_entries
 
         dialog = QDialog(self)
+        dialog.setObjectName("layout_cdmw_ui_archive_browser_asset_family_references__prompt_archive_asset_set_export_entries_dialog")
         dialog.setWindowTitle("Export Asset Family")
         dialog.setModal(True)
         layout = QVBoxLayout(dialog)

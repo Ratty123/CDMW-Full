@@ -265,6 +265,7 @@ class ArchiveFilterStateMixin:
         )
 
         dialog = QDialog(self)
+        dialog.setObjectName("layout_cdmw_ui_archive_browser_filters__open_archive_extension_picker_dialog")
         dialog.setWindowTitle("Select Archive Extension")
         dialog.resize(560, 660)
         layout = QVBoxLayout(dialog)

@@ -56,6 +56,7 @@ class ArchiveAttachmentDonorPickerDialogMixin:
             return None
         target_entry, dependencies, prepared_by_identity, sidecars_by_path, sidecars_by_basename = donor_dependencies
         picker = QDialog(parent)
+        picker.setObjectName("layout_cdmw_ui_archive_browser_attachment_donor_picker_dialog__open_archive_attachment_donor_picker_dialog_picker")
         picker.setWindowTitle(f"Choose Placement Source - {target_entry.basename}")
         picker.setWindowFlags(
             picker.windowFlags()
@@ -731,6 +732,7 @@ class ArchiveAttachmentDonorPickerDialogMixin:
                 }
             )
             finder = QDialog(picker)
+            finder.setObjectName("layout_cdmw_ui_archive_browser_attachment_donor_picker_dialog__open_item_finder_donor_picker_finder")
             finder.setWindowTitle("Item Finder - Choose Placement Source")
             finder.resize(1180, 740)
             finder_layout = QVBoxLayout(finder)

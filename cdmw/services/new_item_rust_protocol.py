@@ -23,7 +23,7 @@ MAX_COLUMNS = 128
 ACTIONS = frozenset({
     "activate", "toggle", "text", "number", "choose", "tab", "select",
     "cell", "check_cell", "sort", "expand", "range", "menu", "link",
-    "copy", "finish_edit", "submit", "close_dialog", "split", "resize_column", "key", "crop",
+    "copy", "finish_edit", "submit", "close_dialog", "resize_dialog", "split", "resize_column", "key", "crop",
 })
 
 

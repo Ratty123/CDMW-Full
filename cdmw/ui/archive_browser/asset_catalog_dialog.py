@@ -56,6 +56,7 @@ class ArchiveAssetCatalogDialogMixin:
             return
 
         dialog = QDialog(self)
+        dialog.setObjectName("layout_cdmw_ui_archive_browser_asset_catalog_dialog__show_archive_asset_catalog_dialog_dialog")
         dialog.setWindowTitle("Item Finder")
         dialog.resize(1240, 780)
         self.archive_item_icon_negative_cache.clear()

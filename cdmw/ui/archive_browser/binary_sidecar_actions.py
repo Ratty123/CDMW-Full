@@ -171,6 +171,7 @@ class ArchiveBinarySidecarActionsMixin:
 
     def _open_archive_binary_sidecar_inspector_dialog(self, entry: ArchiveEntry, document_text: str) -> None:
         dialog = QDialog(self)
+        dialog.setObjectName("layout_cdmw_ui_archive_browser_binary_sidecar_actions__open_archive_binary_sidecar_inspector_dialog_dialog")
         dialog.setWindowTitle(f"Inspect Sidecar - {entry.basename}")
         dialog.resize(940, 680)
         layout = QVBoxLayout(dialog)

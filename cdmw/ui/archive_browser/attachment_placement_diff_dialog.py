@@ -166,6 +166,7 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
         package_plan_rows: List[dict] = []
         package_plan_warnings: List[str] = []
         dialog = QDialog(self)
+        dialog.setObjectName("layout_cdmw_ui_archive_browser_attachment_placement_diff_dialog__open_archive_attachment_placement_diff_dialog_dialog")
         dialog.setWindowTitle("Weapon Placement")
         dialog.setWindowFlags(
             dialog.windowFlags()

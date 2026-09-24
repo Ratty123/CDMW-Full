@@ -408,6 +408,14 @@ its staged inputs and section state. Multiple tool windows stay open during
 viewport editing; each window can move, close, or pin independently.
 See the [Vertex Parameters workflow](../../cdmw/ui/mesh_editor/README.md#vertex-parameters).
 
+The embedded editor restores the Tools, Inspector and pinned-panel widths from
+`theme.layout`. Its `layout_changed` event carries only presentation geometry,
+the current protocol, session ID and process generation; CDMW saves it in the
+existing user CFG without starting an authoring request. Floating tool positions
+use the same route. New Item's `split`, `resize_column` and `resize_dialog`
+actions save through the retained workflow; snapshots supply saved proportions
+and dialog rectangles independently of transient control IDs.
+
 Morph & Refit can load body and armor from the archive catalogue, assign their roles, and preview an
 initial **Fit to body** without a shape slider. The host's native Surface solver
 preserves layers and limits sleeve/cuff distortion, with a 90-second command

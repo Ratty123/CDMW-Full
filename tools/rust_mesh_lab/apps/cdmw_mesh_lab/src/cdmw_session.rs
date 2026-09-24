@@ -1050,6 +1050,15 @@ impl CdmwBridge {
         Ok(Some(hair))
     }
 
+    pub fn publish_layout(&self, layout: Value) -> Result<(), SessionError> {
+        self.send_message(json!({
+            "event": "layout_changed", "protocol": PROTOCOL,
+            "session_id": self.manifest.session_id,
+            "process_generation": self.manifest.process_generation,
+            "layout": layout
+        }))
+    }
+
     pub fn submit_command(&mut self, command: &str, arguments: Value) -> Result<u64, SessionError> {
         let request_id = self.take_request_id();
         self.send_message(json!({

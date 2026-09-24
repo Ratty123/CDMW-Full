@@ -513,6 +513,7 @@ class TextureWorkflowSetupPanelMixin:
 
     def open_ncnn_model_catalog(self) -> None:
         dialog = QDialog(self)
+        dialog.setObjectName("layout_cdmw_ui_texture_workflow_setup_panel_open_ncnn_model_catalog_dialog")
         dialog.setWindowTitle("NCNN Model Catalog")
         dialog.resize(780, 540)
 

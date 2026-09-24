@@ -102,6 +102,10 @@ def apply_action(document, widget, node, action, value):
         sizes = [integer(size, minimum=0 if widget.widget(i).isHidden() else 40, maximum=16000)
                  for i, size in enumerate(value)]
         widget.setSizes(sizes)
+        from cdmw.ui.layout_persistence import remember_splitter_resize
+
+        orientation = Qt.Horizontal if widget.objectName() == "new_item_model_workspace_splitter" else None
+        remember_splitter_resize(widget, sizes, orientation)
         return
     elif action in {"select", "cell", "check_cell", "expand", "sort", "menu", "resize_column"} and isinstance(widget, QAbstractItemView):
         _view_action(widget, action, value)
@@ -174,6 +178,16 @@ def apply_action(document, widget, node, action, value):
         else:
             widget.linkActivated.emit(url)
         return
+    elif action == "resize_dialog" and isinstance(widget, QDialog):
+        from cdmw.ui.layout_persistence import native_dialog_layout
+
+        if not isinstance(value, list) or len(value) != 4:
+            raise PresentationProtocolError("Invalid dialog bounds.")
+        x, y = [integer(n, minimum=-32768, maximum=32768) for n in value[:2]]
+        width = integer(value[2], minimum=120, maximum=16000)
+        height = integer(value[3], minimum=80, maximum=16000)
+        native_dialog_layout(widget, [x, y, width, height])
+        return
     elif action == "close_dialog" and isinstance(widget, (QDialog, QMenu)):
         widget.reject() if isinstance(widget, QDialog) else widget.close()
         return
@@ -211,6 +225,9 @@ def _view_action(view, action, value):
             if header.sectionResizeMode(column) != QHeaderView.ResizeMode.Interactive:
                 raise PresentationProtocolError("This column has an automatic width.")
             header.resizeSection(column, integer(values.get("width"), minimum=24, maximum=4000))
+            from cdmw.ui.layout_persistence import remember_header_resize
+
+            remember_header_resize(header)
             return
         if view.isSortingEnabled():
             order = Qt.DescendingOrder if _boolean(values.get("descending", False)) else Qt.AscendingOrder

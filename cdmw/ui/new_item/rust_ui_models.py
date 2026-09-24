@@ -91,6 +91,10 @@ class ModelProjection:
         is_table = isinstance(view, QTableView)
         is_tree = isinstance(view, QTreeView)
         header = view.horizontalHeader() if is_table else view.header() if is_tree else None
+        if header is not None:
+            from cdmw.ui.layout_persistence import ensure_header_layout
+
+            ensure_header_layout(header)
         columns_data = []
         for col in range(columns):
             columns_data.append({"index": col,

@@ -406,6 +406,7 @@ class ItemIconLibraryTab(ItemIconRecordListMixin, ItemIconWorkerMixin, QWidget):
         if not self.records:
             self.scan_library(show_status=False)
         dialog = QDialog(parent or self)
+        dialog.setObjectName("layout_cdmw_ui_item_icons_tab_choose_source_dialog_dialog")
         dialog.setWindowTitle("Choose Item Icon Library Source")
         dialog.resize(880, 560)
         layout = QVBoxLayout(dialog)

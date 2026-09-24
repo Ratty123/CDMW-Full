@@ -279,7 +279,10 @@ class MovePreview(QWidget):
         self.splitter.widget(0).setVisible(mode != "After")
         self.splitter.widget(1).setVisible(mode != "Before")
         if mode == "Compare" and min(self.splitter.sizes()) == 0:
-            self.splitter.setSizes([max(1,self.splitter.width()//2)]*2)
+            from cdmw.ui.layout_persistence import restore_splitter_layout
+
+            if not restore_splitter_layout(self.splitter):
+                self.splitter.setSizes([max(1,self.splitter.width()//2)]*2)
         if self._awaiting_paint:
             self._awaiting_paint = {0, 1} if mode == "Compare" else {int(mode == "After")}
             self._frame_paint_seconds = 0.0
