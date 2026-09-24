@@ -110,6 +110,16 @@ class ShaderControlsEditor(QGroupBox):
                 enabled = QCheckBox(field.label)
                 enabled.setChecked(field.name in values)
                 enabled.setToolTip("Override this field. Uncheck to retain the authored value.")
+                if field.kind == "ExportToggle":
+                    enabled.setChecked(values.get(field.name, field.default) == (1.,))
+                    warning = QLabel("Affects all EyeCover materials, including eyes, while the mod is installed. Test in game; the viewport does not simulate this change.")
+                    warning.setWordWrap(True)
+                    enabled.setToolTip(warning.text())
+                    self.form.addRow(enabled)
+                    self.form.addRow(warning)
+                    self._rows.append((field, enabled, []))
+                    enabled.toggled.connect(self._values_changed)
+                    continue
                 if family == EYE_COVER:
                     tips = {
                         "_eyeCoverDiffuseParameter": "Packed into 256 steps. Colour weight is twice this value minus material red; this is not a whole-material opacity percentage. Unchecked: keep the authored value, or use 0.5.",
@@ -167,7 +177,7 @@ class ShaderControlsEditor(QGroupBox):
             for spin in spins:
                 spin.setEnabled(enabled.isChecked())
             if enabled.isChecked():
-                values.append((field.name, tuple(spin.value() for spin in spins)))
+                values.append((field.name, (1.,) if field.kind == "ExportToggle" else tuple(spin.value() for spin in spins)))
         self._choices[self.part.currentData()] = ShaderControls(self.family.currentData(), tuple(values))
         self.changed.emit(tuple(self._choices.items()))
 

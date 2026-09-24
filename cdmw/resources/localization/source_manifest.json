@@ -5682,6 +5682,16 @@
       ]
     },
     {
+      "key": "Affects all EyeCover materials, including eyes, while the mod is installed. Test in game; the viewport does not simulate this change.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/shader_controls_editor.py",
+          "line": 115,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
       "key": "Affects all PHM 2H swords. Use only when you want class-wide animation aliases and placement, not one selected weapon.",
       "origins": [
         {
@@ -6981,7 +6991,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_package_service.py",
-          "line": 103,
+          "line": 99,
           "sink": "ValueError"
         }
       ]
@@ -18107,6 +18117,11 @@
       ]
     },
     {
+      "key": "Cannot prepare the global EyeCover overlap test: {value_0}",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Cannot read archive index {value_0}; New Item needs a complete source catalogue: {value_1}",
       "origins": [
         {
@@ -18122,6 +18137,16 @@
         {
           "path": "cdmw/services/new_item_prices.py",
           "line": 21,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Cannot turn off the EyeCover overlap test in this existing package safely. Export to a new mod folder for the off comparison.",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_eye_cover_overlap.py",
+          "line": 64,
           "sink": "ValueError"
         }
       ]
@@ -20066,7 +20091,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 255,
+          "line": 253,
           "sink": "report"
         }
       ]
@@ -24516,7 +24541,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 331,
+          "line": 329,
           "sink": "report"
         }
       ]
@@ -43032,6 +43057,16 @@
       ]
     },
     {
+      "key": "Global EyeCover overlap test (experimental)",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Global EyeCover overlap test: affects all EyeCover materials, including eyes. Render order and lighting remain unverified; test in game. Remove this test mod for the stock comparison.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Global Template",
       "origins": [
         {
@@ -54971,12 +55006,12 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 582,
+          "line": 591,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 584,
+          "line": 593,
           "sink": "ValueError"
         },
         {
@@ -64236,27 +64271,17 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 383,
+          "line": 381,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 459,
+          "line": 457,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 586,
-          "sink": "raise_if_cancelled"
-        },
-        {
-          "path": "cdmw/services/new_item_service.py",
-          "line": 591,
-          "sink": "raise_if_cancelled"
-        },
-        {
-          "path": "cdmw/services/new_item_service.py",
-          "line": 593,
+          "line": 595,
           "sink": "raise_if_cancelled"
         },
         {
@@ -64266,7 +64291,17 @@
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 658,
+          "line": 602,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/new_item_service.py",
+          "line": 609,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/new_item_service.py",
+          "line": 667,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -64306,12 +64341,12 @@
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 254,
+          "line": 252,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 294,
+          "line": 292,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -64321,7 +64356,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 113,
+          "line": 111,
           "sink": "raise_if_cancelled"
         },
         {
@@ -73211,12 +73246,12 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_package_service.py",
-          "line": 117,
+          "line": 113,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/archive_overlay_package_service.py",
-          "line": 138,
+          "line": 134,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -73226,7 +73261,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_package_service.py",
-          "line": 122,
+          "line": 118,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -73236,7 +73271,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_package_service.py",
-          "line": 89,
+          "line": 85,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -73246,7 +73281,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_package_service.py",
-          "line": 74,
+          "line": 70,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -73256,7 +73291,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_package_service.py",
-          "line": 49,
+          "line": 45,
           "sink": "ValueError"
         }
       ]
@@ -74446,7 +74481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 121,
+          "line": 131,
           "sink": "setToolTip"
         }
       ]
@@ -79456,7 +79491,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 549,
+          "line": 558,
           "sink": "on_log"
         }
       ]
@@ -80066,7 +80101,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 329,
+          "line": 327,
           "sink": "report"
         }
       ]
@@ -80196,7 +80231,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 816,
+          "line": 818,
           "sink": "add"
         }
       ]
@@ -90481,7 +90516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 121,
+          "line": 131,
           "sink": "setToolTip"
         }
       ]
@@ -90491,7 +90526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 121,
+          "line": 131,
           "sink": "setToolTip"
         }
       ]
@@ -90501,7 +90536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 121,
+          "line": 131,
           "sink": "setToolTip"
         }
       ]
@@ -90511,7 +90546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 121,
+          "line": 131,
           "sink": "setToolTip"
         }
       ]
@@ -93351,7 +93386,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 115,
+          "line": 113,
           "sink": "on_log"
         }
       ]
@@ -112047,6 +112082,11 @@
       ]
     },
     {
+      "key": "The base mod already includes the global EyeCover overlap test. Use a base without that test for an off comparison.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "The body being edited — `1_phm` is the player character.",
       "origins": [
         {
@@ -112655,6 +112695,11 @@
           "sink": "RuntimeError"
         }
       ]
+    },
+    {
+      "key": "The global EyeCover overlap test requires the game's character render definition.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "The hair archive contains an incomplete or duplicate bundle.",
@@ -118006,7 +118051,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 357,
+          "line": 355,
           "sink": "ValueError"
         }
       ]
@@ -125096,7 +125141,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_package_service.py",
-          "line": 145,
+          "line": 141,
           "sink": "on_log"
         }
       ]

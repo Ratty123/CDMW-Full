@@ -21,7 +21,7 @@ class ShaderField:
 
     @property
     def integer(self):
-        return self.kind in {"Int", "Byte4", "BitFlag32"} or self.name in {"_wingFlowInverse", "_dissolvePositionType"}
+        return self.kind in {"Int", "Byte4", "BitFlag32", "ExportToggle"} or self.name in {"_wingFlowInverse", "_dissolvePositionType"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,6 +89,7 @@ EYE_COVER_TEXTURE_FIELDS = {
     "roughness": ("_materialTexture", 1),
     "metallic": ("_materialTexture", 2),
 }
+EYE_COVER_OVERLAP_FIELD = "global_overlap_test"
 EYE_COVER = ShaderFamily("SkinnedMeshEyeCover", "EyeCover blending (experimental)",
     "Approximate viewport preview. Test in game; character-buffer blending, depth and shadows are not reproduced. "
     "Colour mixing is not an opacity percentage: its weight is twice the packed colour value minus material red. "
@@ -99,6 +100,8 @@ EYE_COVER = ShaderFamily("SkinnedMeshEyeCover", "EyeCover blending (experimental
         ShaderField("material_red", "Colour mask (material red)", (0.,), 0, 1, "TextureChannel"),
         ShaderField("roughness", "EyeCover roughness", (.9,), 0, 1, "TextureChannel"),
         ShaderField("metallic", "EyeCover metallic", (0.,), 0, 1, "TextureChannel"),
+        ShaderField(EYE_COVER_OVERLAP_FIELD, "Global EyeCover overlap test (experimental)",
+                    (0.,), 0, 1, "ExportToggle"),
     ))
 NEW_ITEM_FAMILIES = tuple(family for family in FAMILIES if family.shader != "Dissolve") + (EYE_COVER,)
 

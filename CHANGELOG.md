@@ -34,6 +34,7 @@ The format is intentionally simple:
 
 ### Added
 
+- Create New Item offers a default-off Global EyeCover overlap test to investigate missing clothing behind EyeCover weapons. Exports change only EyeCover's stencil/depth states in the shared character render definition, warn that all EyeCover materials (including eyes) are affected, and reject unsupported definitions. In-game appearance remains experimental; the viewport does not simulate this test.
 - Create New Item offers experimental EyeCover blending per material part, with colour mixing, surface alpha, material red, roughness and metallic controls. Model & Placement, Effects and dye viewports show an explicitly approximate preview with independent colour coverage and surface detail/shine; the game's character-buffer blend, depth and shadows still require in-game testing. Exports use typed material parameters and private BC7 maps.
 - Create New Item has per-part Surface colour and reflections controls for imported models, with Match glow colour, independent roughness/metallic edits, a Low-shine preset and source reset. Settings follow variants, previews and exported textures without changing glow strength or transparency.
 - Create New Item offers experimental per-variant controls to keep underlying skin/head and hair/beard. Exports isolate shrink and whole-part hide rules for the new item, preserve template hide conditions for the default comparison, and report unsupported inputs. In-game visibility still needs A/B testing; the preview does not simulate these rules.

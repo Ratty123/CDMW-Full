@@ -798,6 +798,8 @@ def build_plan(
             planner.check()
             planner.log(f"Planning {label}...")
             step()
+        from cdmw.services.new_item_eye_cover_overlap import plan_eye_cover_overlap
+        plan_eye_cover_overlap(planner)
     except NewItemSnapshotError as exc:
         raise NewItemPlanError(str(exc)) from exc
     loose: Dict[str, bytes] = dict(snapshot.base_payloads)

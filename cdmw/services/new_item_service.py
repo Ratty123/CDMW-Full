@@ -669,6 +669,11 @@ def _carry_forward_archive_group(
         if path.casefold() in changed:
             continue
         payload, _decompressed, _note = read_archive_entry_data(entry, stop_event=stop_event)
+        from cdmw.core.eye_cover_overlap import RENDERPASS_PATH
+        if path.casefold() == RENDERPASS_PATH:
+            from cdmw.services.new_item_eye_cover_overlap import retire_exported_overlap_test
+            if retire_exported_overlap_test(plan, root, payload, stop_event=stop_event):
+                continue
         carried.append(
             ArchiveAddRequest(
                 pamt_path=Path(entry.pamt_path),

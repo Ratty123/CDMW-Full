@@ -52,6 +52,27 @@ chain while reducing repeated work on material maps. BC7 is lossy and channel
 values are quantized. The updated viewport shader reaches the portable app with
 the next explicitly requested executable build.
 
+**Global EyeCover overlap test (experimental)** is a default-off checkbox under
+EyeCover's controls. Enabling it on any selected variant adds one shared
+`renderpass/renderpassgbuffercharacter.xml` replacement to the mod. It disables
+EyeCover stencil testing/writing in the character depth prepass and both character
+G-buffer paths, and explicitly keeps depth testing with `GreaterEqual` and no
+depth writes in the G-buffer paths. Other materials, shader code, cache identities
+and render-pass order remain unchanged. This tests the missing-character/clothing
+problem; it does not guarantee late drawing or correct lighting.
+
+The test affects **all EyeCover materials, including character eye overlays**,
+while installed. The viewport does not simulate the change. Use the same pose,
+equipment and material values for the game comparison; remove the test mod and
+restart the game for the stock result. Other mods replacing the same render file
+can conflict. Definitions come from the active source and unsupported layouts
+stop planning. A combined base containing the test retains it and produces an
+explicit warning when the checkbox is off; use a base without the experiment
+for an off comparison. The exported plan records the global scope and file hashes.
+DMM re-export with the test off retires an unchanged test patch recorded for the
+same item. If its ownership cannot be verified, export asks for a fresh mod folder
+instead of silently retaining the test or removing someone else's render changes.
+
 Owns the Create New Item tab: clone an equipment item into a brand-new one with
 its own identity, model, icon, stats, shop placement and item groups, then write
 it as a loose mod or install it.

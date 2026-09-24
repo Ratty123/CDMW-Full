@@ -71,6 +71,12 @@ MANUAL_SOURCE_KEYS = frozenset(
         "EyeCover blending (experimental)",
         "Colour mixing", "Surface alpha", "Colour mask (material red)",
         "EyeCover roughness", "EyeCover metallic",
+        "Global EyeCover overlap test (experimental)",
+        "The base mod already includes the global EyeCover overlap test. Use a base without that test for an off comparison.",
+        "The global EyeCover overlap test requires the game's character render definition.",
+        "Cannot prepare the global EyeCover overlap test: {value_0}",
+        "Cannot turn off the EyeCover overlap test in this existing package safely. Export to a new mod folder for the off comparison.",
+        "Global EyeCover overlap test: affects all EyeCover materials, including eyes. Render order and lighting remain unverified; test in game. Remove this test mod for the stock comparison.",
         "Approximate viewport preview. Test in game; character-buffer blending, depth and shadows are not reproduced. "
         "Colour mixing is not an opacity percentage: its weight is twice the packed colour value minus material red. "
         "Surface alpha separately blends normals and surface properties. Game lighting, colour, reflections, depth and shadows may differ.",

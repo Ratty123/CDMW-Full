@@ -352,23 +352,40 @@ def test_rust_bridge_exposes_controls_updates_draft_and_restores(studio, monkeyp
     _send(bridge, editor.family, "choose", editor.family.findData(EYE_COVER.shader))
     assert "Approximate preview" in editor.note.text() and editor.note.isVisibleTo(tab)
     for field_, enabled, spins in editor._rows:
+        if field_.kind == "ExportToggle":
+            assert not enabled.isChecked()
+            assert "all EyeCover materials" in enabled.toolTip()
+            continue
         if not enabled.isChecked():
             _send(bridge, enabled, "toggle", True)
         _send(bridge, spins[0], "number", .25)
     saved = tab.controller.draft.shader_controls
-    assert saved == (("Blade", controls(**{field.name: .25 for field in EYE_COVER.fields})),)
+    assert saved == (("Blade", controls(**{field.name: .25 for field in EYE_COVER.fields if field.kind != "ExportToggle"})),)
     sent = [group for group in sender.call_args.args[0] if group.get("shader_controls")]
     assert len(sent) == 1 and sent[0]["source_submesh_indices"] == [0]
     assert sent[0]["shader_controls"][:9] == [7., 0., 0., 0., *([64 / 255] * 5)]
     assert tab.controller._draft_revision > before
     assert not tab.controller.has_current_plan
+    toggle = next(enabled for field_, enabled, _ in editor._rows if field_.kind == "ExportToggle")
+    _send(bridge, toggle, "toggle", True)
+    selected = tab.controller.draft.shader_controls[0][1]
+    assert dict(selected.values)["global_overlap_test"] == (1.,)
+    assert ShaderControls.from_dict(selected.to_dict()) == selected
+    editor.refresh((("Blade", "Blade"),), tab.controller.draft.shader_controls, equipment_shader_options(material()))
+    from PySide6.QtWidgets import QApplication
+    QApplication.processEvents()
+    toggle = next(enabled for field_, enabled, _ in editor._rows if field_.kind == "ExportToggle")
+    assert toggle.isChecked()
+    _send(bridge, toggle, "toggle", False)
+    assert tab.controller.draft.shader_controls == saved
     _send(bridge, editor.reset, "activate")
     assert tab.controller.draft.shader_controls == ()
 
 
 @pytest.mark.parametrize("variant", [False, True])
 @pytest.mark.parametrize("imported", [False, True])
-def test_complete_plan_and_loose_export_include_owned_eye_cover_maps(tmp_path, variant, imported, monkeypatch):
+@pytest.mark.parametrize("overlap", [False, True])
+def test_complete_plan_and_loose_export_include_owned_eye_cover_maps(tmp_path, variant, imported, overlap, monkeypatch):
     from cdmw.core.archive_format import parse_archive_pamt
     from cdmw.services.new_item_service import NewItemService
     from cdmw.services.new_item_variants import xml_path
@@ -376,15 +393,23 @@ def test_complete_plan_and_loose_export_include_owned_eye_cover_maps(tmp_path, v
     from tests.test_new_item_provenance import current_files, spec
     from tests.test_new_item_service import PAC as TEMPLATE_PAC, PAC_XML, build_package, _read
     from tests.test_new_item_variant_authoring import selections
+    from tests.test_eye_cover_overlap import render_definition
+    from cdmw.core.eye_cover_overlap import RENDERPASS_PATH, rewrite_eye_cover_overlap
+    from pathlib import Path
 
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "appdata"))
     data = current_files()
     owned = source_files()
     data.update({path: payload for path, payload in owned.side_files.items() if path != XML})
     data[PAC_XML] = owned.side_files[XML]
+    data[RENDERPASS_PATH] = render_definition()
     original = dict(data)
     service = NewItemService()
     snapshot = service.build_snapshot(parse_archive_pamt(build_package(tmp_path / "fixture", data)), read_entry=_read)
-    settings = (("Blade", controls(_eyeCoverDiffuseParameter=.35, surface_alpha=.25, material_red=.1)),)
+    source_entry = snapshot.entry(TEMPLATE_PAC)
+    original_archives = {Path(path): Path(path).read_bytes() for path in (source_entry.pamt_path, source_entry.paz_file)}
+    settings = (("Blade", controls(_eyeCoverDiffuseParameter=.35, surface_alpha=.25, material_red=.1,
+                                  **({"global_overlap_test": 1.} if overlap else {}))),)
     request = replace(spec(), shader_controls=settings)
     kwargs = {}
     if imported:
@@ -420,7 +445,31 @@ def test_complete_plan_and_loose_export_include_owned_eye_cover_maps(tmp_path, v
         assert path in plan.loose_files and path not in original
         assert plan.loose_files[path].startswith(b"DDS ")
     assert any("Approximate viewport preview" in line for line in plan.summary_lines)
+    assert (RENDERPASS_PATH in plan.loose_files) == overlap
+    if overlap:
+        assert len([patch for patch in plan.patches if patch.entry.path == RENDERPASS_PATH]) == 1
+        assert plan.loose_files[RENDERPASS_PATH] == rewrite_eye_cover_overlap(data[RENDERPASS_PATH])
+        assert plan.manifest["eye_cover_overlap_test"]["scope"] == "all_eye_cover_materials"
+        assert any("affects all EyeCover materials" in line for line in plan.warnings)
+        assert "global_overlap_test" not in plan.loose_files[xml_path(output)].decode()
     service.export_loose(plan, tmp_path / "mod", manager="JMM")
     for path in generated:
         assert (tmp_path / "mod" / path).read_bytes() == plan.loose_files[path]
+    if overlap:
+        assert (tmp_path / "mod" / RENDERPASS_PATH).read_bytes() == plan.loose_files[RENDERPASS_PATH]
+        if imported and variant:
+            # DMM's actual standalone archive route must include the same patch.
+            from cdmw.core.archive_extraction import read_archive_entry_data
+            service.export_loose(plan, tmp_path / "dmm", manager="DMM")
+            entries = parse_archive_pamt(tmp_path / "dmm/0036/0.pamt")
+            entry = next(entry for entry in entries if entry.path == RENDERPASS_PATH)
+            assert read_archive_entry_data(entry)[0] == plan.loose_files[RENDERPASS_PATH]
+            off_settings = (("Blade", controls(_eyeCoverDiffuseParameter=.35, surface_alpha=.25, material_red=.1)),)
+            off_request = replace(request, shader_controls=off_settings,
+                                  variants=tuple(replace(value, shader_controls=off_settings) for value in request.variants))
+            off_plan = service.plan(off_request, snapshot, **kwargs)
+            assert off_plan.spec.item_key == plan.spec.item_key
+            service.export_loose(off_plan, tmp_path / "dmm", manager="DMM")
+            assert RENDERPASS_PATH not in {entry.path for entry in parse_archive_pamt(tmp_path / "dmm/0036/0.pamt")}
     assert all(snapshot.payload(path) == payload for path, payload in original.items())
+    assert all(path.read_bytes() == payload for path, payload in original_archives.items())

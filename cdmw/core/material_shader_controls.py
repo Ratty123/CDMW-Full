@@ -142,6 +142,9 @@ def _rewrite_block(block, shader, controls, *, static, texture_paths=None):
     fields = {field.name: field for field in family.fields}
     for name, numbers in controls.values:
         field = fields[name]
+        if field.kind == "ExportToggle":
+            # These options belong to the New Item plan, never to PAC parameters.
+            continue
         if field.kind == "TextureChannel":
             if EYE_COVER_TEXTURE_FIELDS[name][0] not in texture_paths:
                 raise ValueError(f"{field.label}: the owned texture override was not prepared.")
