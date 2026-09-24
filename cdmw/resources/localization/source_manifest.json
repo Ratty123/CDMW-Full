@@ -60915,6 +60915,21 @@
       "key": "Mod name",
       "origins": [
         {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 257,
+          "sink": "QLabel"
+        },
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 259,
+          "sink": "tr"
+        },
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 503,
+          "sink": "tr"
+        },
+        {
           "path": "tools/placement_studio/window_constraints.py",
           "line": 274,
           "sink": "setPlaceholderText"
@@ -60934,6 +60949,11 @@
     {
       "key": "Mod name, as the mod manager will list it.",
       "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 260,
+          "sink": "setToolTip"
+        },
         {
           "path": "tools/placement_studio/window_constraints.py",
           "line": 275,

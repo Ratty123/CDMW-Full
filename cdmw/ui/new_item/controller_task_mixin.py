@@ -15,7 +15,7 @@ from cdmw.services.archive_workflow_service import archive_name_search_text_matc
 from cdmw.domain.cancellation import RunCancelled, raise_if_cancelled
 from cdmw.domain.new_item.rules import ValidationIssue, has_errors
 from cdmw.domain.new_item.spec import IconSource, ModelSource, NewItemSpec
-from cdmw.models import ArchiveEntry
+from cdmw.models import ArchiveEntry, ModPackageInfo
 from cdmw.ui.new_item.blender_setting import blender_for_fbx
 from cdmw.ui.new_item.model_import import (
     ModelImportSource,
@@ -286,7 +286,12 @@ class NewItemTaskControllerMixin:
         if not self.has_current_plan:
             self.status_message.emit("Build the plan first.", True)
             return False
-        task = export_task(self.plan, Path(package_root), service=self.service, manager=manager)
+        spec = self.plan.spec
+        package_info = ModPackageInfo(
+            title=self.draft.mod_name.strip() or spec.display_names.get("eng", "").strip() or f"New item {spec.internal_name}",
+            description=f"Adds {spec.internal_name} (item {spec.item_key}) cloned from item {spec.template_key}.",
+        )
+        task = export_task(self.plan, Path(package_root), service=self.service, manager=manager, package_info=package_info)
         return self._run("export", task, self.export_finished.emit, lambda message: self.status_message.emit(message, True))
 
     def start_install(self, mutation_service) -> bool:

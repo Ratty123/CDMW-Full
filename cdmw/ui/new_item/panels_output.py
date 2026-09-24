@@ -254,6 +254,12 @@ class OutputPanel(QGroupBox):
         self.manager.setToolTip("The mod manager whose folder layout the loose mod is written in.")
         self.manager.currentTextChanged.connect(lambda text: setattr(self._controller.draft, "manager", str(text)))
         export.addWidget(self.manager)
+        export.addWidget(QLabel("Mod name"))
+        self.mod_name = QLineEdit(controller.draft.mod_name)
+        self.mod_name.setPlaceholderText(controller.draft.display_names.get("eng", "") or self.tr("Mod name"))
+        self.mod_name.setToolTip("Mod name, as the mod manager will list it.")
+        self.mod_name.textChanged.connect(lambda text: setattr(self._controller.draft, "mod_name", str(text)))
+        export.addWidget(self.mod_name)
         export.addWidget(QLabel("Output folder"))
         self.export_root = QLineEdit()
         self.export_root.setPlaceholderText("Folder the mod is written into")
@@ -502,6 +508,7 @@ class OutputPanel(QGroupBox):
             self.log_toggle.setChecked(True)
 
     def _show_plan(self, plan: Optional[NewItemPlan] = None) -> None:
+        self.mod_name.setPlaceholderText(self._controller.draft.display_names.get("eng", "") or self.tr("Mod name"))
         self._install_error = ""
         if not self._controller.busy:
             self.busy_state.set_note("", None)

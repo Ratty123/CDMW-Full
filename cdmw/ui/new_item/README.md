@@ -688,6 +688,10 @@ keeps the file review on the left and destination settings in a right sidebar.
 The sidebar groups the **Mod folder** / **Game overlay** choices, destination,
 plan status and **Write mod folder** or **Install as an overlay** action. Its
 settings scroll independently while the plan status and output actions stay visible.
+For **Mod folder**, **Mod name** sets the package title shown by the selected mod
+manager. Leave it blank to use the item's English display name, shown as the field's
+placeholder. Editing this name keeps the current plan ready and changes only package
+metadata; the item's names and internal identity are unchanged.
 Choose the destination and existing-mod base first, build the plan, then review its
 file changes and full details. Destination, manager, overlay number and base changes
 clear the plan, including an in-flight result. The **Mod management** menu below

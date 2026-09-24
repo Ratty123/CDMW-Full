@@ -219,6 +219,7 @@ class NewItemDraft:
     explicit_item_groups: Tuple[int, ...] = ()
     manager: str = "CDUMM"
     export_root: str = ""
+    mod_name: str = ""
     own_enhancement_rows: bool = False
     #: The perks (Abyss Gear socket items) the item carries; None keeps the template's.
     socket_items: Optional[List[int]] = None
