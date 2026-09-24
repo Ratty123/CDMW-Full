@@ -59,6 +59,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Create New Item imports with Template cloth / physics off remove inherited cloth and jiggle bindings from every mesh LOD, as well as material simulation assignments. A template with a moving tail could otherwise move an imported part away from its authored position even though its HKX file was excluded. Attachment weights, geometry and authored materials are preserved.
 - DMM archive packages use the standalone `0036/` folder regardless of occupied game archive slots. This prevents DMM from treating new-item packages as group replacements and dropping their added models, materials and textures. Re-exporting an older New Item package preserves its assets and history while correcting the archive folder.
 - Create New Item no longer rejects shader experiments with "Shader controls must name unique material parts" when an imported part appears in repeated output sections. EyeCover edits each section's own textures, preserving unchecked channels and other parts.
 - Overlay installation confirmation and completion dialogs keep their buttons directly below the message, removing the large empty area at the bottom while retaining scrolling for long messages.

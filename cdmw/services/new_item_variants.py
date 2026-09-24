@@ -281,6 +281,10 @@ def plan_variant_files(planner):
                 planner.summary.extend(f"  {old}: {note}" for note in model.notes)
                 planner.warnings.extend(f"{old}: {warning}" for warning in model.warnings)
             payload = model.pac_data if model is not None else snapshot.payload(old)
+            if imported and not choice.keep_template_physics:
+                from cdmw.services.new_item_skinning import strip_template_vertex_physics
+                payload = strip_template_vertex_physics(payload)
+                planner.summary.append(f"  {old}: template cloth and jiggle bindings removed from every LOD.")
             planner.add(snapshot.entry(old),new,payload,f"Variant model: {new}")
             written.append(new)
             source_xml, new_xml = xml_path(old),xml_path(new)
@@ -297,6 +301,9 @@ def plan_variant_files(planner):
                 texture_map[path] = target
                 written.append(target)
             if material is not None:
+                if imported and not choice.keep_template_physics:
+                    from cdmw.services.new_item_skinning import strip_template_material_physics
+                    material = strip_template_material_physics(material)
                 for old_path,new_path in texture_map.items():
                     material = material.replace(old_path.encode(),new_path.encode())
                 material = plan_variant_dye(planner,old,new,material,choice,imported)

@@ -1,4 +1,4 @@
-"""Body-surface weights for new armour whose template binding is not encodable."""
+"""Imported New Item skinning and isolation from template motion."""
 from dataclasses import replace
 from pathlib import PurePosixPath
 
@@ -9,6 +9,36 @@ from cdmw.modding.mesh_skinning import (
     PAC_SKIN_WEIGHT_LAYOUT, SOURCE_VERTEX_MAP_TOPOLOGY, ensure_final_target_skin_weights,
 )
 from cdmw.modding.skeleton_parser import parse_pab
+
+
+def strip_template_vertex_physics(data):
+    """Keep skeletal attachment weights, but remove donor cloth/jiggle at every LOD.
+
+    The shared replacement writer deliberately retains donor simulation lanes.
+    A new imported item with template physics off must not publish those lanes,
+    even when it does not copy the separate HKX companion.
+    """
+    from cdmw.domain.mesh.cloth import PacClothRule
+    from cdmw.domain.mesh.jiggle import PacJiggleRule
+    from cdmw.modding.pac_cloth import apply_pac_cloth_rules, pac_cloth_lods
+    from cdmw.modding.pac_jiggle import apply_pac_jiggle_rules
+
+    levels = pac_cloth_lods(data)
+    cloth_parts = {index for level in levels for index, part in enumerate(level.submeshes)
+                   if any(data[offset + 39] & 63 != 63 for offset in part.source_vertex_offsets)}
+    data = apply_pac_cloth_rules(data, {index: PacClothRule(amount=0) for index in cloth_parts})
+    return apply_pac_jiggle_rules(data, {index: PacJiggleRule() for index in range(len(levels[0].submeshes))})
+
+
+def strip_template_material_physics(data):
+    """Clear inherited simulation assignments without changing authored materials."""
+    from cdmw.modding.pbd_profile_edit import ProfileXml
+
+    document = ProfileXml(data)
+    defaults = {"_pbdSimulationMaterialName": "", "_physicsFileName": "", "_jiggleWindWeight": "0"}
+    edits = [document.attribute_edit(node, name, value) for node in document.nodes
+             for name, value in defaults.items() if name in node.attributes and node.attributes[name] != value]
+    return document.apply(edits) if edits else data
 
 
 def _body_surface(mesh, body_palette, target_palette):

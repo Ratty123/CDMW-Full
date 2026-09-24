@@ -90,7 +90,7 @@ class _WriteTestsMixin:
             template_key=TEMPLATE, internal_name="Ziane_Clone_OneHandSword", display_names={"eng": "Wolf's Fang (Clone)"},
             model_source=ModelSource.IMPORTED, placement=Placement(PlacementKind.SWAP, "Store_Camp_Equipment", "Cigar_OneHandSword"),
         )
-        return self.service.plan(spec, self.snapshot, model=ModelFiles(pac_data=b"PAC imported mesh"))
+        return self.service.plan(spec, self.snapshot, model=ModelFiles(pac_data=self.snapshot.payload(PAC)))
 
     def test_direct_install_is_refused_even_after_confirmation(self) -> None:
         from unittest.mock import Mock
@@ -171,13 +171,15 @@ class _WriteTestsMixin:
             "the next plan is built against the overlay's copy of the table",
         )
 
+        from tests.test_new_item_service import imported_pac
+
         second = self.service.plan(
             NewItemSpec(
                 template_key=TEMPLATE, internal_name="Ziane_Second_OneHandSword", display_names={"eng": "Second"},
                 model_source=ModelSource.IMPORTED,
             ),
             snapshot,
-            model=ModelFiles(pac_data=b"PAC a second mesh"),
+            model=ModelFiles(pac_data=imported_pac(2)),
         )
         self.assertNotEqual(second.spec.item_key, first.spec.item_key, "the key after the one in the overlay")
         with patch("cdmw.services.new_item_service.game_is_running", lambda: False):
@@ -378,7 +380,7 @@ class _TextureRegistryTestsMixin:
             template_key=TEMPLATE, internal_name="Ziane_Clone_OneHandSword", display_names={"eng": "Wolf's Fang (Clone)"},
             model_source=ModelSource.IMPORTED, icon=IconSource.GENERATED,
         )
-        model = ModelFiles(pac_data=b"PAC imported mesh", side_files={f"character/texture/1_pc/{STEM}_d.dds": _fake_dds(4, 4) + bytes(16)})
+        model = ModelFiles(pac_data=self.snapshot.payload(PAC), side_files={f"character/texture/1_pc/{STEM}_d.dds": _fake_dds(4, 4) + bytes(16)})
         allocated = self.service.allocate(spec, self.snapshot)
         icon = NewItemIcon(
             icon_string="ItemIcon_Prefab_cd_phm_01_sword_9109", icon_hash=stringinfo_key("ItemIcon_Prefab_cd_phm_01_sword_9109"),
@@ -404,7 +406,7 @@ class _TextureRegistryTestsMixin:
         self.assertNotIn("meta/0.pathc", plan.loose_files, "a loose mod leaves the registry to the manager")
         self.assertTrue(any("texture registry" in line for line in plan.summary_lines))
         # a texture of a shape the registry has never seen gets a header row of its own
-        odd = ModelFiles(pac_data=b"PAC", side_files={f"character/texture/1_pc/{STEM}_d.dds": _fake_dds(8, 8) + bytes(64)})
+        odd = ModelFiles(pac_data=self.snapshot.payload(PAC), side_files={f"character/texture/1_pc/{STEM}_d.dds": _fake_dds(8, 8) + bytes(64)})
         odd_plan = self.service.plan(self.service.allocate(NewItemSpec(template_key=TEMPLATE, internal_name="Ziane_Odd_OneHandSword", display_names={"eng": "X"}, model_source=ModelSource.IMPORTED), self.snapshot), self.snapshot, model=odd)
         odd_table = parse_pathc(odd_plan.meta_files[0].payload_data)
         self.assertEqual(len(odd_table.headers), 3, "one header row added for the 8x8 shape")
@@ -415,7 +417,7 @@ class _TextureRegistryTestsMixin:
         snapshot = self.service.build_snapshot(self.entries, read_entry=_read)
         self.assertIsNone(snapshot.pathc)
         spec = self.service.allocate(NewItemSpec(template_key=TEMPLATE, internal_name="Ziane_Clone_OneHandSword", display_names={"eng": "X"}, model_source=ModelSource.IMPORTED), snapshot)
-        plan = self.service.plan(spec, snapshot, model=ModelFiles(pac_data=b"PAC", side_files={f"character/texture/1_pc/{STEM}_d.dds": _fake_dds(4, 4)}))
+        plan = self.service.plan(spec, snapshot, model=ModelFiles(pac_data=snapshot.payload(PAC), side_files={f"character/texture/1_pc/{STEM}_d.dds": _fake_dds(4, 4)}))
         self.assertEqual(plan.meta_files, ())
         self.assertTrue(any("meta/0.pathc" in w for w in plan.warnings), plan.warnings)
 

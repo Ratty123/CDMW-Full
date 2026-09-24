@@ -77,6 +77,20 @@ NAME_KEY, DESC_KEY = "4300529278648432", "4300529278648433"
 MC_ROW_0, MC_ROW_1 = 1013129, 1013130
 
 
+def imported_pac(position=0):
+    """A real, rigid PAC for plans that now inspect imported vertex motion."""
+    from tests.test_new_item_variant_rig import _pac
+    from cdmw.modding.pac_cloth import pac_cloth_lods
+
+    data = bytearray(_pac())
+    for level in pac_cloth_lods(bytes(data)):
+        for part in level.submeshes:
+            for offset in part.source_vertex_offsets:
+                data[offset + 38] = 255
+            struct.pack_into("<H", data, part.source_vertex_offsets[0], position)
+    return bytes(data)
+
+
 def _multichange_row(key: int, name: str, item: int) -> bytes:
     """`u32 key, u32 len, name, NUL, 24 bytes, u32 item, tail`: the shape the enhancement rows share."""
 
@@ -220,7 +234,7 @@ def synthetic_files() -> dict[str, bytes]:
         ),
         f"character/bin__/prefab/{FOLDER}/cd_phm_01_sword_0016_r.prefab": build_prefab(other_pac),
         f"character/bin__/prefab/{FOLDER}/cd_phm_01_sword_0016_l.prefab": build_prefab(other_pac),
-        PAC: b"PAC template mesh", sheath_pac: b"PAC sheath", other_pac: b"PAC other",
+        PAC: imported_pac(), sheath_pac: b"PAC sheath", other_pac: b"PAC other",
         PAC_XML: b"<pac_xml><texture>cd_phm_01_sword_0109_d.dds</texture><texture>shared_metal_n.dds</texture></pac_xml>",
         HKX: b"HKX physics",
         f"character/texture/1_pc/{STEM}_d.dds": _fake_dds(4, 4),
@@ -499,7 +513,7 @@ class PlanTests(_PackageCase):
 
     def test_imported_model_and_generated_icon_add_a_family(self) -> None:
         model = ModelFiles(
-            pac_data=b"PAC imported mesh",
+            pac_data=imported_pac(1),
             side_files={PAC_XML: b"<pac_xml><texture>cd_phm_01_sword_0109_d.dds</texture><texture>extra_n.dds</texture></pac_xml>",
                         f"character/texture/1_pc/{STEM}_d.dds": b"DDS diffuse", "character/texture/1_pc/extra_n.dds": b"DDS extra"},
         )
@@ -528,7 +542,7 @@ class PlanTests(_PackageCase):
         self.assertEqual([s.text for s in sheathed.resource_strings()], [f"character/model/{MODEL_FOLDER}/{new_stem}.pac"], "the sheathed part draws the imported mesh, not the borrowed scabbard")
         self.assertEqual(plan.manifest["sheathed_records"], {"cd_phm_01_sword_0168_r_in_index01": f"{new_stem}_r_in"})
         self.assertEqual(plan.manifest["sheathed_model"], "own_model")
-        self.assertEqual(added[f"character/model/{MODEL_FOLDER}/{new_stem}.pac"].payload_data, b"PAC imported mesh")
+        self.assertEqual(added[f"character/model/{MODEL_FOLDER}/{new_stem}.pac"].payload_data, model.pac_data)
         self.assertEqual(
             added[f"character/modelproperty/{MODEL_FOLDER}/{new_stem}.pac_xml"].payload_data,
             b"<pac_xml><texture>cd_phm_01_sword_9109_d.dds</texture><texture>cd_phm_01_sword_9109_extra_n.dds</texture></pac_xml>",
@@ -574,22 +588,21 @@ class PlanTests(_PackageCase):
         """A template's mesh physics binds cloth and collision to the template's own
         vertices. Copied onto a model of one's own it drives whichever vertices those
         indices land on, which is how an imported hammer's handle ended up swinging like
-        cloth. The game finds the file by the stem, so leaving it out leaves the item
-        without physics; the choice is on the Model step for a template whose cloth is
-        wanted."""
+        cloth. The companion is excluded and embedded vertex motion is disabled by
+        default; the choice is on the Model step for a template whose cloth is wanted."""
 
         spec = NewItemSpec(
             template_key=TEMPLATE, internal_name="Ziane_Clone_OneHandSword", display_names={"eng": "X"},
             model_source=ModelSource.IMPORTED,
         )
-        plan = self.service.plan(self.service.allocate(spec, self.snapshot), self.snapshot, model=ModelFiles(pac_data=b"PAC"))
+        plan = self.service.plan(self.service.allocate(spec, self.snapshot), self.snapshot, model=ModelFiles(pac_data=imported_pac()))
         physics = [path for path in plan.new_paths if path.lower().endswith(".hkx")]
         self.assertEqual(physics, [], "the template's physics is not copied by default")
         self.assertTrue(any("mesh physics" in line for line in plan.summary_lines), plan.summary_lines)
 
         wanted = self.service.plan(
             self.service.allocate(replace(spec, keep_template_physics=True), self.snapshot),
-            self.snapshot, model=ModelFiles(pac_data=b"PAC"),
+            self.snapshot, model=ModelFiles(pac_data=imported_pac()),
         )
         self.assertTrue([path for path in wanted.new_paths if path.lower().endswith(".hkx")], "asked for, it is copied")
 
@@ -752,7 +765,7 @@ class PlanTests(_PackageCase):
             self.service.plan(self._spec(model_source=ModelSource.TEMPLATE, effect="not an effect"), self.snapshot)
         self.assertIn("effect.shape", [i.code for i in caught.exception.issues])
         # on an imported model the effect rides on the imported family
-        imported = self.service.plan(self._spec(model_source=ModelSource.IMPORTED, effect="fx_test_ice.level.effect"), self.snapshot, model=ModelFiles(pac_data=b"PAC imported mesh"))
+        imported = self.service.plan(self._spec(model_source=ModelSource.IMPORTED, effect="fx_test_ice.level.effect"), self.snapshot, model=ModelFiles(pac_data=imported_pac()))
         doc = decode_prefab_binary({r.path: r for r in imported.additions}[f"character/bin__/prefab/{FOLDER}/{new_stem}_r.prefab"].payload_data)
         self.assertEqual([r.text for r in doc.resource_strings()], [f"character/model/{MODEL_FOLDER}/{new_stem}.pac", "fx_test_ice.level.effect"])
 
@@ -779,7 +792,7 @@ class PlanTests(_PackageCase):
         compatibility = self.service.inspect_effect_targets(spec, self.snapshot)
         self.assertTrue(compatibility.supported, compatibility.errors)
         self.assertEqual(len(compatibility.target_prefabs), 3)
-        plan = self.service.plan(spec, self.snapshot, model=ModelFiles(pac_data=b"PAC imported mesh"))
+        plan = self.service.plan(spec, self.snapshot, model=ModelFiles(pac_data=imported_pac()))
         new_stem = str(plan.spec.stem)
         additions = {request.path: request.payload_data for request in plan.additions}
         sheathed = decode_prefab_binary(

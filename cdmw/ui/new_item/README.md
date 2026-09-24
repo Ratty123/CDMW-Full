@@ -1329,6 +1329,15 @@ conversion that would replace an edited material is rejected; remove the dye map
 or restore those appearance edits. Clear dyes retains an explicit empty override even
 without other edits, and remains cleared when switching variants and building the plan.
 
+**Imported model physics:** with **Template cloth / physics** off (the default),
+Build plan removes inherited cloth-guide and jiggle bindings from every PAC LOD,
+clears simulation assignments in every material property variant, and excludes the
+template's HKX companion. Skeletal attachment/animation weights, authored geometry,
+textures and shader choices remain intact. This applies to both imported builds and
+prebuilt model payloads when building a new or updated plan. The shared Mesh Editor writer
+still preserves physics for ordinary edits. Explicitly retaining template physics
+keeps its original bindings; copying the template model itself also retains them.
+
 **Imported armour:** complete wearable replacements transfer weights from the whole
 compatible template surface, independently of its material sections. Partial edits
 retain their selected part's donor. Build plan resolves the template's declared PAB

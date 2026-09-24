@@ -588,6 +588,7 @@ class _Planner(EffectPlanningMixin):
         donor = self._effect_donor()
         written: List[str] = []
         skipped_physics = ""
+        strip_physics = self.spec.model_source is ModelSource.IMPORTED and not self.spec.keep_template_physics
         for item in family.files:
             role, new_path = renamed[item.path]
             if role == "icon":
@@ -602,6 +603,10 @@ class _Planner(EffectPlanningMixin):
                 continue
             if role == "pac":
                 payload = self.model.pac_data if item.path == old_pac else self.model.side_files.get(item.path, self.snapshot.payload(item.path))
+                if strip_physics:
+                    from cdmw.services.new_item_skinning import strip_template_vertex_physics
+                    payload = strip_template_vertex_physics(payload)
+                    self.summary.append(f"  {item.path}: template cloth and jiggle bindings removed from every LOD.")
             elif role == "prefab":
                 try:
                     result = rewrite_prefab_paths_any_length(self.prefab_source(item.path), pac_map)
@@ -614,6 +619,9 @@ class _Planner(EffectPlanningMixin):
                     payload = self._graft_effect(payload, donor, new_path)
             elif role == "pac_xml":
                 payload = self.model.side_files.get(item.path, self.snapshot.payload(item.path))
+                if strip_physics:
+                    from cdmw.services.new_item_skinning import strip_template_material_physics
+                    payload = strip_template_material_physics(payload)
                 for old_name, new_name in texture_map.items():
                     payload = payload.replace(old_name.encode("utf-8"), new_name.encode("utf-8"))
             else:
@@ -622,7 +630,7 @@ class _Planner(EffectPlanningMixin):
             written.append(new_path)
         if skipped_physics:
             self.summary.append(
-                f"mesh physics: the template's {skipped_physics.rsplit('/', 1)[-1]} is not copied, so the imported model has none"
+                f"mesh physics: the template's {skipped_physics.rsplit('/', 1)[-1]} is not copied"
             )
         for old_path, data in self.model.side_files.items():
             if not old_path.lower().endswith(".dds"):

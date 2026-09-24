@@ -14,7 +14,7 @@ from cdmw.services.new_item_variants import variant_bindings, prepare_variant_mo
 from cdmw.ui.new_item.controller import NewItemStudioController
 from cdmw.ui.new_item.model_import import ModelPlacement, ModelImportSource
 from tests.test_new_item_provenance import setup_game, spec
-from tests.test_new_item_service import TEMPLATE
+from tests.test_new_item_service import TEMPLATE, imported_pac
 from tests.test_new_item_socket_authoring import planned_row
 
 
@@ -41,15 +41,15 @@ def test_selected_binding_gets_owned_resources_unselected_keeps_template(tmp_pat
 def test_two_variant_imports_keep_distinct_assets_and_missing_build_is_rejected(tmp_path):
     service,snapshot,_ = setup_game(tmp_path)
     choices = tuple(replace(value,custom_model=True) for value in selections(snapshot)[:2])
-    builds = {choices[0].identity:ModelFiles(b"import A", notes=("Transferred armour weights",), warnings=("Check fit A",)),
-              choices[1].identity:ModelFiles(b"import B", warnings=("Check fit B",))}
+    builds = {choices[0].identity:ModelFiles(imported_pac(1), notes=("Transferred armour weights",), warnings=("Check fit A",)),
+              choices[1].identity:ModelFiles(imported_pac(2), warnings=("Check fit B",))}
     with patch("cdmw.services.new_item_variants.validate_variant_rig") as validate:
         plan = service.plan(replace(spec(),variants=choices),snapshot,variant_models=builds)
     assert validate.call_count==2
     assert [call.kwargs["prefab_path"] for call in validate.call_args_list] == [choice.prefab_path for choice in choices]
     paths = [entry["output_model"] for entry in plan.manifest["variants"] if "output_model" in entry]
     assert len(paths)==2 and len(set(paths))==2
-    assert {plan.loose_files[path] for path in paths}=={b"import A",b"import B"}
+    assert {plan.loose_files[path] for path in paths}=={value.pac_data for value in builds.values()}
     assert any("Transferred armour weights" in line for line in plan.summary_lines)
     assert f"{choices[0].model_path}: Check fit A" in plan.warnings
     assert f"{choices[1].model_path}: Check fit B" in plan.warnings
@@ -97,7 +97,7 @@ def test_variant_switch_preserves_placement_and_sources_until_shutdown(tmp_path)
 def test_single_model_adapter_targets_primary_and_variant_glow_is_separate(tmp_path):
     service,snapshot,_=setup_game(tmp_path)
     with patch("cdmw.services.new_item_variants.validate_variant_rig"):
-        plan=service.plan(spec(),snapshot,model=ModelFiles(b"primary only"))
+        plan=service.plan(spec(),snapshot,model=ModelFiles(imported_pac()))
     assert len(plan.spec.variants)==1
     assert sum(v["appearance"]=="custom model" for v in plan.manifest["variants"])==1
     from cdmw.domain.new_item.translucency import TranslucencyChoice

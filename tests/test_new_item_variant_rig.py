@@ -16,10 +16,12 @@ PREFAB = "character/bin__/prefab/1_pc/01_phm/weapon/01_onehandweapon/test_r.pref
 def _pac(*, weighted_accessory=False, attachment_slot=0, extra_accessory=False):
     from tests.test_pac_skin_extra_influences import _record
     from tests.test_static_mesh_replacer_preview import _minimal_two_part_pac_original
+    from cdmw.modding.pac_cloth import pac_cloth_lods
 
-    data, mesh = _minimal_two_part_pac_original()
+    data, _ = _minimal_two_part_pac_original()
     result = bytearray(data)
-    for part_index, part in enumerate(mesh.submeshes):
+    parts = ((index, part) for level in pac_cloth_lods(data) for index, part in enumerate(level.submeshes))
+    for part_index, part in parts:
         for vertex_index, offset in enumerate(part.source_vertex_offsets):
             weighted = weighted_accessory and part_index == 1 and vertex_index == 0
             record = _record(
@@ -31,6 +33,7 @@ def _pac(*, weighted_accessory=False, attachment_slot=0, extra_accessory=False):
             )
             for start, end in ((12, 16), (20, 36), (39, 40)):
                 result[offset + start:offset + end] = record[start:end]
+            result[offset + 38] = 255
     return bytes(result)
 
 
