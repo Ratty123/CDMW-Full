@@ -648,7 +648,7 @@ class NewItemPreviewControllerMixin:
                      if source_translucency(part) is not None for name in appearance_preview_part_names(part)}
             return {name.casefold(): (
                 "SkinnedMeshTranslucent" if name.casefold() in glass else "SkinnedMeshStandard",
-                () if name.casefold() in glass else ("SkinnedMeshWing",),
+                ("SkinnedMeshEyeCover",) if name.casefold() in glass else ("SkinnedMeshWing", "SkinnedMeshEyeCover"),
             ) for name, _label in self.material_parts()}
         identity = self.current_variant_identity()
         selected = identity[1].casefold() if identity else None

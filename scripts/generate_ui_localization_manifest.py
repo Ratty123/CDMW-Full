@@ -68,6 +68,12 @@ MANUAL_SOURCE_KEYS = frozenset(
         "This checks recorded data and merge conflicts. In-game behavior still needs testing.",
         "{value_0} · action {value_1}", "{value_0} · {value_1}–{value_2} · +{value_3}",
         # Shader experiment labels and notes come from the typed domain catalogue.
+        "EyeCover blending (experimental)",
+        "Colour mixing", "Surface alpha", "Colour mask (material red)",
+        "EyeCover roughness", "EyeCover metallic",
+        "Export only: test in game. The viewport shows the source material, without EyeCover blending. "
+        "Colour mixing is not an opacity percentage: its weight is twice the packed colour value minus material red. "
+        "Surface alpha separately blends normals and surface properties. Game lighting, colour, reflections, depth and shadows may differ.",
         'Amplitude U',
         'Amplitude V',
         'Anisotropic detail',

@@ -131,7 +131,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/inspect_package.py",
-          "line": 104,
+          "line": 108,
           "sink": "python-return:render"
         }
       ]
@@ -141,7 +141,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/inspect_package.py",
-          "line": 104,
+          "line": 108,
           "sink": "python-return:render"
         }
       ]
@@ -181,17 +181,17 @@
       "origins": [
         {
           "path": "tools/placement_studio/inspect_package.py",
-          "line": 104,
+          "line": 108,
           "sink": "python-return:render"
         },
         {
           "path": "tools/placement_studio/inspect_package.py",
-          "line": 104,
+          "line": 108,
           "sink": "python-return:render"
         },
         {
           "path": "tools/placement_studio/inspect_package.py",
-          "line": 104,
+          "line": 108,
           "sink": "python-return:render"
         },
         {
@@ -861,12 +861,12 @@
         },
         {
           "path": "tools/placement_studio/inspect_package.py",
-          "line": 104,
+          "line": 108,
           "sink": "python-return:render"
         },
         {
           "path": "tools/placement_studio/inspect_package.py",
-          "line": 104,
+          "line": 108,
           "sink": "python-return:render"
         },
         {
@@ -891,7 +891,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1102,
+          "line": 1104,
           "sink": "showMessage"
         }
       ]
@@ -986,7 +986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 67,
+          "line": 66,
           "sink": "python-return:_source_note"
         }
       ]
@@ -1046,7 +1046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 67,
+          "line": 66,
           "sink": "python-return:_source_note"
         }
       ]
@@ -1056,7 +1056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 67,
+          "line": 66,
           "sink": "python-return:_source_note"
         }
       ]
@@ -1376,7 +1376,7 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1071,
+          "line": 1059,
           "sink": "setText"
         }
       ]
@@ -1386,7 +1386,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 551,
+          "line": 553,
           "sink": "addItem"
         }
       ]
@@ -1436,7 +1436,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/viewport.py",
-          "line": 1091,
+          "line": 1069,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -1446,7 +1446,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1164,
+          "line": 1166,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -3386,7 +3386,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 191,
+          "line": 192,
           "sink": "ValueError"
         }
       ]
@@ -6341,7 +6341,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 912,
+          "line": 916,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -6351,7 +6351,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
-          "line": 381,
+          "line": 382,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -6961,7 +6961,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 75,
+          "line": 76,
           "sink": "ValueError"
         }
       ]
@@ -7421,7 +7421,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/inspect_package.py",
-          "line": 104,
+          "line": 108,
           "sink": "python-return:render"
         },
         {
@@ -8016,12 +8016,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1199,
+          "line": 1207,
           "sink": "set_note"
         },
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
-          "line": 126,
+          "line": 127,
           "sink": "set_note"
         }
       ]
@@ -8436,7 +8436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/dye_preview.py",
-          "line": 26,
+          "line": 30,
           "sink": "ValueError"
         }
       ]
@@ -10826,7 +10826,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 172,
+          "line": 173,
           "sink": "ValueError"
         }
       ]
@@ -11766,7 +11766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/registry.py",
-          "line": 30,
+          "line": 29,
           "sink": "CompactToolSpec"
         }
       ]
@@ -12641,17 +12641,17 @@
         },
         {
           "path": "cdmw/ui/shell/compact/registry.py",
+          "line": 23,
+          "sink": "CompactToolSpec"
+        },
+        {
+          "path": "cdmw/ui/shell/compact/registry.py",
           "line": 24,
           "sink": "CompactToolSpec"
         },
         {
           "path": "cdmw/ui/shell/compact/registry.py",
           "line": 25,
-          "sink": "CompactToolSpec"
-        },
-        {
-          "path": "cdmw/ui/shell/compact/registry.py",
-          "line": 26,
           "sink": "CompactToolSpec"
         }
       ]
@@ -14176,7 +14176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 912,
+          "line": 916,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -15756,7 +15756,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1207,
+          "line": 1195,
           "sink": "getExistingDirectory"
         }
       ]
@@ -16341,12 +16341,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
-          "line": 124,
+          "line": 125,
           "sink": "set_note"
         },
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
-          "line": 232,
+          "line": 233,
           "sink": "set_note"
         }
       ]
@@ -16356,7 +16356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
-          "line": 233,
+          "line": 234,
           "sink": "setText"
         }
       ]
@@ -16386,7 +16386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
-          "line": 298,
+          "line": 299,
           "sink": "set_note"
         }
       ]
@@ -16531,7 +16531,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1286,
+          "line": 1274,
           "sink": "showMessage"
         }
       ]
@@ -18016,7 +18016,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
-          "line": 257,
+          "line": 258,
           "sink": "setText"
         }
       ]
@@ -18171,7 +18171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
-          "line": 324,
+          "line": 325,
           "sink": "setText"
         }
       ]
@@ -20101,7 +20101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 175,
+          "line": 150,
           "sink": "show_loading"
         }
       ]
@@ -20966,7 +20966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
-          "line": 391,
+          "line": 392,
           "sink": "getExistingDirectory"
         }
       ]
@@ -21041,7 +21041,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 168,
+          "line": 169,
           "sink": "ValueError"
         }
       ]
@@ -21066,7 +21066,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 319,
+          "line": 327,
           "sink": "ValueError"
         }
       ]
@@ -21076,7 +21076,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 328,
+          "line": 329,
           "sink": "ValueError"
         }
       ]
@@ -21241,7 +21241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/state.py",
-          "line": 412,
+          "line": 413,
           "sink": "ValueError"
         }
       ]
@@ -21251,7 +21251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 982,
+          "line": 986,
           "sink": "setToolTip"
         }
       ]
@@ -21456,7 +21456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
-          "line": 381,
+          "line": 382,
           "sink": "getOpenFileName"
         }
       ]
@@ -21496,7 +21496,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 317,
+          "line": 325,
           "sink": "ValueError"
         }
       ]
@@ -21506,7 +21506,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 326,
+          "line": 327,
           "sink": "ValueError"
         }
       ]
@@ -21896,7 +21896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 912,
+          "line": 916,
           "sink": "getOpenFileName"
         }
       ]
@@ -23326,7 +23326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/close_controller.py",
-          "line": 489,
+          "line": 488,
           "sink": "set_status_message"
         }
       ]
@@ -23336,7 +23336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/close_controller.py",
-          "line": 404,
+          "line": 403,
           "sink": "set_status_message"
         }
       ]
@@ -23762,6 +23762,16 @@
       ]
     },
     {
+      "key": "Colour mask (material red)",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Colour mixing",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Colour:",
       "origins": [
         {
@@ -23776,7 +23786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1129,
+          "line": 1133,
           "sink": "setText"
         },
         {
@@ -23841,7 +23851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/state.py",
-          "line": 516,
+          "line": 517,
           "sink": "python-return:stats_summary"
         }
       ]
@@ -23851,7 +23861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/state.py",
-          "line": 530,
+          "line": 531,
           "sink": "python-return:stats_summary"
         }
       ]
@@ -23891,7 +23901,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 280,
+          "line": 281,
           "sink": "progress"
         }
       ]
@@ -24016,7 +24026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/snapshots.py",
-          "line": 391,
+          "line": 390,
           "sink": "RuntimeError"
         }
       ]
@@ -24026,7 +24036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/registry.py",
-          "line": 38,
+          "line": 37,
           "sink": "RuntimeError"
         }
       ]
@@ -24036,7 +24046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/registry.py",
-          "line": 36,
+          "line": 35,
           "sink": "RuntimeError"
         }
       ]
@@ -24256,12 +24266,12 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 125,
+          "line": 126,
           "sink": "progress"
         },
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 149,
+          "line": 150,
           "sink": "progress"
         }
       ]
@@ -24291,7 +24301,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 174,
+          "line": 175,
           "sink": "on_log"
         }
       ]
@@ -24821,7 +24831,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1260,
+          "line": 1248,
           "sink": "setWindowTitle"
         }
       ]
@@ -25811,7 +25821,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 370,
+          "line": 374,
           "sink": "addAction"
         }
       ]
@@ -28311,7 +28321,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 233,
+          "line": 234,
           "sink": "ValueError"
         }
       ]
@@ -29841,7 +29851,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/inspect_package.py",
-          "line": 104,
+          "line": 108,
           "sink": "python-return:render"
         }
       ]
@@ -30386,7 +30396,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 241,
+          "line": 242,
           "sink": "ValueError"
         }
       ]
@@ -32286,7 +32296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/dye_preview.py",
-          "line": 67,
+          "line": 71,
           "sink": "ValueError"
         }
       ]
@@ -32876,7 +32886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/registry.py",
-          "line": 29,
+          "line": 28,
           "sink": "CompactToolSpec"
         },
         {
@@ -34876,7 +34886,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1123,
+          "line": 1111,
           "sink": "warning"
         }
       ]
@@ -34916,7 +34926,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1137,
+          "line": 1125,
           "sink": "QRadioButton"
         }
       ]
@@ -34946,7 +34956,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1143,
+          "line": 1131,
           "sink": "setToolTip"
         }
       ]
@@ -35673,6 +35683,16 @@
           "path": "cdmw/services/mesh_replacement_output.py",
           "line": 43,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Experimental, export only. Test in game; the viewport shows the source material without EyeCover blending.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/shader_controls_editor.py",
+          "line": 105,
+          "sink": "setText"
         }
       ]
     },
@@ -36841,7 +36861,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1331,
+          "line": 1319,
           "sink": "getExistingDirectory"
         }
       ]
@@ -36935,6 +36955,11 @@
           "sink": "setAccessibleName"
         }
       ]
+    },
+    {
+      "key": "Export only: test in game. The viewport shows the source material, without EyeCover blending. Colour mixing is not an opacity percentage: its weight is twice the packed colour value minus material red. Surface alpha separately blends normals and surface properties. Game lighting, colour, reflections, depth and shadows may differ.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Export recipe…",
@@ -37146,7 +37171,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1335,
+          "line": 1323,
           "sink": "information"
         }
       ]
@@ -38282,6 +38307,21 @@
       ]
     },
     {
+      "key": "EyeCover blending (experimental)",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "EyeCover metallic",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "EyeCover roughness",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "FAIL {value_0}: {value_1}",
       "origins": [
         {
@@ -38331,7 +38371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 899,
+          "line": 903,
           "sink": "setText"
         }
       ]
@@ -38341,7 +38381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 933,
+          "line": 937,
           "sink": "emit"
         }
       ]
@@ -38976,7 +39016,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 157,
+          "line": 158,
           "sink": "progress"
         }
       ]
@@ -39091,7 +39131,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/inspect_package.py",
-          "line": 104,
+          "line": 108,
           "sink": "python-return:render"
         }
       ]
@@ -40396,7 +40436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/close_controller.py",
-          "line": 371,
+          "line": 370,
           "sink": "set_status_message"
         }
       ]
@@ -40621,7 +40661,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1157,
+          "line": 1169,
           "sink": "setText"
         }
       ]
@@ -41271,7 +41311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 901,
+          "line": 905,
           "sink": "setText"
         }
       ]
@@ -46006,7 +46046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
-          "line": 340,
+          "line": 341,
           "sink": "setText"
         }
       ]
@@ -46381,7 +46421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
-          "line": 381,
+          "line": 382,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -47691,7 +47731,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/inspect_package.py",
-          "line": 135,
+          "line": 139,
           "sink": "python-return:render"
         }
       ]
@@ -48161,7 +48201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
-          "line": 118,
+          "line": 119,
           "sink": "set_note"
         }
       ]
@@ -48821,7 +48861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/registry.py",
-          "line": 28,
+          "line": 27,
           "sink": "CompactToolSpec"
         }
       ]
@@ -49416,7 +49456,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 159,
+          "line": 160,
           "sink": "ValueError"
         }
       ]
@@ -49426,7 +49466,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 213,
+          "line": 214,
           "sink": "ValueError"
         }
       ]
@@ -49636,7 +49676,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 220,
+          "line": 221,
           "sink": "ValueError"
         }
       ]
@@ -49646,7 +49686,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 223,
+          "line": 224,
           "sink": "ValueError"
         }
       ]
@@ -49656,7 +49696,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 60,
+          "line": 61,
           "sink": "ValueError"
         }
       ]
@@ -49666,7 +49706,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 205,
+          "line": 206,
           "sink": "ValueError"
         }
       ]
@@ -49781,7 +49821,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 104,
+          "line": 105,
           "sink": "ValueError"
         }
       ]
@@ -49931,7 +49971,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 182,
+          "line": 183,
           "sink": "ValueError"
         }
       ]
@@ -49971,7 +50011,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 201,
+          "line": 202,
           "sink": "ValueError"
         }
       ]
@@ -50506,7 +50546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_item_source.py",
-          "line": 175,
+          "line": 183,
           "sink": "RunCancelled"
         }
       ]
@@ -52886,7 +52926,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 71,
+          "line": 72,
           "sink": "ValueError"
         }
       ]
@@ -54311,12 +54351,12 @@
         },
         {
           "path": "tools/placement_studio/window_loading.py",
-          "line": 37,
+          "line": 39,
           "sink": "showMessage"
         },
         {
           "path": "tools/placement_studio/window_loading.py",
-          "line": 130,
+          "line": 142,
           "sink": "showMessage"
         }
       ]
@@ -55116,7 +55156,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/viewport.py",
-          "line": 1089,
+          "line": 1067,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -57201,7 +57241,7 @@
         },
         {
           "path": "cdmw/ui/shell/compact/registry.py",
-          "line": 24,
+          "line": 23,
           "sink": "CompactToolSpec"
         },
         {
@@ -60761,32 +60801,32 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 65,
+          "line": 66,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 82,
+          "line": 83,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 89,
+          "line": 90,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 99,
+          "line": 100,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 123,
+          "line": 124,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 146,
+          "line": 147,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -60811,7 +60851,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 45,
+          "line": 46,
           "sink": "ValueError"
         }
       ]
@@ -60821,7 +60861,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 66,
+          "line": 67,
           "sink": "ValueError"
         }
       ]
@@ -60861,22 +60901,22 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 47,
+          "line": 48,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 69,
+          "line": 70,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 162,
+          "line": 163,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 206,
+          "line": 207,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -60921,7 +60961,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1211,
+          "line": 1199,
           "sink": "getText"
         }
       ]
@@ -60951,7 +60991,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 48,
+          "line": 49,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -64066,12 +64106,12 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 156,
+          "line": 157,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/new_item_mod_base.py",
-          "line": 239,
+          "line": 245,
           "sink": "ValueError"
         }
       ]
@@ -64181,7 +64221,12 @@
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 651,
+          "line": 600,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/new_item_service.py",
+          "line": 658,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -65951,12 +65996,12 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1168,
+          "line": 1179,
           "sink": "set_note"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1169,
+          "line": 1180,
           "sink": "setText"
         }
       ]
@@ -65986,7 +66031,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 258,
+          "line": 259,
           "sink": "ValueError"
         }
       ]
@@ -66116,7 +66161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 211,
+          "line": 215,
           "sink": "setToolTip"
         }
       ]
@@ -68046,7 +68091,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/inspect_package.py",
-          "line": 135,
+          "line": 139,
           "sink": "python-return:render"
         }
       ]
@@ -68461,12 +68506,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1201,
+          "line": 1209,
           "sink": "set_note"
         },
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
-          "line": 128,
+          "line": 129,
           "sink": "set_note"
         }
       ]
@@ -68496,7 +68541,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/inspect_package.py",
-          "line": 104,
+          "line": 108,
           "sink": "python-return:render"
         }
       ]
@@ -68866,7 +68911,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1123,
+          "line": 1111,
           "sink": "warning"
         }
       ]
@@ -68911,7 +68956,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1246,
+          "line": 1234,
           "sink": "setText"
         }
       ]
@@ -69896,7 +69941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 375,
+          "line": 379,
           "sink": "addAction"
         }
       ]
@@ -70606,7 +70651,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 886,
+          "line": 890,
           "sink": "setText"
         }
       ]
@@ -71621,12 +71666,12 @@
         },
         {
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
-          "line": 549,
+          "line": 553,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
-          "line": 591,
+          "line": 595,
           "sink": "raise_if_cancelled"
         },
         {
@@ -71746,7 +71791,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1158,
+          "line": 1146,
           "sink": "QLabel"
         }
       ]
@@ -72806,7 +72851,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 287,
+          "line": 288,
           "sink": "progress"
         }
       ]
@@ -72836,12 +72881,12 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 263,
+          "line": 264,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 278,
+          "line": 279,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -72921,7 +72966,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 275,
+          "line": 276,
           "sink": "progress"
         }
       ]
@@ -73476,7 +73521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 109,
+          "line": 112,
           "sink": "setToolTip"
         }
       ]
@@ -74061,7 +74106,7 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1243,
+          "line": 1231,
           "sink": "setWindowTitle"
         }
       ]
@@ -74071,7 +74116,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1255,
+          "line": 1243,
           "sink": "showMessage"
         }
       ]
@@ -74081,7 +74126,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1267,
+          "line": 1255,
           "sink": "showMessage"
         }
       ]
@@ -74091,7 +74136,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1181,
+          "line": 1169,
           "sink": "question"
         }
       ]
@@ -74121,7 +74166,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1211,
+          "line": 1199,
           "sink": "getText"
         }
       ]
@@ -74271,7 +74316,7 @@
         },
         {
           "path": "tools/placement_studio/inspect_package.py",
-          "line": 104,
+          "line": 108,
           "sink": "python-return:render"
         }
       ]
@@ -74311,7 +74356,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1281,
+          "line": 1269,
           "sink": "setWindowTitle"
         }
       ]
@@ -74341,7 +74386,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1236,
+          "line": 1224,
           "sink": "warning"
         }
       ]
@@ -74353,6 +74398,16 @@
           "path": "cdmw/ui/policy_preview_dialog.py",
           "line": 255,
           "sink": "setPlainText"
+        }
+      ]
+    },
+    {
+      "key": "Packed into 256 steps. Colour weight is twice this value minus material red; this is not a whole-material opacity percentage. Unchecked: keep the authored value, or use 0.5.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/shader_controls_editor.py",
+          "line": 121,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -74926,12 +74981,12 @@
       "origins": [
         {
           "path": "cdmw/services/shader_controls_preview.py",
-          "line": 62,
+          "line": 64,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/shader_controls_preview.py",
-          "line": 138,
+          "line": 141,
           "sink": "ValueError"
         }
       ]
@@ -76056,7 +76111,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1037,
+          "line": 1025,
           "sink": "setTabText"
         }
       ]
@@ -76606,7 +76661,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1102,
+          "line": 1104,
           "sink": "showMessage"
         }
       ]
@@ -76836,7 +76891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1197,
+          "line": 1205,
           "sink": "setToolTip"
         }
       ]
@@ -76846,7 +76901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1197,
+          "line": 1205,
           "sink": "setToolTip"
         }
       ]
@@ -76946,7 +77001,7 @@
         },
         {
           "path": "cdmw/ui/shell/compact/registry.py",
-          "line": 25,
+          "line": 24,
           "sink": "CompactToolSpec"
         },
         {
@@ -77086,7 +77141,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1211,
+          "line": 1199,
           "sink": "getText"
         }
       ]
@@ -78626,7 +78681,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/inspect_package.py",
-          "line": 135,
+          "line": 139,
           "sink": "python-return:render"
         }
       ]
@@ -78946,12 +79001,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 61,
+          "line": 62,
           "sink": "show_loading"
         },
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 175,
+          "line": 185,
           "sink": "show_loading"
         }
       ]
@@ -79001,7 +79056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
-          "line": 237,
+          "line": 238,
           "sink": "setText"
         }
       ]
@@ -79821,7 +79876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 597,
+          "line": 578,
           "sink": "pump_startup_splash"
         }
       ]
@@ -79851,7 +79906,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_template_model.py",
-          "line": 164,
+          "line": 166,
           "sink": "on_log"
         }
       ]
@@ -79876,7 +79931,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
-          "line": 236,
+          "line": 237,
           "sink": "set_note"
         },
         {
@@ -79926,12 +79981,12 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 67,
+          "line": 68,
           "sink": "progress"
         },
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 84,
+          "line": 85,
           "sink": "progress"
         }
       ]
@@ -83576,7 +83631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 243,
+          "line": 247,
           "sink": "python-return:_capability_label"
         }
       ]
@@ -85126,7 +85181,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 254,
+          "line": 255,
           "sink": "progress"
         }
       ]
@@ -85161,7 +85216,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 150,
+          "line": 151,
           "sink": "on_log"
         }
       ]
@@ -85216,7 +85271,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 265,
+          "line": 266,
           "sink": "progress"
         }
       ]
@@ -85406,7 +85461,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 172,
+          "line": 173,
           "sink": "progress"
         }
       ]
@@ -85416,7 +85471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
-          "line": 228,
+          "line": 229,
           "sink": "set_note"
         }
       ]
@@ -85426,7 +85481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
-          "line": 229,
+          "line": 230,
           "sink": "setText"
         }
       ]
@@ -86016,7 +86071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/navigation_controller.py",
-          "line": 113,
+          "line": 115,
           "sink": "QPushButton"
         }
       ]
@@ -88261,7 +88316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 631,
+          "line": 612,
           "sink": "pump_startup_splash"
         }
       ]
@@ -89306,7 +89361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/registry.py",
-          "line": 27,
+          "line": 26,
           "sink": "CompactToolSpec"
         }
       ]
@@ -90352,6 +90407,46 @@
       ]
     },
     {
+      "key": "Replaces material blue: 0 nonmetal, 1 metal. This EyeCover override takes precedence over Surface metallic. Unchecked: keep the source channel.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/shader_controls_editor.py",
+          "line": 121,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Replaces material green: 0 smooth, 1 rough. This EyeCover override takes precedence over Surface roughness. Unchecked: keep the source channel.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/shader_controls_editor.py",
+          "line": 121,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Replaces material red, which is subtracted from twice the colour-mixing value. Unchecked: keep the source texture, or use black (0).",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/shader_controls_editor.py",
+          "line": 121,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Replaces the alpha texture's red channel. Blends normals and surface properties separately from colour. Unchecked: keep the source texture, or use white (1).",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/shader_controls_editor.py",
+          "line": 121,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Replay the effect from the beginning.",
       "origins": [
         {
@@ -91076,7 +91171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1157,
+          "line": 1169,
           "sink": "setText"
         }
       ]
@@ -91886,7 +91981,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 321,
+          "line": 322,
           "sink": "ValueError"
         }
       ]
@@ -91896,7 +91991,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 312,
+          "line": 320,
           "sink": "ValueError"
         }
       ]
@@ -92551,7 +92646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 34,
+          "line": 33,
           "sink": "QPushButton"
         }
       ]
@@ -93106,7 +93201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 886,
+          "line": 890,
           "sink": "setText"
         }
       ]
@@ -96326,7 +96421,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/inspect_package.py",
-          "line": 135,
+          "line": 139,
           "sink": "python-return:render"
         }
       ]
@@ -96466,7 +96561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/registry.py",
-          "line": 31,
+          "line": 30,
           "sink": "CompactToolSpec"
         }
       ]
@@ -99541,7 +99636,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 117,
+          "line": 118,
           "sink": "ValueError"
         }
       ]
@@ -99621,7 +99716,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 120,
+          "line": 121,
           "sink": "ValueError"
         }
       ]
@@ -100301,7 +100396,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 122,
+          "line": 123,
           "sink": "ValueError"
         }
       ]
@@ -100311,7 +100406,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1136,
+          "line": 1124,
           "sink": "QRadioButton"
         }
       ]
@@ -102156,7 +102251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/navigation_controller.py",
-          "line": 112,
+          "line": 114,
           "sink": "QPushButton"
         }
       ]
@@ -103932,11 +104027,26 @@
       ]
     },
     {
+      "key": "SkinnedMeshEyeCover",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/controller_preview_mixin.py",
+          "line": 649,
+          "sink": "python-return:material_shader_options"
+        },
+        {
+          "path": "cdmw/ui/new_item/controller_preview_mixin.py",
+          "line": 649,
+          "sink": "python-return:material_shader_options"
+        }
+      ]
+    },
+    {
       "key": "SkinnedMeshStandard",
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
-          "line": 645,
+          "line": 649,
           "sink": "python-return:material_shader_options"
         }
       ]
@@ -103956,7 +104066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
-          "line": 645,
+          "line": 649,
           "sink": "python-return:material_shader_options"
         }
       ]
@@ -103966,7 +104076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
-          "line": 645,
+          "line": 649,
           "sink": "python-return:material_shader_options"
         }
       ]
@@ -104591,7 +104701,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/inspect_package.py",
-          "line": 104,
+          "line": 108,
           "sink": "python-return:render"
         }
       ]
@@ -105241,12 +105351,12 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 49,
+          "line": 50,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 50,
+          "line": 51,
           "sink": "ValueError"
         }
       ]
@@ -105426,7 +105536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 59,
+          "line": 58,
           "sink": "python-return:_source_note"
         }
       ]
@@ -105556,7 +105666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 67,
+          "line": 66,
           "sink": "python-return:_source_note"
         }
       ]
@@ -107001,7 +107111,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 243,
+          "line": 247,
           "sink": "python-return:_capability_label"
         }
       ]
@@ -107031,7 +107141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 217,
+          "line": 221,
           "sink": "setToolTip"
         }
       ]
@@ -107331,7 +107441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/close_controller.py",
-          "line": 388,
+          "line": 387,
           "sink": "set_status_message"
         }
       ]
@@ -108055,6 +108165,11 @@
           "sink": "addItem"
         }
       ]
+    },
+    {
+      "key": "Surface alpha",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Surface colour",
@@ -109396,7 +109511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
-          "line": 119,
+          "line": 120,
           "sink": "setToolTip"
         }
       ]
@@ -109446,7 +109561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
-          "line": 407,
+          "line": 411,
           "sink": "RunCancelled"
         }
       ]
@@ -109661,7 +109776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 33,
+          "line": 32,
           "sink": "setToolTip"
         }
       ]
@@ -110846,7 +110961,7 @@
         },
         {
           "path": "cdmw/ui/shell/compact/registry.py",
-          "line": 26,
+          "line": 25,
           "sink": "CompactToolSpec"
         },
         {
@@ -111246,7 +111361,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 210,
+          "line": 211,
           "sink": "ValueError"
         }
       ]
@@ -111286,7 +111401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 316,
+          "line": 291,
           "sink": "_fail"
         }
       ]
@@ -111296,7 +111411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 329,
+          "line": 304,
           "sink": "_fail"
         }
       ]
@@ -111306,7 +111421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 88,
+          "line": 73,
           "sink": "_fail"
         }
       ]
@@ -111316,7 +111431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 264,
+          "line": 274,
           "sink": "_fail"
         }
       ]
@@ -111326,7 +111441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 312,
+          "line": 322,
           "sink": "show_error"
         }
       ]
@@ -111841,7 +111956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/dye_preview.py",
-          "line": 127,
+          "line": 131,
           "sink": "ValueError"
         }
       ]
@@ -111881,7 +111996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
-          "line": 320,
+          "line": 321,
           "sink": "setText"
         }
       ]
@@ -111966,7 +112081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1119,
+          "line": 1123,
           "sink": "getColor"
         }
       ]
@@ -112346,7 +112461,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 52,
+          "line": 53,
           "sink": "ValueError"
         }
       ]
@@ -112431,7 +112546,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 265,
+          "line": 266,
           "sink": "ValueError"
         }
       ]
@@ -112531,7 +112646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
-          "line": 336,
+          "line": 337,
           "sink": "setText"
         }
       ]
@@ -112666,7 +112781,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1135,
+          "line": 1123,
           "sink": "QRadioButton"
         }
       ]
@@ -112871,7 +112986,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 202,
+          "line": 203,
           "sink": "ValueError"
         }
       ]
@@ -112956,7 +113071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
-          "line": 690,
+          "line": 694,
           "sink": "emit"
         }
       ]
@@ -113071,7 +113186,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1140,
+          "line": 1128,
           "sink": "setToolTip"
         }
       ]
@@ -114041,7 +114156,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 46,
+          "line": 47,
           "sink": "ValueError"
         }
       ]
@@ -114161,7 +114276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 927,
+          "line": 931,
           "sink": "emit"
         }
       ]
@@ -114231,7 +114346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
-          "line": 614,
+          "line": 618,
           "sink": "emit"
         }
       ]
@@ -114311,7 +114426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
-          "line": 302,
+          "line": 303,
           "sink": "setText"
         }
       ]
@@ -115051,7 +115166,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1181,
+          "line": 1169,
           "sink": "question"
         }
       ]
@@ -115471,7 +115586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/dye_preview.py",
-          "line": 72,
+          "line": 76,
           "sink": "ValueError"
         }
       ]
@@ -118006,7 +118121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 242,
+          "line": 246,
           "sink": "python-return:_capability_label"
         }
       ]
@@ -118211,7 +118326,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 187,
+          "line": 188,
           "sink": "ValueError"
         }
       ]
@@ -119411,7 +119526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/navigation_controller.py",
-          "line": 105,
+          "line": 107,
           "sink": "QLabel"
         }
       ]
@@ -120296,6 +120411,11 @@
         },
         {
           "path": "cdmw/ui/shell/compact/registry.py",
+          "line": 26,
+          "sink": "CompactToolSpec"
+        },
+        {
+          "path": "cdmw/ui/shell/compact/registry.py",
           "line": 27,
           "sink": "CompactToolSpec"
         },
@@ -120312,11 +120432,6 @@
         {
           "path": "cdmw/ui/shell/compact/registry.py",
           "line": 30,
-          "sink": "CompactToolSpec"
-        },
-        {
-          "path": "cdmw/ui/shell/compact/registry.py",
-          "line": 31,
           "sink": "CompactToolSpec"
         },
         {
@@ -120911,12 +121026,12 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 235,
+          "line": 236,
           "sink": "progress"
         },
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 304,
+          "line": 305,
           "sink": "progress"
         }
       ]
@@ -121971,7 +122086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1010,
+          "line": 1014,
           "sink": "set_note"
         }
       ]
@@ -121991,7 +122106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1010,
+          "line": 1014,
           "sink": "set_note"
         }
       ]
@@ -122946,7 +123061,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1132,
+          "line": 1120,
           "sink": "setWindowTitle"
         }
       ]
@@ -124256,7 +124371,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1265,
+          "line": 1253,
           "sink": "setText"
         }
       ]
@@ -124866,7 +124981,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1335,
+          "line": 1323,
           "sink": "information"
         }
       ]
@@ -126581,7 +126696,7 @@
         },
         {
           "path": "tools/placement_studio/viewport.py",
-          "line": 1093,
+          "line": 1071,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -126961,7 +127076,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1077,
+          "line": 1079,
           "sink": "setText"
         }
       ]
@@ -127956,7 +128071,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1139,
+          "line": 1141,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -129231,7 +129346,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/viewport.py",
-          "line": 1090,
+          "line": 1068,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -129241,7 +129356,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/viewport.py",
-          "line": 1100,
+          "line": 1078,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -131881,7 +131996,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1139,
+          "line": 1141,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -131891,7 +132006,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/viewport.py",
-          "line": 1065,
+          "line": 1043,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -132286,7 +132401,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/viewport.py",
-          "line": 1067,
+          "line": 1045,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -133651,7 +133766,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/viewport.py",
-          "line": 1099,
+          "line": 1077,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -134726,7 +134841,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/viewport.py",
-          "line": 1085,
+          "line": 1063,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -137676,12 +137791,12 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 345,
+          "line": 342,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 701,
+          "line": 679,
           "sink": "_register_detachable_tool"
         }
       ]
@@ -138946,7 +139061,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/viewport.py",
-          "line": 1063,
+          "line": 1041,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -139131,7 +139246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 708,
+          "line": 685,
           "sink": "_register_detachable_tool"
         },
         {
@@ -139516,7 +139631,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1077,
+          "line": 1079,
           "sink": "setText"
         }
       ]
@@ -139596,12 +139711,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/viewport.py",
-          "line": 1080,
+          "line": 1058,
           "sink": "translate_active_ui_text"
         },
         {
           "path": "tools/placement_studio/viewport.py",
-          "line": 1082,
+          "line": 1060,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -139656,7 +139771,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/viewport.py",
-          "line": 1061,
+          "line": 1039,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -139676,7 +139791,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/viewport.py",
-          "line": 1062,
+          "line": 1040,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -140126,7 +140241,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1139,
+          "line": 1141,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -140136,7 +140251,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/viewport.py",
-          "line": 1064,
+          "line": 1042,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -140606,7 +140721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 697,
+          "line": 675,
           "sink": "_register_detachable_tool"
         }
       ]
@@ -140646,7 +140761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
-          "line": 334,
+          "line": 335,
           "sink": "ValueError"
         }
       ]
@@ -142176,7 +142291,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/viewport.py",
-          "line": 1066,
+          "line": 1044,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -142476,7 +142591,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/viewport.py",
-          "line": 1097,
+          "line": 1075,
           "sink": "drawText"
         }
       ]
@@ -143006,7 +143121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1196,
+          "line": 1204,
           "sink": "setText"
         }
       ]
@@ -143016,7 +143131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1187,
+          "line": 1195,
           "sink": "setText"
         }
       ]
@@ -143056,7 +143171,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 490,
+          "line": 492,
           "sink": "addItem"
         }
       ]
@@ -144021,7 +144136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_item_source.py",
-          "line": 133,
+          "line": 141,
           "sink": "ValueError"
         }
       ]
@@ -144496,7 +144611,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1149,
+          "line": 1151,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -144886,7 +145001,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1162,
+          "line": 1150,
           "sink": "QLabel"
         }
       ]
@@ -145146,7 +145261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 930,
+          "line": 934,
           "sink": "emit"
         }
       ]
@@ -145196,7 +145311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/navigation_controller.py",
-          "line": 102,
+          "line": 104,
           "sink": "QLabel"
         }
       ]
@@ -145386,7 +145501,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/inspect_package.py",
-          "line": 135,
+          "line": 139,
           "sink": "python-return:render"
         }
       ]
@@ -145706,7 +145821,7 @@
         },
         {
           "path": "tools/placement_studio/window_loading.py",
-          "line": 160,
+          "line": 172,
           "sink": "setText"
         }
       ]
@@ -145826,7 +145941,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1164,
+          "line": 1166,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -145981,7 +146096,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1120,
+          "line": 1122,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -146266,7 +146381,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/packaging.py",
-          "line": 120,
+          "line": 122,
           "sink": "python-return:describe"
         }
       ]
@@ -146286,7 +146401,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/viewport.py",
-          "line": 1087,
+          "line": 1065,
           "sink": "drawText"
         }
       ]
@@ -146786,7 +146901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 77,
+          "line": 76,
           "sink": "setText"
         }
       ]
@@ -147196,7 +147311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/state.py",
-          "line": 483,
+          "line": 484,
           "sink": "python-return:effect_reference"
         }
       ]
@@ -147437,6 +147552,16 @@
       ]
     },
     {
+      "key": "{value_0}: cannot decode the EyeCover source texture.",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_eye_cover.py",
+          "line": 59,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "{value_0}: cannot decode the material texture for surface editing.",
       "origins": [
         {
@@ -147452,6 +147577,16 @@
         {
           "path": "cdmw/services/translucency_surface.py",
           "line": 32,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "{value_0}: cannot encode the EyeCover texture.",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_eye_cover.py",
+          "line": 76,
           "sink": "ValueError"
         }
       ]
@@ -147516,7 +147651,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 212,
+          "line": 213,
           "sink": "ValueError"
         }
       ]
@@ -147538,6 +147673,16 @@
           "path": "cdmw/ui/archive_browser/static_replacement_source_display.py",
           "line": 266,
           "sink": "python-return:source_display_name"
+        }
+      ]
+    },
+    {
+      "key": "{value_0}: missing EyeCover source texture {value_1}.",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_eye_cover.py",
+          "line": 34,
+          "sink": "ValueError"
         }
       ]
     },
@@ -147596,7 +147741,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 224,
+          "line": 225,
           "sink": "ValueError"
         }
       ]
@@ -147651,7 +147796,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 274,
+          "line": 275,
           "sink": "ValueError"
         }
       ]
@@ -147661,7 +147806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1198,
+          "line": 1206,
           "sink": "note"
         }
       ]
@@ -147671,7 +147816,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 226,
+          "line": 227,
           "sink": "ValueError"
         }
       ]
@@ -147681,7 +147826,7 @@
       "origins": [
         {
           "path": "cdmw/services/shader_controls_preview.py",
-          "line": 177,
+          "line": 185,
           "sink": "ValueError"
         }
       ]
@@ -147721,7 +147866,7 @@
         },
         {
           "path": "cdmw/services/mod_merge_service.py",
-          "line": 252,
+          "line": 253,
           "sink": "ValueError"
         },
         {
@@ -147981,7 +148126,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1077,
+          "line": 1079,
           "sink": "setText"
         },
         {
@@ -148001,7 +148146,7 @@
         },
         {
           "path": "tools/placement_studio/window_loading.py",
-          "line": 241,
+          "line": 255,
           "sink": "setToolTip"
         },
         {
@@ -148091,7 +148236,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/session.py",
-          "line": 669,
+          "line": 688,
           "sink": "python-return:summary"
         }
       ]
@@ -148161,7 +148306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1186,
+          "line": 1194,
           "sink": "note"
         }
       ]
@@ -148211,7 +148356,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/inspect_package.py",
-          "line": 135,
+          "line": 139,
           "sink": "python-return:render"
         },
         {

@@ -20,6 +20,10 @@ def variant_dye_preview_source(controller):
     if state is None:
         raise ValueError("Customize this variant's dye assignments first.")
     choice = state.appearance
+    # EyeCover is an export-only experiment; dye preview retains source shading.
+    from cdmw.domain.mesh.shader_controls import EYE_COVER
+    preview_controls = tuple((name, controls) for name, controls in choice.shader_controls
+                             if controls.shader != EYE_COVER.shader)
     snapshot = controller.snapshot
     result, source, scene = (state.result,state.source,state.scene) if choice.custom_model else (None,None,None)
     if choice.custom_model and result is None:
@@ -40,19 +44,19 @@ def variant_dye_preview_source(controller):
             if choice.glow_parts or choice.translucency is not None or choice.shader_controls or choice.template_transform:
                 from cdmw.services.new_item_template_model import prepare_template_model
                 return prepare_template_model(snapshot, [choice.model_path], glow=choice.glow_choice(),
-                    translucency=choice.translucency, shader_controls=choice.shader_controls,
+                    translucency=choice.translucency, shader_controls=preview_controls,
                     transform=choice.template_transform, stop_event=stop_event)
             return ModelFiles(snapshot.payload(choice.model_path),{material_path:snapshot.payload(material_path)})
         if isinstance(result,ModelFiles):
             from cdmw.services.new_item_translucency import apply_prebuilt_translucency
             files = apply_prebuilt_translucency(result,MaterialRoute(choice.material_route),choice.translucency,stop_event=stop_event)
             files = apply_surface_settings(files, choice.surface_settings, stop_event=stop_event)
-            return apply_shader_controls(files, choice.shader_controls)
+            return apply_shader_controls(files, preview_controls, stop_event=stop_event)
         files = model_files_from_import(result,family=variant_family(snapshot.family(template_key),choice))
         files = route_model_files(files,MaterialRoute(choice.material_route),result=result,scene=scene,
                                  glow=choice.glow_choice(),translucency=choice.translucency,stop_event=stop_event)
         files = apply_surface_settings(files, choice.surface_settings, result=result, scene=scene, stop_event=stop_event)
-        return apply_shader_controls(files, choice.shader_controls, result=result, scene=scene)
+        return apply_shader_controls(files, preview_controls, result=result, scene=scene, stop_event=stop_event)
 
     def geometry(stop_event):
         from cdmw.services.mesh_workflow_service import parse_pac
@@ -99,14 +103,14 @@ def variant_dye_preview_source(controller):
             primary = next(value for value in prepared if value.path==choice.model_path)
             prefab = snapshot.entry(choice.prefab_path)
             consume = None
-            if choice.shader_controls:
+            if preview_controls:
                 from types import SimpleNamespace
                 from cdmw.services.new_item_shader_controls import shader_control_bindings
                 from cdmw.services.shader_controls_preview import shader_preview_mesh
                 from cdmw.services.mesh_dotnet_reference_composite import decode_dotnet_native_preview_package
                 from cdmw.ui.new_item.item_preview import build_item_preview_package
 
-                mapped = shader_control_bindings(files, choice.shader_controls, result=result, scene=scene)
+                mapped = shader_control_bindings(files, preview_controls, result=result, scene=scene)
                 settings = tuple(pair for bindings in mapped.values() for pair in bindings)
                 authored = SimpleNamespace(
                     has_entry=lambda path: path in payloads or snapshot.has_entry(path),

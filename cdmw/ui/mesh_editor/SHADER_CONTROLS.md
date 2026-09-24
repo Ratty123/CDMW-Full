@@ -9,6 +9,12 @@ Mesh Editor numbers offer sliders as well as typed values. New Item numbers acce
 wheel adjustment when focused. An incompatible choice saved by an older build must
 be restored in Model & Placement → Appearance before Perks & Effects can prepare it.
 
+Create New Item additionally offers **EyeCover blending (experimental)** with
+colour mixing, surface alpha, material red, roughness and metallic overrides.
+It is export only and does not use the viewport's glass effect; see
+[Create New Item](../new_item/README.md) for controls, defaults and limitations.
+It is not included in Mesh Editor's experiment catalogue.
+
 | Experiment | Supported source | Behaviour |
 | --- | --- | --- |
 | Patterned reveal | `SkinnedMeshWing`, or plain `SkinnedMeshStandard` / `SkinnedMeshEmissive` with a base map | Progress and inverse mask. Binary cutout; increasing progress reveals more. Converted plain materials start fully retained at progress 2. |
@@ -19,7 +25,8 @@ be restored in Model & Placement → Appearance before Perks & Effects can prepa
 | Object dissolve | Existing `Dissolve` PAMI on a static object in Mesh Editor | Sphere ratio/radius, positive hardness, centre/position, noise scale/speed/strength, edge glow and inversion. Other flag bits are preserved. |
 
 Layered Standard, ordinary Hair, other cloth shaders and Glass cannot silently
-become another equipment shader. Object dissolve is unavailable on New Item
+become the shared equipment experiments above. New Item's explicit EyeCover
+experiment also accepts plain Translucent sources. Object dissolve is unavailable on New Item
 equipment. Restore Glow/Translucency overrides before choosing another experiment
 on the same part. Authored glow maps and unrelated parameters remain; their game
 shader support still needs testing.
@@ -32,7 +39,8 @@ preview updates. This does not add TornCloth support to ordinary armour. Restore
 source shader controls to clear an incompatible choice made in an older build.
 
 External Plain PBR imports offer Patterned reveal on opaque materials. Authored glass
-does not offer that conversion. Builder/prebuilt imports without proven source bindings
+does not offer that conversion; both also offer the New Item EyeCover experiment.
+Builder/prebuilt imports without proven source bindings
 keep experiments disabled. Unchecking Reveal progress on a Plain PBR conversion uses
 the same fully revealed value (2) in live preview, prepared scenes, Effects and export;
 existing Wing template materials still inherit their authored progress.

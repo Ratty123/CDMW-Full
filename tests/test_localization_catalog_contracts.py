@@ -1571,6 +1571,8 @@ def test_generated_manifest_freshness_ignores_only_source_line_movement() -> Non
 def test_generated_manifest_contains_reviewed_source_keys() -> None:
     packaged = _packaged_source_manifest()
     keys = {entry["key"] for entry in packaged["entries"]}
+    from cdmw.domain.mesh.shader_controls import EYE_COVER
+    assert {EYE_COVER.label, EYE_COVER.note, *(field.label for field in EYE_COVER.fields)} <= keys
     assert {
         "Workers",
         "Preview Caches",

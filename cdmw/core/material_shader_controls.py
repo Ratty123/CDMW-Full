@@ -7,7 +7,8 @@ from xml.sax.saxutils import escape
 
 from cdmw.core.pac_xml_emission import append_emission_parameter
 from cdmw.core.pac_xml_standard_material import find_material_wrappers
-from cdmw.domain.mesh.shader_controls import FAMILIES, ShaderControls, family_for, validate_choices
+from cdmw.domain.mesh.shader_controls import (NEW_ITEM_FAMILIES, EYE_COVER, EYE_COVER_TEXTURE_FIELDS,
+                                             ShaderControls, family_for, validate_choices)
 
 
 def _parameter_rows(block):
@@ -54,10 +55,13 @@ def validate_source(shader, controls, parameters, *, static=False):
     if static != (controls.shader == "Dissolve"):
         raise ValueError("Object dissolve and equipment shaders use different vertex pipelines.")
     if shader != family.shader:
-        if (family.shader != "SkinnedMeshWing" or shader not in {"SkinnedMeshStandard", "SkinnedMeshEmissive"}
+        plain_sources = {"SkinnedMeshStandard", "SkinnedMeshEmissive"}
+        if family == EYE_COVER:
+            plain_sources.add("SkinnedMeshTranslucent")
+        if (family.shader not in {"SkinnedMeshWing", EYE_COVER.shader} or shader not in plain_sources
                 or "_baseColorTexture" not in parameters
                 or any(name.lower().startswith(("_wrinkle", "_overlay", "_colorblending")) for name in parameters)):
-            raise ValueError(f"{family.label} requires {family.shader}. Patterned reveal also accepts Plain PBR Standard/Emissive materials.")
+            raise ValueError(f"{family.label} requires {family.shader} or a compatible plain equipment material with a base colour texture.")
     if "_hairDyeingProperty" in dict(controls.values):
         dye = parameters.get("_hairDyeingColor")
         raw = dye.get("_value", "") if dye is not None else ""
@@ -76,9 +80,7 @@ def equipment_shader_options(text):
         except (ValueError, ET.ParseError):
             parameters = None
         if key not in result and parameters is not None:
-            for family in FAMILIES:
-                if family.shader == "Dissolve":
-                    continue
+            for family in NEW_ITEM_FAMILIES:
                 try:
                     validate_source(wrapper.shader, ShaderControls(family.shader), parameters)
                 except ValueError:
@@ -131,22 +133,29 @@ def _write_parameter(block, name, kind, value, item_id, *, static):
     return append_emission_parameter(block, row)
 
 
-def _rewrite_block(block, shader, controls, *, static):
+def _rewrite_block(block, shader, controls, *, static, texture_paths=None):
     parameters = _parameter_rows(block)
     validate_source(shader, controls, parameters, static=static)
     family = family_for(controls.shader)
+    if family == EYE_COVER and texture_paths is None:
+        raise ValueError("EyeCover requires Create New Item texture preparation.")
     fields = {field.name: field for field in family.fields}
     for name, numbers in controls.values:
         field = fields[name]
+        if field.kind == "TextureChannel":
+            if EYE_COVER_TEXTURE_FIELDS[name][0] not in texture_paths:
+                raise ValueError(f"{field.label}: the owned texture override was not prepared.")
+            continue
         if field.kind == "Color" and not static:
             existing = parameters.get(name)
             raw = existing.get("_value", "") if existing is not None else ""
             alpha = raw[-2:] if re.fullmatch(r"#[0-9a-fA-F]{8}", raw) else "FF"
             value = "#" + "".join(f"{round(v * 255):02X}" for v in numbers) + alpha
-        elif field.kind == "Byte4":
+        elif field.kind in {"Byte4", "NormalizedByte4"}:
             existing = parameters.get(name)
             raw = int(existing.get("_value", "128")) if existing is not None else 128
-            value = str((raw & 0xFFFFFF00) | int(numbers[0]))
+            byte = round(numbers[0] * 255) if field.kind == "NormalizedByte4" else int(numbers[0])
+            value = str((raw & 0xFFFFFF00) | byte)
         elif field.kind == "BitFlag32":
             existing = parameters.get(name)
             raw = int(existing.get("Value" if static else "_value", "0")) if existing is not None else 0
@@ -155,13 +164,23 @@ def _rewrite_block(block, shader, controls, *, static):
             value = str(int(numbers[0]))
         else:
             value = " ".join(f"{v:.9g}" for v in numbers)
-        block = _write_parameter(block, name, field.kind, value, field.item_id, static=static)
+        kind = "Byte4" if field.kind == "NormalizedByte4" else field.kind
+        block = _write_parameter(block, name, kind, value, field.item_id, static=static)
+    if family == EYE_COVER:
+        if "_eyeCoverDiffuseParameter" not in parameters and "_eyeCoverDiffuseParameter" not in dict(controls.values):
+            block = _write_parameter(block, "_eyeCoverDiffuseParameter", "Byte4", "128",
+                                     family.fields[0].item_id, static=False)
+        for name in ("_alphaTexture", "_materialTexture"):
+            if name in texture_paths:
+                block = _write_parameter(block, name, "Texture", texture_paths[name], "0", static=False)
+            elif name not in parameters:
+                raise ValueError(f"EyeCover requires an explicit {name} binding; its game default uses a face texture.")
     if shader != family.shader:
         block, count = re.subn(r'\b_materialName="[^"]*"', f'_materialName="{family.shader}"', block, count=1)
         if count != 1:
             raise ValueError("Cannot identify the equipment material shader.")
         # Explicit defaults avoid inheriting Wing's partially hidden default pose.
-        if "_wingFlowProgress" not in dict(controls.values):
+        if family.shader == "SkinnedMeshWing" and "_wingFlowProgress" not in dict(controls.values):
             block = _write_parameter(block, "_wingFlowProgress", "Float", "2", "0", static=False)
     # Make inherited mask dependencies visible to the package/preview resolvers.
     if family.mask and family.default_mask and family.mask not in parameters:
@@ -169,7 +188,7 @@ def _rewrite_block(block, shader, controls, *, static):
     return block
 
 
-def rewrite_shader_controls(text, choices, *, static=False, allow_missing=False):
+def rewrite_shader_controls(text, choices, *, static=False, allow_missing=False, texture_paths=None):
     """Return edited XML and matched names. Callers must check cross-file misses."""
     if len(text) > 16 * 1024 * 1024:
         raise ValueError("Material sidecar exceeds the supported size limit.")
@@ -193,7 +212,8 @@ def rewrite_shader_controls(text, choices, *, static=False, allow_missing=False)
             raise ValueError(f"Ambiguous material binding: {name}")
         found.add(key)
         try:
-            replacement = _rewrite_block(text[start:end], shader, settings[key], static=static)
+            replacement = _rewrite_block(text[start:end], shader, settings[key], static=static,
+                texture_paths=texture_paths.get(key, {}) if texture_paths is not None else None)
         except (ValueError, ET.ParseError) as exc:
             raise ValueError(f"{name}: {exc}") from exc
         edits.append((start, end, replacement))

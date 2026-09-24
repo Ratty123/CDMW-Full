@@ -153,10 +153,12 @@ def prepare_template_model(snapshot, paths, *, glow=None, translucency=None, sha
     selected_glow = {name.casefold() for name in (glow.parts if glow else ())}
     selected_glass = {name.casefold() for name in (translucency.parts if translucency else ())}
     found_glow, found_glass, found_controls = set(), set(), set()
-    from cdmw.domain.mesh.shader_controls import validate_choices
+    from cdmw.domain.mesh.shader_controls import EYE_COVER, validate_choices
     validate_choices(shader_controls, glow_parts=tuple(selected_glow), translucent_parts=tuple(selected_glass), equipment=True)
     side, geometry = {}, {}
     notes = ["Template geometry and authored materials retained with explicit appearance/placement edits."]
+    if any(controls.shader == EYE_COVER.shader for _, controls in shader_controls):
+        notes.append(EYE_COVER.note)
     solid = None
     for path in paths:
         raise_if_cancelled(stop_event)
@@ -224,8 +226,14 @@ def prepare_template_model(snapshot, paths, *, glow=None, translucency=None, sha
                 raise NewItemPlanError(str(exc)) from exc
             side.update(textures)
         if shader_controls:
-            from cdmw.core.material_shader_controls import rewrite_shader_controls
-            text, matched = rewrite_shader_controls(text, shader_controls, allow_missing=True)
+            from cdmw.services.new_item_shader_controls import rewrite_new_item_shader_controls
+            sources = {key.casefold(): data for key, data in side.items()}
+            def read_shader_texture(texture):
+                return sources.get(texture.casefold()) if texture.casefold() in sources else (
+                    snapshot.payload(texture) if snapshot.has_entry(texture) else None)
+            text, textures, matched = rewrite_new_item_shader_controls(text, shader_controls, path,
+                read_shader_texture, stop_event=stop_event, allow_missing=True)
+            side.update(textures)
             found_controls.update(matched)
         if emission or glass or shader_controls:
             side[xml] = (b"\xef\xbb\xbf" if original.startswith(b"\xef\xbb\xbf") else b"") + text.encode("utf-8")

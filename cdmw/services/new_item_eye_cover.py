@@ -1,0 +1,77 @@
+"""Owned texture channels for the experimental EyeCover equipment export."""
+import hashlib
+from pathlib import Path, PurePosixPath
+from tempfile import TemporaryDirectory
+
+from cdmw.core.pac_xml_standard_material import find_material_wrappers
+from cdmw.domain.cancellation import raise_if_cancelled
+from cdmw.domain.mesh.shader_controls import EYE_COVER, EYE_COVER_TEXTURE_FIELDS
+
+
+def prepare_eye_cover_textures(text, choices, model_path, read_texture, *, stop_event=None):
+    """Return private bindings/payloads; never change a shared source texture."""
+    settings = {name.casefold(): controls for name, controls in choices if controls.shader == EYE_COVER.shader}
+    paths, files = {}, {}
+    stem = str(PurePosixPath(model_path.replace("\\", "/").replace("/modelproperty/", "/texture/", 1)
+                            .replace("/model/", "/texture/", 1)).with_suffix(""))
+    for wrapper in find_material_wrappers(text):
+        key = wrapper.submesh_name.casefold()
+        if key not in settings:
+            continue
+        raise_if_cancelled(stop_event)
+        controls = settings[key]
+        controls.validate()
+        values = dict(controls.values)
+        paths[key] = {}
+        for parameter in ("_alphaTexture", "_materialTexture"):
+            channels = {channel: values[name][0] for name, (texture, channel) in EYE_COVER_TEXTURE_FIELDS.items()
+                        if texture == parameter and name in values}
+            source = wrapper.textures.get(parameter, "")
+            if not channels and source:
+                continue
+            payload = read_texture(source) if source else None
+            if source and payload is None:
+                raise ValueError(f"{wrapper.submesh_name}: missing EyeCover source texture {source}.")
+            # Explicit neutral defaults avoid the EyeCover material's stock face maps.
+            default = (255, 255, 255, 255) if parameter == "_alphaTexture" else (0, 0, 0, 255)
+            data = _encode_channels(payload, channels, default, wrapper.submesh_name, stop_event=stop_event)
+            identity = hashlib.sha256(parameter.encode() + data).hexdigest()[:16]
+            path = f"{stem}_cdmw_eyecover_{identity}.dds"
+            files[path] = data
+            paths[key][parameter] = path
+    return paths, files
+
+
+def _encode_channels(payload, channels, default, part_name, *, stop_event=None):
+    from PIL import Image
+    from cdmw.core.texture_native import ensure_directxtex_dds_preview_png, encode_dds_with_directxtex
+    from cdmw.domain.textures.output import max_mips_for_size
+
+    raise_if_cancelled(stop_event)
+    with TemporaryDirectory(prefix="cdmw_eyecover_") as directory:
+        root = Path(directory)
+        if payload is not None:
+            source = root / "source.dds"
+            source.write_bytes(payload)
+            decoded = ensure_directxtex_dds_preview_png(source, max_dimension=0, slot_kind="material",
+                                                       srgb="off", stop_event=stop_event)
+            if decoded is None:
+                raise ValueError(f"{part_name}: cannot decode the EyeCover source texture.")
+            with Image.open(decoded) as image:
+                rgba = image.convert("RGBA")
+        else:
+            rgba = Image.new("RGBA", (4, 4), default)
+        planes = list(rgba.split())
+        for channel, value in channels.items():
+            planes[channel].paste(round(value * 255), (0, 0, rgba.width, rgba.height))
+        source = root / "channels.png"
+        Image.merge("RGBA", planes).save(source)
+        output = root / "channels.dds"
+        raise_if_cancelled(stop_event)
+        report = encode_dds_with_directxtex(source, output, dds_format="BC7_UNORM",
+            width=rgba.width, height=rgba.height, mip_count=max_mips_for_size(*rgba.size),
+            source_color_policy="ignore_srgb_metadata", stop_event=stop_event)
+        raise_if_cancelled(stop_event)
+        if not report or not output.is_file() or not output.stat().st_size:
+            raise ValueError(f"{part_name}: cannot encode the EyeCover texture.")
+        return output.read_bytes()

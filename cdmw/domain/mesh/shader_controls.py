@@ -1,7 +1,7 @@
 """Experimental controls recovered from material definitions and compiled shaders.
 
 These are material-family contracts, not a list of interchangeable shader names.
-Only the Wing experiment permits a plain equipment material to change families.
+Wing and New Item's export-only EyeCover experiment accept plain equipment.
 """
 from __future__ import annotations
 
@@ -81,9 +81,30 @@ FAMILIES = (
     ), "_dissolveNoiseTex", "effect/texture/pafx_aura_noise_001a_hsu_bc7.dds"),
 )
 
+# Keep the native renderer's family IDs and Mesh Editor catalogue unchanged.
+# These texture channels are authoring operations, not game scalar parameters.
+EYE_COVER_TEXTURE_FIELDS = {
+    "surface_alpha": ("_alphaTexture", 0),
+    "material_red": ("_materialTexture", 0),
+    "roughness": ("_materialTexture", 1),
+    "metallic": ("_materialTexture", 2),
+}
+EYE_COVER = ShaderFamily("SkinnedMeshEyeCover", "EyeCover blending (experimental)",
+    "Export only: test in game. The viewport shows the source material, without EyeCover blending. "
+    "Colour mixing is not an opacity percentage: its weight is twice the packed colour value minus material red. "
+    "Surface alpha separately blends normals and surface properties. Game lighting, colour, reflections, depth and shadows may differ.", (
+        ShaderField("_eyeCoverDiffuseParameter", "Colour mixing", (.5,), 0, 1,
+                    "NormalizedByte4", "3844829386637310"),
+        ShaderField("surface_alpha", "Surface alpha", (1.,), 0, 1, "TextureChannel"),
+        ShaderField("material_red", "Colour mask (material red)", (0.,), 0, 1, "TextureChannel"),
+        ShaderField("roughness", "EyeCover roughness", (.9,), 0, 1, "TextureChannel"),
+        ShaderField("metallic", "EyeCover metallic", (0.,), 0, 1, "TextureChannel"),
+    ))
+NEW_ITEM_FAMILIES = tuple(family for family in FAMILIES if family.shader != "Dissolve") + (EYE_COVER,)
+
 
 def family_for(shader: str) -> ShaderFamily:
-    for family in FAMILIES:
+    for family in (*FAMILIES, EYE_COVER):
         if family.shader == shader:
             return family
     raise ValueError("Unsupported experimental shader family.")
@@ -159,6 +180,8 @@ def preview_factors(controls, authored=None):
     """
     controls.validate()
     family = family_for(controls.shader)
+    if family == EYE_COVER:
+        raise ValueError("EyeCover blending is export-only; the viewport shows the source material.")
     authored = authored or {}
     values = dict(controls.values)
     dye = str(authored.get("_hairDyeingColor", ""))

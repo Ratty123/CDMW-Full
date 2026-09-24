@@ -8,7 +8,7 @@ from tempfile import gettempdir
 from types import SimpleNamespace
 
 from cdmw.core.common import raise_if_cancelled
-from cdmw.domain.mesh.shader_controls import family_for, preview_factors
+from cdmw.domain.mesh.shader_controls import EYE_COVER, family_for, preview_factors
 
 
 EFFECT_MASK_PARAMETERS = frozenset({"_wingFlowTex1", "_tornPatternTexture", "_posterGlowNoiseTex",
@@ -32,6 +32,8 @@ def source_inputs(part):
 
 def shader_control_diagnostic(part, controls, authored):
     """Read actual mask gates during worker preparation, never during UI repaint."""
+    if controls.shader == EYE_COVER.shader:
+        return EYE_COVER.note
     if controls.shader in {"SkinnedMeshTornCloth_Ver2", "SkinnedMeshHairAnimatedUV"}:
         total = len(part.vertices)
         masks = getattr(part, "shader_masks", ())
@@ -66,7 +68,8 @@ def shader_preview_groups(mesh, choices, *, plain_pbr=False):
             # Explicit control values still win in preview_factors.
             values = {"_wingFlowProgress": "2"}
         result.append({"source_submesh_indices": [index], "editor_role": "replacement_preview",
-                       "shader_controls": list(preview_factors(selected[0], values)) if selected else None})
+                       "shader_controls": list(preview_factors(selected[0], values))
+                       if selected and selected[0].shader != EYE_COVER.shader else None})
     return tuple(result)
 
 
@@ -136,6 +139,11 @@ def shader_preview_mesh(mesh, choices, *, snapshot=None, stop_event=None, plain_
         controls = selected[0]
         if any(value != controls for value in selected):
             raise ValueError("Parts sharing a preview material need the same shader controls.")
+        if controls.shader == EYE_COVER.shader:
+            # EyeCover reads/writes the game's character G-buffer. Do not fake
+            # those passes with this renderer's unrelated glass/alpha blending.
+            result.submeshes.append(part)
+            continue
         clone = copy.copy(part)
         values, textures = source_inputs(part)
         if plain_pbr and controls.shader == "SkinnedMeshWing":

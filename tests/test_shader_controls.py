@@ -33,12 +33,12 @@ def choice(shader="SkinnedMeshWing", **values):
 
 
 @pytest.mark.parametrize("shader,extra,supported", [
-    ("SkinnedMeshStandard", "", ("SkinnedMeshWing",)),
-    ("SkinnedMeshEmissive", "", ("SkinnedMeshWing",)),
+    ("SkinnedMeshStandard", "", ("SkinnedMeshWing", "SkinnedMeshEyeCover")),
+    ("SkinnedMeshEmissive", "", ("SkinnedMeshWing", "SkinnedMeshEyeCover")),
     ("SkinnedMeshStandard", field("_overlayWeight", "1"), ()),
     ("SkinnedMeshStandard_Ver2", "", ()),
     ("SkinnedMeshHair", "", ()),
-    ("SkinnedMeshTranslucent", "", ()),
+    ("SkinnedMeshTranslucent", "", ("SkinnedMeshEyeCover",)),
     *[(family.shader, "", (family.shader,)) for family in FAMILIES if family.shader != "Dissolve"],
 ])
 def test_equipment_shader_options_follow_output_compatibility(shader, extra, supported):
@@ -274,13 +274,13 @@ def test_template_and_import_shader_options_follow_the_output_route(monkeypatch)
         monkeypatch.setattr(controller, "material_parts", lambda: (("Imported", "Imported"),))
         widget.refresh((("Imported", "Imported"),), (), controller.material_shader_options())
         assert [widget.family.itemData(i) for i in range(1, widget.family.count())
-                if widget.family.model().item(i).isEnabled()] == ["SkinnedMeshWing"]
+                if widget.family.model().item(i).isEnabled()] == ["SkinnedMeshWing", "SkinnedMeshEyeCover"]
         widget.family.setCurrentIndex(widget.family.findData("SkinnedMeshTornCloth_Ver2"))
         assert not changes
         part = SimpleNamespace(name="Imported", material="Imported", preview_material_parameters=(
             SimpleNamespace(parameter_name="_transmissionFactor", value="0.7"),))
         controller.model_import = SimpleNamespace(scene=SimpleNamespace(mesh=SimpleNamespace(submeshes=[part])))
-        assert controller.material_shader_options()["imported"] == ("SkinnedMeshTranslucent", ())
+        assert controller.material_shader_options()["imported"] == ("SkinnedMeshTranslucent", ("SkinnedMeshEyeCover",))
         from cdmw.domain.new_item.spec import MaterialRoute
         controller.draft.material_route = MaterialRoute.BUILDER
         widget.refresh((("Imported", "Imported"),), (), controller.material_shader_options())
@@ -464,7 +464,9 @@ def test_pac_vertex_colours_reach_render_document_and_effect_placement():
     assert not hasattr(native.submeshes[0], "preview_native_material_overrides")
 
 
-def test_variant_switch_retains_shader_choices_and_plans_only_selected_variant(tmp_path):
+@pytest.mark.parametrize("settings", [choice(_wingFlowProgress=.4),
+    choice("SkinnedMeshEyeCover", _eyeCoverDiffuseParameter=.3, surface_alpha=.2, material_red=.1)])
+def test_variant_switch_retains_shader_choices_and_plans_only_selected_variant(tmp_path, settings):
     from PySide6.QtWidgets import QApplication
     from cdmw.ui.new_item.controller import NewItemStudioController
     from tests.test_new_item_provenance import setup_game
@@ -478,7 +480,7 @@ def test_variant_switch_retains_shader_choices_and_plans_only_selected_variant(t
         controller.set_template(TEMPLATE)
         first, second = [row.identity for row in selections(snapshot)[:2]]
         controller.select_variant(first)
-        controls = (("Blade", choice(_wingFlowProgress=.4)),)
+        controls = (("Blade", settings),)
         controller.draft.shader_controls = controls
         controller.select_variant(second)
         assert controller.draft.shader_controls == ()

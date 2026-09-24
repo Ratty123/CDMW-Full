@@ -7,6 +7,34 @@ The experiment selector marks incompatible choices **Unavailable**, lists the
 experiments supported by the selected part, and explains each unavailable option's
 required source material in its tooltip.
 
+**EyeCover blending (experimental)** is available here for plain Standard,
+Emissive and Translucent materials with a base colour texture, and existing
+EyeCover materials. Select a part under **Model & Placement → Appearance →
+Shader experiments**. The initial overrides are colour mixing 0.5, surface alpha
+1 and material red 0; roughness and metallic initially keep their source channels.
+Unchecked fields retain the source; missing inputs use explicit neutral maps,
+avoiding the shader's stock face textures. Restore removes the experiment.
+
+Colour mixing is stored in the low byte of `_eyeCoverDiffuseParameter` (256
+steps); the other bytes are preserved. The recovered colour weight is
+`2 * packedColour / 255 - materialTexture.red`. It is not a whole-material
+opacity percentage. `_alphaTexture.red` independently affects normals and
+surface properties. The roughness/metallic overrides replace material G/B and
+take precedence over the ordinary Surface controls for export. Colour and source
+normal maps remain bound; colour, shine, reflection, depth and shadow behaviour
+still require in-game testing. Glow and Translucency overrides must be restored
+on the same part before choosing this experiment. Layered materials require a
+Plain PBR import first; they are not silently converted.
+
+EyeCover blending is **export only**: Model, Effects and dye viewports retain
+source shading, and the panel visibly identifies this limitation. The preview
+does not simulate EyeCover's character G-buffer pass. Choices persist per variant
+and go through the regular build-plan/export workflow. Edited alpha/material
+channels use private BC7 textures with full mip chains; shared source textures,
+other parts and installed archives are untouched. BC7 is lossy and channel
+values are quantized. Use the source application to test this addition until the
+next explicitly requested executable build.
+
 Owns the Create New Item tab: clone an equipment item into a brand-new one with
 its own identity, model, icon, stats, shop placement and item groups, then write
 it as a loose mod or install it.

@@ -3,7 +3,7 @@ from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout,
                               QGroupBox, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget)
 
-from cdmw.domain.mesh.shader_controls import FAMILIES, ShaderControls, family_for
+from cdmw.domain.mesh.shader_controls import NEW_ITEM_FAMILIES, EYE_COVER, ShaderControls, family_for
 from cdmw.ui.wheel_guard import enable_focused_wheel
 
 
@@ -20,9 +20,8 @@ class ShaderControlsEditor(QGroupBox):
         layout.addWidget(self.part)
         self.family = QComboBox()
         self.family.addItem("Keep source shader", "")
-        for family in FAMILIES:
-            if family.shader != "Dissolve":
-                self.family.addItem(family.label, family.shader)
+        for family in NEW_ITEM_FAMILIES:
+            self.family.addItem(family.label, family.shader)
         layout.addWidget(self.family)
         self.note = QLabel()
         self.note.setWordWrap(True)
@@ -61,7 +60,7 @@ class ShaderControlsEditor(QGroupBox):
         if not supported:
             note += " No compatible shader experiments. Glow and translucency have separate controls."
         else:
-            labels = [family.label for family in FAMILIES if family.shader in supported and family.shader != "Dissolve"]
+            labels = [family.label for family in NEW_ITEM_FAMILIES if family.shader in supported]
             note += " Available for this part: " + ", ".join(labels) + "."
         note += " Options marked Unavailable require a different source material. Hover over an option for its requirements."
         return note
@@ -77,6 +76,7 @@ class ShaderControlsEditor(QGroupBox):
             item.setText(family.label if available else f"{family.label} — Unavailable")
             item.setEnabled(available)
             requirement = ("Requires a Plain PBR material with a base colour texture, or an existing Wing material." if family.shader == "SkinnedMeshWing"
+                           else "Requires a plain Standard, Emissive or Translucent material with a base colour texture, or an existing EyeCover material." if family == EYE_COVER
                            else f"Requires a {family.shader} source material.")
             item.setToolTip(family.note if available else
                             f"Unavailable for this part. {requirement} "
@@ -101,12 +101,24 @@ class ShaderControlsEditor(QGroupBox):
                 self.family.setToolTip(self._source_note() or "Choose a compatible shader experiment for this part. Unchecked fields keep source values. Object dissolve is available for static objects in Mesh Editor.")
                 return
             family = family_for(choice.shader)
+            if family == EYE_COVER:
+                self.note.setText("Experimental, export only. Test in game; the viewport shows the source material without EyeCover blending.")
+                self.note.setVisible(True)
             self.family.setToolTip(" ".join(value for value in (self._source_note(), family.note) if value))
             values = dict(choice.values)
             for field in family.fields:
                 enabled = QCheckBox(field.label)
                 enabled.setChecked(field.name in values)
                 enabled.setToolTip("Override this field. Uncheck to retain the authored value.")
+                if family == EYE_COVER:
+                    tips = {
+                        "_eyeCoverDiffuseParameter": "Packed into 256 steps. Colour weight is twice this value minus material red; this is not a whole-material opacity percentage. Unchecked: keep the authored value, or use 0.5.",
+                        "surface_alpha": "Replaces the alpha texture's red channel. Blends normals and surface properties separately from colour. Unchecked: keep the source texture, or use white (1).",
+                        "material_red": "Replaces material red, which is subtracted from twice the colour-mixing value. Unchecked: keep the source texture, or use black (0).",
+                        "roughness": "Replaces material green: 0 smooth, 1 rough. This EyeCover override takes precedence over Surface roughness. Unchecked: keep the source channel.",
+                        "metallic": "Replaces material blue: 0 nonmetal, 1 metal. This EyeCover override takes precedence over Surface metallic. Unchecked: keep the source channel.",
+                    }
+                    enabled.setToolTip(tips[field.name])
                 holder, row = QWidget(), QHBoxLayout()
                 row.setContentsMargins(0, 0, 0, 0)
                 holder.setLayout(row)
@@ -139,6 +151,8 @@ class ShaderControlsEditor(QGroupBox):
             return
         if shader:
             values = (("_wingFlowProgress", (2.,)),) if shader == "SkinnedMeshWing" else ()
+            if shader == EYE_COVER.shader:
+                values = tuple((field.name, field.default) for field in EYE_COVER.fields[:3])
             self._choices[name] = ShaderControls(shader, values)
         else:
             self._choices.pop(name, None)

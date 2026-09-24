@@ -2,7 +2,7 @@
 from dataclasses import replace
 
 from cdmw.core.material_shader_controls import rewrite_shader_controls
-from cdmw.domain.mesh.shader_controls import validate_choices
+from cdmw.domain.mesh.shader_controls import EYE_COVER, validate_choices
 
 
 def shader_control_bindings(files, choices, *, result=None, scene=None):
@@ -52,12 +52,34 @@ def shader_control_bindings(files, choices, *, result=None, scene=None):
     return bindings
 
 
-def apply_shader_controls(files, choices, *, result=None, scene=None):
+def rewrite_new_item_shader_controls(text, choices, model_path, read_texture, *, stop_event=None, allow_missing=False):
+    from cdmw.services.new_item_eye_cover import prepare_eye_cover_textures
+    # Validate the material contract before decoding/encoding any textures.
+    from cdmw.core.material_shader_controls import validate_source, _parameter_rows
+    from cdmw.core.pac_xml_standard_material import find_material_wrappers
+    validate_choices(choices, equipment=True)
+    settings = {name.casefold(): controls for name, controls in choices}
+    for wrapper in find_material_wrappers(text):
+        if wrapper.submesh_name.casefold() in settings:
+            validate_source(wrapper.shader, settings[wrapper.submesh_name.casefold()],
+                            _parameter_rows(text[wrapper.start:wrapper.end]))
+    paths, textures = prepare_eye_cover_textures(text, choices, model_path, read_texture, stop_event=stop_event)
+    edited, matched = rewrite_shader_controls(text, choices, texture_paths=paths, allow_missing=allow_missing)
+    return edited, textures, matched
+
+
+def apply_shader_controls(files, choices, *, result=None, scene=None, stop_event=None):
     if not choices:
         return files
     side = dict(files.side_files)
+    sources = {path.replace("\\", "/").casefold(): data for path, data in side.items()}
     for path, mapped in shader_control_bindings(files, choices, result=result, scene=scene).items():
         data = side[path]
-        text, _ = rewrite_shader_controls(data.decode("utf-8-sig"), mapped)
+        text, textures, _ = rewrite_new_item_shader_controls(data.decode("utf-8-sig"), mapped, path,
+            lambda texture: sources.get(texture.replace("\\", "/").casefold()), stop_event=stop_event)
+        side.update(textures)
         side[path] = (b"\xef\xbb\xbf" if data.startswith(b"\xef\xbb\xbf") else b"") + text.encode("utf-8")
-    return replace(files, side_files=side, notes=(*files.notes, "Experimental shader controls applied to selected materials; game validation is still required."))
+    notes = ("Experimental shader controls applied to selected materials; game validation is still required.",)
+    if any(controls.shader == EYE_COVER.shader for _, controls in choices):
+        notes += (EYE_COVER.note,)
+    return replace(files, side_files=side, notes=(*files.notes, *notes))
