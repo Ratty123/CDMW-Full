@@ -14,6 +14,7 @@ from cdmw.domain.mesh.shader_controls import EYE_COVER, family_for, preview_fact
 EFFECT_MASK_PARAMETERS = frozenset({"_wingFlowTex1", "_tornPatternTexture", "_posterGlowNoiseTex",
                                     "_dissolveNoiseTex", "_hairAnisotropyDetailMaskTexture"})
 EFFECT_NORMAL_PARAMETER = "_hairAnisotropyDetailNormalTexture"
+EYE_COVER_ALPHA_PARAMETER = "_cdmwEyeCoverAlphaTexture"
 
 
 def source_inputs(part):
@@ -67,9 +68,11 @@ def shader_preview_groups(mesh, choices, *, plain_pbr=False):
             # Plain PBR conversion starts fully revealed in the output writer.
             # Explicit control values still win in preview_factors.
             values = {"_wingFlowProgress": "2"}
+        if selected and plain_pbr and selected[0].shader == EYE_COVER.shader:
+            values = {}
         result.append({"source_submesh_indices": [index], "editor_role": "replacement_preview",
                        "shader_controls": list(preview_factors(selected[0], values))
-                       if selected and selected[0].shader != EYE_COVER.shader else None})
+                       if selected else None})
     return tuple(result)
 
 
@@ -139,16 +142,14 @@ def shader_preview_mesh(mesh, choices, *, snapshot=None, stop_event=None, plain_
         controls = selected[0]
         if any(value != controls for value in selected):
             raise ValueError("Parts sharing a preview material need the same shader controls.")
-        if controls.shader == EYE_COVER.shader:
-            # EyeCover reads/writes the game's character G-buffer. Do not fake
-            # those passes with this renderer's unrelated glass/alpha blending.
-            result.submeshes.append(part)
-            continue
         clone = copy.copy(part)
         values, textures = source_inputs(part)
         if plain_pbr and controls.shader == "SkinnedMeshWing":
             values = {"_wingFlowProgress": "2"}
             textures.pop("_wingFlowTex1", None)
+        if plain_pbr and controls.shader == EYE_COVER.shader:
+            values = {}
+            textures.pop("_alphaTexture", None)
         path = str(getattr(part, "preview_source_asset_path", "") or mesh.path).replace("\\", "/")
         if not plain_pbr and snapshot is not None and path.casefold().endswith(".pac"):
             if path not in decoded:
@@ -160,8 +161,13 @@ def shader_preview_mesh(mesh, choices, *, snapshot=None, stop_event=None, plain_
             if source_name is not None:
                 # Use the same compatibility checks and inherited values as
                 # output, including Wing's visible starting pose on conversion.
-                edited, _ = rewrite_shader_controls(text, ((source_name, controls),))
-                _, values, textures = control_material_sources(edited)[source_name]
+                if controls.shader == EYE_COVER.shader:
+                    # Read inherited values without generating export BC7 maps
+                    # on every preview edit. The GPU applies channel overrides.
+                    _, values, textures = sources[source_name]
+                else:
+                    edited, _ = rewrite_shader_controls(text, ((source_name, controls),))
+                    _, values, textures = control_material_sources(edited)[source_name]
             if controls.shader in {"SkinnedMeshTornCloth_Ver2", "SkinnedMeshHairAnimatedUV"} and snapshot.has_entry(path):
                 if path not in source_meshes:
                     from cdmw.modding.mesh_parser import parse_pac
@@ -174,20 +180,26 @@ def shader_preview_mesh(mesh, choices, *, snapshot=None, stop_event=None, plain_
                         break
         family = family_for(controls.shader)
         bindings = list(getattr(part, "preview_material_texture_inputs", ()) or ())
-        for parameter, source_path in ((family.mask, textures.get(family.mask, family.default_mask)),
-                                       (EFFECT_NORMAL_PARAMETER, textures.get(EFFECT_NORMAL_PARAMETER, "") if controls.shader == "SkinnedMeshAnisotropy" else "")):
+        resources = ((family.mask, textures.get(family.mask, family.default_mask), family.mask),
+                     (EFFECT_NORMAL_PARAMETER, textures.get(EFFECT_NORMAL_PARAMETER, "") if controls.shader == "SkinnedMeshAnisotropy" else "", EFFECT_NORMAL_PARAMETER))
+        if family == EYE_COVER:
+            resources = ((EYE_COVER_ALPHA_PARAMETER, textures.get("_alphaTexture", ""), "_alphaTexture"),)
+        for parameter, source_path, source_parameter in resources:
             if not source_path:
                 continue
             if snapshot is None or not snapshot.has_entry(source_path):
-                if not any(getattr(item, "parameter_name", "") == parameter
-                           and (getattr(item, "source_dds_path", "") or getattr(item, "preview_texture_path", ""))
-                           for item in bindings):
+                existing = next((item for item in bindings if getattr(item, "parameter_name", "") == source_parameter
+                                 and (getattr(item, "source_dds_path", "") or getattr(item, "preview_texture_path", ""))), None)
+                if existing is None:
                     raise ValueError(f"{part.name}: the shader preview texture is unavailable: {source_path}.")
-                continue
-            raise_if_cancelled(stop_event)
-            data = snapshot.payload(source_path)
-            raise_if_cancelled(stop_event)
-            resource = publish_preview_texture(data)
+                if parameter == source_parameter:
+                    continue
+                resource = getattr(existing, "source_dds_path", "") or existing.preview_texture_path
+            else:
+                raise_if_cancelled(stop_event)
+                data = snapshot.payload(source_path)
+                raise_if_cancelled(stop_event)
+                resource = publish_preview_texture(data)
             bindings = [item for item in bindings if getattr(item, "parameter_name", "") != parameter]
             bindings.append(SimpleNamespace(parameter_name=parameter, source_texture_path=source_path,
                 source_dds_path=resource, preview_texture_path=resource, shader_family=family.shader,

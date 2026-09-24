@@ -102,7 +102,7 @@ class ShaderControlsEditor(QGroupBox):
                 return
             family = family_for(choice.shader)
             if family == EYE_COVER:
-                self.note.setText("Experimental, export only. Test in game; the viewport shows the source material without EyeCover blending.")
+                self.note.setText("Approximate preview: colour mixing changes coverage; surface alpha changes surface detail and shine. Test the final result in game.")
                 self.note.setVisible(True)
             self.family.setToolTip(" ".join(value for value in (self._source_note(), family.note) if value))
             values = dict(choice.values)

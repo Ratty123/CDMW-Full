@@ -20,24 +20,35 @@ steps); the other bytes are preserved. The recovered colour weight is
 `2 * packedColour / 255 - materialTexture.red`. It is not a whole-material
 opacity percentage. `_alphaTexture.red` independently affects normals and
 surface properties. The roughness/metallic overrides replace material G/B and
-take precedence over the ordinary Surface controls for export. Colour and source
+take precedence over the ordinary Surface controls in preview and export. Colour and source
 normal maps remain bound; colour, shine, reflection, depth and shadow behaviour
 still require in-game testing. Glow and Translucency overrides must be restored
 on the same part before choosing this experiment. Layered materials require a
 Plain PBR import first; they are not silently converted.
 
-EyeCover blending is **export only**: Model, Effects and dye viewports retain
-source shading, and the panel visibly identifies this limitation. The preview
-does not simulate EyeCover's character G-buffer pass. Choices persist per variant
-and go through the regular build-plan/export workflow. Edited alpha/material
+EyeCover has an **approximate preview** in Model & Placement, Effects and dye
+viewports. Colour mixing and material red control colour coverage, clamped to
+0–1; surface alpha independently controls normal-map detail and highlights.
+This is a forward-rendered illustration, not the game's character G-buffer
+blend: it does not mix the underlying object's normals/material, reproduce depth
+or shadows, or predict exact game reflections. Weights outside 0–1 may behave
+differently in game. Surface alpha 0 alone does not remove the colour, and colour
+coverage 0 can leave highlights when surface alpha is nonzero. At the initial
+colour mixing 0.5 / material red 0, colour coverage is effectively 1. Try colour
+mixing 0.25 / material red 0 to compare roughly half coverage, then adjust surface
+alpha separately. Restore source shader controls removes the approximation.
+Unchecked channels use source maps (missing alpha defaults to 1, material red to
+0); colour and channel overrides follow export's byte quantization, before BC7
+compression. Preview changes do not encode export textures. Choices persist per
+variant and go through the regular build-plan/export workflow. Edited alpha/material
 channels use private BC7 textures with full mip chains; shared source textures,
 other parts and installed archives are untouched. Build Plan logs identify the
 part, EyeCover texture, dimensions and mip count, forward the encoder's 30-second
 heartbeat during longer conversions, and report completion time. Identical 4x4
 blocks reuse the same BC7 result, retaining the encoder's quality and full mip
 chain while reducing repeated work on material maps. BC7 is lossy and channel
-values are quantized. Use the source application to test this addition until the
-next explicitly requested executable build.
+values are quantized. The updated viewport shader reaches the portable app with
+the next explicitly requested executable build.
 
 Owns the Create New Item tab: clone an equipment item into a brand-new one with
 its own identity, model, icon, stats, shop placement and item groups, then write

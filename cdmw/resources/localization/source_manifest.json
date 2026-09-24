@@ -8672,6 +8672,16 @@
       ]
     },
     {
+      "key": "Approximate preview: colour mixing changes coverage; surface alpha changes surface detail and shine. Test the final result in game.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/shader_controls_editor.py",
+          "line": 105,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Approximate preview: {value_0} limitation(s). See emitter details before exporting.",
       "origins": [
         {
@@ -8690,6 +8700,11 @@
           "sink": "python-return:material_sidecar_reused_package_summary"
         }
       ]
+    },
+    {
+      "key": "Approximate viewport preview. Test in game; character-buffer blending, depth and shadows are not reproduced. Colour mixing is not an opacity percentage: its weight is twice the packed colour value minus material red. Surface alpha separately blends normals and surface properties. Game lighting, colour, reflections, depth and shadows may differ.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Approximate viewport preview; game refraction and lighting may differ. Uses Plain PBR materials. Authored glass is preserved automatically; these controls override selected parts. Glow maps and colours are kept; brightness and tint may differ in game.",
@@ -35707,16 +35722,6 @@
       ]
     },
     {
-      "key": "Experimental, export only. Test in game; the viewport shows the source material without EyeCover blending.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 105,
-          "sink": "setText"
-        }
-      ]
-    },
-    {
       "key": "Experimental: allow five to eight perks",
       "origins": [
         {
@@ -36975,11 +36980,6 @@
           "sink": "setAccessibleName"
         }
       ]
-    },
-    {
-      "key": "Export only: test in game. The viewport shows the source material, without EyeCover blending. Colour mixing is not an opacity percentage: its weight is twice the packed colour value minus material red. Surface alpha separately blends normals and surface properties. Game lighting, colour, reflections, depth and shadows may differ.",
-      "origins": [],
-      "manual": true
     },
     {
       "key": "Export recipe…",

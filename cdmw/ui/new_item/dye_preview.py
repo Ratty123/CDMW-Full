@@ -20,7 +20,8 @@ def variant_dye_preview_source(controller):
     if state is None:
         raise ValueError("Customize this variant's dye assignments first.")
     choice = state.appearance
-    # EyeCover is an export-only experiment; dye preview retains source shading.
+    # Prepare dyes from the source material. EyeCover channel edits are applied
+    # by the shared preview shader, without an export-time BC7 encode.
     from cdmw.domain.mesh.shader_controls import EYE_COVER
     preview_controls = tuple((name, controls) for name, controls in choice.shader_controls
                              if controls.shader != EYE_COVER.shader)
@@ -103,14 +104,15 @@ def variant_dye_preview_source(controller):
             primary = next(value for value in prepared if value.path==choice.model_path)
             prefab = snapshot.entry(choice.prefab_path)
             consume = None
-            if preview_controls:
+            if choice.shader_controls:
                 from types import SimpleNamespace
                 from cdmw.services.new_item_shader_controls import shader_control_bindings
                 from cdmw.services.shader_controls_preview import shader_preview_mesh
                 from cdmw.services.mesh_dotnet_reference_composite import decode_dotnet_native_preview_package
                 from cdmw.ui.new_item.item_preview import build_item_preview_package
 
-                mapped = shader_control_bindings(files, preview_controls, result=result, scene=scene)
+                preview_files = replace(files, side_files={**files.side_files, material_path: material})
+                mapped = shader_control_bindings(preview_files, choice.shader_controls, result=result, scene=scene)
                 settings = tuple(pair for bindings in mapped.values() for pair in bindings)
                 authored = SimpleNamespace(
                     has_entry=lambda path: path in payloads or snapshot.has_entry(path),

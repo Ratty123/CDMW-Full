@@ -42,6 +42,18 @@ pub(super) fn verify(
     let mut anisotropy = [0.0; 32]; anisotropy[0] = 4.0; anisotropy[5] = 0.5; anisotropy[6] = 128.0;
     cases.push(("detail off", anisotropy, [1.0, 1.0, 1.0], 0.0));
     anisotropy[4] = 1.0; cases.push(("detail on", anisotropy, [1.0, 1.0, 1.0], 0.0));
+    let mut eye = [0.0; 32]; eye[0] = 7.0; eye[7] = 0.4;
+    cases.push(("eye clear", eye, [1.0, 1.0, 1.0], 0.0));
+    eye[4] = 0.25; cases.push(("eye half", eye, [1.0, 1.0, 1.0], 0.0));
+    eye[4] = 128.0 / 255.0; cases.push(("eye opaque", eye, [1.0, 1.0, 1.0], 0.0));
+    eye[4] = 1.0; cases.push(("eye saturated", eye, [1.0, 1.0, 1.0], 0.0));
+    eye[4] = 0.5; eye[6] = 0.5; cases.push(("eye red mask", eye, [1.0, 1.0, 1.0], 0.0));
+    eye[4] = 0.0; eye[5] = 1.0; cases.push(("eye shine only", eye, [1.0, 1.0, 1.0], 0.0));
+    eye[7] = 0.95; eye[8] = 1.0; cases.push(("eye rough metal", eye, [1.0, 1.0, 1.0], 0.0));
+    eye[4] = 0.5; eye[5] = -1.0; eye[6] = -1.0;
+    cases.push(("eye inherited maps", eye, [1.0, 1.0, 1.0], 0.0));
+    eye[5] = 64.0 / 255.0; eye[6] = 64.0 / 255.0;
+    cases.push(("eye explicit maps", eye, [1.0, 1.0, 1.0], 0.0));
     let mut samples = BTreeMap::new();
     for (name, controls, vertex_mask, time) in cases {
         let snapshot = DrawSnapshot {
@@ -52,8 +64,16 @@ pub(super) fn verify(
             triangle_materials: vec![0; 2], selected_vertices: Vec::new(), fingerprint: "shader-controls-proof".to_owned(),
         };
         let mesh = GpuMeshBuffers::upload(device, &snapshot)?;
-        let factors = MaterialPreviewFactors { shader_controls: Some(controls), roughness: Some(0.4), specular: Some(0.5), ..Default::default() };
-        let bindings = BTreeMap::from([(0, make_binding(&mask, &base, factors)?)]);
+        let eye_cover = controls[0] == 7.0;
+        let factors = MaterialPreviewFactors { shader_controls: Some(controls), roughness: Some(0.4), specular: Some(0.5),
+            // Conversion from glass/cutout must still use EyeCover coverage.
+            translucency: eye_cover.then_some([0.8, 0.8]), alpha_cutoff: eye_cover.then_some(0.9),
+            ..Default::default() };
+        let binding = make_binding(&mask, &base, factors)?;
+        if eye_cover && (!binding.alpha_blend || binding.translucent) {
+            return Err(RenderError::Device("EyeCover did not select independent alpha blending".to_owned()));
+        }
+        let bindings = BTreeMap::from([(0, binding)]);
         camera.material_time = time;
         camera.scene_model = Mat4::IDENTITY.to_cols_array_2d();
         let (buffer, width, height) = render_headless_readback_at(device, queue, format, &mesh,
@@ -70,11 +90,15 @@ pub(super) fn verify(
         || close("hair first", "hair second") || !close("hair white first", "hair white second")
         || close("poster off", "poster sweep ratio zero") || !close("poster off", "poster end")
         || close("object cut", "object retained") || !close("object inverse", "object retained")
-        || !close("object player unavailable", "object retained") || close("detail off", "detail on") {
+        || !close("object player unavailable", "object retained") || close("detail off", "detail on")
+        || !close("eye clear", "wing cut") || close("eye clear", "eye half")
+        || close("eye half", "eye opaque") || !close("eye opaque", "eye saturated")
+        || !close("eye half", "eye red mask") || close("eye clear", "eye shine only")
+        || close("eye shine only", "eye rough metal") || !close("eye inherited maps", "eye explicit maps") {
         return Err(RenderError::Device(format!("Shader-control pixel mismatch: {samples:?}")));
     }
     *camera = saved;
     queue.write_buffer(camera_buffer, 0, bytemuck::bytes_of(camera));
-    eprintln!("Verified shader-control cutouts, vertex gates, animated UVs, detail normals, glow sweep and object clipping using synthetic pixels.");
+    eprintln!("Verified shader-control cutouts, vertex gates, animated UVs, detail normals, glow sweep, object clipping and independent EyeCover colour/surface weights using synthetic pixels.");
     Ok(())
 }

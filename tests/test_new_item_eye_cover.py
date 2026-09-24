@@ -1,4 +1,4 @@
-"""EyeCover is an experimental New Item export, not a viewport opacity effect."""
+"""EyeCover export and the explicitly approximate independent-weight preview."""
 from dataclasses import replace
 from io import BytesIO
 import struct
@@ -133,17 +133,68 @@ def test_invalid_missing_conflicting_and_cancelled_exports_fail_before_publicati
     assert EYE_COVER.shader not in {row["shader"] for row in catalogue_payload()}  # New Item only.
 
 
-def test_preview_keeps_source_instead_of_sending_eye_cover_as_a_glass_effect():
+def test_preview_routes_eye_cover_in_live_prepared_and_effects_materials():
     from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
     from cdmw.services.shader_controls_preview import shader_preview_mesh, shader_preview_groups
     part = SubMesh(name="Blade", material="Blade")
     part.preview_native_material_overrides = {"translucency": [.1, .3]}
-    mesh = ParsedMesh(path="imported.obj", submeshes=[part])
+    other = SubMesh(name="Guard", material="Guard")
+    mesh = ParsedMesh(path="imported.obj", submeshes=[part, other])
     settings = (("Blade", controls(surface_alpha=.2)),)
-    assert shader_preview_mesh(mesh, settings).submeshes[0] is part
-    assert shader_preview_groups(mesh, settings)[0]["shader_controls"] is None
+    prepared = shader_preview_mesh(mesh, settings)
+    factors = shader_preview_groups(mesh, settings)[0]["shader_controls"]
+    assert factors == prepared.submeshes[0].preview_native_material_overrides["shader_controls"]
+    assert factors[:9] == [7., 0., 0., 0., 128 / 255, .2, -1., -1., -1.]
+    assert len(factors) == 32
+    assert prepared.submeshes[0] is not part and prepared.submeshes[1] is other
+    assert shader_preview_groups(mesh, ())[0]["shader_controls"] is None
     assert part.preview_native_material_overrides == {"translucency": [.1, .3]}
     assert ShaderControls.from_dict(settings[0][1].to_dict()) == settings[0][1]
+    from cdmw.ui.new_item.effect_item_source import PlannedEffectItemSource
+    from cdmw.ui.new_item.model_import import ModelPlacement
+    effects = PlannedEffectItemSource(object(), ModelPlacement(), False, None, b"", None, None, None,
+                                     shader_controls=settings)
+    effect_mesh, _ = effects._finish(mesh, "placed", threading.Event())
+    assert effect_mesh.submeshes[0].preview_native_material_overrides["shader_controls"] == factors
+
+
+def test_preview_uses_export_byte_rounding_and_inherited_low_byte():
+    from cdmw.domain.mesh.shader_controls import preview_factors
+    source = {"_eyeCoverDiffuseParameter": str(0xABCDEF80)}
+    assert preview_factors(controls(), source)[4] == 128 / 255
+    assert preview_factors(controls(_eyeCoverDiffuseParameter=.25, surface_alpha=.3,
+                                   material_red=.1, roughness=.8, metallic=.2), source)[4:9] == (
+        64 / 255, 76 / 255, 26 / 255, 204 / 255, 51 / 255)
+
+
+def test_template_preview_binds_owned_surface_alpha_and_source_parameter(tmp_path, monkeypatch):
+    from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+    from cdmw.services.shader_controls_preview import shader_preview_mesh
+    from cdmw.services.mesh_rust_authoring import _mesh_texture_payloads, _mesh_material_presentations, _session_root_identity
+    from tests.test_new_item_materials import dds
+    monkeypatch.setattr("cdmw.services.shader_controls_preview.gettempdir", lambda: str(tmp_path))
+    base = tmp_path / "base.dds"
+    base.write_bytes(dds())
+    part = SubMesh(name="Blade", material="Blade", vertices=[(0., 0., 0.), (1., 0., 0.), (0., 1., 0.)],
+                   uvs=[(0., 0.), (1., 0.), (0., 1.)], faces=[(0, 1, 2)])
+    part.preview_texture_dds_path = str(base)
+    part.preview_texture_path = str(base)
+    mesh = ParsedMesh(path="character/model/sword.pac", format="pac", submeshes=[part])
+    from tests.test_pac_xml_standard_material import texture
+    text = material(EYE_COVER.shader, field("_eyeCoverDiffuseParameter", str(0x12345640), "Byte4")
+                    + texture("_alphaTexture", "124", "alpha.dds", 51))
+    assert find_material_wrappers(text)[0].textures["_alphaTexture"] == "alpha.dds"
+    payloads = {"character/modelproperty/sword.pac_xml": text.encode(), "alpha.dds": dds()}
+    snapshot = SimpleNamespace(payload=payloads.__getitem__, has_entry=payloads.__contains__)
+    preview = shader_preview_mesh(mesh, (("Blade", controls()),), snapshot=snapshot)
+    assert preview.submeshes[0].preview_native_material_overrides["shader_controls"][4:9] == [64 / 255, -1., -1., -1., -1.]
+    output = tmp_path / "package"
+    output.mkdir()
+    resources = _mesh_texture_payloads(output, preview, expected_root_identity=_session_root_identity(output))
+    assert {row["role"] for row in resources} >= {"base_color", "shader_mask"}
+    assert _mesh_material_presentations(preview)[0]["shader_controls"][0] == 7
+    assert all(row["material_indices_by_lod"] == [[0]] for row in resources)
+    assert not getattr(part, "preview_native_material_overrides", {})
 
 
 def test_cancellation_after_encoding_does_not_publish_partial_materials(monkeypatch):
@@ -176,7 +227,7 @@ def test_import_owned_binding_and_clones_get_private_maps():
     assert files.side_files[XML] == source.encode()
 
 
-def test_dye_preview_retains_source_shading_for_eye_cover_experiment(tmp_path, monkeypatch):
+def test_dye_preview_keeps_source_maps_then_applies_eye_cover_without_bc7(tmp_path, monkeypatch):
     from cdmw.ui.new_item.dye_preview import variant_dye_preview_source
     from tests.test_new_item_appearance_dyes import fixture, MAPPING
     from tests.test_new_item_service import TEMPLATE
@@ -185,35 +236,64 @@ def test_dye_preview_retains_source_shading_for_eye_cover_experiment(tmp_path, m
     state = SimpleNamespace(appearance=choice, result=None, source=None, scene=None)
     controller = SimpleNamespace(current_variant_identity=lambda: choice.identity, snapshot=snapshot,
         _sync_variant_state=lambda: None, _variant_states={choice.identity: state}, draft=SimpleNamespace(template_key=TEMPLATE))
-    class Captured(Exception):
-        pass
-    def check(_row, data, *_args, **_kwargs):
+    from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+    from cdmw.ui.new_item import dye_preview
+    original_assignments = dye_preview.prepare_dye_assignments
+    def check(row, data, *args, **kwargs):
         actual = find_material_wrappers(data.decode())[0]
         assert actual.shader == "SkinnedMeshStandard"
         assert actual.value("_eyeCoverDiffuseParameter") is None
-        raise Captured()
+        return original_assignments(row, data, *args, **kwargs)
     monkeypatch.setattr("cdmw.ui.new_item.dye_preview.prepare_dye_assignments", check)
+    mesh = ParsedMesh(path=choice.model_path, submeshes=[SubMesh(name="blade", material="blade")])
+    monkeypatch.setattr("cdmw.services.mesh_dotnet_reference_composite.decode_dotnet_native_preview_package", lambda *a, **k: mesh)
+    def native(*args, consume_native_package, **kwargs):
+        return consume_native_package(object())
+    monkeypatch.setattr("cdmw.ui.new_item.template_preview_cache.build_native_template_preview", native)
+    captured = []
+    def package(model, **kwargs):
+        captured.append(model)
+        return tmp_path
+    monkeypatch.setattr("cdmw.ui.new_item.item_preview.build_item_preview_package", package)
+    monkeypatch.setattr("cdmw.services.new_item_eye_cover._encode_channels", lambda *a, **k: pytest.fail("preview encoded export maps"))
     _, preview = variant_dye_preview_source(controller)
-    with pytest.raises(Captured):
-        preview.materials(threading.Event(), output_root=tmp_path, native_preview_core_cache_root=tmp_path)
+    preview.materials(threading.Event(), output_root=tmp_path, native_preview_core_cache_root=tmp_path)
+    assert captured[0].submeshes[0].preview_native_material_overrides["shader_controls"][0] == 7
+    assert captured[0].submeshes[0].preview_native_material_overrides["shader_controls"][5] == .2
 
 
-def test_rust_bridge_exposes_controls_updates_draft_and_restores(studio):
+def test_rust_bridge_exposes_controls_updates_draft_and_restores(studio, monkeypatch):
+    from pathlib import Path
+    from unittest.mock import Mock
+    from cdmw.domain.new_item.spec import MaterialRoute, ModelSource
+    from cdmw.ui.new_item.model_import import ModelImportSource
+    from tests.test_new_item_glow_preview import _mesh
     _, tab, bridge = studio
-    tab.show_step(2)
     panel = tab.model_panel
+    mesh = _mesh()
+    tab.controller.model_import = ModelImportSource(Path("source.gltf"), Path("source.gltf"),
+        SimpleNamespace(mesh=mesh), None, None, preview_mesh=mesh)
+    tab.controller.draft.model_source = ModelSource.IMPORTED
+    tab.controller.draft.material_route = MaterialRoute.PLAIN_PBR
+    sender = Mock(return_value=True)
+    tab.show_step(2)
     _send(bridge, panel.inspector_tabs, "tab", 1)
+    monkeypatch.setattr(type(panel.preview), "showing_placement", property(lambda self: True))
+    monkeypatch.setattr(panel.preview.host, "apply_material_parameter_groups", sender)
     editor = panel.shader_controls_editor
     editor.refresh((("Blade", "Blade"),), (), equipment_shader_options(material()))
     before = tab.controller._draft_revision
     _send(bridge, editor.family, "choose", editor.family.findData(EYE_COVER.shader))
-    assert "export only" in editor.note.text() and editor.note.isVisibleTo(tab)
+    assert "Approximate preview" in editor.note.text() and editor.note.isVisibleTo(tab)
     for field_, enabled, spins in editor._rows:
         if not enabled.isChecked():
             _send(bridge, enabled, "toggle", True)
         _send(bridge, spins[0], "number", .25)
     saved = tab.controller.draft.shader_controls
     assert saved == (("Blade", controls(**{field.name: .25 for field in EYE_COVER.fields})),)
+    sent = [group for group in sender.call_args.args[0] if group.get("shader_controls")]
+    assert len(sent) == 1 and sent[0]["source_submesh_indices"] == [0]
+    assert sent[0]["shader_controls"][:9] == [7., 0., 0., 0., *([64 / 255] * 5)]
     assert tab.controller._draft_revision > before
     assert not tab.controller.has_current_plan
     _send(bridge, editor.reset, "activate")
@@ -265,7 +345,7 @@ def test_complete_plan_and_loose_export_include_owned_eye_cover_maps(tmp_path, v
     for path in generated:
         assert path in plan.loose_files and path not in original
         assert plan.loose_files[path].startswith(b"DDS ")
-    assert any("Export only" in line for line in plan.summary_lines)
+    assert any("Approximate viewport preview" in line for line in plan.summary_lines)
     service.export_loose(plan, tmp_path / "mod", manager="JMM")
     for path in generated:
         assert (tmp_path / "mod" / path).read_bytes() == plan.loose_files[path]

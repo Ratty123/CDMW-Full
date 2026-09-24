@@ -3265,7 +3265,7 @@ def _material_input_texture_role(value: object) -> str:
         if character.isalnum()
     )
     shader_family = normalize_shader_family(getattr(value, "shader_family", ""))
-    if parameter_name in {"wingflowtex1", "tornpatterntexture", "posterglownoisetex", "dissolvenoisetex", "hairanisotropydetailmasktexture"}:
+    if parameter_name in {"wingflowtex1", "tornpatterntexture", "posterglownoisetex", "dissolvenoisetex", "hairanisotropydetailmasktexture", "cdmweyecoveralphatexture"}:
         return "shader_mask"
     if parameter_name == "hairanisotropydetailnormaltexture":
         return "shader_normal"

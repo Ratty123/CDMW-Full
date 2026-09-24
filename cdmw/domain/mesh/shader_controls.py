@@ -1,7 +1,7 @@
 """Experimental controls recovered from material definitions and compiled shaders.
 
 These are material-family contracts, not a list of interchangeable shader names.
-Wing and New Item's export-only EyeCover experiment accept plain equipment.
+Wing and New Item's EyeCover experiment accept plain equipment.
 """
 from __future__ import annotations
 
@@ -90,7 +90,7 @@ EYE_COVER_TEXTURE_FIELDS = {
     "metallic": ("_materialTexture", 2),
 }
 EYE_COVER = ShaderFamily("SkinnedMeshEyeCover", "EyeCover blending (experimental)",
-    "Export only: test in game. The viewport shows the source material, without EyeCover blending. "
+    "Approximate viewport preview. Test in game; character-buffer blending, depth and shadows are not reproduced. "
     "Colour mixing is not an opacity percentage: its weight is twice the packed colour value minus material red. "
     "Surface alpha separately blends normals and surface properties. Game lighting, colour, reflections, depth and shadows may differ.", (
         ShaderField("_eyeCoverDiffuseParameter", "Colour mixing", (.5,), 0, 1,
@@ -181,7 +181,18 @@ def preview_factors(controls, authored=None):
     controls.validate()
     family = family_for(controls.shader)
     if family == EYE_COVER:
-        raise ValueError("EyeCover blending is export-only; the viewport shows the source material.")
+        # Family 7 uses independent colour coverage and surface weights. -1
+        # inherits a sampled channel; it must not become an opacity override.
+        values = dict(controls.values)
+        try:
+            colour = (int((authored or {}).get("_eyeCoverDiffuseParameter", 128)) & 255) / 255
+        except (ValueError, TypeError, OverflowError):
+            colour = 128 / 255
+        if "_eyeCoverDiffuseParameter" in values:
+            colour = round(values["_eyeCoverDiffuseParameter"][0] * 255) / 255
+        channels = [round(values[name][0] * 255) / 255 if name in values else -1.
+                    for name in ("surface_alpha", "material_red", "roughness", "metallic")]
+        return tuple([7., 0., 0., 0., colour, *channels, *([0.] * 23)])
     authored = authored or {}
     values = dict(controls.values)
     dye = str(authored.get("_hairDyeingColor", ""))

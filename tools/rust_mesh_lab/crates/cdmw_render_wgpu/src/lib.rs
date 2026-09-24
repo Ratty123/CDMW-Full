@@ -426,6 +426,7 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
         sample_uv.y = 1.0 - sample_uv.y;
     }
     let shader_kind = shader_value(0u);
+    let eye_cover = shader_kind == 7.0;
     let shader_has_mask = shader_value(3u) > 0.5;
     let has_vertex_mask = input.shader_masks.z > 0.999;
     var shader_glow = vec3<f32>(0.0);
@@ -558,8 +559,24 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
         material_alpha = textureSampleBias(opacity_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS).r;
     }
     material_alpha = clamp(material_alpha * material.opacity, 0.0, 1.0);
+    var eye_surface_alpha = 1.0;
+    if eye_cover {
+        // Diagnostic approximation of EyeCover's independent G-buffer weights.
+        // Never multiply colour coverage by base alpha or the surface-alpha map.
+        var red = 0.0;
+        if (material.flags & MATERIAL_SURFACE) != 0u {
+            red = textureSampleBias(material_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS).r;
+        }
+        if shader_value(6u) >= 0.0 { red = shader_value(6u); }
+        material_alpha = clamp(2.0 * shader_value(4u) - red, 0.0, 1.0);
+        if shader_has_mask {
+            eye_surface_alpha = textureSampleBias(skin_detail_mask_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS).r;
+        }
+        if shader_value(5u) >= 0.0 { eye_surface_alpha = shader_value(5u); }
+        eye_surface_alpha = clamp(eye_surface_alpha, 0.0, 1.0);
+    }
     var transmission = vec3<f32>(1.0);
-    if material.translucency_factors.z > 0.5 {
+    if material.translucency_factors.z > 0.5 && !eye_cover {
         // Retain colour-channel transmission for the background compositor.
         // Refraction distortion and game lighting remain approximations.
         let thickness = round(clamp(material.translucency_factors.x, 0.0, 1.0) * 255.0) / 255.0;
@@ -577,7 +594,7 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
         material_alpha = 1.0 - dot(transmission, vec3<f32>(1.0 / 3.0));
     }
     if transmission_only { return vec4<f32>(transmission, 1.0); }
-    if (material.flags & MATERIAL_ALPHA_CUTOUT) != 0u && material.translucency_factors.z < 0.5 {
+    if (material.flags & MATERIAL_ALPHA_CUTOUT) != 0u && material.translucency_factors.z < 0.5 && !eye_cover {
         if material_alpha < material.surface_factors.w {
             discard;
         }
@@ -587,6 +604,7 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
         return present_srgb(fract(part_id * vec3<f32>(0.6180339, 0.3819660, 0.7548777)), 1.0);
     }
     if camera.view_mode == 2u {
+        if eye_cover { return present(texel.rgb, 1.0) * material_alpha; }
         if material.translucency_factors.z > 0.5 {
             return vec4<f32>(0.0, 0.0, 0.0, material_alpha);
         }
@@ -614,6 +632,9 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
         }
         let tangent_z = sqrt(max(1.0 - dot(tangent_xy, tangent_xy), 0.0));
         tangent_normal = normalize(vec3<f32>(tangent_xy, tangent_z));
+    }
+    if eye_cover {
+        tangent_normal = safe_normalize(mix(vec3<f32>(0.0, 0.0, 1.0), tangent_normal, eye_surface_alpha), vec3<f32>(0.0, 0.0, 1.0));
     }
     var skin_detail_weight = 0.0;
     if shader_kind == 4.0 && shader_has_mask && shader_value(31u) > 0.5 {
@@ -680,7 +701,7 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
     }
 
     let gltf_pbr = (material.flags & MATERIAL_GLTF_PBR) != 0u;
-    let category_code = select(min(u32(material.relief_factors.z + 0.5), 14u), 0u, gltf_pbr);
+    let category_code = select(min(u32(material.relief_factors.z + 0.5), 14u), 0u, gltf_pbr || eye_cover);
     let category_confidence = clamp(material.relief_factors.w, 0.0, 1.0);
     let is_metal = category_code == 1u;
     let is_leather = category_code == 2u;
@@ -816,6 +837,11 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
     }
     if material.translucency_surface.w > 0.5 {
         metalness = clamp(round(material.translucency_surface.y * 255.0) / 255.0, 0.0, 1.0);
+    }
+    if eye_cover {
+        // EyeCover's texture edits are applied after ordinary Surface edits in export.
+        if shader_value(7u) >= 0.0 { roughness = clamp(shader_value(7u), 0.04, 1.0); }
+        if shader_value(8u) >= 0.0 { metalness = clamp(shader_value(8u), 0.0, 1.0); }
     }
     var raw_occlusion = 1.0;
     if (material.flags & MATERIAL_OCCLUSION) != 0u {
@@ -1244,6 +1270,7 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
     // at ordinary strengths. Imported glTF keeps its authored radiance scale.
     let emissive = emission_colour * emission_strength * select(0.5, 1.0, gltf_pbr) + shader_glow;
     if emission_only {
+        if eye_cover { return vec4<f32>(0.0); }
         // Preserve HDR emission before surface tone mapping; diffuse white and
         // specular highlights must never become glow sources.
         return vec4<f32>(min(max(emissive, vec3<f32>(0.0)), vec3<f32>(64.0)),
@@ -1253,6 +1280,17 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
     let light_scale = select(1.0, 0.15, camera.lighting_preset == 2u);
     let showcase_warmth = select(vec3<f32>(1.0), vec3<f32>(1.08, 0.99, 0.90), showcase);
     let exposure = select(select(0.90, 1.0, showcase), 1.06, game_outdoor);
+    if eye_cover {
+        // The game blends G-buffer colour, normals and surface properties
+        // before lighting. This forward renderer can only approximate that:
+        // colour reveals the background, while surface alpha retains highlights
+        // independently. Clamp out-of-range colour weights for this preview.
+        let reflection = (specular + environment_specular) * showcase_warmth * light_scale;
+        let lit = workbench_tone((diffuse + environment_diffuse + metallic_source_anchor) * light_scale + reflection, exposure);
+        let shine = workbench_tone(reflection, exposure);
+        let colour = max(lit - shine, vec3<f32>(0.0)) * material_alpha + shine * eye_surface_alpha;
+        return present(colour, material_alpha);
+    }
     if material.translucency_factors.z > 0.5 {
         // Glass absorbs background light. Do not paint its opaque diffuse body
         // over that background or fade reflection/emission with absorption.
@@ -1293,7 +1331,7 @@ fn fs_blended(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @l
     let surface = shade_surface(input, front_facing, false, false);
     // The optional dual-source pipeline supplies RGB transmission. Adapters
     // without it still retain surface light with a scalar transmission estimate.
-    let coverage = select(surface.a, 1.0, material.translucency_factors.z > 0.5);
+    let coverage = select(surface.a, 1.0, material.translucency_factors.z > 0.5 || shader_value(0u) == 7.0);
     return vec4<f32>(surface.rgb * coverage, surface.a);
 }
 
@@ -4278,7 +4316,9 @@ fn validate_material_factor_ownership(
         ));
     }
     if factors.shader_controls.is_some_and(|v| v.iter().any(|n| !n.is_finite() || n.abs() > 1e6)
-        || !(0.0..=6.0).contains(&v[0]) || v[0].fract() != 0.0) {
+        || !(0.0..=7.0).contains(&v[0]) || v[0].fract() != 0.0
+        || (v[0] == 7.0 && (!(0.0..=1.0).contains(&v[4])
+            || v[5..9].iter().any(|n| *n != -1.0 && !(0.0..=1.0).contains(n))))) {
         return Err(RenderError::Texture("Invalid experimental shader controls".to_owned()));
     }
     if factors.emission_reveal.is_some_and(|v| {
@@ -5283,13 +5323,17 @@ async fn run_headless_render_smoke_internal(
     shader_controls_proof::verify(&device, &queue, format, &pipelines, &camera_bind_group,
         &mut camera_uniform, &camera_buffer, &default_material_binding.bind_group, |mask, base, factors| {
             let mut textures = Vec::new();
-            for (bytes, role) in [(base, TextureRole::BaseColor), (mask, TextureRole::ShaderMask), (mask, TextureRole::ShaderNormal)] {
+            let eye_cover = factors.shader_controls.is_some_and(|v| v[0] == 7.0);
+            let mut inputs = vec![(base, TextureRole::BaseColor), (mask, TextureRole::ShaderMask), (mask, TextureRole::ShaderNormal)];
+            if eye_cover { inputs.extend([(mask, TextureRole::Material), (mask, TextureRole::Normal)]); }
+            for (bytes, role) in inputs {
                 let uploaded = upload_dds_texture(&device, &queue, bytes, role)?;
                 textures.push(GpuMaterialTexture { texture: uploaded.texture, view_format: uploaded.view_format,
                     role, single_channel: uploaded.single_channel, material_indices_by_lod: vec![vec![0]] });
             }
             Ok(create_material_bind_group(&device, &texture_layout, &material_sampler, &default_material_textures,
-                &textures, MaterialTextureIndices { base_color: Some(0), shader_mask: Some(1), shader_normal: Some(2), ..Default::default() }, factors))
+                &textures, MaterialTextureIndices { base_color: Some(0), shader_mask: Some(1), shader_normal: Some(2),
+                    surface: eye_cover.then_some(3), normal: eye_cover.then_some(4), ..Default::default() }, factors))
         })?;
     material_transparency::verify(
         &device,
@@ -9164,6 +9208,7 @@ fn create_material_bind_group(
     let flow_view = material_texture_view(textures, indices.flow, &defaults.flow);
     let layer_mask_view = material_texture_view(textures, indices.layer_mask, &defaults.layer_mask);
     let effect = factors.shader_controls.is_some_and(|v| v[0] > 0.0);
+    let eye_cover = factors.shader_controls.is_some_and(|v| v[0] == 7.0);
     let skin_detail_mask_view =
         material_texture_view(textures, if effect { indices.shader_mask } else { indices.skin_detail_mask }, &defaults.layer_mask);
     let skin_detail_normal_view =
@@ -9240,7 +9285,7 @@ fn create_material_bind_group(
     if factors.alpha_cutoff.is_some_and(|cutoff| cutoff > 0.0) {
         flags |= MATERIAL_ALPHA_CUTOUT;
     }
-    if factors.alpha_blend == Some(true) || factors.translucency.is_some() {
+    if factors.alpha_blend == Some(true) || factors.translucency.is_some() || eye_cover {
         flags |= MATERIAL_ALPHA_BLEND;
     }
     if factors.gltf_metallic_roughness == Some(true) {
@@ -9400,11 +9445,11 @@ fn create_material_bind_group(
     GpuMaterialBinding {
         bind_group,
         _uniform_buffer: uniform_buffer,
-        alpha_blend: factors.alpha_blend == Some(true) || factors.translucency.is_some(),
-        translucent: factors.translucency.is_some(),
-        emits_light: ((uniform.emissive_color_and_intensity[3] > 0.0 || uniform.emission_reveal[3] > 0.0)
+        alpha_blend: factors.alpha_blend == Some(true) || factors.translucency.is_some() || eye_cover,
+        translucent: factors.translucency.is_some() && !eye_cover,
+        emits_light: !eye_cover && (((uniform.emissive_color_and_intensity[3] > 0.0 || uniform.emission_reveal[3] > 0.0)
             && uniform.emissive_color_and_intensity[..3].iter().any(|value| *value > 0.0))
-            || matches!(uniform.shader_controls[0][0] as u32, 5 | 6),
+            || matches!(uniform.shader_controls[0][0] as u32, 5 | 6)),
     }
 }
 
@@ -10631,7 +10676,16 @@ mod tests {
         let resolved = resolve_material_factors(std::iter::once((factors, owners.as_slice())), 0).unwrap();
         assert!(!resolved.contains_key(&0));
         assert_eq!(resolved[&1].shader_controls, Some(controls));
-        for invalid in [f32::NAN, f32::INFINITY, 7.0, 1.5] {
+        controls[0] = 7.0;
+        controls[5..9].fill(-1.0);
+        assert!(validate_material_factor_ownership(MaterialPreviewFactors {
+            shader_controls: Some(controls), ..Default::default()
+        }, &owners).is_ok());
+        controls[5] = -0.5;
+        assert!(validate_material_factor_ownership(MaterialPreviewFactors {
+            shader_controls: Some(controls), ..Default::default()
+        }, &owners).is_err());
+        for invalid in [f32::NAN, f32::INFINITY, 8.0, 1.5] {
             controls[0] = invalid;
             assert!(validate_material_factor_ownership(MaterialPreviewFactors {
                 shader_controls: Some(controls), ..Default::default()

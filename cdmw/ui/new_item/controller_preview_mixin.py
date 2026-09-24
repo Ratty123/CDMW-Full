@@ -147,7 +147,7 @@ def _template_progressive_source(
     # The composed material cache must name the same scene as its geometry and
     # worker request. Include character visibility and invalidate packages that
     # lost the template's wrapper names before applying appearance edits.
-    token = (*token, "appearance-v2", bool(include_character), repr(glow), repr(translucency), repr(shader_controls))
+    token = (*token, "appearance-v3", bool(include_character), repr(glow), repr(translucency), repr(shader_controls))
     scene_token = ("template-character", template_key, token) if include_character else token
 
     def appearance(mesh, stop_event):

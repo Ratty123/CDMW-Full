@@ -87,7 +87,7 @@ def test_mesh_commands_bind_each_part_preserve_other_parts_and_round_trip(tmp_pa
 
 @pytest.mark.parametrize("surface", ["placement", "effects"])
 @pytest.mark.parametrize("index", [0, 1])
-@pytest.mark.parametrize("feature", ["translucency", "glow", "shader_controls"])
+@pytest.mark.parametrize("feature", ["translucency", "glow", "shader_controls", "eye_cover"])
 def test_new_item_both_preview_stages_apply_each_named_part(tmp_path, monkeypatch, surface, index, feature):
     from cdmw.ui.new_item.controller_preview_mixin import _template_progressive_source
     from cdmw.ui.new_item.effect_item_source import PlannedEffectItemSource
@@ -104,6 +104,9 @@ def test_new_item_both_preview_stages_apply_each_named_part(tmp_path, monkeypatc
     glow = GlowChoice((name,), (1., .2, .1), 6) if feature == "glow" else None
     glass = TranslucencyChoice((name,), .25, .75) if feature == "translucency" else None
     controls = ((name, ShaderControls("SkinnedMeshWing", (("_wingFlowProgress", (.6,)),))),) if feature == "shader_controls" else ()
+    if feature == "eye_cover":
+        controls = ((name, ShaderControls("SkinnedMeshEyeCover", (("_eyeCoverDiffuseParameter", (.25,)),
+                                                                  ("surface_alpha", (.2,))))),)
     stop = threading.Event()
     if surface == "placement":
         token, source = _template_progressive_source(("template", 1), 1, lambda _: mesh, lambda _: mesh,
@@ -125,6 +128,9 @@ def test_new_item_both_preview_stages_apply_each_named_part(tmp_path, monkeypatc
         assert rows[index]["emissive_intensity"] == 6 and rows[1 - index].get("emissive_intensity") != 6
     elif feature == "translucency":
         assert rows[index][feature] == [.25, .75] and rows[1 - index].get(feature) is None
+    elif feature == "eye_cover":
+        assert rows[index]["shader_controls"][:6] == [7., 0., 0., 0., 64 / 255, .2]
+        assert rows[1 - index].get("shader_controls") is None
     else:
         assert rows[index][feature][4] == .6 and rows[1 - index].get(feature) is None
     assert all(not getattr(p, "preview_native_material_overrides", {}) for p in mesh.submeshes)

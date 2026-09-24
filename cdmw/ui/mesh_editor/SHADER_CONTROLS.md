@@ -11,7 +11,8 @@ be restored in Model & Placement → Appearance before Perks & Effects can prepa
 
 Create New Item additionally offers **EyeCover blending (experimental)** with
 colour mixing, surface alpha, material red, roughness and metallic overrides.
-It is export only and does not use the viewport's glass effect; see
+Its approximate viewport preview separates colour coverage from surface detail
+and shine, without reproducing the game's character-buffer blend; see
 [Create New Item](../new_item/README.md) for controls, defaults and limitations.
 It is not included in Mesh Editor's experiment catalogue.
 

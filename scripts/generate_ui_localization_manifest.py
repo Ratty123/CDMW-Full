@@ -71,7 +71,7 @@ MANUAL_SOURCE_KEYS = frozenset(
         "EyeCover blending (experimental)",
         "Colour mixing", "Surface alpha", "Colour mask (material red)",
         "EyeCover roughness", "EyeCover metallic",
-        "Export only: test in game. The viewport shows the source material, without EyeCover blending. "
+        "Approximate viewport preview. Test in game; character-buffer blending, depth and shadows are not reproduced. "
         "Colour mixing is not an opacity percentage: its weight is twice the packed colour value minus material red. "
         "Surface alpha separately blends normals and surface properties. Game lighting, colour, reflections, depth and shadows may differ.",
         'Amplitude U',
