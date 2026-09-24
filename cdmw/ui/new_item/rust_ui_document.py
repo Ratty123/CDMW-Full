@@ -14,7 +14,7 @@ from PySide6.QtGui import QAction, QIntValidator, QPalette, QTextDocument
 from PySide6.QtWidgets import (
     QAbstractButton, QAbstractItemView, QApplication, QBoxLayout, QCheckBox, QComboBox,
     QDialog, QDialogButtonBox, QDoubleSpinBox, QFormLayout, QFrame, QGridLayout, QGroupBox,
-    QLabel, QLineEdit, QMenu, QPlainTextEdit, QProgressBar, QRadioButton,
+    QLabel, QLayout, QLineEdit, QMenu, QPlainTextEdit, QProgressBar, QRadioButton,
     QScrollArea, QSlider, QSpinBox, QSplitter, QStackedWidget, QTabWidget,
     QTextEdit, QToolButton, QWidget,
 )
@@ -351,11 +351,20 @@ class PresentationDocument:
         grid = isinstance(layout, (QGridLayout, QFormLayout))
         horizontal = (isinstance(layout, QBoxLayout) and layout.direction() in (QBoxLayout.LeftToRight, QBoxLayout.RightToLeft)
                       or layout.__class__.__name__ == "WrappingLayout")
-        for index in range(layout.count()):
-            item = layout.itemAt(index)
-            child = self.widget(item.widget()) if item.widget() is not None else self.layout(item.layout()) if item.layout() is not None else None
+        # itemAt() makes PySide retain a wrapper for Qt-owned QWidgetItems. Qt
+        # can delete those items implicitly when a widget moves to another
+        # layout, leaving a stale binding at an address a later QObject reuses.
+        # Walk the QObjects instead, ordering them by their actual layout index.
+        parent = layout.parentWidget()
+        widgets = (parent.findChildren(QWidget, options=Qt.FindDirectChildrenOnly)
+                   if parent is not None else QApplication.allWidgets())
+        candidates = [*widgets, *(child for child in layout.children() if isinstance(child, QLayout))]
+        entries = sorted(((index, child) for child in candidates if (index := layout.indexOf(child)) >= 0),
+                         key=lambda entry: entry[0])
+        dialog_actions = horizontal and any(isinstance(child, QDialogButtonBox) for _, child in entries)
+        for index, obj in entries:
+            child = self.widget(obj) if isinstance(obj, QWidget) else self.layout(obj)
             if child is None:
-                # Fixed margins/stretch never become empty panels in the Rust UI.
                 continue
             if isinstance(layout, QGridLayout):
                 row, column, row_span, column_span = layout.getItemPosition(index)
@@ -373,6 +382,5 @@ class PresentationDocument:
         return {"kind": "grid" if grid else "row" if horizontal else "column",
                 "name": layout.objectName(), "enabled": True, "label": "", "tooltip": "",
                 "props": {"form": isinstance(layout, QFormLayout), "spacing": max(4, min(12, layout.spacing())),
-                          "dialog_actions": horizontal and any(isinstance(layout.itemAt(i).widget(), QDialogButtonBox)
-                                                               for i in range(layout.count()))},
+                          "dialog_actions": dialog_actions},
                 "children": children}

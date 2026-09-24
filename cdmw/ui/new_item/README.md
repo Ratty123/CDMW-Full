@@ -85,6 +85,12 @@ and original toggle/click handlers when switched on or off from Rust.
 modal ownership. Large result lists and review text are paged; Copy retains the
 complete source text. Editable descriptions support up to 1,048,576 characters.
 `rust_ui_portals.py` retains preview window identity across renderer restarts.
+Layout projection reads widgets and nested layouts in their layout-index order
+without retaining Qt-owned `QWidgetItem` wrappers. Qt can delete those items when
+moving a widget without invalidating their Python bindings, allowing a later
+worker or control to reuse a stale address. Shared preview moves explicitly
+remove their old layout items, and portal replacement retires both the returned
+item and its binding before restoring or reattaching the viewport.
 Captured icons use a native image-crop control with the original Reset and Use
 Selection handlers. Dialog action buttons remain visible below scrolling content.
 

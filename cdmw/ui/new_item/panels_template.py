@@ -170,7 +170,11 @@ class TemplatePanel(QGroupBox):
         if self._preview is not preview:
             self._preview = preview
             preview.status_changed.connect(self.preview_status.setText)
-        if preview.parentWidget() is not self.preview_holder:
+        parent = preview.parentWidget()
+        if parent is not self.preview_holder:
+            # Let PySide retire the old layout-item binding before Qt reparents.
+            if parent is not None and parent.layout() is not None:
+                parent.layout().removeWidget(preview)
             self.preview_holder_layout.addWidget(preview, 1)
 
     def _refresh_matches(self, *_args, debounce=True, visible_count=_MATCH_PAGE_SIZE, preferred_key=None) -> None:

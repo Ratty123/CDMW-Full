@@ -390,7 +390,10 @@ class IdentityPanel(QGroupBox):
 
     def mount_preview(self, preview: QWidget) -> None:
         """Present the already resident item preview without requesting new content."""
-        if preview.parentWidget() is not self.preview_holder:
+        parent = preview.parentWidget()
+        if parent is not self.preview_holder:
+            if parent is not None and parent.layout() is not None:
+                parent.layout().removeWidget(preview)
             self.preview_holder_layout.addWidget(preview, 1)
 
     def set_stem_enabled(self, enabled: bool) -> None:

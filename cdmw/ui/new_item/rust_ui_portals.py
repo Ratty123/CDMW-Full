@@ -7,7 +7,7 @@ import math
 from PySide6.QtCore import QRect
 from PySide6.QtGui import QRegion
 from PySide6.QtWidgets import QWidget
-from shiboken6 import isValid
+from shiboken6 import delete, isValid
 
 from cdmw.services.new_item_rust_protocol import PresentationProtocolError
 
@@ -69,7 +69,7 @@ class PreviewPortals:
                 position = layout.indexOf(viewport) if layout else -1
                 if layout and position >= 0:
                     placeholder = _PreviewPlaceholder(viewport, parent)
-                    layout.replaceWidget(viewport, placeholder)
+                    self._replace_widget(layout, viewport, placeholder)
                     placeholder.show()
                     self._placeholders[identifier] = placeholder
                 self._attached[identifier] = (viewport, parent, layout, position)
@@ -86,6 +86,17 @@ class PreviewPortals:
             viewport = self._attached[identifier][0]
             if isValid(viewport):
                 viewport.hide()
+
+    @staticmethod
+    def _replace_widget(layout, before, after):
+        retired = layout.replaceWidget(before, after)
+        if retired is not None:
+            # Qt returns the old item to the caller. Remove PySide's retained
+            # parent binding too, before freeing it, including if itemAt() had
+            # already exposed the item. Otherwise parent teardown can revisit
+            # the dead wrapper; ignoring the return leaks the native item.
+            layout.removeItem(retired)
+            delete(retired)
 
     @staticmethod
     def _rectangle(value, ratio):
@@ -105,7 +116,7 @@ class PreviewPortals:
                 if layout is not None and isValid(layout):
                     placeholder = self._placeholders.get(identifier)
                     if placeholder is not None and isValid(placeholder):
-                        layout.replaceWidget(placeholder, viewport)
+                        self._replace_widget(layout, placeholder, viewport)
                     elif hasattr(layout, "insertWidget"):
                         layout.insertWidget(max(0, position), viewport, 1)
                     else:

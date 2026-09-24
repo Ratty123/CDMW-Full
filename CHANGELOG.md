@@ -53,6 +53,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Create New Item releases stale Qt layout-item bindings that could crash CDMW when switching pages or starting workers, including moving from a glowing model to Perks & Effects. Rust layout snapshots avoid retaining those items, shared preview moves retire their old bindings, and viewport portal replacement cleans up its removed items.
 - Placement & Animations rebuilds each exported package from only the selected operations, removes files left by earlier exports, and preserves the previous package if preparation or publication fails. Package inspection recognizes compatibility metadata instead of reporting it as extra game payload.
 - Placement & Animations restores pending socket and routing edits after character reloads and switches, retains Undo/Redo history, and rejects a prepared scene if edits changed while it was loading.
 - Create New Item preserves each variant's Template model choice when an imported model is retained. Effects previews use the selected source and its template transform; inactive imports are neither decoded nor leased for that preview.

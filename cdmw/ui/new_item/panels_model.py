@@ -851,7 +851,10 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
     def mount_preview(self) -> None:
         """Move the shared resident viewport back into Model & Placement."""
 
-        if self.preview.parentWidget() is not self.preview_group:
+        parent = self.preview.parentWidget()
+        if parent is not self.preview_group:
+            if parent is not None and parent.layout() is not None:
+                parent.layout().removeWidget(self.preview)
             self.preview_layout.insertWidget(0, self.preview, 1)
 
     def _model_source_changed(self, keep: bool) -> None:
