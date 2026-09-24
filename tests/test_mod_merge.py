@@ -51,6 +51,10 @@ def test_independent_item_mods_merge_into_readable_dmm(tmp_path, current):
     plan = prepare_mod_merge(folders, tmp_path / "game", entries=entries)
     assert not plan.conflicts, plan.conflicts
     result = export_merged_mod(plan, tmp_path / "combined")
+    from cdmw.core.mod_export_history import HISTORY_FILES, mod_metadata_path
+
+    assert not any((result.package_root / name).exists() for name in (*HISTORY_FILES, "meta/0.papgt"))
+    assert mod_metadata_path(result.package_root, "new-item.json").is_file()
     files = payloads(result.package_root)
     body_path, head_path = snapshot.iteminfo.payload_entry.path, snapshot.iteminfo.header_entry.path
     rows = {row.row_id: parse_iteminfo_row(files[body_path][start:end]).string_key

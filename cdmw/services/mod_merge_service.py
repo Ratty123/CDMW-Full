@@ -16,6 +16,7 @@ from pathlib import Path, PurePosixPath
 from typing import Callable, Iterable
 from xml.etree.ElementTree import ParseError
 
+from cdmw.core.mod_export_history import mod_metadata_path
 from cdmw.domain.archives.overlay_merge import _table, merge_overlay_files
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.models import ArchiveEntry
@@ -149,7 +150,7 @@ def prepare_mod_merge(
         if on_log:
             on_log(f"Reading mod {folder.name}...")
         inventories.append((folder, _inventory(folder, stop_event)))
-        manifest_file = folder / "new-item.json"
+        manifest_file = mod_metadata_path(folder, "new-item.json", stop_event=stop_event)
         manifest = {}
         if manifest_file.is_file():
             if manifest_file.stat().st_size > 8 * 1024 * 1024:
@@ -277,10 +278,17 @@ def prepare_mod_merge(
             baseline_payloads["meta/0.pathc"] = registry[0]
         except (ValueError, RuntimeError) as error:
             conflicts.append(f"meta/0.pathc: {error}")
-    from cdmw.core.mod_compatibility import compatibility_from_payloads, game_identity, read_compatibility
+    from cdmw.core.mod_compatibility import (
+        BASELINE_FILE, COMPATIBILITY_FILE, compatibility_from_payloads, game_identity, hash_file, read_compatibility,
+    )
     dependencies = {}
     for folder, mod in zip(roots, mods):
         evidence = read_compatibility(folder, stop_event=stop_event)
+        for name in (COMPATIBILITY_FILE, BASELINE_FILE):
+            metadata = mod_metadata_path(folder, name, stop_event=stop_event)
+            if metadata.is_file():
+                tracker.pin_file(metadata)
+                loose_hashes.append((metadata, hash_file(metadata, stop_event)))
         for record in evidence.dependencies if evidence else mod[4].get("sources", ()):
             path = _path(record["path"])
             if path in output:

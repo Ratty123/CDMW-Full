@@ -258,7 +258,10 @@ class _TabOutputMixin:
         self.assertIsNotNone(first, output.summary.toPlainText())
         with patch("cdmw.ui.new_item.panels_output.QMessageBox.information", return_value=None):
             output.export_button.click()
-        self.assertTrue((folder / "new-item.json").is_file(), output.log.toPlainText())
+        from cdmw.core.mod_export_history import mod_metadata_path
+
+        self.assertFalse((folder / "new-item.json").exists())
+        self.assertTrue(mod_metadata_path(folder, "new-item.json").is_file(), output.log.toPlainText())
 
         tab.identity_panel.internal_name.setText("Second_Clone_OneHandSword")
         tab.identity_panel.display_name.setText("Second")

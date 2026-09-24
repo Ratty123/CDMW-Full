@@ -591,6 +591,13 @@ def _publish_package_atomically(
         raise_if_cancelled(stop_event, "New item export cancelled.")
         result = writer(staging)
         raise_if_cancelled(stop_event, "New item export cancelled.")
+        if result.manager.upper() == "DMM":
+            from cdmw.core.mod_export_history import retain_dmm_history
+
+            removed = retain_dmm_history(staging, stop_event=stop_event)
+            result = replace(result, metadata_files=tuple(
+                name for name in result.metadata_files if name not in removed))
+            raise_if_cancelled(stop_event, "New item export cancelled.")
         if before_publish is not None:
             before_publish()
         atomic_publish_directory(staging, root)

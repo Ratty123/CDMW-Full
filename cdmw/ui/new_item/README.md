@@ -1058,8 +1058,18 @@ never alter the source mod, installed overlays or game archives.
 
 New exports record the full available game build and executable fingerprint, file
 hashes and original payloads in `cdmw-compatibility.json` and `cdmw-baseline.zip`.
-Keep both files with the mod; metadata conversion and mod merging preserve this
-history. Original payload storage is bounded to 256 MiB per file and 512 MiB total;
+DMM exports keep these records and `new-item.json` under
+`%LOCALAPPDATA%/CrimsonDesertModWorkbench/mod_export_history`. The exported
+folder contains the archive group, `meta/0.pathc` when needed, `manifest.json`,
+`modinfo.json` and `README.txt`. DMM rebuilds its own `meta/0.papgt`, so that file
+is omitted too. This applies to New Item, merged and updated DMM packages.
+History lookup verifies the exported contents; copied or renamed folders remain
+usable on the same computer, while changed package contents cannot reuse stale
+history. Extension, merge and update read local history automatically. A shared
+DMM package does not carry that history to another computer; retain CDMW's local
+history when moving authoring work. Other manager exports and older packages
+keep their inline records, which remain readable.
+Original payload storage is bounded to 256 MiB per file and 512 MiB total;
 unavailable or larger originals remain explicitly unknown. New Item exports also
 record the dependencies read while building the item. Installed overlays carry a
 game stamp in their existing transaction history, and their list shows **Built for**

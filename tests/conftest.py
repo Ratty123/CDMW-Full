@@ -10,6 +10,12 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
+def _isolate_mod_export_history(tmp_path, monkeypatch):
+    """Exports must never write authoring records into the user's real history."""
+    monkeypatch.setattr("cdmw.core.mod_export_history._history_root", lambda: tmp_path / "mod-history")
+
+
+@pytest.fixture(autouse=True)
 def _restore_process_environment():
     """Undo environment changes a test leaves behind, whoever made them.
 

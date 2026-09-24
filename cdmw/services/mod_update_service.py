@@ -9,6 +9,7 @@ from cdmw.core.mod_compatibility import (
     BASELINE_FILE, COMPATIBILITY_FILE, ModCompatibility, build_label, compatibility_from_payloads, digest,
     game_identity, hash_file, payload_path, read_compatibility,
 )
+from cdmw.core.mod_export_history import mod_metadata_path
 from cdmw.domain.archives.overlay_merge import merge_overlay_files
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.services.mod_merge_service import _group, _inventory, _validate_group
@@ -174,7 +175,7 @@ def prepare_mod_update(folder, game_root, *, entries, read_entry=None, stop_even
         on_log(f"Comparing {source.name} with the current game data...")
     evidence = read_compatibility(source, stop_event=stop_event)
     for name in (COMPATIBILITY_FILE, BASELINE_FILE):
-        path = source / name
+        path = mod_metadata_path(source, name, stop_event=stop_event)
         if path.is_file():
             tracker.pin_file(path)
             hashes.append((path, hash_file(path, stop_event)))
@@ -204,7 +205,7 @@ def prepare_mod_update(folder, game_root, *, entries, read_entry=None, stop_even
             if not isinstance(record, dict):
                 raise ValueError("Invalid mod metadata.")
             package_info.update(record)
-    manifest = source / "new-item.json"
+    manifest = mod_metadata_path(source, "new-item.json", stop_event=stop_event)
     if manifest.is_file():
         if manifest.stat().st_size > 8 * 1024 * 1024:
             raise ValueError("The New Item metadata is too large.")

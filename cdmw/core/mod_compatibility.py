@@ -226,9 +226,12 @@ def read_compatibility(root: Path, *, stop_event=None) -> ModCompatibility | Non
                             raise_if_cancelled(stop_event, "Mod compatibility read cancelled.")
                             target.write(data)
                 return read_compatibility(directory, stop_event=stop_event)
-    source = root / COMPATIBILITY_FILE
+    from cdmw.core.mod_export_history import mod_metadata_path
+
+    source = mod_metadata_path(root, COMPATIBILITY_FILE, stop_event=stop_event)
     if not source.exists():
         return None
+    root = source.parent
     if source.is_symlink() or source.stat().st_size > MAX_METADATA_BYTES:
         raise ValueError("Invalid or oversized mod compatibility metadata.")
     payload = json.loads(source.read_bytes())

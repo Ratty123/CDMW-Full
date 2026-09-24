@@ -233,7 +233,13 @@ def build_mod_base_snapshot(service, snapshot, folder: Path, *, read_entry, on_l
         base.provenance.pin_file(path)
     base.base_payloads = {path: base.payload(path) for path in payloads if not path.startswith("meta/")}
     base.base_added_paths = frozenset(added)
-    manifest = folder / "new-item.json"
+    from cdmw.core.mod_export_history import HISTORY_FILES, mod_metadata_path
+
+    for name in HISTORY_FILES:
+        metadata = mod_metadata_path(folder, name, stop_event=stop_event)
+        if metadata.is_file():
+            base.provenance.pin_file(metadata)
+    manifest = mod_metadata_path(folder, "new-item.json", stop_event=stop_event)
     if manifest.is_file():
         if manifest.stat().st_size > 8 * 1024 * 1024:
             raise ValueError(f"New Item manifest is too large: {manifest}")

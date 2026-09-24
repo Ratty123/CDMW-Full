@@ -7,7 +7,9 @@ standalone-overlay or group-replace, and a table belongs to the last two. What i
 is a prebuilt archive group, `<group>/0.pamt` and `0.paz` beside a `meta/0.papgt` naming
 it, which is the same directory the workbench installs into the game itself.
 
-So this writes exactly that, into the mod folder instead of into the game. The archive is
+This prepares that layout in staging, rather than in the game. Publication retains
+the authoring records in CDMW's local history and removes the supplied mount list,
+which DMM rebuilds itself. The archive is
 built by :func:`cdmw.core.archive_overlay.build_overlay_archive`, the one whose output
 reproduces a shipped archive byte for byte, and the mount list is the game's own with the
 group added -- the count in its header included, which is what the game reads to decide

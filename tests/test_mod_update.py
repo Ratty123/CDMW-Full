@@ -60,6 +60,10 @@ def test_update_preserves_game_patch_and_authored_item(tmp_path):
     assert plan.status == "changed", plan.conflicts
     assert plan.can_update, plan.conflicts
     result = export_updated_mod(plan, tmp_path / "updated")
+    from cdmw.core.mod_export_history import HISTORY_FILES, mod_metadata_path
+
+    assert not any((result.package_root / name).exists() for name in (*HISTORY_FILES, "meta/0.papgt"))
+    assert mod_metadata_path(result.package_root, "new-item.json").is_file()
     output = payloads(result.package_root)
     rows = {item.row_id: output[body_path][start:end] for item, start, end in
             parse_pabgh_table(output[head_path], payload=output[body_path]).row_spans(len(output[body_path]))}
@@ -87,11 +91,10 @@ def test_opaque_overlapping_change_blocks_output(tmp_path):
     assert not (tmp_path / "blocked").exists()
 
 
-def test_unknown_old_mod_and_modified_export_are_not_certified(tmp_path):
+def test_unknown_old_mod_and_modified_export_are_not_certified(tmp_path, monkeypatch):
     _original, _snapshot, entries, folder = exported(tmp_path)
-    (folder / COMPATIBILITY_FILE).unlink()
-    (folder / BASELINE_FILE).unlink()
-    (folder / "new-item.json").unlink()
+    # A recipient's CDMW installation does not have the author's local history.
+    monkeypatch.setattr("cdmw.core.mod_export_history._history_root", lambda: tmp_path / "other-computer")
     plan = prepare_mod_update(folder, tmp_path / "game", entries=entries)
     assert plan.status == "unknown" and not plan.can_update
 

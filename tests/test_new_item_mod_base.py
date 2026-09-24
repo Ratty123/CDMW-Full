@@ -184,7 +184,8 @@ class ModBaseTests(unittest.TestCase):
 
         from cdmw.core.archive_extraction import read_archive_entry_data
         from cdmw.core.archive_format import parse_archive_pamt
-        from cdmw.core.papgt_format import parse_papgt
+        from cdmw.core.mod_compatibility import read_compatibility
+        from cdmw.core.mod_export_history import mod_metadata_path
 
         folder = self.root / "dmm"
         snapshot = self.service.build_snapshot(self.entries, read_entry=_read)
@@ -203,8 +204,9 @@ class ModBaseTests(unittest.TestCase):
             "Crimson Desert Mod Workbench - Create New Item",
         )
         group = next(name.split("/")[0] for name in written if name.endswith("/0.pamt"))
-        self.assertIn(f"{group}/0.paz", written)
-        self.assertIn("meta/0.papgt", written)
+        self.assertEqual(written, {f"{group}/0.pamt", f"{group}/0.paz",
+                                   "manifest.json", "modinfo.json", "README.txt"})
+        self.assertEqual(set(result.metadata_files), {"manifest.json", "modinfo.json", "README.txt"})
 
         # the group is a real archive: every patched path reads back out of it
         listed = {str(entry.path): entry for entry in parse_archive_pamt(folder / group / "0.pamt")}
@@ -212,11 +214,10 @@ class ModBaseTests(unittest.TestCase):
         for request in plan.patches:
             self.assertEqual(read_archive_entry_data(listed[str(request.entry.path)])[0], request.payload_data)
 
-        # and the mount list it ships names the group, counting itself
-        mounted = (folder / "meta" / "0.papgt").read_bytes()
-        names = [item.name for item in parse_papgt(mounted)]
-        self.assertEqual(names[0], group)
-        self.assertEqual(mounted[8], len(names), "the header counts the directories it lists")
+        history = mod_metadata_path(folder, "new-item.json")
+        self.assertFalse(history.is_relative_to(folder))
+        self.assertEqual(json.loads(history.read_text(encoding="utf-8"))["item_key"], plan.spec.item_key)
+        self.assertIsNotNone(read_compatibility(folder))
 
     def test_a_second_dmm_item_keeps_the_first_one(self) -> None:
         folder = self.root / "dmm_two_items"
