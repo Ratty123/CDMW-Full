@@ -94,6 +94,8 @@ Editable choices keep their text field and dropdown arrow on one row. Short
 tables use their actual row and font heights, and narrow split panels scroll to
 keep every inspector reachable. Context menus open beside the pointer; small
 dialogs fit their fields and keep related actions together below the content.
+Overlay installation confirmations and completion messages fit their text, with
+the action buttons directly below it; long messages scroll within the dialog.
 Instructional detail is available on hover over the relevant control or section;
 validation messages remain visible. Popup and tooltip rectangles mask the native
 preview underneath so their complete contents remain visible and clickable.

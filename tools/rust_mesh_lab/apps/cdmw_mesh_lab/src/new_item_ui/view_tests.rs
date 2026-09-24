@@ -1091,6 +1091,76 @@ fn compact_input_dialog_keeps_buttons_below_the_field_at_each_font_size() {
 }
 
 #[test]
+fn overlay_install_message_dialogs_fit_body_and_footer() {
+    let paths = (0..14).map(|index| format!("- gamedata/binarystaticinfo__/bin/item{index}.staticinfobody"))
+        .collect::<Vec<_>>().join("\n");
+    let confirmation = format!(
+        "Install Owned_Overlay_Item (item 1990129) as an archive directory of its own?\n\n\
+         45 file(s) go into the new directory:\n{paths}\n- ... 31 more\n\n\
+         The archives the game shipped are not written to. The mount list and the texture registry are backed \
+         up first, and the game must not be running.\n\n\
+         If a previous CDMW overlay set is no longer mounted, installation automatically archives its history \
+         and starts a fresh set. The old overlay files stay on disk for recovery."
+    );
+    let completion = "Installed as the archive directory 0041: 45 file(s), 187,804,096 bytes, mounted ahead of \
+        the shipped archives.\n\nThe archives the game shipped were not written to.\n\n\
+        Backup: C:\\Users\\Fixture\\AppData\\Local\\Temp\\CrimsonDesertModWorkbench\\archive_patch_backups\\20260924_152534\n\n\
+        Start the game and go through the checklist.\n\nAutomatically retired 1 unmounted old overlay(s) and \
+        installed a fresh set. The old files remain on disk. Saved history: \
+        C:\\games\\Crimson Desert\\.cdmw\\retired-overlays\\9658a45044a84c42b88c1f7a78e64ac2.json";
+    for (message, buttons) in [
+        (confirmation.as_str(), vec![("yes", "Yes"), ("no", "No")]),
+        (completion, vec![("ok", "OK")]),
+    ] {
+        for font in [11.0, 14.0, 22.0] {
+            for size in [egui::vec2(1280.0, 720.0), egui::vec2(1920.0, 1080.0),
+                egui::vec2(2560.0, 1440.0), egui::vec2(3440.0, 1440.0), egui::vec2(3840.0, 2160.0)] {
+                let context = egui::Context::default();
+                let mut state = state(control("background", "column", "", json!({})));
+                state.theme["font_pixels"] = json!(font);
+                // Match the real QMessageBox projection: an icon, an empty spacer
+                // column, wrapped text, and a button box extracted into the footer.
+                let mut icon = control("icon", "label", "", json!({"text":"", "image":"message-icon"}));
+                icon.cell = Some([0, 0, 2, 1]);
+                let mut text = control("message", "label", "", json!({"text":message, "wrap":true}));
+                text.cell = Some([0, 2, 1, 1]);
+                let mut row = control("button-row", "row", "", json!({}));
+                row.children = buttons.iter().map(|(id, label)|
+                    control(id, "button", label, json!({"default": *id != "yes"}))).collect();
+                let mut actions = control("actions", "column", "", json!({"dialog_actions":true}));
+                actions.cell = Some([2, 0, 1, 3]);
+                actions.children.push(row);
+                let mut grid = control("message-grid", "grid", "", json!({}));
+                grid.children = vec![icon, text, actions];
+                let mut dialog = control("overlay", "dialog", "Install as an overlay", json!({}));
+                dialog.children.push(grid);
+                state.dialogs.push(dialog);
+                apply_theme(&context, &state.theme);
+                let mut view = PresentationView::default();
+                view.textures.insert("message-icon".into(), context.load_texture("message-icon",
+                    egui::ColorImage::filled([32, 32], Color32::BLUE), egui::TextureOptions::LINEAR));
+                for _ in 0..5 { frame(&context, &mut view, &state, size, vec![]); }
+                assert!(view.errors.is_empty(), "{:?}", view.errors);
+                let text = view.rects.iter().find(|rect| rect.id == "message").unwrap();
+                let visible_bottom = (text.rect[1] + text.rect[3]).min(text.clip[1] + text.clip[3]);
+                let dialog_rect = context.memory(|memory|
+                    memory.area_rect(egui::Id::new(("overlay", "dialog")))).unwrap();
+                for (id, _) in &buttons {
+                    let button = view.rects.iter().find(|rect| &rect.id == id).unwrap();
+                    let gap = button.rect[1] - visible_bottom;
+                    assert!((0.0..=font * 2.0 + 16.0).contains(&gap),
+                        "{font}px at {size:?}: {gap}px gap above {id}");
+                    assert!(button.rect[1] + button.rect[3] <= button.clip[1] + button.clip[3] + 1.0,
+                        "{font}px at {size:?}: clipped {button:?}");
+                    let bottom_gap = dialog_rect.bottom() - button.rect[1] - button.rect[3];
+                    assert!(bottom_gap <= 20.0, "{font}px at {size:?}: {bottom_gap}px below {id}");
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn context_menu_is_compact_and_outside_click_closes_only_the_menu() {
     let context = egui::Context::default();
     let mut state = state(control("background", "button", "Continue", json!({})));

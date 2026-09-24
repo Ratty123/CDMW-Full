@@ -163,7 +163,11 @@ impl PresentationView {
                         if !actions.is_empty() { ui.separator(); }
                         for action in &actions {
                             let width = minimum_width(ui, action).min(ui.available_width());
-                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            let height = estimate_height(ui, action, width);
+                            // A full-height footer keeps spare estimated window height
+                            // alive. Allocate only the actions so the dialog can shrink.
+                            ui.allocate_ui_with_layout(Vec2::new(ui.available_width(), height),
+                                egui::Layout::right_to_left(egui::Align::Min), |ui| {
                                 ui.allocate_ui_with_layout(Vec2::new(width, control_height(ui)),
                                     egui::Layout::top_down(egui::Align::Min), |ui| self.node(ui, action));
                             });
