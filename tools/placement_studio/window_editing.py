@@ -992,19 +992,7 @@ class EditPanelMixin:
         session = self._session
         if session is None or self._edits is None:
             return
-        weapon_id = session.weapon.weapon_id if session.weapon else ""
-        from .resolver import PlacementResolver
-        resolver = PlacementResolver()
-        resolver.add_files(self._edits.current_files())
-        rebuilt = PlacementSession(session.model, session.hierarchy, resolver, skeleton_path=session.skeleton_path)
-        rebuilt._bind_hierarchy = session._bind_hierarchy
-        rebuilt.pose_matrices = session.pose_matrices
-        rebuilt._equipment_models = session._equipment_models
-        rebuilt._equipment_model_errors = session._equipment_model_errors
-        for weapon in rebuilt.weapons():
-            if weapon.weapon_id == weapon_id:
-                rebuilt.select_weapon(weapon)
-                break
+        rebuilt = session.with_edited_files(self._edits.current_files())
         self._session = rebuilt
         self._bindings = rebuilt.bindings()
 

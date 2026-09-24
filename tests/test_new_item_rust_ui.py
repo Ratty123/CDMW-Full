@@ -87,6 +87,43 @@ def test_identity_actions_reach_existing_draft_and_invalidate_plan(studio):
     assert not tab.controller.has_current_plan
 
 
+@pytest.mark.parametrize("applied", [False, True])
+def test_template_model_choice_survives_variant_switch_with_retained_import(studio, applied):
+    from cdmw.domain.new_item.spec import ModelSource
+    from cdmw.services.new_item_planning import ModelFiles
+    from tests.test_new_item_model_apply import _import
+
+    _, tab, bridge = studio
+    tab.show_step(2)
+    source = _import(tab)
+    controller, panel = tab.controller, tab.model_panel
+    result = ModelFiles(b"applied fixture") if applied else None
+    if applied:
+        controller.set_imported_model(controller.template_primary_entry(), result, source.scene)
+    assert _send(bridge, panel.keep_model, "activate")["type"] == "ack"
+    first = controller.current_variant_identity()
+    other = next(key for key, _ in controller.variant_choices() if key != first)
+    for _ in range(2):
+        controller.select_variant(other)
+        controller.select_variant(first)
+        assert controller.draft.model_source is ModelSource.TEMPLATE
+        assert panel.keep_model.isChecked() and not panel.import_model.isChecked()
+        assert controller.model_import is source and controller.model_result is result
+        assert not any(variant.custom_model for variant in controller.current_spec().variants)
+        assert not panel.apply_button.isVisibleTo(tab)
+        revision = controller._draft_revision
+        panel._show_model(result)
+        assert controller._draft_revision == revision
+    assert _send(bridge, panel.import_model, "activate")["type"] == "ack"
+    assert controller.draft.model_source is ModelSource.IMPORTED
+    assert any(variant.custom_model for variant in controller.current_spec().variants)
+    assert controller.model_import is source and controller.model_result is result
+    # Replacing the template resets the controller selection without relying on radio signals.
+    controller._commit_template(TEMPLATE)
+    assert controller.draft.model_source is ModelSource.TEMPLATE
+    assert controller.model_import is None and panel.keep_model.isChecked()
+
+
 def test_underlying_parts_controls_reach_draft_through_rust_bridge(studio):
     from cdmw.domain.new_item.body_visibility import BodyVisibilityChoice
     _, tab, bridge = studio

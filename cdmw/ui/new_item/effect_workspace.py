@@ -746,7 +746,7 @@ class GuidedEffectsWorkspace(EffectWorkspaceAuthoringMixin, QWidget):
             return
         item_builder = self._controller.item_effect_preview_source()
         stem = self._staged.stem
-        model_source = getattr(self._controller, "model_import", None)
+        model_source = getattr(item_builder, "source", None)
         model_source_usage = getattr(model_source, "acquire_usage", None)
         box_min, box_max = self._controller.effect_box(stem)
         preview_builder, texture_reader = self._controller.effect_preview_for_placement(stem, self._staged)

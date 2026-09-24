@@ -430,6 +430,8 @@ class PlacementStudioWindow(
             self._request_model(model)
             return
         self._session = PlacementSession.from_baseline(self._baseline, model)
+        if self._edits is not None:
+            self._session = self._session.with_edited_files(self._edits.current_files())
 
         # Charts and weapon files both belong to one character, and the archive index arrives
         # once — at startup, for whichever loaded first. Restarting the whole read, not the

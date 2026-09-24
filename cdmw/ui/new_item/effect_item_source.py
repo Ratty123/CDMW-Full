@@ -26,6 +26,14 @@ class PlannedEffectItemSource:
     preview_context: object = None
     shader_controls: tuple = ()
     surface_settings: tuple = ()
+    # None preserves the explicit placement contract of standalone callers. Controller
+    # captures supply the draft transform, which can differ from a retained import's.
+    template_transform: tuple | None = None
+
+    def _template_transform(self):
+        if self.template_transform is not None:
+            return self.template_transform or None
+        return self.placement.matrix() if not self.placement.is_identity else None
 
     def consume(self, stop_event, consumer):
         """Keep prepared native textures leased until the Effects package owns them."""
@@ -37,7 +45,7 @@ class PlannedEffectItemSource:
         def consume_native(package):
             mesh = decode_dotnet_native_preview_package(package, cancelled=stop_event.is_set)
             return consumer(self._finish(mesh, "template", stop_event,
-                template_transform=self.placement.matrix() if not self.placement.is_identity else None))
+                template_transform=self._template_transform()))
 
         return self.template_build(stop_event, **context, consume_native_package=consume_native)
 
@@ -113,7 +121,7 @@ class PlannedEffectItemSource:
         if mesh is None:
             return None, ""
         return self._finish(mesh, "applied" if self.applied else "template", stop_event,
-            template_transform=self.placement.matrix() if not self.rebuilt_data and not self.placement.is_identity else None)
+            template_transform=self._template_transform() if not self.rebuilt_data else None)
 
     def _finish(self, mesh, kind, stop_event, origin=None, *, template_transform=None):
         self._check_cancelled(stop_event)

@@ -2,13 +2,13 @@
 
 import threading
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 from PySide6.QtWidgets import QApplication
 
 from cdmw.domain.cancellation import RunCancelled
-from cdmw.domain.new_item.spec import MaterialRoute
+from cdmw.domain.new_item.spec import MaterialRoute, ModelSource
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.ui.new_item.controller import NewItemStudioController
 from cdmw.ui.new_item.model_import import ModelPlacement
@@ -33,6 +33,7 @@ def test_source_captures_import_and_placement_without_decoding():
         return original
 
     controller.model_import = SimpleNamespace(baked_preview_mesh=decode, baked_scene_mesh=decode)
+    controller.draft.model_source = ModelSource.IMPORTED
     controller.model_placement = ModelPlacement(offset=(2.0, 0.0, 0.0))
     source = controller.item_effect_preview_source()
     assert reads == []
@@ -86,6 +87,7 @@ def test_cancelled_import_decode_does_not_start_mesh_baking():
         return mesh()
 
     controller.model_import = SimpleNamespace(baked_preview_mesh=decode, baked_scene_mesh=decode)
+    controller.draft.model_source = ModelSource.IMPORTED
     source = controller.item_effect_preview_source()
     with patch("cdmw.ui.new_item.effect_item_source.bake_mesh") as bake:
         with pytest.raises(RunCancelled):
@@ -104,6 +106,7 @@ def test_source_glass_and_emission_follow_captured_material_route(route):
     part.preview_material_parameters = [SimpleNamespace(parameter_name="_transmissionFactor", value="0.5")]
     part.preview_native_material_overrides = {"emissive_color": [1.0, 0.0, 0.0], "emissive_intensity": 10.0}
     controller.model_import = SimpleNamespace(baked_preview_mesh=lambda: original, baked_scene_mesh=lambda: original)
+    controller.draft.model_source = ModelSource.IMPORTED
     controller.draft.material_route = route
     source = controller.item_effect_preview_source()
     controller.draft.material_route = MaterialRoute.BUILDER if route is MaterialRoute.PLAIN_PBR else MaterialRoute.PLAIN_PBR
@@ -114,5 +117,44 @@ def test_source_glass_and_emission_follow_captured_material_route(route):
     assert overrides["emissive_color"] == [1.0, 0.0, 0.0]
     assert overrides["emissive_intensity"] == 10.0
     assert "translucency" not in part.preview_native_material_overrides
+    controller.deleteLater()
+    app.processEvents()
+
+
+@pytest.mark.parametrize("native", [False, True])
+@pytest.mark.parametrize("transformed", [False, True])
+def test_template_choice_ignores_retained_import_and_captures_template_transform(native, transformed, tmp_path):
+    app = QApplication.instance() or QApplication([])
+    controller = NewItemStudioController(synchronous=True)
+    decode_import = Mock(side_effect=AssertionError("Inactive imports must not be decoded"))
+    controller.model_import = SimpleNamespace(baked_preview_mesh=decode_import, baked_scene_mesh=decode_import)
+    controller.model_result = SimpleNamespace(preview_model=object(), rebuilt_data=b"inactive result")
+    controller.model_placement = ModelPlacement(offset=(99.0, 0.0, 0.0))
+    controller.draft.model_source = ModelSource.TEMPLATE
+    controller.draft.template_key = 17
+    offset = 4.0 if transformed else 0.0
+    controller.draft.template_transform = tuple(ModelPlacement(offset=(offset, 0.0, 0.0)).matrix()) if transformed else ()
+    entry = SimpleNamespace(path="template.pac", basename="template.pac")
+    controller.snapshot = SimpleNamespace(
+        family=lambda _key: SimpleNamespace(model_stem="template", model_folder="weapon",
+            files_for=lambda _kind: (SimpleNamespace(path=entry.path, exists=True),)),
+        entry=lambda _path: entry, payload=lambda _path: b"template bytes",
+    )
+    native_build = Mock(side_effect=lambda stop, **kwargs: kwargs["consume_native_package"]("native-template"))
+    if native:
+        controller._template_preview_context = {"native_preview_core_cache_root": tmp_path}
+    with patch.object(controller, "_template_preview_build", return_value=("template", native_build)):
+        source = controller.item_effect_preview_source()
+    assert source.source is None and source.preview_model is None and source.rebuilt_data == b""
+    controller.draft.model_source = ModelSource.IMPORTED
+    controller.draft.template_transform = ()
+    with patch("cdmw.services.mesh_workflow_service.parse_pac", return_value=mesh()) as parse, \
+         patch("cdmw.services.mesh_dotnet_reference_composite.decode_dotnet_native_preview_package", return_value=mesh()) as decode:
+        prepared, label = source.consume(threading.Event(), lambda result: result)
+    assert label == "template"
+    assert prepared.submeshes[0].vertices[0] == (offset, 0.0, 0.0)
+    assert native_build.call_count == decode.call_count == int(native)
+    assert parse.call_count == int(not native)
+    decode_import.assert_not_called()
     controller.deleteLater()
     app.processEvents()

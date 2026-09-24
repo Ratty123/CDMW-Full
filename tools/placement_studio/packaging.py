@@ -11,6 +11,8 @@ rather than overwrites, and a README that states what the mod actually changes.
 
 from __future__ import annotations
 
+import shutil
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
@@ -347,7 +349,7 @@ def build_package(
     scope=None,
     manifest: Optional[Mapping[str, object]] = None,
 ) -> PackageResult:
-    """Write one manager's package. Reuses the app's finalizer for all metadata."""
+    """Build a fresh package, then replace the destination with rollback on failure."""
 
     profile = MANAGER_PROFILES.get(manager.upper())
     if profile is None:
@@ -355,13 +357,19 @@ def build_package(
     if not files:
         raise PackagingError("Nothing to package: no edited files")
 
+    from cdmw.core.atomic_file import atomic_publish_directory
     from cdmw.core.mod_package import finalize_mod_package_export
     from cdmw.domain.packages.export_policy import ModPackageExportOptions
     from cdmw.models import ModPackageInfo
 
     root = Path(out_root)
-    root.mkdir(parents=True, exist_ok=True)
-    payload_paths = _lay_out_payload(root, files)
+    resolved = root.resolve()
+    if resolved == resolved.parent or root.is_symlink():
+        raise PackagingError(f"Not a package destination: {root}")
+    if root.exists() and not root.is_dir():
+        raise PackagingError(f"Package destination is not a folder: {root}")
+    root.parent.mkdir(parents=True, exist_ok=True)
+    payload_paths = sorted(files)
     new_paths = derive_new_paths(payload_paths, baseline) if baseline is not None else []
 
     info = ModPackageInfo(
@@ -379,33 +387,41 @@ def build_package(
         create_no_encrypt_file=bool(profile["create_no_encrypt_file"]),
     )
 
-    result = finalize_mod_package_export(
-        root,
-        info,
-        kind=str(profile.get("kind") or "archive_loose_mod"),
-        payload_paths=payload_paths,
-        new_file_paths=new_paths,
-        options=options,
-        created_utc=created_utc,
-    )
-
-    if write_readme:
-        (root / "README.txt").write_text(
-            build_readme(
-                plan,
-                metadata,
-                manager=manager.upper(),
-                payload_paths=payload_paths,
-                new_paths=new_paths,
-                scope=scope,
-            ),
-            encoding="utf-8",
+    staging = Path(tempfile.mkdtemp(prefix=f".{resolved.name}.cdmw-stage-", dir=resolved.parent))
+    try:
+        _lay_out_payload(staging, files)
+        result = finalize_mod_package_export(
+            staging,
+            info,
+            kind=str(profile.get("kind") or "archive_loose_mod"),
+            payload_paths=payload_paths,
+            new_file_paths=new_paths,
+            options=options,
+            created_utc=created_utc,
         )
 
-    if manifest is not None:
-        from .preflight import write_operation_manifest
+        if write_readme:
+            (staging / "README.txt").write_text(
+                build_readme(
+                    plan,
+                    metadata,
+                    manager=manager.upper(),
+                    payload_paths=payload_paths,
+                    new_paths=new_paths,
+                    scope=scope,
+                ),
+                encoding="utf-8",
+            )
 
-        write_operation_manifest(root, manifest)
+        if manifest is not None:
+            from .preflight import write_operation_manifest
+
+            write_operation_manifest(staging, manifest)
+
+        atomic_publish_directory(staging, resolved)
+    finally:
+        if staging.exists():
+            shutil.rmtree(staging, ignore_errors=True)
 
     metadata_files = tuple(
         sorted(

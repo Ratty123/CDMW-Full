@@ -143,6 +143,25 @@ class PlacementSession:
 
     # ── construction ────────────────────────────────────────────────
 
+    def with_edited_files(self, files: Mapping[str, bytes]) -> "PlacementSession":
+        """Rebuild bindings from pending bytes while retaining this character's rig and pose."""
+        resolver = PlacementResolver()
+        resolver.add_files(files)
+        rebuilt = PlacementSession(
+            self.model, self.hierarchy, resolver,
+            warnings=self.warnings, skeleton_path=self.skeleton_path,
+        )
+        rebuilt._bind_hierarchy = self._bind_hierarchy
+        rebuilt.pose_matrices = self.pose_matrices
+        rebuilt._equipment_models = self._equipment_models
+        rebuilt._equipment_model_errors = self._equipment_model_errors
+        weapon_id = self.weapon.weapon_id if self.weapon else ""
+        for weapon in rebuilt.weapons():
+            if weapon.weapon_id == weapon_id:
+                rebuilt.select_weapon(weapon)
+                break
+        return rebuilt
+
     @classmethod
     def from_baseline(cls, baseline, model: str) -> "PlacementSession":
         resolver = resolver_from_baseline(baseline)

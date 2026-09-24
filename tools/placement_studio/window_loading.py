@@ -24,7 +24,7 @@ class StudioLoadingMixin:
         self._mesh_cache_context = ()
 
     def _request_model(self, model=None):
-        from .editing import session_from_baseline
+        from .editing import EditSession, session_from_baseline
         from .session import PlacementSession
 
         self._stop_archive_content_load()
@@ -32,6 +32,8 @@ class StudioLoadingMixin:
         self._mesh_requested = None
         self._model_loading = True
         baseline, needs_edits = self._baseline, self._edits is None
+        snapshot = self._edits.capture() if self._edits is not None else None
+        self._model_edit_request = self._edits, snapshot, model
         resident_source = self._resident_source
         self._weapon_box.setEnabled(False)
         self.statusBar().showMessage("Loading...")
@@ -48,6 +50,10 @@ class StudioLoadingMixin:
             session = PlacementSession.from_baseline(prepared_baseline, selected) if selected else None
             if cancelled():
                 return None
+            if session is not None and snapshot is not None:
+                session = session.with_edited_files(EditSession.from_snapshot(snapshot).current_files())
+            if cancelled():
+                return None
             edits = session_from_baseline(prepared_baseline) if needs_edits else None
             return models, session, edits, prepared_baseline
 
@@ -60,6 +66,12 @@ class StudioLoadingMixin:
         self._weapon_box.setEnabled(True)
         if error or result is None:
             self.statusBar().showMessage(error)
+            return
+        owner, snapshot, requested_model = self._model_edit_request
+        if self._edits is not owner or (owner is not None and owner.capture() != snapshot):
+            # Keep history (including redo) authoritative. Replay a fresh immutable capture
+            # off Qt if an edit landed while the character was being prepared.
+            self._request_model(requested_model)
             return
         models, session, edits, baseline = result
         if models:
@@ -221,9 +233,11 @@ class StudioLoadingMixin:
 
     def _publish_archive_content(self, session, request, result):
         errors = list(result.errors)
+        known = set(self._edits.paths) if self._edits is not None else set()
         for number, (path, data) in enumerate(result.sockets):
             try:
-                session.add_socket_file(path, data)
+                if path not in known:
+                    session.add_socket_file(path, data)
             except Exception as exc:
                 errors.append(f'{path}: {exc}')
             if number % self._CACHED_LOAD_SLICE == 0:

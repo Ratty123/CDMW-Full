@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QSettings, QSize, Qt, QTimer, Signal
+from PySide6.QtCore import QEvent, QSettings, QSignalBlocker, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -861,6 +861,7 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self.own_sheath.setEnabled(not keep)
         self._refresh_import_widgets()
         self._controller.invalidate_plan()
+        self._refresh_apply_status()
 
     def _refresh_import_widgets(self) -> None:
         keep = self.keep_model.isChecked()
@@ -1153,6 +1154,14 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
     def _show_model(self, result: object) -> None:
         self._apply_error = ""
         source = self._controller.model_import
+        keep = self._controller.draft.model_source is ModelSource.TEMPLATE
+        # Retained imports are available for switching back; their presence does not
+        # override the selected source or mutate the variant while projecting its state.
+        with QSignalBlocker(self.keep_model), QSignalBlocker(self.import_model):
+            self.keep_model.setChecked(keep)
+            self.import_model.setChecked(not keep)
+        self.plain_pbr.setEnabled(not keep)
+        self.own_sheath.setEnabled(not keep)
         self._set_placement_visible(source is not None or self._controller.draft.template_key is not None)
         self.fit_button.setText("Fit to template" if source is not None else "Reset placement")
         self.flip_texture_v.setVisible(source is not None)
@@ -1164,7 +1173,6 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
             self.flip_texture_v.setChecked(bool(source.flip_texture_v))
             self.flip_texture_v.blockSignals(False)
         if result is None and source is None:
-            self.keep_model.setChecked(True)
             self.model_status.set_note("No imported model.", None)
             self.import_summary.setText("No imported model.")
             self.import_summary.setToolTip("")
@@ -1173,9 +1181,6 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
             self._refresh_import_widgets()
             self._refresh_apply_status()
             return
-        self.import_model.setChecked(True)
-        self.plain_pbr.setEnabled(True)
-        self.own_sheath.setEnabled(True)
         self._refresh_import_widgets()
         lines = []
         if source is not None:
@@ -1201,5 +1206,6 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
             self.apply_status.set_note("Not applied yet: the plan needs Apply the placement.", WARN)
         self.model_status.set_lines(lines)
         self._sync_placement_numbers(self._controller.model_placement)
+        self._refresh_apply_status()
 
 __all__ = ["ModelPanel"]

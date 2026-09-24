@@ -374,6 +374,12 @@ the layered shader uses its emissive variant. Discard clears the imported appear
 and placement, and changing the preview source clears live material overrides before
 the template is loaded.
 
+Choosing **Template model** retains an existing import so it can be selected again.
+Switching away from a variant and back preserves that choice without applying the
+retained import to the plan. Effects captures the selected source and the draft's
+template transform before starting its worker; inactive imports and their applied
+results do not override the template or acquire a preview usage lease.
+
 **Glow > Animation (experimental)** adds **Scroll U**, **Scroll V**, **Pulse speed**
 and **Pulse floor** to templates and separate imported Plain PBR material parts.
 Hover over a setting or its label for a short description, including the RGB

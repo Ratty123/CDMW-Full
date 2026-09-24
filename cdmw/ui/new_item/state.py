@@ -253,6 +253,7 @@ class NewItemDraft:
 
     def reset_for_template(self, template_key: Optional[int]) -> None:
         self.template_key = template_key
+        self.model_source = ModelSource.TEMPLATE
         self.grid_values = {}
         self.extra_levels = 0
         self.price_values = {}

@@ -159,7 +159,8 @@ def test_model_loading_is_bounded_and_publishes_only_latest_on_ui(studio, monkey
         if model == 'old':
             started.set()
             assert release.wait(3)
-        return SimpleNamespace(model=model)
+        from tools.placement_studio.resolver import PlacementResolver
+        return PlacementSession(model, None, PlacementResolver())
 
     monkeypatch.setattr(PlacementSession, 'from_baseline', load)
     monkeypatch.setattr(studio, '_populate_armour', lambda: None)
@@ -179,6 +180,99 @@ def test_model_loading_is_bounded_and_publishes_only_latest_on_ui(studio, monkey
         assert published == [('new', main)]
     finally:
         release.set()
+
+
+@pytest.mark.parametrize("background", [False, True])
+def test_character_reload_replays_pending_edits_and_preserves_redo(studio, monkeypatch, tmp_path, background):
+    from tests.test_placement_studio_operations import BODY, DESC, FILES, MODEL, _Baseline, _edits
+    from tools.placement_studio.model import Vec3
+
+    baseline = _Baseline(FILES)
+    baseline.root = tmp_path
+    studio._baseline = baseline
+    studio._background_loading = background
+    edits = studio._edits = _edits()
+    socket = edits.socket(BODY, "Pelvis_R_Socket")
+    moved = Vec3(socket.translation.x + 1.0, socket.translation.y, socket.translation.z)
+    edits.set_translation(BODY, socket.name, moved)
+    edits.set_route(DESC, "CD_TwoHandWeapon_Sword", "in_socket", "Pelvis_R_Socket")
+    edits.set_translation(BODY, socket.name, Vec3(99.0, 0.0, 0.0))
+    assert edits.undo() and edits.can_redo
+    captured = edits.capture()
+    monkeypatch.setattr(studio, '_populate_armour', lambda: None)
+    monkeypatch.setattr(studio, '_populate_weapons', lambda **_: None)
+
+    for model in (MODEL, 'other', MODEL):
+        if background:
+            studio._request_model(model)
+            until(lambda: not studio._model_task.busy)
+        else:
+            studio._model_box.blockSignals(True)
+            studio._model_box.clear()
+            studio._model_box.addItem(model, model)
+            studio._model_box.blockSignals(False)
+            studio._on_model_changed(0)
+        assert studio._session.model == model
+    displayed = next(item for item in studio._session.body_sockets() if item.name == socket.name)
+    assert displayed.translation == moved
+    binding = next(item for item in studio._session.bindings() if item.part_name == "CD_TwoHandWeapon_Sword")
+    assert binding.part.in_socket == "Pelvis_R_Socket"
+    assert studio._edits is edits and edits.capture() == captured and edits.can_redo
+    assert edits.redo()
+    studio._rebuild_session_from_edits()
+    displayed = next(item for item in studio._session.body_sockets() if item.name == socket.name)
+    assert displayed.translation.x == 99.0
+
+
+def test_model_load_retries_changed_history_without_publishing_stale_bindings(studio, monkeypatch, tmp_path):
+    from tests.test_placement_studio_operations import BODY, FILES, MODEL, _Baseline, _edits
+    from tools.placement_studio.model import Vec3
+    from tools.placement_studio.session import PlacementSession
+
+    baseline = _Baseline(FILES)
+    baseline.root = tmp_path
+    studio._baseline, studio._edits = baseline, _edits()
+    started, release = threading.Event(), threading.Event()
+    main, calls, published = threading.get_ident(), [], []
+    original = PlacementSession.with_edited_files
+
+    def replay(session, files):
+        assert threading.get_ident() != main
+        calls.append(files)
+        if len(calls) == 1:
+            started.set()
+            assert release.wait(3)
+        return original(session, files)
+
+    monkeypatch.setattr(PlacementSession, 'with_edited_files', replay)
+    monkeypatch.setattr(studio, '_populate_armour', lambda: None)
+    monkeypatch.setattr(studio, '_populate_weapons', lambda **_: published.append(studio._session))
+    try:
+        studio._request_model(MODEL)
+        until(started.is_set)
+        studio._edits.set_translation(BODY, 'Pelvis_R_Socket', Vec3(7.0, 0.0, 0.0))
+        release.set()
+        until(lambda: not studio._model_task.busy)
+        assert len(calls) == 2 and published == [studio._session]
+        socket = next(item for item in studio._session.body_sockets() if item.name == 'Pelvis_R_Socket')
+        assert socket.translation.x == 7.0
+    finally:
+        release.set()
+
+
+def test_archive_reload_does_not_overlay_pending_socket_edits(studio, monkeypatch):
+    from tests.test_placement_studio_operations import FILES, W2H, _edits, _session
+    from tools.placement_studio.model import Vec3
+
+    edits = studio._edits = _edits()
+    edits.set_translation(W2H, 'Spine2_B_SubWeapon_ChildSocket', Vec3(3.0, 0.0, 0.0))
+    session = studio._session = _session().with_edited_files(edits.current_files())
+    monkeypatch.setattr(studio, '_refresh_animation', lambda: None)
+    result = SimpleNamespace(errors=(), sockets=((W2H, FILES[W2H]),), charts=())
+    list(studio._publish_archive_content(session, SimpleNamespace(weapons=False), result))
+    weapons = [weapon for weapon in session.weapons() if weapon.game_path == W2H]
+    assert len(weapons) == 1
+    assert weapons[0].sockets['Spine2_B_SubWeapon_ChildSocket'].translation.x == 3.0
 
 
 def test_mesh_request_does_not_read_on_ui_or_replace_scene_when_cancelled(studio, monkeypatch):

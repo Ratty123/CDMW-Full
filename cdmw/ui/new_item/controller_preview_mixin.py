@@ -196,15 +196,18 @@ class NewItemPreviewControllerMixin:
 
         from cdmw.ui.new_item.effect_item_source import PlannedEffectItemSource
 
+        imported = self.draft.model_source is ModelSource.IMPORTED
+        source = self.model_import if imported else None
+        result = self.model_result if imported else None
         context = dict(getattr(self, "_template_preview_context", None) or {})
-        template = (self._template_preview_build() if self.model_import is None and self.model_result is None
+        template = (self._template_preview_build() if source is None and result is None
                     and context.get("native_preview_core_cache_root") is not None else None)
         return PlannedEffectItemSource(
-            source=self.model_import,
+            source=source,
             placement=self.model_placement,
-            applied=self.model_result is not None,
-            preview_model=getattr(self.model_result, "preview_model", None),
-            rebuilt_data=bytes(getattr(self.model_result, "rebuilt_data", b"") or b""),
+            applied=result is not None,
+            preview_model=getattr(result, "preview_model", None),
+            rebuilt_data=bytes(getattr(result, "rebuilt_data", b"") or b""),
             snapshot=self.snapshot,
             template_key=self.draft.template_key,
             glow=glow_choice(self.draft),
@@ -213,6 +216,7 @@ class NewItemPreviewControllerMixin:
             material_route=self.draft.material_route,
             template_build=template[1] if template else None,
             preview_context=context,
+            template_transform=tuple(self.draft.template_transform),
         )
 
     def _textured_preview_mesh(self):

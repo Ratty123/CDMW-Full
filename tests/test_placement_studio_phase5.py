@@ -10,6 +10,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from tools.placement_studio.ops import Operation, Plan
 from tools.placement_studio.packaging import (
@@ -182,6 +183,37 @@ class LayoutTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             with self.assertRaises(PackagingError):
                 build_package("NOPE", _plan(), _files(), _metadata(), out_root=Path(directory))
+
+    def test_failed_rebuild_preserves_the_previous_package(self) -> None:
+        from cdmw.core import atomic_file
+
+        for stage in ("finalize", "readme", "manifest", "publish"):
+            with self.subTest(stage=stage), tempfile.TemporaryDirectory() as directory:
+                result = self._build("DMM", directory)
+                before = {p.relative_to(result.root): p.read_bytes()
+                          for p in result.root.rglob("*") if p.is_file()}
+                original_replace = atomic_file.os.replace
+
+                def fail_publication(source, destination):
+                    if Path(source).name.startswith(".DMM.cdmw-stage-"):
+                        raise OSError("publication failed")
+                    return original_replace(source, destination)
+
+                target, effect = {
+                    "finalize": ("cdmw.core.mod_package.finalize_mod_package_export", OSError("finalizer failed")),
+                    "readme": ("tools.placement_studio.packaging.build_readme", OSError("readme failed")),
+                    "manifest": ("tools.placement_studio.preflight.write_operation_manifest", OSError("manifest failed")),
+                    "publish": ("cdmw.core.atomic_file.os.replace", fail_publication),
+                }[stage]
+                with patch(target, side_effect=effect), self.assertRaises(OSError):
+                    build_package(
+                        "DMM", _plan(), {_SOCKETS: b"replacement"}, _metadata(),
+                        out_root=result.root, manifest={"operations": []},
+                    )
+                after = {p.relative_to(result.root): p.read_bytes()
+                         for p in result.root.rglob("*") if p.is_file()}
+                self.assertEqual(after, before)
+                self.assertEqual(list(Path(directory).iterdir()), [result.root])
 
     def test_empty_plan_is_refused(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

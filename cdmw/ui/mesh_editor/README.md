@@ -1238,6 +1238,10 @@ overwriting different saved definitions. The same driver topology and Part order
 are required. Refit bindings remain session-specific; set them for the loaded
 body and garments. Legacy profile and preset storage stays compatible.
 
+Undo and Redo restore library files through the same locked history path and update
+the acknowledged profile fingerprint. Subsequent commands and Finish accept those
+history changes while continuing to reject unacknowledged external file changes.
+
 ### Material presentation
 
 The integrated Rust viewport reuses Archive Browser's complete resolved

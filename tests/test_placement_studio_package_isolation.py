@@ -392,20 +392,54 @@ class PackageIsolationTests(unittest.TestCase):
                 units={unit.unit_id: unit},
                 shared_socket_users=_shared_users(session),
                 replacements=rows,
-                managers=("DMM",),
+                managers=("CDUMM", "DMM", "JMM"),
                 accept_warnings=True,
             )
-            result = inspect_package.inspect(results[0].root, _Baseline(FILES))
-            self.assertEqual(result.mismatches, ())
-            self.assertTrue(result.ok)
-            self.assertEqual(
-                set(result.contents.all_parts()),
-                {"CD_TwoHandWeapon_Sword", "CD_TwoHandWeapon_Sword_IN"},
+            for package in results:
+                with self.subTest(manager=package.manager):
+                    result = inspect_package.inspect(package.root, _Baseline(FILES))
+                    self.assertEqual(result.mismatches, ())
+                    self.assertTrue(result.ok)
+                    self.assertEqual(
+                        set(result.contents.all_parts()),
+                        {"CD_TwoHandWeapon_Sword", "CD_TwoHandWeapon_Sword_IN"},
+                    )
+                    self.assertEqual(set(result.contents.animation_targets), {"longsword", "lswd"})
+                    self.assertIn("cdmw-baseline.zip", result.contents.metadata_files)
+                    self.assertIn("cdmw-compatibility.json", result.contents.metadata_files)
+                    # The new child sockets are additions, and the shared back socket is untouched.
+                    self.assertEqual(len(result.contents.all_socket_additions()), 2)
+                    self.assertEqual(result.contents.all_socket_changes(), ())
+
+    def test_rebuilding_a_package_removes_previously_selected_operations(self) -> None:
+        session, edits, unit, shield_unit, sword, rows = self._three_operations()
+        shield_id = edits.operations()[1].operation_id
+        with tempfile.TemporaryDirectory() as directory:
+            kwargs = dict(
+                out_root=Path(directory),
+                units={unit.unit_id: unit, shield_unit.unit_id: shield_unit},
+                shared_socket_users=_shared_users(session),
+                replacements=rows,
+                accept_warnings=True,
             )
-            self.assertEqual(set(result.contents.animation_targets), {"longsword", "lswd"})
-            # The new child sockets are additions, and the shared back socket is untouched.
-            self.assertEqual(len(result.contents.all_socket_additions()), 2)
-            self.assertEqual(result.contents.all_socket_changes(), ())
+            metadata = packaging.PackageMetadata(name="Rebuilt")
+            previous, verdict = packaging.build_for_operations(
+                edits, [shield_id, sword.operation_id], metadata, **kwargs,
+            )
+            self.assertFalse(verdict.blocked)
+            for package in previous:
+                self.assertIn(SHIELD, inspect_package.read_contents(package.root).payload_paths)
+
+            rebuilt, verdict = packaging.build_for_operations(
+                edits, [sword.operation_id], metadata, **kwargs,
+            )
+            self.assertFalse(verdict.blocked)
+            for package in rebuilt:
+                with self.subTest(manager=package.manager):
+                    result = inspect_package.inspect(package.root, _Baseline(FILES))
+                    self.assertTrue(result.ok, result.mismatches)
+                    self.assertNotIn(SHIELD, result.contents.payload_paths)
+                    self.assertEqual(set(result.contents.payload_paths), set(package.payload_paths))
 
     def test_the_inspection_command_catches_a_file_the_manifest_does_not_claim(self) -> None:
         session, edits, unit, _shield, sword, rows = self._three_operations()

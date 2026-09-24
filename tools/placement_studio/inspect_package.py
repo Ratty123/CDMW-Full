@@ -17,6 +17,8 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
+from cdmw.core.mod_compatibility import BASELINE_FILE, COMPATIBILITY_FILE
+
 from . import carry, ops
 from .documents import DescriptorDocument, SocketDocument, is_descriptor_file, is_socket_file
 from .preflight import MANIFEST_NAME
@@ -29,6 +31,8 @@ METADATA_NAMES = frozenset(
         "modinfo.json",
         "mod.json",
         ".no_encrypt",
+        BASELINE_FILE,
+        COMPATIBILITY_FILE,
         MANIFEST_NAME,
     }
 )

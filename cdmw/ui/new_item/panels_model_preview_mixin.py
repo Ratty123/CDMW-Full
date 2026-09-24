@@ -7,7 +7,7 @@ from pathlib import Path
 from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import QFileDialog
 
-from cdmw.domain.new_item.spec import IconSource
+from cdmw.domain.new_item.spec import IconSource, ModelSource
 from cdmw.ui.new_item.model_import import ModelPlacement
 from cdmw.ui.new_item.ui_kit import EDIT, OK, WARN
 
@@ -112,9 +112,10 @@ class ModelPanelPreviewMixin:
         self._controller.start_model_import(Path(path))
 
     def _refresh_apply_status(self) -> None:
-        self.apply_button.setVisible(self._controller.model_import is not None)
+        imported = self._controller.draft.model_source is ModelSource.IMPORTED
+        self.apply_button.setVisible(imported and self._controller.model_import is not None)
         self.apply_status.setToolTip("")
-        if self._controller.model_import is None:
+        if not imported or self._controller.model_import is None:
             self.apply_status.set_note("Included in Build plan." if self._controller.draft.template_key else "", None)
             self.apply_status.setToolTip("Template edits are included when you build the plan.")
             return

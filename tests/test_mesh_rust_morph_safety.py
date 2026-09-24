@@ -137,6 +137,42 @@ def test_shadow_profile_copy_rejects_source_change_during_capture(
     assert not (session_root / "mesh_slider_profiles").exists()
 
 
+@pytest.mark.parametrize("finish_after_redo", [False, True])
+def test_rust_profile_undo_redo_remains_usable_and_can_finish(tmp_path, finish_after_redo):
+    _persist_resident_body_profile(_Settings(tmp_path / "settings.ini"))
+    authoritative, session = _open_exact_rust_session(tmp_path / "session")
+    relative = Path("mesh_slider_profiles/definitions/resident-body.json")
+    original = (tmp_path / relative).read_bytes()
+    try:
+        commands = [("morph_delete_profile", {"profile_id": "resident-body"}), ("undo", {})]
+        if finish_after_redo:
+            commands.append(("redo", {}))
+        for request_id, (command, arguments) in enumerate(commands, 1):
+            response = session.run_command({
+                **_request(session, "command_request", request_id),
+                "command": command, "arguments": arguments,
+            })
+            if command == "morph_delete_profile":
+                assert response["result"] is True
+            else:
+                assert response["result"]["status"] == "ok", response
+            assert (session.root / relative).exists() == (command == "undo")
+            if command == "undo":
+                assert (session.root / relative).read_bytes() == original
+        session.run_command({
+            **_request(session, "command_request", 4), "command": "state", "arguments": {},
+        })
+        # Profile edits stay private until the normal Finish request publishes them.
+        assert (tmp_path / relative).read_bytes() == original
+        result = session.finish(_request(session, "finish_request", 5))
+        assert result["status"] == "accepted"
+        assert (tmp_path / relative).exists() == (not finish_after_redo)
+    finally:
+        if not session.closed:
+            session.cancel()
+        authoritative.close_edit_session("authoritative-rust-test", force_without_saving=True)
+
+
 def test_finish_rejects_runtime_only_authoritative_morph_restore_by_morph_revision_cas(
     tmp_path: Path,
 ) -> None:

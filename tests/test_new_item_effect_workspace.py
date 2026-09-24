@@ -536,6 +536,33 @@ class EffectWorkspaceTests(unittest.TestCase):
         workspace._character_fit_changed(1)
         self.assertTrue(workspace._reset_view_next, "a subsequent body change must not consume pending template framing")
 
+    def test_effects_leases_only_the_import_captured_by_its_item_builder(self) -> None:
+        retained = SimpleNamespace(acquire_usage=lambda: object())
+        controller = _Controller()
+        controller.model_import = retained
+        captured = []
+
+        def builder(_stop):
+            return _mesh(), "template"
+
+        builder.source = None
+        controller.item_effect_preview_source = lambda: builder
+
+        def factory(parent, **kwargs):
+            captured.append(kwargs)
+            return _Placement(parent, **kwargs)
+
+        workspace, _, _ = self._workspace(controller, placement_factory=factory)
+        self._settle(lambda: workspace.placement is not None and not workspace.placement.item_timer.isActive())
+        self.assertIsNone(captured[0]["model_source_usage"])
+        for source in (retained, None):
+            builder.source = source
+            before = len(workspace.placement.content_calls)
+            controller.model_changed.emit(None)
+            self._settle(lambda: len(workspace.placement.content_calls) > before)
+            self.assertIs(workspace.placement.content_calls[-1]["model_source_usage"],
+                          retained.acquire_usage if source is retained else None)
+
     def test_effect_switches_keep_the_dragged_position_through_real_package_reloads(self) -> None:
         from dataclasses import replace
         from tests.test_effect_placement_dialog import _Host

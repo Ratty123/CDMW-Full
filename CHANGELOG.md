@@ -53,6 +53,10 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Placement & Animations rebuilds each exported package from only the selected operations, removes files left by earlier exports, and preserves the previous package if preparation or publication fails. Package inspection recognizes compatibility metadata instead of reporting it as extra game payload.
+- Placement & Animations restores pending socket and routing edits after character reloads and switches, retains Undo/Redo history, and rejects a prepared scene if edits changed while it was loading.
+- Create New Item preserves each variant's Template model choice when an imported model is retained. Effects previews use the selected source and its template transform; inactive imports are neither decoded nor leased for that preview.
+- Mesh Editor keeps profile-library fingerprints synchronized after Undo, allowing Redo, further commands and Finish after profile or preset edits.
 - Hair Tools' Physics brush paints Static or Physical on visible hair without selecting it first. Existing selections no longer silently restrict painting; **Selected locks only** makes that restriction explicit when needed.
 - Placement & Animations projects rigid weapons and static body meshes in bulk, reducing CPU work during playback and camera movement while preserving viewport detail, lighting and picking.
 - Create New Item lets the Emitters property table use spare inspector height instead of limiting it to a short scrolling list. Curve, texture and reset controls remain below the table, with Apply placement kept reachable.
