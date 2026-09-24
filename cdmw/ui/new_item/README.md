@@ -732,14 +732,17 @@ placeholder. Editing this name keeps the current plan ready and changes only pac
 metadata; the item's names and internal identity are unchanged.
 Choose the destination and existing-mod base first, build the plan, then review its
 file changes and full details. Destination, manager, overlay number and base changes
-clear the plan, including an in-flight result. The **Mod management** menu below
-the output action contains Merge mods, game-update checks, Installed overlays and
-Archive recovery; opening the menu or recovery controls never performs a write.
+clear the plan, including an in-flight result. **Utilities > Mod Management**
+contains Merge mods, game-update checks, Installed overlays and Archive recovery.
+These tools no longer sit in Output and need no item draft; opening them or
+expanding recovery controls never performs a write.
 Installed overlays pairs its selectable inventory with an item preview on the
 right. Overlays containing multiple items expose an item selector. Folder,
 file-count and build details appear on hover to leave room for readable names.
-Preview work re-reads the installed overlay's index and metadata on the preview worker, so a
-Studio snapshot taken before installation cannot substitute the old template.
+Preview work re-reads the installed overlay's index and metadata on the preview
+worker and can load current mounted sources without a Studio snapshot. An earlier
+snapshot or a preview cached before refresh/reopening cannot substitute the old
+template, geometry or materials.
 Changing selection cancels obsolete preview work; closing retains the worker and
 any reparented Rust viewport until shutdown finishes. Overlays without mounted
 item models show an empty state. Remove selected uses the selected inventory row
@@ -1118,7 +1121,7 @@ history and unsupported shared changes block export. The merger does not reassig
 identities or rewrite their references automatically. New Item's direct archive-install
 button is removed; its compatibility service entry point refuses every call.
 
-**Tools > Check mods for game updates...** compares an exported mod folder or all
+**Utilities > Mod Management > Check mods for game updates...** compares an exported mod folder or all
 installed CDMW overlays with the current game. The same action is available beside
 **Read the archives** before the item catalogue loads. Disable an exported mod in its mod
 manager before comparing it. Installed CDMW overlays are excluded from the current

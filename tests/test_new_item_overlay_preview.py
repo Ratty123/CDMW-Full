@@ -17,7 +17,8 @@ from cdmw.ui.new_item.model_import import ModelPlacement
 
 
 @pytest.mark.parametrize('owned_model', [False, True])
-def test_preview_resolves_new_installed_key_with_stale_studio_snapshot_and_preserves_archives(tmp_path, monkeypatch, template_game, owned_model):
+@pytest.mark.parametrize('snapshot_loaded', [False, True])
+def test_preview_resolves_new_installed_key_with_stale_studio_snapshot_and_preserves_archives(tmp_path, monkeypatch, template_game, owned_model, snapshot_loaded):
     service, snapshot, _, original = template_game
     root = tmp_path / 'game'
     choice = shop_spec('PreviewOnly')
@@ -27,6 +28,11 @@ def test_preview_resolves_new_installed_key_with_stale_studio_snapshot_and_prese
     service.install_overlay(plan, mutation_service=Backups(tmp_path), confirmed=True, game_running=lambda: False)
     entry = list_installed_overlays(root)[0]
     assert plan.spec.item_key not in snapshot.rows
+    # Neither unmounted groups nor nested recovery copies are preview sources.
+    for relative in ('9999/0.pamt', 'backups/0009/0.pamt'):
+        inactive = root / relative
+        inactive.parent.mkdir(parents=True, exist_ok=True)
+        inactive.write_bytes(b'not an active archive index')
     paths = [p for p in root.rglob('*') if p.is_file()]
     fingerprints = {p: hashlib.sha256(p.read_bytes()).digest() for p in paths}
     decoded = []
@@ -37,7 +43,7 @@ def test_preview_resolves_new_installed_key_with_stale_studio_snapshot_and_prese
         return build_archive_preview_result(component, **kwargs)
 
     monkeypatch.setattr('cdmw.services.archive_preview_service.build_archive_preview_result', decode)
-    models = overlay_item_preview_models(snapshot, root, entry.directory, plan.spec.item_key,
+    models = overlay_item_preview_models(snapshot if snapshot_loaded else None, root, entry.directory, plan.spec.item_key,
                                         stop_event=threading.Event())
     mesh = as_parsed_mesh(models[0])
     expected = np.asarray(original.submeshes[0].vertices) + ((.1, 0, 0) if owned_model else (0, 0, 0))

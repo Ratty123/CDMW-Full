@@ -150,7 +150,7 @@ def test_shell_setting_normalization_and_shared_theme(tmp_path: Path) -> None:
 
 
 def test_compact_registry_has_one_textures_workspace() -> None:
-    assert len(COMPACT_TOOL_SPECS) == 12
+    assert len(COMPACT_TOOL_SPECS) == 13
     assert len({spec.key for spec in COMPACT_TOOL_SPECS}) == len(COMPACT_TOOL_SPECS)
     assert [(spec.category, spec.label) for spec in COMPACT_TOOL_SPECS] == [
         ("Assets", "Browse Archives"),
@@ -160,6 +160,7 @@ def test_compact_registry_has_one_textures_workspace() -> None:
         ("Authoring", "Mesh Editor"),
         ("Authoring", "Placement & Animations"),
         ("Authoring", "Textures"),
+        ("Utilities", "Mod Management"),
         ("Utilities", "Repackage Mods"),
         ("Utilities", "Inspect File Formats"),
         ("Utilities", "Edit Translations"),
@@ -668,6 +669,19 @@ def test_real_main_window_compact_wrapper_preserves_tool_authority(tmp_path: Pat
         assert window._tool_key_for_widget(window.format_explorer_tab) == "format_explorer"
         assert window._tool_key_for_widget(window.translation_studio_tab) == "translation_studio"
         assert window.compact_workspace.rail.tool_buttons["archive_browser"].isChecked()
+
+        window._activate_tool_key("mod_management")
+        deadline = time.monotonic() + 4.0
+        while window.mod_management_tab.widget_if_created() is None and time.monotonic() < deadline:
+            app.processEvents()
+            time.sleep(0.001)
+        from cdmw.ui.tools.mod_management import ModManagementTab
+        management = window.mod_management_tab.widget_if_created()
+        assert isinstance(management, ModManagementTab)
+        assert management.controller is window._shared_new_item_controller()
+        assert management.controller.snapshot is None
+        assert window.compact_workspace.rail.tool_buttons["mod_management"].isChecked()
+        assert window._tool_key_for_widget(window._current_navigation_widget()) == "mod_management"
 
         window._activate_tool_key("format_explorer")
         deadline = time.monotonic() + 4.0

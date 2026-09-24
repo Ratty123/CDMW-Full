@@ -55,7 +55,7 @@ is smaller and safer to hand to someone who is not modding.
 
 ## What it does
 
-CDMW exposes 12 tools. **Create New Item** creates equipment without overwriting
+CDMW exposes 13 tools. **Create New Item** creates equipment without overwriting
 its shipped template. Archive Browser, Mesh Editor, Placement & Animations, and
 Textures cover inspection and replacement work.
 
@@ -91,7 +91,7 @@ including supported material-color sidecars and manager profiles.
 
 | Workspace | What you can do |
 |---|---|
-| **Create New Item** | Create a new equipment identity through a guided seven-step workflow: choose and preview a shipped template, import and place a model, author its icon, stats, prices, perks and visual effect, choose distribution, review the exact file plan, then export a mod folder or install an overlay. Merge compatible mod folders into one DMM package. The template is read as a baseline and is never silently overwritten. |
+| **Create New Item** | Create a new equipment identity through a guided seven-step workflow: choose and preview a shipped template, import and place a model, author its icon, stats, prices, perks and visual effect, choose distribution, review the exact file plan, then export a mod folder or install an overlay. The template is read as a baseline and is never silently overwritten. |
 | **Archive Browser** | Browse `.pamt` / `.paz` archives in flat or tree view with filters, search, cache reuse, extraction, text and media preview, and explicit patch/restore flows. Body & Face Finder browses character bodies, heads, hair and facial details with cached thumbnails and an interactive preview. Thumbnails load automatically with animated indicators, preparation stages and page counts; upcoming pages preload in the background. |
 | **Model Library** | Scan and preview local or importable models, then send a selected model directly into Create New Item. |
 | **Icon Creator** | Prepare item-icon source images and build compatible icon replacement packages. |
@@ -99,6 +99,7 @@ including supported material-color sidecars and manager profiles.
 | **Placement & Animations** | Move where a weapon or piece of armour sits, re-route it to a different socket from the viewport, retarget draw/stow animations, and package the result for CDUMM, DMM, or JMM. |
 | **Textures** | Bulk-replace loose PNG/DDS folders through Replace, edit layered documents, recolor mod textures and supported material values, upscale selected assets, and export DDS, PNG, projects, or mod packages from one workspace. |
 | **Retrofit/Repackage** | Inspect and normalize an existing loose mod for the supported manager layouts without mutating shipped game archives. |
+| **Mod Management** | Under Utilities: preview installed overlay items, review removal or archive recovery, merge compatible mod folders, and check mods after a game update. Works without a Create New Item draft. |
 | **Format Explorer** | What every game file format can and cannot do, and which tool does it, with editing limits and evidence from the maintained [capability manifest](schemas/archive_content_capabilities.v1.json). |
 | **Translations** | Load the game's current language tables or existing `.paloc` mods, edit with reference-language context, and export a complete translation package. Loose files can be edited without a game installation. |
 | **Research** | Inspect grouped texture families, unknown classifications, references, DDS analysis, reports, and local research notes. |
@@ -106,7 +107,7 @@ including supported material-color sidecars and manager profiles.
 
 ## Documentation and languages
 
-Open **Help > Documentation** for the 35-topic wiki, grouped index, topic links,
+Open **Help > Documentation** for the 36-topic wiki, grouped index, topic links,
 and search with **Ctrl+K**. **Help > About** provides the app overview, license,
 and third-party notices. This README is also bundled with the application.
 
@@ -224,7 +225,7 @@ preview meshes. Animated mesh tracking, the game's per-frame allocation and live
 random state are not reproduced, so exact frame-for-frame game parity is unverified.
 
 Output can be a manager package or a CDMW-owned archive-group overlay. New Item
-installs through overlays only. **Output → Merge mods** combines compatible mod
+installs through overlays only. **Utilities → Mod Management → Merge mods** combines compatible mod
 folders into a new DMM package after checking their contents and recorded game
 baselines. Duplicate item or recipe IDs, conflicting edits and unsupported shared
 changes block export; IDs are not reassigned automatically. Enable the combined
@@ -234,7 +235,7 @@ the current game, identifies changed dependencies and conflicts, and can write a
 separate updated DMM package for supported changes. Missing original data or
 unresolved conflicts block automatic updates. Source mods and game files stay
 unchanged during comparison and export.
-**Output → Installed overlays** lists individual
+**Utilities → Mod Management → Installed overlays** previews and lists individual
 CDMW installs and removes a selected one while preserving the others. Shared
 tables and registries are composed by record; conflicts and dependencies block
 unsafe removal, including items used in another overlay's recipes. Earlier installs

@@ -53,10 +53,11 @@ def _check_shell_navigation(studio, tmp_path, variant, saved_key):
     settings.setValue("ui/active_tool_key", saved_key)
     settings.setValue("appearance/language", "en")
     with patch.dict(os.environ, {"CDMW_GUI_STARTUP_SMOKE": "1"}), \
-            patch("cdmw.ui.new_item.rust_ui_tab.NewItemStudioTab", return_value=workflow) as constructor, \
+            patch("cdmw.ui.new_item.tab.NewItemStudioTab", return_value=workflow) as constructor, \
             patch.object(RustNewItemStudioTab, "_start_prepare"), \
             patch.object(workflow.controller, "persist_issued_identities") as persist:
         window = MainWindow(app_context=AppContext.from_settings(settings))
+        window._new_item_controller = workflow.controller
         try:
             keys = [key for key in window._tool_widgets_by_key if key.startswith("new_item")]
             assert keys == ["new_item_studio"]
@@ -81,7 +82,7 @@ def _check_shell_navigation(studio, tmp_path, variant, saved_key):
                 assert presentation.objectName() == "new_item_studio"
                 prefill.assert_called_once_with(TEMPLATE)
                 open_model.assert_called_once_with(model)
-                constructor.assert_called_once_with(window=window, service=window.app_context.services.new_items)
+                constructor.assert_called_once_with(window=window, controller=workflow.controller)
                 persist.assert_called_once_with()
                 window._use_model_in_new_item_studio(str(model), object())
                 assert open_model.call_count == 2
@@ -93,6 +94,14 @@ def _check_shell_navigation(studio, tmp_path, variant, saved_key):
             with patch.object(window, "set_status_message") as status:
                 presentation.status_message_requested.emit("Item ready", False)
                 status.assert_called_once_with("Item ready", error=False, tool_key="new_item_studio")
+
+            window._activate_tool_key("mod_management")
+            deadline = time.monotonic() + 5
+            while window.mod_management_tab.widget_if_created() is None and time.monotonic() < deadline:
+                app.processEvents()
+                time.sleep(.001)
+            management = window.mod_management_tab.widget_if_created()
+            assert management.controller is workflow.controller
 
             window._activate_tool_key("archive_browser")
             window._activate_tool_key("new_item_rust_studio")

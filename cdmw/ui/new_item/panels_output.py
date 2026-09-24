@@ -16,7 +16,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QMenu,
     QMessageBox,
     QPlainTextEdit,
     QProgressBar,
@@ -32,7 +31,7 @@ from PySide6.QtWidgets import (
 )
 
 from cdmw.services.new_item_planning import NewItemPlan
-from cdmw.services.archive_overlay_install import OVERLAY_DIRECTORY_FIRST
+from cdmw.services.archive_overlay_install import OVERLAY_DIRECTORY_FIRST, OverlayInstallResult
 from cdmw.ui.new_item.controller import NewItemStudioController
 from cdmw.ui.new_item.state import MANAGERS
 from cdmw.ui.new_item.review_model import FileChangeModel, ReviewTextWriter
@@ -132,13 +131,8 @@ def install_result_report(result: object) -> tuple:
 
 
 class OutputPanel(QGroupBox):
-    merge_requested = Signal()
-    update_requested = Signal()
     #: The overlay route: the same plan as an archive directory of its own.
     install_overlay_requested = Signal()
-    #: Housekeeping for that directory, neither of which needs a plan.
-    overlay_migration_requested = Signal()
-    overlay_removal_requested = Signal()
 
     def _build_plan_review(self, content):
         heading = QHBoxLayout()
@@ -236,14 +230,6 @@ class OutputPanel(QGroupBox):
             button.clicked.connect(lambda _checked, mode=index: self.output_mode.setCurrentIndex(mode))
             mode_row.addWidget(button)
         write_layout.addWidget(self.mode_buttons)
-        self.tools_button = QToolButton()
-        self.tools_button.setText("Mod management")
-        self.tools_button.setToolTip(
-            "Merge mods, check them after a game update, manage installed overlays, or open archive recovery."
-        )
-        self.tools_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-        self.tools_menu = QMenu(self.tools_button)
-        self.tools_button.setMenu(self.tools_menu)
         self.folder_controls = QWidget()
         export = QVBoxLayout(self.folder_controls)
         export.setContentsMargins(0, 0, 0, 0)
@@ -316,14 +302,6 @@ class OutputPanel(QGroupBox):
         write.setToolTip(
             "Export a mod folder or install as an overlay. Overlay installation keeps the shipped archive payloads intact."
         )
-        self.merge_button = QPushButton("Merge mods...", self)
-        self.merge_button.clicked.connect(self.merge_requested.emit)
-        self.merge_button.hide()
-        self.tools_menu.addAction(self.merge_button.text(), self.merge_button.click)
-        self.update_button = QPushButton("Check mods for game updates...", self)
-        self.update_button.clicked.connect(self.update_requested.emit)
-        self.update_button.hide()
-        self.tools_menu.addAction(self.update_button.text(), self.update_button.click)
         self.checklist = DetailsToggle(
             "\n".join(f"- {line}" for line in CHECKLIST),
             title="After installing, check in game",
@@ -359,7 +337,6 @@ class OutputPanel(QGroupBox):
         self.workflow_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.workflow_scroll.setWidget(review)
         layout.addWidget(self.workflow_scroll, 1)
-        self._build_overlay_tools(layout)
 
         self.workspace_splitter.addWidget(self.activity)
         self.workspace_splitter.addWidget(self.sidebar)
@@ -372,7 +349,6 @@ class OutputPanel(QGroupBox):
         actions.setContentsMargins(0, 0, 0, 0)
         actions.addWidget(self.export_button)
         actions.addWidget(self.install_overlay_button)
-        actions.addWidget(self.tools_button)
         sidebar_layout.addWidget(self.actions)
         self.output_mode.currentIndexChanged.connect(self._output_mode_changed)
         self.manager.currentIndexChanged.connect(controller.invalidate_plan)
@@ -400,37 +376,6 @@ class OutputPanel(QGroupBox):
                 self.sidebar_scroll.setMinimumWidth(width)
         return super().eventFilter(watched, event)
 
-    def _build_overlay_tools(self, layout: QVBoxLayout) -> None:
-        self.overlay_removal_button = QPushButton("Installed overlays...", self)
-        self.overlay_removal_button.setToolTip("View CDMW's installed overlays and remove an individual install while preserving the others.")
-        self.overlay_removal_button.clicked.connect(self.overlay_removal_requested.emit)
-        self.overlay_removal_button.hide()
-        self.tools_menu.addAction(self.overlay_removal_button.text(), self.overlay_removal_button.click)
-        self.overlay_tools_toggle = QToolButton(self)
-        self.overlay_tools_toggle.setText("Archive recovery")
-        self.overlay_tools_toggle.setCheckable(True)
-        self.overlay_tools_toggle.setArrowType(Qt.ArrowType.RightArrow)
-        self.overlay_tools_toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        self.overlay_tools_toggle.setAutoRaise(True)
-        self.overlay_tools_toggle.hide()
-        recovery_action = self.tools_menu.addAction("Archive recovery")
-        recovery_action.setCheckable(True)
-        recovery_action.toggled.connect(self.overlay_tools_toggle.setChecked)
-        self.overlay_tools = QWidget()
-        self.overlay_tools.setVisible(False)
-        self.overlay_tools_toggle.toggled.connect(self._toggle_overlay_tools)
-        overlay_row = QVBoxLayout(self.overlay_tools)
-        overlay_row.setContentsMargins(0, 0, 0, 0)
-        self.overlay_migration_button = QPushButton("Move installed items into the overlay...")
-        self.overlay_migration_button.setToolTip(
-            "For items already written into the shipped archives. Every archive entry that differs from the oldest "
-            "backup of it is carried into the overlay directory, and the archives themselves go back to that backup, "
-            "so the game reads the same thing while the files it shipped are its own again."
-        )
-        self.overlay_migration_button.clicked.connect(self.overlay_migration_requested.emit)
-        overlay_row.addWidget(self.overlay_migration_button)
-        layout.addWidget(self.overlay_tools)
-
     # ------------------------------------------------------------------ actions
 
     def _output_mode_changed(self) -> None:
@@ -442,10 +387,6 @@ class OutputPanel(QGroupBox):
         self.export_button.setVisible(folder)
         self.install_overlay_button.setVisible(not folder)
         self._mod_base_changed()
-
-    def _toggle_overlay_tools(self, expanded: bool) -> None:
-        self.overlay_tools.setVisible(expanded)
-        self.overlay_tools_toggle.setArrowType(Qt.ArrowType.DownArrow if expanded else Qt.ArrowType.RightArrow)
 
     def _build(self) -> None:
         self.summary.setPlainText("Building the plan...")
@@ -566,7 +507,7 @@ class OutputPanel(QGroupBox):
         self.busy_state.set_note("", None)
         title, message = install_result_report(result)
         self.append_log(message.replace("\n\n", " "))
-        if not hasattr(result, 'removed_overlay_id'):
+        if isinstance(result, OverlayInstallResult):
             QMessageBox.information(self, title, message)
 
     def _install_failed(self, message: str) -> None:
@@ -597,13 +538,9 @@ class OutputPanel(QGroupBox):
         self.build_button.setEnabled(not busy)
         has_plan = self._controller.has_current_plan
         self.export_button.setEnabled(has_plan and not busy)
-        self.merge_button.setEnabled(not busy)
-        self.update_button.setEnabled(not busy)
         self.install_overlay_button.setEnabled(has_plan and not busy)
         self.overlay_directory.setEnabled(not busy)
-        self.overlay_migration_button.setEnabled(not busy)
-        self.overlay_removal_button.setEnabled(not busy)
-        for control in (self.output_mode, self.mode_buttons, self.folder_controls, self.add_to_mod, self.tools_button):
+        for control in (self.output_mode, self.mode_buttons, self.folder_controls, self.add_to_mod):
             control.setEnabled(not busy)
 
     def _operation_progress(self, lane: str, current: int, total: int, detail: str) -> None:

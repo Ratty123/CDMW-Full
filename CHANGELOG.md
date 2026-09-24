@@ -13,6 +13,7 @@ The format is intentionally simple:
 
 ### Changed
 
+- Mod Management moves from Create New Item's Output to Utilities, with direct access to installed overlays, mod merging, game-update checks and archive recovery.
 - Window and dialog sizes, split panes, viewport proportions and manually resized columns are saved in the user CFG across restarts, including Browse Archives, Create New Item, Mesh Editor and Placement & Animations. Startup defaults respect saved layouts; restored windows remain bounded by the available screen.
 - Create New Item's Mod folder output has an editable Mod name for the title shown in mod managers. Leaving it blank uses the item's English display name, and naming the package does not require rebuilding the item plan.
 - Create New Item puts Move, Rotate, Scale, Frame and Show gizmo directly above the shared model viewport, keeping transform tools accessible alongside the Placement values and while editing appearance.
@@ -26,7 +27,7 @@ The format is intentionally simple:
 - Perks & Effects gives the viewport more height by moving Browse effects and the selected name into the left end of the tab bar, directly above the library. Browse effects is larger and accented for visibility; the shorter search and category filters stay inside the library, and the preview notice is compact.
 - Create New Item keeps Model & Placement loading progress and Cancel beside Ready and Cache Healthy in the bottom status bar, freeing the right inspector in both Classic and Rust. Long status messages are available on hover. Camera help appears only once in Template; shader experiments mark incompatible options as unavailable and explain their material requirements, and every Glow animation setting has hover help.
 - Mesh Editor's glow, translucency and shader experiment numbers have sliders with editable values. Create New Item's material numbers and absorption slider accept mouse-wheel adjustments while focused, keeping unfocused page scrolling from changing a material.
-- Create New Item's Output gives file review the main workspace and groups destination, plan status and write/install actions in a right sidebar. The activity log folds below the review and opens for output errors. Mod management stays below the output action, and the divider remains adjustable.
+- Create New Item's Output gives file review the main workspace and groups destination, plan status and write/install actions in a right sidebar. The divider remains adjustable.
 - Shortened the Build Plan progress message in Create New Item.
 - Hair Tools draws and bends smoother hair cards with extra curve subdivisions and continuous shading, without adding physics guide points. Detail stays within the vertex budget, and older drawn hair is refined on its next grooming edit.
 - Hair Tools starts new hairstyles empty and removes the procedural hairstyle presets. Existing saved hair keeps its authored geometry.
@@ -59,6 +60,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Installed overlay previews load without first reading Create New Item's archives and use fresh preview cache identities after refresh or reopening, keeping installed geometry and material changes visible.
 - Create New Item imports with Template cloth / physics off remove inherited cloth and jiggle bindings from every mesh LOD, as well as material simulation assignments. A template with a moving tail could otherwise move an imported part away from its authored position even though its HKX file was excluded. Attachment weights, geometry and authored materials are preserved.
 - DMM archive packages use the standalone `0036/` folder regardless of occupied game archive slots. This prevents DMM from treating new-item packages as group replacements and dropping their added models, materials and textures. Re-exporting an older New Item package preserves its assets and history while correcting the archive folder.
 - Create New Item no longer rejects shader experiments with "Shader controls must name unique material parts" when an imported part appears in repeated output sections. EyeCover edits each section's own textures, preserving unchecked channels and other parts.

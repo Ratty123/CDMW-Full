@@ -1,5 +1,6 @@
 """Installed overlay inventory and reviewed removal on the Studio worker lane."""
 from datetime import datetime
+from uuid import uuid4
 
 from PySide6.QtCore import Qt, QTimer, QSignalBlocker
 from PySide6.QtWidgets import (
@@ -23,6 +24,7 @@ class OverlayManagerDialog(QDialog):
         self._entries = ()
         self._preview_entry = None
         self._preview_revision = 0
+        self._preview_session = uuid4().hex
         self.setWindowTitle('Installed overlays')
         # Deletion waits nonblockingly for the preview workers/process cleanup.
         self.resize(1200, 620)
@@ -148,7 +150,7 @@ class OverlayManagerDialog(QDialog):
         if self._closed:
             return
         entry, key, snapshot = self._preview_entry, self.preview_item.currentData(), self.controller.snapshot
-        if entry is None or key is None or snapshot is None or entry.compatibility_status == 'unmounted':
+        if entry is None or key is None or entry.compatibility_status == 'unmounted':
             self.preview.show(None)
             self.preview.setVisible(False)
             self.preview_empty.setText('No mounted item model is available for this overlay.')
@@ -171,7 +173,10 @@ class OverlayManagerDialog(QDialog):
 
         self.preview_empty.setVisible(False)
         self.preview.setVisible(True)
-        self.preview.show(build, token=(entry.id, key, self._preview_revision), framing_key=(entry.id, key))
+        # Refresh/reopen must not reuse a durable package from older installed
+        # bytes. Selection within this inventory generation can still reuse it.
+        self.preview.show(build, token=('installed_overlay', self._preview_session, entry.id, key,
+                                        self._preview_revision), framing_key=(entry.id, key))
 
     def _run(self, task, done, status, *, applying=False):
         if self._closed:

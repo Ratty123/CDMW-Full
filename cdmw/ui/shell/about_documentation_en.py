@@ -63,7 +63,7 @@ class AboutDocumentationEnglishMixin:
                   <tr><th>Area</th><th>Tools</th></tr>
                   <tr><td>Assets</td><td><a href="topic:new_item_studio">Create New Item</a>, <a href="topic:archive_browser">Archive Browser</a>, <a href="topic:model_library">Model Library</a>, and <a href="topic:icon_creator">Icon Creator</a></td></tr>
                   <tr><td>Authoring</td><td><a href="topic:mesh_editor">Mesh Editor</a>, <a href="topic:placement_studio">Placement &amp; Animations</a>, and <a href="topic:workflow_overview">Textures</a></td></tr>
-                  <tr><td>Utilities</td><td><a href="topic:mod_package_retrofit">Retrofit/Repackage</a>, <a href="topic:format_explorer">Format Explorer</a>, <a href="topic:translation_studio">Translations</a>, <a href="topic:research">Research</a>, and <a href="topic:text_search">Text Search</a></td></tr>
+                  <tr><td>Utilities</td><td><a href="topic:mod_management">Mod Management</a>, <a href="topic:mod_package_retrofit">Retrofit/Repackage</a>, <a href="topic:format_explorer">Format Explorer</a>, <a href="topic:translation_studio">Translations</a>, <a href="topic:research">Research</a>, and <a href="topic:text_search">Text Search</a></td></tr>
                 </table>
                 <p>On a first run, follow the <a href="topic:first_run_checklist">First Run Checklist</a>. Compact Workspace is the first-run layout; a saved Compact or Classic choice remains authoritative.</p>
                 """,
@@ -530,6 +530,21 @@ class AboutDocumentationEnglishMixin:
                   <li>Search with preview and syntax-colored match context.</li>
                   <li>Work against archive data or loose folders.</li>
                   <li>Export matched results while preserving folder structure.</li>
+                </ul>
+                """,
+            },
+            {
+                "id": "mod_management",
+                "title": "Mod Management",
+                "summary": "Preview installed overlays, manage mods and review archive recovery.",
+                "keywords": "utilities mods overlay installed preview removal merge update recovery",
+                "html": """
+                <p>Open <b>Utilities &gt; Mod Management</b> without creating an item or reading the Create New Item archives first.</p>
+                <ul>
+                  <li><b>Installed overlays</b> lists CDMW installs. Select an overlay and, for bundles, an item to preview its installed model and materials. Refresh re-reads the inventory.</li>
+                  <li><b>Merge mods</b> combines compatible mod folders into a separate package. <b>Check mods for game updates</b> compares recorded source data with the current game.</li>
+                  <li><b>Archive recovery</b> reviews changes previously written into shipped archives before moving them into an overlay.</li>
+                  <li>Removal and recovery require review and confirmation, then preserve the existing backup and rollback workflow. Previewing does not write to game archives.</li>
                 </ul>
                 """,
             },

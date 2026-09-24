@@ -124,27 +124,22 @@ def test_progress_reaches_dialog_on_gui_thread_and_ignores_other_operations(app,
         controller.deleteLater()
 
 
-@pytest.mark.parametrize("loaded", (False, True))
-def test_update_opens_before_reading_archives_and_from_tools_without_a_draft(app, tmp_path, monkeypatch, loaded):
+@pytest.mark.parametrize("utilities", (False, True))
+def test_update_opens_from_utilities_and_bootstrap_without_a_draft(app, tmp_path, monkeypatch, utilities):
     from PySide6.QtCore import QCoreApplication, QEvent
     from cdmw.ui.new_item.item_preview import ItemPreviewFrame
     from cdmw.ui.new_item.tab import NewItemStudioTab
+    from cdmw.ui.tools.mod_management import ModManagementTab
     from tests.test_new_item_provenance import setup_game
     _service, _snapshot, entries = setup_game(tmp_path)
     monkeypatch.setattr(ItemPreviewFrame, "_start_package", lambda *_args, **_kwargs: None)
     controller = NewItemStudioController(synchronous=True)
-    tab = NewItemStudioTab(controller=controller, get_package_root=lambda: str(tmp_path / "game"),
-                           get_archive_entries=lambda: entries)
+    tab = (ModManagementTab(controller=controller, get_package_root=lambda: str(tmp_path / "game"))
+           if utilities else NewItemStudioTab(controller=controller, get_package_root=lambda: str(tmp_path / "game"),
+                                              get_archive_entries=lambda: entries))
     try:
-        if loaded:
-            tab.start_snapshot()
-            action = next(action for action in tab.output_panel.tools_menu.actions()
-                          if action.text() == "Check mods for game updates...")
-            assert action.isEnabled() and controller.plan is None
-            action.trigger()
-        else:
-            assert controller.snapshot is None and controller.plan is None
-            tab._update_button.click()
+        assert controller.snapshot is None and controller.plan is None
+        (tab.update_button if utilities else tab._update_button).click()
         dialog = tab.findChild(ModUpdateDialog)
         assert dialog is not None and dialog.game_root.text() == str(tmp_path / "game")
         assert dialog.source_kind.currentData() is False

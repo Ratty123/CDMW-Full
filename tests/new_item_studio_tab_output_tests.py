@@ -292,15 +292,18 @@ class _TabOutputMixin:
         self.assertFalse(hasattr(tab.output_panel, "install_button"))
         self.assertFalse(hasattr(tab.output_panel, "install_requested"))
         self.assertTrue(tab.output_panel.install_overlay_button.isEnabled())
-        self.assertTrue(tab.output_panel.merge_button.isEnabled())
         mutations = Mock()
         self.assertFalse(tab.controller.start_install(mutations))
         self.assertEqual(mutations.mock_calls, [])
+        from cdmw.ui.tools.mod_management import ModManagementTab
         from cdmw.ui.new_item.mod_merge_dialog import ModMergeDialog
-        tab.output_panel.merge_button.click()
-        dialog = tab.findChild(ModMergeDialog)
+        management = ModManagementTab(get_package_root=lambda: str(self.root))
+        self._tabs.append(management)
+        self.assertIsNone(management.controller.snapshot)
+        management.merge_button.click()
+        dialog = management.findChild(ModMergeDialog)
         self.assertIsNotNone(dialog)
-        self.assertIs(dialog.controller, tab.controller)
+        self.assertIs(dialog.controller, management.controller)
         dialog.reject()
 
     def test_the_overlay_button_asks_first_and_leaves_the_shipped_archives_alone(self) -> None:
@@ -345,7 +348,7 @@ class _TabOutputMixin:
         tab.close()
         tab.deleteLater()
 
-    def test_the_overlay_can_be_moved_into_and_taken_away_from_the_step(self) -> None:
+    def test_overlay_housekeeping_runs_from_utilities(self) -> None:
         """The two housekeeping buttons: one carries an install that went into the shipped
         archives out into the overlay, the other unmounts and deletes it. Neither needs a
         plan, both ask first, and both leave the shipped archives as they found them."""
@@ -363,13 +366,18 @@ class _TabOutputMixin:
         tab._get_package_root = lambda: str(self.root)
         tab.prefill_template(TEMPLATE)
 
+        from cdmw.ui.tools.mod_management import ModManagementTab
+        from cdmw.ui.new_item.controller import NewItemStudioController
+        management = ModManagementTab(window=window, get_package_root=lambda: str(self.root),
+                                      controller=NewItemStudioController(synchronous=True))
+        self._tabs.append(management)
         # nothing has been installed the old way, so there is nothing to move
-        with patch("cdmw.ui.new_item.tab.QMessageBox.information", return_value=None) as told:
-            self.assertFalse(tab.output_panel.overlay_tools.isVisibleTo(tab.output_panel))
-            tab.output_panel.overlay_tools_toggle.click()
-            self.assertTrue(tab.output_panel.overlay_tools.isVisibleTo(tab.output_panel))
+        with patch("cdmw.ui.tools.mod_management.QMessageBox.information", return_value=None) as told:
+            self.assertFalse(management.overlay_migration_button.isVisibleTo(management))
+            management.recovery.click()
+            self.assertTrue(management.overlay_migration_button.isVisibleTo(management))
             self.assertFalse(told.called, "expanding maintenance controls performs no action")
-            tab.output_panel.overlay_migration_button.click()
+            management.overlay_migration_button.click()
         self.assertTrue(told.called, "the step says there is nothing to move rather than writing")
 
         # install through the overlay, then take it away again
@@ -385,9 +393,9 @@ class _TabOutputMixin:
         self.assertTrue((overlay / "0.pamt").is_file())
 
         from cdmw.ui.new_item.overlay_manager_dialog import OverlayManagerDialog
-        tab.output_panel.overlay_removal_button.click()
+        management.overlay_removal_button.click()
         self.app.processEvents()
-        dialog = tab.findChild(OverlayManagerDialog)
+        dialog = management.findChild(OverlayManagerDialog)
         self.assertIsNotNone(dialog)
         self.assertEqual(dialog.table.rowCount(), 1)
         with patch("cdmw.ui.new_item.overlay_manager_dialog.QMessageBox.question", return_value=QMessageBox.No):
@@ -989,8 +997,6 @@ class _TabOutputMixin:
         self.assertTrue(panel.log.isVisibleTo(panel))
         panel.append_log("Retained activity")
         self.assertIn("Retained activity", panel.log.toPlainText())
-        self.assertEqual(panel.tools_button.text(), "Mod management")
-        self.assertIs(panel.tools_button.parentWidget(), panel.actions)
         tab.show_step(6)
         self.assertTrue(panel.export_button.isVisibleTo(tab))
         self.assertFalse(panel.install_overlay_button.isVisibleTo(tab))
@@ -1014,21 +1020,7 @@ class _TabOutputMixin:
         tab.controller.status_message.emit("Could not write the output.", True)
         self.assertTrue(panel.log.isVisibleTo(panel))
         self.assertIn("Could not write the output.", panel.log.toPlainText())
-        requested = []
-        panel.merge_requested.disconnect()
-        panel.overlay_removal_requested.disconnect()
-        panel.merge_requested.connect(lambda: requested.append("merge"))
-        panel.overlay_removal_requested.connect(lambda: requested.append("overlays"))
-        merge, _update, installed, recovery = panel.tools_menu.actions()
-        merge.trigger()
-        installed.trigger()
-        recovery.trigger()
-        self.assertEqual(requested, ["merge", "overlays"])
-        self.assertTrue(panel.overlay_tools.isVisibleTo(panel))
-        self.assertTrue(panel.workspace_splitter.widget(0).isAncestorOf(panel.overlay_tools))
-        self.assertFalse(panel.sidebar.isAncestorOf(panel.overlay_tools))
         panel._busy_changed(True)
-        self.assertFalse(panel.tools_button.isEnabled())
         self.assertFalse(panel.output_mode.isEnabled())
         self.assertFalse(panel.folder_mode_button.isEnabled())
         self.assertFalse(panel.overlay_mode_button.isEnabled())

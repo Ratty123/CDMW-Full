@@ -75,7 +75,7 @@ class AboutControllerMixin:
     def _build_about_overview_html(self) -> str:
         return self._build_about_intro_html() + """
             <h3>Application Areas</h3>
-            <p>The current build exposes 12 tools across Assets, Authoring, and Utilities: Create New Item, Archive Browser, Model Library, Icon Creator, Mesh Editor, Placement &amp; Animations, Textures, Retrofit/Repackage, Format Explorer, Translations, Research, and Text Search.</p>
+            <p>The current build exposes 13 tools across Assets, Authoring, and Utilities: Create New Item, Archive Browser, Model Library, Icon Creator, Mesh Editor, Placement &amp; Animations, Textures, Mod Management, Retrofit/Repackage, Format Explorer, Translations, Research, and Text Search.</p>
             <p>Use <b>Help &gt; Documentation</b> for the full searchable guide.</p>
             """
 

@@ -6,7 +6,7 @@ from cdmw.domain.cancellation import raise_if_cancelled
 
 def overlay_item_preview_models(snapshot, package_root, directory, item_key, *, stop_event=None):
     from cdmw.core.archive_extraction import read_archive_entry_data
-    from cdmw.core.archive_format import parse_archive_pamt
+    from cdmw.core.archive_format import discover_pamt_files, parse_archive_pamt
     from cdmw.domain.archives.safety import safe_archive_output_path
     from cdmw.services.archive_preview_service import build_archive_preview_result
     from cdmw.services.new_item_snapshot import build_snapshot
@@ -18,14 +18,32 @@ def overlay_item_preview_models(snapshot, package_root, directory, item_key, *, 
     # The Studio snapshot predates the install. Re-read the overlay index and
     # metadata rather than accidentally showing its original template.
     installed = tuple(parse_archive_pamt(folder / '0.pamt'))
-    entries = {path: entry for path, entry in snapshot.entries.items()
-               if Path(entry.pamt_path).parent.resolve() != folder}
+    if snapshot is None or snapshot.source_files_changed():
+        # Utilities can open before Create New Item has read anything. Rebuild
+        # from the current mounted sources on this preview worker in that case.
+        from cdmw.core.papgt_format import parse_papgt
+
+        mounted = {item.name.lower() for item in parse_papgt((root / 'meta/0.papgt').read_bytes())}
+        if folder.name.lower() not in mounted:
+            raise ValueError('This overlay is no longer mounted. Refresh Installed overlays.')
+        entries = {}
+        for pamt in discover_pamt_files(root):
+            raise_if_cancelled(stop_event)
+            if (pamt.parent.parent != root or pamt.parent.name.lower() not in mounted
+                    or pamt.parent.resolve() == folder):
+                continue
+            for entry in parse_archive_pamt(pamt):
+                entries.setdefault(entry.path.replace('\\', '/').strip('/').lower(), entry)
+        snapshot = None
+    else:
+        entries = {path: entry for path, entry in snapshot.entries.items()
+                   if Path(entry.pamt_path).parent.resolve() != folder}
     entries.update((entry.path.replace('\\', '/').strip('/').lower(), entry) for entry in installed)
     installed_ids = {entry.identity for entry in installed}
 
     def read(entry):
         raise_if_cancelled(stop_event)
-        if entry.identity in installed_ids:
+        if snapshot is None or entry.identity in installed_ids:
             return read_archive_entry_data(entry, stop_event=stop_event)[0]
         return snapshot.read_entry(entry)
 

@@ -85,6 +85,7 @@ _LAZY_TOOL_UI_MODULES: dict[str, tuple[str, ...]] = {
     "recolor_variants": ("cdmw.ui.recolor_variants_tab",),
     "texture_editor": ("cdmw.ui.texture_editor_tab",),
     "mod_package_retrofit": ("cdmw.ui.tools.mod_package_retrofit_tasks",),
+    "mod_management": ("cdmw.ui.tools.mod_management",),
     "placement_studio": ("tools.placement_studio.tab", "tools.placement_studio.window"),
     "format_explorer": ("tools.format_explorer.tab",),
     "translation_studio": ("tools.translation_studio.tab",),
@@ -448,6 +449,33 @@ class ShellToolTabsMixin:
         )
         return tab
 
+    def _shared_new_item_controller(self):
+        controller = getattr(self, "_new_item_controller", None)
+        if controller is None:
+            from cdmw.ui.new_item.controller import NewItemStudioController
+            controller = NewItemStudioController(service=self.app_context.services.new_items, parent=self)
+            self._new_item_controller = controller
+        return controller
+
+    def _create_mod_management_tab(self) -> QWidget:
+        from cdmw.services.cache_layout import runtime_cache_layout
+        from cdmw.ui.tools.mod_management import ModManagementTab
+
+        tab = ModManagementTab(
+            window=self, controller=self._shared_new_item_controller(),
+            get_package_root=lambda: self.archive.archive_package_root_edit.text(),
+            preview_context={
+                "native_preview_core_cache_root": runtime_cache_layout(self.archive.archive_cache_root).native_preview_root,
+                "render_settings": self.archive._current_model_preview_render_settings(),
+                "cache_mode": self.shell._current_archive_performance_settings().native_preview_cache_mode,
+            },
+        )
+        tab.setObjectName("mod_management")
+        tab.status_message_requested.connect(
+            lambda message, is_error: self.set_status_message(message, error=is_error, tool_key="mod_management")
+        )
+        return tab
+
     def _create_mod_package_retrofit_tab(self) -> QWidget:
         from cdmw.ui.tools.mod_package_retrofit_tasks import ModPackageRetrofitToolWidget
 
@@ -508,8 +536,10 @@ class ShellToolTabsMixin:
         """
 
         from cdmw.ui.new_item.rust_ui_tab import RustNewItemStudioTab
+        from cdmw.ui.new_item.tab import NewItemStudioTab
 
-        tab = RustNewItemStudioTab(window=self, service=self.app_context.services.new_items)
+        workflow = NewItemStudioTab(window=self, controller=self._shared_new_item_controller())
+        tab = RustNewItemStudioTab(window=self, workflow=workflow)
         workspace = getattr(self, "compact_workspace", None)
         if workspace is not None:
             tab.workflow.set_model_status_host(workspace.status_strip.tool_status_host("new_item_studio"))
@@ -640,6 +670,9 @@ class ShellToolTabsMixin:
             "texture_editor",
             self._create_texture_editor_tab,
         )
+        self.mod_management_tab = self._add_lazy_shell_tool(
+            "Mod Management", "mod_management", self._create_mod_management_tab
+        )
         self.mod_package_retrofit_tab = self._add_lazy_shell_tool(
             "Retrofit/Repackage",
             "mod_package_retrofit",
@@ -680,6 +713,7 @@ class ShellToolTabsMixin:
         self._register_detachable_tool("text_search", self.text_search_tab, "Text Search")
         self._register_detachable_tool("item_icons", self.item_icons_tab, "Icon Creator")
         self._register_detachable_tool("new_item_studio", self.new_item_studio_tab, "Create New Item")
+        self._register_detachable_tool("mod_management", self.mod_management_tab, "Mod Management")
         self._register_detachable_tool("mod_package_retrofit", self.mod_package_retrofit_tab, "Retrofit/Repackage")
         self._register_detachable_tool("placement_studio", self.placement_studio_tab, "Placement & Animation Studio")
         self._register_detachable_tool("settings", self.settings_tab, "Settings")

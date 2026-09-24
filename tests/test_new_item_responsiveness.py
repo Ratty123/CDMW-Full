@@ -195,8 +195,10 @@ def test_compatibility_requests_are_batched_off_gui_and_publish_on_gui(studio, m
     assert controller.effect_target_compatibility("fx_first").supported
 
 
-def test_recovery_scan_is_read_only_worker_preflight_and_confirmation_is_gui(studio, tmp_path, monkeypatch):
-    app, tab = studio
+def test_recovery_scan_is_read_only_worker_preflight_and_confirmation_is_gui(tmp_path, monkeypatch):
+    from cdmw.ui.tools.mod_management import ModManagementTab
+    app = QApplication.instance() or QApplication([])
+    tab = ModManagementTab()
     tab._migration_preview_lane._synchronous = False
     service = object()
     calls, notices = [], []
@@ -205,13 +207,16 @@ def test_recovery_scan_is_read_only_worker_preflight_and_confirmation_is_gui(stu
         calls.append((root, threading.get_ident()))
         return SimpleNamespace(is_empty=True)
     monkeypatch.setattr("cdmw.services.archive_overlay_migration.plan_migration", inspect)
-    monkeypatch.setattr("cdmw.ui.new_item.tab.QMessageBox.information", lambda *a: notices.append(threading.get_ident()))
+    monkeypatch.setattr("cdmw.ui.tools.mod_management.QMessageBox.information", lambda *a: notices.append(threading.get_ident()))
     monkeypatch.setattr(tab.controller, "start_overlay_migration", lambda *a: pytest.fail("an empty preview must not mutate"))
     tab._migrate_overlay()
     assert not calls
     pump(app, lambda: bool(notices) and not tab._migration_preview_lane.busy)
     assert calls[0][0] == tmp_path and calls[0][1] != threading.get_ident()
     assert notices == [threading.get_ident()]
+    tab.request_shutdown()
+    pump(app, lambda: not tab.iter_shutdown_workers())
+    tab.deleteLater()
 
 
 def test_latest_lookup_cancels_obsolete_work_and_close_drops_results():

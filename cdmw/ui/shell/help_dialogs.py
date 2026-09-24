@@ -256,6 +256,7 @@ class AboutDialog(QDialog):
         }:
             return "Textures"
         if section_id in {
+            "mod_management",
             "mod_package_retrofit",
             "format_explorer",
             "translation_studio",

@@ -13,7 +13,6 @@ from pathlib import Path
 from datetime import datetime
 import time
 from typing import Callable, Iterable, Optional
-from cdmw.workers.new_item_lookup import NewItemLookupLane
 
 from PySide6.QtCore import QEvent, Qt, Signal, QTimer
 from PySide6.QtWidgets import (
@@ -169,9 +168,6 @@ class NewItemStudioTab(QWidget):
         self._model_part_editor_widget: object | None = None
         self._model_part_editor_controller: object | None = None
         self._model_part_editor_session_id = ""
-        self._migration_preview_lane = NewItemLookupLane(synchronous=self.controller._synchronous, parent=self)
-        self._migration_preview_lane.completed.connect(self._confirm_overlay_migration)
-        self._migration_preview_lane.failed.connect(self._migration_preview_failed)
         self._current_step = 0
         self._syncing_step = False
 
@@ -484,11 +480,7 @@ class NewItemStudioTab(QWidget):
         controller.model_part_edit_failed.connect(self._model_part_edit_failed)
         self.model_panel.part_editor_open_requested.connect(self._open_model_part_editor)
         self.model_panel.part_editor_apply_requested.connect(self._use_model_part_editor_changes)
-        self.output_panel.merge_requested.connect(self._merge_mods)
-        self.output_panel.update_requested.connect(self._update_mods)
         self.output_panel.install_overlay_requested.connect(self._install_overlay)
-        self.output_panel.overlay_migration_requested.connect(self._migrate_overlay)
-        self.output_panel.overlay_removal_requested.connect(self._remove_overlay)
         controller.model_changed.connect(lambda _result: self.identity_panel.refresh_issues())
 
         # One guided workspace: the clickable header owns navigation, the current page
@@ -1049,13 +1041,6 @@ class NewItemStudioTab(QWidget):
         self._model_part_editor_controller = None
         self._model_part_editor_session_id = ""
 
-    def _merge_mods(self) -> None:
-        from cdmw.ui.new_item.mod_merge_dialog import ModMergeDialog
-
-        dialog = ModMergeDialog(self.controller, self._get_package_root(), self)
-        dialog.setWindowModality(Qt.WindowModality.WindowModal)
-        dialog.show()
-
     def _update_mods(self) -> None:
         from cdmw.ui.new_item.mod_update_dialog import ModUpdateDialog
 
@@ -1097,85 +1082,10 @@ class NewItemStudioTab(QWidget):
             return
         self.controller.start_install_overlay(mutations(), directory_name=directory_name)
 
-    def _overlay_services(self, title: str):
-        """The mutation service (for the backup) and the package root, or None with a word."""
-
-        services = getattr(getattr(self._window, "app_context", None), "services", None)
-        mutations = getattr(services, "require_archive_mutations", None)
-        if not callable(mutations):
-            QMessageBox.warning(self, title, "The archive mutation service is not available in this window.")
-            return None
-        root = str(self._get_package_root() or "").strip()
-        if not root:
-            QMessageBox.warning(self, title, "Point the workbench at the game folder first.")
-            return None
-        return mutations(), Path(root)
-
-    def _migrate_overlay(self) -> None:
-        title = "Move installed items into the overlay"
-        found = self._overlay_services(title)
-        if found is None:
-            return
-        mutations, root = found
-        from cdmw.services.archive_overlay_migration import plan_migration
-
-        self.controller.status_message.emit("Reading installed items for recovery…", False)
-        self._migration_preview_lane.request((mutations, root), lambda stop: plan_migration(root, stop_event=stop))
-
-    def _migration_preview_failed(self, _key, message):
-        QMessageBox.warning(self, "Move installed items into the overlay", f"The archives could not be read: {message}")
-
-    def _confirm_overlay_migration(self, key, preview):
-        title = "Move installed items into the overlay"
-        mutations, root = key
-        current = self._overlay_services(title)
-        if current is None or current[0] is not mutations or current[1] != root:
-            self.controller.status_message.emit("Recovery cancelled because the archive source changed.", True)
-            return
-        if preview.is_empty:
-            QMessageBox.information(self, title, "Nothing in the shipped archives differs from the oldest backup of it, so there is nothing to move.")
-            return
-        listed = "\n".join(f"- {item.path}" for item in preview.entries[:12])
-        more = f"\n- ... {len(preview.entries) - 12} more" if len(preview.entries) > 12 else ""
-        confirmation = QMessageBox.question(
-            self,
-            title,
-            (
-                f"Move {len(preview.entries)} archive entrie(s) into the overlay and put the shipped archives back?\n\n"
-                f"{listed}{more}\n\n"
-                f"{len(preview.restore)} archive file(s) go back to their oldest backup ({len(preview.backups)} backup(s) read). "
-                "The game must not be running."
-            ),
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
-        )
-        if confirmation != QMessageBox.Yes:
-            return
-        self.controller.start_overlay_migration(mutations, root)
-
-    def _remove_overlay(self) -> None:
-        title = "Installed overlays"
-        found = self._overlay_services(title)
-        if found is None:
-            return
-        mutations, root = found
-        from cdmw.ui.new_item.overlay_manager_dialog import OverlayManagerDialog
-        existing = self.findChild(OverlayManagerDialog)
-        if existing is not None and not existing._closed:
-            existing.raise_()
-            existing.activateWindow()
-            return
-        dialog = OverlayManagerDialog(self.controller, root, mutations, self)
-        dialog.open()
-
     # ------------------------------------------------------------------ lifecycle
 
     def iter_shutdown_workers(self):
-        from cdmw.ui.new_item.overlay_manager_dialog import OverlayManagerDialog
         workers = list(self.controller.iter_shutdown_workers())
-        for dialog in self.findChildren(OverlayManagerDialog):
-            workers.extend(dialog.iter_shutdown_workers())
-        workers.extend(self._migration_preview_lane.iter_shutdown_workers())
         if self._panels_built:
             workers.extend(self.model_panel.iter_shutdown_workers())
             if self._perks_panel is not None:
@@ -1183,10 +1093,6 @@ class NewItemStudioTab(QWidget):
         return tuple(workers)
 
     def request_shutdown(self) -> None:
-        from cdmw.ui.new_item.overlay_manager_dialog import OverlayManagerDialog
-        for dialog in self.findChildren(OverlayManagerDialog):
-            dialog.request_shutdown()
-        self._migration_preview_lane.request_shutdown()
         self.controller.request_shutdown()
         if self._panels_built:
             self.model_panel.request_shutdown_preview()
