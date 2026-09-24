@@ -227,6 +227,72 @@ def test_import_owned_binding_and_clones_get_private_maps():
     assert files.side_files[XML] == source.encode()
 
 
+@pytest.mark.parametrize("different_maps", [False, True])
+def test_repeated_import_sections_keep_unique_choices_and_their_own_channels(different_maps):
+    from cdmw.services.new_item_planning import ModelFiles
+    from cdmw.services.new_item_shader_controls import shader_control_bindings
+    from tests.test_pac_xml_standard_material import texture
+
+    original = source_files()
+    second_map = SP
+    side = dict(original.side_files)
+    if different_maps:
+        second_map = "texture/second_surface.dds"
+        buffer = BytesIO()
+        Image.new("RGBA", (8, 8), (180, 31, 211, 143)).save(buffer, format="DDS")
+        side[second_map] = buffer.getvalue()
+    blocks = [material(name=name, extra=texture("_materialTexture", "125", path, 51)
+                       + field("_eyeCoverDiffuseParameter", str(packed), "Byte4"))
+              for name, path, packed in (("game_skull", SP, 0x12345680),
+                                         ("GAME_SKULL", second_map, 0xABCDEF80))]
+    guard = material(name="guard").replace("texture/base.dds", "texture/guard.dds")
+    side[XML] = b"\xef\xbb\xbf" + (blocks[0] + guard + blocks[1]).encode()
+    before = dict(side)
+    files = ModelFiles(b"geometry", side)
+    result = SimpleNamespace(source_owned_output_draw_sections=(
+        SimpleNamespace(target_submesh_name="game_skull", source_material_name="Skull"),))
+    scene = SimpleNamespace(material_bindings=(SimpleNamespace(material_name="Skull", texture_slots=()),))
+    settings = (("Skull", controls(_eyeCoverDiffuseParameter=.5, surface_alpha=1., material_red=.51)),)
+
+    mapped = shader_control_bindings(files, settings, result=result, scene=scene)[XML]
+    assert mapped == (("game_skull", settings[0][1]),)
+    validate_choices(mapped, equipment=True)
+    output = apply_shader_controls(files, settings, result=result, scene=scene)
+    text = output.side_files[XML].decode("utf-8-sig")
+    rows = find_material_wrappers(text)
+    assert [row.shader for row in rows] == [EYE_COVER.shader, "SkinnedMeshStandard", EYE_COVER.shader]
+    assert guard in text and output.side_files[XML].startswith(b"\xef\xbb\xbf")
+    assert output.pac_data == files.pac_data and files.side_files == before
+    for row, source, packed in ((rows[0], SP, 0x12345680), (rows[2], second_map, 0xABCDEF80)):
+        assert int(row.value("_eyeCoverDiffuseParameter")) == packed
+        actual = pixels(output.side_files[row.textures["_materialTexture"]]).getpixel((0, 0))
+        expected = pixels(side[source]).getpixel((0, 0))
+        assert abs(actual[0] - 130) <= 3
+        assert all(abs(a - b) <= 3 for a, b in zip(actual[1:], expected[1:]))
+        assert pixels(output.side_files[row.textures["_alphaTexture"]]).getpixel((0, 0))[0] == 255
+        assert output.side_files[source] == side[source]
+    assert (rows[0].textures["_materialTexture"] != rows[2].textures["_materialTexture"]) == different_maps
+
+
+def test_repeated_sections_do_not_relax_invalid_choices_or_source_checks(monkeypatch):
+    from cdmw.services.new_item_shader_controls import rewrite_new_item_shader_controls
+
+    def no_texture_work(*args, **kwargs):
+        pytest.fail("invalid choices reached texture preparation")
+
+    monkeypatch.setattr("cdmw.services.new_item_eye_cover._encode_channels", no_texture_work)
+    source = material(name="Skull") + material(name="SKULL")
+    with pytest.raises(ValueError, match="unique material parts"):
+        rewrite_new_item_shader_controls(source, (("Skull", controls()), ("SKULL", controls())), XML, no_texture_work)
+    with pytest.raises(ValueError, match="bindings were not found"):
+        rewrite_new_item_shader_controls(source, (("Missing", controls()),), XML, no_texture_work)
+    assert rewrite_new_item_shader_controls(source, (("Missing", controls()),), XML, no_texture_work,
+                                            allow_missing=True) == (source, {}, set())
+    incompatible = material(name="Skull") + material("SkinnedMeshStandard_Ver2", name="SKULL")
+    with pytest.raises(ValueError, match="requires"):
+        rewrite_new_item_shader_controls(incompatible, (("Skull", controls()),), XML, no_texture_work)
+
+
 def test_dye_preview_keeps_source_maps_then_applies_eye_cover_without_bc7(tmp_path, monkeypatch):
     from cdmw.ui.new_item.dye_preview import variant_dye_preview_source
     from tests.test_new_item_appearance_dyes import fixture, MAPPING
@@ -327,6 +393,10 @@ def test_complete_plan_and_loose_export_include_owned_eye_cover_maps(tmp_path, v
         request = replace(request, model_source=ModelSource.IMPORTED)
         imported_side = dict(owned.side_files)
         imported_side[PAC_XML] = imported_side.pop(XML)
+        # One authored part can have repeated generated material sections.
+        body = imported_side[PAC_XML].decode().removeprefix("<root>").removesuffix("</root>")
+        imported_side[PAC_XML] = ("<root>" + "".join(
+            f'<Vector Name="_subMeshResources" Index="{index}">{body}</Vector>' for index in range(2)) + "</root>").encode()
         kwargs["model"] = replace(owned, pac_data=data[TEMPLATE_PAC], side_files=imported_side)
     if variant:
         binding = next(value for value in selections(snapshot) if value.model_path == TEMPLATE_PAC)
@@ -339,6 +409,10 @@ def test_complete_plan_and_loose_export_include_owned_eye_cover_maps(tmp_path, v
     assert any("EyeCover material: Encoded" in line for line in logs)
     output = next(path for path in plan.loose_files if path.endswith(".pac"))
     blade = find_material_wrappers(plan.loose_files[xml_path(output)].decode("utf-8-sig"))[0]
+    if imported:
+        rows = find_material_wrappers(plan.loose_files[xml_path(output)].decode("utf-8-sig"))
+        assert [row.shader for row in rows] == [EYE_COVER.shader, "SkinnedMeshEmissive"] * 2
+        assert rows[0].textures == rows[2].textures
     assert blade.shader == EYE_COVER.shader
     assert int(blade.value("_eyeCoverDiffuseParameter")) == 89
     generated = [blade.textures[name] for name in ("_alphaTexture", "_materialTexture")]

@@ -10,7 +10,7 @@ from cdmw.domain.mesh.shader_controls import EYE_COVER, EYE_COVER_TEXTURE_FIELDS
 
 
 def prepare_eye_cover_textures(text, choices, model_path, read_texture, *, stop_event=None, on_log=None):
-    """Return private bindings/payloads; never change a shared source texture."""
+    """Return private bindings by material offset plus payloads, preserving source maps."""
     settings = {name.casefold(): controls for name, controls in choices if controls.shader == EYE_COVER.shader}
     paths, files = {}, {}
     stem = str(PurePosixPath(model_path.replace("\\", "/").replace("/modelproperty/", "/texture/", 1)
@@ -23,7 +23,7 @@ def prepare_eye_cover_textures(text, choices, model_path, read_texture, *, stop_
         controls = settings[key]
         controls.validate()
         values = dict(controls.values)
-        paths[key] = {}
+        paths[wrapper.start] = {}
         for parameter in ("_alphaTexture", "_materialTexture"):
             channels = {channel: values[name][0] for name, (texture, channel) in EYE_COVER_TEXTURE_FIELDS.items()
                         if texture == parameter and name in values}
@@ -45,7 +45,7 @@ def prepare_eye_cover_textures(text, choices, model_path, read_texture, *, stop_
             identity = hashlib.sha256(parameter.encode() + data).hexdigest()[:16]
             path = f"{stem}_cdmw_eyecover_{identity}.dds"
             files[path] = data
-            paths[key][parameter] = path
+            paths[wrapper.start][parameter] = path
     return paths, files
 
 

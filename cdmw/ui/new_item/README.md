@@ -42,7 +42,9 @@ Unchecked channels use source maps (missing alpha defaults to 1, material red to
 compression. Preview changes do not encode export textures. Choices persist per
 variant and go through the regular build-plan/export workflow. Edited alpha/material
 channels use private BC7 textures with full mip chains; shared source textures,
-other parts and installed archives are untouched. Build Plan logs identify the
+other parts and installed archives are untouched. A part repeated in generated
+draw sections receives one shader choice across all its sections; each section
+retains its own source maps and unchecked texture channels. Build Plan logs identify the
 part, EyeCover texture, dimensions and mip count, forward the encoder's 30-second
 heartbeat during longer conversions, and report completion time. Identical 4x4
 blocks reuse the same BC7 result, retaining the encoder's quality and full mip

@@ -341,10 +341,11 @@ def test_import_bindings_map_renamed_parts_and_clones_without_touching_other_mat
         SimpleNamespace(target_submesh_name="game_blade", source_material_name="Imported Blade"),))
     scene = SimpleNamespace(material_bindings=(SimpleNamespace(material_name="Imported Blade", texture_slots=()),))
     source = material(name="game_blade") + material(name="clone") + material(name="guard").replace("texture/base.dds", "guard.dds")
+    source += material(name="GAME_BLADE")
     files = ModelFiles(b"geometry", {"blade.pac_xml": b"\xef\xbb\xbf" + source.encode(), "texture/base.dds": b"owned texture"})
     output = apply_shader_controls(files, (("Imported Blade", choice(_wingFlowProgress=.7)),), result=result, scene=scene)
     rows = find_material_wrappers(output.side_files["blade.pac_xml"].decode("utf-8-sig"))
-    assert [row.shader for row in rows] == ["SkinnedMeshWing", "SkinnedMeshWing", "SkinnedMeshStandard"]
+    assert [row.shader for row in rows] == ["SkinnedMeshWing", "SkinnedMeshWing", "SkinnedMeshStandard", "SkinnedMeshWing"]
     assert output.side_files["blade.pac_xml"].startswith(b"\xef\xbb\xbf")
     assert output.pac_data == files.pac_data
     assert files.side_files["blade.pac_xml"] == b"\xef\xbb\xbf" + source.encode()
@@ -364,6 +365,27 @@ def test_import_atlas_requires_all_members_and_identical_settings():
         apply_shader_controls(files, (("Blade", choice()), ("Guard", choice(_wingFlowProgress=.1))), result=result, scene=scene)
     output = apply_shader_controls(files, (("Blade", choice()), ("Guard", choice())), result=result, scene=scene)
     assert find_material_wrappers(output.side_files["blade.pac_xml"].decode())[0].shader == "SkinnedMeshWing"
+
+
+def test_repeated_clone_names_cannot_edit_an_unselected_source_owner():
+    from cdmw.services.new_item_shader_controls import apply_shader_controls
+    from cdmw.services.new_item_planning import ModelFiles
+
+    result = SimpleNamespace(source_owned_output_draw_sections=tuple(
+        SimpleNamespace(target_submesh_name="game_" + name, source_material_name=name) for name in ("Skull", "Handle")))
+    scene = SimpleNamespace(material_bindings=tuple(
+        SimpleNamespace(material_name=name, texture_slots=()) for name in ("Skull", "Handle")))
+    text = "".join(material(name=target).replace("texture/base.dds", f"texture/{name}.dds")
+                   for name in ("Skull", "Handle") for target in ("game_" + name, "clone"))
+    files = ModelFiles(b"geometry", {"weapon.pac_xml": text.encode(),
+                                   "texture/Skull.dds": b"skull", "texture/Handle.dds": b"handle"})
+    with pytest.raises(ValueError, match="must all use the same shader controls"):
+        apply_shader_controls(files, (("Skull", choice()),), result=result, scene=scene)
+    with pytest.raises(ValueError, match="same shader controls"):
+        apply_shader_controls(files, (("Skull", choice()), ("Handle", choice(_wingFlowProgress=.1))),
+                              result=result, scene=scene)
+    output = apply_shader_controls(files, (("Skull", choice()), ("Handle", choice())), result=result, scene=scene)
+    assert all(row.shader == "SkinnedMeshWing" for row in find_material_wrappers(output.side_files["weapon.pac_xml"].decode()))
 
 
 def test_mesh_command_caches_masks_reuses_base_maps_and_restores_on_undo(tmp_path, monkeypatch):

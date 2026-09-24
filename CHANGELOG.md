@@ -58,6 +58,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Create New Item no longer rejects shader experiments with "Shader controls must name unique material parts" when an imported part appears in repeated output sections. EyeCover edits each section's own textures, preserving unchecked channels and other parts.
 - Overlay installation confirmation and completion dialogs keep their buttons directly below the message, removing the large empty area at the bottom while retaining scrolling for long messages.
 - Create New Item's Output uses three adjustable columns for file review and warnings, Activity log, and Destination. Long review text and logs scroll within their panes, and new activity automatically shows the latest event without stretching the page vertically.
 - Create New Item identifies the part and texture being prepared for EyeCover shader experiments, reports encoding dimensions and completion time, and keeps the activity log updated during long conversions. BC7 encoding reuses identical texture blocks to reduce repeated CPU work while preserving the same compressed output, full resolution and mip levels.
