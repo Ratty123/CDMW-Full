@@ -31,6 +31,9 @@ public sealed class ArchiveEntryPreparationService(
         var entry = session.ReadEntry(request.EntryId);
         var sourceSha256 = await HashArchiveRangeAsync(entry, cancellationToken, progress).ConfigureAwait(false);
         var identityText = $"{session.Fingerprint}\n{entry.Identity.NormalizedPath}\n{entry.Identity.SourcePamt}\n{entry.PazIndex}\n{entry.Offset}\n{sourceSha256}";
+        // Do not reuse PartialRaw static geometry prepared by older decoders.
+        // A new path also keeps existing consumers' leased bytes immutable.
+        if (entry.Extension is ".pam" or ".pamlod") identityText += "\nstatic-mesh-v2";
         var key = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identityText))).ToLowerInvariant();
         var gate = PreparationGates[Convert.ToByte(key[..2], 16)];
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);

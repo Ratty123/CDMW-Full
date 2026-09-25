@@ -641,6 +641,16 @@ static void run_shared_mask_wrapper_owner_contract_self_test() {
 }
 
 static void run_material_contract_self_test() {
+    ArchiveEntryRef wanted_texture;
+    wanted_texture.path = "leveldata/proxylod/stone.dds";
+    ArchiveEntryRef other_texture;
+    other_texture.path = "object/stone.dds";
+    const std::vector<ArchiveEntryRef> path_candidates{other_texture, wanted_texture};
+    const auto rooted_texture = exact_archive_path_candidate(path_candidates, "/LEVELDATA\\proxylod\\stone.dds");
+    if (rooted_texture == nullptr || rooted_texture->path != wanted_texture.path
+        || exact_archive_path_candidate(path_candidates, "/missing/stone.dds") != nullptr) {
+        throw std::runtime_error("Rooted material texture paths lost exact archive ownership");
+    }
     run_pbd_profile_decoding_self_test();
     run_cached_material_owner_contract_self_test();
     run_shared_mask_wrapper_owner_contract_self_test();

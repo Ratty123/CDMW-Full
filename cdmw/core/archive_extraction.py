@@ -335,6 +335,57 @@ def maybe_reconstruct_sparse_dds(entry: ArchiveEntry, data: bytes) -> Optional[T
     return padded, "SparseDDS"
 
 
+def _maybe_decompress_partial_pamlod(
+    entry: ArchiveEntry, data: bytes, *, stop_event: Optional[threading.Event] = None,
+) -> Optional[Tuple[bytes, str]]:
+    lod_count, geometry_offset = struct.unpack_from("<II", data)
+    if not 1 <= lod_count <= 32:
+        return None
+    if not 0x50 + lod_count * 12 <= geometry_offset <= len(data):
+        raise ValueError("Partial PAMLOD geometry table is invalid.")
+    candidates = [geometry_offset - lod_count * 12 - padding for padding in range(0, 16, 4)
+                  if geometry_offset >= 0x50 + lod_count * 12 + padding
+                  and struct.unpack_from("<I", data, geometry_offset - lod_count * 12 - padding)[0] == geometry_offset]
+    if len(candidates) != 1:
+        raise ValueError("Partial PAMLOD geometry table is invalid or ambiguous.")
+    table_offset = candidates[0]
+    blocks = []
+    source_end = decoded_end = geometry_offset
+    saw_compressed = False
+    if entry.orig_size > 1024 * 1024 * 1024:
+        raise ValueError("Partial static mesh exceeds the one GiB resource limit.")
+    for index in range(lod_count):
+        raise_if_cancelled(stop_event)
+        offset, decoded_size, compressed_size = struct.unpack_from("<III", data, table_offset + index * 12)
+        stored_size = compressed_size or decoded_size
+        if index:
+            source_end = (source_end + 15) & ~15
+            decoded_end = (decoded_end + 15) & ~15
+        if (offset != source_end or offset + stored_size > len(data)
+                or decoded_size == 0 or decoded_end + decoded_size > entry.orig_size):
+            raise ValueError("Partial PAMLOD geometry block has inconsistent sizes or offsets.")
+        blocks.append((offset, decoded_size, compressed_size, decoded_end))
+        source_end = offset + stored_size
+        decoded_end += decoded_size
+        saw_compressed |= compressed_size != 0
+    if not saw_compressed:
+        return None
+    if source_end != len(data) or decoded_end != entry.orig_size:
+        raise ValueError("Partial PAMLOD geometry blocks do not match the archive size.")
+    rebuilt = bytearray(data[:geometry_offset])
+    for index, (offset, decoded_size, compressed_size, destination) in enumerate(blocks):
+        raise_if_cancelled(stop_event)
+        block = data[offset:offset + (compressed_size or decoded_size)]
+        if compressed_size:
+            block = lz4_block.decompress(block, uncompressed_size=decoded_size)
+        if len(block) != decoded_size:
+            raise ValueError("Partial PAMLOD geometry block decompressed to an unexpected size.")
+        rebuilt.extend(bytes(destination - len(rebuilt)))
+        struct.pack_into("<III", rebuilt, table_offset + index * 12, destination, decoded_size, 0)
+        rebuilt.extend(block)
+    return bytes(rebuilt), "PartialPAMLOD"
+
+
 def _maybe_decompress_partial_par_container(
     entry: ArchiveEntry,
     data: bytes,
@@ -343,12 +394,16 @@ def _maybe_decompress_partial_par_container(
 ) -> Optional[Tuple[bytes, str]]:
     if lz4_block is None:
         return None
-    if entry.compression_type != 1 or len(data) < 0x50 or not data.startswith(b"PAR "):
+    if entry.compression_type != 1 or len(data) < 0x50:
+        return None
+    if entry.extension == ".pamlod":
+        return _maybe_decompress_partial_pamlod(entry, data, stop_event=stop_event)
+    if not data.startswith(b"PAR "):
         return None
 
-    # Static PAM v0x1802 keeps its metadata/index prefix and trailer plain,
+    # Static PAM keeps its metadata/index prefix and trailer plain,
     # with a single LZ4 geometry block described at 0x3c (not PAC's slot table).
-    if entry.extension == ".pam" and struct.unpack_from("<I", data, 4)[0] == 0x1802:
+    if entry.extension == ".pam" and struct.unpack_from("<I", data, 4)[0] in (0x1802, 0x01001806):
         geometry_offset, decoded_size, compressed_size = struct.unpack_from("<III", data, 0x3C)
         if compressed_size == 0:
             return None

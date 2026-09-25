@@ -505,30 +505,15 @@ static std::vector<char> reconstruct_partial_dds(const ArchiveEntryRef& entry, c
 }
 
 static std::vector<char> maybe_decompress_partial_par(const ArchiveEntryRef& entry, const std::vector<char>& data) {
+    if (entry.compression_type() == 1) {
+        auto static_mesh = cdmw::archive::decode_partial_static_mesh(
+            entry.extension, data, entry.orig_size, lz4_decompress_block);
+        if (!static_mesh.empty()) return static_mesh;
+    }
     if (entry.compression_type() != 1 || data.size() < 0x50 || std::string(data.data(), data.data() + 4) != "PAR ") {
         return {};
     }
-    if (entry.extension == ".pam" && read_u32(data, 4) == 0x1802) {
-        const size_t geometry_offset = read_u32(data, 0x3c);
-        const size_t decoded_size = read_u32(data, 0x40);
-        const size_t compressed_size = read_u32(data, 0x44);
-        if (compressed_size == 0) return {};
-        if (geometry_offset < 0x50 || decoded_size == 0 || geometry_offset + compressed_size > data.size()
-            || data.size() - compressed_size + decoded_size != entry.orig_size) {
-            throw std::runtime_error("Partial PAM geometry block has inconsistent sizes");
-        }
-        const auto block_start = data.begin() + static_cast<std::ptrdiff_t>(geometry_offset);
-        const auto block_end = block_start + static_cast<std::ptrdiff_t>(compressed_size);
-        const std::vector<char> geometry = lz4_decompress_block(std::vector<char>(block_start, block_end), decoded_size);
-        if (geometry.size() != decoded_size) {
-            throw std::runtime_error("Partial PAM geometry block decompressed to an unexpected size");
-        }
-        std::vector<char> rebuilt(data.begin(), block_start);
-        std::fill(rebuilt.begin() + 0x44, rebuilt.begin() + 0x48, 0);
-        rebuilt.insert(rebuilt.end(), geometry.begin(), geometry.end());
-        rebuilt.insert(rebuilt.end(), block_end, data.end());
-        return rebuilt;
-    }
+    if (entry.extension == ".pam" && (read_u32(data, 4) == 0x1802 || read_u32(data, 4) == 0x01001806)) return {};
     struct Slot {
         std::uint32_t comp_size = 0;
         std::uint32_t decomp_size = 0;

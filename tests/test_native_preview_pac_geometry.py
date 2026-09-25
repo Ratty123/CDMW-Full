@@ -58,3 +58,36 @@ def test_native_pac_descriptors_require_exact_fit_in_every_lod(
         identities = list(struct.iter_unpack("<2i", (package / batch["editor_identity"]["identity_file"]).read_bytes()))
         assert identities == [(part, vertex) for vertex in expected_indices]
     assert entry.prepared_path.read_bytes() == data
+
+
+@pytest.mark.parametrize("damage", [None, "normals", "indices", "layout"])
+def test_coarse_pac_long_edges_require_exact_layout_and_authored_normals(native_helper, tmp_path, damage):
+    data = bytearray(_grid_pac())
+    metadata_size = struct.unpack_from("<I", data, 0x14)[0]
+    start = 0x50 + metadata_size
+    sections = []
+    for lod in range(4):
+        section = bytearray(data[start + lod * 408:start + (lod + 1) * 408])
+        for vertex in range(9):
+            # Wide triangles are intentional, and every authored normal is +Z.
+            struct.pack_into("<H", section, vertex * 40, (0, 327, 32767)[vertex % 3])
+            if damage == "normals":
+                struct.pack_into("<I", section, vertex * 40 + 16, 0x40000000 | (512 << 10) | (512 << 20))
+        if damage == "indices":
+            struct.pack_into("<H", section, 360, 65535)
+        if damage == "layout":
+            section.extend(b"\0\0")
+        struct.pack_into("<I", data, 0x14 + (lod + 1) * 8, len(section))
+        sections.append(section)
+    data = bytes(data[:start]) + b"".join(sections)
+    entry = _prepared_entry(tmp_path / "coarse.pac")
+    entry.prepared_path.write_bytes(data)
+    entry = replace(entry, orig_size=len(data), comp_size=len(data), prepared_size=len(data),
+                    prepared_sha256=hashlib.sha256(data).hexdigest())
+    result = _run(entry, tmp_path)
+    if damage is None:
+        assert result.succeeded, result.fallback_reason
+        assert result.diagnostics["face_count"] == 8
+    else:
+        assert not result.succeeded
+        assert "unsafe" in result.fallback_reason

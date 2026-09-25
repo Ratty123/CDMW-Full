@@ -1,4 +1,5 @@
 #include "archive_core_internal.hpp"
+#include "../../common/partial_static_mesh.hpp"
 
 namespace cdmw::full_archive {
 
@@ -240,8 +241,13 @@ DecodeResult decode_entry(
             data = lz4_decompress(data, static_cast<size_t>(original_size));
             notes.emplace_back("LZ4");
         } else if (compression_type == 1) {
-            auto partial_par = maybe_decompress_partial_par(data, original_size);
-            if (!partial_par.empty()) {
+            const auto extension = lower_copy(fs::path(virtual_path).extension().string());
+            auto static_mesh = cdmw::archive::decode_partial_static_mesh(extension, data, original_size, lz4_decompress);
+            auto partial_par = static_mesh.empty() ? maybe_decompress_partial_par(data, original_size) : std::vector<std::uint8_t>{};
+            if (!static_mesh.empty()) {
+                data = std::move(static_mesh);
+                notes.emplace_back(extension == ".pamlod" ? "PartialPAMLOD" : "PartialPAM");
+            } else if (!partial_par.empty()) {
                 data = std::move(partial_par);
                 notes.emplace_back("PartialPAR");
             } else if (lower_copy(fs::path(virtual_path).extension().string()) == ".dds" && !pamt_path.empty()) {

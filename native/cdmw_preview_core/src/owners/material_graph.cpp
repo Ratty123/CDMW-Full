@@ -1,5 +1,7 @@
 static std::string native_archive_path(std::string value) {
     std::replace(value.begin(), value.end(), '\\', '/');
+    // PAMI often uses archive-root paths; indexed paths omit the leading slash.
+    value.erase(0, value.find_first_not_of('/'));
     return value;
 }
 

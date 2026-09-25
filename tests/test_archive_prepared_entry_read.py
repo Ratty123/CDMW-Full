@@ -108,8 +108,11 @@ def _partial_pam_payload() -> tuple[bytes, bytes]:
 
 
 @pytest.mark.parametrize("prepared_source", [False, True])
-def test_partial_pam_decompresses_geometry_and_preserves_prefix_and_trailer(tmp_path: Path, prepared_source: bool) -> None:
+@pytest.mark.parametrize("version", [0x1802, 0x01001806])
+def test_partial_pam_decompresses_geometry_and_preserves_prefix_and_trailer(tmp_path: Path, prepared_source: bool, version: int) -> None:
     raw, expected = _partial_pam_payload()
+    raw = raw[:4] + struct.pack("<I", version) + raw[8:]
+    expected = expected[:4] + struct.pack("<I", version) + expected[8:]
     path = tmp_path / "source.pam"
     path.write_bytes(raw)
     entry = replace(_raw_entry(path, raw, flags=1, orig_size=len(expected)), path="effect/leaf.pam")

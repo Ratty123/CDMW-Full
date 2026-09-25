@@ -563,7 +563,10 @@ static std::vector<RawPamEntry> read_pamlod_entries(const std::vector<char>& dat
     std::vector<RawPamEntry> entries;
     const int search_limit = std::max(kPamlodEntryTableOffset, geom_offset - 5);
     for (int off = kPamlodEntryTableOffset; off < search_limit; ++off) {
-        if (!looks_like_dds_string(data, static_cast<size_t>(off), kPamNameMaxLength)) continue;
+        const bool no_texture = static_cast<size_t>(off) + 4 <= data.size()
+            && !(data[off - 1] >= 32 && data[off - 1] <= 126)
+            && std::string(data.data() + off, 4) == std::string("dds\0", 4);
+        if (!no_texture && !looks_like_dds_string(data, static_cast<size_t>(off), kPamNameMaxLength)) continue;
         const int entry_offset = off - 16;
         if (entry_offset < kPamlodEntryTableOffset || static_cast<size_t>(off) + kPamNameMaxLength > data.size()) continue;
         const std::uint32_t vc = read_u32(data, entry_offset);
@@ -575,7 +578,7 @@ static std::vector<RawPamEntry> read_pamlod_entries(const std::vector<char>& dat
             ic,
             read_u32(data, off - 8),
             read_u32(data, off - 4),
-            read_c_string(data, off, kPamNameMaxLength),
+            no_texture ? "" : read_c_string(data, off, kPamNameMaxLength),
             read_c_string(data, static_cast<size_t>(off) + kPamNameMaxLength, kPamNameMaxLength),
         });
     }
@@ -643,35 +646,6 @@ static std::optional<std::tuple<size_t, int, size_t>> find_pamlod_group_layout(
     return std::nullopt;
 }
 
-static NativeSubmesh combine_pamlod_group_meshes(const std::vector<NativeSubmesh>& parts, int lod_index) {
-    NativeSubmesh combined;
-    if (parts.empty()) return combined;
-    combined.name = "lod" + std::to_string(lod_index);
-    combined.material = parts.front().material.empty() ? combined.name : parts.front().material;
-    combined.source_submesh_index = lod_index;
-    combined.source_local_submesh_index = lod_index;
-    combined.vertex_layout_name = parts.front().vertex_layout_name;
-    combined.vertex_stride = parts.front().vertex_stride;
-    combined.uv_offset = parts.front().uv_offset;
-    combined.normal_offset = parts.front().normal_offset;
-    std::uint32_t vertex_base = 0;
-    for (const NativeSubmesh& part : parts) {
-        if (combined.name == "lod" + std::to_string(lod_index) && !part.name.empty()) {
-            combined.name = "lod" + std::to_string(lod_index) + "_" + part.name;
-        }
-        combined.positions.insert(combined.positions.end(), part.positions.begin(), part.positions.end());
-        combined.uvs.insert(combined.uvs.end(), part.uvs.begin(), part.uvs.end());
-        combined.normals.insert(combined.normals.end(), part.normals.begin(), part.normals.end());
-        combined.source_vertex_indices.insert(combined.source_vertex_indices.end(), part.source_vertex_indices.begin(), part.source_vertex_indices.end());
-        for (std::uint32_t index : part.indices) {
-            combined.indices.push_back(vertex_base + index);
-        }
-        vertex_base += static_cast<std::uint32_t>(part.positions.size());
-    }
-    evaluate_native_submesh_quality(combined);
-    return combined;
-}
-
 static NativeMeshParseResult parse_pamlod_submeshes(const std::vector<char>& data) {
     if (data.size() < kPamlodEntryTableOffset) {
         throw std::runtime_error("selected PAMLOD is too small");
@@ -709,8 +683,9 @@ static NativeMeshParseResult parse_pamlod_submeshes(const std::vector<char>& dat
                 bbox_max
             ));
         }
-        std::vector<NativeSubmesh> meshes;
-        meshes.push_back(combine_pamlod_group_meshes(parts, lod_index));
+        // Each part has its own authored material. Combining the LOD into one
+        // batch incorrectly applies the first part's material to every surface.
+        std::vector<NativeSubmesh> meshes = std::move(parts);
         complete_native_meshes_without_filtering(meshes);
         if (!meshes.empty()) return NativeMeshParseResult{std::move(meshes), "native_pamlod_lod0", static_cast<int>(groups.size())};
         std::uint64_t total_indices = 0;

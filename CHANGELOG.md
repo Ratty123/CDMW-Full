@@ -65,6 +65,8 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Archive previews resolve root-prefixed material texture paths, decode newer compressed PAM geometry and aligned mixed-compression PAMLOD blocks, and preserve each PAMLOD part's material. Textureless PAMLOD placeholders and structurally verified low-poly PAC meshes with long faces no longer prevent preview loading. Existing static-mesh preparation caches are refreshed automatically.
+
 - Installed overlay previews load without first reading Create New Item's archives and use fresh preview cache identities after refresh or reopening, keeping installed geometry and material changes visible.
 - Create New Item imports with Template cloth / physics off remove inherited cloth and jiggle bindings from every mesh LOD, as well as material simulation assignments. A template with a moving tail could otherwise move an imported part away from its authored position even though its HKX file was excluded. Attachment weights, geometry and authored materials are preserved.
 - DMM archive packages use the standalone `0036/` folder regardless of occupied game archive slots. This prevents DMM from treating new-item packages as group replacements and dropping their added models, materials and textures. Re-exporting an older New Item package preserves its assets and history while correcting the archive folder.

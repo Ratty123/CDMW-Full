@@ -1071,7 +1071,7 @@ def parse_pamlod(data: bytes, filename: str = "", lod_level: int = 0) -> ParsedM
     # Locate LOD entries by scanning for .dds texture strings
     entries = []
     search_region = data[PAMLOD_ENTRY_TABLE:geom_off]
-    for m in re.finditer(rb"[^\x00]{1,255}\.dds\x00", search_region):
+    for m in re.finditer(rb"(?:[^\x00]{1,255}\.dds|dds)\x00", search_region):
         tex_start = PAMLOD_ENTRY_TABLE + m.start()
         nv_off = tex_start - 0x10
         if nv_off < PAMLOD_ENTRY_TABLE:
@@ -1083,6 +1083,8 @@ def parse_pamlod(data: bytes, filename: str = "", lod_level: int = 0) -> ParsedM
         voff = struct.unpack_from("<I", data, tex_start - 0x08)[0]
         ioff = struct.unpack_from("<I", data, tex_start - 0x04)[0]
         tex = data[tex_start:tex_start + 256].split(b"\x00")[0].decode("ascii", "replace")
+        if tex == "dds":
+            tex = ""  # Shipped PAMLOD placeholder; material sidecars own textures.
         mat_start = tex_start + 0x100
         mat = data[mat_start:mat_start + 256].split(b"\x00")[0].decode("ascii", "replace") if mat_start < geom_off else ""
         entries.append({"nv": nv, "ni": ni, "voff": voff, "ioff": ioff,

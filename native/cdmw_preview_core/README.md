@@ -103,7 +103,17 @@ cross-PAMT basenames and paths from that snapshot and reads its prepared files;
 legacy callers retain the Archive Lite basename-index and package-scan fallback.
 Prepared entries may carry `prepared_size` (actual worker output bytes), independently
 of the original archive `orig_size`. Omitted or negative values retain the legacy
-original-size check. Static PAM v0x1802 uses a single LZ4 geometry block at the offset
-stored in its header, with an uncompressed prefix and trailer. Both archive reads and
-verified prepared payloads decode that block before mesh parsing; raw decoded-size
-checks still require the original archive length.
+original-size check. Static PAM versions `0x1802` and `0x01001806` use a single
+LZ4 geometry block with a plain prefix and trailer. PAMLOD uses independently
+compressed or plain LOD blocks with 16-byte alignment, including padding after
+its descriptor table. Archive preparation and Preview Core share the static
+decoder; verified older prepared payloads are decoded before mesh parsing.
+Decoded lengths must match the archive metadata, and invalid block boundaries
+remain errors. Preparation uses a new cache identity for these static formats.
+
+Material archive paths accept a leading slash and either separator while retaining
+exact folder identity. PAMLOD keeps each part's material and accepts the shipped
+`dds` placeholder for parts whose textures are defined by a sidecar. Coarse PAC
+meshes may have long triangles: an exact canonical layout with complete indices
+and agreement between every long face and the authored normals can pass that
+heuristic; other geometry checks still apply.

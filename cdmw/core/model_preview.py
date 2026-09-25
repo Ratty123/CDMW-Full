@@ -437,7 +437,8 @@ def _read_pamlod_entries(
     for offset in range(_PAMLOD_ENTRY_TABLE_OFFSET, search_limit):
         if (offset % 256) == 0:
             raise_if_cancelled(stop_event)
-        if not _looks_like_dds_string(data, offset):
+        no_texture = data[offset:offset + 4] == b"dds\0" and not 32 <= data[offset - 1] <= 126
+        if not no_texture and not _looks_like_dds_string(data, offset):
             continue
         entry_offset = offset - 16
         if entry_offset < _PAMLOD_ENTRY_TABLE_OFFSET:
@@ -453,7 +454,7 @@ def _read_pamlod_entries(
                 index_count=index_count,
                 vertex_element_offset=struct.unpack_from("<I", data, offset - 8)[0],
                 index_element_offset=struct.unpack_from("<I", data, offset - 4)[0],
-                texture_name=_read_c_string(data, offset, _PAM_NAME_MAX_LENGTH),
+                texture_name="" if no_texture else _read_c_string(data, offset, _PAM_NAME_MAX_LENGTH),
                 material_name=_read_c_string(data, offset + _PAM_NAME_MAX_LENGTH, _PAM_NAME_MAX_LENGTH),
             )
         )

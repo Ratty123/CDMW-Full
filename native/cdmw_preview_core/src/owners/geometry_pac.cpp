@@ -27,7 +27,7 @@ static float triangle_area_estimate(const Vec3& a, const Vec3& b, const Vec3& c)
     return std::sqrt(std::max(0.0f, vec_dot(vec_cross(ab, ac), vec_cross(ab, ac)))) * 0.5f;
 }
 
-static void evaluate_native_submesh_quality(NativeSubmesh& mesh) {
+static void evaluate_native_submesh_quality(NativeSubmesh& mesh, bool exact_pac_layout = false) {
     const size_t vertex_count = mesh.positions.size();
     if (vertex_count == 0 || mesh.indices.size() < 3) {
         mesh.geometry_safe = false;
@@ -71,6 +71,7 @@ static void evaluate_native_submesh_quality(NativeSubmesh& mesh) {
     const float uv_edge_limit = std::max(2.0f, std::min(16.0f, std::max(uv_span, 1.0f) * 0.65f));
     size_t degenerate = 0;
     size_t outlier_edges = 0;
+    size_t coherent_long_edges = 0;
     size_t uv_edge_outliers = 0;
     size_t uv_degenerate = 0;
     size_t uv_triangles = 0;
@@ -88,7 +89,17 @@ static void evaluate_native_submesh_quality(NativeSubmesh& mesh) {
         const float ab = std::sqrt(std::max(0.0f, vec_dot(vec_sub(a, b), vec_sub(a, b))));
         const float bc = std::sqrt(std::max(0.0f, vec_dot(vec_sub(b, c), vec_sub(b, c))));
         const float ca = std::sqrt(std::max(0.0f, vec_dot(vec_sub(c, a), vec_sub(c, a))));
-        if (std::max({ab, bc, ca}) > diag * 0.62f) ++outlier_edges;
+        if (std::max({ab, bc, ca}) > diag * 0.62f) {
+            ++outlier_edges;
+            if (exact_pac_layout && ia < mesh.normals.size() && ib < mesh.normals.size() && ic < mesh.normals.size()) {
+                const Vec3 face_normal = vec_cross(vec_sub(b, a), vec_sub(c, a));
+                const float length = std::sqrt(std::max(0.0f, vec_dot(face_normal, face_normal)));
+                const float agreement = length > 0.0f
+                    ? (vec_dot(face_normal, mesh.normals[ia]) + vec_dot(face_normal, mesh.normals[ib])
+                        + vec_dot(face_normal, mesh.normals[ic])) / (3.0f * length) : 0.0f;
+                if (agreement >= 0.8f) ++coherent_long_edges;
+            }
+        }
         if (ia < mesh.uvs.size() && ib < mesh.uvs.size() && ic < mesh.uvs.size()) {
             const Vec2& uva = mesh.uvs[ia];
             const Vec2& uvb = mesh.uvs[ib];
@@ -121,6 +132,10 @@ static void evaluate_native_submesh_quality(NativeSubmesh& mesh) {
         }
     }
     mesh.normal_valid_ratio = vertex_count > 0 ? static_cast<float>(valid_normals) / static_cast<float>(vertex_count) : 0.0f;
+    // Long faces are normal on coarse, elongated props. Accept them only for
+    // an exact canonical PAC layout whose every long face agrees with the
+    // independently authored normals; inferred layouts keep the strict check.
+    const bool verified_long_edges = exact_pac_layout && outlier_edges > 0 && coherent_long_edges == outlier_edges;
 
     float score = 0.0f;
     score += std::min<float>(static_cast<float>(triangles), 250000.0f) * 0.002f;
@@ -129,7 +144,7 @@ static void evaluate_native_submesh_quality(NativeSubmesh& mesh) {
     score -= std::max(0.0f, uv_span - 24.0f) * 9.0f;
     score -= std::max(0.0f, mesh.uv_abs_max - 48.0f) * 4.0f;
     score -= mesh.degenerate_triangle_ratio * 220.0f;
-    score -= mesh.edge_outlier_ratio * 260.0f;
+    if (!verified_long_edges) score -= mesh.edge_outlier_ratio * 260.0f;
     score -= mesh.uv_edge_outlier_ratio * 320.0f;
     score -= std::max(0.0f, mesh.uv_degenerate_triangle_ratio - 0.55f) * 120.0f;
     mesh.geometry_quality_score = score;
@@ -146,6 +161,7 @@ static void evaluate_native_submesh_quality(NativeSubmesh& mesh) {
          << " uv_degenerate=" << mesh.uv_degenerate_triangle_ratio
          << " degenerate=" << mesh.degenerate_triangle_ratio
          << " edge_outlier=" << mesh.edge_outlier_ratio
+         << " verified_long_edges=" << verified_long_edges
          << " normal_valid=" << mesh.normal_valid_ratio
          << " score=" << mesh.geometry_quality_score;
     mesh.geometry_quality_note = note.str();
@@ -155,7 +171,7 @@ static void evaluate_native_submesh_quality(NativeSubmesh& mesh) {
         && std::max(mesh.uv_span_u, mesh.uv_span_v) <= 64.0f
         && mesh.uv_edge_outlier_ratio <= 0.42f
         && mesh.degenerate_triangle_ratio <= 0.28f
-        && mesh.edge_outlier_ratio <= 0.22f
+        && (mesh.edge_outlier_ratio <= 0.22f || verified_long_edges)
         && mesh.normal_valid_ratio >= 0.70f;
 }
 
@@ -247,7 +263,8 @@ static NativeSubmesh decode_pac_submesh_vertices(
     std::uint32_t vertex_count,
     const std::vector<std::uint32_t>& indices,
     int source_submesh_index,
-    const PacVertexLayout& layout
+    const PacVertexLayout& layout,
+    bool exact_pac_layout = false
 ) {
     NativeSubmesh mesh;
     mesh.name = desc.name;
@@ -295,7 +312,7 @@ static NativeSubmesh decode_pac_submesh_vertices(
             mesh.indices.push_back(c);
         }
     }
-    evaluate_native_submesh_quality(mesh);
+    evaluate_native_submesh_quality(mesh, exact_pac_layout && mesh.indices.size() == indices.size());
     return mesh;
 }
 
@@ -323,6 +340,9 @@ static std::vector<NativeSubmesh> parse_pac_geometry_section(
         desc_vert_offsets.push_back(cursor);
         cursor += static_cast<int>(desc.vertex_counts[static_cast<size_t>(lod)]) * layout.stride;
     }
+    const bool exact_pac_layout = layout.stride == 40 && layout.uv_offset == 8 && layout.normal_offset == 16
+        && vert_base == 0 && cursor == index_region_start
+        && static_cast<std::uint64_t>(index_region_start) + static_cast<std::uint64_t>(total_indices) * 2 == geom_sec.size;
 
     for (size_t di = 0; di < descriptors.size(); ++di) {
         const PacDescriptor& desc = descriptors[di];
@@ -356,7 +376,8 @@ static std::vector<NativeSubmesh> parse_pac_geometry_section(
             owner_vc,
             indices,
             static_cast<int>(di),
-            layout
+            layout,
+            exact_pac_layout && owner_idx == static_cast<int>(di) && owner_vc == vc && indices.size() == ic
         );
         mesh.name = desc.name;
         mesh.material = desc.material.empty() ? desc.name : desc.material;
