@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import math
+from cdmw.domain.textures.transparency_mask import TransparencyMask
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,9 +119,13 @@ class ShaderControls:
     shader: str
     # Only explicitly edited fields are written. Omitted fields retain source values.
     values: tuple[tuple[str, tuple[float, ...]], ...] = ()
+    transparency_mask: TransparencyMask | None = None
 
     def validate(self):
         family = family_for(self.shader)
+        if self.transparency_mask is not None and (
+                family != EYE_COVER or not isinstance(self.transparency_mask, TransparencyMask)):
+            raise ValueError("Painted transparency requires Transparent surface blending.")
         fields = {field.name: field for field in family.fields}
         seen = set()
         for name, values in self.values:
@@ -138,15 +143,17 @@ class ShaderControls:
 
     def to_dict(self):
         self.validate()
-        return {"shader": self.shader, "values": {name: list(values) for name, values in self.values}}
+        return {"shader": self.shader, "values": {name: list(values) for name, values in self.values},
+                **({"transparency_mask": self.transparency_mask.to_dict()} if self.transparency_mask is not None else {})}
 
     @classmethod
     def from_dict(cls, value):
-        if (not isinstance(value, dict) or set(value) != {"shader", "values"}
+        if (not isinstance(value, dict) or set(value) not in ({"shader", "values"}, {"shader", "values", "transparency_mask"})
                 or not isinstance(value["shader"], str) or not isinstance(value["values"], dict)):
             raise ValueError("Invalid experimental shader controls.")
         try:
-            result = cls(value["shader"], tuple((name, tuple(values)) for name, values in value["values"].items()))
+            result = cls(value["shader"], tuple((name, tuple(values)) for name, values in value["values"].items()),
+                         TransparencyMask.from_dict(value["transparency_mask"]) if "transparency_mask" in value else None)
             result.validate()
         except (TypeError, OverflowError) as exc:
             raise ValueError("Invalid experimental shader controls.") from exc
@@ -195,6 +202,8 @@ def preview_factors(controls, authored=None):
             colour = round(values["_eyeCoverDiffuseParameter"][0] * 255) / 255
         channels = [round(values[name][0] * 255) / 255 if name in values else -1.
                     for name in ("surface_alpha", "material_red", "roughness", "metallic")]
+        if controls.transparency_mask is not None:
+            channels[1] = -1.  # Sample the painted red channel instead of the scalar.
         return tuple([7., 0., 0., 0., colour, *channels, *([0.] * 23)])
     authored = authored or {}
     values = dict(controls.values)

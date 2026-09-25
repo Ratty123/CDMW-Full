@@ -222,6 +222,11 @@ def prepare_template_model(snapshot, paths, *, glow=None, translucency=None, sha
             try:
                 text, textures = apply_translucency_surface(text, glass,
                     {name: translucency.surface_for(name) for name in glass}, path, read_surface, stop_event=stop_event)
+                from cdmw.services.transparency_masks import apply_translucency_masks
+                text, masked_files = apply_translucency_masks(text,
+                    {name: translucency.mask_for(name) for name in glass}, path, read_surface,
+                    stop_event=stop_event, on_log=on_log)
+                textures.update(masked_files)
             except ValueError as exc:
                 raise NewItemPlanError(str(exc)) from exc
             side.update(textures)

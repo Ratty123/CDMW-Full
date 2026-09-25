@@ -69,6 +69,67 @@ def load_model_import_source(*args, **kwargs):
 
 
 class NewItemModelControllerMixin:
+    def start_transparency_paint(self, part, mode, on_ready):
+        """Capture the selected material and retain its input until preparation ends."""
+        if mode not in {"translucency", "blending"}:
+            raise ValueError("Unknown transparency mode.")
+        identity = self.current_variant_identity()
+        if self.snapshot is None or identity is None:
+            self.status_message.emit("Choose a template and model variant before painting transparency.", True)
+            return False
+        self._capture_variant(identity)
+        appearance = self._variant_states[identity].appearance
+        if mode == "translucency":
+            valid = appearance.translucency is not None and appearance.translucency.matches(part)
+        else:
+            from cdmw.domain.mesh.shader_controls import EYE_COVER
+            choice = dict(appearance.shader_controls).get(part)
+            valid = choice is not None and choice.shader == EYE_COVER.shader
+        if not valid:
+            self.status_message.emit("Enable transparency on this part before painting its mask.", True)
+            return False
+        snapshot, source, result, scene = self.snapshot, self.model_import, self.model_result, self.model_scene
+        template_key, revision = self.draft.template_key, self._draft_revision
+        session = (snapshot, identity, source, result, revision, part, mode)
+
+        def task(log, stop_event):
+            from cdmw.services.new_item_transparency_paint import prepare_transparency_paint
+            return prepare_transparency_paint(snapshot, appearance, part, mode, template_key=template_key,
+                result=result, scene=scene, on_log=log, stop_event=stop_event)
+
+        def done(prepared):
+            if self._transparency_paint_current(session):
+                on_ready(session, prepared)
+
+        return self._run("transparency_mask", task, done,
+                         lambda message: self.status_message.emit(message, True),
+                         source_owners=(source,) if source is not None else ())
+
+    def _transparency_paint_current(self, session):
+        snapshot, identity, source, result, revision, _part, _mode = session
+        return (not self._shutdown_requested and snapshot is self.snapshot
+                and identity == self.current_variant_identity() and source is self.model_import
+                and result is self.model_result and revision == self._draft_revision)
+
+    def apply_transparency_paint(self, session, mask):
+        if not self._transparency_paint_current(session):
+            raise ValueError("The model or material changed. Close this painter and reopen it for the current part.")
+        part, mode = session[-2:]
+        if mode == "translucency":
+            choice = self.draft.translucency
+            masks = tuple((name, value) for name, value in choice.masks if name.casefold() != part.casefold())
+            updated = replace(choice, masks=masks + (((part, mask),) if mask is not None else ()))
+            updated.validate()
+            self.draft.translucency = updated
+        else:
+            updated = tuple((name, replace(choice, transparency_mask=mask) if name == part else choice)
+                            for name, choice in self.draft.shader_controls)
+            for _, choice in updated:
+                choice.validate()
+            self.draft.shader_controls = updated
+        self.invalidate_plan()
+        self.transparency_mask_changed.emit()
+
     # ------------------------------------------------------------------ edits
 
     def set_template(self, template_key: Optional[int]) -> None:

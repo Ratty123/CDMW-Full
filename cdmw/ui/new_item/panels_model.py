@@ -692,6 +692,8 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
 
         self.translucency_editor = TranslucencyEditor(self)
         self.translucency_editor.changed.connect(self._translucency_changed)
+        self.translucency_editor.paint_requested.connect(lambda part: self._paint_transparency(part, "translucency"))
+        self.translucency_editor.restore_mask_requested.connect(lambda part: self._restore_transparency_mask(part, "translucency"))
         self.translucency_editor.refresh(self._controller.material_parts(), self._controller.draft.translucency)
         model_layout.addWidget(self.translucency_editor)
         from cdmw.ui.new_item.surface_editor import SurfaceEditor
@@ -709,6 +711,9 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self.shader_controls_editor.refresh(self._controller.material_parts(), self._controller.draft.shader_controls,
                                             self._controller.material_shader_options())
         self.shader_controls_editor.changed.connect(self._shader_controls_changed)
+        self.shader_controls_editor.paint_requested.connect(lambda part: self._paint_transparency(part, "blending"))
+        self.shader_controls_editor.restore_mask_requested.connect(lambda part: self._restore_transparency_mask(part, "blending"))
+        self._controller.transparency_mask_changed.connect(self._transparency_mask_changed)
         model_layout.addWidget(self.shader_controls_editor)
         self.flip_texture_v = QCheckBox("Flip texture V")
         self.flip_texture_v.setToolTip(
@@ -1057,11 +1062,37 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self.preview.set_lighting_preset("dark" if dark else "neutral_studio")
 
     def _translucency_changed(self, choice) -> None:
+        previous = self._controller.draft.translucency
         self._controller.draft.translucency = choice
         if choice is not None:
             self.plain_pbr.setChecked(True)
         self._controller.invalidate_plan()
         self._sync_glow_preview()
+        if (previous.masks if previous else ()) != (choice.masks if choice else ()):
+            self._appearance_preview_timer.start()
+
+    def _paint_transparency(self, part, mode):
+        self._controller.start_transparency_paint(part, mode, self._show_transparency_painter)
+
+    def _show_transparency_painter(self, session, prepared):
+        from cdmw.ui.new_item.transparency_painter import TransparencyPaintDialog
+        dialog = TransparencyPaintDialog(prepared, lambda mask: self._controller.apply_transparency_paint(session, mask),
+            part=session[-2], glass=session[-1] == "translucency", parent=self)
+        dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        # The dialog has no background work; the controller already prepared all
+        # pixels. Cancelling therefore leaves the draft and worker lifetime alone.
+        self._transparency_painter = dialog
+        dialog.open()
+
+    def _restore_transparency_mask(self, part, mode):
+        controller = self._controller
+        session = (controller.snapshot, controller.current_variant_identity(), controller.model_import,
+                   controller.model_result, controller._draft_revision, part, mode)
+        controller.apply_transparency_paint(session, None)
+
+    def _transparency_mask_changed(self):
+        self.refresh_glow_parts()
+        self._appearance_preview_timer.start()
 
     def _surface_changed(self, choices) -> None:
         self._controller.draft.surface_settings = choices
@@ -1078,7 +1109,7 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         previous = self._controller.draft.shader_controls
         self._controller.draft.shader_controls = choices
         self._controller.invalidate_plan()
-        if tuple((n, c.shader) for n, c in previous) != tuple((n, c.shader) for n, c in choices):
+        if tuple((n, c.shader, c.transparency_mask) for n, c in previous) != tuple((n, c.shader, c.transparency_mask) for n, c in choices):
             self._appearance_preview_timer.start()
         else:
             self._sync_glow_preview()

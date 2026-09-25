@@ -25,10 +25,11 @@ def prepare_eye_cover_textures(text, choices, model_path, read_texture, *, stop_
         values = dict(controls.values)
         paths[wrapper.start] = {}
         for parameter in ("_alphaTexture", "_materialTexture"):
+            mask = controls.transparency_mask if parameter == "_materialTexture" else None
             channels = {channel: values[name][0] for name, (texture, channel) in EYE_COVER_TEXTURE_FIELDS.items()
                         if texture == parameter and name in values}
             source = wrapper.textures.get(parameter, "")
-            if not channels and source:
+            if not channels and source and mask is None:
                 continue
             payload = read_texture(source) if source else None
             if source and payload is None:
@@ -41,7 +42,7 @@ def prepare_eye_cover_textures(text, choices, model_path, read_texture, *, stop_
                     on_log(f"{wrapper.submesh_name}: EyeCover {label}: {message}")
             report("Preparing texture...")
             data = _encode_channels(payload, channels, default, wrapper.submesh_name,
-                                    stop_event=stop_event, on_log=report)
+                                    stop_event=stop_event, on_log=report, mask=mask)
             identity = hashlib.sha256(parameter.encode() + data).hexdigest()[:16]
             path = f"{stem}_cdmw_eyecover_{identity}.dds"
             files[path] = data
@@ -49,7 +50,7 @@ def prepare_eye_cover_textures(text, choices, model_path, read_texture, *, stop_
     return paths, files
 
 
-def _encode_channels(payload, channels, default, part_name, *, stop_event=None, on_log=None):
+def _encode_channels(payload, channels, default, part_name, *, stop_event=None, on_log=None, mask=None):
     from PIL import Image
     from cdmw.core.texture_native import ensure_directxtex_dds_preview_png, encode_dds_with_directxtex
     from cdmw.domain.textures.output import max_mips_for_size
@@ -72,7 +73,11 @@ def _encode_channels(payload, channels, default, part_name, *, stop_event=None, 
         for channel, value in channels.items():
             planes[channel].paste(round(value * 255), (0, 0, rgba.width, rgba.height))
         source = root / "channels.png"
-        Image.merge("RGBA", planes).save(source)
+        rgba = Image.merge("RGBA", planes)
+        if mask is not None:
+            from cdmw.services.transparency_masks import masked_texture
+            rgba = masked_texture(rgba, mask, 0)
+        rgba.save(source)
         output = root / "channels.dds"
         raise_if_cancelled(stop_event)
         mip_count = max_mips_for_size(*rgba.size)

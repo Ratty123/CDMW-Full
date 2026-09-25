@@ -206,6 +206,10 @@ def shader_preview_mesh(mesh, choices, *, snapshot=None, stop_event=None, plain_
                 material_name=part.material, submesh_name=part.name, binding_authority="authoritative",
                 owner_slot_index=max(0, int(getattr(part, "preview_pac_material_owner_slot_index", part_index)))))
         clone.preview_material_texture_inputs = tuple(bindings)
+        if controls.transparency_mask is not None:
+            from cdmw.services.transparency_masks import preview_masked_part
+            clone = preview_masked_part(clone, controls.transparency_mask, snapshot=snapshot, stop_event=stop_event,
+                                        part_index=part_index)
         clone.preview_native_material_overrides = dict(getattr(part, "preview_native_material_overrides", {}) or {})
         clone.preview_native_material_overrides["shader_controls"] = list(preview_factors(controls, values))
         result.submeshes.append(clone)

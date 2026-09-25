@@ -40,10 +40,10 @@ class PresentationDialogs(QObject):
             return False
         kind = event.type()
         if kind in (QEvent.Polish, QEvent.Show) and self.owns(watched):
-            if isinstance(watched, (QFileDialog, QColorDialog)):
+            if isinstance(watched, (QFileDialog, QColorDialog)) or watched.property("cdmwNativeCanvasDialog") is True:
                 if watched not in self._native:
                     self._native.append(watched)
-                # OS-owned file/colour pickers remain visible and owned by the
+                # File/colour pickers and the pixel canvas remain visible and owned by the
                 # experimental tab even though the workflow itself is offscreen.
                 if watched.parentWidget() is not self.visible_parent:
                     watched.setParent(self.visible_parent, watched.windowFlags())

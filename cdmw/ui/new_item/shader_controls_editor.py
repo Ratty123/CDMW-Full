@@ -1,4 +1,5 @@
 """Per-part experimental shader controls; unchecked fields inherit the source."""
+from dataclasses import replace
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout,
                               QGroupBox, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget)
@@ -9,6 +10,8 @@ from cdmw.ui.wheel_guard import enable_focused_wheel
 
 class ShaderControlsEditor(QGroupBox):
     changed = Signal(object)
+    paint_requested = Signal(str)
+    restore_mask_requested = Signal(str)
 
     def __init__(self, parent=None):
         super().__init__("Shader experiments", parent)
@@ -34,6 +37,18 @@ class ShaderControlsEditor(QGroupBox):
         self.fields = QWidget()
         self.form = QFormLayout(self.fields)
         layout.addWidget(self.fields)
+        self.mask_actions = QWidget()
+        mask_row = QHBoxLayout(self.mask_actions)
+        mask_row.setContentsMargins(0, 0, 0, 0)
+        self.paint_mask = QPushButton("Paint transparency…")
+        self.restore_mask = QPushButton("Restore mask")
+        self.paint_mask.setToolTip("Paint different transparency values across this part's texture. White reduces colour coverage; black retains the selected Colour mixing.")
+        self.restore_mask.setToolTip("Remove the painted mask and use Colour reduction or the source material texture again.")
+        mask_row.addWidget(self.paint_mask)
+        mask_row.addWidget(self.restore_mask)
+        self.paint_mask.clicked.connect(lambda: self.paint_requested.emit(str(self.part.currentData())))
+        self.restore_mask.clicked.connect(lambda: self.restore_mask_requested.emit(str(self.part.currentData())))
+        layout.addWidget(self.mask_actions)
         self.setToolTip("Test the result in game; the viewport does not reproduce every game shader pass.")
         self.reset = QPushButton("Restore source shader controls")
         layout.addWidget(self.reset)
@@ -94,6 +109,8 @@ class ShaderControlsEditor(QGroupBox):
         try:
             self._update_available_families()
             choice = self._choices.get(self.part.currentData())
+            self.mask_actions.setVisible(choice is not None and choice.shader == EYE_COVER.shader)
+            self.restore_mask.setEnabled(choice is not None and choice.transparency_mask is not None)
             self.family.setCurrentIndex(max(0, self.family.findData(choice.shader if choice else "")))
             while self.form.rowCount():
                 self.form.removeRow(0)
@@ -116,6 +133,8 @@ class ShaderControlsEditor(QGroupBox):
                 enabled = QCheckBox(field.label)
                 enabled.setChecked(field.name in values)
                 enabled.setToolTip("Override this field. Uncheck to retain the authored value.")
+                painted = field.name == "material_red" and choice.transparency_mask is not None
+                enabled.setEnabled(not painted)
                 if field.kind == "ExportToggle":
                     enabled.setChecked(values.get(field.name, field.default) == (1.,))
                     warning = QLabel("Affects every material using transparent surface blending, including character eyes, while the mod is installed. Tests character visibility behind the material, not overlapping transparency. The viewport does not simulate this test.")
@@ -146,7 +165,9 @@ class ShaderControlsEditor(QGroupBox):
                     spin.setSingleStep(1 if field.integer else .01)
                     spin.setKeyboardTracking(False)
                     spin.setValue(value)
-                    spin.setEnabled(enabled.isChecked())
+                    spin.setEnabled(enabled.isChecked() and not painted)
+                    if painted:
+                        spin.setToolTip("The painted transparency mask controls this channel. Restore mask to use a uniform value.")
                     spin.valueChanged.connect(self._values_changed)
                     row.addWidget(spin)
                     spins.append(spin)
@@ -179,12 +200,13 @@ class ShaderControlsEditor(QGroupBox):
         if self._loading:
             return
         values = []
+        current = self._choices[self.part.currentData()]
         for field, enabled, spins in self._rows:
             for spin in spins:
-                spin.setEnabled(enabled.isChecked())
+                spin.setEnabled(enabled.isChecked() and not (field.name == "material_red" and current.transparency_mask is not None))
             if enabled.isChecked():
                 values.append((field.name, (1.,) if field.kind == "ExportToggle" else tuple(spin.value() for spin in spins)))
-        self._choices[self.part.currentData()] = ShaderControls(self.family.currentData(), tuple(values))
+        self._choices[self.part.currentData()] = replace(current, values=tuple(values))
         self.changed.emit(tuple(self._choices.items()))
 
     def _reset(self):

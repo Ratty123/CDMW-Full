@@ -59,7 +59,7 @@ def _placement_progressive_source(
     placement,
     character_mesh,
     token,
-    shader_controls=(), snapshot=None, *, plain_pbr=False, geometry_token=None,
+    shader_controls=(), snapshot=None, *, plain_pbr=False, geometry_token=None, translucency=None,
 ):
     from cdmw.ui.new_item.item_preview import PlacementScene
 
@@ -76,12 +76,17 @@ def _placement_progressive_source(
     def build_material_scene(stop_event, **preview_context):
         from cdmw.ui.new_item.item_preview_materials import compose_template_materials
         from cdmw.services.shader_controls_preview import shader_preview_mesh
+        from cdmw.services.new_item_translucency import translucency_preview_mesh
 
+        model = source.baked_preview_mesh()
+        if translucency is not None and translucency.masks:
+            model = translucency_preview_mesh(model, translucency, source_transmission=plain_pbr,
+                                              snapshot=snapshot, stop_event=stop_event)
         return compose_template_materials(
             template_build,
             lambda template: PlacementScene(
                 template=template,
-                model=shader_preview_mesh(source.baked_preview_mesh(), shader_controls, snapshot=snapshot,
+                model=shader_preview_mesh(model, shader_controls, snapshot=snapshot,
                                           stop_event=stop_event, plain_pbr=plain_pbr),
                 placement=placement,
                 model_bounds=source.baked_bounds(),
@@ -99,7 +104,7 @@ def _placement_progressive_source(
     )
 
 
-def _imported_model_progressive_source(model, shader_controls=(), snapshot=None, character_mesh=None):
+def _imported_model_progressive_source(model, shader_controls=(), snapshot=None, character_mesh=None, translucency=None):
     from cdmw.ui.new_item.item_preview_materials import as_parsed_mesh
     from cdmw.ui.new_item.item_preview import PlacementScene
 
@@ -114,7 +119,13 @@ def _imported_model_progressive_source(model, shader_controls=(), snapshot=None,
 
     def imported_materials(stop_event, **_preview_context):
         from cdmw.services.shader_controls_preview import shader_preview_mesh
-        mesh = shader_preview_mesh(as_parsed_mesh(model), shader_controls, snapshot=snapshot, stop_event=stop_event) if shader_controls else model
+        from cdmw.services.new_item_translucency import translucency_preview_mesh
+        has_masks = translucency is not None and bool(translucency.masks)
+        mesh = as_parsed_mesh(model) if has_masks or shader_controls else model
+        if has_masks:
+            mesh = translucency_preview_mesh(mesh, translucency, snapshot=snapshot, stop_event=stop_event)
+        if shader_controls:
+            mesh = shader_preview_mesh(mesh, shader_controls, snapshot=snapshot, stop_event=stop_event)
         return scene(mesh, stop_event)
 
     return _progressive_preview_source(imported_geometry, imported_materials)
@@ -152,7 +163,8 @@ def _template_progressive_source(
 
     def appearance(mesh, stop_event):
         from cdmw.services.shader_controls_preview import shader_preview_mesh
-        return shader_preview_mesh(translucency_preview_mesh(glow_preview_mesh(mesh, glow), translucency),
+        return shader_preview_mesh(translucency_preview_mesh(glow_preview_mesh(mesh, glow), translucency,
+                                   snapshot=snapshot, stop_event=stop_event),
                                    shader_controls, snapshot=snapshot, stop_event=stop_event)
 
     def build_geometry_character_scene(stop_event):
@@ -325,6 +337,7 @@ class NewItemPreviewControllerMixin:
             token = (
                 "placement", source.cache_identity, source.bake, source.mesh_generation,
                 template_token, include_character, self.draft.shader_controls, self.draft.material_route,
+                self.draft.translucency.masks if self.draft.translucency else (),
             )
             build = _placement_progressive_source(
                 source,
@@ -334,6 +347,7 @@ class NewItemPreviewControllerMixin:
                 character_mesh,
                 token, self.draft.shader_controls, self.snapshot,
                 plain_pbr=self.draft.material_route is MaterialRoute.PLAIN_PBR,
+                translucency=self.draft.translucency,
                 geometry_token=("placement-scene", source.cache_identity, source.bake,
                                 source.mesh_generation, template_token, include_character),
             )
@@ -342,9 +356,10 @@ class NewItemPreviewControllerMixin:
         model = getattr(result, "preview_model", None)
         if result is not None and model is not None and getattr(model, "meshes", None):
             return (
-                ("imported", id(result), self.draft.template_key, include_character, self.draft.shader_controls),
+                ("imported", id(result), self.draft.template_key, include_character, self.draft.shader_controls,
+                 self.draft.translucency.masks if self.draft.translucency else ()),
                 _imported_model_progressive_source(model, self.draft.shader_controls, self.snapshot,
-                                                   character_mesh if include_character else None),
+                                                   character_mesh if include_character else None, self.draft.translucency),
             )
         if result is not None:
             data = getattr(result, "rebuilt_data", b"")

@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 import math
 from cdmw.domain.mesh.translucency import translucency_surface_values
+from cdmw.domain.textures.transparency_mask import TransparencyMask
 
 
 @dataclass(frozen=True, slots=True)
@@ -13,6 +14,7 @@ class TranslucencyChoice:
     # Existing choices keep their shared pair; only differing parts need an override.
     part_settings: tuple[tuple[str, float, float], ...] = ()
     surface_settings: tuple[tuple[str, float | None, float | None], ...] = ()
+    masks: tuple[tuple[str, TransparencyMask], ...] = ()
 
     def validate(self) -> None:
         if not self.parts or any(not isinstance(name, str) or not name.strip() for name in self.parts):
@@ -35,9 +37,14 @@ class TranslucencyChoice:
                 raise ValueError("Translucent surface settings must name unique selected parts.")
             seen.add(key)
             translucency_surface_values((roughness, metallic))
+        seen = set()
+        for name, mask in self.masks:
+            if name.casefold() not in selected or name.casefold() in seen or not isinstance(mask, TransparencyMask):
+                raise ValueError("Transparency masks must name unique selected parts.")
+            seen.add(name.casefold())
 
     @classmethod
-    def from_settings(cls, settings, surfaces=None):
+    def from_settings(cls, settings, surfaces=None, masks=None):
         """Keep the legacy representation when all selected parts share a pair."""
         parts = tuple(settings)
         if not parts:
@@ -47,7 +54,16 @@ class TranslucencyChoice:
             (name, *settings[name]) for name in parts
             if settings[name] != (thickness, extinction)
         ), tuple((name, *surfaces[name]) for name in parts
-                 if surfaces and translucency_surface_values(surfaces.get(name)) is not None))
+                 if surfaces and translucency_surface_values(surfaces.get(name)) is not None),
+                 tuple((name, masks[name]) for name in parts if masks and masks.get(name) is not None))
+
+    def mask_for(self, *names):
+        masks = {name.casefold(): mask for name, mask in self.masks}
+        selected = {name.casefold() for name in self.parts} & {str(name).casefold() for name in names}
+        values = {masks.get(name) for name in selected}
+        if len(values) > 1:
+            raise ValueError("Parts sharing one material need the same transparency mask. Import them separately to paint each part.")
+        return next(iter(values), None)
 
     def surface_for(self, *names: str) -> tuple[float | None, float | None] | None:
         overrides = {name.casefold(): translucency_surface_values((roughness, metallic))

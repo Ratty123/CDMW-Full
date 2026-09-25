@@ -724,6 +724,7 @@ def route_plain_pbr(
     new_files: Dict[str, bytes] = {}
     emissive_done: Dict[str, Tuple[str, str]] = {}
     translucent_bases: Dict[str, str] = {}
+    transparency_masks = {}
     lines = list(files.notes)
     warnings = list(files.warnings)
     encoded = []
@@ -747,6 +748,11 @@ def route_plain_pbr(
             surface_settings[wrapper.submesh_name] = translucency.surface_for(*matches)
             absorption_settings[wrapper.submesh_name] = absorption
         is_atlas = source is not None and source.atlas_section is not None
+        mask = translucency.mask_for(*matches) if translucency is not None and matches else None
+        if mask is not None:
+            if is_atlas:
+                raise NewItemPlanError("Painted transparency needs separate material textures. Import these atlas parts separately before painting.")
+            transparency_masks[wrapper.submesh_name] = mask
         if is_atlas and (animation.active or rgb is not None) and glow_parts & {
             wrapper.submesh_name.casefold(), source.name.casefold(),
             str(source.atlas_section.target_submesh_name).casefold(),
@@ -974,6 +980,16 @@ def route_plain_pbr(
             raise NewItemPlanError(str(exc)) from exc
         side.update(generated)
         side[xml_key] = text.encode("utf-8")
+        result = replace(result, files=replace(result.files, side_files=side))
+    if transparency_masks:
+        from cdmw.services.transparency_masks import apply_translucency_masks
+        side = dict(result.files.side_files)
+        sources = {key.replace("\\", "/").casefold(): data for key, data in side.items()}
+        text, generated = apply_translucency_masks(side[xml_key].decode("utf-8-sig"), transparency_masks,
+            xml_key, lambda path: sources.get(path.replace("\\", "/").casefold()),
+            stop_event=stop_event, on_log=on_log)
+        side.update(generated)
+        side[xml_key] = (b"\xef\xbb\xbf" if bom else b"") + text.encode("utf-8")
         result = replace(result, files=replace(result.files, side_files=side))
     return result
 

@@ -9,6 +9,8 @@ from cdmw.ui.wheel_guard import enable_focused_wheel
 
 class TranslucencyEditor(QGroupBox):
     changed = Signal(object)
+    paint_requested = Signal(str)
+    restore_mask_requested = Signal(str)
 
     def __init__(self, parent=None):
         super().__init__("Translucency (experimental)", parent)
@@ -17,6 +19,7 @@ class TranslucencyEditor(QGroupBox):
         self._loading = False
         self._settings = {}
         self._surfaces = {}
+        self._masks = {}
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 6, 8, 6)
         self.details = QWidget(self)
@@ -43,6 +46,16 @@ class TranslucencyEditor(QGroupBox):
         self.controls = QWidget()
         controls = QVBoxLayout(self.controls)
         controls.setContentsMargins(0, 0, 0, 0)
+        mask_row = QHBoxLayout()
+        self.paint_mask = QPushButton("Paint transparency…")
+        self.restore_mask = QPushButton("Restore mask")
+        self.paint_mask.setToolTip("Paint varying absorption across this part's texture. White reduces absorption; black uses the selected strength. Reflections can remain.")
+        self.restore_mask.setToolTip("Remove the painted mask and restore the source texture's alpha.")
+        self.paint_mask.clicked.connect(lambda: self.paint_requested.emit(str(self.parts.currentItem().data(Qt.ItemDataRole.UserRole))))
+        self.restore_mask.clicked.connect(lambda: self.restore_mask_requested.emit(str(self.parts.currentItem().data(Qt.ItemDataRole.UserRole))))
+        mask_row.addWidget(self.paint_mask)
+        mask_row.addWidget(self.restore_mask)
+        controls.addLayout(mask_row)
         self.preset = QComboBox()
         for label, values in (
             ("Custom", None), ("Clear glass", (0.1, 0.0)), ("Light absorption", (0.1, 0.3)),
@@ -133,6 +146,7 @@ class TranslucencyEditor(QGroupBox):
             self.parts.clear()
             self._settings = {name.casefold(): choice.values_for(name) for name in choice.parts} if choice else {}
             self._surfaces = {name.casefold(): choice.surface_for(name) for name in choice.parts} if choice else {}
+            self._masks = {name.casefold(): mask for name, mask in choice.masks} if choice else {}
             chosen = {name.casefold() for name in choice.parts} if choice else set()
             for name, label in parts:
                 item = QListWidgetItem(label)
@@ -160,6 +174,7 @@ class TranslucencyEditor(QGroupBox):
             return
         item = self.parts.currentItem()
         self.controls.setEnabled(item is not None and item.checkState() == Qt.CheckState.Checked)
+        self.restore_mask.setEnabled(item is not None and str(item.data(Qt.ItemDataRole.UserRole)).casefold() in self._masks)
         values = self._settings.get(str(item.data(Qt.ItemDataRole.UserRole)).casefold(), (0.1, 0.3)) if item else (0.1, 0.3)
         self._loading = True
         try:
@@ -257,6 +272,7 @@ class TranslucencyEditor(QGroupBox):
         )
         self.changed.emit(
             TranslucencyChoice.from_settings({name: self._settings.get(name.casefold(), (0.1, 0.3)) for name in parts},
-                                            {name: self._surfaces.get(name.casefold()) for name in parts})
+                                            {name: self._surfaces.get(name.casefold()) for name in parts},
+                                            {name: self._masks.get(name.casefold()) for name in parts})
             if self.isChecked() and parts else None
         )

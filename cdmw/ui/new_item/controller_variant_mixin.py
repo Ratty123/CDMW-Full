@@ -93,7 +93,7 @@ class NewItemVariantControllerMixin:
         if identity == self._active_variant:
             return
         old = self.current_variant_identity()
-        if self._lane in {"model_import","model_apply","model_part_edit","authoring-index","plan"}:
+        if self._lane in {"model_import","model_apply","model_part_edit","authoring-index","plan","transparency_mask"}:
             self.cancel_operation(self._lane)
         self._capture_variant(old)
         self.variant_about_to_change.emit(old)

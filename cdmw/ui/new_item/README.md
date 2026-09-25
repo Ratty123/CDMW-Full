@@ -18,6 +18,34 @@ the effect rather than the shader's original use. The initial overrides are
 Unchecked fields retain the source; missing inputs use explicit neutral maps,
 avoiding the shader's stock face textures. Restore removes the experiment.
 
+**Paint transparency…** opens a texture canvas directly from the selected part's
+Translucency controls or Transparent surface blending controls. For an imported
+model, apply its placement first. Paint lighter for more transparency, darker for
+less; Brush, Hardness and Opacity control the stroke. The red overlay locates the
+mask on the colour texture; **Mask only** shows its greyscale values. Scroll to
+zoom, middle-drag to pan, and use Undo/Redo or Reset as needed. **Apply**
+keeps the edit on this variant and updates the preview; Cancel discards it.
+**Restore mask** removes the painted override.
+
+For Translucency the mask replaces base-colour alpha (white mask means zero
+absorption alpha), including explicit overrides on opaque glTF imports. Thickness,
+extinction and surface reflection controls still apply. For Transparent surface
+blending it replaces material red, taking precedence over uniform Colour reduction;
+Colour mixing and Surface detail and shine remain independent. White therefore
+means *more transparent*, not guaranteed invisibility or removal of reflections.
+Only the selected channel is edited; BC7 compression can introduce small differences
+in other channels. Other parts keep their source textures. Export creates private
+BC7 textures with full mip chains and includes them in the DMM package.
+
+Painting uses one texture layout per part. Shared atlases and parts with several
+different texture layouts must be imported as separate materials before painting.
+New masks use the colour texture's proportions, up to 2048 pixels on the longest
+side, and are resized to the material texture on export. Saved draft pixels are
+reused when reopening the painter, avoiding repeated compression loss. Preparation
+runs on the controller's cancellable worker; changing the model, variant or draft
+rejects an outdated painting session. Model and Effects previews use derived
+resources; visible appearance and game rendering still require separate checks.
+
 **Transparency limitation:** Overlapping transparent surfaces may show visible
 triangles or other visual glitches in game, even within the same model. Avoid
 overlapping transparent surfaces where possible. This warning appears beside

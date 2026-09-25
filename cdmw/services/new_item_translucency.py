@@ -143,6 +143,10 @@ def apply_prebuilt_translucency(files, route: MaterialRoute, choice: Translucenc
             {name: choice.values_for(name) for name in choice.parts},
             {name: choice.surface_for(name) for name in choice.parts}, key.removesuffix("_xml"),
             lambda path: sources.get(path.replace("\\", "/").casefold()), stop_event=stop_event)
+        from cdmw.services.transparency_masks import apply_translucency_masks
+        text, masked_files = apply_translucency_masks(text, dict(choice.masks), key,
+            lambda path: sources.get(path.replace("\\", "/").casefold()), stop_event=stop_event, on_log=on_log)
+        surface_files.update(masked_files)
     except (UnicodeDecodeError, ValueError) as exc:
         raise NewItemPlanError(str(exc)) from exc
     notes = []
@@ -235,16 +239,24 @@ def translucency_preview_parameter_groups(mesh, choice: TranslucencyChoice | Non
     return tuple(groups)
 
 
-def translucency_preview_mesh(mesh, choice: TranslucencyChoice | None = None, *, source_transmission=True):
+def translucency_preview_mesh(mesh, choice: TranslucencyChoice | None = None, *, source_transmission=True,
+                              snapshot=None, stop_event=None):
     """Copy authored inputs for Effects without changing the reusable import."""
     groups = translucency_preview_parameter_groups(mesh, choice, source_transmission=source_transmission)
     if choice is None and not any(group["translucency"] is not None for group in groups):
         return mesh
     result = copy.copy(mesh)
     result.submeshes = []
-    for part, group in zip(mesh.submeshes, groups):
+    for part_index, (part, group) in enumerate(zip(mesh.submeshes, groups)):
         clone = copy.copy(part)
-        clone.preview_native_material_overrides = dict(getattr(part, "preview_native_material_overrides", {}) or {})
+        if choice is not None and choice.masks:
+            from cdmw.services.new_item_materials import appearance_preview_part_names
+            from cdmw.services.transparency_masks import preview_masked_part
+            mask = choice.mask_for(*appearance_preview_part_names(part))
+            if mask is not None:
+                clone = preview_masked_part(part, mask, glass=True, snapshot=snapshot, stop_event=stop_event,
+                                            part_index=part_index)
+        clone.preview_native_material_overrides = dict(getattr(clone, "preview_native_material_overrides", {}) or {})
         if group["translucency"] is not None:
             clone.preview_native_material_overrides["translucency"] = group["translucency"]
         if "translucency_surface" in group:

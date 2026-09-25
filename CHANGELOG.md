@@ -11,6 +11,10 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Added
+
+- Create New Item can paint varying transparency across a selected part's texture from Translucency or Transparent surface blending. The painter includes soft brushes, a texture overlay, Undo/Redo and Restore mask; edits stay with their variant, update the preview and export as private textures in the DMM mod.
+
 ### Changed
 
 - Create New Item offers DMM as its only mod-folder export target until further notice, with a visible warning that compatibility is not confirmed for every item or mod and exported items need in-game checks. CDUMM and JMM options remain available in other tools; existing packages remain readable.

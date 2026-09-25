@@ -41,6 +41,8 @@ def shader_control_bindings(files, choices, *, result=None, scene=None):
             if atlas & wanted.keys() and not atlas <= wanted.keys() and not names & wanted.keys():
                 raise ValueError("Shader controls affect a whole atlas material. Select all its parts or import them separately.")
             controls = wanted[next(iter(selected))]
+            if atlas and controls.transparency_mask is not None:
+                raise ValueError("Painted transparency needs separate material textures. Import these atlas parts separately before painting.")
             if any(wanted[alias] != controls for alias in selected):
                 raise ValueError("Parts sharing an atlas material need the same shader controls.")
             if name in mapped and mapped[name][1] != controls:

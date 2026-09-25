@@ -130,6 +130,7 @@ class PlannedEffectItemSource:
 
         preview = translucency_preview_mesh(
             preview, self.translucency, source_transmission=self.material_route is MaterialRoute.PLAIN_PBR,
+            snapshot=self.snapshot, stop_event=stop_event,
         )
         from cdmw.services.new_item_surface import surface_preview_mesh
         preview = surface_preview_mesh(preview, self.surface_settings)

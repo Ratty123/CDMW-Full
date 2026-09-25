@@ -103,6 +103,7 @@ class NewItemStudioController(
     authoring_index_failed = Signal(str, str)
     variant_about_to_change = Signal(object)
     variant_changed = Signal(object)
+    transparency_mask_changed = Signal()
 
     def __init__(
         self,
@@ -210,6 +211,8 @@ class NewItemStudioController(
     def invalidate_plan(self) -> None:
         """Advance draft authority and make every older or in-flight plan unusable."""
 
+        if self._lane == "transparency_mask":
+            self.cancel_operation("transparency_mask")
         self._draft_revision += 1
         self._plan_revision = -1
         self.plan = None
