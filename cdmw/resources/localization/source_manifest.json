@@ -1801,7 +1801,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 305,
+          "line": 309,
           "sink": "DetailsToggle"
         },
         {
@@ -1881,12 +1881,12 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 493,
+          "line": 497,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 495,
+          "line": 499,
           "sink": "append_log"
         },
         {
@@ -3396,7 +3396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 266,
+          "line": 270,
           "sink": "setToolTip"
         }
       ]
@@ -4616,7 +4616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 324,
+          "line": 328,
           "sink": "QGroupBox"
         }
       ]
@@ -5081,7 +5081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 473,
+          "line": 477,
           "sink": "tr"
         }
       ]
@@ -5206,7 +5206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 265,
+          "line": 269,
           "sink": "QCheckBox"
         }
       ]
@@ -5956,7 +5956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 305,
+          "line": 309,
           "sink": "DetailsToggle"
         }
       ]
@@ -7031,7 +7031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 349,
+          "line": 352,
           "sink": "on_error"
         }
       ]
@@ -12751,7 +12751,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 285,
+          "line": 289,
           "sink": "setPlaceholderText"
         }
       ]
@@ -14311,7 +14311,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 496,
+          "line": 500,
           "sink": "set_note"
         },
         {
@@ -15066,7 +15066,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 254,
+          "line": 258,
           "sink": "QPushButton"
         },
         {
@@ -15821,7 +15821,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 461,
+          "line": 465,
           "sink": "tr"
         }
       ]
@@ -15831,7 +15831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 330,
+          "line": 334,
           "sink": "setPlaceholderText"
         }
       ]
@@ -15901,17 +15901,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 287,
+          "line": 290,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 306,
+          "line": 309,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 429,
+          "line": 433,
           "sink": "information"
         }
       ]
@@ -16386,7 +16386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 530,
+          "line": 534,
           "sink": "tr"
         }
       ]
@@ -16396,7 +16396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 392,
+          "line": 396,
           "sink": "setPlainText"
         }
       ]
@@ -16461,7 +16461,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 393,
+          "line": 397,
           "sink": "set_note"
         }
       ]
@@ -18031,7 +18031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 415,
+          "line": 418,
           "sink": "emit"
         },
         {
@@ -20407,6 +20407,16 @@
       ]
     },
     {
+      "key": "Choose DMM for new item exports.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/controller_task_mixin.py",
+          "line": 287,
+          "sink": "emit"
+        }
+      ]
+    },
+    {
       "key": "Choose Damiane Head Reference",
       "origins": [
         {
@@ -22036,7 +22046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 426,
+          "line": 430,
           "sink": "information"
         }
       ]
@@ -22066,7 +22076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 419,
+          "line": 423,
           "sink": "getExistingDirectory"
         }
       ]
@@ -28812,6 +28822,16 @@
       ]
     },
     {
+      "key": "DMM compatibility warning:",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 243,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
       "key": "DMM package metadata changed archive-group payload {value_0}",
       "origins": [
         {
@@ -30601,7 +30621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 299,
+          "line": 302,
           "sink": "emit"
         }
       ]
@@ -36866,7 +36886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 302,
+          "line": 306,
           "sink": "setToolTip"
         }
       ]
@@ -41161,7 +41181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 251,
+          "line": 255,
           "sink": "setPlaceholderText"
         }
       ]
@@ -49186,7 +49206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 294,
+          "line": 298,
           "sink": "QPushButton"
         }
       ]
@@ -49216,7 +49236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 295,
+          "line": 299,
           "sink": "setToolTip"
         }
       ]
@@ -49426,7 +49446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 532,
+          "line": 536,
           "sink": "tr"
         }
       ]
@@ -52456,7 +52476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 289,
+          "line": 293,
           "sink": "setToolTip"
         }
       ]
@@ -55041,7 +55061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 502,
+          "line": 506,
           "sink": "append_log"
         }
       ]
@@ -61076,17 +61096,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 243,
+          "line": 247,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 245,
+          "line": 249,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 444,
+          "line": 448,
           "sink": "tr"
         },
         {
@@ -61111,7 +61131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 246,
+          "line": 250,
           "sink": "setToolTip"
         },
         {
@@ -68697,6 +68717,16 @@
       ]
     },
     {
+      "key": "Not every item or mod has been tested with DMM. Some exports may not load or work correctly. After mounting, check in game that your item appears and works as expected.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 243,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
       "key": "Not mounted",
       "origins": [
         {
@@ -71851,12 +71881,12 @@
         },
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 434,
+          "line": 437,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 445,
+          "line": 448,
           "sink": "emit"
         },
         {
@@ -72771,7 +72801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 249,
+          "line": 253,
           "sink": "QLabel"
         },
         {
@@ -73146,7 +73176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 283,
+          "line": 287,
           "sink": "QLabel"
         }
       ]
@@ -73251,7 +73281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 516,
+          "line": 520,
           "sink": "warning"
         }
       ]
@@ -73271,7 +73301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 515,
+          "line": 519,
           "sink": "set_note"
         }
       ]
@@ -73331,7 +73361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 473,
+          "line": 477,
           "sink": "tr"
         }
       ]
@@ -77776,7 +77806,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 463,
+          "line": 467,
           "sink": "set_note"
         }
       ]
@@ -80241,7 +80271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 474,
+          "line": 478,
           "sink": "set_text"
         }
       ]
@@ -85666,7 +85696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 533,
+          "line": 537,
           "sink": "tr"
         }
       ]
@@ -86081,7 +86111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 467,
+          "line": 471,
           "sink": "set_note"
         }
       ]
@@ -86381,7 +86411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 465,
+          "line": 469,
           "sink": "tr"
         }
       ]
@@ -89981,7 +90011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 473,
+          "line": 477,
           "sink": "tr"
         }
       ]
@@ -107711,7 +107741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 341,
+          "line": 344,
           "sink": "emit"
         }
       ]
@@ -113781,12 +113811,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 493,
+          "line": 497,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 495,
+          "line": 499,
           "sink": "append_log"
         }
       ]
@@ -113796,7 +113826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 395,
+          "line": 399,
           "sink": "set_note"
         }
       ]
@@ -113816,7 +113846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 480,
+          "line": 484,
           "sink": "set_text"
         }
       ]
@@ -124636,17 +124666,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 426,
+          "line": 430,
           "sink": "information"
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 429,
+          "line": 433,
           "sink": "information"
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 503,
+          "line": 507,
           "sink": "information"
         }
       ]
@@ -124666,7 +124696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 257,
+          "line": 261,
           "sink": "QPushButton"
         }
       ]
@@ -124741,7 +124771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 258,
+          "line": 262,
           "sink": "setToolTip"
         }
       ]
@@ -124936,7 +124966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 531,
+          "line": 535,
           "sink": "tr"
         }
       ]
@@ -125016,7 +125046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 503,
+          "line": 507,
           "sink": "information"
         }
       ]
@@ -130951,7 +130981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 295,
+          "line": 298,
           "sink": "_run"
         }
       ]
@@ -132791,7 +132821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 314,
+          "line": 317,
           "sink": "_run"
         }
       ]
@@ -136026,12 +136056,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 320,
+          "line": 323,
           "sink": "_run"
         },
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 326,
+          "line": 329,
           "sink": "_run"
         },
         {
@@ -144091,7 +144121,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 561,
+          "line": 565,
           "sink": "set_note"
         }
       ]
@@ -144576,7 +144606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 412,
+          "line": 416,
           "sink": "setText"
         }
       ]
@@ -144616,7 +144646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 415,
+          "line": 419,
           "sink": "setText"
         }
       ]

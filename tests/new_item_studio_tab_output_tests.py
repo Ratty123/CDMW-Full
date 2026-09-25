@@ -1046,7 +1046,6 @@ class _TabOutputMixin:
         ready_plan = controller.service.plan(controller.current_spec(), controller.snapshot)
         changes = (
             lambda: panel.export_root.setText(str(self.root / "new_mod")),
-            lambda: panel.manager.setCurrentIndex((panel.manager.currentIndex() + 1) % panel.manager.count()),
             lambda: panel.output_mode.setCurrentIndex(panel.output_mode.findData("overlay")),
             lambda: panel.overlay_directory.setText("0100"),
         )

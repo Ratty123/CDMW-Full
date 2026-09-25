@@ -240,6 +240,10 @@ class OutputPanel(QGroupBox):
         self.manager.setToolTip("The mod manager whose folder layout the loose mod is written in.")
         self.manager.currentTextChanged.connect(lambda text: setattr(self._controller.draft, "manager", str(text)))
         export.addWidget(self.manager)
+        self.dmm_warning = QLabel(
+            "<b>DMM compatibility warning:</b> Not every item or mod has been tested with DMM. Some exports may not load or work correctly. After mounting, check in game that your item appears and works as expected.")
+        self.dmm_warning.setWordWrap(True)
+        export.addWidget(self.dmm_warning)
         export.addWidget(QLabel("Mod name"))
         self.mod_name = QLineEdit(controller.draft.mod_name)
         self.mod_name.setPlaceholderText(controller.draft.display_names.get("eng", "") or self.tr("Mod name"))

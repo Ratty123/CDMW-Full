@@ -13,6 +13,7 @@ The format is intentionally simple:
 
 ### Changed
 
+- Create New Item offers DMM as its only mod-folder export target until further notice, with a visible warning that compatibility is not confirmed for every item or mod and exported items need in-game checks. CDUMM and JMM options remain available in other tools; existing packages remain readable.
 - Material tools use effect-based names: Transparent surface blending, Surface detail and roughness, and Glowing band sweep. Blending controls and the global Character visibility test use matching plain-language labels and help; saved settings and exported shader identifiers are unchanged.
 - Mod Management moves from Create New Item's Output to Utilities, with direct access to installed overlays, mod merging, game-update checks and archive recovery.
 - Window and dialog sizes, split panes, viewport proportions and manually resized columns are saved in the user CFG across restarts, including Browse Archives, Create New Item, Mesh Editor and Placement & Animations. Startup defaults respect saved layouts; restored windows remain bounded by the available screen.

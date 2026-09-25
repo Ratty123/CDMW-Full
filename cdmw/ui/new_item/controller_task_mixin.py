@@ -37,7 +37,7 @@ from cdmw.services.new_item_planning import NewItemPlan, NewItemPlanError
 from cdmw.services.new_item_service import NewItemInstallRefused, NewItemService
 from cdmw.services.new_item_snapshot import NewItemSnapshot, NewItemSnapshotError
 from cdmw.ui.new_item.effect_workspace_controller import NewItemEffectWorkspaceControllerMixin
-from cdmw.ui.new_item.state import NewItemDraft, StatGrid, glow_choice, spec_from_draft, stat_grid_for, status_label, with_template
+from cdmw.ui.new_item.state import MANAGERS, NewItemDraft, StatGrid, glow_choice, spec_from_draft, stat_grid_for, status_label, with_template
 from cdmw.workers.effect_catalogue_worker import EffectCatalogueIndexLane
 from cdmw.workers.new_item_cleanup_worker import ModelSourceCleanupLane
 from cdmw.workers.new_item_workers import export_task, install_overlay_task, install_task, overlay_migration_task, overlay_removal_task, plan_task, snapshot_task
@@ -283,6 +283,9 @@ class NewItemTaskControllerMixin:
         return self._run("plan", run, done, failed, task_accepts_progress=True, source_owners=source_owners)
 
     def start_export(self, package_root: Path, manager: str) -> bool:
+        if manager not in MANAGERS:
+            self.status_message.emit("Choose DMM for new item exports.", True)
+            return False
         if not self.has_current_plan:
             self.status_message.emit("Build the plan first.", True)
             return False

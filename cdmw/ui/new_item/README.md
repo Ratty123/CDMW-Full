@@ -1108,6 +1108,16 @@ the previous geometry. The Mesh Editor session remains open so another revision 
 accepted without losing its history. New Item exposes the generated submesh name beside
 the source materials for per-part Glow. This is face separation, not a knife/cap tool.
 
+**Create New Item → Output → Mod folder** currently offers **DMM** only.
+CDUMM and JMM export choices are withdrawn from Create New Item until further
+notice; their options in other tools and support for existing packages remain.
+New drafts default to DMM, and the controller rejects unavailable manager choices
+before starting an export.
+The export controls show a **DMM compatibility warning**: not every item or mod
+has been tested, and some exports may fail to load or work correctly. After
+mounting, check the item in game. Successful package generation or mounting is
+not a guarantee of gameplay compatibility.
+
 UI code here never touches the archives: reading is the service's snapshot,
 installation is `ArchiveMutationService` through the service's `install_overlay`, and the
 loose export is built in a sibling staging directory and published only when

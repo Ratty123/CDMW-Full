@@ -39,7 +39,7 @@ from cdmw.domain.new_item.spec import (
 
 from cdmw.domain.new_item.effect_authoring import EffectLayer, EmitterEdit
 
-MANAGERS: Tuple[str, ...] = ("CDUMM", "DMM", "JMM")
+MANAGERS: Tuple[str, ...] = ("DMM",)
 STAT_KIND = "stat"
 BUY_PRICE_KIND = "buy_price"
 
@@ -217,7 +217,7 @@ class NewItemDraft:
     shop_placements: Optional[Tuple[Placement, ...]] = None
     item_groups: ItemGroupsChoice = ItemGroupsChoice.ORDINARY
     explicit_item_groups: Tuple[int, ...] = ()
-    manager: str = "CDUMM"
+    manager: str = "DMM"
     export_root: str = ""
     mod_name: str = ""
     own_enhancement_rows: bool = False
