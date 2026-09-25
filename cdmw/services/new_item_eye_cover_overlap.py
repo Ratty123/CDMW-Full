@@ -14,21 +14,21 @@ def plan_eye_cover_overlap(planner):
     if not enabled:
         if planner.snapshot.base_manifest.get("eye_cover_overlap_test"):
             planner.manifest["eye_cover_overlap_test"] = dict(planner.snapshot.base_manifest["eye_cover_overlap_test"])
-            planner.warnings.append("The base mod already includes the global EyeCover overlap test. Use a base without that test for an off comparison.")
+            planner.warnings.append("The base mod already includes the global character visibility test. Use a base without that test for an off comparison.")
         return
     from cdmw.services.new_item_planning import NewItemPlanError
 
     planner.check()
     if not planner.snapshot.has_entry(RENDERPASS_PATH):
-        raise NewItemPlanError("The global EyeCover overlap test requires the game's character render definition.")
+        raise NewItemPlanError("The global character visibility test requires the game's character render definition.")
     original = planner.snapshot.payload(RENDERPASS_PATH)
     try:
         changed = rewrite_eye_cover_overlap(original)
     except (ValueError, ET.ParseError) as exc:
-        raise NewItemPlanError(f"Cannot prepare the global EyeCover overlap test: {exc}") from exc
+        raise NewItemPlanError(f"Cannot prepare the global character visibility test: {exc}") from exc
     planner.check()
-    planner.patch(planner.snapshot.entry(RENDERPASS_PATH), changed, "Global EyeCover overlap test (experimental)")
-    planner.warnings.append("Global EyeCover overlap test: affects all EyeCover materials, including eyes. Render order and lighting remain unverified; test in game. Remove this test mod for the stock comparison.")
+    planner.patch(planner.snapshot.entry(RENDERPASS_PATH), changed, "Character visibility test (global, experimental)")
+    planner.warnings.append("Global character visibility test: affects every material using transparent surface blending, including character eyes. Render order and lighting remain unverified; test in game. Remove this test mod for the stock comparison.")
     planner.manifest["eye_cover_overlap_test"] = {
         "version": 1, "scope": "all_eye_cover_materials", "path": RENDERPASS_PATH,
         "source_sha256": hashlib.sha256(original).hexdigest(),
@@ -61,4 +61,4 @@ stay intact. Unknown ownership must not silently leave an off comparison on.
                 return True
         except (ValueError, KeyError, TypeError):
             pass
-    raise ValueError("Cannot turn off the EyeCover overlap test in this existing package safely. Export to a new mod folder for the off comparison.")
+    raise ValueError("Cannot turn off the character visibility test in this existing package safely. Export to a new mod folder for the off comparison.")

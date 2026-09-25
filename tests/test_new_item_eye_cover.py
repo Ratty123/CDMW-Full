@@ -350,11 +350,13 @@ def test_rust_bridge_exposes_controls_updates_draft_and_restores(studio, monkeyp
     editor.refresh((("Blade", "Blade"),), (), equipment_shader_options(material()))
     before = tab.controller._draft_revision
     _send(bridge, editor.family, "choose", editor.family.findData(EYE_COVER.shader))
+    assert editor.family.currentText() == "Transparent surface blending (experimental)"
     assert "Approximate preview" in editor.note.text() and editor.note.isVisibleTo(tab)
     for field_, enabled, spins in editor._rows:
         if field_.kind == "ExportToggle":
             assert not enabled.isChecked()
-            assert "all EyeCover materials" in enabled.toolTip()
+            assert "every material using transparent surface blending" in enabled.toolTip()
+            assert "including character eyes" in enabled.toolTip()
             continue
         if not enabled.isChecked():
             _send(bridge, enabled, "toggle", True)

@@ -7,41 +7,47 @@ The experiment selector marks incompatible choices **Unavailable**, lists the
 experiments supported by the selected part, and explains each unavailable option's
 required source material in its tooltip.
 
-**EyeCover blending (experimental)** is available here for plain Standard,
+**Transparent surface blending (experimental)** is available here for plain Standard,
 Emissive and Translucent materials with a base colour texture, and existing
 EyeCover materials. Select a part under **Model & Placement → Appearance →
-Shader experiments**. The initial overrides are colour mixing 0.5, surface alpha
-1 and material red 0; roughness and metallic initially keep their source channels.
+Shader experiments**. This blends the selected surface with what is behind it.
+The underlying game shader remains `SkinnedMeshEyeCover`; tool names describe
+the effect rather than the shader's original use. The initial overrides are
+**Colour mixing** 0.5, **Surface detail and shine** 1 and **Colour reduction** 0;
+**Roughness** and **Metallic** initially keep their source channels.
 Unchecked fields retain the source; missing inputs use explicit neutral maps,
 avoiding the shader's stock face textures. Restore removes the experiment.
 
 **Transparency limitation:** Overlapping transparent surfaces may show visible
 triangles or other visual glitches in game, even within the same model. Avoid
 overlapping transparent surfaces where possible. This warning appears beside
-EyeCover and Translucency controls; an approximate preview may not show the issue.
+Transparent surface blending and Translucency controls; an approximate preview may not show the issue.
 
 Colour mixing is stored in the low byte of `_eyeCoverDiffuseParameter` (256
 steps); the other bytes are preserved. The recovered colour weight is
 `2 * packedColour / 255 - materialTexture.red`. It is not a whole-material
-opacity percentage. `_alphaTexture.red` independently affects normals and
-surface properties. The roughness/metallic overrides replace material G/B and
+opacity percentage. **Colour reduction** edits `materialTexture.red`.
+**Surface detail and shine** edits `_alphaTexture.red`, independently affecting
+normals and surface properties. The roughness/metallic overrides replace material G/B and
 take precedence over the ordinary Surface controls in preview and export. Colour and source
 normal maps remain bound; colour, shine, reflection, depth and shadow behaviour
 still require in-game testing. Glow and Translucency overrides must be restored
 on the same part before choosing this experiment. Layered materials require a
 Plain PBR import first; they are not silently converted.
 
-EyeCover has an **approximate preview** in Model & Placement, Effects and dye
-viewports. Colour mixing and material red control colour coverage, clamped to
-0–1; surface alpha independently controls normal-map detail and highlights.
+Transparent surface blending has an **approximate preview** in Model & Placement,
+Effects and dye viewports. Colour mixing and Colour reduction control colour
+coverage, clamped to 0–1; Surface detail and shine independently controls
+normal-map detail and highlights.
 This is a forward-rendered illustration, not the game's character G-buffer
 blend: it does not mix the underlying object's normals/material, reproduce depth
 or shadows, or predict exact game reflections. Weights outside 0–1 may behave
-differently in game. Surface alpha 0 alone does not remove the colour, and colour
-coverage 0 can leave highlights when surface alpha is nonzero. At the initial
-colour mixing 0.5 / material red 0, colour coverage is effectively 1. Try colour
-mixing 0.25 / material red 0 to compare roughly half coverage, then adjust surface
-alpha separately. Restore source shader controls removes the approximation.
+differently in game. Surface detail and shine 0 alone does not remove the colour,
+and colour coverage 0 can leave highlights when Surface detail and shine is nonzero.
+At the initial Colour mixing 0.5 / Colour reduction 0, colour coverage is effectively
+1. Try Colour mixing 0.25 / Colour reduction 0 to compare roughly half coverage,
+then adjust Surface detail and shine separately. Restore source shader controls
+removes the approximation.
 Unchecked channels use source maps (missing alpha defaults to 1, material red to
 0); colour and channel overrides follow export's byte quantization, before BC7
 compression. Preview changes do not encode export textures. Choices persist per
@@ -57,8 +63,10 @@ chain while reducing repeated work on material maps. BC7 is lossy and channel
 values are quantized. The updated viewport shader reaches the portable app with
 the next explicitly requested executable build.
 
-**Global EyeCover overlap test (experimental)** is a default-off checkbox under
-EyeCover's controls. Enabling it on any selected variant adds one shared
+**Character visibility test (global, experimental)** is a default-off checkbox
+under Transparent surface blending. It tests character visibility behind the
+material; it is not a fix for overlapping transparent surfaces.
+Enabling it on any selected variant adds one shared
 `renderpass/renderpassgbuffercharacter.xml` replacement to the mod. It disables
 EyeCover stencil testing/writing in the character depth prepass and both character
 G-buffer paths, and explicitly keeps depth testing with `GreaterEqual` and no

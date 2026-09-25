@@ -52,12 +52,12 @@ FAMILIES = (
         ShaderField("_curveHeightU", "Amplitude U", (.025,), 0, 100, item_id="2748424398045182"),
         ShaderField("_curveHeightV", "Amplitude V", (.025,), 0, 100, item_id="4065297996709886"),
     )),
-    ShaderFamily("SkinnedMeshAnisotropy", "Anisotropic detail", "Detail strength changes normals, not transparency. The roughness byte only acts when the source hair dye has nonzero alpha; editing it never enables or changes dye colour.", (
+    ShaderFamily("SkinnedMeshAnisotropy", "Surface detail and roughness", "Detail strength changes normals, not transparency. The roughness byte only acts when the source hair dye has nonzero alpha; editing it never enables or changes dye colour.", (
         ShaderField("_hairAnisotropyDetailOpacity", "Normal detail strength", (0.,), 0, 1, item_id="741201860886526"),
         ShaderField("_hairAnisotropyDetailScale", "Normal detail scale", (.5,), .0001, 1, item_id="984403626950654"),
         ShaderField("_hairDyeingProperty", "Dye roughness byte", (128.,), 0, 255, "Byte4", "2762362249543678"),
     ), "_hairAnisotropyDetailMaskTexture"),
-    ShaderFamily("SkinnedMeshPoster", "Poster glow band", "Requires a Poster material. Progress drives a colour/glow sweep, not disappearance. Between 0.001 and 1 the sweep ignores glow ratio. The viewport approximates the band and lighting; game activation remains experimental.", (
+    ShaderFamily("SkinnedMeshPoster", "Glowing band sweep", "Requires a Poster material. Progress drives a colour/glow sweep, not disappearance. Between 0.001 and 1 the sweep ignores glow ratio. The viewport approximates the band and lighting; game activation remains experimental.", (
         ShaderField("_posterGlowNoiseIntensity", "Noise strength", (.1,), 0, 1, item_id="3846762150232062"),
         ShaderField("_posterGlowThickness", "Band width", (.4,), 0, 1, item_id="3028446454218750"),
         ShaderField("_posterGlowExponent", "Band exponent", (5.,), 0, 50, item_id="1032243921289214"),
@@ -90,17 +90,17 @@ EYE_COVER_TEXTURE_FIELDS = {
     "metallic": ("_materialTexture", 2),
 }
 EYE_COVER_OVERLAP_FIELD = "global_overlap_test"
-EYE_COVER = ShaderFamily("SkinnedMeshEyeCover", "EyeCover blending (experimental)",
-    "Approximate viewport preview. Test in game; character-buffer blending, depth and shadows are not reproduced. "
-    "Colour mixing is not an opacity percentage: its weight is twice the packed colour value minus material red. "
-    "Surface alpha separately blends normals and surface properties. Game lighting, colour, reflections, depth and shadows may differ.", (
+EYE_COVER = ShaderFamily("SkinnedMeshEyeCover", "Transparent surface blending (experimental)",
+    "Blends this surface with what is behind it. Colour mixing and Colour reduction control colour coverage; "
+    "Surface detail and shine controls highlights and normal-map detail separately. "
+    "The preview is approximate. Test lighting, depth and shadows in game.", (
         ShaderField("_eyeCoverDiffuseParameter", "Colour mixing", (.5,), 0, 1,
                     "NormalizedByte4", "3844829386637310"),
-        ShaderField("surface_alpha", "Surface alpha", (1.,), 0, 1, "TextureChannel"),
-        ShaderField("material_red", "Colour mask (material red)", (0.,), 0, 1, "TextureChannel"),
-        ShaderField("roughness", "EyeCover roughness", (.9,), 0, 1, "TextureChannel"),
-        ShaderField("metallic", "EyeCover metallic", (0.,), 0, 1, "TextureChannel"),
-        ShaderField(EYE_COVER_OVERLAP_FIELD, "Global EyeCover overlap test (experimental)",
+        ShaderField("surface_alpha", "Surface detail and shine", (1.,), 0, 1, "TextureChannel"),
+        ShaderField("material_red", "Colour reduction", (0.,), 0, 1, "TextureChannel"),
+        ShaderField("roughness", "Roughness", (.9,), 0, 1, "TextureChannel"),
+        ShaderField("metallic", "Metallic", (0.,), 0, 1, "TextureChannel"),
+        ShaderField(EYE_COVER_OVERLAP_FIELD, "Character visibility test (global, experimental)",
                     (0.,), 0, 1, "ExportToggle"),
     ))
 NEW_ITEM_FAMILIES = tuple(family for family in FAMILIES if family.shader != "Dissolve") + (EYE_COVER,)

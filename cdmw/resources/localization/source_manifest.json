@@ -5682,21 +5682,21 @@
       ]
     },
     {
-      "key": "Affects all EyeCover materials, including eyes, while the mod is installed. Test in game; the viewport does not simulate this change.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 121,
-          "sink": "QLabel"
-        }
-      ]
-    },
-    {
       "key": "Affects all PHM 2H swords. Use only when you want class-wide animation aliases and placement, not one selected weapon.",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
           "line": 950,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Affects every material using transparent surface blending, including character eyes, while the mod is installed. Tests character visibility behind the material, not overlapping transparency. The viewport does not simulate this test.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/shader_controls_editor.py",
+          "line": 121,
           "sink": "QLabel"
         }
       ]
@@ -7497,11 +7497,6 @@
       ]
     },
     {
-      "key": "Anisotropic detail",
-      "origins": [],
-      "manual": true
-    },
-    {
       "key": "Anisotropy",
       "origins": [
         {
@@ -8682,7 +8677,7 @@
       ]
     },
     {
-      "key": "Approximate preview: colour mixing changes coverage; surface alpha changes surface detail and shine. Test the final result in game.",
+      "key": "Approximate preview: Colour mixing and Colour reduction change colour coverage; Surface detail and shine changes highlights and surface detail. Test the final result in game.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
@@ -8710,11 +8705,6 @@
           "sink": "python-return:material_sidecar_reused_package_summary"
         }
       ]
-    },
-    {
-      "key": "Approximate viewport preview. Test in game; character-buffer blending, depth and shadows are not reproduced. Colour mixing is not an opacity percentage: its weight is twice the packed colour value minus material red. Surface alpha separately blends normals and surface properties. Game lighting, colour, reflections, depth and shadows may differ.",
-      "origins": [],
-      "manual": true
     },
     {
       "key": "Approximate viewport preview; game refraction and lighting may differ. Uses Plain PBR materials. Authored glass is preserved automatically; these controls override selected parts. Glow maps and colours are kept; brightness and tint may differ in game.",
@@ -14237,6 +14227,11 @@
       ]
     },
     {
+      "key": "Blends this surface with what is behind it. Colour mixing and Colour reduction control colour coverage; Surface detail and shine controls highlights and normal-map detail separately. The preview is approximate. Test lighting, depth and shadows in game.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Blocked",
       "origins": [
         {
@@ -18117,7 +18112,7 @@
       ]
     },
     {
-      "key": "Cannot prepare the global EyeCover overlap test: {value_0}",
+      "key": "Cannot prepare the global character visibility test: {value_0}",
       "origins": [],
       "manual": true
     },
@@ -18142,7 +18137,7 @@
       ]
     },
     {
-      "key": "Cannot turn off the EyeCover overlap test in this existing package safely. Export to a new mod folder for the off comparison.",
+      "key": "Cannot turn off the character visibility test in this existing package safely. Export to a new mod folder for the off comparison.",
       "origins": [
         {
           "path": "cdmw/services/new_item_eye_cover_overlap.py",
@@ -19535,6 +19530,11 @@
           "sink": "add_step"
         }
       ]
+    },
+    {
+      "key": "Character visibility test (global, experimental)",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Character-side attach point",
@@ -23837,12 +23837,12 @@
       ]
     },
     {
-      "key": "Colour mask (material red)",
+      "key": "Colour mixing",
       "origins": [],
       "manual": true
     },
     {
-      "key": "Colour mixing",
+      "key": "Colour reduction",
       "origins": [],
       "manual": true
     },
@@ -38387,21 +38387,6 @@
       ]
     },
     {
-      "key": "EyeCover blending (experimental)",
-      "origins": [],
-      "manual": true
-    },
-    {
-      "key": "EyeCover metallic",
-      "origins": [],
-      "manual": true
-    },
-    {
-      "key": "EyeCover roughness",
-      "origins": [],
-      "manual": true
-    },
-    {
       "key": "FAIL {value_0}: {value_1}",
       "origins": [
         {
@@ -43102,16 +43087,6 @@
       ]
     },
     {
-      "key": "Global EyeCover overlap test (experimental)",
-      "origins": [],
-      "manual": true
-    },
-    {
-      "key": "Global EyeCover overlap test: affects all EyeCover materials, including eyes. Render order and lighting remain unverified; test in game. Remove this test mod for the stock comparison.",
-      "origins": [],
-      "manual": true
-    },
-    {
       "key": "Global Template",
       "origins": [
         {
@@ -43130,6 +43105,11 @@
           "sink": "setToolTip"
         }
       ]
+    },
+    {
+      "key": "Global character visibility test: affects every material using transparent surface blending, including character eyes. Render order and lighting remain unverified; test in game. Remove this test mod for the stock comparison.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Global chart events are not simulated",
@@ -43250,6 +43230,11 @@
           "sink": "ValueError"
         }
       ]
+    },
+    {
+      "key": "Glowing band sweep",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Go to the next topic.",
@@ -74607,7 +74592,7 @@
       ]
     },
     {
-      "key": "Packed into 256 steps. Colour weight is twice this value minus material red; this is not a whole-material opacity percentage. Unchecked: keep the authored value, or use 0.5.",
+      "key": "Packed into 256 steps. Colour weight is twice this value minus Colour reduction; this is not a whole-material opacity percentage. Unchecked: keep the authored value, or use 0.5.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
@@ -78440,11 +78425,6 @@
           "sink": "QLabel"
         }
       ]
-    },
-    {
-      "key": "Poster glow band",
-      "origins": [],
-      "manual": true
     },
     {
       "key": "Pre-run classification check: {value_0} matched DDS file(s) are still unclassified.",
@@ -87782,6 +87762,16 @@
       ]
     },
     {
+      "key": "Reduces the surface's colour coverage. Subtracted from twice the Colour mixing value and stored in the material texture's red channel. Unchecked: keep the source texture, or use black (0).",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/shader_controls_editor.py",
+          "line": 137,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Reducing preview mesh density...",
       "origins": [
         {
@@ -90677,7 +90667,7 @@
       ]
     },
     {
-      "key": "Replaces material blue: 0 nonmetal, 1 metal. This EyeCover override takes precedence over Surface metallic. Unchecked: keep the source channel.",
+      "key": "Replaces material blue: 0 nonmetal, 1 metal. This override takes precedence over Surface metallic. Unchecked: keep the source channel.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
@@ -90687,17 +90677,7 @@
       ]
     },
     {
-      "key": "Replaces material green: 0 smooth, 1 rough. This EyeCover override takes precedence over Surface roughness. Unchecked: keep the source channel.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 137,
-          "sink": "setToolTip"
-        }
-      ]
-    },
-    {
-      "key": "Replaces material red, which is subtracted from twice the colour-mixing value. Unchecked: keep the source texture, or use black (0).",
+      "key": "Replaces material green: 0 smooth, 1 rough. This override takes precedence over Surface roughness. Unchecked: keep the source channel.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
@@ -90943,6 +90923,11 @@
     },
     {
       "key": "Requires a TornCloth material and vertex colour R/G. White R/G disables the tears. Without decoded vertex colours the viewport leaves the shape unchanged.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Requires a plain opaque, glowing or translucent material with a base colour texture, or an existing transparent surface blending material.",
       "origins": [],
       "manual": true
     },
@@ -108482,11 +108467,6 @@
       ]
     },
     {
-      "key": "Surface alpha",
-      "origins": [],
-      "manual": true
-    },
-    {
       "key": "Surface colour",
       "origins": [
         {
@@ -108513,6 +108493,16 @@
     },
     {
       "key": "Surface density",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Surface detail and roughness",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Surface detail and shine",
       "origins": [],
       "manual": true
     },
@@ -112287,7 +112277,7 @@
       ]
     },
     {
-      "key": "The base mod already includes the global EyeCover overlap test. Use a base without that test for an off comparison.",
+      "key": "The base mod already includes the global character visibility test. Use a base without that test for an off comparison.",
       "origins": [],
       "manual": true
     },
@@ -112902,7 +112892,7 @@
       ]
     },
     {
-      "key": "The global EyeCover overlap test requires the game's character render definition.",
+      "key": "The global character visibility test requires the game's character render definition.",
       "origins": [],
       "manual": true
     },
@@ -117030,6 +117020,11 @@
           "sink": "QLabel"
         }
       ]
+    },
+    {
+      "key": "Transparent surface blending (experimental)",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Treat archive patch and install actions as deliberate writes: review the target, confirmation, backup, and output mode. Ordinary preview, extraction, and loose-package creation do not patch archives.",

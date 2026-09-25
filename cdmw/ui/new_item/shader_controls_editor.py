@@ -81,7 +81,7 @@ class ShaderControlsEditor(QGroupBox):
             item.setText(family.label if available else f"{family.label} — Unavailable")
             item.setEnabled(available)
             requirement = ("Requires a Plain PBR material with a base colour texture, or an existing Wing material." if family.shader == "SkinnedMeshWing"
-                           else "Requires a plain Standard, Emissive or Translucent material with a base colour texture, or an existing EyeCover material." if family == EYE_COVER
+                           else "Requires a plain opaque, glowing or translucent material with a base colour texture, or an existing transparent surface blending material." if family == EYE_COVER
                            else f"Requires a {family.shader} source material.")
             item.setToolTip(family.note if available else
                             f"Unavailable for this part. {requirement} "
@@ -108,7 +108,7 @@ class ShaderControlsEditor(QGroupBox):
                 return
             family = family_for(choice.shader)
             if family == EYE_COVER:
-                self.note.setText("Approximate preview: colour mixing changes coverage; surface alpha changes surface detail and shine. Test the final result in game.")
+                self.note.setText("Approximate preview: Colour mixing and Colour reduction change colour coverage; Surface detail and shine changes highlights and surface detail. Test the final result in game.")
                 self.note.setVisible(True)
             self.family.setToolTip(" ".join(value for value in (self._source_note(), family.note) if value))
             values = dict(choice.values)
@@ -118,7 +118,7 @@ class ShaderControlsEditor(QGroupBox):
                 enabled.setToolTip("Override this field. Uncheck to retain the authored value.")
                 if field.kind == "ExportToggle":
                     enabled.setChecked(values.get(field.name, field.default) == (1.,))
-                    warning = QLabel("Affects all EyeCover materials, including eyes, while the mod is installed. Test in game; the viewport does not simulate this change.")
+                    warning = QLabel("Affects every material using transparent surface blending, including character eyes, while the mod is installed. Tests character visibility behind the material, not overlapping transparency. The viewport does not simulate this test.")
                     warning.setWordWrap(True)
                     enabled.setToolTip(warning.text())
                     self.form.addRow(enabled)
@@ -128,11 +128,11 @@ class ShaderControlsEditor(QGroupBox):
                     continue
                 if family == EYE_COVER:
                     tips = {
-                        "_eyeCoverDiffuseParameter": "Packed into 256 steps. Colour weight is twice this value minus material red; this is not a whole-material opacity percentage. Unchecked: keep the authored value, or use 0.5.",
+                        "_eyeCoverDiffuseParameter": "Packed into 256 steps. Colour weight is twice this value minus Colour reduction; this is not a whole-material opacity percentage. Unchecked: keep the authored value, or use 0.5.",
                         "surface_alpha": "Replaces the alpha texture's red channel. Blends normals and surface properties separately from colour. Unchecked: keep the source texture, or use white (1).",
-                        "material_red": "Replaces material red, which is subtracted from twice the colour-mixing value. Unchecked: keep the source texture, or use black (0).",
-                        "roughness": "Replaces material green: 0 smooth, 1 rough. This EyeCover override takes precedence over Surface roughness. Unchecked: keep the source channel.",
-                        "metallic": "Replaces material blue: 0 nonmetal, 1 metal. This EyeCover override takes precedence over Surface metallic. Unchecked: keep the source channel.",
+                        "material_red": "Reduces the surface's colour coverage. Subtracted from twice the Colour mixing value and stored in the material texture's red channel. Unchecked: keep the source texture, or use black (0).",
+                        "roughness": "Replaces material green: 0 smooth, 1 rough. This override takes precedence over Surface roughness. Unchecked: keep the source channel.",
+                        "metallic": "Replaces material blue: 0 nonmetal, 1 metal. This override takes precedence over Surface metallic. Unchecked: keep the source channel.",
                     }
                     enabled.setToolTip(tips[field.name])
                 holder, row = QWidget(), QHBoxLayout()

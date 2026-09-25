@@ -14,8 +14,9 @@ triangles or other visual glitches in game, even within the same model. Avoid
 overlapping transparent surfaces where possible. Mesh Editor shows this warning
 beside its Translucency controls; the preview may not show the issue.
 
-Create New Item additionally offers **EyeCover blending (experimental)** with
-colour mixing, surface alpha, material red, roughness and metallic overrides.
+Create New Item additionally offers **Transparent surface blending (experimental)**
+with Colour mixing, Surface detail and shine, Colour reduction, Roughness and
+Metallic overrides. It uses the game's `SkinnedMeshEyeCover` shader.
 Its approximate viewport preview separates colour coverage from surface detail
 and shine, without reproducing the game's character-buffer blend; see
 [Create New Item](../new_item/README.md) for controls, defaults and limitations.
@@ -26,12 +27,12 @@ It is not included in Mesh Editor's experiment catalogue.
 | Patterned reveal | `SkinnedMeshWing`, or plain `SkinnedMeshStandard` / `SkinnedMeshEmissive` with a base map | Progress and inverse mask. Binary cutout; increasing progress reveals more. Converted plain materials start fully retained at progress 2. |
 | Torn cloth | `SkinnedMeshTornCloth_Ver2` | Cross-grain tear and two pattern scales. Requires vertex colour R/G; white disables each corresponding tear. |
 | Moving hair textures | `SkinnedMeshHairAnimatedUV` | U/V spatial frequency, speed and amplitude. Movement is attenuated by `1 - vertex green`. Zero amplitude stops motion. |
-| Anisotropic detail | `SkinnedMeshAnisotropy` | Detail-normal strength/scale and low roughness byte. The byte acts only when source hair dye alpha is nonzero. Other packed bytes and dye colour are preserved. |
-| Poster glow band | `SkinnedMeshPoster` | Noise, width/exponent, ratio, progress and RGB colour. Progress between 0.001 and 1 selects a sweep that ignores ratio. Progress 1 exits the sweep; it does not remove the mesh. |
+| Surface detail and roughness | `SkinnedMeshAnisotropy` | Detail-normal strength/scale and low roughness byte. The byte acts only when source hair dye alpha is nonzero. Other packed bytes and dye colour are preserved. |
+| Glowing band sweep | `SkinnedMeshPoster` | Noise, width/exponent, ratio, progress and RGB colour. Progress between 0.001 and 1 selects a sweep that ignores ratio. Progress 1 exits the sweep; it does not remove the mesh. |
 | Object dissolve | Existing `Dissolve` PAMI on a static object in Mesh Editor | Sphere ratio/radius, positive hardness, centre/position, noise scale/speed/strength, edge glow and inversion. Other flag bits are preserved. |
 
 Layered Standard, ordinary Hair, other cloth shaders and Glass cannot silently
-become the shared equipment experiments above. New Item's explicit EyeCover
+become the shared equipment experiments above. New Item's explicit Transparent surface blending
 experiment also accepts plain Translucent sources. Object dissolve is unavailable on New Item
 equipment. Restore Glow/Translucency overrides before choosing another experiment
 on the same part. Authored glow maps and unrelated parameters remain; their game
@@ -45,7 +46,7 @@ preview updates. This does not add TornCloth support to ordinary armour. Restore
 source shader controls to clear an incompatible choice made in an older build.
 
 External Plain PBR imports offer Patterned reveal on opaque materials. Authored glass
-does not offer that conversion; both also offer the New Item EyeCover experiment.
+does not offer that conversion; both also offer New Item's Transparent surface blending.
 Builder/prebuilt imports without proven source bindings
 keep experiments disabled. Unchecking Reveal progress on a Plain PBR conversion uses
 the same fully revealed value (2) in live preview, prepared scenes, Effects and export;
