@@ -986,7 +986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 66,
+          "line": 71,
           "sink": "python-return:_source_note"
         }
       ]
@@ -1046,7 +1046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 66,
+          "line": 71,
           "sink": "python-return:_source_note"
         }
       ]
@@ -1056,7 +1056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 66,
+          "line": 71,
           "sink": "python-return:_source_note"
         }
       ]
@@ -4016,7 +4016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 49,
+          "line": 53,
           "sink": "addRow"
         }
       ]
@@ -4026,7 +4026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 52,
+          "line": 56,
           "sink": "setAccessibleName"
         }
       ]
@@ -5351,7 +5351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 57,
+          "line": 61,
           "sink": "setToolTip"
         }
       ]
@@ -5366,7 +5366,7 @@
         },
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 86,
+          "line": 90,
           "sink": "QGroupBox"
         }
       ]
@@ -5686,7 +5686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 115,
+          "line": 121,
           "sink": "QLabel"
         }
       ]
@@ -8686,7 +8686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 105,
+          "line": 111,
           "sink": "setText"
         }
       ]
@@ -8721,7 +8721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 111,
+          "line": 115,
           "sink": "setToolTip"
         }
       ]
@@ -19796,7 +19796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 27,
+          "line": 31,
           "sink": "setToolTip"
         }
       ]
@@ -20931,7 +20931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 101,
+          "line": 107,
           "sink": "setToolTip"
         }
       ]
@@ -21316,7 +21316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 149,
+          "line": 153,
           "sink": "setToolTip"
         }
       ]
@@ -22801,22 +22801,22 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 47,
+          "line": 51,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 59,
+          "line": 63,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 66,
+          "line": 70,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 70,
+          "line": 74,
           "sink": "QCheckBox"
         }
       ]
@@ -22861,7 +22861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 31,
+          "line": 35,
           "sink": "QPushButton"
         }
       ]
@@ -28056,32 +28056,32 @@
         },
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 47,
+          "line": 51,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 47,
-          "sink": "addItem"
-        },
-        {
-          "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 66,
-          "sink": "addItem"
-        },
-        {
-          "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 66,
+          "line": 51,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
           "line": 70,
+          "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/translucency_editor.py",
+          "line": 70,
+          "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/translucency_editor.py",
+          "line": 74,
           "sink": "QCheckBox"
         },
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 70,
+          "line": 74,
           "sink": "QCheckBox"
         }
       ]
@@ -29721,7 +29721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 61,
+          "line": 65,
           "sink": "QLabel"
         }
       ]
@@ -29731,17 +29731,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 47,
-          "sink": "addItem"
-        },
-        {
-          "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 66,
+          "line": 51,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
           "line": 70,
+          "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/translucency_editor.py",
+          "line": 74,
           "sink": "QCheckBox"
         }
       ]
@@ -34411,7 +34411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 32,
+          "line": 36,
           "sink": "setToolTip"
         }
       ]
@@ -37981,7 +37981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 106,
+          "line": 110,
           "sink": "addRow"
         }
       ]
@@ -45496,7 +45496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 103,
+          "line": 107,
           "sink": "setToolTip"
         }
       ]
@@ -45521,7 +45521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 82,
+          "line": 86,
           "sink": "setToolTip"
         }
       ]
@@ -45816,7 +45816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 104,
+          "line": 108,
           "sink": "setToolTip"
         }
       ]
@@ -52741,17 +52741,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 47,
-          "sink": "addItem"
-        },
-        {
-          "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 66,
+          "line": 51,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
           "line": 70,
+          "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/translucency_editor.py",
+          "line": 74,
           "sink": "QCheckBox"
         }
       ]
@@ -55221,17 +55221,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 47,
-          "sink": "addItem"
-        },
-        {
-          "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 66,
+          "line": 51,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
           "line": 70,
+          "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/translucency_editor.py",
+          "line": 74,
           "sink": "QCheckBox"
         }
       ]
@@ -55281,7 +55281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 83,
+          "line": 87,
           "sink": "setToolTip"
         }
       ]
@@ -56801,17 +56801,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 47,
-          "sink": "addItem"
-        },
-        {
-          "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 66,
+          "line": 51,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
           "line": 70,
+          "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/translucency_editor.py",
+          "line": 74,
           "sink": "QCheckBox"
         }
       ]
@@ -60261,17 +60261,17 @@
         },
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 47,
-          "sink": "addItem"
-        },
-        {
-          "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 66,
+          "line": 51,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
           "line": 70,
+          "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/translucency_editor.py",
+          "line": 74,
           "sink": "QCheckBox"
         }
       ]
@@ -72942,6 +72942,21 @@
       ]
     },
     {
+      "key": "Overlapping transparent surfaces may show visible triangles or other visual glitches in game, even within the same model. Avoid overlapping transparent surfaces where possible.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/shader_controls_editor.py",
+          "line": 29,
+          "sink": "QLabel"
+        },
+        {
+          "path": "cdmw/ui/new_item/translucency_editor.py",
+          "line": 25,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
       "key": "Overlay",
       "origins": [
         {
@@ -73701,7 +73716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 71,
+          "line": 75,
           "sink": "setToolTip"
         }
       ]
@@ -73711,7 +73726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 112,
+          "line": 118,
           "sink": "setToolTip"
         }
       ]
@@ -74596,7 +74611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 131,
+          "line": 137,
           "sink": "setToolTip"
         }
       ]
@@ -90666,7 +90681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 131,
+          "line": 137,
           "sink": "setToolTip"
         }
       ]
@@ -90676,7 +90691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 131,
+          "line": 137,
           "sink": "setToolTip"
         }
       ]
@@ -90686,7 +90701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 131,
+          "line": 137,
           "sink": "setToolTip"
         }
       ]
@@ -90696,7 +90711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 131,
+          "line": 137,
           "sink": "setToolTip"
         }
       ]
@@ -92901,7 +92916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 33,
+          "line": 38,
           "sink": "QPushButton"
         }
       ]
@@ -94656,17 +94671,17 @@
         },
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 47,
-          "sink": "addItem"
-        },
-        {
-          "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 66,
+          "line": 51,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
           "line": 70,
+          "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/translucency_editor.py",
+          "line": 74,
           "sink": "QCheckBox"
         }
       ]
@@ -99281,7 +99296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 30,
+          "line": 34,
           "sink": "QPushButton"
         },
         {
@@ -105836,7 +105851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 58,
+          "line": 63,
           "sink": "python-return:_source_note"
         }
       ]
@@ -105956,7 +105971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 98,
+          "line": 103,
           "sink": "setText"
         }
       ]
@@ -105966,7 +105981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 66,
+          "line": 71,
           "sink": "python-return:_source_note"
         }
       ]
@@ -105996,17 +106011,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 47,
-          "sink": "addItem"
-        },
-        {
-          "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 66,
+          "line": 51,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
           "line": 70,
+          "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/translucency_editor.py",
+          "line": 74,
           "sink": "QCheckBox"
         }
       ]
@@ -108526,7 +108541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 67,
+          "line": 71,
           "sink": "addRow"
         }
       ]
@@ -110076,7 +110091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 32,
+          "line": 37,
           "sink": "setToolTip"
         }
       ]
@@ -114946,7 +114961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 105,
+          "line": 109,
           "sink": "addRow"
         }
       ]
@@ -117002,6 +117017,21 @@
       ]
     },
     {
+      "key": "Transparency limitation:",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/shader_controls_editor.py",
+          "line": 29,
+          "sink": "QLabel"
+        },
+        {
+          "path": "cdmw/ui/new_item/translucency_editor.py",
+          "line": 25,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
       "key": "Treat archive patch and install actions as deliberate writes: review the target, confirmation, backup, and output mode. Ordinary preview, extraction, and loose-package creation do not patch archives.",
       "origins": [
         {
@@ -117211,7 +117241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 149,
+          "line": 153,
           "sink": "setToolTip"
         }
       ]
@@ -117711,7 +117741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 81,
+          "line": 86,
           "sink": "setToolTip"
         }
       ]
@@ -129261,12 +129291,12 @@
         },
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 47,
+          "line": 51,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
-          "line": 66,
+          "line": 70,
           "sink": "addItem"
         }
       ]
@@ -147296,7 +147326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 76,
+          "line": 81,
           "sink": "setText"
         }
       ]

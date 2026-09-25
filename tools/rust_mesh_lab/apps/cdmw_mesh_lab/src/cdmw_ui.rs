@@ -4526,6 +4526,9 @@ impl LabApplication {
         let Some(state) = self.cdmw_state.get("translucency") else { return };
         egui::CollapsingHeader::new("Translucency (experimental)")
             .id_salt("part_translucency").show(ui, |ui| {
+                ui.add(egui::Label::new(egui::RichText::new(
+                    "Transparency limitation: Overlapping transparent surfaces may show visible triangles or other visual glitches in game, even within the same model. Avoid overlapping transparent surfaces where possible.")
+                    .color(ui.visuals().warn_fg_color)).wrap());
                 let selected = self.selected_part_indices();
                 let rows = state["parts"].as_array().into_iter().flatten()
                     .filter(|row| row["index"].as_u64().is_some_and(|index| selected.contains(&(index as u32))))

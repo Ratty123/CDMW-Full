@@ -15,6 +15,11 @@ Shader experiments**. The initial overrides are colour mixing 0.5, surface alpha
 Unchecked fields retain the source; missing inputs use explicit neutral maps,
 avoiding the shader's stock face textures. Restore removes the experiment.
 
+**Transparency limitation:** Overlapping transparent surfaces may show visible
+triangles or other visual glitches in game, even within the same model. Avoid
+overlapping transparent surfaces where possible. This warning appears beside
+EyeCover and Translucency controls; an approximate preview may not show the issue.
+
 Colour mixing is stored in the low byte of `_eyeCoverDiffuseParameter` (256
 steps); the other bytes are preserved. The recovered colour weight is
 `2 * packedColour / 255 - materialTexture.red`. It is not a whole-material

@@ -22,6 +22,10 @@ class TranslucencyEditor(QGroupBox):
         self.details = QWidget(self)
         details = QVBoxLayout(self.details)
         details.setContentsMargins(0, 0, 0, 0)
+        self.overlap_warning = QLabel(
+            "<b>Transparency limitation:</b> Overlapping transparent surfaces may show visible triangles or other visual glitches in game, even within the same model. Avoid overlapping transparent surfaces where possible.")
+        self.overlap_warning.setWordWrap(True)
+        details.addWidget(self.overlap_warning)
         self.parts = QListWidget()
         self.parts.setMaximumHeight(110)
         self.parts.setToolTip("Check parts to override. Highlight a part to edit only its settings.")

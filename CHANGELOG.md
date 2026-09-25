@@ -35,6 +35,7 @@ The format is intentionally simple:
 
 ### Added
 
+- Create New Item's EyeCover and Translucency controls and Mesh Editor's Translucency controls warn that overlapping transparent surfaces can show visible triangles or other visual glitches in game, including within the same model.
 - Mesh Editor's Parts inspector has mesh-island selection, viewport visibility and isolation, plus reversible original-PAC output exclusion across validated LODs. Island exclusions support Undo/Redo and saved drafts while preserving part materials and vertex data.
 
 - Create New Item offers a default-off Global EyeCover overlap test to investigate missing clothing behind EyeCover weapons. Exports change only EyeCover's stencil/depth states in the shared character render definition, warn that all EyeCover materials (including eyes) are affected, and reject unsupported definitions. In-game appearance remains experimental; the viewport does not simulate this test.

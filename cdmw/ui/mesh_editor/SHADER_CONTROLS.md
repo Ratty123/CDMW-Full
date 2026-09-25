@@ -9,6 +9,11 @@ Mesh Editor numbers offer sliders as well as typed values. New Item numbers acce
 wheel adjustment when focused. An incompatible choice saved by an older build must
 be restored in Model & Placement → Appearance before Perks & Effects can prepare it.
 
+**Transparency limitation:** Overlapping transparent surfaces may show visible
+triangles or other visual glitches in game, even within the same model. Avoid
+overlapping transparent surfaces where possible. Mesh Editor shows this warning
+beside its Translucency controls; the preview may not show the issue.
+
 Create New Item additionally offers **EyeCover blending (experimental)** with
 colour mixing, surface alpha, material red, roughness and metallic overrides.
 Its approximate viewport preview separates colour coverage from surface detail

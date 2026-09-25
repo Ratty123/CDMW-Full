@@ -26,6 +26,11 @@ class ShaderControlsEditor(QGroupBox):
         self.note = QLabel()
         self.note.setWordWrap(True)
         layout.addWidget(self.note)
+        self.overlap_warning = QLabel(
+            "<b>Transparency limitation:</b> Overlapping transparent surfaces may show visible triangles or other visual glitches in game, even within the same model. Avoid overlapping transparent surfaces where possible.")
+        self.overlap_warning.setWordWrap(True)
+        self.overlap_warning.hide()
+        layout.addWidget(self.overlap_warning)
         self.fields = QWidget()
         self.form = QFormLayout(self.fields)
         layout.addWidget(self.fields)
@@ -97,6 +102,7 @@ class ShaderControlsEditor(QGroupBox):
             source = (self._source_options or {}).get(str(self.part.currentData()).casefold(), ("", ()))[0]
             self.note.setText(f"Source shader: {source}" if source else "")
             self.note.setVisible(bool(source))
+            self.overlap_warning.setVisible((choice.shader if choice else source) == EYE_COVER.shader)
             if choice is None:
                 self.family.setToolTip(self._source_note() or "Choose a compatible shader experiment for this part. Unchecked fields keep source values. Object dissolve is available for static objects in Mesh Editor.")
                 return
