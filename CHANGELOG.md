@@ -73,6 +73,8 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Mod Management keeps preview loading messages with Installed overlays and uses the workspace Activity drawer for its log, without duplicate Activity/Copy controls below Recovery. Progress and Cancel appear only during management operations.
+- Mod Management and Create New Item keep their Rust controls aligned with CDMW's font size when moving between monitors or detached windows with different display scaling.
 - Create New Item reduces its post-startup UI pause by preparing panels in separate event-loop turns and waiting until Perks & Effects is first opened to load effect metadata. Opening early and template/model handoffs keep using the same archive read.
 - Painted translucency previews support colour-only imported materials and replace inherited alpha factors consistently with export. Other parts and restored source alpha retain their original settings.
 - Archive previews resolve root-prefixed material texture paths, decode newer compressed PAM geometry and aligned mixed-compression PAMLOD blocks, and preserve each PAMLOD part's material. Textureless PAMLOD placeholders and structurally verified low-poly PAC meshes with long faces no longer prevent preview loading. Existing static-mesh preparation caches are refreshed automatically.

@@ -672,6 +672,46 @@ def test_theme_snapshot_retains_small_fonts_and_active_button_states(font_pixels
         widget.deleteLater()
 
 
+def test_published_theme_follows_visible_host_across_monitor_moves_and_detach(studio, monkeypatch):
+    _, workflow, _ = studio
+    from cdmw.ui.new_item.rust_ui_tab import RustNewItemStudioTab
+
+    parents = [QWidget(), QWidget()]
+    with patch.object(RustNewItemStudioTab, "_start_prepare"):
+        presentation = RustNewItemStudioTab(workflow=workflow)
+        sent = []
+        presentation._send = sent.append
+        try:
+            presentation.use_rust()
+            presentation._bridge = NewItemPresentationBridge(workflow)
+            presentation._ready = True
+            host_font = QFont(presentation.font())
+            host_font.setPixelSize(13)
+            presentation.setFont(host_font)
+            for parent, scale in ((parents[0], 1.5), (parents[1], 1.0), (None, 2.0),
+                                  (None, 1.25), (parents[0], 1.5)):
+                presentation.setParent(parent)
+                monkeypatch.setattr(presentation, 'devicePixelRatioF', lambda: scale)
+                # The hidden authority can have different screen/font metrics.
+                hidden_font = QFont(host_font)
+                hidden_font.setPixelSize(22)
+                workflow.setFont(hidden_font)
+                presentation._prewarming = True
+                presentation._received_generation = presentation._sent_generation
+                before = len(sent)
+                presentation._publish_state()
+                assert len(sent) == before + 1
+                assert sent[-1]['theme']['font_pixels'] == 13
+                assert sent[-1]['theme']['pixels_per_point'] == scale
+                assert theme_snapshot(workflow)['font_pixels'] == 22
+        finally:
+            presentation.request_shutdown()
+            workflow.setParent(None)
+            presentation.deleteLater()
+            for parent in parents:
+                parent.deleteLater()
+
+
 def test_list_widget_and_readonly_table_preserve_selection_and_edit_contract():
     app = QApplication.instance() or QApplication([])
     root = QWidget()

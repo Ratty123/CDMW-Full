@@ -14,6 +14,7 @@ from cdmw.services.new_item_rust_runtime import prepare_new_item_ui
 from cdmw.services.active_ui_translation import active_ui_localizer
 from cdmw.ui.mesh_editor.rust_host import RustMeshEditorHostFrame
 from cdmw.ui.new_item.rust_ui_bridge import NewItemPresentationBridge
+from cdmw.ui.new_item.rust_ui_document import theme_snapshot
 from cdmw.ui.new_item.rust_ui_dialogs import PresentationDialogs
 from cdmw.ui.new_item.rust_ui_portals import PreviewPortals
 from cdmw.ui.new_item.tab import NewItemStudioTab
@@ -281,6 +282,10 @@ class RustNewItemStudioTab(QWidget):
             return
         try:
             state = self._bridge.snapshot()
+            # The hidden workflow stays on its original screen. Appearance and
+            # monitor scaling belong to the visible, detachable Qt host.
+            state["theme"] = theme_snapshot(self)
+            state["theme"]["pixels_per_point"] = self.devicePixelRatioF()
             stable = {key: value for key, value in state.items() if key != "generation"}
             fingerprint = hashlib.blake2s(json.dumps(stable, ensure_ascii=False, sort_keys=True).encode("utf-8")).digest()
             if fingerprint == self._state_fingerprint:

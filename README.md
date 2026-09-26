@@ -241,6 +241,9 @@ tables and registries are composed by record; conflicts and dependencies block
 unsafe removal, including items used in another overlay's recipes. Earlier installs
 without ownership history appear as one bundle. Their removal changes only texture
 registrations with proven ownership and preserves later registrations from other mods.
+Preview loading status stays beside the installed-model viewport. In Compact
+Workspace, use the existing Activity drawer for history and copying or clearing
+the Current Tool Log; Mod Management has no duplicate activity footer.
 After the last overlay is removed, the next install starts from the current game
 files, so retired history does not block installation after a game update.
 Keep `.cdmw/overlays.json` and `.cdmw/overlays/` with the game installation: they

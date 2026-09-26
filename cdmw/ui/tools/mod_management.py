@@ -3,7 +3,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (
-    QApplication, QHBoxLayout, QLabel, QMessageBox, QPlainTextEdit, QProgressBar,
+    QHBoxLayout, QLabel, QMessageBox, QPlainTextEdit, QProgressBar,
     QPushButton, QTabWidget, QToolButton, QVBoxLayout, QWidget,
 )
 
@@ -88,16 +88,12 @@ class ModManagementTab(QWidget):
             Qt.ArrowType.DownArrow if expanded else Qt.ArrowType.RightArrow))
         recovery_layout.addWidget(self.overlay_migration_button)
         recovery_layout.addStretch(1)
-        self.status = QLabel('Reading installed overlays…')
+        self.operation_bar = QWidget()
+        activity_row = QHBoxLayout(self.operation_bar)
+        activity_row.setContentsMargins(0, 0, 0, 0)
+        self.status = QLabel('')
         self.status.setTextFormat(Qt.TextFormat.PlainText)
         self.status.setWordWrap(True)
-        activity_row = QHBoxLayout()
-        self.activity_toggle = QToolButton()
-        self.activity_toggle.setText('Activity')
-        self.activity_toggle.setCheckable(True)
-        self.activity_toggle.setArrowType(Qt.ArrowType.RightArrow)
-        self.activity_toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        activity_row.addWidget(self.activity_toggle)
         activity_row.addWidget(self.status, 1)
         self.progress = QProgressBar()
         self.progress.setRange(0, 0)
@@ -105,20 +101,14 @@ class ModManagementTab(QWidget):
         self.cancel_button = QPushButton('Cancel')
         self.cancel_button.clicked.connect(self._cancel)
         activity_row.addWidget(self.cancel_button)
-        self.copy_button = QPushButton('Copy activity')
-        self.copy_button.clicked.connect(lambda: QApplication.clipboard().setText(self.log.toPlainText()))
-        activity_row.addWidget(self.copy_button)
-        layout.addLayout(activity_row)
-        self.log = QPlainTextEdit()
+        layout.addWidget(self.operation_bar)
+        # The shell's Activity drawer owns history, copy and clear. Keep its
+        # document here without projecting another log below every page.
+        self.log = QPlainTextEdit(self)
         self.log.setReadOnly(True)
         self.log.setProperty("followTail", True)
         self.log.setMaximumBlockCount(2000)
-        self.log.setMaximumHeight(150)
         self.log.hide()
-        layout.addWidget(self.log)
-        self.activity_toggle.toggled.connect(self.log.setVisible)
-        self.activity_toggle.toggled.connect(lambda checked: self.activity_toggle.setArrowType(
-            Qt.ArrowType.DownArrow if checked else Qt.ArrowType.RightArrow))
         self.controller.log_message.connect(self._operation_log)
         self.controller.status_message.connect(self._operation_status)
         self.controller.operation_progress.connect(self._operation_progress)
@@ -140,12 +130,14 @@ class ModManagementTab(QWidget):
 
     def _operation_status(self, message, error=False):
         if self._owns_operation():
+            self.status.setText(str(message))
             self._status_changed(message, error)
 
     def _operation_progress(self, lane, current, total, message):
         if lane in {'overlay_manager', 'mod_merge', 'mod_update', 'overlay'}:
             self.progress.setRange(0, max(0, total))
             self.progress.setValue(current)
+            self.status.setText(str(message))
             self._status_changed(message)
 
     def _cancel(self):
@@ -170,7 +162,6 @@ class ModManagementTab(QWidget):
         self.inventory.refresh()
 
     def _status_changed(self, message, error=False):
-        self.status.setText(str(message))
         self.status_message_requested.emit(str(message), bool(error))
 
     def _busy_changed(self, busy):
@@ -179,6 +170,7 @@ class ModManagementTab(QWidget):
                        self.overlay_migration_button):
             button.setEnabled(not busy)
         own = bool(busy and self._owns_operation())
+        self.operation_bar.setVisible(own)
         self.progress.setVisible(own)
         self.cancel_button.setVisible(own)
         self.cancel_button.setEnabled(own and not self.inventory._applying)

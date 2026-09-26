@@ -194,6 +194,9 @@ def test_rust_workspace_navigation_filter_and_scoped_activity(tmp_path, monkeypa
     from cdmw.ui.new_item.rust_ui_bridge import NewItemPresentationBridge
     from cdmw.ui.new_item.rust_ui_dialogs import PresentationDialogs
     from tests.test_new_item_rust_ui import _send
+    from cdmw.ui.shell.compact.activity import ActivityHistory, tool_log_adapter_for
+    from cdmw.ui.shell.compact.drawer import CompactActivityDrawer
+    from unittest.mock import Mock, PropertyMock, patch
     from PySide6.QtWidgets import QWidget
     app = QApplication.instance() or QApplication([])
     monkeypatch.setattr(ItemPreviewFrame, '_start_package', lambda *_args, **_kwargs: None)
@@ -202,6 +205,12 @@ def test_rust_workspace_navigation_filter_and_scoped_activity(tmp_path, monkeypa
     dialogs = PresentationDialogs(tab, visible)
     dialogs.active = True
     bridge = NewItemPresentationBridge(tab, dialogs=dialogs.dialogs)
+    history = ActivityHistory()
+    tab.status_message_requested.connect(lambda message, error: history.append(
+        message, tool_key='mod_management', severity='error' if error else 'info'))
+    drawer = CompactActivityDrawer(history)
+    owner = SimpleNamespace(shell=SimpleNamespace(_tool_widgets_by_key={'mod_management': tab}))
+    drawer.set_tool_log(tool_log_adapter_for(owner, 'mod_management'))
     tab.show()
     app.processEvents()
     try:
@@ -227,12 +236,44 @@ def test_rust_workspace_navigation_filter_and_scoped_activity(tmp_path, monkeypa
         tab.inventory._preview_status('The preview could not be built: missing model')
         assert 'missing model' in tab.inventory.preview_status.text()
         assert 'missing model' in tab.log.toPlainText()
+        _send(bridge, tab.pages, 'tab', 3)
+        tab.inventory._preview_status('Full textures loaded.')
+        state = bridge.snapshot()
+        for text in ('Full textures loaded.', 'Copy activity', '"Activity"'):
+            assert text not in json.dumps(state['root'])
+        assert not tab.operation_bar.isVisible()
+        assert history.events[-1].message == 'Full textures loaded.'
+        assert drawer.tool_log_view.document() is tab.log.document()
+        drawer.tabs.setCurrentIndex(1)
+        drawer.copy_button.click()
+        assert app.clipboard().text() == tab.log.toPlainText()
+
+        # Only a running management operation gets a local status/cancel row;
+        # unrelated preview updates must not replace its progress message.
+        with patch.object(NewItemStudioController, 'busy', new_callable=PropertyMock, return_value=True):
+            tab.controller._lane = 'overlay'
+            tab._busy_changed(True)
+            tab.controller.operation_progress.emit('overlay', 2, 4, 'Moving installed items')
+            tab.inventory._preview_status('Full textures loaded.')
+            assert tab.operation_bar.isVisible()
+            assert tab.status.text() == 'Moving installed items'
+            assert tab.progress.value() == 2 and tab.progress.maximum() == 4
+            cancel = Mock()
+            monkeypatch.setattr(tab.controller, 'cancel_operation', cancel)
+            tab.cancel_button.click()
+            cancel.assert_called_once_with('overlay')
+        tab.controller._lane = ''
+        tab._busy_changed(False)
+        assert not tab.operation_bar.isVisible()
+        drawer.clear_button.click()
+        assert tab.log.toPlainText() == ''
     finally:
         dialogs.close()
         tab.request_shutdown()
         pump(app, lambda: not tab.iter_shutdown_workers())
         tab.deleteLater()
         visible.deleteLater()
+        drawer.deleteLater()
 
 
 def test_installed_preview_worker_delivers_package_and_waits_for_host_ready(tmp_path, monkeypatch):

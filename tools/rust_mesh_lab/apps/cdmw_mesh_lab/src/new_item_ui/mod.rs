@@ -24,6 +24,22 @@ pub fn control_contract() -> Value {
            "headless_entry_point":"--new-item-ui-document","native_controls":true})
 }
 
+fn sync_host_scale(context: &egui::Context, theme: &Value, window_scale: f32) {
+    let Some(host_scale) = theme["pixels_per_point"].as_f64()
+        .filter(|scale| scale.is_finite() && *scale > 0.0 && *scale <= 8.0)
+    else {
+        return;
+    };
+    // Embedded child HWNDs can retain winit's original monitor scale. Compensate
+    // before egui-winit maps input as well as before drawing, so text, hit boxes,
+    // IME placement and preview portals all use the Qt host's physical scale.
+    // Apply immediately: set_zoom_factor defers until after input conversion.
+    context.options_mut(|options| {
+        options.zoom_factor = host_scale as f32 / window_scale;
+        options.zoom_with_keyboard = false; // CDMW Appearance owns the UI size.
+    });
+}
+
 fn enqueue_input(requests: &mut VecDeque<Input>, input: Input) {
     if matches!(input.action, "text" | "number" | "cell" | "range" | "resize_dialog") {
         requests.retain(|queued| queued.edit_key() != input.edit_key() || queued.action != input.action);
@@ -51,6 +67,65 @@ fn rebase_pending_inputs(requests: &mut VecDeque<Input>, previous: &Input, state
 #[cfg(test)]
 mod layout_input_tests {
     use super::*;
+
+    #[test]
+    fn monitor_moves_keep_host_font_scale_and_pointer_hits_together() {
+        for font in [11.0, 13.0, 22.0] {
+            let context = egui::Context::default();
+            let mut view = PresentationView::default();
+            let mut state: State = serde_json::from_value(json!({"protocol": PROTOCOL,
+                "session": "monitor-scale", "generation": 1,
+                "root": {"id": "recovery", "kind": "button", "label": "Archive recovery",
+                         "enabled": true, "revision": 1},
+                "theme": {"font_pixels": font}})).unwrap();
+            apply_theme(&context, &state.theme);
+            // Both stale child DPI and an eventual native DPI notification are
+            // covered while the same context moves back and forth.
+            for (window_scale, host_scale) in [(1.5, 1.5), (1.5, 1.0), (1.5, 2.0),
+                                              (2.0, 2.0), (2.0, 1.25), (2.0, 3.0),
+                                              (1.0, 1.0), (1.0, 1.5)] {
+                state.theme["pixels_per_point"] = json!(host_scale);
+                let physical_size = egui::vec2(1280.0, 720.0) * host_scale;
+                let mut pointer_pixels = egui::Pos2::ZERO;
+                view.inputs.clear();
+                for pressed in [None, Some(true), Some(false)] {
+                    sync_host_scale(&context, &state.theme, window_scale);
+                    // egui-winit uses this same product for screen, pointer,
+                    // scroll and IME coordinates before the frame begins.
+                    let input_scale = window_scale * context.zoom_factor();
+                    assert!((input_scale - host_scale).abs() < 0.0001);
+                    let mut input = egui::RawInput {
+                        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO,
+                            physical_size / input_scale)),
+                        ..Default::default()
+                    };
+                    input.viewports.entry(egui::ViewportId::ROOT).or_default()
+                        .native_pixels_per_point = Some(window_scale);
+                    if let Some(pressed) = pressed {
+                        let point = pointer_pixels / input_scale;
+                        input.events = vec![egui::Event::PointerMoved(point),
+                            egui::Event::PointerButton { pos: point,
+                                button: egui::PointerButton::Primary, pressed,
+                                modifiers: egui::Modifiers::NONE }];
+                    }
+                    let mut output = context.run_ui(input, |ui| {
+                        assert_eq!(ui.style().text_styles[&egui::TextStyle::Body].size, font);
+                        view.draw(ui, &state);
+                    });
+                    output.textures_delta.clear();
+                    assert!((output.pixels_per_point - host_scale).abs() < 0.0001);
+                    assert_eq!(context.input(|input| input.content_rect().size()),
+                               egui::vec2(1280.0, 720.0));
+                    let rect = view.rects.iter().find(|rect| rect.id == "recovery").unwrap().rect;
+                    pointer_pixels = egui::pos2(rect[0] + rect[2] / 2.0,
+                                               rect[1] + rect[3] / 2.0) * host_scale;
+                }
+                assert_eq!(view.inputs.len(), 1);
+                assert_eq!(view.inputs[0].control, "recovery");
+                assert_eq!(view.inputs[0].action, "activate");
+            }
+        }
+    }
 
     #[test]
     fn persistent_dialog_drag_keeps_the_final_sample_across_delayed_acknowledgements() {
@@ -432,6 +507,9 @@ impl Application {
         let Some(window) = self.window.clone() else {
             return Ok(());
         };
+        if let Some(state) = &self.state {
+            sync_host_scale(&self.context, &state.theme, window.scale_factor() as f32);
+        }
         let mut input = self
             .input
             .as_mut()
@@ -558,6 +636,9 @@ impl ApplicationHandler for Application {
             }
         }
         if let (Some(input), Some(window)) = (&mut self.input, &self.window) {
+            if let Some(state) = &self.state {
+                sync_host_scale(&self.context, &state.theme, window.scale_factor() as f32);
+            }
             repaint = input.on_window_event(window, &event).repaint;
         }
         match event {
