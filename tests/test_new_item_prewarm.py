@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import threading
 import time
+from contextlib import ExitStack
 from unittest.mock import patch
 
 import pytest
@@ -13,6 +14,7 @@ from PySide6.QtCore import QEvent, QThread, QTimer, Qt
 from PySide6.QtWidgets import QApplication, QTabWidget, QVBoxLayout, QWidget
 
 from cdmw.ui.new_item.controller import NewItemStudioController
+from cdmw.ui.new_item.rust_ui_bridge import NewItemPresentationBridge
 from cdmw.ui.new_item.rust_ui_tab import RustNewItemStudioTab
 from cdmw.ui.new_item.tab import NewItemStudioTab
 from cdmw.ui.shell.lazy_tool_tab import LazyToolTab
@@ -121,6 +123,7 @@ def test_shell_prepares_template_after_startup_without_blocking_or_switching_too
             assert tab.isVisible() == restored
             assert workflow._current_step == 0
             assert workflow._panels[0] is workflow.template_panel
+            controller.start_effect_index.assert_not_called()
             assert support.TEMPLATE in controller.snapshot.rows
             snapshot, draft = controller.snapshot, controller.draft
             tabs.setCurrentWidget(lazy)
@@ -216,3 +219,144 @@ def test_shutdown_cancels_background_read_and_drops_its_late_result(unprepared):
             _until(lambda: not tab.iter_shutdown_workers())
         assert controller.snapshot is None
         assert not tab.workflow._panels_built
+
+
+@pytest.mark.parametrize("early_open", [False, True])
+def test_workspace_mount_yields_between_panels_and_publishes_only_when_complete(unprepared, early_open):
+    from cdmw.ui.new_item import tab as tab_module
+
+    tab = unprepared
+    workflow = tab.workflow
+    bridge = NewItemPresentationBridge(workflow)
+    events = []
+    checkpoints = []
+    panel_names = ("TemplatePanel", "IdentityPanel", "ModelPanel", "OutputPanel")
+
+    def constructor(name, original):
+        def build(panel, *args, **kwargs):
+            original(panel, *args, **kwargs)
+            events.append((name, QThread.currentThread() is QApplication.instance().thread()))
+
+            def heartbeat():
+                events.append(("heartbeat", True))
+                state = bridge.snapshot()
+                checkpoints.append((workflow._panels_built, state["root"]["kind"],
+                                    state["unsupported"], workflow._progress.isHidden()))
+
+            QTimer.singleShot(0, heartbeat)
+        return build
+
+    with ExitStack() as patches:
+        for name in panel_names:
+            cls = getattr(tab_module, name)
+            patches.enter_context(patch.object(cls, "__init__", constructor(name, cls.__init__)))
+        tab.prewarm()
+        if early_open:
+            tab.show()
+        _until(lambda: workflow._panels_built and not tab.controller.busy)
+
+    assert events == [(name, True) for panel in panel_names for name in (panel, "heartbeat")]
+    assert len(checkpoints) == 4
+    assert all(not ready and kind != "workspace" and not unsupported and not hidden
+               for ready, kind, unsupported, hidden in checkpoints)
+    assert bridge.snapshot()["root"]["kind"] == "workspace"
+    assert workflow._panel_mount_steps is None
+    assert not workflow._panel_mount_timer.isActive()
+    assert tab.isVisible() == early_open
+    tab.controller.start_effect_index.assert_not_called()
+
+
+def test_handoff_during_workspace_mount_reuses_snapshot_and_waits_for_panels(unprepared, tmp_path):
+    tab = unprepared
+    workflow, controller = tab.workflow, tab.controller
+    build = controller.service.build_snapshot
+    imports = []
+    source = tmp_path / "import.obj"
+    with patch.object(type(controller.service), "build_snapshot", side_effect=build) as read, \
+            patch.object(controller, "start_model_import", side_effect=imports.append):
+        tab.prewarm()
+        _until(lambda: controller.ready and not controller.busy)
+        workflow._panel_mount_timer.stop()
+        assert not workflow._panels_built
+        snapshot = controller.snapshot
+        tab.prefill_template(support.TEMPLATE)
+        tab.open_model_source(source)
+        tab.show()
+        tab.prewarm()
+        workflow.start_snapshot()
+        assert not imports
+        assert read.call_count == 1
+        workflow._panel_mount_timer.start()
+        _until(lambda: bool(imports) and not controller.busy)
+        assert workflow._panels_built
+        assert controller.snapshot is snapshot
+        assert controller.draft.template_key == support.TEMPLATE
+        assert imports == [source.resolve()]
+        assert workflow._current_step == 2
+        assert read.call_count == 1
+
+
+@pytest.mark.parametrize("after_model", [False, True])
+def test_shutdown_stops_partial_workspace_mount(unprepared, after_model):
+    tab = unprepared
+    workflow, controller = tab.workflow, tab.controller
+    tab.prewarm()
+    if after_model:
+        _until(lambda: hasattr(workflow, "model_panel"))
+    else:
+        _until(lambda: controller.ready and not controller.busy)
+    workflow._panel_mount_timer.stop()
+    assert not workflow._panels_built
+    assert not hasattr(workflow, "output_panel")
+    tab.request_shutdown()
+    # Even a callback already queued at close must not resume construction.
+    workflow._advance_panel_mount()
+    _until(lambda: not tab.iter_shutdown_workers())
+    assert workflow._panel_mount_steps is None
+    assert not workflow._panel_mount_timer.isActive()
+    assert not workflow._panels_built
+    assert not hasattr(workflow, "output_panel")
+    assert "New Item workspace ready." not in workflow.log.toPlainText()
+    controller.start_effect_index.assert_not_called()
+
+
+def test_effect_cache_load_waits_for_first_perks_visit_and_refreshes_with_snapshot(unprepared, tmp_path):
+    from cdmw.services.effect_catalogue import EffectCatalogue, catalogue_signature, save_effect_catalogue
+    from cdmw.workers import effect_catalogue_worker
+
+    tab = unprepared
+    workflow, controller = tab.workflow, tab.controller
+    tab.prewarm()
+    _until(lambda: workflow._panels_built and not controller.busy)
+    controller.start_effect_index.assert_not_called()
+    assert controller.effect_catalogue is None
+    cache_path = tmp_path / "effects.json"
+    save_effect_catalogue(EffectCatalogue(signature=catalogue_signature(controller.snapshot)), cache_path)
+    controller.effect_cache_path = cache_path
+    load = effect_catalogue_worker.load_effect_catalogue
+    load_threads = []
+
+    def load_cache(*args, **kwargs):
+        load_threads.append(QThread.currentThread())
+        return load(*args, **kwargs)
+
+    start_index = NewItemStudioController.start_effect_index.__get__(controller)
+    with patch.object(controller, "start_effect_index", wraps=start_index) as start, \
+            patch.object(effect_catalogue_worker, "load_effect_catalogue", side_effect=load_cache), \
+            patch.object(effect_catalogue_worker, "build_effect_catalogue") as rebuild:
+        workflow.show_step(4)
+        _until(lambda: controller.effect_catalogue is not None and not controller.iter_shutdown_workers())
+        assert start.call_count == 1
+        assert not workflow.perks_panel.index_button.isEnabled()
+        catalogue = controller.effect_catalogue
+        workflow.show_step(0)
+        workflow.show_step(4)
+        assert start.call_count == 1
+        assert controller.effect_catalogue is catalogue
+
+        workflow.start_snapshot()
+        _until(lambda: start.call_count == 2 and not controller.iter_shutdown_workers())
+        assert controller.effect_catalogue is not catalogue
+        assert len(load_threads) == 2
+        assert all(thread is not QApplication.instance().thread() for thread in load_threads)
+        rebuild.assert_not_called()

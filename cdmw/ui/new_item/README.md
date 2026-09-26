@@ -145,6 +145,15 @@ finishes. The archive read starts after startup even if the tab is already open.
 An existing snapshot or read in progress is reused; a failed read keeps its error
 and **Try again** action instead of retrying repeatedly in the background. The
 worker and renderer remain owned by the tab for normal asynchronous shutdown.
+After the tables load, panel construction runs in separate event-loop turns so
+the shell can handle input between panels. The loading view stays in place until
+the complete workspace is ready. Template and model handoffs during this setup
+reuse the snapshot and wait for the panels; closing the tab stops the remaining
+construction and shuts down any preview already created.
+Effect metadata loading starts on the first visit to **Perks & Effects**, using
+the existing background cache/index worker. Startup preparation does not load
+that optional catalogue. Returning to Effects reuses it; rereading the archives
+refreshes the catalogue if that workspace has already been opened.
 The native window resizes after Qt settles its container geometry, so the first
 opening fills the workspace even when preparation happened in a hidden tab.
 

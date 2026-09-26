@@ -149,6 +149,11 @@ class NewItemStudioTab(QWidget):
         self._pending_template: Optional[int] = None
         self._pending_model_import: Optional[Path] = None
         self._panels_built = False
+        self._panel_mount_steps = None
+        self._panel_mount_timer = QTimer(self)
+        self._panel_mount_timer.setSingleShot(True)
+        self._panel_mount_timer.setInterval(10)
+        self._panel_mount_timer.timeout.connect(self._advance_panel_mount)
         self._model_status_host = None
         self._stats_panel = None
         self._perks_panel = None
@@ -334,13 +339,13 @@ class NewItemStudioTab(QWidget):
         if progress is None:
             return
         try:
-            progress.setVisible(bool(busy))
+            progress.setVisible(bool(busy) or self._panel_mount_steps is not None)
         except RuntimeError:
             # deleted between the check and the call; there is nothing left to show
             self._progress = None
 
     def start_snapshot(self) -> None:
-        if self.controller.busy:
+        if self.controller.busy or self._panel_mount_steps is not None or self.controller._shutdown_requested:
             return
         self._read_failure.begin()
         self.controller.log_message.emit("Reading archives for New Item...")
@@ -405,6 +410,8 @@ class NewItemStudioTab(QWidget):
         self._status.setText(f"The archives could not be read for a new item.\n\n{message}")
 
     def _snapshot_ready(self) -> None:
+        if self.controller._shutdown_requested:
+            return
         self._read_failure.clear()
         self._append_log("Preparing the New Item workspace...")
         self._record_snapshot_game_compatibility()
@@ -414,20 +421,21 @@ class NewItemStudioTab(QWidget):
                 self._stats_panel.rebuild()
             if self._perks_panel is not None:
                 self._perks_panel._refresh_all()
+                self.controller.start_effect_index()
             if self._placement_panel is not None:
                 self._placement_panel._refresh_stores()
             # The install changes group membership, not the catalogue; keep its Qt item wrappers.
             self.identity_panel.refresh_issues()
             self._refresh_summary()
-            self.controller.start_effect_index()
             return
         try:
             self.controller.log_message.disconnect(self._status.setText)
         except (RuntimeError, TypeError):
             pass
         self._mount_panels()
+
+    def _panels_ready(self) -> None:
         self._append_log("New Item workspace ready.")
-        self.controller.start_effect_index()
         if self._pending_template is not None:
             key, self._pending_template = self._pending_template, None
             self.template_panel.prefill(key)
@@ -445,18 +453,45 @@ class NewItemStudioTab(QWidget):
             self.model_panel.set_operation_status_host(host)
 
     def _mount_panels(self) -> None:
-        if self._panels_built:
+        if self._panels_built or self._panel_mount_steps is not None or self.controller._shutdown_requested:
             return
-        self._panels_built = True
+        self._panel_mount_steps = self._build_panels()
+        self._bootstrap_busy_changed(True)
+        if self.controller._synchronous:
+            # Preserve the explicit synchronous mode used by headless callers.
+            while self._panel_mount_steps is not None:
+                self._advance_panel_mount()
+        else:
+            self._panel_mount_timer.start()
 
+    def _advance_panel_mount(self) -> None:
+        if self.controller._shutdown_requested or self._panel_mount_steps is None:
+            return
+        try:
+            next(self._panel_mount_steps)
+        except StopIteration:
+            self._panel_mount_steps = None
+            self._panels_ready()
+        else:
+            if not self.controller._synchronous:
+                self._panel_mount_timer.start()
+
+    def _build_panels(self):
+        # Keep partially built panels owned and hidden. Each yield gives the
+        # shell an event-loop turn before the next constructor or final layout.
         controller = self.controller
-        self.template_panel = TemplatePanel(controller)
+        self.template_panel = TemplatePanel(controller, self)
+        self.template_panel.hide()
         self.template_panel.open_archive_entry_requested.connect(self.open_archive_entry_requested.emit)
-        self.identity_panel = IdentityPanel(controller)
+        yield
+        self.identity_panel = IdentityPanel(controller, self)
+        self.identity_panel.hide()
+        yield
         self.model_panel = ModelPanel(
-            controller,
+            controller, self,
             native_preview_core_cache_root=self._native_preview_core_cache_root(),
         )
+        self.model_panel.hide()
         if self._model_status_host is not None:
             self.model_panel.set_operation_status_host(self._model_status_host)
         self.model_panel.preview.set_render_settings(self._preview_render_settings)
@@ -468,9 +503,14 @@ class NewItemStudioTab(QWidget):
         )
         self.model_panel.preview.status_changed.connect(self._log_preview_status)
         self.template_panel.mount_preview(self.model_panel.preview)
-        self.output_panel = OutputPanel(controller)
+        yield
+        self.output_panel = OutputPanel(controller, self)
+        self.output_panel.hide()
         controller.log_message.disconnect(self.output_panel.append_log)
         self.output_panel.log.setDocument(self.log.document())
+        yield
+        self._apply_step_style()
+        yield
         controller.install_finished.connect(self._after_install_finished)
         controller.model_import_changed.connect(lambda _source: self.identity_panel.refresh_issues())
         controller.model_import_changed.connect(self._refresh_summary)
@@ -485,7 +525,6 @@ class NewItemStudioTab(QWidget):
 
         # One guided workspace: the clickable header owns navigation, the current page
         # owns the whole width, and the footer keeps Back / progress / Continue stable.
-        self._apply_step_style()
         self.steps = WorkflowHeader()
         self.steps.setObjectName("new_item_steps")
         self.pages = QStackedWidget()
@@ -547,6 +586,7 @@ class NewItemStudioTab(QWidget):
         # invalidates the plan, which refreshes the rail once, after the draft changed.
         # A table's itemChanged fires once per cell it is given, so listening to it ran
         # the summary, and two full validations, once per cell of every rebuild.
+        self._panels_built = True
         self._show_step(0)
         self.template_panel._refresh_matches()
 
@@ -618,6 +658,8 @@ class NewItemStudioTab(QWidget):
         self.pages.removeWidget(old)
         self.pages.insertWidget(index, self._page_for_panel(index, panel))
         old.deleteLater()
+        if index == 4 and controller.ready:
+            controller.start_effect_index()
         return panel
 
     def _has_staged_effect_changes(self):
@@ -858,9 +900,10 @@ class NewItemStudioTab(QWidget):
     def prefill_template(self, template_key: int) -> None:
         """Point the studio at a template (from the Item Finder or the Builder)."""
 
-        if not self.controller.ready:
+        if not self.controller.ready or not self._panels_built:
             self._pending_template = int(template_key)
-            self.start_snapshot()
+            if not self.controller.ready:
+                self.start_snapshot()
             return
         self.template_panel.prefill(int(template_key))
 
@@ -870,7 +913,8 @@ class NewItemStudioTab(QWidget):
         model_path = Path(path).expanduser().resolve()
         if not self.controller.ready or not self._panels_built:
             self._pending_model_import = model_path
-            self.start_snapshot()
+            if not self.controller.ready:
+                self.start_snapshot()
             return
         self.steps.setCurrentRow(2)
         if self.controller._template_request is not None or self.controller.draft.template_key is None:
@@ -1086,22 +1130,26 @@ class NewItemStudioTab(QWidget):
 
     def iter_shutdown_workers(self):
         workers = list(self.controller.iter_shutdown_workers())
-        if self._panels_built:
+        if getattr(self, "model_panel", None) is not None:
             workers.extend(self.model_panel.iter_shutdown_workers())
-            if self._perks_panel is not None:
-                workers.extend(self._perks_panel.iter_shutdown_workers())
+        if self._perks_panel is not None:
+            workers.extend(self._perks_panel.iter_shutdown_workers())
         return tuple(workers)
 
     def request_shutdown(self) -> None:
+        self._panel_mount_timer.stop()
+        if self._panel_mount_steps is not None:
+            self._panel_mount_steps.close()
+            self._panel_mount_steps = None
         self.controller.request_shutdown()
-        if self._panels_built:
+        if getattr(self, "model_panel", None) is not None:
             self.model_panel.request_shutdown_preview()
-            if self._perks_panel is not None:
-                self._perks_panel.request_shutdown()
+        if self._perks_panel is not None:
+            self._perks_panel.request_shutdown()
 
     def shutdown(self) -> None:
         self.request_shutdown()
-        if self._panels_built:
+        if getattr(self, "model_panel", None) is not None:
             self.model_panel.shutdown_preview()
         self.controller.shutdown()
 
