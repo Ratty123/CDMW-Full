@@ -17,9 +17,9 @@ COMPACT_CATEGORY_ORDER = ("Assets", "Authoring", "Utilities")
 
 COMPACT_TOOL_SPECS = (
     CompactToolSpec("archive_browser", "Browse Archives", "Assets", "folder"),
+    CompactToolSpec("new_item_studio", "Create New Item", "Assets", "add"),
     CompactToolSpec("model_library", "Model Library", "Assets", "model"),
     CompactToolSpec("item_icons", "Item Icons", "Assets", "image"),
-    CompactToolSpec("new_item_studio", "Create New Item", "Assets", "add"),
     CompactToolSpec("mesh_editor", "Mesh Editor", "Authoring", "mesh"),
     CompactToolSpec("placement_studio", "Placement & Animations", "Authoring", "person"),
     CompactToolSpec("textures", "Textures", "Authoring", "brush"),

@@ -18,6 +18,7 @@ The format is intentionally simple:
 
 ### Changed
 
+- Assets navigation now lists Browse Archives, Create New Item, Model Library, and Item Icons in that order.
 - Mod Management uses the Rust interface with an automatically loaded, searchable inventory, an integrated model preview and file/history inspector, inline merge/update/recovery pages and compact activity. Overlay health is shown separately from the game-build comparison.
 - Create New Item offers DMM as its only mod-folder export target until further notice, with a visible warning that compatibility is not confirmed for every item or mod and exported items need in-game checks. CDUMM and JMM options remain available in other tools; existing packages remain readable.
 - Material tools use effect-based names: Transparent surface blending, Surface detail and roughness, and Glowing band sweep. Blending controls and the global Character visibility test use matching plain-language labels and help; saved settings and exported shader identifiers are unchanged.

@@ -30,6 +30,8 @@ hides the existing tab bars, routes its rail through the shared activation
 path, reuses the existing actions and status widgets, and never constructs a
 second tool/controller/worker tree. Its shared application theme and category state
 are documented in `docs/features/compact-workspace.md`.
+Assets lists Browse Archives, Create New Item, Model Library, and Item Icons in
+that order.
 The Compact navigation rail sizes to its labels, icons, and layout margins,
 including room for a scrollbar, so it stays narrow without clipping larger fonts
 or longer translations. Collapsing categories keeps that width stable.

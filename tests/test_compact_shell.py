@@ -154,9 +154,9 @@ def test_compact_registry_has_one_textures_workspace() -> None:
     assert len({spec.key for spec in COMPACT_TOOL_SPECS}) == len(COMPACT_TOOL_SPECS)
     assert [(spec.category, spec.label) for spec in COMPACT_TOOL_SPECS] == [
         ("Assets", "Browse Archives"),
+        ("Assets", "Create New Item"),
         ("Assets", "Model Library"),
         ("Assets", "Item Icons"),
-        ("Assets", "Create New Item"),
         ("Authoring", "Mesh Editor"),
         ("Authoring", "Placement & Animations"),
         ("Authoring", "Textures"),
