@@ -69,6 +69,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Painted translucency previews support colour-only imported materials and replace inherited alpha factors consistently with export. Other parts and restored source alpha retain their original settings.
 - Archive previews resolve root-prefixed material texture paths, decode newer compressed PAM geometry and aligned mixed-compression PAMLOD blocks, and preserve each PAMLOD part's material. Textureless PAMLOD placeholders and structurally verified low-poly PAC meshes with long faces no longer prevent preview loading. Existing static-mesh preparation caches are refreshed automatically.
 
 - Installed overlay previews load without first reading Create New Item's archives and use fresh preview cache identities after refresh or reopening, keeping installed geometry and material changes visible.

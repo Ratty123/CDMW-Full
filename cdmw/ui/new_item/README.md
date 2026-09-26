@@ -28,8 +28,10 @@ keeps the edit on this variant and updates the preview; Cancel discards it.
 **Restore mask** removes the painted override.
 
 For Translucency the mask replaces base-colour alpha (white mask means zero
-absorption alpha), including explicit overrides on opaque glTF imports. Thickness,
-extinction and surface reflection controls still apply. For Transparent surface
+absorption alpha), including explicit overrides on opaque glTF imports and their
+source alpha factors. Colour-only imports can also be painted; their material colour
+is retained in the preview. Thickness, extinction and surface reflection controls
+still apply. For Transparent surface
 blending it replaces material red, taking precedence over uniform Colour reduction;
 Colour mixing and Surface detail and shine remain independent. White therefore
 means *more transparent*, not guaranteed invisibility or removal of reflections.

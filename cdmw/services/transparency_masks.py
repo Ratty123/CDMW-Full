@@ -117,12 +117,17 @@ def preview_masked_part(part, mask, *, glass=False, snapshot=None, stop_event=No
         if snapshot is not None and snapshot.has_entry(path):
             payload = snapshot.payload(path)
             break
-    if payload is None and (glass or candidates):
+    if payload is None and candidates:
         raise ValueError(f"{part.name}: the preview texture is unavailable for the painted transparency mask.")
-    # glTF scalar roughness/metallic multiply the sampled channels. Without a
-    # source map those channels must remain identity when adding our red mask.
     factors = getattr(part, "preview_native_material_overrides", {}) or {}
-    neutral = (0, 255, 255, 255) if factors.get("gltf_metallic_roughness") else (0, 0, 0, 255)
+    if glass:
+        # Colour-only imports keep their tint in the material factors. White
+        # supplies an alpha-bearing texture without multiplying that tint twice.
+        neutral = (255, 255, 255, 255)
+    else:
+        # glTF scalar roughness/metallic multiply the sampled channels. Without a
+        # source map those channels must remain identity when adding our red mask.
+        neutral = (0, 255, 255, 255) if factors.get("gltf_metallic_roughness") else (0, 0, 0, 255)
     image = decode_texture(payload, stop_event=stop_event) if payload else Image.new("RGBA", (4, 4), neutral)
     image = masked_texture(image, mask, 3 if glass else 0, invert=glass)
     buffer = BytesIO()
@@ -160,4 +165,6 @@ def preview_masked_part(part, mask, *, glass=False, snapshot=None, stop_event=No
         clone.preview_alpha_mode = "BLEND"
         clone.preview_native_material_overrides = dict(getattr(part, "preview_native_material_overrides", {}) or {})
         clone.preview_native_material_overrides["alpha_mode"] = "blend"
+        # Export replaces the complete base alpha, including any source factor.
+        clone.preview_native_material_overrides["opacity"] = 1.
     return clone

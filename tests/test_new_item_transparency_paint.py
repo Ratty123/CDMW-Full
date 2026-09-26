@@ -231,6 +231,62 @@ def test_import_preview_carries_mask_into_real_rust_material_resources(tmp_path,
         source.cleanup()
 
 
+@pytest.mark.parametrize("textured", [False, True])
+@pytest.mark.parametrize("alpha_mode", ["OPAQUE", "BLEND"])
+def test_painted_glass_preview_matches_export_with_source_colour_and_alpha(tmp_path, textured, alpha_mode):
+    from tests.test_new_item_texture_fidelity import write_gltf, export_materials, pixels
+    from cdmw.ui.new_item.model_import import load_model_import_source
+    from cdmw.services.new_item_translucency import translucency_preview_mesh
+    from cdmw.services.mesh_rust_authoring import _mesh_texture_payloads, _mesh_material_presentations, _session_root_identity
+
+    colour, source_alpha = [.3, .5, .7], .2
+    pbr = {"baseColorFactor": [*colour, source_alpha]}
+    if textured:
+        Image.new("RGBA", (64, 16), (100, 150, 190, 45)).save(tmp_path / "base.png")
+        pbr["baseColorTexture"] = {"index": 0}
+    path = write_gltf(tmp_path, [{"name": name, "alphaMode": alpha_mode, "pbrMetallicRoughness": pbr}
+                               for name in ("Unpainted", "Glass")], ["base.png"] if textured else [])
+    mask = gradient()
+    choice = TranslucencyChoice(("Glass",), masks=(("Glass", mask),))
+    source = load_model_import_source(path)
+    try:
+        mesh = source.baked_preview_mesh()
+        original = _mesh_material_presentations(mesh)
+        preview = translucency_preview_mesh(mesh, choice)
+        presentations = _mesh_material_presentations(preview)
+        assert presentations[1]["opacity"] == 1., "The mask replaces source alpha, including its scalar factor."
+        assert presentations[1]["alpha_mode"] == "blend"
+        assert presentations[1]["texture_tint"] == pytest.approx(colour)
+        assert presentations[1]["base_tint_strength"] == 0.
+        assert presentations[0] == original[0], "Other parts must retain their authored alpha."
+        assert _mesh_material_presentations(mesh) == original, "Painting must not change the reusable import."
+
+        output = tmp_path / "preview"
+        output.mkdir()
+        resources = _mesh_texture_payloads(output, preview, expected_root_identity=_session_root_identity(output))
+        resource = next(row for row in resources if row["role"] == "base_color" and row["material_indices_by_lod"] == [[1]])
+        actual = rgba((output / resource["file"]["path"]).read_bytes())
+        expected = 255 - np.frombuffer(mask.pixels, dtype=np.uint8).reshape(mask.height, mask.width)
+        assert np.array_equal(actual[..., 3], expected)
+        assert (actual[..., :3] == ([100, 150, 190] if textured else [255, 255, 255])).all()
+
+        _, files, wrappers = export_materials(path, tmp_path, translucency=choice)
+        exported = pixels(files, wrappers["Glass"])
+        assert np.abs(exported[..., 3].astype(int) - actual[..., 3]).max() <= 3
+        restored = translucency_preview_mesh(mesh, replace(choice, masks=()))
+        assert _mesh_material_presentations(restored)[1]["opacity"] == source_alpha
+    finally:
+        source.cleanup()
+
+
+def test_painted_glass_rejects_an_unavailable_declared_base_texture(tmp_path):
+    from cdmw.services.transparency_masks import preview_masked_part
+
+    part = SimpleNamespace(name="Glass", material="Glass", preview_texture_path=str(tmp_path / "missing.png"))
+    with pytest.raises(ValueError, match="preview texture is unavailable"):
+        preview_masked_part(part, gradient(), glass=True)
+
+
 def test_native_canvas_remains_visible_to_rust_presentation():
     from cdmw.ui.new_item.rust_ui_dialogs import PresentationDialogs
     from cdmw.ui.new_item.transparency_painter import TransparencyPaintDialog
