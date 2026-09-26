@@ -58,8 +58,7 @@ class ResponsivenessControllerMixin:
             and hasattr(self, "_responsive_resize_timer")
             and not getattr(self, "_applying_responsive_layout", False)
         ):
-            self._responsive_metrics_dirty = True
-            self._responsive_resize_timer.start()
+            self._handle_responsive_screen_changed()
 
     def _preference_bool(self, key: str, default: bool) -> bool:
         return self._read_bool(f"preferences/{key}", default)
@@ -464,10 +463,15 @@ class ResponsivenessControllerMixin:
 
     def _apply_responsive_resize_adjustments(self) -> None:
         metrics_dirty = bool(getattr(self, "_responsive_metrics_dirty", False))
+        self._responsive_metrics_dirty = False
+        # Qt handles the monitor's DPI. Reapplying the application-wide theme
+        # here repolishes every tool (including hidden ones) during a drag.
+        # Keep appearance changes on their explicit Settings path; the display
+        # policy protects text and fits content to the new logical work area.
         self._apply_responsive_window_defaults(
             restore_saved_splitters=False,
             schedule_column_autofit=False,
-            apply_expensive_metrics=metrics_dirty,
+            apply_expensive_metrics=False,
             adjust_window_geometry=metrics_dirty,
         )
 

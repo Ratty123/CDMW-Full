@@ -45,7 +45,7 @@ class ShellResponsivenessControllerTests(unittest.TestCase):
         window._apply_responsive_window_defaults = apply_defaults
         window._apply_responsive_resize_adjustments()
         window._apply_responsive_resize_adjustments()
-        self.assertTrue(calls[0]["apply_expensive_metrics"])
+        self.assertFalse(calls[0]["apply_expensive_metrics"])
         self.assertTrue(calls[0]["adjust_window_geometry"])
         self.assertFalse(calls[1]["apply_expensive_metrics"])
         self.assertFalse(calls[1]["adjust_window_geometry"])
@@ -91,11 +91,18 @@ class ShellResponsivenessControllerTests(unittest.TestCase):
         window._apply_responsive_resize_adjustments()
         self.assertLessEqual(window.width(), 1280)
         self.assertLessEqual(window.height(), 672)
-        window._apply_responsive_theme_metrics.assert_called_once()
-        window._apply_responsive_control_minimums.assert_called_once()
+        window._apply_responsive_theme_metrics.assert_not_called()
+        window._apply_responsive_control_minimums.assert_not_called()
         self.assertFalse(window._responsive_metrics_dirty)
         window._apply_responsive_resize_adjustments()
-        window._apply_responsive_theme_metrics.assert_called_once()
+        window._apply_responsive_theme_metrics.assert_not_called()
+        # QWidget and QWindow can both announce the same monitor transition.
+        # A late duplicate must not start another sizing pass.
+        from PySide6.QtCore import QEvent
+        window._responsive_resize_timer.stop()
+        window.changeEvent(QEvent(QEvent.DevicePixelRatioChange))
+        self.assertFalse(window._responsive_metrics_dirty)
+        self.assertFalse(window._responsive_resize_timer.isActive())
         window.deleteLater()
         app.processEvents()
 

@@ -73,6 +73,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Moving CDMW between monitors avoids repeated application-wide restyling and resizing of hidden Rust workflow windows. Window fitting waits for resize events to settle while text sizing remains responsive.
 - Mod Management keeps preview loading messages with Installed overlays and uses the workspace Activity drawer for its log, without duplicate Activity/Copy controls below Recovery. Progress and Cancel appear only during management operations.
 - Mod Management and Create New Item keep their Rust controls aligned with CDMW's font size when moving between monitors or detached windows with different display scaling.
 - Create New Item reduces its post-startup UI pause by preparing panels in separate event-loop turns and waiting until Perks & Effects is first opened to load effect metadata. Opening early and template/model handoffs keep using the same archive read.

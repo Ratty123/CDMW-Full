@@ -86,7 +86,8 @@ def scrollable_content(content: QWidget, parent: QWidget | None = None) -> QScro
 
 
 def _normal_window(widget: QWidget) -> bool:
-    return widget.isWindow() and widget.windowType() in (Qt.Window, Qt.Dialog, Qt.Tool)
+    return (widget.isWindow() and widget.windowType() in (Qt.Window, Qt.Dialog, Qt.Tool)
+            and not widget.testAttribute(Qt.WA_DontShowOnScreen))
 
 
 def fit_window_to_screen(window: QWidget, available: QRect | None = None) -> None:
@@ -147,6 +148,10 @@ class DisplayScalingPolicy(QObject):
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
         self._timer.timeout.connect(self._apply_pending)
+        self._window_timer = QTimer(self)
+        self._window_timer.setSingleShot(True)
+        self._window_timer.setInterval(120)
+        self._window_timer.timeout.connect(self._fit_pending_windows)
         for screen in app.screens():
             self._connect_screen(screen)
         app.screenAdded.connect(self._connect_screen)
@@ -160,7 +165,7 @@ class DisplayScalingPolicy(QObject):
         for window in QApplication.topLevelWidgets():
             if _normal_window(window) and window.isVisible():
                 self._windows.add(window)
-        self._schedule()
+        self._window_timer.start()
 
     def _schedule(self) -> None:
         # Restarting a zero timer for every layout/paint can starve it during
@@ -188,20 +193,29 @@ class DisplayScalingPolicy(QObject):
             QEvent.ScreenChangeInternal, QEvent.DevicePixelRatioChange,
         ):
             self._windows.add(watched)
-            self._schedule()
+            # A DPI transition can emit many resize/layout events while the
+            # user drags. Do not keep moving/resizing the window in response.
+            self._window_timer.start()
         return False
 
     def _apply_pending(self) -> None:
-        controls, windows = tuple(self._controls), tuple(self._windows)
+        controls = tuple(self._controls)
         self._controls.clear()
-        self._windows.clear()
         self._busy = True
         try:
             for widget in controls:
                 if isValid(widget):
                     protect_control_text(widget)
+        finally:
+            self._busy = False
+
+    def _fit_pending_windows(self) -> None:
+        windows = tuple(self._windows)
+        self._windows.clear()
+        self._busy = True
+        try:
             for window in windows:
-                if not isValid(window) or not window.isVisible():
+                if not isValid(window) or not window.isVisible() or not _normal_window(window):
                     continue
                 handle = window.windowHandle()
                 if handle is not None and window not in self._connected:

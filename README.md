@@ -64,6 +64,8 @@ Compact is the native, first-run layout. Classic remains available in
 stack; only navigation changes. Existing saved layout choices remain authoritative.
 Most tools can be detached and reattached without replacing their widgets or state.
 The arrow beside navigation hides or restores it while keeping the active tool open.
+Moving between monitors preserves Appearance settings. Window fitting waits for
+resizing to settle, with scrolling for content too large for the destination screen.
 
 ```mermaid
 flowchart LR

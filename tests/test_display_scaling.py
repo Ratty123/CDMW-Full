@@ -131,6 +131,71 @@ def test_artwork_and_popups_keep_their_geometry(app):
     menu.deleteLater()
 
 
+def test_monitor_resize_burst_fits_once_and_keeps_text_updates_responsive(app, monkeypatch):
+    from PySide6.QtTest import QTest
+    import cdmw.ui.display_scaling as scaling
+
+    ensure_app_display_scaling(app)
+    window = QWidget()
+    layout = QVBoxLayout(window)
+    button = QPushButton('Action')
+    button.setFixedSize(90, 26)
+    layout.addWidget(button)
+    window.resize(500, 300)
+    window.show()
+    QTest.qWait(180)
+    _settle(app)
+    fits = []
+    original = scaling.fit_window_to_screen
+
+    def fit(target, *args):
+        fits.append(target)
+        original(target, *args)
+
+    monkeypatch.setattr(scaling, 'fit_window_to_screen', fit)
+    try:
+        for width in range(500, 530):
+            window.resize(width, 300)
+            QTest.qWait(3)
+        button.setText('Select installed model')
+        button.setFont(QFont('Segoe UI', 15))
+        _settle(app)
+        assert window not in fits, 'Window fitting must wait until the resize burst settles.'
+        assert button.minimumWidth() >= button.fontMetrics().horizontalAdvance(button.text())
+        assert button.minimumHeight() >= button.fontMetrics().height() + 12
+        QTest.qWait(180)
+        assert fits.count(window) == 1
+    finally:
+        window.close()
+        window.deleteLater()
+
+
+def test_hidden_rust_workflow_is_not_fitted_or_resized_as_a_desktop_window(app, monkeypatch):
+    import cdmw.ui.display_scaling as scaling
+
+    policy = ensure_app_display_scaling(app)
+    workflow = QWidget(None, Qt.Tool | Qt.FramelessWindowHint)
+    workflow.setAttribute(Qt.WA_DontShowOnScreen, True)
+    layout = QVBoxLayout(workflow)
+    layout.addWidget(QPushButton('Offscreen authority'))
+    workflow.resize(1800, 950)
+    fits = []
+    monkeypatch.setattr(scaling, 'fit_window_to_screen', lambda window: fits.append(window))
+    try:
+        workflow.show()
+        _settle(app)
+        policy._refresh_windows()
+        policy._fit_pending_windows()
+        assert workflow not in fits
+        assert workflow.size() == QSize(1800, 950)
+        assert workflow.layout() is layout
+        fit_window_to_screen(workflow, QRect(0, 0, 800, 600))
+        assert workflow.size() == QSize(1800, 950)
+    finally:
+        workflow.close()
+        workflow.deleteLater()
+
+
 @pytest.mark.parametrize("ratio", [1.0, 1.25, 1.5, 2.0, 3.0])
 def test_line_icons_render_at_requested_device_resolution(app, ratio):
     icon = compact_line_icon("folder", app.palette())
