@@ -13,10 +13,12 @@ The format is intentionally simple:
 
 ### Added
 
+- Installed overlays can be disabled and enabled with dependency checks, or rebuilt directly against the current game while retaining individual ownership and recovery history. Rebuild preserves independent shared-table and texture-registry changes and refuses conflicting ownership.
 - Create New Item can paint varying transparency across a selected part's texture from Translucency or Transparent surface blending. The painter includes soft brushes, a texture overlay, Undo/Redo and Restore mask; edits stay with their variant, update the preview and export as private textures in the DMM mod.
 
 ### Changed
 
+- Mod Management uses the Rust interface with an automatically loaded, searchable inventory, an integrated model preview and file/history inspector, inline merge/update/recovery pages and compact activity. Overlay health is shown separately from the game-build comparison.
 - Create New Item offers DMM as its only mod-folder export target until further notice, with a visible warning that compatibility is not confirmed for every item or mod and exported items need in-game checks. CDUMM and JMM options remain available in other tools; existing packages remain readable.
 - Material tools use effect-based names: Transparent surface blending, Surface detail and roughness, and Glowing band sweep. Blending controls and the global Character visibility test use matching plain-language labels and help; saved settings and exported shader identifiers are unchanged.
 - Mod Management moves from Create New Item's Output to Utilities, with direct access to installed overlays, mod merging, game-update checks and archive recovery.
@@ -28,6 +30,7 @@ The format is intentionally simple:
 - Create New Item uses left-aligned Rust lists and plain column headings. Effects combines viewport controls and Show gizmo in one compact toolbar, groups library actions, opens Preview options by default, and lets Placement collapse. Individual perk names omit the experimental suffix; the feature tab and hover details retain that context. Navigation and the bottom status strip use less height, with model progress percentages beside the operation text.
 - Create New Item opens Effects first with Browse effects expanded. Perks, sockets and bonuses share one Experimental Features tab with aligned, resizable panes and hover help. Recipes and Loot and rewards are marked experimental.
 - Installed overlays includes a right-hand preview of the selected installed item, with an item selector for multi-item overlays and cancellable background loading.
+  Installed previews now read only the selected item's required metadata from mounted archives, show preparation/errors in the viewport, and offer Reload preview instead of leaving preparation behind an empty selection prompt.
 - Create New Item prepares its interface and archive tables in the background after startup, opening directly to Template when ready without requiring Read the archives. Restoring the tab or opening it early shows loading while preparation finishes; failed reads retain Try again.
 - Effects leads with the specific variant and retains its source family, numeric identity and ambiguous codes. The library shows readable categories, avoids substring misclassification, adds missing visual categories, groups named family variants, and searches/sorts by readable metadata. Layers and emitters use matching labels while retaining custom names and exact export references. Missing timing metadata appears as Unknown instead of One-shot.
 - Perks & Effects gives the viewport more height by moving Browse effects and the selected name into the left end of the tab bar, directly above the library. Browse effects is larger and accented for visibility; the shorter search and category filters stay inside the library, and the preview notice is compact.

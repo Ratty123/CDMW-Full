@@ -420,11 +420,12 @@ def test_shell_model_loading_uses_compact_status_bar_and_keeps_cancel(studio):
     owner = SimpleNamespace(
         compact_workspace=SimpleNamespace(status_strip=strip),
         app_context=SimpleNamespace(services=SimpleNamespace(new_items=None)),
+        _shared_new_item_controller=lambda: workflow.controller,
         set_status_message=Mock(),
         textures=SimpleNamespace(_show_archive_browser_from_texture_editor=Mock()),
     )
     key = "new_item_studio"
-    constructor = "cdmw.ui.new_item.rust_ui_tab.NewItemStudioTab"
+    constructor = "cdmw.ui.new_item.tab.NewItemStudioTab"
     factory = ShellToolTabsMixin._create_new_item_studio_tab
     root = QWidget()
     layout = QVBoxLayout(root)

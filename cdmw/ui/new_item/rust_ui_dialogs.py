@@ -38,6 +38,8 @@ class PresentationDialogs(QObject):
     def eventFilter(self, watched, event):
         if not self.active or not isinstance(watched, (QDialog, QMenu)):
             return False
+        if isinstance(watched, QDialog) and not watched.isWindow():
+            return False  # Embedded management pages are normal workspace controls.
         kind = event.type()
         if kind in (QEvent.Polish, QEvent.Show) and self.owns(watched):
             if isinstance(watched, (QFileDialog, QColorDialog)) or watched.property("cdmwNativeCanvasDialog") is True:

@@ -264,6 +264,10 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
             reembed(hwnd)
         self._sync_embedded_child_geometry(force_frame_refresh=True)
 
+    def show_preparation_status(self, message: str) -> None:
+        """Show caller-side work before a package exists, retaining a resident scene."""
+        self._handle_controller_state('preparing', str(message))
+
     def load_package(
         self,
         package_dir: RustPreviewPackage | Path | str,

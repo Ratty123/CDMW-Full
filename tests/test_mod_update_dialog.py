@@ -142,7 +142,7 @@ def test_update_opens_from_utilities_and_bootstrap_without_a_draft(app, tmp_path
         (tab.update_button if utilities else tab._update_button).click()
         dialog = tab.findChild(ModUpdateDialog)
         assert dialog is not None and dialog.game_root.text() == str(tmp_path / "game")
-        assert dialog.source_kind.currentData() is False
+        assert dialog.source_kind.currentData() is utilities
         assert not dialog.export_button.isEnabled()
         dialog.reject()
     finally:

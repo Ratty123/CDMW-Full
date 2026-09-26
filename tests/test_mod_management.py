@@ -67,10 +67,11 @@ def test_utilities_opens_installed_textured_model_without_a_studio_snapshot(tmp_
                                controller=NewItemStudioController(synchronous=True))
     try:
         assert utility.controller.snapshot is None
-        utility.overlay_removal_button.click()
+        utility.show()
         app.processEvents()
         dialog = utility.findChild(OverlayManagerDialog)
         assert dialog.table.rowCount() == 1 and requested
+        assert utility.pages.currentWidget() is dialog and not dialog.isWindow()
         assert dialog.preview.isVisibleTo(dialog)
         assert not dialog.preview_empty.isVisibleTo(dialog)
         token, source = requested[-1]
@@ -99,16 +100,13 @@ def test_utilities_opens_installed_textured_model_without_a_studio_snapshot(tmp_
         dialog.refresh()
         refreshed_token = requested[-1][0]
         assert refreshed_token != token
-        dialog.reject()
-        utility.overlay_removal_button.click()
+        utility.hide()
+        utility.show()
         app.processEvents()
         assert requested[-1][0] not in (token, refreshed_token), 'Reopening must not reuse an older installed package.'
         assert utility.controller.snapshot is None
         assert {path: hashlib.sha256(path.read_bytes()).digest() for path in fingerprints} == fingerprints
     finally:
-        for dialog in utility.findChildren(OverlayManagerDialog):
-            if not dialog._closed:
-                dialog.reject()
         utility.request_shutdown()
         pump(app, lambda: not utility.iter_shutdown_workers())
         utility.deleteLater()
@@ -189,3 +187,130 @@ def test_shared_controller_blocks_overlapping_operations_and_routes_completion_o
         output.deleteLater()
         utility.deleteLater()
         controller.deleteLater()
+
+
+def test_rust_workspace_navigation_filter_and_scoped_activity(tmp_path, monkeypatch):
+    from cdmw.services.archive_overlay_manager import InstalledOverlay
+    from cdmw.ui.new_item.rust_ui_bridge import NewItemPresentationBridge
+    from cdmw.ui.new_item.rust_ui_dialogs import PresentationDialogs
+    from tests.test_new_item_rust_ui import _send
+    from PySide6.QtWidgets import QWidget
+    app = QApplication.instance() or QApplication([])
+    monkeypatch.setattr(ItemPreviewFrame, '_start_package', lambda *_args, **_kwargs: None)
+    tab = ModManagementTab(controller=NewItemStudioController(synchronous=True))
+    visible = QWidget()
+    dialogs = PresentationDialogs(tab, visible)
+    dialogs.active = True
+    bridge = NewItemPresentationBridge(tab, dialogs=dialogs.dialogs)
+    tab.show()
+    app.processEvents()
+    try:
+        tab.inventory._loaded((InstalledOverlay('a', 'Alpha', (101,), '0041', 2, 1),
+                               InstalledOverlay('b', 'Beta', (202,), '0041', 3, 1)))
+        assert not bridge.snapshot()['unsupported']
+        assert not dialogs.dialogs(), 'Inline pages must never become Rust modal dialogs.'
+        _send(bridge, tab.inventory.search, 'text', 'Beta')
+        assert tab.inventory.table.isRowHidden(0)
+        assert tab.inventory._selected_entry().id == 'b'
+        _send(bridge, tab.inventory.search, 'text', 'no matches')
+        assert tab.inventory._selected_entry() is None
+        assert not tab.inventory.preview_retry.isEnabled()
+        _send(bridge, tab.inventory.search, 'text', '')
+        assert tab.inventory._selected_entry().id == 'a'
+        for index, page in enumerate((tab.inventory, tab.merge_page, tab.update_page)):
+            _send(bridge, tab.pages, 'tab', index)
+            assert tab.pages.currentWidget() is page
+            assert not bridge.snapshot()['unsupported']
+            assert not dialogs.dialogs()
+        tab.controller.log_message.emit('Planning a different New Item')
+        assert 'Planning a different New Item' not in tab.log.toPlainText()
+        tab.inventory._preview_status('The preview could not be built: missing model')
+        assert 'missing model' in tab.inventory.preview_status.text()
+        assert 'missing model' in tab.log.toPlainText()
+    finally:
+        dialogs.close()
+        tab.request_shutdown()
+        pump(app, lambda: not tab.iter_shutdown_workers())
+        tab.deleteLater()
+        visible.deleteLater()
+
+
+def test_installed_preview_worker_delivers_package_and_waits_for_host_ready(tmp_path, monkeypatch):
+    from tests.test_new_item_item_preview import ItemPreviewFrameTests
+    # Use the real overlay resolver, package worker and UI-thread delivery.
+    app = QApplication.instance() or QApplication([])
+    root = tmp_path / 'game'
+    files = current_files()
+    files[PAC], _ = _skinned_pac()
+    service = NewItemService()
+    snapshot = service.build_snapshot(parse_archive_pamt(build_package(root, files)), read_entry=_read)
+    plan = service.plan(replace(shop_spec('PreviewDelivery'), recipes=()), snapshot)
+    backups = Backups(tmp_path)
+    service.install_overlay(plan, mutation_service=backups, confirmed=True, game_running=lambda: False)
+    FakeHost = ItemPreviewFrameTests._fake_host_class()
+    owner_threads = []
+    preparing_messages = []
+    class Host(FakeHost):
+        def show_preparation_status(self, message):
+            preparing_messages.append(message)
+
+        def load_package(self, path, **kwargs):
+            from PySide6.QtCore import QThread
+            owner_threads.append(QThread.currentThread() is app.thread())
+            assert (path / 'manifest.json').is_file()
+            return True
+    monkeypatch.setattr('cdmw.ui.new_item.item_preview.default_host_factory', Host)
+    tab = ModManagementTab(get_package_root=lambda: str(root),
+                           preview_context={'output_root': tmp_path / 'previews'})
+    try:
+        tab.show()
+        pump(app, lambda: bool(owner_threads))
+        preview = tab.inventory.preview
+        assert owner_threads == [True]
+        assert preparing_messages == ['Preparing the selected model and textures…']
+        assert not preview.is_ready, 'Preparing a package is not renderer acknowledgement.'
+        preview.host.controller.state_changed.emit('ready', '')
+        assert preview.is_ready
+        assert tab.inventory.preview_status.text() == 'Full textures loaded.'
+        previous = preview._loaded_token
+        tab.inventory.preview_retry.click()
+        pump(app, lambda: preview._loaded_token != previous)
+        assert all(owner_threads)
+    finally:
+        tab.request_shutdown()
+        pump(app, lambda: not tab.iter_shutdown_workers())
+        tab.deleteLater()
+
+
+def test_inline_disable_last_overlay_can_be_enabled_again(tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+    from tests.test_new_item_provenance import setup_game
+    app = QApplication.instance() or QApplication([])
+    service, snapshot, _ = setup_game(tmp_path)
+    root, backups = tmp_path / 'game', Backups(tmp_path)
+    plan = service.plan(replace(shop_spec('Toggle'), recipes=()), snapshot)
+    service.install_overlay(plan, mutation_service=backups, confirmed=True, game_running=lambda: False)
+    monkeypatch.setattr(ItemPreviewFrame, '_start_package', lambda *_args, **_kw: None)
+    monkeypatch.setattr('cdmw.services.new_item_service.game_is_running', lambda: False)
+    monkeypatch.setattr(QMessageBox, 'question', lambda *_args: QMessageBox.Yes)
+    window = SimpleNamespace(app_context=SimpleNamespace(
+        services=SimpleNamespace(require_archive_mutations=lambda: backups)))
+    tab = ModManagementTab(window=window, get_package_root=lambda: str(root),
+                           controller=NewItemStudioController(synchronous=True))
+    try:
+        tab.show()
+        app.processEvents()
+        inventory = tab.inventory
+        assert inventory.toggle_button.isEnabled()
+        inventory.toggle_button.click()
+        assert inventory._selected_entry().enabled is False
+        assert inventory.toggle_button.text() == 'Enable…' and inventory.toggle_button.isEnabled()
+        assert not inventory._selected_entry().issue
+        inventory.toggle_button.click()
+        assert inventory._selected_entry().enabled is True
+        assert inventory.toggle_button.isEnabled()
+        assert 'Enabled Toggle' in tab.log.toPlainText()
+    finally:
+        tab.request_shutdown()
+        pump(app, lambda: not tab.iter_shutdown_workers())
+        tab.deleteLater()

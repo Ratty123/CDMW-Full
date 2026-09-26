@@ -459,9 +459,8 @@ class ShellToolTabsMixin:
 
     def _create_mod_management_tab(self) -> QWidget:
         from cdmw.services.cache_layout import runtime_cache_layout
-        from cdmw.ui.tools.mod_management import ModManagementTab
-
-        tab = ModManagementTab(
+        from cdmw.ui.tools.rust_mod_management import RustModManagementTab
+        tab = RustModManagementTab(
             window=self, controller=self._shared_new_item_controller(),
             get_package_root=lambda: self.archive.archive_package_root_edit.text(),
             preview_context={

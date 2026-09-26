@@ -13,8 +13,10 @@ from cdmw.ui.new_item.review_model import ReviewTextWriter
 
 
 class ModMergeDialog(QDialog):
-    def __init__(self, controller, game_root="", parent=None):
+    def __init__(self, controller, game_root="", parent=None, *, embedded=False):
         super().__init__(parent)
+        if embedded:
+            self.setWindowFlags(Qt.WindowType.Widget)
         self.controller = controller
         self._review_lookup = controller.create_lookup_lane()
         self._review_lookup.completed.connect(self._review_ready)
@@ -22,7 +24,7 @@ class ModMergeDialog(QDialog):
         self._closed, self._working, self._generation = False, False, 0
         self._plan = None
         self.setWindowTitle("Merge mods")
-        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, not embedded)
         self.resize(780, 590)
         layout = QVBoxLayout(self)
         self.setToolTip("Combine selected mod folders into one DMM package. Independent changes are merged; conflicting records and unsupported changes must be resolved first.")
@@ -83,6 +85,7 @@ class ModMergeDialog(QDialog):
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         buttons.rejected.connect(self.reject)
         row.addWidget(buttons)
+        buttons.setVisible(not embedded)
         layout.addLayout(row)
         self.game_root.textChanged.connect(self._invalidate)
         self.destination.textChanged.connect(self._buttons)

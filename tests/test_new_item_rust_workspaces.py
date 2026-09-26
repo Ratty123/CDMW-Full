@@ -146,7 +146,7 @@ def test_distribution_tables_expand_and_edits_reach_the_same_draft(studio, tmp_p
 def test_overlay_selection_enables_review_and_drives_independent_installed_preview(studio, monkeypatch):
     _, tab, _ = studio
     monkeypatch.setattr(OverlayManagerDialog, 'refresh', lambda self: None)
-    dialog = OverlayManagerDialog(tab.controller, 'owned-unused-root', None, tab)
+    dialog = OverlayManagerDialog(tab.controller, 'owned-unused-root', Mock(), tab)
     shown = Mock()
     monkeypatch.setattr(dialog.preview, 'show', shown)
     dialog.open()
@@ -162,7 +162,7 @@ def test_overlay_selection_enables_review_and_drives_independent_installed_previ
         assert dialog._selected_entry() is entries[1]
         columns = bridge.document.widget(dialog.table, force=True)['props']['columns']
         assert [column['text'] for column in columns if not column['hidden']] == [
-            'Overlay', 'Items', 'Installed', 'Game check']
+            'Overlay', 'Items', 'Game check', 'State']
         assert 'Folder: 9000' in dialog.table.item(1, 0).toolTip()
         assert shown.call_args.kwargs['framing_key'] == ('b', 200)
         prepare = Mock()

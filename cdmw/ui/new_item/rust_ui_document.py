@@ -298,7 +298,7 @@ class PresentationDocument:
                 node["label"] = widget.title()
                 props.update(checkable=widget.isCheckable(), checked=widget.isChecked(),
                              plain=bool(widget.property("guidedPage") or widget.property("titlelessSection")))
-            elif isinstance(widget, QDialog):
+            elif isinstance(widget, QDialog) and widget.isWindow():
                 from cdmw.ui.layout_persistence import native_dialog_layout
 
                 node["kind"] = "dialog"

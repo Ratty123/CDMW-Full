@@ -25,9 +25,10 @@ class RustNewItemStudioTab(QWidget):
     open_archive_entry_requested = Signal(str)
     _input_received = Signal(object)
 
-    def __init__(self, parent=None, *, window=None, service=None, workflow=None):
+    def __init__(self, parent=None, *, window=None, service=None, workflow=None,
+                 tool_key="new_item_studio", title="Create New Item"):
         super().__init__(parent)
-        self.setObjectName("new_item_studio")
+        self.setObjectName(tool_key)
         self._window = window
         self.workflow = workflow or NewItemStudioTab(window=window, service=service)
         self.workflow.hide()
@@ -35,7 +36,8 @@ class RustNewItemStudioTab(QWidget):
         self.controller = self.workflow.controller
         self.log = self.workflow.log
         self.workflow.status_message_requested.connect(self.status_message_requested.emit)
-        self.workflow.open_archive_entry_requested.connect(self.open_archive_entry_requested.emit)
+        if hasattr(self.workflow, 'open_archive_entry_requested'):
+            self.workflow.open_archive_entry_requested.connect(self.open_archive_entry_requested.emit)
         self._closed = False
         self._rust_mode = False
         self._process = None
@@ -59,7 +61,7 @@ class RustNewItemStudioTab(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         self._host = RustMeshEditorHostFrame()
         self._host.setObjectName("NewItemRustHost")
-        self._host.show_loading("Preparing Create New Item…")
+        self._host.show_loading(f"Preparing {title}…")
         self._host.retry_requested.connect(self._retry)
         layout.addWidget(self._host, 1)
         self._portals = PreviewPortals(self._host)
@@ -271,7 +273,7 @@ class RustNewItemStudioTab(QWidget):
     def _publish_state(self):
         if (self._sent_generation > self._received_generation and self._state_delivery.isValid()
                 and self._state_delivery.elapsed() > 10000 and self._ready and not self._stopping):
-            self._fail("The Rust interface stopped acknowledging updates. Use Retry to reopen the same item draft.")
+            self._fail("The Rust interface stopped acknowledging updates. Use Retry to reopen the same workspace.")
             return
         if (not self._ready or self._closed or not self._rust_mode or self._stopping
                 or (not self.isVisible() and not self._prewarming)
@@ -319,7 +321,7 @@ class RustNewItemStudioTab(QWidget):
             self._launch.cleanup()
             self._launch = None
         if not self._stopping and not self._closed and self._rust_mode:
-            self._host.show_error("The Rust interface stopped. Use Retry to reopen the same item draft.\n" + self._stderr[-2000:])
+            self._host.show_error("The Rust interface stopped. Use Retry to reopen the same workspace.\n" + self._stderr[-2000:])
         self._restart_if_idle()
 
     def _fail(self, message):

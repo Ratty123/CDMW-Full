@@ -675,9 +675,9 @@ def test_real_main_window_compact_wrapper_preserves_tool_authority(tmp_path: Pat
         while window.mod_management_tab.widget_if_created() is None and time.monotonic() < deadline:
             app.processEvents()
             time.sleep(0.001)
-        from cdmw.ui.tools.mod_management import ModManagementTab
+        from cdmw.ui.tools.rust_mod_management import RustModManagementTab
         management = window.mod_management_tab.widget_if_created()
-        assert isinstance(management, ModManagementTab)
+        assert isinstance(management, RustModManagementTab)
         assert management.controller is window._shared_new_item_controller()
         assert management.controller.snapshot is None
         assert window.compact_workspace.rail.tool_buttons["mod_management"].isChecked()

@@ -95,6 +95,9 @@ def _load_index(root):
         ids.add(identity)
         if not isinstance(layer.get('active'), bool) or not isinstance(layer.get('label'), str):
             raise ValueError('Invalid overlay entry in the inventory.')
+        if 'disabled' in layer and (not isinstance(layer['disabled'], bool) or (layer['disabled'] and layer['active'])):
+            raise ValueError('Invalid disabled overlay state.')
+        overlay_journal_path(layer)
         if not isinstance(layer.get('item_keys'), list) or any(not isinstance(k, int) or k <= 0 for k in layer['item_keys']):
             raise ValueError('Invalid owned item identity in the inventory.')
         if not isinstance(layer.get('dependencies'), list) or any(not isinstance(d, str) for d in layer['dependencies']):
@@ -165,6 +168,10 @@ class InstalledOverlay:
     legacy: bool = False
     game_build: str = "Unknown"
     compatibility_status: str = "unknown"
+    enabled: bool = True
+    health: str = 'mounted'
+    issue: str = ''
+    dependencies: tuple[str, ...] = ()
 
 
 def list_installed_overlays(package_root, *, stop_event=None):
@@ -178,11 +185,23 @@ def list_installed_overlays(package_root, *, stop_event=None):
                               for relative, stamp in state.get('sources', {}).items())
         records = parse_papgt(_target(root, 'meta/0.papgt').read_bytes())
         mounted = any(record.name == state['directory'] for record in records)
+        expected_mount = any(layer['active'] for layer in state['layers'])
+        health = 'mounted' if mounted else 'unmounted' if expected_mount else 'disabled'
+        issue = 'The saved overlay is not mounted by the game.' if expected_mount and not mounted else ''
+        try:
+            _validate_published(root, state, stop_event)
+        except (ValueError, OSError) as error:
+            issue = (issue + '\n' if issue else '') + str(error)
+            if mounted:
+                health = 'missing' if any(not _target(root, path).is_file()
+                    for path, value in state.get('published', {}).items() if value is not None) else 'changed'
         return tuple(InstalledOverlay(layer['id'], layer['label'], tuple(layer['item_keys']), state['directory'],
             int(layer['file_count']), float(layer['created_at']), bool(layer.get('legacy')),
             build_label(layer.get('target_game')),
-            'unmounted' if not mounted else 'changed' if sources_changed else build_status(layer.get('target_game'), current_game))
-            for layer in state['layers'] if layer['active'])
+            'unmounted' if not mounted and layer['active'] else 'changed' if sources_changed else build_status(layer.get('target_game'), current_game),
+            layer['active'], health if layer['active'] else 'disabled', issue,
+            tuple(other['label'] for other in state['layers'] if other['id'] in layer['dependencies']))
+            for layer in state['layers'] if layer['active'] or layer.get('disabled', False))
     _records, owned = _mounted_owned(root)
     result = []
     for record in owned:
@@ -212,7 +231,7 @@ def _pack_changes(changes):
 
 
 def _read_journal(root, layer, pending):
-    relative = '.cdmw/overlays/' + layer['id'] + '.zip'
+    relative = overlay_journal_path(layer)
     path = _target(root, relative)
     if relative in pending:
         raw = pending[relative]
@@ -223,6 +242,14 @@ def _read_journal(root, layer, pending):
     if _digest(raw) != layer['sha256']:
         raise ValueError(f"The journal for {layer['label']} changed. Restore its backup before changing overlays.")
     return raw
+
+
+def overlay_journal_path(layer):
+    """An optional versioned journal leaves pre-rebuild history immutable."""
+    relative = _relative(layer.get('journal') or '.cdmw/overlays/' + layer['id'] + '.zip')
+    if not relative.startswith('.cdmw/overlays/') or not relative.endswith('.zip'):
+        raise ValueError('Invalid overlay journal location.')
+    return relative
 
 
 def _unpack_changes(root, layer, pending, stop_event):
@@ -349,7 +376,7 @@ def _state_for_edit(root, directory_name, stop_event, *, retirement=None):
             raise OverlayConflict('The retired overlay history already exists. Refresh and prepare again.')
         pending[relative] = inventory
         state = None
-    if state is not None and any(layer['active'] for layer in state['layers']):
+    if state is not None and any(layer['active'] or layer.get('disabled', False) for layer in state['layers']):
         _validate_published(root, state, stop_event)
         if directory_name is not None and _directory(directory_name) != state['directory']:
             raise ValueError(f"Managed installs share archive {state['directory']}. Choose Auto or that folder so their shared tables stay composed.")
@@ -425,6 +452,7 @@ class OverlayChangePreparation:
     pamt_checksum: int
     payload_bytes: int
     carried_forward: int
+    action: str = 'remove'
 
 
 @dataclass(frozen=True)
@@ -434,6 +462,7 @@ class OverlayRemovalResult:
     remaining: int
     backup_dir: Path
     removed_overlay_id: str
+    action: str = 'remove'
 
 
 @dataclass(frozen=True)
@@ -646,10 +675,12 @@ def prepare_item_overlay(plan, package_root, *, directory_name=None, stop_event=
     if on_log:
         on_log('Checking dependencies against installed overlays...')
     for layer in state['layers']:
-        if not layer['active']:
+        if not layer['active'] and not layer.get('disabled', False):
             continue
         if known_items.intersection(layer['item_keys']):
             raise OverlayConflict(f"Item identity conflicts with {layer['label']}. Build a new plan from the current installed tables.")
+        if not layer['active']:
+            continue
         if references.intersection(layer['item_keys']):
             dependencies.append(layer['id'])
             continue
@@ -675,12 +706,28 @@ def prepare_overlay_removal(package_root, overlay_id, *, stop_event=None, on_log
     root = Path(package_root).resolve()
     state, pending = _state_for_edit(root, None, stop_event)
     identity = str(overlay_id)
-    selected = next((layer for layer in state['layers'] if layer['active'] and
+    selected = next((layer for layer in state['layers'] if (layer['active'] or layer.get('disabled', False)) and
         (layer['id'] == identity or (identity == 'legacy:' + state['directory'] and layer.get('legacy')))), None)
     if selected is None:
         raise ValueError('The selected overlay is no longer installed. Refresh the list.')
     selected['active'] = False
+    selected.pop('disabled', None)
     return _compose(root, state, pending, selected['label'], selected['id'], stop_event, on_log)
+
+
+def prepare_overlay_enabled(package_root, overlay_id, enabled, *, stop_event=None, on_log=None):
+    """Review a reversible enable/disable using the same composition and transaction as removal."""
+    from dataclasses import replace
+    root = Path(package_root).resolve()
+    state, pending = _state_for_edit(root, None, stop_event)
+    selected = next((layer for layer in state['layers'] if (layer['id'] == str(overlay_id)
+                     or (str(overlay_id) == 'legacy:' + state['directory'] and layer.get('legacy')))
+                     and (layer['active'] or layer.get('disabled', False))), None)
+    if selected is None:
+        raise ValueError('The selected overlay is no longer installed. Refresh the list.')
+    selected['active'], selected['disabled'] = bool(enabled), not bool(enabled)
+    return replace(_compose(root, state, pending, selected['label'], selected['id'], stop_event, on_log),
+                   action='enable' if enabled else 'disable')
 
 
 def _verify_backup(backup_dir, expected):
@@ -788,8 +835,9 @@ def apply_overlay_change(preparation, *, confirmed, backup, restore_backup, game
         except OSError:
             pass
     if on_log:
-        on_log(f"Overlay {'removed' if preparation.removed_id else 'installed'}: {preparation.label}. {len(preparation.remaining_labels)} installed. Backup: {backup_dir}")
+        on_log(f"Overlay {preparation.action if preparation.removed_id else 'installed'}: {preparation.label}. {len(preparation.remaining_labels)} enabled. Backup: {backup_dir}")
     if preparation.removed_id:
-        return OverlayRemovalResult(directory, preparation.label, len(preparation.remaining_labels), backup_dir, preparation.removed_id)
+        return OverlayRemovalResult(directory, preparation.label, len(preparation.remaining_labels), backup_dir,
+                                    preparation.removed_id, preparation.action)
     return OverlayInstallResult(directory, preparation.pamt_checksum, len(preparation.paths), preparation.payload_bytes,
         preparation.carried_forward, backup_dir, preparation.paths)

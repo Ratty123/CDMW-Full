@@ -246,7 +246,7 @@ def prepare_mod_update(folder, game_root, *, entries, read_entry=None, stop_even
 
 def prepare_installed_overlay_update(game_root, *, entries, read_entry=None, stop_event=None, on_log=None, progress=None):
     """Review the installed set together so dependent layers stay together."""
-    from cdmw.services.archive_overlay_manager import _load_index, _unpack_changes
+    from cdmw.services.archive_overlay_manager import _load_index, _unpack_changes, overlay_journal_path
     from cdmw.domain.archives.overlay_merge import legacy_texture_baseline
 
     root = Path(game_root).expanduser().resolve()
@@ -264,7 +264,7 @@ def prepare_installed_overlay_update(game_root, *, entries, read_entry=None, sto
         raise_if_cancelled(stop_event, "Overlay comparison cancelled.")
         if progress:
             progress(index, len(state["layers"]), f"Reading overlay history: {layer['label']}")
-        journal = root / ".cdmw/overlays" / (layer["id"] + ".zip")
+        journal = root / overlay_journal_path(layer)
         tracker.pin_file(journal)
         hashes.append((journal, hash_file(journal, stop_event)))
         changes = _unpack_changes(root, layer, {}, stop_event)

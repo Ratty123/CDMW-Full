@@ -65,7 +65,9 @@ def install_result_report(result: object) -> tuple:
             "\n\nRebuild the item plan, then install it with Overlay folder set to Auto.",
         )
     if hasattr(result, 'removed_overlay_id'):
-        return ('Installed overlays', f'Removed {result.label}. {result.remaining} overlay(s) remain.\n\nBackup: {backup}')
+        action = {'remove': 'Removed', 'enable': 'Enabled', 'disable': 'Disabled', 'rebuild': 'Rebuilt'}.get(
+            getattr(result, 'action', 'remove'), 'Updated')
+        return ('Installed overlays', f'{action} {result.label}. {result.remaining} overlay(s) enabled.\n\nBackup: {backup}')
 
     if hasattr(result, "removed_files"):  # the overlay taken away
         if not getattr(result, "unmounted", False):

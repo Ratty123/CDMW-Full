@@ -1006,6 +1006,9 @@ class ItemPreviewFrame(QWidget):
         full_stage = stage == "materials" or not progressive
         reuse_geometry = progressive and self._can_reuse_geometry(token, candidate_source, is_placement)
         self._building = (token, is_placement, "materials" if full_stage else "geometry")
+        preparing = getattr(self.host, 'show_preparation_status', None)
+        if callable(preparing):
+            preparing('Preparing the selected model and textures…')
         if not full_stage and not reuse_geometry:
             self.is_ready = False
             self._placement_base = None
@@ -1081,6 +1084,9 @@ class ItemPreviewFrame(QWidget):
     def _package_failed(self, message: object) -> None:
         if self._closed or self._superseded:
             return
+        preparing = getattr(self.host, 'show_preparation_status', None)
+        if callable(preparing):
+            preparing(f'The preview could not be built: {message}')
         if self._loaded_stage == "fast_materials" and self._building is not None and self._building[2] == "materials":
             self._full_texture_upgrade_from_fast = False
             self.status_changed.emit(

@@ -12,8 +12,10 @@ from cdmw.domain.cancellation import raise_if_cancelled
 
 
 class ModUpdateDialog(QDialog):
-    def __init__(self, controller, game_root="", parent=None, *, installed=False):
+    def __init__(self, controller, game_root="", parent=None, *, installed=False, embedded=False):
         super().__init__(parent)
+        if embedded:
+            self.setWindowFlags(Qt.WindowType.Widget)
         self.controller, self._plan = controller, None
         self._review_lookup = controller.create_lookup_lane()
         self._review_lookup.completed.connect(self._review_ready)
@@ -22,7 +24,7 @@ class ModUpdateDialog(QDialog):
         self._generation = 0
         self._running_generation = None
         self.setWindowTitle("Check mods for game updates")
-        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, not embedded)
         self.resize(790, 570)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(18, 18, 18, 18)
@@ -74,6 +76,7 @@ class ModUpdateDialog(QDialog):
         close = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         close.rejected.connect(self.reject)
         buttons.addWidget(close)
+        close.setVisible(not embedded)
         layout.addLayout(buttons)
         self.source_kind.currentIndexChanged.connect(self._invalidate)
         self.folder.textChanged.connect(self._invalidate)
