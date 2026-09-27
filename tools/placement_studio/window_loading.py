@@ -146,10 +146,15 @@ class StudioLoadingMixin:
 
     def _meshes_prepared(self, value, error):
         if error or value is None:
+            # LatestTask delivers only the current generation, including failures.
+            self._mesh_requested = None
             self.statusBar().showMessage(error)
             return
         key, result = value
-        if key != self._mesh_requested or result is None or self._model_loading:
+        if key != self._mesh_requested or self._model_loading:
+            return
+        self._mesh_requested = None
+        if result is None:
             return
         self._remember_mesh_parts(result.cached_parts)
         body_changed = self._mesh_body_ready != key[1]

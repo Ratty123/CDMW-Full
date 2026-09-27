@@ -100,6 +100,40 @@ class TransactionalMeshOutputTests(unittest.TestCase):
             self.assertEqual("new", (staged / "manifest.json").read_text(encoding="utf-8"))
             self.assertEqual([], list(root.glob(".*.bak")))
 
+    def test_directory_publish_can_refuse_existing_output(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            staged, target = root / "staged", root / "package"
+            staged.mkdir()
+            target.mkdir()
+            (staged / "payload").write_bytes(b"new")
+            (target / "notes").write_bytes(b"old")
+            with self.assertRaises(FileExistsError):
+                atomic_publish_directory(staged, target, replace_existing=False, retain_backup=True)
+            self.assertEqual((target / "notes").read_bytes(), b"old")
+            self.assertEqual((staged / "payload").read_bytes(), b"new")
+            self.assertEqual(list(root.glob(".*.bak")), [])
+
+    def test_directory_backup_retention_is_opt_in(self) -> None:
+        for retain in (False, True):
+            with self.subTest(retain=retain), tempfile.TemporaryDirectory() as temp_dir:
+                root = Path(temp_dir)
+                staged, target = root / "staged", root / "package"
+                staged.mkdir()
+                target.mkdir()
+                (staged / "payload").write_bytes(b"new")
+                (target / "notes").write_bytes(b"old")
+                backup = atomic_publish_directory(staged, target, retain_backup=retain)
+                self.assertEqual((target / "payload").read_bytes(), b"new")
+                self.assertFalse((target / "notes").exists())
+                self.assertFalse(staged.exists())
+                if retain:
+                    self.assertEqual((backup / "notes").read_bytes(), b"old")
+                    self.assertEqual(list(root.glob(".*.bak")), [backup])
+                else:
+                    self.assertIsNone(backup)
+                    self.assertEqual(list(root.glob(".*.bak")), [])
+
     def test_glb_replace_failure_keeps_previous_complete_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

@@ -107,6 +107,16 @@
       ]
     },
     {
+      "key": "\nPrevious output retained at: {value_0}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/packaging.py",
+          "line": 130,
+          "sink": "python-return:describe"
+        }
+      ]
+    },
+    {
       "key": "\nUse this package in place of the original mod. For installed overlays, review Archive recovery before replacing the installed set.",
       "origins": [
         {
@@ -11696,7 +11706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/responsiveness_controller.py",
-          "line": 160,
+          "line": 159,
           "sink": "setText"
         },
         {
@@ -11801,7 +11811,7 @@
         },
         {
           "path": "cdmw/ui/shell/responsiveness_controller.py",
-          "line": 160,
+          "line": 159,
           "sink": "setText"
         }
       ]
@@ -16616,7 +16626,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1275,
+          "line": 1302,
           "sink": "showMessage"
         }
       ]
@@ -25066,7 +25076,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1249,
+          "line": 1271,
           "sink": "setWindowTitle"
         }
       ]
@@ -37196,7 +37206,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1320,
+          "line": 1347,
           "sink": "getExistingDirectory"
         }
       ]
@@ -37501,7 +37511,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1324,
+          "line": 1351,
           "sink": "information"
         }
       ]
@@ -69536,7 +69546,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1235,
+          "line": 1257,
           "sink": "setText"
         }
       ]
@@ -74766,7 +74776,7 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1232,
+          "line": 1254,
           "sink": "setWindowTitle"
         }
       ]
@@ -74776,7 +74786,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1244,
+          "line": 1266,
           "sink": "showMessage"
         }
       ]
@@ -74786,7 +74796,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1256,
+          "line": 1278,
           "sink": "showMessage"
         }
       ]
@@ -75016,7 +75026,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1270,
+          "line": 1297,
           "sink": "setWindowTitle"
         }
       ]
@@ -75046,7 +75056,17 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1225,
+          "line": 1215,
+          "sink": "warning"
+        },
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 1247,
+          "sink": "warning"
+        },
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 1293,
           "sink": "warning"
         }
       ]
@@ -81806,12 +81826,12 @@
         },
         {
           "path": "cdmw/ui/shell/responsiveness_controller.py",
-          "line": 160,
+          "line": 159,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/shell/responsiveness_controller.py",
-          "line": 160,
+          "line": 159,
           "sink": "setText"
         }
       ]
@@ -90323,6 +90343,16 @@
           "path": "cdmw/ui/replace_assistant_tab.py",
           "line": 393,
           "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
+      "key": "Replace existing package folders?",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 1220,
+          "sink": "question"
         }
       ]
     },
@@ -115657,6 +115687,16 @@
       ]
     },
     {
+      "key": "These folders already exist:\n\n{value_0}\n\nTheir entire contents will be replaced. Each previous folder, including any files you added, will be kept in a separate .bak folder beside the package. The completion report will show the backup locations. Continue?",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 1220,
+          "sink": "question"
+        }
+      ]
+    },
+    {
       "key": "These look wrong:\n  {value_0}",
       "origins": [
         {
@@ -125546,7 +125586,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1254,
+          "line": 1276,
           "sink": "setText"
         }
       ]
@@ -126156,7 +126196,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1324,
+          "line": 1351,
           "sink": "information"
         }
       ]
@@ -147096,7 +147136,7 @@
         },
         {
           "path": "tools/placement_studio/window_loading.py",
-          "line": 172,
+          "line": 177,
           "sink": "setText"
         }
       ]
@@ -147656,7 +147696,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/packaging.py",
-          "line": 122,
+          "line": 130,
           "sink": "python-return:describe"
         }
       ]
@@ -149486,7 +149526,7 @@
         },
         {
           "path": "tools/placement_studio/window_loading.py",
-          "line": 255,
+          "line": 260,
           "sink": "setToolTip"
         },
         {

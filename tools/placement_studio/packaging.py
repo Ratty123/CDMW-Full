@@ -11,6 +11,7 @@ rather than overwrites, and a README that states what the mod actually changes.
 
 from __future__ import annotations
 
+import ntpath
 import shutil
 import tempfile
 from dataclasses import dataclass, field
@@ -113,16 +114,20 @@ class PackageResult:
     payload_paths: tuple[str, ...] = field(default=())
     new_paths: tuple[str, ...] = field(default=())
     metadata_files: tuple[str, ...] = field(default=())
+    backup_root: Optional[Path] = None
 
     @property
     def file_count(self) -> int:
         return len(self.payload_paths)
 
     def describe(self) -> str:
-        return (
+        description = (
             f"{self.manager:<6} {self.file_count:>4} payload file(s), "
             f"{len(self.new_paths)} new path(s) -> {self.root}"
         )
+        if self.backup_root is not None:
+            description += f"\nPrevious output retained at: {self.backup_root}"
+        return description
 
 
 # The guide's JMM rule: "If either path is in new_paths, both should be in new_paths."
@@ -336,6 +341,41 @@ def _lay_out_payload(root: Path, files: Mapping[str, bytes]) -> List[str]:
     return written
 
 
+def package_destinations(
+    metadata: PackageMetadata,
+    *,
+    out_root: Path,
+    managers: Sequence[str] = ("CDUMM", "DMM", "JMM"),
+) -> List[Path]:
+    """Derive single-component folder names without changing the display metadata."""
+    name = metadata.name.strip()
+    if (not name or name in {".", ".."} or any(char in name for char in ":/\\")
+            or ntpath.isreserved(name) or any(ord(char) < 32 for char in metadata.name)):
+        raise PackagingError("Mod name must be a valid folder name, without paths or reserved characters.")
+    profiles = [manager.upper() for manager in managers]
+    if any(manager not in MANAGER_PROFILES for manager in profiles):
+        raise PackagingError("Unknown manager profile")
+    if len(set(profiles)) != len(profiles):
+        raise PackagingError("Package manager destinations must be unique")
+    parent = Path(out_root).resolve()
+    destinations = [Path(out_root) / f"{name} - {manager}" for manager in profiles]
+    for destination in destinations:
+        if destination.resolve().parent != parent:
+            raise PackagingError(f"Package destination must stay inside the selected folder: {destination}")
+    return destinations
+
+
+def _validate_destination(root: Path, *, replace_existing: bool) -> None:
+    resolved = root.resolve()
+    if resolved == resolved.parent or root.is_symlink() or root.is_junction():
+        raise PackagingError(f"Not a package destination: {root}")
+    if root.exists():
+        if not root.is_dir():
+            raise PackagingError(f"Package destination is not a folder: {root}")
+        if not replace_existing:
+            raise PackagingError(f"Package destination already exists; confirm replacement or choose another name: {root}")
+
+
 def build_package(
     manager: str,
     plan: Plan,
@@ -348,8 +388,9 @@ def build_package(
     write_readme: bool = True,
     scope=None,
     manifest: Optional[Mapping[str, object]] = None,
+    replace_existing: bool = False,
 ) -> PackageResult:
-    """Build a fresh package, then replace the destination with rollback on failure."""
+    """Build fresh output; explicitly approved replacement retains the complete old folder."""
 
     profile = MANAGER_PROFILES.get(manager.upper())
     if profile is None:
@@ -363,11 +404,8 @@ def build_package(
     from cdmw.models import ModPackageInfo
 
     root = Path(out_root)
+    _validate_destination(root, replace_existing=replace_existing)
     resolved = root.resolve()
-    if resolved == resolved.parent or root.is_symlink():
-        raise PackagingError(f"Not a package destination: {root}")
-    if root.exists() and not root.is_dir():
-        raise PackagingError(f"Package destination is not a folder: {root}")
     root.parent.mkdir(parents=True, exist_ok=True)
     payload_paths = sorted(files)
     new_paths = derive_new_paths(payload_paths, baseline) if baseline is not None else []
@@ -418,7 +456,14 @@ def build_package(
 
             write_operation_manifest(staging, manifest)
 
-        atomic_publish_directory(staging, resolved)
+        # Recheck after preparation in case another writer created the destination.
+        _validate_destination(root, replace_existing=replace_existing)
+        try:
+            backup = atomic_publish_directory(
+                staging, resolved, replace_existing=replace_existing, retain_backup=True,
+            )
+        except FileExistsError as exc:
+            raise PackagingError(f"Package destination already exists: {root}") from exc
     finally:
         if staging.exists():
             shutil.rmtree(staging, ignore_errors=True)
@@ -435,6 +480,7 @@ def build_package(
         payload_paths=tuple(payload_paths),
         new_paths=tuple(new_paths),
         metadata_files=metadata_files,
+        backup_root=backup,
     )
 
 
@@ -449,12 +495,16 @@ def build_all(
     managers: Sequence[str] = ("CDUMM", "DMM", "JMM"),
     scope=None,
     manifest: Optional[Mapping[str, object]] = None,
+    replace_existing: bool = False,
 ) -> List[PackageResult]:
     """Emit every manager layout from one plan — the point of the operation model."""
 
+    targets = package_destinations(metadata, out_root=out_root, managers=managers)
+    # Detect a collision in any layout before publishing the first one.
+    for target in targets:
+        _validate_destination(target, replace_existing=replace_existing)
     results: List[PackageResult] = []
-    for manager in managers:
-        target = Path(out_root) / f"{metadata.name} - {manager.upper()}"
+    for manager, target in zip(managers, targets):
         results.append(
             build_package(
                 manager,
@@ -466,6 +516,7 @@ def build_all(
                 created_utc=created_utc,
                 scope=scope,
                 manifest=manifest,
+                replace_existing=replace_existing,
             )
         )
     return results
@@ -509,6 +560,7 @@ def build_for_operations(
     shared_socket_users: Optional[Mapping[str, Sequence[str]]] = None,
     replacements: Sequence[object] = (),
     accept_warnings: bool = False,
+    replace_existing: bool = False,
 ) -> Tuple[List[PackageResult], object]:
     """Package exactly these operations, replayed onto vanilla, or refuse and say why.
 
@@ -560,5 +612,6 @@ def build_for_operations(
         managers=managers,
         scope=verdict.summary,
         manifest=manifest,
+        replace_existing=replace_existing,
     )
     return results, verdict

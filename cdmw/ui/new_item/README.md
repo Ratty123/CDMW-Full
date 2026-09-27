@@ -209,6 +209,9 @@ and original toggle/click handlers when switched on or off from Rust.
 `rust_ui_bridge.py` checks session, control revisions, enabled/visible state and
 modal ownership. Large result lists and review text are paged; Copy retains the
 complete source text. Editable descriptions support up to 1,048,576 characters.
+Queued Enter and focus-loss commits follow the acknowledged revision of the same
+text field, so typing and immediately pressing Enter still commits fields such as
+the emitter's Sprite DDS archive path. Other controls retain stale-input rejection.
 `rust_ui_portals.py` retains preview window identity across renderer restarts.
 Layout projection reads widgets and nested layouts in their layout-index order
 without retaining Qt-owned `QWidgetItem` wrappers. Qt can delete those items when

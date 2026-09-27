@@ -372,6 +372,7 @@ the background, using the current Game / Package path from Archive Locations.
 If preparation fails, **Try again** reads the current path again. Equipment and
 armour changes keep the last usable scene visible until the new selection is
 ready; cancelled or superseded work cannot replace it.
+After a mesh-loading failure, refreshing the same selection retries preparation.
 Playback reuses bone lookup, bind-transform and mesh-topology data and projects
 the skeleton in batches without reducing the displayed mesh detail. Rigid weapons
 and static body meshes reuse their lighting coordinates for bulk projection during
@@ -396,6 +397,13 @@ choices survive refreshes while valid. Select **Prepare preview** to resolve the
 complete payload set before applying one operation; unreadable donors, invalid
 payloads, conflicts and stale preparation block the operation without changing
 the session.
+
+**Build packages** keeps each manager folder inside the selected output parent.
+Mod names must be valid single folder names. Replacing an existing folder requires
+confirmation; its complete previous contents are retained in a separate `.bak`
+folder beside the new package, with the backup path in the completion report.
+The new package contains only the selected operations. Exports without a replacement
+confirmation require a new destination folder or name.
 
 **Before** includes earlier session edits. **After** uses a private copy with the
 proposed operation. Both share camera, playback clock and controls; shorter tracks

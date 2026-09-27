@@ -307,6 +307,80 @@ def test_mesh_request_does_not_read_on_ui_or_replace_scene_when_cancelled(studio
         release.set()
 
 
+@pytest.mark.parametrize('failure', ['error', 'no_result'])
+def test_failed_mesh_selection_can_retry_without_losing_previous_scene(studio, monkeypatch, failure):
+    from tools.placement_studio import window_loading
+    from tools.placement_studio.loading import MeshResult
+    from tools.placement_studio.session import PlacementSession
+    from tools.placement_studio.resolver import PlacementResolver
+    from tools.placement_studio.skeleton import BoneHierarchy
+
+    studio._session = PlacementSession('rig', BoneHierarchy([]), PlacementResolver())
+    old_scene = studio._viewport._body = object()
+    calls, published = [], []
+
+    def prepare(request, cancelled, progress):
+        calls.append(request)
+        if len(calls) == 1:
+            if failure == 'error':
+                raise OSError('Transient mesh failure')
+            return None
+        return MeshResult((), 0, '', None, None, 0, ())
+
+    monkeypatch.setattr(window_loading, 'prepare_meshes', prepare)
+    monkeypatch.setattr(studio, '_refresh_scene', lambda: published.append(studio._mesh_ready))
+    monkeypatch.setattr(studio, '_report_status', lambda: None)
+    assert not studio._ensure_meshes_prepared()
+    until(lambda: not studio._mesh_task.busy)
+    assert studio._viewport._body is old_scene and published == []
+    assert not studio._ensure_meshes_prepared()
+    until(lambda: not studio._mesh_task.busy)
+    assert len(calls) == 2
+    assert studio._ensure_meshes_prepared()
+    assert published == [studio._mesh_ready]
+    assert studio._mesh_requested is None
+
+
+def test_stale_mesh_failure_does_not_clear_the_newer_request(studio, monkeypatch):
+    from tools.placement_studio import window_loading
+    from tools.placement_studio.loading import MeshResult
+    from tools.placement_studio.session import PlacementSession
+    from tools.placement_studio.resolver import PlacementResolver
+    from tools.placement_studio.skeleton import BoneHierarchy
+
+    started, release = threading.Event(), threading.Event()
+    calls, published = [], []
+    studio._session = PlacementSession('old', BoneHierarchy([]), PlacementResolver())
+
+    def prepare(request, cancelled, progress):
+        calls.append(request.model)
+        if request.model == 'old':
+            started.set()
+            assert release.wait(3)
+            raise OSError('Obsolete failure')
+        return MeshResult((), 0, '', None, None, 0, ())
+
+    monkeypatch.setattr(window_loading, 'prepare_meshes', prepare)
+    monkeypatch.setattr(studio, '_refresh_scene', lambda: published.append(studio._session.model))
+    monkeypatch.setattr(studio, '_report_status', lambda: None)
+    try:
+        assert not studio._ensure_meshes_prepared()
+        until(started.is_set)
+        studio._session = PlacementSession('new', BoneHierarchy([]), PlacementResolver())
+        assert not studio._ensure_meshes_prepared()
+        newer_key = studio._mesh_requested
+        studio._meshes_prepared(('obsolete-key', None), '')
+        assert studio._mesh_requested == newer_key
+        release.set()
+        until(lambda: not studio._mesh_task.busy)
+        assert calls == ['old', 'new']
+        assert published == ['new']
+        assert studio._mesh_ready == newer_key
+        assert studio._ensure_meshes_prepared()
+    finally:
+        release.set()
+
+
 def test_chart_cache_detects_changed_payload_with_same_history_count(studio, monkeypatch):
     from tools.placement_studio.editing import EditSession
     from tools.placement_studio import loading

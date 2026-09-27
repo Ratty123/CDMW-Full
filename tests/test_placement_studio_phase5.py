@@ -208,7 +208,7 @@ class LayoutTests(unittest.TestCase):
                 with patch(target, side_effect=effect), self.assertRaises(OSError):
                     build_package(
                         "DMM", _plan(), {_SOCKETS: b"replacement"}, _metadata(),
-                        out_root=result.root, manifest={"operations": []},
+                        out_root=result.root, manifest={"operations": []}, replace_existing=True,
                     )
                 after = {p.relative_to(result.root): p.read_bytes()
                          for p in result.root.rglob("*") if p.is_file()}

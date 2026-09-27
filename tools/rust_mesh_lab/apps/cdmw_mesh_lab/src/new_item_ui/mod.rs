@@ -51,10 +51,11 @@ fn enqueue_input(requests: &mut VecDeque<Input>, input: Input) {
 
 fn rebase_pending_inputs(requests: &mut VecDeque<Input>, previous: &Input, state: &State) {
     for pending in requests {
+        // Text acknowledgements must also carry an immediately queued Enter or blur.
         // Geometry acknowledgements change the dialog's presentation revision.
         // Preserve the final drag sample and an immediately following close.
         if pending.control == previous.control
-            && (matches!(pending.action, "text" | "number" | "cell" | "finish_edit" | "resize_dialog")
+            && (matches!(pending.action, "text" | "number" | "cell" | "finish_edit" | "submit" | "resize_dialog")
                 || previous.action == "resize_dialog" && pending.action == "close_dialog")
             && let Some(revision) = state.root.find_revision(&pending.control)
                 .or_else(|| state.dialogs.iter().find_map(|dialog| dialog.find_revision(&pending.control)))
@@ -67,6 +68,40 @@ fn rebase_pending_inputs(requests: &mut VecDeque<Input>, previous: &Input, state
 #[cfg(test)]
 mod layout_input_tests {
     use super::*;
+
+    #[test]
+    fn queued_submit_rebases_after_text_acknowledgement() {
+        for in_dialog in [false, true] {
+            let field = json!({"id": "sprite", "kind": "text", "revision": 8});
+            let mut state: State = serde_json::from_value(json!({"protocol": PROTOCOL,
+                "session": "enter", "generation": 2,
+                "root": {"id": "root", "kind": "column", "children": [
+                    {"id": "other", "kind": "text", "revision": 99}]}})).unwrap();
+            if in_dialog {
+                state.dialogs.push(serde_json::from_value(field).unwrap());
+            } else {
+                state.root.children.push(serde_json::from_value(field).unwrap());
+            }
+            let previous = Input { control: "sprite".into(), revision: 7,
+                action: "text", value: json!("texture/new.dds") };
+            let mut requests = VecDeque::new();
+            enqueue_input(&mut requests, Input { control: "sprite".into(), revision: 7,
+                action: "submit", value: Value::Null });
+            enqueue_input(&mut requests, Input { control: "sprite".into(), revision: 7,
+                action: "finish_edit", value: Value::Null });
+            enqueue_input(&mut requests, Input { control: "other".into(), revision: 7,
+                action: "submit", value: Value::Null });
+            rebase_pending_inputs(&mut requests, &previous, &state);
+            assert_eq!(requests[0].revision, 8, "Enter must commit the acknowledged text");
+            assert_eq!(requests[1].revision, 8);
+            assert_eq!(requests[2].revision, 7, "Other controls keep stale-input protection");
+
+            state.root.children.clear();
+            state.dialogs.clear();
+            rebase_pending_inputs(&mut requests, &previous, &state);
+            assert_eq!(requests[0].revision, 8, "Removed controls cannot gain a revision");
+        }
+    }
 
     #[test]
     fn monitor_moves_keep_host_font_scale_and_pointer_hits_together() {

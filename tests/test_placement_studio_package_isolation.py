@@ -431,7 +431,7 @@ class PackageIsolationTests(unittest.TestCase):
                 self.assertIn(SHIELD, inspect_package.read_contents(package.root).payload_paths)
 
             rebuilt, verdict = packaging.build_for_operations(
-                edits, [sword.operation_id], metadata, **kwargs,
+                edits, [sword.operation_id], metadata, replace_existing=True, **kwargs,
             )
             self.assertFalse(verdict.blocked)
             for package in rebuilt:

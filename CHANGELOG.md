@@ -73,6 +73,9 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Placement & Animations validates package names and keeps output inside the selected folder. Existing folders require replacement confirmation, and their complete previous contents are retained as backups while the new packages contain only the selected operations.
+- Placement & Animations can retry the same mesh selection after preparation fails, preserving the previous scene and rejecting superseded results.
+- Create New Item commits text fields when Enter is pressed before the preceding text change is acknowledged, including the emitter's Sprite DDS archive path.
 - Moving CDMW between monitors avoids repeated application-wide restyling and resizing of hidden Rust workflow windows. Window fitting waits for resize events to settle while text sizing remains responsive.
 - Mod Management keeps preview loading messages with Installed overlays and uses the workspace Activity drawer for its log, without duplicate Activity/Copy controls below Recovery. Progress and Cancel appear only during management operations.
 - Mod Management and Create New Item keep their Rust controls aligned with CDMW's font size when moving between monitors or detached windows with different display scaling.

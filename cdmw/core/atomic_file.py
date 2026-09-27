@@ -112,7 +112,14 @@ def atomic_publish_files(files: Mapping[Path | str, Path | str]) -> None:
                     backup.unlink(missing_ok=True)
 
 
-def atomic_publish_directory(staged: Path | str, target: Path | str) -> None:
+def atomic_publish_directory(
+    staged: Path | str,
+    target: Path | str,
+    *,
+    replace_existing: bool = True,
+    retain_backup: bool = False,
+) -> Path | None:
+    """Publish with rollback; optionally refuse replacement or retain and return old output."""
     staged_path = Path(staged)
     target_path = Path(target)
     if not staged_path.is_dir():
@@ -120,6 +127,8 @@ def atomic_publish_directory(staged: Path | str, target: Path | str) -> None:
     target_path.parent.mkdir(parents=True, exist_ok=True)
     if target_path.exists() and not target_path.is_dir():
         raise NotADirectoryError(target_path)
+    if target_path.exists() and not replace_existing:
+        raise FileExistsError(f"Destination already exists: {target_path}")
     backup = target_path.with_name(f".{target_path.name}.{uuid4().hex}.bak") if target_path.exists() else None
     if backup is not None:
         os.replace(target_path, backup)
@@ -130,7 +139,10 @@ def atomic_publish_directory(staged: Path | str, target: Path | str) -> None:
             os.replace(backup, target_path)
         raise
     if backup is not None:
+        if retain_backup:
+            return backup
         shutil.rmtree(backup, ignore_errors=True)
+    return None
 
 
 def atomic_publish_paths(

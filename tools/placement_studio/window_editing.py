@@ -1186,7 +1186,7 @@ class EditPanelMixin:
         it — and what refuses an in-scope change that is nonetheless unsafe.
         """
 
-        from .packaging import PackageMetadata, PackagingError, build_for_operations
+        from .packaging import PackageMetadata, PackagingError, build_for_operations, package_destinations
 
         if self._edits is None or not self._edits.modified_paths():
             return
@@ -1209,6 +1209,27 @@ class EditPanelMixin:
             author="",
             description="Placement and animation changes built with Placement Studio.",
         )
+        try:
+            destinations = package_destinations(metadata, out_root=Path(target))
+        except PackagingError as exc:
+            QMessageBox.warning(self, "Packaging failed", str(exc))
+            return
+        existing = [path for path in destinations if path.exists()]
+        replace_existing = False
+        if existing:
+            replace_existing = QMessageBox.question(
+                self,
+                "Replace existing package folders?",
+                "These folders already exist:\n\n"
+                + "\n".join(str(path) for path in existing)
+                + "\n\nTheir entire contents will be replaced. Each previous folder, including "
+                "any files you added, will be kept in a separate .bak folder beside the package. "
+                "The completion report will show the backup locations. Continue?",
+                QMessageBox.Yes | QMessageBox.Cancel,
+                QMessageBox.Cancel,
+            ) == QMessageBox.Yes
+            if not replace_existing:
+                return
         units = self._packaged_units(operation_ids)
         shared = self._shared_socket_users()
         try:
@@ -1220,6 +1241,7 @@ class EditPanelMixin:
                 baseline=self._baseline,
                 units=units,
                 shared_socket_users=shared,
+                replace_existing=replace_existing,
             )
         except PackagingError as exc:
             QMessageBox.warning(self, "Packaging failed", str(exc))
@@ -1255,16 +1277,21 @@ class EditPanelMixin:
             if box.exec() != QMessageBox.Yes:
                 self.statusBar().showMessage("Package cancelled — nothing was written")
                 return
-            results, verdict = build_for_operations(
-                self._edits,
-                operation_ids,
-                metadata,
-                out_root=Path(target),
-                baseline=self._baseline,
-                units=units,
-                shared_socket_users=shared,
-                accept_warnings=True,
-            )
+            try:
+                results, verdict = build_for_operations(
+                    self._edits,
+                    operation_ids,
+                    metadata,
+                    out_root=Path(target),
+                    baseline=self._baseline,
+                    units=units,
+                    shared_socket_users=shared,
+                    accept_warnings=True,
+                    replace_existing=replace_existing,
+                )
+            except PackagingError as exc:
+                QMessageBox.warning(self, "Packaging failed", str(exc))
+                return
 
         box = QMessageBox(self)
         box.setWindowTitle("Packages built")

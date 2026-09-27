@@ -377,6 +377,45 @@ def test_numeric_zero_and_model_replacement_are_preserved_and_revisioned():
         root.deleteLater()
 
 
+def test_enter_after_text_acknowledgement_commits_the_sprite_texture():
+    from cdmw.ui.new_item.effect_recipe_panel import EffectRecipePanel, EffectUserLibrary
+
+    app = QApplication.instance() or QApplication([])
+    panel = EffectRecipePanel(EffectUserLibrary())
+    panel.tabs.setCurrentIndex(1)
+    panel.emitter.blockSignals(True)
+    panel.emitter.addItem('Fixture emitter')
+    panel.emitter.blockSignals(False)
+    panel.setAttribute(Qt.WA_DontShowOnScreen)
+    panel.show()
+    app.processEvents()
+    bridge = NewItemPresentationBridge(panel)
+    committed, pressed = [], []
+    panel.changed.connect(committed.append)
+    panel.texture.returnPressed.connect(lambda: pressed.append(True))
+    try:
+        change = _input(bridge, panel.texture, 'text', 'texture/fixture/sprite.dds')
+        submit = {**change, 'request': change['request'] + 1, 'action': 'submit', 'value': None}
+        bridge.dispatch(change)
+        bridge.snapshot()
+        assert panel.texture.text() == 'texture/fixture/sprite.dds'
+        assert committed == []
+        with pytest.raises(PresentationProtocolError, match='control changed'):
+            bridge.dispatch(submit)
+        assert committed == [] and pressed == []
+        # The compiled Rust queue test owns this rebase across the acknowledgement.
+        submit['revision'] = bridge.document.registry.current[change['control']]['revision']
+        submit['request'] = bridge._last_request + 1
+        bridge.dispatch(submit)
+        assert pressed == [True]
+        assert len(committed) == 1
+        assert committed[0].emitter_edits[0].texture == 'texture/fixture/sprite.dds'
+    finally:
+        bridge.close()
+        panel.close()
+        panel.deleteLater()
+
+
 def test_classic_request_cannot_expose_the_retained_workflow(studio):
     _, tab, _ = studio
     from cdmw.ui.new_item.rust_ui_tab import RustNewItemStudioTab
