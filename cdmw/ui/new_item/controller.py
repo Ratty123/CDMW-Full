@@ -118,6 +118,7 @@ class NewItemStudioController(
         self._read_entry = read_entry
         self._synchronous = bool(synchronous)
         self.snapshot: Optional[NewItemSnapshot] = None
+        self._snapshot_error = ""
         self._perk_texts: tuple[LocalizationTable, Mapping[str, LocalizationEntry]] | None = None
         #: A mod folder to plan on top of, so a second item joins the first one's tables
         #: instead of replacing them. None plans against the archives.

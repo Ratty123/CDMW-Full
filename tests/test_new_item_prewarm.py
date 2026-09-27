@@ -5,6 +5,7 @@ from __future__ import annotations
 import threading
 import time
 from contextlib import ExitStack
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -19,6 +20,10 @@ from cdmw.ui.new_item.rust_ui_tab import RustNewItemStudioTab
 from cdmw.ui.new_item.tab import NewItemStudioTab
 from cdmw.ui.shell.lazy_tool_tab import LazyToolTab
 from cdmw.ui.shell.tool_tabs import ShellToolTabsMixin
+from cdmw.ui.shell.close_controller import (
+    iter_transient_shutdown_workers, request_tab_shutdowns, request_transient_shutdowns,
+)
+from cdmw.workers.new_item_preview_warmup import NewItemPreviewWarmup
 
 
 def _until(predicate):
@@ -54,28 +59,67 @@ def unprepared():
             QApplication.sendPostedEvents(None, QEvent.DeferredDelete)
 
 
-@pytest.mark.parametrize("restored", [False, True])
-def test_shell_prepares_template_after_startup_without_blocking_or_switching_tools(unprepared, restored):
+@pytest.fixture
+def preload_shell():
     class Shell(QWidget, ShellToolTabsMixin):
         pass
 
-    tab = unprepared
-    workflow, controller = tab.workflow, tab.controller
+    support.TabTests.setUpClass()
+    fixture = support.TabTests("runTest")
+    fixture.setUp()
     shell = Shell()
     shell.setAttribute(Qt.WA_DontShowOnScreen)
     layout = QVBoxLayout(shell)
     tabs = QTabWidget()
     layout.addWidget(tabs)
-    current = QWidget()
-    tabs.addTab(current, "Current")
-    lazy = LazyToolTab(lambda: tab)
+    tabs.addTab(QWidget(), "Current")
+    shell.app_context = SimpleNamespace(services=SimpleNamespace(new_items=support.NewItemService()))
+    shell.archive = SimpleNamespace(
+        archive_entries=fixture.entries,
+        archive_cache_root=fixture.root / "cache",
+        archive_package_root_edit=SimpleNamespace(text=lambda: str(fixture.root)),
+        archive_entries_by_normalized_path=None, archive_entries_by_basename=None,
+        archive_entries_by_extension=None,
+    )
+    shell.textures = SimpleNamespace(_show_archive_browser_from_texture_editor=lambda *_args: None)
+    shell.set_status_message = lambda *_args, **_kwargs: None
+    controller = shell._shared_new_item_controller()
+    controller._read_entry = support._read
+    created = []
+
+    def create():
+        tab = shell._create_new_item_studio_tab()
+        fixture._tabs.append(tab.workflow)
+        created.append(tab)
+        return tab
+
+    lazy = LazyToolTab(create)
     tabs.addTab(lazy, "Create New Item")
-    if restored:
-        tabs.setCurrentWidget(lazy)
     shell.new_item_studio_tab = lazy
     shell._startup_splash_window = object()
     shell._schedule_new_item_rust_prewarm()
-    timer = shell.findChild(QTimer)
+    timer = shell.findChildren(QTimer, options=Qt.FindDirectChildrenOnly)[0]
+    with patch.object(RustNewItemStudioTab, "_start_prepare") as renderer, \
+            patch.object(controller, "persist_issued_identities"), \
+            patch.object(controller, "start_effect_index"):
+        try:
+            yield shell, controller, tabs, lazy, timer, created, renderer
+        finally:
+            request_tab_shutdowns(shell)
+            request_transient_shutdowns(shell)
+            _until(lambda: not controller.iter_shutdown_workers())
+            shell.close()
+            fixture.tearDown()
+            shell.deleteLater()
+            QApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+
+
+@pytest.mark.parametrize("restored", [False, True])
+def test_shell_preloads_only_data_and_reuses_it_when_opened(preload_shell, restored):
+    shell, controller, tabs, lazy, timer, created, renderer = preload_shell
+    current = tabs.currentWidget()
+    if restored:
+        tabs.setCurrentWidget(lazy)
     entered, release = threading.Event(), threading.Event()
     worker_threads = []
     build = controller.service.build_snapshot
@@ -86,14 +130,18 @@ def test_shell_prepares_template_after_startup_without_blocking_or_switching_too
         assert release.wait(5), "Test did not release the snapshot worker"
         return build(*args, **kwargs)
 
-    with patch.object(type(controller.service), "build_snapshot", side_effect=delayed_build) as read:
+    def data_only_offer(warmup, _entries):
+        assert warmup.cache_root is None, "Startup must not prepare native previews"
+
+    with patch.object(type(controller.service), "build_snapshot", side_effect=delayed_build) as read, \
+            patch.object(NewItemPreviewWarmup, "offer", autospec=True, side_effect=data_only_offer):
         try:
             timer.timeout.emit()
             assert not lazy._load_requested
             shell.show()
             if restored:
-                _until(lambda: lazy.widget_if_created() is tab)
-                assert tab.isVisible()
+                _until(lambda: lazy.widget_if_created() is not None)
+                assert created[0].isVisible()
             timer.timeout.emit()
             read.assert_not_called()
             assert controller.snapshot is None
@@ -114,33 +162,79 @@ def test_shell_prepares_template_after_startup_without_blocking_or_switching_too
             _until(lambda: bool(beats))
             assert not release.is_set()
 
-            # A restored tab is already visible; the other case must finish
-            # loading while hidden so its first opening goes straight to Template.
-            tab.prewarm()
-            assert read.call_count == 1
             release.set()
-            _until(lambda: workflow._panels_built and not controller.busy)
-            assert tab.isVisible() == restored
-            assert workflow._current_step == 0
-            assert workflow._panels[0] is workflow.template_panel
-            controller.start_effect_index.assert_not_called()
+            _until(lambda: controller.ready and not controller.busy)
+            if not restored:
+                assert lazy.widget_if_created() is None
+                assert not lazy._load_requested and not created
+                renderer.assert_not_called()
             assert support.TEMPLATE in controller.snapshot.rows
             snapshot, draft = controller.snapshot, controller.draft
             tabs.setCurrentWidget(lazy)
+            _until(lambda: bool(created) and created[0].workflow._panels_built)
+            tab = created[0]
+            workflow = tab.workflow
             assert workflow._current_step == 0
+            assert workflow._panels[0] is workflow.template_panel
+            controller.start_effect_index.assert_not_called()
             tabs.setCurrentWidget(current)
             tabs.setCurrentWidget(lazy)
-            tab.prewarm()
             assert read.call_count == 1
             assert controller.snapshot is snapshot
             assert controller.draft is draft
         finally:
             release.set()
-            lazy.request_shutdown()
-            _until(lambda: not tab.iter_shutdown_workers())
-            tab.setParent(None)
-            shell.close()
-            shell.deleteLater()
+            _until(lambda: not controller.iter_shutdown_workers())
+
+
+def test_data_preload_failure_is_retained_until_the_opened_tool_retries(preload_shell):
+    shell, controller, tabs, lazy, timer, created, renderer = preload_shell
+    shell._startup_splash_window = None
+    shell.show()
+    with patch.object(type(controller.service), "build_snapshot", side_effect=ValueError("Owned preload failure")) as read:
+        timer.timeout.emit()
+        _until(lambda: not controller.busy)
+        assert controller._snapshot_error == "Owned preload failure"
+        assert lazy.widget_if_created() is None
+        renderer.assert_not_called()
+        tabs.setCurrentWidget(lazy)
+        _until(lambda: bool(created) and "Owned preload failure" in created[0].workflow._read_failure.report_text)
+        workflow = created[0].workflow
+        assert workflow._read_button.text() == "Try again"
+        assert workflow._read_button.isEnabled()
+        assert read.call_count == 1
+    workflow._read_button.click()
+    _until(lambda: workflow._panels_built and not controller.busy)
+    assert controller._snapshot_error == ""
+
+
+def test_shell_owns_and_cancels_data_preload_before_any_tool_exists(preload_shell):
+    shell, controller, _tabs, lazy, timer, _created, renderer = preload_shell
+    snapshot = controller.service.build_snapshot(shell.archive.archive_entries, read_entry=support._read)
+    entered, release = threading.Event(), threading.Event()
+    stops = []
+
+    def delayed_result(*_args, **kwargs):
+        stops.append(kwargs["stop_event"])
+        entered.set()
+        assert release.wait(5)
+        return snapshot
+
+    shell._startup_splash_window = None
+    shell.show()
+    with patch.object(type(controller.service), "build_snapshot", side_effect=delayed_result):
+        try:
+            timer.timeout.emit()
+            _until(entered.is_set)
+            assert lazy.widget_if_created() is None
+            assert any(name == "transient.snapshot" for name, _, _ in iter_transient_shutdown_workers(shell))
+            request_transient_shutdowns(shell)
+            assert stops[0].is_set()
+        finally:
+            release.set()
+            _until(lambda: not controller.iter_shutdown_workers())
+    assert controller.snapshot is None
+    renderer.assert_not_called()
 
 
 @pytest.mark.parametrize("already_loaded", [False, True])

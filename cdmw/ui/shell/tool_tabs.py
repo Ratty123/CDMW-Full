@@ -453,8 +453,12 @@ class ShellToolTabsMixin:
         controller = getattr(self, "_new_item_controller", None)
         if controller is None:
             from cdmw.ui.new_item.controller import NewItemStudioController
+            from cdmw.ui.shell.close_controller import register_transient_worker_controller
+
             controller = NewItemStudioController(service=self.app_context.services.new_items, parent=self)
             self._new_item_controller = controller
+            # Archive preloading can own a worker before either tool is opened.
+            register_transient_worker_controller(self, controller)
         return controller
 
     def _create_mod_management_tab(self) -> QWidget:
@@ -528,8 +532,8 @@ class ShellToolTabsMixin:
     def _create_new_item_studio_tab(self) -> QWidget:
         """Clone an equipment item into a brand-new one, then export or install it.
 
-        Construction stays lazy; post-startup prewarming reads the item, string,
-        store, group and language tables on the controller's worker. It takes the
+        Construction stays lazy; post-startup preloading reads the item, string,
+        store, group and language tables without constructing this widget. It takes the
         window so it can read the scanned archive list, reach the mutation service
         for an install, and accept a Model Library source in its normal Model step.
         """
@@ -566,12 +570,36 @@ class ShellToolTabsMixin:
             if (not self.isVisible() or getattr(self, "_startup_splash_window", None) is not None
                     or QApplication.activeModalWidget() is not None):
                 return
+            controller = self._shared_new_item_controller()
+            if controller.busy:
+                return
             timer.stop()
-            container.when_created(lambda widget: widget.prewarm())
-            container.request_widget()
+            if controller.snapshot is not None or controller._snapshot_error:
+                return
+            self._preload_new_item_archive_data(controller)
 
         timer.timeout.connect(prepare_when_idle)
         timer.start()
+
+    def _preload_new_item_archive_data(self, controller) -> None:
+        """Capture the catalogue on the UI thread; read data on the owned worker."""
+        from pathlib import Path
+        from cdmw.core.archive_resident_index import ResidentArchiveSource
+
+        entries = tuple(self.archive.archive_entries or ())
+        root_text = str(self.archive.archive_package_root_edit.text() or "").strip()
+        package_root = Path(root_text) if not entries and root_text else None
+        catalogue = getattr(self.archive, "archive_catalogue_service", None)
+        resident_source = (ResidentArchiveSource.capture(catalogue, package_root)
+                           if package_root is not None else None)
+        controller.start_snapshot(
+            entries,
+            package_root=package_root,
+            entries_by_normalized_path=self.archive.archive_entries_by_normalized_path,
+            entries_by_basename=self.archive.archive_entries_by_basename,
+            entries_by_extension=self.archive.archive_entries_by_extension,
+            resident_source=resident_source,
+        )
 
     def open_new_item_studio(
         self,

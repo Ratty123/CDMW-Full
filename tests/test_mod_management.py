@@ -3,10 +3,13 @@ import hashlib
 import io
 import json
 import os
+import subprocess
+import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
+from pathlib import Path
 from types import SimpleNamespace
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
@@ -37,6 +40,64 @@ def pump(app, predicate):
         app.processEvents()
         time.sleep(.002)
     assert predicate()
+
+
+def test_rust_management_opens_without_importing_the_authoring_workspace():
+    probe = """
+import sys
+from unittest.mock import patch
+from PySide6.QtCore import QEvent
+from PySide6.QtWidgets import QApplication
+from cdmw.ui.tools.rust_mod_management import RustModManagementTab
+from cdmw.ui.new_item.rust_ui_tab import RustNewItemStudioTab
+app = QApplication([])
+with patch.object(RustNewItemStudioTab, '_start_prepare'):
+    tab = RustModManagementTab()
+    try:
+        tab.show()
+        app.processEvents()
+        assert tab.controller.snapshot is None
+        assert not any(name == 'cdmw.ui.new_item.tab' or name.startswith('cdmw.ui.new_item.panels_')
+                       for name in sys.modules), 'Mod Management imported the authoring workspace'
+    finally:
+        tab.request_shutdown()
+        tab.deleteLater()
+        app.sendPostedEvents(None, QEvent.DeferredDelete)
+# Preserve the package's public compatibility import when explicitly requested.
+from cdmw.ui.new_item import NewItemStudioTab
+from cdmw.ui.new_item.tab import NewItemStudioTab as Owner
+assert NewItemStudioTab is Owner
+"""
+    result = subprocess.run([sys.executable, '-c', probe], cwd=Path(__file__).resolve().parents[1],
+                            capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_management_keeps_its_own_loading_title_when_the_renderer_launches(tmp_path):
+    from unittest.mock import Mock, patch
+    from PySide6.QtCore import QEvent, QProcess
+    from cdmw.ui.new_item import rust_ui_tab
+    from cdmw.ui.tools.rust_mod_management import RustModManagementTab
+
+    app = QApplication.instance() or QApplication([])
+    tab = RustModManagementTab()
+    process = Mock(spec=QProcess)
+    process.state.return_value = QProcess.NotRunning
+    launch = SimpleNamespace(executable='owned-helper', manifest=tmp_path / 'session.json', cleanup=Mock())
+    try:
+        assert tab._host._status_label.text() == 'Preparing Mod Management…'
+        tab._rust_mode = True
+        with patch.object(rust_ui_tab, 'QProcess', return_value=process), \
+                patch.object(tab._host, 'prepare_launch', return_value=0):
+            tab._launch_ready(launch)
+        assert tab._host._status_label.text() == 'Preparing Mod Management…'
+        process.start.assert_called_once()
+        assert tab.controller.snapshot is None
+    finally:
+        tab.request_shutdown()
+        tab._process_finished()
+        tab.deleteLater()
+        app.sendPostedEvents(None, QEvent.DeferredDelete)
 
 
 def test_utilities_opens_installed_textured_model_without_a_studio_snapshot(tmp_path, monkeypatch):

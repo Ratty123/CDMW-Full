@@ -183,17 +183,16 @@ dialogs. Closing the Rust renderer or retrying it does not discard the draft or
 plan. If the helper cannot start or stops responding, **Retry** reopens the Rust
 interface for that same workflow without exposing Classic.
 
-After the main window is visible and startup dialogs finish, the shell prepares
-the Rust tab, its renderer and the archive tables in the background. The existing
-cancellable snapshot worker loads the Template workspace automatically, without
-requiring **Read the archives**. Opening the tab reuses that snapshot and process;
-hidden renderer polling stops after the first acknowledgement. An early click or
-restoring this tab after an app restart can still show loading until preparation
-finishes. The archive read starts after startup even if the tab is already open.
-An existing snapshot or read in progress is reused; a failed read keeps its error
-and **Try again** action instead of retrying repeatedly in the background. The
-worker and renderer remain owned by the tab for normal asynchronous shutdown.
-After the tables load, panel construction runs in separate event-loop turns so
+After the main window is visible and startup dialogs finish, the shell preloads
+only the archive tables on the existing cancellable snapshot worker. Create New
+Item's interface stays unconstructed until opened; startup does not launch its
+Rust renderer or warm a native preview. Opening the tab reuses the loaded tables
+or the read already in progress, without requiring **Read the archives**. An early
+click or restoring this tab can still show loading until the data is ready. A
+failed preload keeps its error and **Try again** action when the tab is opened,
+instead of retrying repeatedly. The shared controller is registered with shell
+shutdown before either tool exists, so closing the app still cancels the read.
+Once the tab is opened and its data is ready, panel construction runs in separate event-loop turns so
 the shell can handle input between panels. The loading view stays in place until
 the complete workspace is ready. Template and model handoffs during this setup
 reuse the snapshot and wait for the panels; closing the tab stops the remaining
@@ -752,11 +751,12 @@ session/revision, and cancelled on replacement or shutdown. Only workers wait fo
 the GUI never reads or searches the complete archive catalogue to load a template.
 The cache identity includes the native helper,
 rendering inputs, and archive-file revisions so borrowed textures also invalidate
-correctly. With preview caching enabled, the snapshot worker also prepares the native
+correctly. Explicit archive reads with preview caching enabled also prepare the native
 service and shared material indexes using one small character model while the remaining
 archive tables load. It uses the template preview's cache and captured render settings;
 unfinished warm-up is cancelled and drained before the snapshot returns. Warm-up failure
 does not invalidate the table snapshot, and waiting for the native service is cancellable.
+The data-only startup preload skips this native warm-up.
 On a cold native template miss, the geometry-only builder gives the viewport an
 interactive mesh before texture preparation finishes. Preview Core supplies the
 textured packages without recompiling their materials in Python; upgrades preserve
@@ -839,6 +839,11 @@ clear the plan, including an in-flight result. **Utilities > Mod Management**
 contains Merge mods, game-update checks, Installed overlays and Archive recovery.
 These tools no longer sit in Output and need no item draft; opening them or
 expanding recovery controls never performs a write.
+Mod Management opens its own workflow and displays **Preparing Mod Management**
+while its renderer starts. It shares the renderer host and operation controller,
+but neither imports nor constructs Create New Item's authoring workspace. Shared
+operations remain serialized; startup data preloading waits for an active
+operation to finish before it begins.
 Installed overlays pairs its selectable inventory with an item preview on the
 right. Overlays containing multiple items expose an item selector. Folder,
 file-count and build details appear on hover to leave room for readable names.

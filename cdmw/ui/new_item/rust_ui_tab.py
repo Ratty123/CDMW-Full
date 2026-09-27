@@ -17,7 +17,6 @@ from cdmw.ui.new_item.rust_ui_bridge import NewItemPresentationBridge
 from cdmw.ui.new_item.rust_ui_document import theme_snapshot
 from cdmw.ui.new_item.rust_ui_dialogs import PresentationDialogs
 from cdmw.ui.new_item.rust_ui_portals import PreviewPortals
-from cdmw.ui.new_item.tab import NewItemStudioTab
 from cdmw.workers.utility_workers import UtilityWorker
 
 
@@ -31,7 +30,12 @@ class RustNewItemStudioTab(QWidget):
         super().__init__(parent)
         self.setObjectName(tool_key)
         self._window = window
-        self.workflow = workflow or NewItemStudioTab(window=window, service=service)
+        self._title = title
+        if workflow is None:
+            from cdmw.ui.new_item.tab import NewItemStudioTab
+
+            workflow = NewItemStudioTab(window=window, service=service)
+        self.workflow = workflow
         self.workflow.hide()
         self.workflow.setAttribute(Qt.WA_DontShowOnScreen, True)
         self.controller = self.workflow.controller
@@ -185,7 +189,7 @@ class RustNewItemStudioTab(QWidget):
         process.finished.connect(self._process_finished)
         process.errorOccurred.connect(self._process_error)
         parent_hwnd = self._host.prepare_launch()
-        self._host.show_loading("Preparing Create New Item…")
+        self._host.show_loading(f"Preparing {self._title}…")
         process.setProgram(launch.executable)
         process.setArguments(["--cdmw-new-item-session", str(launch.manifest), "--embedded-parent-hwnd", str(parent_hwnd)])
         process.start()

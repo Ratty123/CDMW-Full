@@ -74,6 +74,8 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Startup preloads Create New Item's archive data without constructing its panels or launching its renderer and preview warm-up. The interface opens on demand and reuses the data. Mod Management keeps its own loading message and no longer imports the full authoring workspace.
+
 - Painted transparency channels survive native template material composition, preserving other material channels and owners. EyeCover painter preparation reuses source inputs and lossless masks without encoding an intermediate BC7 export.
 - Placement & Animations validates package names and keeps output inside the selected folder. Existing folders require replacement confirmation, and their complete previous contents are retained as backups while the new packages contain only the selected operations.
 - Placement & Animations can retry the same mesh selection after preparation fails, preserving the previous scene and rejecting superseded results.

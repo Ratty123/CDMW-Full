@@ -165,7 +165,7 @@ class LazyToolTabTests(unittest.TestCase):
         self.assertEqual([], builds)
         self.assertIsNone(lazy.widget_if_created())
 
-    def test_rust_prewarm_waits_for_startup_and_leaves_current_tool_selected(self) -> None:
+    def test_data_preload_waits_for_startup_and_keeps_the_tool_unconstructed(self) -> None:
         from cdmw.ui.shell.tool_tabs import ShellToolTabsMixin
 
         class Shell(QWidget, ShellToolTabsMixin):
@@ -180,7 +180,9 @@ class LazyToolTabTests(unittest.TestCase):
                 tabs.addTab(current, "Current")
                 warmed = []
                 tool = _ProbeTool()
-                tool.prewarm = lambda: warmed.append(tool)
+                controller = SimpleNamespace(busy=False, snapshot=None, _snapshot_error="")
+                shell._shared_new_item_controller = lambda: controller
+                shell._preload_new_item_archive_data = warmed.append
                 lazy = LazyToolTab(lambda: tool)
                 tabs.addTab(lazy, "Create New Item")
                 shell.new_item_studio_tab = lazy
@@ -197,6 +199,11 @@ class LazyToolTabTests(unittest.TestCase):
                     with patch.object(QApplication, "activeModalWidget", return_value=object()):
                         timer.timeout.emit()
                     self.assertFalse(lazy._load_requested)
+                    controller.busy = True
+                    timer.timeout.emit()
+                    self.assertTrue(timer.isActive())
+                    self.assertEqual([], warmed)
+                    controller.busy = False
                     shell._shutting_down = shutdown
                     timer.timeout.emit()
                     self.assertFalse(timer.isActive())
@@ -205,9 +212,11 @@ class LazyToolTabTests(unittest.TestCase):
                         self.assertEqual([], warmed)
                     else:
                         self.assertTrue(self._process_until(lambda: bool(warmed)))
-                        self.assertEqual([tool], warmed)
+                        self.assertEqual([controller], warmed)
                         self.assertIs(tabs.currentWidget(), current)
                         self.assertFalse(tool.isVisible())
+                        self.assertFalse(lazy._load_requested)
+                        self.assertIsNone(lazy.widget_if_created())
                 finally:
                     lazy.request_shutdown()
                     shell.close()

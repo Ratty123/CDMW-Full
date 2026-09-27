@@ -84,9 +84,13 @@ class NewItemTaskControllerMixin:
         """Read the tables from `entries`, or, with none, list the archives under
         `package_root` first (the shell's catalogue backend leaves the legacy list empty)."""
 
+        def failed(message: str) -> None:
+            self._snapshot_error = message
+            self.snapshot_failed.emit(message)
+
         frozen = tuple(entries)
         if not frozen and package_root is None:
-            self.snapshot_failed.emit("The archive list is empty; scan the archives first.")
+            failed("The archive list is empty; scan the archives first.")
             return False
         task = snapshot_task(
             frozen,
@@ -111,6 +115,7 @@ class NewItemTaskControllerMixin:
                 self._template_parts = {}
                 self._template_shader_options = {}
                 self.snapshot = result
+                self._snapshot_error = ""
                 self.invalidate_plan()
                 # a different install can have different bodies and rigs
                 self._character_references.clear()
@@ -121,9 +126,11 @@ class NewItemTaskControllerMixin:
                 self._effect_compatibility_lane.cancel()
                 self.snapshot_ready.emit()
             else:
-                self.snapshot_failed.emit("The snapshot finished with an unexpected result.")
+                failed("The snapshot finished with an unexpected result.")
 
-        return self._run("snapshot", task, done, self.snapshot_failed.emit)
+        if not self.busy and not self._shutdown_requested:
+            self._snapshot_error = ""
+        return self._run("snapshot", task, done, failed)
 
     # ------------------------------------------------------------------ issued identities
 

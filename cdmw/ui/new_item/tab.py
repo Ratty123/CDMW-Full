@@ -222,6 +222,7 @@ class NewItemStudioTab(QWidget):
         self.controller.status_message.connect(self.status_message_requested.emit)
         self.controller.busy_changed.connect(self._bootstrap_busy_changed)
         self.controller.busy_changed.connect(self._resume_install_refresh)
+        self.controller.log_message.connect(self._status.setText)
         preview_settings_signal = getattr(
             getattr(getattr(window, "shell", None), "settings_tab", None),
             "model_preview_settings_changed",
@@ -236,8 +237,22 @@ class NewItemStudioTab(QWidget):
         )
         if archive_settings_signal is not None:
             archive_settings_signal.connect(self.set_archive_performance_settings)
+        # Data-only startup preloading may have finished before this tool exists.
+        # Resume on the next GUI turn, after the presentation owns the workflow.
+        QTimer.singleShot(0, self, self._resume_preloaded_snapshot)
 
     # ------------------------------------------------------------------ bootstrap
+
+    def _resume_preloaded_snapshot(self) -> None:
+        if self.controller._shutdown_requested or self._panels_built or self._panel_mount_steps is not None:
+            return
+        if self.controller.snapshot is not None:
+            self._snapshot_ready()
+        elif self.controller._snapshot_error and not self.controller.busy:
+            self._snapshot_failed(self.controller._snapshot_error)
+        elif self.controller.busy and self._read_button.isEnabled():
+            self._read_button.setEnabled(False)
+            self._bootstrap_busy_changed(True)
 
     def _append_log(self, message: str) -> None:
         message = str(message)
@@ -369,7 +384,6 @@ class NewItemStudioTab(QWidget):
                 self._status.setText(f"Reading the tables from {len(entries):,} archive entries...")
             else:
                 self._status.setText(f"Listing the archives under {package_root}, then reading the tables...")
-            self.controller.log_message.connect(self._status.setText)
         entries_by_normalized_path = None if fresh_install else getattr(self._window, "archive_entries_by_normalized_path", None)
         entries_by_basename = None if fresh_install else getattr(self._window, "archive_entries_by_basename", None)
         entries_by_extension = None if fresh_install else getattr(self._window, "archive_entries_by_extension", None)
