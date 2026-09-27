@@ -15,6 +15,7 @@ import mmap
 from pathlib import Path
 import struct
 import threading
+import time
 from types import SimpleNamespace
 
 from cdmw.domain.cancellation import raise_if_cancelled
@@ -148,6 +149,11 @@ class ResidentArchiveIndex(Sequence[ArchiveEntry]):
             for row in range(count):
                 if row % 4096 == 0:
                     raise_if_cancelled(stop_event, "Archive catalogue loading cancelled.")
+                    if row:
+                        # Python's default GIL handoff can repeatedly favour
+                        # this CPU-bound worker over queued Qt input. Yield a
+                        # bounded slice while building a large shared index.
+                        time.sleep(.001)
                 record = records + row * record_size
                 text = self._string(_OFFSET.unpack_from(data, record)[0], _LENGTH.unpack_from(data, record + 48)[0])
                 text = text.replace("\\", "/").strip("/").lower()
@@ -269,6 +275,10 @@ class _EntryGroups(Mapping[str, Sequence[ArchiveEntry]]):
     def __getitem__(self, key):
         return _EntryRows(self.index, _rows(self.rows[key]))
 
+    def candidate_keys(self, *, contains="", suffix=""):
+        """Filter shared names before decoding any archive records."""
+        return (key for key in self.rows if contains in key and key.endswith(suffix))
+
 
 class _EntryRows(Sequence[ArchiveEntry]):
     def __init__(self, index, rows):
@@ -314,6 +324,11 @@ class _SelectedEntries(Mapping[str, ArchiveEntry]):
 
 
 class _FilteredGroups(_SelectedEntries):
+    def candidate_keys(self, *, contains="", suffix=""):
+        # Source filtering belongs in __getitem__, after the cheap name test.
+        # A candidate containing only excluded records returns no group on get.
+        return self.groups.candidate_keys(contains=contains, suffix=suffix)
+
     def __getitem__(self, key):
         rows = tuple(row for row in _rows(self.groups.rows[key])
                      if self.groups.index._package_for_row(row) not in self.sources.obsolete_packages)

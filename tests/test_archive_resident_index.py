@@ -43,6 +43,43 @@ def test_resident_index_reads_exact_locations_and_reuses_generation(catalogue):
         assert list(index.by_basename[entry.basename.lower()]) == [entry]
 
 
+@pytest.mark.parametrize('filtered', [False, True])
+def test_skeleton_search_filters_names_before_decoding_records(catalogue, tmp_path, monkeypatch, filtered):
+    from cdmw.core.skeleton_resolver import _all_indexed_pab_candidates, _descriptor_candidates_for_model
+
+    root, entries, _source = catalogue
+    model = replace(entries[0], path='character/model/fixture.pac')
+    descriptor = replace(entries[0], path='character/prefab/fixture.prefabdata_xml')
+    alternate = replace(entries[0], path='character/prefab/fixture.prefabdata.xml')
+    skeleton = replace(entries[0], path='character/skeleton/fixture.pab')
+    excluded_pamt = root / '0010' / '0.pamt'
+    excluded_pamt.parent.mkdir()
+    excluded_pamt.write_bytes(b'owned index fixture')
+    excluded = replace(skeleton, path='character/skeleton/obsolete.pab', pamt_path=excluded_pamt)
+    source = write_resident_index(root, (*entries, model, descriptor, alternate, skeleton, excluded),
+                                  tmp_path / 'skeleton-generation')
+    index = source.open()
+    sources = ItemDataSources({}, {}, False,
+        frozenset((str(excluded_pamt.parent).replace('\\', '/').casefold(),)) if filtered else frozenset(), {})
+    by_path, by_name = index.index_maps(sources)
+    get_entry = ResidentArchiveIndex.__getitem__
+    decoded = []
+
+    def tracked(index, row):
+        entry = get_entry(index, row)
+        assert 'prefabdata' in entry.basename or entry.extension == '.pab'
+        decoded.append(entry.path)
+        return entry
+
+    monkeypatch.setattr(ResidentArchiveIndex, '__getitem__', tracked)
+    descriptors = _descriptor_candidates_for_model(model, archive_entries=(),
+        archive_entries_by_normalized_path=by_path, archive_entries_by_basename=by_name)
+    assert {entry.path for entry in descriptors} == {descriptor.path, alternate.path}
+    skeletons = _all_indexed_pab_candidates(archive_entries=(), archive_entries_by_basename=by_name)
+    assert skeletons == ((skeleton,) if filtered else (skeleton, excluded))
+    assert len(decoded) < 12
+
+
 def test_snapshot_uses_shared_metadata_without_listing_or_decoding_unrelated_entries(catalogue):
     root, _entries, source = catalogue
     materialized = []

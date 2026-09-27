@@ -74,6 +74,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Create New Item's startup data preparation waits for the cached archive catalogue instead of racing it with a second full archive scan, and shared lookup construction yields to keep the interface responsive. Mod Management previews reuse those lookups and filter skeleton/descriptor filenames before decoding records, avoiding repeated scans through millions of unrelated entries.
 - Mod Management keeps its loading page until the first rendered frame, opens without automatically selecting or previewing a mod, and loads its inventory independently of Create New Item's background data preparation. Startup also moves controller and parser imports off the GUI thread.
 - Completed interface translation coverage across the built-in languages, including native Rust Mesh Editor tools, selectors, settings and Format Explorer details. Language changes update open native tools; Placement & Animations and other ampersand captions now use their proper translations.
 

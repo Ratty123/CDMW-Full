@@ -139,7 +139,7 @@ def test_startup_imports_leave_the_ui_responsive_and_are_owned_until_shutdown(pr
 
     monkeypatch.setattr(tool_tabs.importlib, 'import_module', prepare)
     monkeypatch.setattr(shell, '_shared_new_item_controller', shared)
-    monkeypatch.setattr(shell, '_preload_new_item_archive_data', captured.append)
+    monkeypatch.setattr(shell, '_preload_new_item_archive_data', lambda value: captured.append(value) or True)
     shell._startup_splash_window = None
     shell.show()
     try:
@@ -167,6 +167,35 @@ def test_startup_imports_leave_the_ui_responsive_and_are_owned_until_shutdown(pr
         release.set()
         request_transient_shutdowns(shell)
         _until(lambda: not tuple(iter_transient_shutdown_workers(shell)))
+
+
+def test_startup_waits_for_the_cached_catalogue_instead_of_relisting_archives(preload_shell, tmp_path):
+    from cdmw.core.archive_format import parse_archive_pamt
+    from tests.archive_resident_index_fixtures import write_resident_index
+    from tests.test_new_item_service import build_package, synthetic_files
+
+    shell, controller, _tabs, lazy, timer, created, renderer = preload_shell
+    root = tmp_path / 'game'
+    entries = tuple(parse_archive_pamt(build_package(root, synthetic_files())))
+    source = write_resident_index(root, entries, tmp_path / 'generation')
+    catalogue = SimpleNamespace(current_session=None)
+    shell.archive.archive_entries = ()
+    shell.archive.archive_package_root_edit = SimpleNamespace(text=lambda: str(root))
+    shell.archive.archive_catalogue_service = catalogue
+    shell._startup_splash_window = None
+    shell.show()
+    with patch('cdmw.workers.new_item_workers.list_archive_entries', side_effect=AssertionError('relisted')):
+        timer.timeout.emit()
+        assert timer.isActive()
+        assert not controller.busy and controller.snapshot is None
+        assert not controller._snapshot_error
+        catalogue.current_session = source
+        timer.timeout.emit()
+        _until(lambda: not controller.busy)
+        assert controller.snapshot is not None, controller._snapshot_error
+        assert not timer.isActive()
+        assert not created and not lazy._load_requested
+        renderer.assert_not_called()
 
 
 @pytest.mark.parametrize("restored", [False, True])

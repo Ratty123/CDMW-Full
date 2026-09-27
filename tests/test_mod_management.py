@@ -488,6 +488,18 @@ def test_installed_preview_worker_delivers_package_and_waits_for_host_ready(tmp_
     plan = service.plan(replace(shop_spec('PreviewDelivery'), recipes=()), snapshot)
     backups = Backups(tmp_path)
     service.install_overlay(plan, mutation_service=backups, confirmed=True, game_running=lambda: False)
+    from tests.archive_resident_index_fixtures import write_resident_index
+    from cdmw.services import new_item_overlay_preview
+    entries = [entry for pamt in root.glob('*/*.pamt') for entry in parse_archive_pamt(pamt)]
+    source = write_resident_index(root, entries, tmp_path / 'generation')
+    resolve_preview = new_item_overlay_preview.overlay_item_preview_models
+    captured_sources = []
+
+    def resolve(*args, **kwargs):
+        captured_sources.append(kwargs['resident_source'])
+        return resolve_preview(*args, **kwargs)
+
+    monkeypatch.setattr(new_item_overlay_preview, 'overlay_item_preview_models', resolve)
     FakeHost = ItemPreviewFrameTests._fake_host_class()
     owner_threads = []
     preparing_messages = []
@@ -501,7 +513,9 @@ def test_installed_preview_worker_delivers_package_and_waits_for_host_ready(tmp_
             assert (path / 'manifest.json').is_file()
             return True
     monkeypatch.setattr('cdmw.ui.new_item.item_preview.default_host_factory', Host)
-    tab = ModManagementTab(get_package_root=lambda: str(root),
+    window = SimpleNamespace(archive=SimpleNamespace(
+        archive_catalogue_service=SimpleNamespace(current_session=source)))
+    tab = ModManagementTab(window=window, get_package_root=lambda: str(root),
                            preview_context={'output_root': tmp_path / 'previews'})
     try:
         tab.show()
@@ -510,6 +524,7 @@ def test_installed_preview_worker_delivers_package_and_waits_for_host_ready(tmp_
         pump(app, lambda: bool(owner_threads))
         preview = tab.inventory.preview
         assert owner_threads == [True]
+        assert captured_sources == [source]
         assert preparing_messages == ['Preparing the selected model and textures…']
         assert not preview.is_ready, 'Preparing a package is not renderer acknowledgement.'
         preview.host.controller.state_changed.emit('ready', '')

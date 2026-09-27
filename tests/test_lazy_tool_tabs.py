@@ -183,7 +183,7 @@ class LazyToolTabTests(unittest.TestCase):
                 controller = SimpleNamespace(busy=False, snapshot=None, _snapshot_error="")
                 shell._new_item_controller = controller
                 shell._shared_new_item_controller = lambda: controller
-                shell._preload_new_item_archive_data = warmed.append
+                shell._preload_new_item_archive_data = lambda value: warmed.append(value) or True
                 lazy = LazyToolTab(lambda: tool)
                 tabs.addTab(lazy, "Create New Item")
                 shell.new_item_studio_tab = lazy

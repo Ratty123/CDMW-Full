@@ -22,8 +22,12 @@ browsing or selection. A shared operation that could change the archives cancels
 an in-flight inventory read and queues a fresh read after it finishes; stale
 results cannot replace the inventory. Installed previews resolve the
 selected item from current mounted sources, reading only the needed model metadata
-instead of rebuilding the authoring catalogue. Loading and errors appear beside
-and within the viewport; Reload preview, refresh and reopening use new request
+instead of rebuilding the authoring catalogue. Current snapshots and the published
+archive catalogue supply shared, lazy path lookups; selecting an item does not copy
+the full archive index. Skeleton
+and descriptor searches filter indexed filenames before decoding candidate records,
+including when obsolete archive groups must be excluded. Loading and errors appear
+beside and within the viewport; Reload preview, refresh and reopening use new request
 identities. The renderer's acknowledgement remains separate from package creation.
 
 Build comparison and physical overlay health are shown separately. Disable/enable

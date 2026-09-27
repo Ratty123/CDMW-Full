@@ -592,17 +592,18 @@ class ShellToolTabsMixin:
             controller = self._shared_new_item_controller()
             if controller.busy:
                 return
-            timer.stop()
             if controller.snapshot is not None or controller._snapshot_error:
+                timer.stop()
                 return
-            self._preload_new_item_archive_data(controller)
+            if self._preload_new_item_archive_data(controller):
+                timer.stop()
 
         preparation.completed.connect(prepared)
         preparation.failed.connect(timer.stop)
         timer.timeout.connect(prepare_when_idle)
         timer.start()
 
-    def _preload_new_item_archive_data(self, controller) -> None:
+    def _preload_new_item_archive_data(self, controller) -> bool:
         """Capture the catalogue on the UI thread; read data on the owned worker."""
         from pathlib import Path
         from cdmw.core.archive_resident_index import ResidentArchiveSource
@@ -613,7 +614,12 @@ class ShellToolTabsMixin:
         catalogue = getattr(self.archive, "archive_catalogue_service", None)
         resident_source = (ResidentArchiveSource.capture(catalogue, package_root)
                            if package_root is not None else None)
-        controller.start_snapshot(
+        if not entries and catalogue is not None and resident_source is None:
+            # The shell can paint before the cached catalogue is published.
+            # Starting now would independently parse every PAMT while Browse
+            # Archives finishes loading, holding the GIL during decompression.
+            return False
+        return controller.start_snapshot(
             entries,
             package_root=package_root,
             entries_by_normalized_path=self.archive.archive_entries_by_normalized_path,

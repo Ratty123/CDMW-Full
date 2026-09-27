@@ -42,7 +42,8 @@ class ModManagementTab(QWidget):
         mutations = getattr(services, 'require_archive_mutations', None)
         root = str(self._get_package_root() or '')
         self.inventory = OverlayManagerDialog(self.controller, root, mutations() if callable(mutations) else None,
-                                              self, embedded=True)
+                                              self, embedded=True, catalogue_service=getattr(
+                                                  getattr(window, 'archive', None), 'archive_catalogue_service', None))
         self.merge_page = ModMergeDialog(self.controller, root, self, embedded=True)
         self.update_page = ModUpdateDialog(self.controller, root, self, installed=True, embedded=True)
         self.pages.addTab(self.inventory, 'Installed overlays')

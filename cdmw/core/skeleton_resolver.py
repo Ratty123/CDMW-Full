@@ -499,6 +499,16 @@ def _with_sibling_skeleton_context(
     )
 
 
+def _matching_indexed_entries(index, *, contains="", suffix=""):
+    if index is None:
+        return
+    select = getattr(index, "candidate_keys", None)
+    keys = (select(contains=contains, suffix=suffix) if callable(select) else
+            (key for key in index if contains in str(key).lower() and str(key).lower().endswith(suffix)))
+    for key in keys:
+        yield from index.get(key, ()) or ()
+
+
 def _descriptor_candidates_for_model(
     model_entry: ArchiveEntry,
     *,
@@ -531,20 +541,17 @@ def _descriptor_candidates_for_model(
         for entry in tuple((archive_entries_by_basename or {}).get(f"{stem}{suffix}".lower(), ()) or ()):
             add(entry)
 
-    groups = chain((archive_entries,), (archive_entries_by_basename or {}).values())
-    for entries in groups:
-        for entry in entries or ():
-            raw_path = str(getattr(entry, "path", "") or "")
-            # Most archive entries cannot be descriptors. Avoid normalizing and
-            # copying the entire archive index before examining the few that can.
-            if "prefabdata" not in raw_path.lower():
-                continue
-            normalized = _normalize_virtual_path(raw_path)
-            if not normalized or "prefabdata" not in PurePosixPath(normalized).name:
-                continue
-            if tokens and not any(token in normalized for token in tokens):
-                continue
-            add(entry)
+    for entry in chain(archive_entries, _matching_indexed_entries(
+            archive_entries_by_basename, contains="prefabdata")):
+        raw_path = str(getattr(entry, "path", "") or "")
+        if "prefabdata" not in raw_path.lower():
+            continue
+        normalized = _normalize_virtual_path(raw_path)
+        if not normalized or "prefabdata" not in PurePosixPath(normalized).name:
+            continue
+        if tokens and not any(token in normalized for token in tokens):
+            continue
+        add(entry)
     return tuple(candidates.values())
 
 
@@ -794,14 +801,9 @@ def _all_indexed_pab_candidates(
             seen.add(normalized)
             result.append(entry)
 
-    for entry in archive_entries:
+    for entry in chain(archive_entries, _matching_indexed_entries(
+            archive_entries_by_basename, suffix=".pab")):
         add(entry)
-    if archive_entries_by_basename is not None:
-        for basename, entries in archive_entries_by_basename.items():
-            if not str(basename).lower().endswith(".pab"):
-                continue
-            for entry in tuple(entries or ()):
-                add(entry)
     return tuple(result)
 
 

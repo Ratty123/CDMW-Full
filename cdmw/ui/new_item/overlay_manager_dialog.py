@@ -19,12 +19,14 @@ class OverlayManagerDialog(QDialog):
     updates_requested = Signal()
     activity = Signal(str)
 
-    def __init__(self, controller, package_root, mutation_service, parent=None, *, embedded=False):
+    def __init__(self, controller, package_root, mutation_service, parent=None, *, embedded=False,
+                 catalogue_service=None):
         super().__init__(parent)
         self._embedded = embedded
         if embedded:
             self.setWindowFlags(Qt.WindowType.Widget)
         self.controller, self.package_root, self.mutations = controller, package_root, mutation_service
+        self._catalogue_service = catalogue_service
         self._closed, self._working, self._applying = False, False, False
         self._reading = False
         self._inventory_lane = controller.create_lookup_lane()
@@ -265,12 +267,15 @@ class OverlayManagerDialog(QDialog):
             self.preview_status.setText('Select an enabled, mounted overlay with an item model.')
             return
         from cdmw.services.new_item_overlay_preview import overlay_item_preview_models
+        from cdmw.core.archive_resident_index import ResidentArchiveSource
         root, directory = self.package_root, entry.directory
+        resident_source = ResidentArchiveSource.capture(self._catalogue_service, root)
         render_settings = self.preview._render_settings
 
         def build(stop):
             from cdmw.ui.new_item.item_preview_materials import as_parsed_mesh, placement_reference_mesh, prepare_preview_model
-            models = overlay_item_preview_models(snapshot, root, directory, key, stop_event=stop)
+            models = overlay_item_preview_models(snapshot, root, directory, key, stop_event=stop,
+                                                 resident_source=resident_source)
             if len(models) == 1:
                 return models[0]
             mesh = None

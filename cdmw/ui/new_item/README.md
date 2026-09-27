@@ -188,6 +188,10 @@ only the archive tables on the existing cancellable snapshot worker. Create New
 Item's interface stays unconstructed until opened; startup does not launch its
 Rust renderer or warm a native preview. Controller and parser imports also run
 off the GUI thread, in an owned preparation worker, before the data read starts.
+Automatic preparation waits for Browse Archives to publish its cached catalogue;
+it does not start a second full archive scan if the window paints first. Shared
+lookup construction yields in small batches so input stays responsive after the
+archive list appears.
 Opening the tab reuses the loaded tables or the read already in progress, without
 requiring **Read the archives**. An early
 click or restoring this tab can still show loading until the data is ready. A
