@@ -108,7 +108,7 @@ impl RuntimeRoute {
             }
             RuntimeRouteKind::ReadOnlyState => all_anchors_present(CDMW_UI_SOURCE, self.target),
             RuntimeRouteKind::Unavailable => CDMW_UI_SOURCE.contains(&format!(
-                "add_enabled(false, Button::new(\"{}\"))",
+                "add_enabled(false, Button::new(crate::localization::tr(\"{}\")))",
                 self.target
             )),
             RuntimeRouteKind::Unregistered => false,
