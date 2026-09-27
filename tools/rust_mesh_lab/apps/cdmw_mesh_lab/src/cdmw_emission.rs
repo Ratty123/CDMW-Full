@@ -6,7 +6,7 @@ impl LabApplication {
         let Some(state) = self.cdmw_state.get("emission") else {
             return;
         };
-        egui::CollapsingHeader::new("Glow (experimental)").id_salt("part_emission").show(ui, |ui| {
+        crate::localization::collapsing("Glow (experimental)").id_salt("part_emission").show(ui, |ui| {
             let selected = self.selected_part_indices();
             let rows = state["parts"].as_array().into_iter().flatten()
                 .filter(|row| row["index"].as_u64().is_some_and(|index| selected.contains(&(index as u32))))
@@ -14,7 +14,7 @@ impl LabApplication {
             let ids = rows.iter().map(|row| row["id"].clone()).collect::<Vec<_>>();
             let saved = rows.first().map(|row| &row["emission"]);
             if rows.iter().any(|row| Some(&row["emission"]) != saved) {
-                ui.small("Selected parts have different glow settings.");
+                ui.small(crate::localization::tr("Selected parts have different glow settings."));
             }
             let key = egui::Id::new(("emission_values", ids.iter().map(Value::to_string).collect::<Vec<_>>(),
                 rows.iter().map(|row| row["emission"].to_string()).collect::<Vec<_>>()));
@@ -37,44 +37,44 @@ impl LabApplication {
                 v
             });
             let available = state["available"].as_bool().unwrap_or(false);
-            if !available { ui.small(state["reason"].as_str().unwrap_or("Glow editing is unavailable.")); }
-            if ids.is_empty() { ui.small("Select one or more Parts above."); }
+            if !available { ui.small(crate::localization::tr(state["reason"].as_str().unwrap_or("Glow editing is unavailable."))); }
+            if ids.is_empty() { ui.small(crate::localization::tr("Select one or more Parts above.")); }
             let editing = self.cdmw_state["authoring_enabled"].as_bool().unwrap_or(false)
                 && self.cdmw_state["replacement"]["comparison"].as_str().unwrap_or("edit") == "edit";
             ui.add_enabled_ui(available && !ids.is_empty() && !self.cdmw_busy() && editing, |ui| {
                 let mut color = [values[0], values[1], values[2]];
-                let changed = ui.horizontal(|ui| { ui.label("Glow colour"); ui.color_edit_button_rgb(&mut color).changed() }).inner;
+                let changed = ui.horizontal(|ui| { ui.label(crate::localization::tr("Glow colour")); ui.color_edit_button_rgb(&mut color).changed() }).inner;
                 if changed { values[..3].copy_from_slice(&color); }
                 else { color.copy_from_slice(&values[..3]); }
                 for (i, (label, maximum)) in [("Strength", 20.0), ("Scroll U", 10.0), ("Scroll V", 10.0),
                     ("Pulse speed", 10.0), ("Pulse floor", 1.0)].into_iter().enumerate() {
-                    ui.horizontal(|ui| { ui.label(label);
+                    ui.horizontal(|ui| { ui.label(crate::localization::tr(label));
                         ui.add(egui::Slider::new(&mut values[3 + i], 0.0..=maximum).fixed_decimals(3));
                     });
                 }
-                ui.small("Zero speed is static. Scroll moves the glow map only; a solid map cannot show movement. Pulse floor is capped by each pixel's glow. Preview timing is approximate.");
-                ui.small("Animated glow cannot share a part with translucency. Unsupported source shaders are reported when applying.");
+                ui.small(crate::localization::tr("Zero speed is static. Scroll moves the glow map only; a solid map cannot show movement. Pulse floor is capped by each pixel's glow. Preview timing is approximate."));
+                ui.small(crate::localization::tr("Animated glow cannot share a part with translucency. Unsupported source shaders are reported when applying."));
                 let mut rgb = values[8] > 0.5;
-                ui.checkbox(&mut rgb, "Use RGB glow map");
+                ui.checkbox(&mut rgb, crate::localization::tr("Use RGB glow map"));
                 values[8] = if rgb { 1.0 } else { 0.0 };
                 if rgb {
                     for (index, label, minimum) in [(9, "RGB strength", 0.0), (10, "Reveal", 0.0), (11, "Reveal softness", 0.001)] {
-                        ui.horizontal(|ui| { ui.label(label); ui.add(egui::Slider::new(&mut values[index], minimum..=1.0).fixed_decimals(3)); });
+                        ui.horizontal(|ui| { ui.label(crate::localization::tr(label)); ui.add(egui::Slider::new(&mut values[index], minimum..=1.0).fixed_decimals(3)); });
                     }
                     let mut inverse = values[12] > 0.5;
-                    ui.checkbox(&mut inverse, "Invert reveal mask");
+                    ui.checkbox(&mut inverse, crate::localization::tr("Invert reveal mask"));
                     values[12] = if inverse { 1.0 } else { 0.0 };
-                    ui.small("Requires the source glow map: RGB colours, alpha intensity, red reveal mask. Uses RGB strength. Reveal 0 is off; 1 shows all. Game brightness may differ.");
+                    ui.small(crate::localization::tr("Requires the source glow map: RGB colours, alpha intensity, red reveal mask. Uses RGB strength. Reveal 0 is off; 1 shows all. Game brightness may differ."));
                 }
                 ui.horizontal_wrapped(|ui| {
-                    if ui.button("Apply glow").clicked() {
+                    if ui.button(crate::localization::tr("Apply glow")).clicked() {
                         actions.push(UiAction::CdmwCommand { command: "replacement_emission",
                             arguments: json!({"part_ids": ids, "emission": {"color": color, "intensity": values[3],
                                 "animation": {"flow_u": values[4], "flow_v": values[5],
                                     "pulse_frequency": values[6], "pulse_minimum": values[7]},
                                 "rgb": rgb.then(|| json!({"intensity": values[9], "reveal": values[10], "softness": values[11], "inverse": values[12] > 0.5}))}}), label: "Edit material glow" });
                     }
-                    if ui.add_enabled(rows.iter().any(|row| !row["emission"].is_null()), egui::Button::new("Restore glow")).clicked() {
+                    if ui.add_enabled(rows.iter().any(|row| !row["emission"].is_null()), egui::Button::new(crate::localization::tr("Restore glow"))).clicked() {
                         actions.push(UiAction::CdmwCommand { command: "replacement_emission",
                             arguments: json!({"part_ids": ids, "reset": true}), label: "Restore material glow" });
                     }

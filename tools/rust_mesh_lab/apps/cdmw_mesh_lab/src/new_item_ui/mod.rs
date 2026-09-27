@@ -1,7 +1,7 @@
 //! Optional embedded New Item UI. The ordinary Mesh Editor route is unchanged.
 
 mod capture;
-mod fonts;
+pub(crate) mod fonts;
 mod model;
 mod view;
 

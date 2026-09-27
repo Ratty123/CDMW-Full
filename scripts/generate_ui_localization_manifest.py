@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 RESOURCE_ROOT = ROOT / "cdmw" / "resources" / "localization"
 MANIFEST_PATH = RESOURCE_ROOT / "source_manifest.json"
 ENGLISH_CATALOG_PATH = RESOURCE_ROOT / "en.json"
+RUST_KEYS_PATH = RESOURCE_ROOT / "native_ui_keys.json"
 BUILTIN_TRANSLATION_CODES = (
     "de",
     "es-419",
@@ -37,6 +38,8 @@ BUILTIN_TRANSLATION_CODES = (
 EXCLUSIONS_PATH = ROOT / "scripts" / "ui_localization_exclusions.json"
 
 PYTHON_SOURCE_ROOTS = (
+    ROOT / "cdmw" / "models.py",
+    ROOT / "cdmw" / "constants.py",
     ROOT / "cdmw" / "app",
     ROOT / "cdmw" / "services",
     ROOT / "cdmw" / "ui",
@@ -47,6 +50,22 @@ PYTHON_SOURCE_ROOTS = (
 )
 MANUAL_SOURCE_KEYS = frozenset(
     {
+        # Audited dynamic/default captions without a literal widget sink.
+        "Show Settings", "Maintenance", "Open Image", "Scan Sidecar Corpus",
+        "Ready .zip", "No tool", "No layer", "No state", "Fit {value_0}%",
+        "Mesh Editor preview.", "Aim with this", "Plain text",
+        "Light", "High Contrast", "OLED Black", "Basecolor Tint",
+        "Color / Albedo", "Color / Variant", "Height / Displacement",
+        "Mask / Generic", "Mask / Specular", "Mask / Opacity", "Vector", "Keep Unknown",
+        "Tool Axe", "Tool Broom", "Tool Farmscythe", "Tool Fishingrod", "Tool Flute",
+        "Tool Hammer", "Tool Harpoon", "Tool Hayfork", "Tool Hoe", "Tool Pan",
+        "Tool Pickaxe", "Tool Pipe", "Tool Shovel", "Sword Aux", "Towershield", "Handcannon",
+        "Sword", "Axe", "Bow", "Dagger", "Mace", "Shield", "Wand",
+        "Spear", "Hammer", "Musket", "Quiver", "Gauntlet", "Fan", "Fist",
+        "Main weapon", "Second weapon", "Ranged", "(nowhere)", "case",
+        "{value_0} tiny", "{value_0} normal", "{value_0} large", "{value_0} risky (risky)",
+        "Shortcut: {value_0}",
+        "color, ui, emissive, impostor", "normal, height, vector, roughness, mask, unknown",
         # Effect emitter controls are labels in the typed domain field table.
         "Infinite particle life (0/1)",
         "Repeat lifetime curves (0/1)",
@@ -131,8 +150,7 @@ MANUAL_SOURCE_KEYS = frozenset(
         'Unchecked fields retain authored values. Compatibility is checked when applying.',
         'World centre XYZ',
         # Experimental replacement controls are drawn by the compiled Rust UI.
-        # Vertex inspector labels are retained for the future editor catalog;
-        # the integrated Rust authoring UI currently uses English labels.
+        # Vertex inspector labels are shared with the native editor catalog.
         "Vertex Parameters", "Edit Position XYZ", "Edit UV0", "Edit Normal XYZ",
         "Refresh values", "No current inspection. Refresh values to retry.",
         "Edit Skin Weights", "Selected bone influences", "Stage weight change",
@@ -1370,7 +1388,38 @@ def _python_ui_catalogue_sources(
     assignments: dict[str, tuple[ast.AST, ...]],
 ) -> Iterable[tuple[str, ast.AST, str]]:
     """Read declared presentation tables whose consumers cross module boundaries."""
-    if relative == "cdmw/ui/shell/compact/registry.py":
+    if relative == "cdmw/ui/texture_workflow/editor_brush_presets.py":
+        for table in assignments.get("BUILTIN_TEXTURE_EDITOR_BRUSH_PRESET_ORDER", ()):
+            if isinstance(table, (ast.Tuple, ast.List)):
+                for node in table.elts:
+                    label = _python_source_value(node).replace("_", " ").title()
+                    if label:
+                        yield label, node, "python-data:BUILTIN_TEXTURE_EDITOR_BRUSH_PRESET_ORDER"
+    tuple_tables = {
+        "cdmw/constants.py": ("UI_LOG_TEXT_STYLE_OPTIONS", "UI_TEXT_COLOR_SCHEME_OPTIONS"),
+        "tools/placement_studio/carry.py": ("CARRY_SOCKETS",),
+        "tools/placement_studio/clip_names.py": ("_CONTEXT", "_ACTION"),
+    }
+    for name in tuple_tables.get(relative, ()):
+        for table in assignments.get(name, ()):
+            if isinstance(table, (ast.Tuple, ast.List)):
+                for row in table.elts:
+                    if isinstance(row, (ast.Tuple, ast.List)) and len(row.elts) > 1:
+                        node = row.elts[1]
+                        source = _python_source_value(node)
+                        if source:
+                            yield source, node, f"python-data:{name}"
+    if relative == "cdmw/ui/mesh_editor/action_bar.py":
+        names = ("_BUTTON_LABELS",)
+    elif relative == "cdmw/ui/mesh_editor/actions.py":
+        names = ("_TOOLTIPS",)
+    elif relative == "cdmw/models.py":
+        names = tuple(name for name in assignments if name.endswith("_LABELS") and name.startswith("D3D11_"))
+    elif relative == "tools/placement_studio/clip_names.py":
+        names = ("FAMILY_LABELS", "SOCKET_PLACES", "_SIDE", "_SHORT_ACTION", "_TRIM_WORDS", "_TRIM_PAIRS", "_TRIM_ABBREV", "_PHASE", "RIG_GROUPS")
+    elif relative == "tools/placement_studio/carry.py":
+        names = ("ZONE_LABELS",)
+    elif relative == "cdmw/ui/shell/compact/registry.py":
         names = ("COMPACT_CATEGORY_ORDER",)
     elif relative == "tools/format_explorer/catalogue.py":
         names = ("TOOLS", "_TEXT_TOOL", "_NO_TOOL", "READ_WORDS", "WRITE_WORDS")
@@ -1408,9 +1457,10 @@ def _scan_python() -> dict[str, list[dict[str, object]]]:
     origins: dict[str, list[dict[str, object]]] = defaultdict(list)
     trees: list[tuple[Path, ast.Module]] = []
     for source_root in PYTHON_SOURCE_ROOTS:
-        if not source_root.is_dir():
+        if not source_root.exists():
             continue
-        for path in sorted(source_root.rglob("*.py")):
+        paths = (source_root,) if source_root.is_file() else sorted(source_root.rglob("*.py"))
+        for path in paths:
             try:
                 tree = ast.parse(path.read_text(encoding="utf-8"))
             except (OSError, SyntaxError, UnicodeDecodeError):
@@ -1608,6 +1658,53 @@ def _load_exclusions() -> tuple[dict[str, str], ...]:
 
 def build_manifest() -> dict[str, object]:
     origins = _scan_python()
+    if str(Path(__file__).resolve().parents[1]) not in sys.path:
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from scripts.rust_ui_localization import scan as scan_rust
+
+    for key, rows in scan_rust(ROOT).items():
+        origins.setdefault(key, []).extend(rows)
+    from cdmw.domain.mesh.shader_controls import EYE_COVER, FAMILIES
+    from cdmw.domain.textures.editor_presets import texture_editor_dds_presets
+
+    for preset in texture_editor_dds_presets():
+        for text in (preset.label, preset.warning):
+            if text:
+                origins.setdefault(text, []).append({
+                    "path": "cdmw/domain/textures/editor_presets.py", "line": 1,
+                    "sink": "python-data:TextureEditorDdsPreset",
+                })
+
+    for family in (*FAMILIES, EYE_COVER):
+        for text in (family.label, family.note, *(field.label for field in family.fields)):
+            origins.setdefault(text, []).append({
+                "path": "cdmw/domain/mesh/shader_controls.py", "line": 1,
+                "sink": "rust-presentation",
+            })
+    # The menu composes these titles at runtime; its tool identity stays separate.
+    for key, rows in tuple(origins.items()):
+        registry_rows = [row for row in rows if row["path"] == "cdmw/ui/shell/compact/registry.py" and row["sink"] == "CompactToolSpec"]
+        if registry_rows:
+            origins.setdefault(f"Show {key}", []).extend(registry_rows)
+    # Format Explorer presents this reviewed capability metadata in its table
+    # and detail pane, while extension/group IDs remain machine-readable.
+    capabilities = ROOT / "schemas" / "archive_content_capabilities.v1.json"
+    if capabilities.is_file():
+        from tools.format_explorer.catalogue import detail_text_segments
+
+        data = json.loads(capabilities.read_text(encoding="utf-8"))
+        for row in data["extensions"]:
+            for field in ("role", "evidence", "remaining", "group", "origin"):
+                text = str(row[field]).replace("_", " ") if field in {"group", "origin"} else str(row[field])
+                if field == "origin":
+                    text = str(row[field]).replace("_", "-").capitalize() + " format"
+                for segment in detail_text_segments(text):
+                    if not segment:
+                        continue
+                    origins.setdefault(segment, []).append({
+                        "path": "schemas/archive_content_capabilities.v1.json", "line": 1,
+                        "sink": f"json-presentation:{field}",
+                    })
     exclusions = _load_exclusions()
     for exclusion in exclusions:
         source = exclusion["source"]
@@ -1770,6 +1867,14 @@ def main() -> int:
     expected = {
         MANIFEST_PATH: _serialized(manifest),
         ENGLISH_CATALOG_PATH: _serialized(english),
+        RUST_KEYS_PATH: _serialized([
+            entry["key"] for entry in manifest["entries"]
+            if any(
+                origin["sink"] == "rust-presentation"
+                or origin["path"].startswith(("cdmw/services/mesh_rust_", "cdmw/services/mesh_shader_controls", "cdmw/services/mesh_emission"))
+                for origin in entry["origins"]
+            )
+        ]),
     }
     expected.update(_synchronized_builtin_catalogs(english))
     if args.write:

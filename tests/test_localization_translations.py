@@ -106,6 +106,7 @@ def test_initial_english_language_apply_skips_widget_tree_walk() -> None:
 
     localizer = _Localizer()
     navigation_refreshes: list[bool] = []
+    native_refreshes: list[str] = []
     window = SimpleNamespace(
         settings_tab=SimpleNamespace(
             set_language_options=lambda *_args, **_kwargs: None,
@@ -115,6 +116,7 @@ def test_initial_english_language_apply_skips_widget_tree_walk() -> None:
         ui_localizer=localizer,
         _update_ncnn_preset_hint=lambda: None,
         _schedule_column_autofit=lambda: None,
+        _sync_mesh_editor_theme=lambda: native_refreshes.append(localizer.language_code),
     )
 
     window.textures = window
@@ -130,6 +132,7 @@ def test_initial_english_language_apply_skips_widget_tree_walk() -> None:
 
     assert localizer.apply_calls == [window, window]
     assert navigation_refreshes == [True, True, True]
+    assert native_refreshes == ["en", "es", "en"]
 
 
 def test_language_export_handler_stays_fast_and_includes_live_widget_strings(tmp_path: Path) -> None:
@@ -157,7 +160,7 @@ def test_language_export_handler_stays_fast_and_includes_live_widget_strings(tmp
         assert _wait_for(
             app,
             lambda: output_path.exists() and window.worker_thread is None and information.called,
-        )
+        ), warning.call_args
 
     payload = json.loads(output_path.read_text(encoding="utf-8"))
     assert elapsed < 0.05
@@ -443,6 +446,40 @@ def test_mnemonic_translation_leaves_a_real_accelerator_alone() -> None:
     assert german.translate_mnemonic("") == ""
 
 
+def test_all_languages_translate_escaped_tool_titles_before_duration_templates() -> None:
+    from cdmw.domain.localization import BUILTIN_LANGUAGES
+    from cdmw.ui.shell.compact.registry import COMPACT_TOOL_SPECS
+    from PySide6.QtWidgets import QPushButton
+
+    app = QApplication.instance() or QApplication([])
+    tabs = QTabWidget()
+    buttons = []
+    actions = []
+    for spec in COMPACT_TOOL_SPECS:
+        buttons.append(QPushButton(as_label(spec.label)))
+        tabs.addTab(QWidget(), as_label(spec.label))
+        actions.append(QAction(as_label(f"Show {spec.label}")))
+    localizer = UiLocalizer(language_dir=Path("__unused__"), language_code="en")
+    for code in [spec.code for spec in BUILTIN_LANGUAGES] + ["en"]:
+        localizer.load_language(code)
+        localizer.apply(tabs)
+        for index, spec in enumerate(COMPACT_TOOL_SPECS):
+            button, action = buttons[index], actions[index]
+            expected = as_label(localizer.translate(spec.label))
+            localizer.apply(button)
+            localizer._apply_action(action)
+            assert button.text() == expected, (code, spec.label)
+            assert tabs.tabText(index) == expected, (code, spec.label)
+            assert action.text() == as_label(localizer.translate(f"Show {spec.label}")), (code, spec.label)
+            assert button.shortcut().isEmpty()
+        # Unknown text must not lose a plural suffix to a duration template.
+        assert localizer.translate_rendered("Unlisted Widgets") == "Unlisted Widgets", code
+    for button in buttons:
+        button.deleteLater()
+    tabs.deleteLater()
+    app.processEvents()
+
+
 def test_literal_button_ampersands_translate_without_creating_shortcuts() -> None:
     from PySide6.QtWidgets import QPushButton
     app = QApplication.instance() or QApplication([])
@@ -452,6 +489,49 @@ def test_literal_button_ampersands_translate_without_creating_shortcuts() -> Non
     localizer.apply(button)
     assert button.text() == "Körper && Gesichter" and button.shortcut().isEmpty()
     button.deleteLater()
+    app.processEvents()
+
+
+def test_composed_placement_labels_translate_without_changing_item_identity() -> None:
+    from PySide6.QtWidgets import QComboBox
+
+    app = QApplication.instance() or QApplication([])
+    localizer = UiLocalizer(language_dir=Path("__unused__"), language_code="ja")
+    localizer.translations.update({"Sword": "剣", "right": "右", "one-hand": "片手"})
+    source = "Sword 0001 — right (one-hand)"
+    combo = QComboBox()
+    combo.setProperty("_i18n_composed_labels", True)
+    combo.addItem("(none — body sockets only)", None)
+    combo.addItem(source, "Sword_0001_RHand_Socket")
+    localizer.apply(combo)
+    assert combo.itemText(0) != "(none — body sockets only)"
+    assert combo.itemData(0) is None
+    assert combo.itemText(1) == "剣 0001 — 右 (片手)"
+    assert combo.itemData(1) == "Sword_0001_RHand_Socket"
+    localizer.load_language("en")
+    localizer.apply(combo)
+    assert combo.itemText(1) == source
+    assert combo.itemData(1) == "Sword_0001_RHand_Socket"
+    combo.deleteLater()
+    app.processEvents()
+
+
+def test_editable_combo_translates_its_prompt_without_changing_typed_data() -> None:
+    from PySide6.QtWidgets import QComboBox
+
+    app = QApplication.instance() or QApplication([])
+    combo = QComboBox()
+    combo.setEditable(True)
+    combo.addItems([".pac", ".dds"])
+    combo.lineEdit().setPlaceholderText("Select or type extension")
+    combo.setEditText("custom.extension")
+    localizer = UiLocalizer(language_dir=Path("__unused__"), language_code="ja")
+    localizer.apply(combo)
+    assert combo.lineEdit().placeholderText() == localizer.translate("Select or type extension")
+    assert combo.lineEdit().placeholderText() != "Select or type extension"
+    assert combo.currentText() == "custom.extension"
+    assert [combo.itemText(index) for index in range(combo.count())] == [".pac", ".dds"]
+    combo.deleteLater()
     app.processEvents()
 
 

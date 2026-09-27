@@ -152,6 +152,7 @@ def build_preview_panel(tab: object) -> QWidget:
     target_layout.addWidget(tab.target_filter_edit)
     target_row = QHBoxLayout()
     tab.target_combo = QComboBox()
+    tab.target_combo.setProperty("_i18n_translate_combo_items", True)
     tab.target_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
     tab.refresh_targets_button = QPushButton("Refresh")
     tab.use_archive_selection_button = QPushButton("Use Selection")

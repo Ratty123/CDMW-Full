@@ -23,20 +23,20 @@ mod authoring {
             if state.is_null() {
                 return;
             }
-            ui.collapsing("Create cloth guides (experimental)", |ui| {
-                ui.small("Builds a simulation mesh from a stored LOD, using the existing bones.");
+            crate::localization::collapsing("Create cloth guides (experimental)").show(ui, |ui| {
+                ui.small(crate::localization::tr("Builds a simulation mesh from a stored LOD, using the existing bones."));
                 if !state_bool(&state, "available") {
-                    ui.label(state_str(&state, "reason").unwrap_or("Guide creation is unavailable."));
+                    ui.label(crate::localization::tr(state_str(&state, "reason").unwrap_or("Guide creation is unavailable.")));
                     return;
                 }
-                ui.checkbox(&mut self.cdmw_cloth.guides.selected_only, "Create guides for selected parts only");
+                ui.checkbox(&mut self.cdmw_cloth.guides.selected_only, crate::localization::tr("Create guides for selected parts only"));
                 let selected = self.selected_part_indices();
                 let parts = state["parts"].as_array().into_iter().flatten()
                     .filter(|part| (state_bool(part, "included") || !part["rule"].is_null())
                         && (!self.cdmw_cloth.guides.selected_only || selected.contains(&(state_u64(part, "index") as u32))))
                     .collect::<Vec<_>>();
                 if parts.is_empty() {
-                    ui.label("Select an included part to create guides.");
+                    ui.label(crate::localization::tr("Select an included part to create guides."));
                     return;
                 }
                 let ids = parts.iter().filter_map(|part| part["id"].as_str()).collect::<Vec<_>>();
@@ -54,33 +54,33 @@ mod authoring {
                     view.reduce_skinning = rule["reduce_skinning"].as_bool().unwrap_or(false);
                 }
                 egui::ComboBox::from_id_salt("cloth-guide-source-lod")
-                    .selected_text(format!("Source LOD {}", view.source_lod)).show_ui(ui, |ui| {
+                    .selected_text(crate::localization::tr(format!("Source LOD {}", view.source_lod))).show_ui(ui, |ui| {
                         for lod in 0..state_u64(&state, "lod_count") as u32 {
-                            ui.selectable_value(&mut view.source_lod, lod, format!("Source LOD {lod}"));
+                            ui.selectable_value(&mut view.source_lod, lod, crate::localization::tr(format!("Source LOD {lod}")));
                         }
                     });
                 let vertices: u64 = parts.iter().filter_map(|part| part["lod_vertices"][view.source_lod as usize].as_u64()).sum();
-                ui.small(format!("{vertices} source vertices before welding; maximum 1,024 guides across all parts."));
+                ui.small(crate::localization::tr(format!("{vertices} source vertices before welding; maximum 1,024 guides across all parts.")));
                 ui.horizontal(|ui| {
-                    ui.label("Pin guides at or above Y");
+                    ui.label(crate::localization::tr("Pin guides at or above Y"));
                     ui.add(egui::DragValue::new(&mut view.height).speed(0.01));
                 });
-                ui.small("Height uses displayed model coordinates. Each disconnected piece needs an anchor.");
-                ui.checkbox(&mut view.reduce_skinning, "Reduce skinning to four bones");
-                ui.small("Optional: keeps the four strongest bone weights and normalizes them at every LOD. This changes skeletal deformation.");
+                ui.small(crate::localization::tr("Height uses displayed model coordinates. Each disconnected piece needs an anchor."));
+                ui.checkbox(&mut view.reduce_skinning, crate::localization::tr("Reduce skinning to four bones"));
+                ui.small(crate::localization::tr("Optional: keeps the four strongest bone weights and normalizes them at every LOD. This changes skeletal deformation."));
                 let valid = enabled && view.height.is_finite() && parts.iter().all(|part| state_bool(part, "included"));
-                if ui.add_enabled(valid, egui::Button::new("Create / update guides")).clicked() {
+                if ui.add_enabled(valid, egui::Button::new(crate::localization::tr("Create / update guides"))).clicked() {
                     actions.push(UiAction::CdmwCommand { command: "replacement_guides",
                         arguments: json!({"part_ids": ids, "source_lod": view.source_lod, "fixed_above": view.height,
                                           "reduce_skinning": view.reduce_skinning}),
                         label: "Create cloth guides" });
                 }
                 if ui.add_enabled(enabled && parts.iter().any(|part| !part["rule"].is_null()),
-                                  egui::Button::new("Restore source guides")).clicked() {
+                                  egui::Button::new(crate::localization::tr("Restore source guides"))).clicked() {
                     actions.push(UiAction::CdmwCommand { command: "replacement_guides",
                         arguments: json!({"part_ids": ids, "reset": true}), label: "Restore source guides" });
                 }
-                ui.small("Creates bindings at every stored LOD. Saved in drafts and Build Mod; game activation is unverified.");
+                ui.small(crate::localization::tr("Creates bindings at every stored LOD. Saved in drafts and Build Mod; game activation is unverified."));
             });
         }
     }
@@ -232,7 +232,7 @@ pub(super) mod profiles {
     }
 
     fn draw_collision_overrides(ui: &mut egui::Ui, source: &Value, view: &mut ProfileView) {
-        ui.collapsing("Collision and attachment overrides", |ui| {
+        crate::localization::collapsing("Collision and attachment overrides").show(ui, |ui| {
             for (key, label) in [
                 ("IsCloak", "Cloak behavior"),
                 ("UseBackStopCollision", "Backstop collisions"),
@@ -247,23 +247,23 @@ pub(super) mod profiles {
                             .filter(|value| *value == 0.0 || *value == 1.0);
                         let mut overridden = view.edit_values.contains_key(key);
                         let mut value = view.edit_values.get(key).copied().or(original).unwrap_or(0.0) == 1.0;
-                        ui.checkbox(&mut overridden, format!("Override {label}"));
+                        ui.checkbox(&mut overridden, crate::localization::tr(format!("Override {label}")));
                         if overridden {
-                            ui.checkbox(&mut value, "Enabled");
+                            ui.checkbox(&mut value, crate::localization::tr("Enabled"));
                             view.edit_values.insert(key.to_owned(), if value { 1.0 } else { 0.0 });
                         } else {
                             view.edit_values.remove(key);
-                            ui.small(match (raw, original) {
+                            ui.small(crate::localization::tr(match (raw, original) {
                                 (_, Some(0.0)) => "Disabled in source",
                                 (_, Some(_)) => "Enabled in source",
                                 (Some(_), None) => "Invalid source value",
                                 (None, None) => "Source default",
-                            });
+                            }));
                         }
                     });
                 });
             }
-            ui.small("Exports raw collision and attachment switches. The preview does not reproduce every game collision branch.");
+            ui.small(crate::localization::tr("Exports raw collision and attachment switches. The preview does not reproduce every game collision branch."));
         });
     }
 
@@ -286,7 +286,7 @@ pub(super) mod profiles {
         if groups.is_empty() {
             return;
         }
-        ui.collapsing("Edit profile for mod", |ui| {
+        crate::localization::collapsing("Edit profile for mod").show(ui, |ui| {
             if groups.len() == 1 {
                 view.edit_group = groups[0]["id"].as_str().map(str::to_owned);
             }
@@ -294,7 +294,7 @@ pub(super) mod profiles {
                 ui.horizontal_wrapped(|ui| {
                     for (index, group) in groups.iter().enumerate() {
                         let id = group["id"].as_str().unwrap_or_default();
-                        if ui.add(egui::Button::new(format!("Profile group {}", index + 1))
+                        if ui.add(egui::Button::new(crate::localization::tr(format!("Profile group {}", index + 1)))
                             .selected(view.edit_group.as_deref() == Some(id))).clicked() {
                             view.edit_group = Some(id.to_owned());
                         }
@@ -302,12 +302,12 @@ pub(super) mod profiles {
                 });
             }
             let Some(group) = groups.iter().find(|group| group["id"].as_str() == view.edit_group.as_deref()) else {
-                ui.small("Choose a profile group to edit."); return;
+                ui.small(crate::localization::tr("Choose a profile group to edit.")); return;
             };
             let names = group["names"].as_array().into_iter().flatten().filter_map(Value::as_str).collect::<Vec<_>>();
-            ui.label(format!("Applies to all {} parts sharing this assignment", names.len()));
-            ui.small(names.join(", "));
-            if let Some(reason) = group["reason"].as_str().filter(|reason| !reason.is_empty()) { ui.small(reason); }
+            ui.label(crate::localization::tr(format!("Applies to all {} parts sharing this assignment", names.len())));
+            ui.small(crate::localization::tr(names.join(", ")));
+            if let Some(reason) = group["reason"].as_str().filter(|reason| !reason.is_empty()) { ui.small(crate::localization::tr(reason)); }
             let sources = state["sources"].as_array().map(Vec::as_slice).unwrap_or(&[]);
             let key = json!([state["sidecar_sha256"], group["id"], group["rule"], sources]);
             if view.edit_key != key {
@@ -325,10 +325,10 @@ pub(super) mod profiles {
             let previous = view.edit_source.clone();
             let selected = sources.iter().find(|source| Some(source_key(source)) == view.edit_source)
                 .and_then(|source| source["name"].as_str()).unwrap_or("Choose source profile");
-            egui::ComboBox::from_id_salt("physics-profile-source").selected_text(selected).show_ui(ui, |ui| {
+            egui::ComboBox::from_id_salt("physics-profile-source").selected_text(crate::localization::tr(selected)).show_ui(ui, |ui| {
                 for source in sources {
                     ui.selectable_value(&mut view.edit_source, Some(source_key(source)),
-                        source["name"].as_str().unwrap_or("Profile"));
+                        crate::localization::tr(source["name"].as_str().unwrap_or("Profile")));
                 }
             });
             if previous != view.edit_source { view.edit_values.clear(); }
@@ -350,7 +350,7 @@ pub(super) mod profiles {
                         let mut overridden = view.edit_values.contains_key(key);
                         let mut value = view.edit_values.get(key).copied()
                             .filter(|number| number.is_finite()).or(original).unwrap_or(low).clamp(low, high);
-                        ui.checkbox(&mut overridden, format!("Override {label}"));
+                        ui.checkbox(&mut overridden, crate::localization::tr(format!("Override {label}")));
                         if overridden {
                             let mut control = egui::DragValue::new(&mut value).range(low..=high).speed(if integer { 1.0 } else { 0.01 });
                             if integer { control = control.max_decimals(0); }
@@ -362,17 +362,17 @@ pub(super) mod profiles {
                             view.edit_values.insert(key.to_owned(), value);
                         } else {
                             view.edit_values.remove(key);
-                            ui.small(match (raw, original) {
+                            ui.small(crate::localization::tr(match (raw, original) {
                                 (Some(text), Some(_)) => text,
                                 (Some(_), None) => "Invalid source value",
                                 (None, _) => "Source default",
-                            });
+                            }));
                         }
                     });
                 }
                 draw_collision_overrides(ui, source, view);
                 if ui.add_enabled(enabled && group["available"].as_bool() == Some(true) && !view.edit_values.is_empty(),
-                    egui::Button::new("Apply profile edit")).clicked() {
+                    egui::Button::new(crate::localization::tr("Apply profile edit"))).clicked() {
                     actions.push(UiAction::CdmwCommand {
                         command: "replacement_physics_profile",
                         arguments: json!({"group_id": group["id"], "rule": {
@@ -380,15 +380,15 @@ pub(super) mod profiles {
                             "source_sha256": source["sha256"], "values": view.edit_values}}), label: "Edit physics profile",
                     });
                 }
-            } else { ui.small("Choose a captured source profile before setting overrides."); }
+            } else { ui.small(crate::localization::tr("Choose a captured source profile before setting overrides.")); }
             if ui.add_enabled(enabled && group["available"].as_bool() == Some(true) && group["rule"].is_object(),
-                egui::Button::new("Restore profile assignment")).clicked() {
+                egui::Button::new(crate::localization::tr("Restore profile assignment"))).clicked() {
                 actions.push(UiAction::CdmwCommand { command: "replacement_physics_profile",
                     arguments: json!({"group_id": group["id"], "reset": true}), label: "Restore physics profile" });
             }
-            ui.small("Raw profile values. Saved with Build Mod and drafts; Apply and Restore support Undo.");
-            ui.small("Gravity: negative pulls down; positive lifts up.");
-            ui.small("Build Mod includes a cloned profile, the profile catalogue and this variant's assignment. Profile edits do not create cloth guides or physics/bone bindings.");
+            ui.small(crate::localization::tr("Raw profile values. Saved with Build Mod and drafts; Apply and Restore support Undo."));
+            ui.small(crate::localization::tr("Gravity: negative pulls down; positive lifts up."));
+            ui.small(crate::localization::tr("Build Mod includes a cloned profile, the profile catalogue and this variant's assignment. Profile edits do not create cloth guides or physics/bone bindings."));
         });
     }
 
@@ -429,33 +429,33 @@ pub(super) mod profiles {
         {
             changed |= restore_manual(view, settings, rotation_available);
         }
-        ui.collapsing("Authored cloth profile", |ui| {
+        crate::localization::collapsing("Authored cloth profile").show(ui, |ui| {
             if state["available"].as_bool() != Some(true) {
-                ui.small(state["reason"].as_str().unwrap_or("Exact physics profiles are unavailable."));
+                ui.small(crate::localization::tr(state["reason"].as_str().unwrap_or("Exact physics profiles are unavailable.")));
                 return;
             }
             if let Some(reason) = state["reason"].as_str().filter(|reason| !reason.is_empty()) {
-                ui.small(reason);
+                ui.small(crate::localization::tr(reason));
             }
             let geometry = &state["cloth_geometry"];
             match geometry["status"].as_str() {
                 Some("available") => {
                     if let (Some(count), Some(fixed)) = (geometry["guide_count"].as_u64(), geometry["fixed_count"].as_u64()) {
-                        ui.small(format!("Authored cloth guides: {count} ({fixed} fixed)"));
+                        ui.small(crate::localization::tr(format!("Authored cloth guides: {count} ({fixed} fixed)")));
                     }
                 }
-                Some("absent") => { ui.small("This model has no authored cloth guides. Profile edits do not add cloth or bone jiggle."); }
+                Some("absent") => { ui.small(crate::localization::tr("This model has no authored cloth guides. Profile edits do not add cloth or bone jiggle.")); }
                 Some("unsupported") => {
-                    ui.small("Cloth guide data could not be decoded; its availability is unknown.")
-                        .on_hover_text(geometry["reason"].as_str().unwrap_or_default());
+                    ui.small(crate::localization::tr("Cloth guide data could not be decoded; its availability is unknown."))
+                        .on_hover_text(crate::localization::tr(geometry["reason"].as_str().unwrap_or_default()));
                 }
                 _ => {}
             }
-            ui.small("Profile variant (preview and mod edit)");
+            ui.small(crate::localization::tr("Profile variant (preview and mod edit)"));
             ui.horizontal_wrapped(|ui| {
                 for variant in state["variants"].as_array().into_iter().flatten().filter_map(Value::as_str) {
                     let label = if variant.is_empty() { "Default variant".to_owned() } else { format!("Variant {variant}") };
-                    if ui.add(egui::Button::new(label).selected(view.variant.as_deref() == Some(variant))).clicked()
+                    if ui.add(egui::Button::new(crate::localization::tr(label)).selected(view.variant.as_deref() == Some(variant))).clicked()
                         && view.variant.as_deref() != Some(variant) {
                         changed |= restore_manual(view, settings, rotation_available);
                         view.variant = Some(variant.to_owned());
@@ -471,40 +471,40 @@ pub(super) mod profiles {
                         .map(|binding| binding["profile"].as_str().filter(|name| !name.is_empty()).unwrap_or("None (explicit empty)"))
                         .collect::<Vec<_>>();
                     let name = part["name"].as_str().unwrap_or("Part");
-                    ui.small(format!("{name}: {}", if assignments.is_empty() { "Unassigned".to_owned() } else { assignments.join(", ") }));
+                    ui.small(crate::localization::tr(format!("{name}: {}", if assignments.is_empty() { "Unassigned".to_owned() } else { assignments.join(", ") })));
                 }
             }
             draw_authoring(ui, state, view, actions, can_author);
             let profile = match assigned_profile(state, parts, view.variant.as_deref()) {
                 Ok(profile) => profile,
-                Err(reason) => { ui.small(reason); return; }
+                Err(reason) => { ui.small(crate::localization::tr(reason)); return; }
             };
-            ui.small(profile["path"].as_str().unwrap_or_default())
-                .on_hover_text(format!("SHA-256: {}", profile["sha256"].as_str().unwrap_or_default()));
+            ui.small(crate::localization::tr(profile["path"].as_str().unwrap_or_default()))
+                .on_hover_text(crate::localization::tr(format!("SHA-256: {}", profile["sha256"].as_str().unwrap_or_default())));
             let Some(preset) = Preset::read(&profile["preview"]) else {
-                ui.small(profile["reason"].as_str().filter(|reason| !reason.is_empty()).unwrap_or("Profile values are unsupported by the cloth preview."));
+                ui.small(crate::localization::tr(profile["reason"].as_str().filter(|reason| !reason.is_empty()).unwrap_or("Profile values are unsupported by the cloth preview.")));
                 return;
             };
-            ui.small(format!("Stretch {} → {:.4} · bend {} → {:.4}",
+            ui.small(crate::localization::tr(format!("Stretch {} → {:.4} · bend {} → {:.4}",
                 profile["authored"]["stretchingstiffness"].as_str().unwrap_or("?"), preset.stretch,
-                profile["authored"]["bendingstiffness"].as_str().unwrap_or("?"), preset.bend));
-            if ui.add_enabled(can_apply, egui::Button::new("Use profile in preview")).clicked() {
+                profile["authored"]["bendingstiffness"].as_str().unwrap_or("?"), preset.bend)));
+            if ui.add_enabled(can_apply, egui::Button::new(crate::localization::tr("Use profile in preview"))).clicked() {
                 let manual = view.loaded.as_ref().map(|(_, manual)| *manual).unwrap_or(*settings);
                 view.loaded = Some((selection_key(&view.variant), manual));
                 preset.apply(settings, rotation_available);
                 changed = true;
             }
             if view.loaded.is_some() {
-                ui.small("Profile starting values loaded. Preview sliders can adjust them.");
-                if ui.button("Restore manual preview settings").clicked() {
+                ui.small(crate::localization::tr("Profile starting values loaded. Preview sliders can adjust them."));
+                if ui.button(crate::localization::tr("Restore manual preview settings")).clicked() {
                     changed |= restore_manual(view, settings, rotation_available);
                 }
             }
             if preset.rotate_guides && !rotation_available {
-                ui.small("Guide rotation cannot be applied without orientation neighbors.");
+                ui.small(crate::localization::tr("Guide rotation cannot be applied without orientation neighbors."));
             }
-            ui.small("Loads gravity, damping, stretch, bend, iterations, vertex alpha and supported guide rotation only.");
-            ui.small("Uses decoded initial stiffness conversion and a fixed preview clock. Other profile settings and live game activation are not reproduced. Changes are preview-only.");
+            ui.small(crate::localization::tr("Loads gravity, damping, stretch, bend, iterations, vertex alpha and supported guide rotation only."));
+            ui.small(crate::localization::tr("Uses decoded initial stiffness conversion and a fixed preview clock. Other profile settings and live game activation are not reproduced. Changes are preview-only."));
         });
         changed
     }
@@ -543,16 +543,16 @@ impl LabApplication {
     pub(super) fn draw_cdmw_cloth_page(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
         let cloth = self.cdmw_state["cloth"].clone();
         self.draw_cdmw_guide_authoring(ui, actions);
-        ui.small("Fixed vertices follow the skeleton. Cloth amount edits retained bindings.");
+        ui.small(crate::localization::tr("Fixed vertices follow the skeleton. Cloth amount edits retained bindings."));
         if !state_bool(&cloth, "available") {
-            ui.label(state_str(&cloth, "reason").unwrap_or("Cloth influence is unavailable."));
+            ui.label(crate::localization::tr(state_str(&cloth, "reason").unwrap_or("Cloth influence is unavailable.")));
             let parts = self.cdmw_state["replacement"]["parts"].as_array().cloned().unwrap_or_default();
             let can_author = !self.cdmw_busy() && state_bool(&self.cdmw_state, "authoring_enabled");
             profiles::draw(ui, &self.cdmw_state["physics_profiles"], &parts,
                 &mut self.cdmw_cloth.profiles, &mut self.cdmw_jiggle.preview.cloth_settings, false, false, actions, can_author);
             return;
         }
-        ui.checkbox(&mut self.cdmw_cloth.selected_only, "Selected parts only");
+        ui.checkbox(&mut self.cdmw_cloth.selected_only, crate::localization::tr("Selected parts only"));
         let selected = self.selected_part_indices();
         let parts: Vec<Value> = cloth["parts"]
             .as_array()
@@ -566,7 +566,7 @@ impl LabApplication {
             .cloned()
             .collect();
         if parts.is_empty() {
-            ui.label("Select an included part with cloth bindings.");
+            ui.label(crate::localization::tr("Select an included part with cloth bindings."));
             return;
         }
         let ids: Vec<&str> = parts
@@ -600,35 +600,35 @@ impl LabApplication {
                 .unwrap_or((min_y + max_y) * 0.5);
             self.cdmw_cloth.fade = rule["fade"].as_f64().unwrap_or(0.0);
         }
-        ui.small(format!(
+        ui.small(crate::localization::tr(format!(
             "{} parts · applies to all {} LODs",
             parts.len(),
             state_u64(&cloth, "lod_count")
-        ));
+        )));
         if mixed {
-            ui.small("Mixed saved settings. Apply replaces them for these parts.");
+            ui.small(crate::localization::tr("Mixed saved settings. Apply replaces them for these parts."));
         }
         ui.add(
             egui::Slider::new(&mut self.cdmw_cloth.amount_percent, 0.0..=100.0)
-                .text("Cloth amount"),
+                .text(crate::localization::tr("Cloth amount")),
         );
-        ui.checkbox(&mut self.cdmw_cloth.use_height, "Fix vertices above height");
+        ui.checkbox(&mut self.cdmw_cloth.use_height, crate::localization::tr("Fix vertices above height"));
         if self.cdmw_cloth.use_height {
             ui.horizontal(|ui| {
-                ui.label("Height (Y)");
+                ui.label(crate::localization::tr("Height (Y)"));
                 ui.add(egui::DragValue::new(&mut self.cdmw_cloth.height).speed(0.01));
             });
             ui.horizontal(|ui| {
-                ui.label("Fade below height");
+                ui.label(crate::localization::tr("Fade below height"));
                 ui.add(
                     egui::DragValue::new(&mut self.cdmw_cloth.fade)
                         .range(0.0..=f64::MAX)
                         .speed(0.01),
                 );
             });
-            ui.small("Uses displayed model coordinates. Higher vertices stay fixed; lower vertices move.");
+            ui.small(crate::localization::tr("Uses displayed model coordinates. Higher vertices stay fixed; lower vertices move."));
         }
-        if ui.button("Apply cloth settings").clicked() {
+        if ui.button(crate::localization::tr("Apply cloth settings")).clicked() {
             actions.push(UiAction::CdmwCommand {
                 command: "replacement_cloth",
                 arguments: json!({"part_ids": ids, "rule": {
@@ -640,14 +640,14 @@ impl LabApplication {
             });
         }
         ui.horizontal_wrapped(|ui| {
-            if ui.button("Disable cloth").clicked() {
+            if ui.button(crate::localization::tr("Disable cloth")).clicked() {
                 actions.push(UiAction::CdmwCommand {
                     command: "replacement_cloth",
                     arguments: json!({"part_ids": ids, "rule": {"amount": 0.0, "fixed_above": null, "fade": 0.0}}),
                     label: "Disable cloth influence",
                 });
             }
-            if ui.add_enabled(parts.iter().any(|part| !part["rule"].is_null()), egui::Button::new("Restore cloth")).clicked() {
+            if ui.add_enabled(parts.iter().any(|part| !part["rule"].is_null()), egui::Button::new(crate::localization::tr("Restore cloth"))).clicked() {
                 actions.push(UiAction::CdmwCommand {
                     command: "replacement_cloth",
                     arguments: json!({"part_ids": ids, "reset": true}),
@@ -655,7 +655,7 @@ impl LabApplication {
                 });
             }
         });
-        ui.small("Saved with Build PAC and drafts. Preview simulation remains approximate.");
+        ui.small(crate::localization::tr("Saved with Build PAC and drafts. Preview simulation remains approximate."));
         self.draw_cloth_preview_controls(ui, &parts, actions);
         self.draw_cloth_collision_inputs(ui, actions);
     }

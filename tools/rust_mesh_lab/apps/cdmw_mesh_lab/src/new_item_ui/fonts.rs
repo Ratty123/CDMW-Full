@@ -43,15 +43,24 @@ fn available_fonts() -> &'static BTreeMap<String, Arc<FontData>> {
 }
 
 pub fn configure(context: &egui::Context, theme: &Value) {
+    configure_fonts(context, theme, false);
+}
+
+/// The editor retains its existing Latin metrics; add missing CJK glyphs only.
+pub fn configure_editor(context: &egui::Context, theme: &Value) {
+    configure_fonts(context, theme, true);
+}
+
+fn configure_fonts(context: &egui::Context, theme: &Value, keep_primary: bool) {
     let family = theme["font_family"]
         .as_str()
         .unwrap_or("Segoe UI")
         .to_lowercase();
     let language = theme["language"].as_str().unwrap_or("en");
-    let key = (family.clone(), language.to_owned());
+    let key = (family.clone(), language.to_owned(), keep_primary);
     let cache_id = egui::Id::new("new-item-font-configuration");
     if context
-        .data(|data| data.get_temp::<(String, String)>(cache_id))
+        .data(|data| data.get_temp::<(String, String, bool)>(cache_id))
         .as_ref()
         == Some(&key)
     {
@@ -88,7 +97,7 @@ pub fn configure(context: &egui::Context, theme: &Value) {
         } else {
             primary
         };
-        if available.contains_key(chosen) {
+        if !keep_primary && available.contains_key(chosen) {
             list.insert(0, chosen.to_owned());
         }
         for name in cjk.into_iter().chain(["seguisym.ttf"]) {

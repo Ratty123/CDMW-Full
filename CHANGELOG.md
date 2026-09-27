@@ -74,6 +74,8 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Completed interface translation coverage across the built-in languages, including native Rust Mesh Editor tools, selectors, settings and Format Explorer details. Language changes update open native tools; Placement & Animations and other ampersand captions now use their proper translations.
+
 - Startup preloads Create New Item's archive data without constructing its panels or launching its renderer and preview warm-up. The interface opens on demand and reuses the data. Mod Management keeps its own loading message and no longer imports the full authoring workspace.
 
 - Painted transparency channels survive native template material composition, preserving other material channels and owners. EyeCover painter preparation reuses source inputs and lossless masks without encoding an intermediate BC7 export.

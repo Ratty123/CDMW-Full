@@ -137,7 +137,8 @@ class WorkspaceInteractionMixin:
     def _combo(self, object_name: str, values: Iterable[str]) -> QComboBox:
         combo = QComboBox(self)
         combo.setObjectName(object_name)
-        combo.addItems(tuple(values))
+        for value in values:
+            combo.addItem(value, value)
         combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         return combo
 
@@ -326,14 +327,16 @@ class WorkspaceInteractionMixin:
         action = mesh_editor_actions_by_key().get(_SELECTION_ACTION_BY_TEXT.get(selection_shape, ""))
         if action is not None:
             self.setProperty("meshEditorSelectionShape", selection_shape)
-            self.action_requested.emit(replace(action, selection_mode=selection_shape))
+            self.action_requested.emit(
+                replace(action, params=(*action.params, ("selection_shape", selection_shape)))
+            )
 
     def _sync_combo(self, combo: QComboBox, value: str) -> None:
         normalized = str(value or "").strip().lower()
         if not normalized:
             return
         for index in range(combo.count()):
-            if combo.itemText(index).strip().lower() == normalized:
+            if str(combo.itemData(index) or combo.itemText(index)).strip().lower() == normalized:
                 if combo.currentIndex() == index:
                     return
                 self._updating_state = True

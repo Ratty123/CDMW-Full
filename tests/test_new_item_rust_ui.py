@@ -74,6 +74,41 @@ def test_json_lines_preserve_split_unicode_and_reject_oversize_duplicate_and_non
             decode_message(('{"protocol":"' + PROTOCOL + '",' + suffix + '}').encode())
 
 
+def test_native_projection_uses_localized_captions_without_qt_mnemonic_escapes(tmp_path):
+    from PySide6.QtWidgets import QGroupBox, QTabWidget
+    from cdmw.domain.localization import BUILTIN_LANGUAGES
+    from cdmw.ui.localization import UiLocalizer
+
+    app = QApplication.instance() or QApplication([])
+    root = QWidget()
+    layout = QVBoxLayout(root)
+    button = QPushButton("Placement && Animations")
+    button.setObjectName("placement_command")
+    layout.addWidget(button)
+    group = QGroupBox("Placement && Animations")
+    layout.addWidget(group)
+    tabs = QTabWidget()
+    tabs.addTab(QWidget(), "Placement && Animations")
+    layout.addWidget(tabs)
+    document = PresentationDocument()
+    localizer = UiLocalizer(language_dir=tmp_path / "languages", language_code="en")
+    try:
+        for code in [language.code for language in BUILTIN_LANGUAGES] + ["en"]:
+            localizer.load_language(code)
+            localizer.apply(root)
+            state = document.snapshot(root)
+            expected = localizer.translate("Placement & Animations")
+            nodes = document.registry.current
+            assert nodes[document.registry.identify(button)]["label"] == expected
+            assert nodes[document.registry.identify(group)]["label"] == expected
+            assert nodes[document.registry.identify(tabs)]["props"]["tabs"][0]["text"] == expected
+            assert button.objectName() == "placement_command"
+    finally:
+        localizer.shutdown()
+        root.deleteLater()
+        app.processEvents()
+
+
 def test_identity_actions_reach_existing_draft_and_invalidate_plan(studio):
     _, tab, bridge = studio
     tab.show_step(1)

@@ -274,7 +274,9 @@ class WorkspaceReportMixin:
         controls.addWidget(compare_view_label)
         self.compare_mode_combo = self._combo("MeshEditorCompareModeCombo", ("Edited", "Source", "Ghost"))
         self.compare_mode_combo.setToolTip("Switch Mesh Editor preview between edited, source, and source ghost overlay modes.")
-        self.compare_mode_combo.currentTextChanged.connect(self._compare_view_changed)
+        self.compare_mode_combo.currentIndexChanged.connect(
+            lambda _index: self._compare_view_changed(str(self.compare_mode_combo.currentData() or ""))
+        )
         controls.addWidget(self.compare_mode_combo)
         controls.addStretch(1)
         layout.addLayout(controls)

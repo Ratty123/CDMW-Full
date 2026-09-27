@@ -169,8 +169,12 @@ class WorkspaceShellBuilderMixin:
                 layout.addWidget(widget)
         if not self._embedded_controls_only:
             layout.addStretch(1)
-        self.mode_combo.currentTextChanged.connect(self._mode_changed)
-        self.selection_combo.currentTextChanged.connect(self._selection_changed)
+        self.mode_combo.currentIndexChanged.connect(
+            lambda _index: self._mode_changed(str(self.mode_combo.currentData() or ""))
+        )
+        self.selection_combo.currentIndexChanged.connect(
+            lambda _index: self._selection_changed(str(self.selection_combo.currentData() or ""))
+        )
         if self._embedded_controls_only:
             self.viewport_display_combo.currentIndexChanged.connect(
                 lambda _index: self.viewport_display_requested.emit(

@@ -162,6 +162,16 @@ def builtin_translation_entries(code: str) -> Mapping[str, TranslationEntry]:
     return MappingProxyType(translations)
 
 
+@lru_cache(maxsize=1)
+def native_ui_source_keys() -> tuple[str, ...]:
+    """The generated subset consumed by the Rust presentation layer."""
+    path = localization_resource_root() / "native_ui_keys.json"
+    values = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(values, list) or any(not isinstance(value, str) for value in values):
+        raise RuntimeError("Invalid native UI source-key inventory.")
+    return tuple(values)
+
+
 def translation_catalog_hash(
     code: str,
     entries: Mapping[str, TranslationEntry] | None = None,

@@ -65,6 +65,9 @@ class LanguageControllerMixin:
             refresh_settings_navigation()
         self.textures._update_ncnn_preset_hint()
         self._schedule_column_autofit()
+        # Reuse the presentation update for an already-open native session.
+        # Imported language overlays take this path as well as locale changes.
+        self._sync_mesh_editor_theme()
 
     def _handle_language_changed(self, language_code: str) -> None:
         try:

@@ -24,6 +24,7 @@ mod headless_tests;
 #[cfg(test)]
 mod headless_ui_tests;
 mod loader;
+mod localization;
 mod new_item_ui;
 mod preview_core_material;
 mod preview_effects;
@@ -3351,7 +3352,8 @@ impl LabApplication {
             }
         }
         if changed && let Some(window) = &self.window {
-            window.set_title(format!("CDMW Mesh Editor — {}", self.status).as_str());
+            let _locale = crate::localization::enter(&self.egui_context);
+            window.set_title(&format!("{} — {}", crate::localization::tr("CDMW Mesh Editor"), crate::localization::tr(&self.status)));
         }
         changed
     }
@@ -3733,56 +3735,57 @@ impl LabApplication {
     }
 
     fn draw_ui(&mut self, root_ui: &mut egui::Ui) -> Vec<UiAction> {
+        let _language = crate::localization::enter(&self.egui_context);
         if self.cdmw_mode() {
             return self.draw_cdmw_ui(root_ui);
         }
         let mut actions = Vec::new();
         egui::Panel::top("notice").show(root_ui, |ui| {
             ui.horizontal_wrapped(|ui| {
-                ui.label(RichText::new("CDMW Mesh Editor").strong());
+                ui.label(RichText::new(crate::localization::tr("CDMW Mesh Editor")).strong());
                 ui.separator();
-                ui.label("Unofficial local diagnostic tool. Source game files are opened read-only; edits affect only the in-memory working copy.");
+                ui.label(crate::localization::tr("Unofficial local diagnostic tool. Source game files are opened read-only; edits affect only the in-memory working copy."));
             });
         });
         egui::Panel::bottom("status").show(root_ui, |ui| {
             ui.horizontal_wrapped(|ui| {
-                ui.label(RichText::new("Status").strong());
-                ui.label(&self.status);
+                ui.label(RichText::new(crate::localization::tr("Status")).strong());
+                ui.label(crate::localization::tr(&self.status));
             });
         });
         egui::Panel::left("archive_assets")
             .default_size(310.0)
             .resizable(true)
             .show(root_ui, |ui| {
-                ui.heading("Archive / Assets");
+                ui.heading(crate::localization::tr("Archive / Assets"));
                 ui.horizontal(|ui| {
-                    if ui.button("Open Archive Root…").clicked() {
+                    if ui.button(crate::localization::tr("Open Archive Root…")).clicked() {
                         actions.push(UiAction::OpenArchive);
                     }
-                    if ui.button("Open Mesh…").clicked() {
+                    if ui.button(crate::localization::tr("Open Mesh…")).clicked() {
                         actions.push(UiAction::OpenMesh);
                     }
                 });
                 ui.add_space(6.0);
                 let search = ui.add(
                     egui::TextEdit::singleline(&mut self.archive_query)
-                        .hint_text("Search virtual path, name, extension"),
+                        .hint_text(crate::localization::tr("Search virtual path, name, extension")),
                 );
-                if ui.button("Search").clicked()
+                if ui.button(crate::localization::tr("Search")).clicked()
                     || (search.lost_focus()
                         && ui.input(|input| input.key_pressed(egui::Key::Enter)))
                 {
                     actions.push(UiAction::QueryArchive);
                 }
-                ui.label(format!(
+                ui.label(crate::localization::tr(format!(
                     "{} matches · {} shown",
                     self.archive_total_matches,
                     self.archive_matches.len()
-                ));
+                )));
                 ui.separator();
                 if let Some(archive) = &self.archive {
                     for warning in archive.warnings.iter().take(3) {
-                        ui.colored_label(Color32::YELLOW, warning);
+                        ui.colored_label(Color32::YELLOW, crate::localization::tr(warning));
                     }
                     let row_height = ui.text_style_height(&egui::TextStyle::Body) + 5.0;
                     egui::ScrollArea::vertical().show_rows(
@@ -3809,32 +3812,32 @@ impl LabApplication {
                         },
                     );
                 } else {
-                    ui.label(RichText::new("No archive root opened").italics());
+                    ui.label(RichText::new(crate::localization::tr("No archive root opened")).italics());
                 }
             });
         egui::Panel::right("inspector")
             .default_size(330.0)
             .resizable(true)
             .show(root_ui, |ui| {
-                ui.heading("Inspector");
+                ui.heading(crate::localization::tr("Inspector"));
                 egui::ScrollArea::vertical().show(ui, |ui| {
-                ui.label(RichText::new(&self.source_label).strong());
+                ui.label(RichText::new(crate::localization::tr(&self.source_label)).strong());
                 if let Some(document) = &self.document {
                     let active_lod = document.lods.get(self.active_lod_index);
                     let vertices = self.mesh.as_ref().map_or(0, |mesh| mesh.vertices().count());
                     let faces = self.mesh.as_ref().map_or(0, |mesh| mesh.faces().count());
-                    ui.label(format!("Format: {:?}", document.format));
-                    ui.label(format!(
+                    ui.label(crate::localization::tr(format!("Format: {:?}", document.format)));
+                    ui.label(crate::localization::tr(format!(
                         "LODs: {} editable / {} declared",
                         document.lods.len(),
                         document.lod_count_reported
-                    ));
+                    )));
                     let mut requested_lod = self.active_lod_index;
-                    egui::ComboBox::from_label("Editable LOD")
-                        .selected_text(active_lod.map_or_else(
+                    crate::localization::combo("Editable LOD")
+                        .selected_text(crate::localization::tr(active_lod.map_or_else(
                             || "No LOD".to_owned(),
                             |lod| format!("LOD {}", lod.level),
-                        ))
+                        )))
                         .show_ui(ui, |ui| {
                             for (index, lod) in document.lods.iter().enumerate() {
                                 let lod_mesh = if index == self.active_lod_index {
@@ -3850,94 +3853,94 @@ impl LabApplication {
                                 ui.selectable_value(
                                     &mut requested_lod,
                                     index,
-                                    format!(
+                                    crate::localization::tr(format!(
                                         "LOD {} · {lod_vertices} vertices · {lod_faces} faces",
                                         lod.level
-                                    ),
+                                    )),
                                 );
                             }
                         });
                     if requested_lod != self.active_lod_index {
                         actions.push(UiAction::SwitchLod(requested_lod));
                     }
-                    ui.label(format!("Active vertices: {vertices}"));
-                    ui.label(format!("Active faces: {faces}"));
-                    ui.label(format!("Parser: {}", document.parser));
-                    ui.label("Renderer: approximate material preview (not Crimson Desert shader parity)");
+                    ui.label(crate::localization::tr(format!("Active vertices: {vertices}")));
+                    ui.label(crate::localization::tr(format!("Active faces: {faces}")));
+                    ui.label(crate::localization::tr(format!("Parser: {}", document.parser)));
+                    ui.label(crate::localization::tr("Renderer: approximate material preview (not Crimson Desert shader parity)"));
                     for warning in &document.warnings {
-                        ui.colored_label(Color32::YELLOW, warning);
+                        ui.colored_label(Color32::YELLOW, crate::localization::tr(warning));
                     }
                     if let Some(skeleton) = &self.skeleton_entry {
                         ui.separator();
-                        ui.label(RichText::new("Resolved skeleton context").strong());
-                        ui.label(&skeleton.label);
-                        ui.label(format!(
+                        ui.label(RichText::new(crate::localization::tr("Resolved skeleton context")).strong());
+                        ui.label(crate::localization::tr(&skeleton.label));
+                        ui.label(crate::localization::tr(format!(
                             "{} bones · {} roots · depth {} · {} overlay segments",
                             skeleton.bone_count,
                             skeleton.root_count,
                             skeleton.maximum_depth,
                             skeleton.segment_count
-                        ));
-                        ui.label(format!(
+                        )));
+                        ui.label(crate::localization::tr(format!(
                             "Parser {} · {} trailing bytes",
                             skeleton.parser, skeleton.tail_byte_count
-                        ));
-                        ui.label(&skeleton.provenance);
-                        ui.label("Read-only hierarchy context; PAC palette/skin binding is still unresolved");
-                        egui::CollapsingHeader::new(format!(
+                        )));
+                        ui.label(crate::localization::tr(&skeleton.provenance));
+                        ui.label(crate::localization::tr("Read-only hierarchy context; PAC palette/skin binding is still unresolved"));
+                        crate::localization::collapsing(format!(
                             "Bone hierarchy ({})",
                             skeleton.bones.len()
                         ))
                         .default_open(false)
                         .show(ui, |ui| {
                             for bone in &skeleton.bones {
-                                ui.label(bone);
+                                ui.label(crate::localization::tr(bone));
                             }
                         });
                     }
                     if !self.texture_entries.is_empty() {
                         ui.separator();
-                        ui.label(RichText::new("Resolved material textures").strong());
+                        ui.label(RichText::new(crate::localization::tr("Resolved material textures")).strong());
                         for (index, texture) in self.texture_entries.iter().enumerate() {
                             if index > 0 {
                                 ui.add_space(4.0);
                             }
-                            ui.label(&texture.label);
-                            ui.label(format!(
+                            ui.label(crate::localization::tr(&texture.label));
+                            ui.label(crate::localization::tr(format!(
                                 "{} × {} · {:?} · {:?} · {} mip(s)",
                                 texture.metadata.width,
                                 texture.metadata.height,
                                 texture.metadata.format,
                                 texture.metadata.color_space,
                                 texture.metadata.mip_count
-                            ));
-                            ui.label(&texture.provenance);
-                            ui.label(format!("Material ranges {}", texture.ownership));
+                            )));
+                            ui.label(crate::localization::tr(&texture.provenance));
+                            ui.label(crate::localization::tr(format!("Material ranges {}", texture.ownership)));
                         }
                     }
                     if !self.material_factor_entries.is_empty() {
                         ui.separator();
-                        ui.label(RichText::new("Prepared material factors").strong());
+                        ui.label(RichText::new(crate::localization::tr("Prepared material factors")).strong());
                         for entry in &self.material_factor_entries {
-                            ui.label(&entry.summary);
-                            ui.label(&entry.provenance);
-                            ui.label(format!("Material ranges {}", entry.ownership));
+                            ui.label(crate::localization::tr(&entry.summary));
+                            ui.label(crate::localization::tr(&entry.provenance));
+                            ui.label(crate::localization::tr(format!("Material ranges {}", entry.ownership)));
                         }
                     }
                     if !self.material_parameter_entries.is_empty() {
                         ui.separator();
-                        egui::CollapsingHeader::new(format!(
+                        crate::localization::collapsing(format!(
                             "Preserved material parameters ({})",
                             self.material_parameter_entries.len()
                         ))
                         .default_open(false)
                         .show(ui, |ui| {
                             for entry in &self.material_parameter_entries {
-                                ui.label(&entry.label);
-                                ui.label(format!("Value {}", entry.value));
-                                ui.label(&entry.provenance);
-                                ui.label(format!("Material ranges {}", entry.ownership));
-                                ui.label(&entry.preview);
+                                ui.label(crate::localization::tr(&entry.label));
+                                ui.label(crate::localization::tr(format!("Value {}", entry.value)));
+                                ui.label(crate::localization::tr(&entry.provenance));
+                                ui.label(crate::localization::tr(format!("Material ranges {}", entry.ownership)));
+                                ui.label(crate::localization::tr(&entry.preview));
                                 ui.add_space(4.0);
                             }
                         });
@@ -3950,20 +3953,20 @@ impl LabApplication {
                         .and_then(|archive| archive.entries.get(index))
                 {
                     ui.separator();
-                    ui.label(RichText::new("Archive entry").strong());
+                    ui.label(RichText::new(crate::localization::tr("Archive entry")).strong());
                     ui.label(&entry.entry.virtual_path);
-                    ui.label(format!("Stored: {} bytes", entry.entry.stored_size));
-                    ui.label(format!("Original: {} bytes", entry.entry.original_size));
-                    ui.label(format!("Compression: {}", entry.entry.compression_type()));
-                    ui.label(format!("Encryption: {}", entry.entry.encryption_type()));
+                    ui.label(crate::localization::tr(format!("Stored: {} bytes", entry.entry.stored_size)));
+                    ui.label(crate::localization::tr(format!("Original: {} bytes", entry.entry.original_size)));
+                    ui.label(crate::localization::tr(format!("Compression: {}", entry.entry.compression_type())));
+                    ui.label(crate::localization::tr(format!("Encryption: {}", entry.entry.encryption_type())));
                     let is_mesh = matches!(
                         entry.entry.extension().to_ascii_lowercase().as_str(),
                         ".pac" | ".pam" | ".pamlod"
                     );
                     if ui
-                        .add_enabled(is_mesh, egui::Button::new("Load in viewport"))
+                        .add_enabled(is_mesh, egui::Button::new(crate::localization::tr("Load in viewport")))
                         .on_disabled_hover_text(
-                            "Only PAC, PAM, and PAMLOD entries can open in this viewport",
+                            crate::localization::tr("Only PAC, PAM, and PAMLOD entries can open in this viewport"),
                         )
                         .clicked()
                     {
@@ -3971,10 +3974,10 @@ impl LabApplication {
                     }
                 }
                 ui.separator();
-                ui.label(RichText::new("Viewport").strong());
-                egui::ComboBox::from_label("Preview mode")
+                ui.label(RichText::new(crate::localization::tr("Viewport")).strong());
+                crate::localization::combo("Preview mode")
                     .height(360.0)
-                    .selected_text(self.view_mode.label())
+                    .selected_text(crate::localization::tr(self.view_mode.label()))
                     .show_ui(ui, |ui| {
                         for mode in [
                             ViewMode::TexturedSolid,
@@ -3993,31 +3996,31 @@ impl LabApplication {
                             ViewMode::WireVertices,
                             ViewMode::XRay,
                         ] {
-                            ui.selectable_value(&mut self.view_mode, mode, mode.label());
+                            ui.selectable_value(&mut self.view_mode, mode, crate::localization::tr(mode.label()));
                         }
                     });
                 ui.horizontal_wrapped(|ui| {
-                    ui.checkbox(&mut self.show_normals, "Normals");
-                    ui.checkbox(&mut self.show_bounds, "Bounds");
+                    ui.checkbox(&mut self.show_normals, crate::localization::tr("Normals"));
+                    ui.checkbox(&mut self.show_bounds, crate::localization::tr("Bounds"));
                     let bones_available = self
                         .skeleton_entry
                         .as_ref()
                         .is_some_and(|skeleton| skeleton.segment_count > 0);
                     ui.add_enabled(
                         bones_available,
-                        egui::Checkbox::new(&mut self.show_bones, "Bones"),
+                        egui::Checkbox::new(&mut self.show_bones, crate::localization::tr("Bones")),
                     )
-                    .on_disabled_hover_text(if self.skeleton_entry.is_some() {
+                    .on_disabled_hover_text(crate::localization::tr(if self.skeleton_entry.is_some() {
                         "The decoded skeleton has no parent-child segments to draw"
                     } else {
                         "Bones requires an exact or unambiguous proven-family PAB companion"
-                    });
+                    }));
                 });
                 ui.horizontal_wrapped(|ui| {
-                    if ui.button("Frame All").clicked() {
+                    if ui.button(crate::localization::tr("Frame All")).clicked() {
                         actions.push(UiAction::FrameAll);
                     }
-                    if ui.button("Frame Selected").clicked() {
+                    if ui.button(crate::localization::tr("Frame Selected")).clicked() {
                         actions.push(UiAction::FrameSelected);
                     }
                 });
@@ -4030,26 +4033,26 @@ impl LabApplication {
                         ("Top", StandardView::Top),
                         ("Bottom", StandardView::Bottom),
                     ] {
-                        if ui.small_button(label).clicked() {
+                        if ui.small_button(crate::localization::tr(label)).clicked() {
                             actions.push(UiAction::StandardView(view));
                         }
                     }
                 });
-                ui.label("RMB orbit · MMB pan · wheel zoom · F frame selected/all");
+                ui.label(crate::localization::tr("RMB orbit · MMB pan · wheel zoom · F frame selected/all"));
                 ui.separator();
-                ui.label(RichText::new("Selection").strong());
+                ui.label(RichText::new(crate::localization::tr("Selection")).strong());
                 let has_mesh = self.mesh.is_some();
                 ui.horizontal(|ui| {
                     ui.selectable_value(
                         &mut self.selection_domain,
                         SelectionDomain::Vertex,
-                        "Vertex",
+                        crate::localization::tr("Vertex"),
                     );
-                    ui.selectable_value(&mut self.selection_domain, SelectionDomain::Edge, "Edge");
-                    ui.selectable_value(&mut self.selection_domain, SelectionDomain::Face, "Face");
+                    ui.selectable_value(&mut self.selection_domain, SelectionDomain::Edge, crate::localization::tr("Edge"));
+                    ui.selectable_value(&mut self.selection_domain, SelectionDomain::Face, crate::localization::tr("Face"));
                 });
-                egui::ComboBox::from_label("Click operation")
-                    .selected_text(format!("{:?}", self.selection_operation))
+                crate::localization::combo("Click operation")
+                    .selected_text(crate::localization::tr(format!("{:?}", self.selection_operation)))
                     .show_ui(ui, |ui| {
                         for operation in [
                             SelectionOperation::Replace,
@@ -4060,7 +4063,7 @@ impl LabApplication {
                             ui.selectable_value(
                                 &mut self.selection_operation,
                                 operation,
-                                format!("{operation:?}"),
+                                crate::localization::tr(format!("{operation:?}")),
                             );
                         }
                     });
@@ -4073,22 +4076,22 @@ impl LabApplication {
                     ] {
                         let selected = self.viewport_tool == ViewportTool::Select
                             && self.selection_tool == tool;
-                        if ui.selectable_label(selected, tool.label()).clicked() {
+                        if ui.selectable_label(selected, crate::localization::tr(tool.label())).clicked() {
                             self.viewport_tool = ViewportTool::Select;
                             self.selection_tool = tool;
                         }
                     }
                 });
                 ui.horizontal(|ui| {
-                    ui.label("Depth mode");
-                    ui.selectable_value(&mut self.selection_visible_only, true, "Visible");
-                    ui.selectable_value(&mut self.selection_visible_only, false, "X-Ray");
+                    ui.label(crate::localization::tr("Depth mode"));
+                    ui.selectable_value(&mut self.selection_visible_only, true, crate::localization::tr("Visible"));
+                    ui.selectable_value(&mut self.selection_visible_only, false, crate::localization::tr("X-Ray"));
                 });
-                ui.label(if self.selection_visible_only {
+                ui.label(crate::localization::tr(if self.selection_visible_only {
                     "Visible uses depth-tested triangle BVH queries."
                 } else {
                     "X-Ray includes occluded element candidates."
-                });
+                }));
                 let selected_vertices = self
                     .mesh
                     .as_ref()
@@ -4112,29 +4115,29 @@ impl LabApplication {
                 };
                 ui.horizontal_wrapped(|ui| {
                     if ui
-                        .add_enabled(has_mesh, egui::Button::new("All Vertices"))
-                        .on_disabled_hover_text("Load a mesh first")
+                        .add_enabled(has_mesh, egui::Button::new(crate::localization::tr("All Vertices")))
+                        .on_disabled_hover_text(crate::localization::tr("Load a mesh first"))
                         .clicked()
                     {
                         actions.push(UiAction::SelectAllVertices);
                     }
                     if ui
-                        .add_enabled(has_mesh, egui::Button::new("All Edges"))
-                        .on_disabled_hover_text("Load a mesh first")
+                        .add_enabled(has_mesh, egui::Button::new(crate::localization::tr("All Edges")))
+                        .on_disabled_hover_text(crate::localization::tr("Load a mesh first"))
                         .clicked()
                     {
                         actions.push(UiAction::SelectAllEdges);
                     }
                     if ui
-                        .add_enabled(has_mesh, egui::Button::new("All Faces"))
-                        .on_disabled_hover_text("Load a mesh first")
+                        .add_enabled(has_mesh, egui::Button::new(crate::localization::tr("All Faces")))
+                        .on_disabled_hover_text(crate::localization::tr("Load a mesh first"))
                         .clicked()
                     {
                         actions.push(UiAction::SelectAllFaces);
                     }
                     if ui
-                        .add_enabled(has_mesh, egui::Button::new("Clear"))
-                        .on_disabled_hover_text("Load a mesh first")
+                        .add_enabled(has_mesh, egui::Button::new(crate::localization::tr("Clear")))
+                        .on_disabled_hover_text(crate::localization::tr("Load a mesh first"))
                         .clicked()
                     {
                         actions.push(UiAction::ClearSelection);
@@ -4142,58 +4145,58 @@ impl LabApplication {
                 });
                 ui.horizontal(|ui| {
                     if ui
-                        .add_enabled(active_selection_count > 0, egui::Button::new("Linked"))
-                        .on_disabled_hover_text("Select an element in the active domain first")
+                        .add_enabled(active_selection_count > 0, egui::Button::new(crate::localization::tr("Linked")))
+                        .on_disabled_hover_text(crate::localization::tr("Select an element in the active domain first"))
                         .clicked()
                     {
                         actions.push(UiAction::SelectLinked(self.selection_domain));
                     }
                     if ui
-                        .add_enabled(active_selection_count > 0, egui::Button::new("Grow"))
-                        .on_disabled_hover_text("Select an element in the active domain first")
+                        .add_enabled(active_selection_count > 0, egui::Button::new(crate::localization::tr("Grow")))
+                        .on_disabled_hover_text(crate::localization::tr("Select an element in the active domain first"))
                         .clicked()
                     {
                         actions.push(UiAction::GrowSelection(self.selection_domain));
                     }
                     if ui
-                        .add_enabled(active_selection_count > 0, egui::Button::new("Shrink"))
-                        .on_disabled_hover_text("Select an element in the active domain first")
+                        .add_enabled(active_selection_count > 0, egui::Button::new(crate::localization::tr("Shrink")))
+                        .on_disabled_hover_text(crate::localization::tr("Select an element in the active domain first"))
                         .clicked()
                     {
                         actions.push(UiAction::ShrinkSelection(self.selection_domain));
                     }
                     if ui
-                        .add_enabled(has_mesh, egui::Button::new("Invert"))
-                        .on_disabled_hover_text("Load a mesh first")
+                        .add_enabled(has_mesh, egui::Button::new(crate::localization::tr("Invert")))
+                        .on_disabled_hover_text(crate::localization::tr("Load a mesh first"))
                         .clicked()
                     {
                         actions.push(UiAction::InvertSelection(self.selection_domain));
                     }
                 });
-                ui.label(format!(
+                ui.label(crate::localization::tr(format!(
                     "Selected: {selected_vertices} vertices · {selected_edges} edges · {selected_faces} faces"
-                ));
+                )));
                 if self.selection_tool == SelectionTool::Brush
                     || self.viewport_tool.sculpt_tool().is_some()
                 {
                     ui.add(
                         egui::Slider::new(&mut self.brush_radius, 4.0..=240.0)
-                            .text("Brush radius px"),
+                            .text(crate::localization::tr("Brush radius px")),
                     );
                 }
                 ui.separator();
-                ui.label(RichText::new("Interactive Edit / Sculpt").strong());
-                ui.label(format!("Active tool: {}", self.viewport_tool.label()));
+                ui.label(RichText::new(crate::localization::tr("Interactive Edit / Sculpt")).strong());
+                ui.label(crate::localization::tr(format!("Active tool: {}", self.viewport_tool.label())));
                 ui.horizontal_wrapped(|ui| {
                     for tool in [ViewportTool::Move, ViewportTool::Rotate, ViewportTool::Scale] {
                         if ui
                             .add_enabled(
                                 selected_vertices > 0,
-                                egui::Button::new(tool.label())
+                                egui::Button::new(crate::localization::tr(tool.label()))
                                     .selected(self.viewport_tool == tool),
                             )
                             .on_disabled_hover_text(
-                                "Select vertices, edges, or faces before using transforms",
+                                crate::localization::tr("Select vertices, edges, or faces before using transforms"),
                             )
                             .clicked()
                         {
@@ -4211,10 +4214,10 @@ impl LabApplication {
                         if ui
                             .add_enabled(
                                 has_mesh,
-                                egui::Button::new(tool.label())
+                                egui::Button::new(crate::localization::tr(tool.label()))
                                     .selected(self.viewport_tool == tool),
                             )
-                            .on_disabled_hover_text("Load a mesh first")
+                            .on_disabled_hover_text(crate::localization::tr("Load a mesh first"))
                             .clicked()
                         {
                             self.viewport_tool = tool;
@@ -4225,11 +4228,11 @@ impl LabApplication {
                     if self.viewport_tool != ViewportTool::Grab {
                         ui.add(
                             egui::Slider::new(&mut self.brush_strength, 0.01..=1.0)
-                                .text("Strength"),
+                                .text(crate::localization::tr("Strength")),
                         );
                     }
-                    egui::ComboBox::from_label("Falloff")
-                        .selected_text(self.brush_falloff.label())
+                    crate::localization::combo("Falloff")
+                        .selected_text(crate::localization::tr(self.brush_falloff.label()))
                         .show_ui(ui, |ui| {
                             for falloff in [
                                 BrushFalloff::Smooth,
@@ -4239,37 +4242,37 @@ impl LabApplication {
                                 ui.selectable_value(
                                     &mut self.brush_falloff,
                                     falloff,
-                                    falloff.label(),
+                                    crate::localization::tr(falloff.label()),
                                 );
                             }
                         });
                     if self.viewport_tool == ViewportTool::Smooth {
-                        egui::ComboBox::from_label("Smooth passes")
-                            .selected_text(format_pass_count(self.smooth_iterations))
+                        crate::localization::combo("Smooth passes")
+                            .selected_text(crate::localization::tr(format_pass_count(self.smooth_iterations)))
                             .show_ui(ui, |ui| {
                                 for passes in 1..=8 {
                                     ui.selectable_value(
                                         &mut self.smooth_iterations,
                                         passes,
-                                        format_pass_count(passes),
+                                        crate::localization::tr(format_pass_count(passes)),
                                     );
                                 }
                             });
                     }
                 }
-                ui.label("Drag the gizmo for transforms; drag over the surface for sculpt tools. Esc cancels the active gesture.");
+                ui.label(crate::localization::tr("Drag the gizmo for transforms; drag over the surface for sculpt tools. Esc cancels the active gesture."));
                 ui.horizontal(|ui| {
-                    ui.label("Extrude distance");
+                    ui.label(crate::localization::tr("Extrude distance"));
                     ui.add(
                         egui::DragValue::new(&mut self.extrude_distance)
                             .speed(0.001)
                             .range(0.000_01..=1_000_000.0)
                             .max_decimals(6),
                     )
-                    .on_hover_text("Positive distance along the selected faces' vertex normals");
+                    .on_hover_text(crate::localization::tr("Positive distance along the selected faces' vertex normals"));
                 });
                 ui.horizontal(|ui| {
-                    ui.label("Inset amount");
+                    ui.label(crate::localization::tr("Inset amount"));
                     ui.add(
                         egui::DragValue::new(&mut self.inset_amount)
                             .speed(0.01)
@@ -4277,13 +4280,13 @@ impl LabApplication {
                             .max_decimals(3),
                     )
                     .on_hover_text(
-                        "Fraction from each source corner toward that face's center; faces inset individually",
+                        crate::localization::tr("Fraction from each source corner toward that face's center; faces inset individually"),
                     );
                 });
                 ui.horizontal_wrapped(|ui| {
                     if ui
-                        .add_enabled(selected_edges > 0, egui::Button::new("Subdivide Edges"))
-                        .on_disabled_hover_text("Select one or more edges first")
+                        .add_enabled(selected_edges > 0, egui::Button::new(crate::localization::tr("Subdivide Edges")))
+                        .on_disabled_hover_text(crate::localization::tr("Select one or more edges first"))
                         .clicked()
                     {
                         actions.push(UiAction::SubdivideEdges);
@@ -4300,8 +4303,8 @@ impl LabApplication {
                         ("Inset Individual", UiAction::InsetFaces),
                     ] {
                         if ui
-                            .add_enabled(selected_faces > 0, egui::Button::new(label))
-                            .on_disabled_hover_text("Select one or more faces first")
+                            .add_enabled(selected_faces > 0, egui::Button::new(crate::localization::tr(label)))
+                            .on_disabled_hover_text(crate::localization::tr("Select one or more faces first"))
                             .clicked()
                         {
                             actions.push(action);
@@ -4310,13 +4313,13 @@ impl LabApplication {
                 });
                 ui.horizontal(|ui| {
                     if ui
-                        .add_enabled(has_mesh, egui::Button::new("Undo"))
+                        .add_enabled(has_mesh, egui::Button::new(crate::localization::tr("Undo")))
                         .clicked()
                     {
                         actions.push(UiAction::Undo);
                     }
                     if ui
-                        .add_enabled(has_mesh, egui::Button::new("Redo"))
+                        .add_enabled(has_mesh, egui::Button::new(crate::localization::tr("Redo")))
                         .clicked()
                     {
                         actions.push(UiAction::Redo);
@@ -4336,7 +4339,7 @@ impl LabApplication {
                             )
                         },
                     );
-                    ui.label(format!(
+                    ui.label(crate::localization::tr(format!(
                         "CPU selection: last {} · p95 {} · indexed candidates {}\nCPU edit operator: last {} · p95 {}",
                         self.last_selection_ms
                             .map_or_else(|| "—".to_owned(), |value| format!("{value:.2} ms")),
@@ -4347,11 +4350,11 @@ impl LabApplication {
                             .map_or_else(|| "—".to_owned(), |value| format!("{value:.2} ms")),
                         edit_p95
                             .map_or_else(|| "—".to_owned(), |value| format!("{value:.2} ms"))
-                    ));
+                    )));
                 }
                 if ui
-                    .add_enabled(has_mesh, egui::Button::new("Export Neutral OBJ…"))
-                    .on_disabled_hover_text("Load a mesh first")
+                    .add_enabled(has_mesh, egui::Button::new(crate::localization::tr("Export Neutral OBJ…")))
+                    .on_disabled_hover_text(crate::localization::tr("Load a mesh first"))
                     .clicked()
                 {
                     actions.push(UiAction::ExportObj);
@@ -4367,11 +4370,11 @@ impl LabApplication {
             ui.painter().text(
                 rectangle.left_top() + egui::vec2(12.0, 12.0),
                 egui::Align2::LEFT_TOP,
-                format!(
+                crate::localization::tr(format!(
                     "wgpu viewport · D3D12 · {} · {} · material approximation",
                     self.view_mode.label(),
                     self.viewport_tool.label()
-                ),
+                )),
                 egui::TextStyle::Monospace.resolve(ui.style()),
                 Color32::from_gray(180),
             );
@@ -4380,6 +4383,7 @@ impl LabApplication {
     }
 
     fn handle_actions(&mut self, actions: Vec<UiAction>) {
+        let _language = crate::localization::enter(&self.egui_context);
         if actions.iter().any(|action| !matches!(action,
             UiAction::FrameAll | UiAction::StandardView(_) | UiAction::OrbitYaw(_) | UiAction::OrbitMode))
             && self.cdmw_jiggle.preview.scene.is_some() {
@@ -4862,7 +4866,7 @@ impl LabApplication {
 
     fn choose_mesh(&mut self) {
         if let Some(path) = rfd::FileDialog::new()
-            .add_filter("Crimson Desert mesh", &["pac", "pam", "pamlod"])
+            .add_filter(crate::localization::tr("Crimson Desert mesh"), &["pac", "pam", "pamlod"])
             .pick_file()
         {
             match self.loader.load_mesh(path) {
@@ -5075,7 +5079,7 @@ impl LabApplication {
     fn choose_cdmw_import_package(&mut self) {
         let Some(path) = self
             .cdmw_file_dialog()
-            .set_title("Choose an editable mesh package")
+            .set_title(crate::localization::tr("Choose an editable mesh package"))
             .pick_folder()
         else {
             return;
@@ -5086,7 +5090,7 @@ impl LabApplication {
     fn choose_cdmw_morph_preset(&mut self, save: bool) {
         let mut dialog = self
             .cdmw_file_dialog()
-            .add_filter("CDMW Morph preset", &["json"]);
+            .add_filter(crate::localization::tr("CDMW Morph preset"), &["json"]);
         if let Some(folder) = self
             .cdmw_state
             .get("morph_preset_directory")
@@ -5096,14 +5100,14 @@ impl LabApplication {
         }
         let path = if save {
             dialog
-                .set_title("Export Morph preset with slider definitions")
+                .set_title(crate::localization::tr("Export Morph preset with slider definitions"))
                 .set_file_name(format!(
                     "{}.json",
                     cdmw_ui::stable_ui_id("preset", &self.cdmw_morph_preset_name)
                 ))
                 .save_file()
         } else {
-            dialog.set_title("Load Morph preset").pick_file()
+            dialog.set_title(crate::localization::tr("Load Morph preset")).pick_file()
         };
         if let Some(path) = path {
             self.handle_actions(vec![UiAction::CdmwCommand {
@@ -5144,7 +5148,7 @@ impl LabApplication {
         }
         if let Some(parent) = self
             .cdmw_file_dialog()
-            .set_title("Choose the parent for a new Free Edit package")
+            .set_title(crate::localization::tr("Choose the parent for a new Free Edit package"))
             .pick_folder()
         {
             self.handle_actions(vec![UiAction::CdmwCommand {

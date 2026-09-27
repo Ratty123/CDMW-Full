@@ -17,6 +17,57 @@ from cdmw.ui.mesh_editor.workspace import MeshEditorWorkspace
 class MeshEditorLocalizedIdentityTests(unittest.TestCase):
     """Panels and captions must be found by identity, never by displayed text."""
 
+    def test_translated_selectors_keep_action_identity_and_language_changes_are_silent(self) -> None:
+        from pathlib import Path
+
+        from cdmw.ui.localization import UiLocalizer
+
+        app = QApplication.instance() or QApplication([])
+        workspace = MeshEditorWorkspace(embedded_controls_only=True)
+        actions = []
+        comparisons = []
+        text_changes = []
+        workspace.action_requested.connect(actions.append)
+        workspace.compare_view_requested.connect(comparisons.append)
+        workspace.mode_combo.currentTextChanged.connect(text_changes.append)
+        localizer = UiLocalizer(language_dir=Path("__unused__"), language_code="ja")
+        for combo in (workspace.mode_combo, workspace.selection_combo, workspace.compare_mode_combo):
+            localizer.apply(combo)
+            assert combo.itemText(0) != combo.itemData(0)
+        assert actions == comparisons == text_changes == []
+
+        workspace.mode_combo.setCurrentIndex(workspace.mode_combo.findData("Edit"))
+        assert actions[-1].key == "mode_edit"
+        workspace.selection_combo.setCurrentIndex(workspace.selection_combo.findData("Rectangle"))
+        assert dict(actions[-1].params)["selection_shape"] == "rectangle"
+        assert actions[-1].element_type == ""
+        from cdmw.ui.archive_browser.static_replacement_mesh_edit_action_bar import (
+            _mesh_editor_action_bar_action_requested,
+        )
+        state = SimpleNamespace(mesh_editor_action_bar_selection_mode={"value": "brush"})
+        callbacks = SimpleNamespace(
+            _mesh_edit_worker_active=lambda: False,
+            _show_mesh_edit_tab=lambda: None,
+            _set_mesh_edit_enabled=lambda _enabled: None,
+            _select_mesh_edit_tool=lambda _tool: True,
+        )
+        assert _mesh_editor_action_bar_action_requested(state, callbacks, actions[-1])
+        assert state.mesh_editor_action_bar_selection_mode["value"] == "rectangle"
+        workspace.compare_mode_combo.setCurrentIndex(workspace.compare_mode_combo.findData("Ghost"))
+        assert comparisons == ["ghost"]
+        workspace._sync_combo(workspace.mode_combo, "sculpt")
+        assert workspace.mode_combo.currentData() == "Sculpt"
+        assert len(actions) == 2
+
+        localizer.load_language("en")
+        for combo in (workspace.mode_combo, workspace.selection_combo, workspace.compare_mode_combo):
+            localizer.apply(combo)
+            assert combo.currentText() == combo.currentData()
+        assert len(actions) == 2
+        assert comparisons == ["ghost"]
+        workspace.deleteLater()
+        app.processEvents()
+
     def test_report_panes_focus_after_the_captions_are_translated(self) -> None:
         from pathlib import Path as _Path
 

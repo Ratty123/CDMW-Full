@@ -243,6 +243,7 @@ def _mesh_editor_action_bar_action_requested(_state, _callbacks, action: object)
     mode = str(getattr(action, "mode", "") or "").strip()
     selection_mode = str(getattr(action, "selection_mode", "") or "").strip()
     params = dict(tuple(getattr(action, "params", ()) or ()))
+    selection_mode = str(params.get("selection_shape", selection_mode) or "").strip()
     if _callbacks._mesh_edit_worker_active():
         _state.self.shell.set_status_message("Wait for the current mesh edit to finish, or cancel it first.", error=True)
         return True

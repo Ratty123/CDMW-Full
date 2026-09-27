@@ -43,7 +43,7 @@ def _catalog(code: str) -> dict[str, object]:
 
 
 def _language_codes() -> list[str]:
-    excluded = {"en", "source_manifest", "source_identical_terms"}
+    excluded = {"en", "source_manifest", "source_identical_terms", "native_ui_keys"}
     return sorted(path.stem for path in RESOURCE_ROOT.glob("*.json") if path.stem not in excluded)
 
 
@@ -66,6 +66,8 @@ def test_short_strings_and_diagnostics_are_not_scanned() -> None:
     assert not is_scannable("Export Folder...")
     assert not is_scannable("Texture sidecar scan detail: sidecars={value_0} | paz_groups={value_1}")
     assert is_scannable("Choose the Crimson Desert folder or package root that contains game_files.")
+    assert not is_scannable("cdmw/modding/mesh_exporter.py / mesh_importer.py")
+    assert is_scannable("cdmw/modding/mesh_exporter.py writes the mesh; the imported material names stay unchanged.")
 
 
 def test_measure_catalog_finds_substituted_strings_and_spares_proper_nouns() -> None:

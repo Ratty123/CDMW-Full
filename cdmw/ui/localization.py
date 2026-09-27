@@ -1225,7 +1225,7 @@ class UiLocalizer(QObject):
             # later literal can sit anywhere in the rendered value.
             leading_literal = parsed[0][0]
             longest_literal = ""
-            for literal, field, _format_spec, _conversion in parsed:
+            for field_index, (literal, field, _format_spec, _conversion) in enumerate(parsed):
                 expression.append(re.escape(literal))
                 literal_chars += len(literal)
                 if len(literal) > len(longest_literal):
@@ -1243,7 +1243,15 @@ class UiLocalizer(QObject):
                 group_name = f"g{len(fields)}"
                 seen[field_name] = group_name
                 fields.append((group_name, field_name))
-                if numeric_pair:
+                # Unit-only templates must not consume arbitrary words. For
+                # example, "{value_0} {value_1}s" is a duration, not every
+                # two-word label ending in s (including escaped tab titles).
+                following = parsed[field_index + 1][0] if field_index + 1 < len(parsed) else ""
+                numeric_unit = (
+                    following.strip() in {"s", "ms", "min", "%", "°"}
+                    and not any(re.search(r"[A-Za-z]{2,}", part) for part, *_rest in parsed)
+                )
+                if numeric_pair or numeric_unit:
                     expression.append(
                         f"(?P<{group_name}>"
                         r"[-+]?(?:\d{1,3}(?:,\d{3})+|\d+)"
@@ -1450,14 +1458,36 @@ class UiLocalizer(QObject):
         an accelerator the caller meant to keep.
         """
         value = str(text or "")
-        translated = self.translate_rendered(value)
-        if translated != value or "&&" not in value:
-            return translated
+        if "&&" not in value or value in self.translations:
+            return self.translate_rendered(value)
         unescaped = value.replace("&&", "&")
         localized = self.translate_rendered(unescaped)
         if localized == unescaped:
-            return translated
+            return self.translate_rendered(value)
         return localized.replace("&", "&&")
+
+    def translate_composed_label(self, source: str) -> str:
+        """Translate the documented pieces of a Placement selector label.
+
+        Only opted-in selectors use this. Item IDs, raw socket tooltips, user
+        text and other models never undergo fragment translation.
+        """
+        translated = self.translate_rendered(source)
+        if translated != source or self.language_code == "en":
+            return translated
+        for separator in ("   →   ", " → ", " / ", " — ", ": ", ", "):
+            if separator in source:
+                return separator.join(self.translate_composed_label(part) for part in source.split(separator))
+        parenthesis = re.fullmatch(r"(.+?) (\(.+\))", source)
+        if parenthesis:
+            return (
+                self.translate_composed_label(parenthesis[1]) + " ("
+                + self.translate_composed_label(parenthesis[2][1:-1]) + ")"
+            )
+        numbered = re.fullmatch(r"(.+?) (\d+)", source)
+        if numbered:
+            return self.translate_rendered(numbered[1]) + " " + numbered[2]
+        return source
 
     def _remember_rendered_translation(self, value: str, translated: str) -> None:
         cache = self._rendered_translation_cache
@@ -2129,7 +2159,7 @@ class UiLocalizer(QObject):
                 widget.setProperty("_i18n_applied_revision", self.revision)
                 continue
             if isinstance(widget, QGroupBox):
-                self._apply_setter(widget, "title", "title", "setTitle")
+                self._apply_setter(widget, "title", "title", "setTitle", mnemonic=True)
             if isinstance(widget, QWizardPage):
                 self._apply_setter(widget, "title", "title", "setTitle")
                 self._apply_setter(
@@ -2313,25 +2343,36 @@ class UiLocalizer(QObject):
             )
 
     def _apply_combo(self, widget: QComboBox) -> None:
+        editor = widget.lineEdit()
+        if editor is not None:
+            # The editable value is user data, but its prompt is interface text.
+            self._apply_setter(editor, "placeholder", "placeholderText", "setPlaceholderText")
         if not self._should_translate_combo(widget):
             return
-        for index in range(widget.count()):
-            source_key = f"_i18n_combo_source_{index}"
-            rendered_key = f"_i18n_combo_rendered_{index}"
-            source = self._indexed_source(
-                widget,
-                source_key,
-                rendered_key,
-                widget.itemText(index),
-            )
-            translated = self.translate_rendered(source)
-            widget.setItemText(index, translated)
-            widget.setProperty(rendered_key, translated)
+        blocked = widget.blockSignals(True)
+        try:
+            for index in range(widget.count()):
+                source_key = f"_i18n_combo_source_{index}"
+                rendered_key = f"_i18n_combo_rendered_{index}"
+                source = self._indexed_source(
+                    widget,
+                    source_key,
+                    rendered_key,
+                    widget.itemText(index),
+                )
+                translated = (
+                    self.translate_composed_label(source)
+                    if widget.property("_i18n_composed_labels") else self.translate_rendered(source)
+                )
+                widget.setItemText(index, translated)
+                widget.setProperty(rendered_key, translated)
+        finally:
+            widget.blockSignals(blocked)
 
     def _should_translate_combo(self, widget: QComboBox) -> bool:
         if widget.property("_i18n_skip_combo_items"):
             return False
-        if widget.property("_i18n_translate_combo_items"):
+        if widget.property("_i18n_translate_combo_items") or widget.property("_i18n_composed_labels"):
             return True
         if widget.count() <= 0:
             return False

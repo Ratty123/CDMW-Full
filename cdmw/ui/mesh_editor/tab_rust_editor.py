@@ -442,8 +442,18 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
 
     def _rust_theme_payload(self) -> dict[str, object]:
         from cdmw.services.mesh_editor_layout import load_mesh_layout
+        from cdmw.services.active_ui_translation import active_ui_localizer
+        from cdmw.ui.localization_catalogs_v2 import native_ui_source_keys
 
         application = QApplication.instance()
+        localizer = active_ui_localizer()
+        language = str(getattr(localizer, "language_code", "en"))
+        translations = (
+            localizer.translation_snapshot(
+                native_ui_source_keys(), max_bytes=DOTNET_PROTOCOL_LINE_LIMIT - 16384,
+            )
+            if localizer is not None else {}
+        )
         font = application.font() if application is not None else self.font()
         screen = application.primaryScreen() if application is not None else None
         theme_key = str(getattr(self, "theme_key", "graphite") or "graphite")
@@ -467,6 +477,8 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
             data_font_point_size = float(DEFAULT_UI_DATA_FONT_SIZE)
         return {
             "schema": "cdmw_ui_theme_v1",
+            "language": language,
+            "translations": translations,
             "layout": load_mesh_layout(self.settings),
             "theme": theme_key,
             "variant": "dark" if window_colour.lightnessF() < 0.5 else "light",

@@ -400,10 +400,12 @@ renderer output, not in-game parity.
 
 ## User interface
 
-The Rust controls currently use English text. The surrounding CDMW PySide UI
-and documentation use the selected app language; those catalogs are not yet
-consumed by this editor. Preview localization acknowledgements are separate from
-editor UI translation.
+In CDMW-managed mode, Rust controls use the selected app language. The host sends
+the native catalog at launch and with live theme/language updates. Labels,
+tooltips, dialogs and formatted statuses translate without changing command IDs
+or editable values. Installed Windows fonts provide CJK glyph coverage.
+Standalone sessions default to English. Preview localization acknowledgements
+are separate from editor UI translation.
 
 The interface described below is the standalone Rust Mesh Lab layout. In
 CDMW-managed mode the executable instead presents the Mesh Editor session bar,

@@ -12,12 +12,33 @@ read/write is only useful next to "Translations".
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping, Optional, Sequence, Tuple
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = REPO_ROOT / "schemas" / "archive_content_capabilities.v1.json"
+
+
+def detail_text_segments(text: str) -> tuple[str, ...]:
+    """Keep long research notes within the language-file key limit.
+
+    Preserve every space so the English text and source evidence stay intact.
+    Ordinary labels and paragraphs keep their existing single catalog key.
+    """
+    if len(text) <= 3500:
+        return (text,)
+    pieces = []
+    while len(text) > 800:
+        stops = [match.end() for match in re.finditer(r"[.!?] +", text[:800])]
+        cut = stops[-1] if stops else text.rfind(" ", 0, 800) + 1
+        if not cut:
+            cut = 800
+        pieces.append(text[:cut])
+        text = text[cut:]
+    pieces.append(text)
+    return tuple(pieces)
 
 #: Where a format is edited, as a path a person can follow: every segment is the
 #: label the interface actually draws — a tab name, or a context-menu action under

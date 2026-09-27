@@ -38,6 +38,16 @@ class RowTests(unittest.TestCase):
         entries = json.loads(MANIFEST.read_text(encoding="utf-8"))["extensions"]
         self.assertEqual(len(self.rows), len(entries))
 
+    def test_long_details_keep_source_text_and_fit_language_exports(self) -> None:
+        from tools.format_explorer.catalogue import detail_text_segments
+        from cdmw.services.localization_file_service import LANGUAGE_KEY_MAX_CHARS
+
+        for row in self.rows:
+            for text in (row.evidence, row.remaining):
+                pieces = detail_text_segments(text)
+                self.assertEqual("".join(pieces), text)
+                self.assertTrue(all(len(piece) <= LANGUAGE_KEY_MAX_CHARS for piece in pieces))
+
     def test_rows_are_ordered_by_how_much_the_game_ships(self) -> None:
         counts = [row.files for row in self.rows]
         self.assertEqual(counts, sorted(counts, reverse=True))
@@ -221,6 +231,24 @@ class PanelTests(unittest.TestCase):
         panel = self._panel()
         panel.search_box.setText("definitely not a format")
         self.assertIn("Nothing matches", panel.detail.toHtml())
+
+    def test_format_origin_is_translated_as_a_description_not_the_open_command(self) -> None:
+        from unittest.mock import patch
+        from tools.format_explorer import tab
+
+        panel = self._panel()
+        translated = []
+
+        def translate(source):
+            translated.append(source)
+            return "FORMAT OUVERT" if source == "Open format" else source
+
+        with patch.object(tab, "translate_active_ui_text", side_effect=translate):
+            panel.include_absent.setChecked(True)
+            panel.search_box.setText(".obj")
+            panel.table.selectRow(0)
+        self.assertIn("Open format", translated)
+        self.assertIn("FORMAT OUVERT", panel.detail.toPlainText())
 
     def test_the_selected_row_matches_what_is_on_screen(self) -> None:
         panel = self._panel()

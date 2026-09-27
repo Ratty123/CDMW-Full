@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import json
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -121,6 +122,42 @@ def test_live_theme_change_is_sent_to_the_ready_embedded_child(tmp_path: Path) -
     assert sent[-1]["event"] == "theme_update"
     assert sent[-1]["payload"]["theme"] == "nord"
     assert sent[-1]["payload"]["variant"] == "dark"
+
+
+def test_native_localization_payload_covers_every_language_and_live_updates(tmp_path: Path) -> None:
+    from cdmw.domain.localization import BUILTIN_LANGUAGES
+    from cdmw.ui.localization import UiLocalizer
+    from cdmw.ui.localization_catalogs_v2 import native_ui_source_keys
+    from cdmw.ui.mesh_editor.process_io import DOTNET_PROTOCOL_LINE_LIMIT
+
+    tab = _tab(tmp_path)
+    app = QApplication.instance()
+    previous = app.property("_cdmw_ui_localizer")
+    localizer = UiLocalizer(language_dir=tmp_path / "languages", language_code="en")
+    app.setProperty("_cdmw_ui_localizer", localizer)
+    sent = []
+    tab.standalone_rust_ready = True
+    tab._send_rust_message = lambda payload: sent.append(payload) or True
+    try:
+        for language in BUILTIN_LANGUAGES:
+            localizer.load_language(language.code)
+            tab.set_theme("graphite")
+            message = sent[-1]
+            assert message["event"] == "theme_update"
+            payload = message["payload"]
+            assert payload["language"] == language.code
+            assert set(payload["translations"]) == set(native_ui_source_keys())
+            for key in ("Clear Selection", "Mesh Editor", "Create / update guides"):
+                assert payload["translations"][key] == localizer.translate(key)
+            assert len(json.dumps(message, ensure_ascii=False).encode("utf-8")) < DOTNET_PROTOCOL_LINE_LIMIT
+        # A user-provided English overlay must work in the native editor too.
+        localizer.load_language("en")
+        localizer.translations["Mesh Editor"] = "Custom mesh tools"
+        assert tab._rust_theme_payload()["translations"]["Mesh Editor"] == "Custom mesh tools"
+    finally:
+        app.setProperty("_cdmw_ui_localizer", previous)
+        localizer.shutdown()
+        tab.deleteLater()
 
 
 def test_host_rejects_child_window_owned_by_another_process() -> None:

@@ -914,7 +914,7 @@ impl LabApplication {
         let Some(state) = self.hair.state.as_ref() else {
             return;
         };
-        ui.weak("Material sections · visibility does not change output");
+        ui.weak(crate::localization::tr("Material sections · visibility does not change output"));
         for group in &state.groups {
             let ids: Vec<_> = state
                 .locks
@@ -928,8 +928,8 @@ impl LabApplication {
             ui.horizontal(|ui| {
                 let mut shown = !self.cdmw_hidden_parts.contains(&group.part);
                 if ui
-                    .checkbox(&mut shown, "")
-                    .on_hover_text("Show section in viewport")
+                    .checkbox(&mut shown, crate::localization::tr(""))
+                    .on_hover_text(crate::localization::tr("Show section in viewport"))
                     .changed()
                 {
                     actions.push(UiAction::SetPartVisibility {
@@ -943,10 +943,10 @@ impl LabApplication {
                 if ui
                     .add_enabled(
                         shown,
-                        egui::Button::new(&label).selected(selected).truncate(),
+                        egui::Button::new(crate::localization::tr(&label)).selected(selected).truncate(),
                     )
-                    .on_hover_text(&label)
-                    .on_disabled_hover_text(&label)
+                    .on_hover_text(crate::localization::tr(&label))
+                    .on_disabled_hover_text(crate::localization::tr(&label))
                     .clicked()
                 {
                     self.hair.selected = ids.iter().copied().collect();
@@ -963,14 +963,14 @@ impl LabApplication {
         if !available && self.hair.state.is_none() {
             return;
         }
-        ui.heading("Hair Tools (Experimental)");
-        ui.label("Not tested in game. Hairstyles may not work correctly.");
+        ui.heading(crate::localization::tr("Hair Tools (Experimental)"));
+        ui.label(crate::localization::tr("Not tested in game. Hairstyles may not work correctly."));
         if self.hair.state.is_none() {
-            ui.label("Use Hair Tools above the editor to choose a character and create or edit a hairstyle.");
+            ui.label(crate::localization::tr("Use Hair Tools above the editor to choose a character and create or edit a hairstyle."));
             return;
         }
         if self.hair.state.as_ref().is_some_and(|s| s.converted) {
-            ui.weak("Converted to ordinary mesh. Undo restores Hair editing.");
+            ui.weak(crate::localization::tr("Converted to ordinary mesh. Undo restores Hair editing."));
             return;
         }
         let ready = self.hair_input_ready() || self.hair_draw_input_ready();
@@ -983,19 +983,19 @@ impl LabApplication {
             .count();
         let (min, max) = hair_bounds(state);
         let span = (max - min).max_element();
-        ui.label(format!(
+        ui.label(crate::localization::tr(format!(
             "{} · {} locks selected",
             self.hair.style_name,
             self.hair.selected.len()
-        ));
+        )));
         ui.add_enabled_ui(ready,|ui| {
             ui.horizontal_wrapped(|ui| {
                 for (tool,name) in [(HairTool::Select,"Select"),(HairTool::Move,"Move"),(HairTool::Guide,"Draw"),
                     (HairTool::Erase,"Erase"),(HairTool::Cut,"Cut"),(HairTool::Lengthen,"Lengthen"),
                     (HairTool::Comb,"Comb"),(HairTool::Smooth,"Smooth"),(HairTool::Curl,"Curl"),(HairTool::Clump,"Clump"),(HairTool::Physics,"Physics")] {
                     let enabled=generated || tool!=HairTool::Guide;
-                    if ui.add_enabled(enabled,egui::Button::new(name).selected(self.hair.tool==Some(tool)))
-                        .on_disabled_hover_text("Draw creates new cards in Create hairstyle. Existing hair preserves its original cards and UV layout.").clicked(){self.hair.tool=Some(tool);self.cdmw_orbit_mode=false;}
+                    if ui.add_enabled(enabled,egui::Button::new(crate::localization::tr(name)).selected(self.hair.tool==Some(tool)))
+                        .on_disabled_hover_text(crate::localization::tr("Draw creates new cards in Create hairstyle. Existing hair preserves its original cards and UV layout.")).clicked(){self.hair.tool=Some(tool);self.cdmw_orbit_mode=false;}
                 }
             });
             ui.separator();
@@ -1009,125 +1009,125 @@ impl LabApplication {
                 Some(HairTool::Root)=>"Click the scalp to attach the selected sections as one lock. Select sections sharing a material.",
                 Some(HairTool::Physics)=>"Paint Static or Physical directly on visible hair. No selection is needed. Roots stay fixed.",
                 _=>"Drag over highlighted hair. Only selected or brushed locks change."
-            };ui.label(help);
+            };ui.label(crate::localization::tr(help));
             if self.hair.tool == Some(HairTool::Physics) {
                 ui.horizontal_wrapped(|ui| {
-                    ui.selectable_value(&mut self.hair.paint_static, true, "Static");
-                    ui.selectable_value(&mut self.hair.paint_static, false, "Physical");
+                    ui.selectable_value(&mut self.hair.paint_static, true, crate::localization::tr("Static"));
+                    ui.selectable_value(&mut self.hair.paint_static, false, crate::localization::tr("Physical"));
                 });
-                ui.checkbox(&mut self.hair.physics_selected_only, "Selected locks only")
-                    .on_hover_text("Restrict painting to selected locks. Turn off to brush any visible hair.");
+                ui.checkbox(&mut self.hair.physics_selected_only, crate::localization::tr("Selected locks only"))
+                    .on_hover_text(crate::localization::tr("Restrict painting to selected locks. Turn off to brush any visible hair."));
                 if self.hair.physics_selected_only && self.hair.selected.is_empty() {
-                    ui.weak("Select locks, or turn off Selected locks only to paint visible hair.");
+                    ui.weak(crate::localization::tr("Select locks, or turn off Selected locks only to paint visible hair."));
                 }
-                ui.colored_label(Color32::from_rgb(60, 190, 245), "Blue: static");
-                ui.colored_label(Color32::from_rgb(245, 155, 60), "Orange: physical");
+                ui.colored_label(Color32::from_rgb(60, 190, 245), crate::localization::tr("Blue: static"));
+                ui.colored_label(Color32::from_rgb(245, 155, 60), crate::localization::tr("Orange: physical"));
             }
             if self.hair.tool == Some(HairTool::Guide) {
                 ui.horizontal_wrapped(|ui| {
                     for (shape, label) in [(DrawShape::Freehand,"Freehand"), (DrawShape::Straight,"Straight"),
                         (DrawShape::Arc,"Arc"), (DrawShape::Circle,"Circle")] {
-                        if ui.selectable_value(&mut self.hair.draw_shape, shape, label).changed() {
+                        if ui.selectable_value(&mut self.hair.draw_shape, shape, crate::localization::tr(label)).changed() {
                             self.hair.draw_follow_scalp = shape == DrawShape::Freehand;
                         }
                     }
                 });
-                ui.checkbox(&mut self.hair.draw_follow_scalp, "Follow scalp");
-                ui.weak("Scalp collision stays active. Hold Ctrl to temporarily draw in the view plane.");
+                ui.checkbox(&mut self.hair.draw_follow_scalp, crate::localization::tr("Follow scalp"));
+                ui.weak(crate::localization::tr("Scalp collision stays active. Hold Ctrl to temporarily draw in the view plane."));
                 match self.hair.draw_shape {
-                    DrawShape::Freehand => { ui.add(egui::Slider::new(&mut self.hair.draw_smoothing, 0.0..=1.0).text("Stroke smoothing")); }
+                    DrawShape::Freehand => { ui.add(egui::Slider::new(&mut self.hair.draw_smoothing, 0.0..=1.0).text(crate::localization::tr("Stroke smoothing"))); }
                     DrawShape::Arc => {
-                        ui.label("Drag from the scalp to set the endpoints. Bend controls the curve and its direction.");
-                        ui.add(egui::Slider::new(&mut self.hair.arc_bend, -1.5..=1.5).text("Bend"));
+                        ui.label(crate::localization::tr("Drag from the scalp to set the endpoints. Bend controls the curve and its direction."));
+                        ui.add(egui::Slider::new(&mut self.hair.arc_bend, -1.5..=1.5).text(crate::localization::tr("Bend")));
                     }
-                    DrawShape::Circle => { ui.label("Drag from the scalp to set the circle diameter. Hold Ctrl to draw in the view plane."); }
-                    DrawShape::Straight => { ui.label("Drag from the scalp to the tip. Enable Follow scalp to fit the line to the head."); }
+                    DrawShape::Circle => { ui.label(crate::localization::tr("Drag from the scalp to set the circle diameter. Hold Ctrl to draw in the view plane.")); }
+                    DrawShape::Straight => { ui.label(crate::localization::tr("Drag from the scalp to the tip. Enable Follow scalp to fit the line to the head.")); }
                 }
             }
             if self.hair.tool == Some(HairTool::Move) {
-                ui.add(egui::Slider::new(&mut self.hair.move_reach, 0.05..=1.0).text("Move reach"));
+                ui.add(egui::Slider::new(&mut self.hair.move_reach, 0.05..=1.0).text(crate::localization::tr("Move reach")));
             }
             if !matches!(self.hair.tool,Some(HairTool::Select|HairTool::Move|HairTool::Cut|HairTool::Guide|HairTool::Root)) {
-                ui.add(egui::Slider::new(&mut self.hair.radius,5.0..=160.0).text("Brush size"));
-                if self.hair.tool != Some(HairTool::Physics) { ui.add(egui::Slider::new(&mut self.hair.strength,0.01..=1.0).text("Strength")); }
+                ui.add(egui::Slider::new(&mut self.hair.radius,5.0..=160.0).text(crate::localization::tr("Brush size")));
+                if self.hair.tool != Some(HairTool::Physics) { ui.add(egui::Slider::new(&mut self.hair.strength,0.01..=1.0).text(crate::localization::tr("Strength"))); }
             }
-            ui.checkbox(&mut self.hair.symmetry,"Symmetry");
-            if self.hair.tool==Some(HairTool::Select) {ui.checkbox(&mut self.hair.select_through,"Select through");}
-            if ui.add_enabled(!self.hair.selected.is_empty(),egui::Button::new("Delete selected hair")).clicked() {actions.push(UiAction::Hair(HairAction::DeleteGuides));}
+            ui.checkbox(&mut self.hair.symmetry,crate::localization::tr("Symmetry"));
+            if self.hair.tool==Some(HairTool::Select) {ui.checkbox(&mut self.hair.select_through,crate::localization::tr("Select through"));}
+            if ui.add_enabled(!self.hair.selected.is_empty(),egui::Button::new(crate::localization::tr("Delete selected hair"))).clicked() {actions.push(UiAction::Hair(HairAction::DeleteGuides));}
             if unresolved>0 {
-                ui.weak(format!("{unresolved} original sections have no grooming guides"));
-                ui.weak("Unchanged sections can be exported with their original game skinning. Prepare them only for grooming or motion preview.");
+                ui.weak(crate::localization::tr(format!("{unresolved} original sections have no grooming guides")));
+                ui.weak(crate::localization::tr("Unchanged sections can be exported with their original game skinning. Prepare them only for grooming or motion preview."));
             }
             if !generated {
-                egui::CollapsingHeader::new("Prepare sections for grooming").show(ui, |ui| {
+                crate::localization::collapsing("Prepare sections for grooming").show(ui, |ui| {
                 let groups:Vec<_>=self.hair.state.as_ref().unwrap().groups.iter().filter_map(|g|{
                     let ids:Vec<_>=self.hair.state.as_ref().unwrap().locks.iter().filter(|l|l.part==g.part&&!l.vertices.is_empty()).map(|l|l.id as usize).collect();
                     if ids.is_empty(){None}else{Some((g.name.clone(),ids))}
                 }).collect();
-                egui::ComboBox::from_id_salt("hair_unprepared_sections").selected_text("Select sections to prepare").show_ui(ui,|ui|{
+                egui::ComboBox::from_id_salt("hair_unprepared_sections").selected_text(crate::localization::tr("Select sections to prepare")).show_ui(ui,|ui|{
                     for (name,ids) in &groups {
                         let label=if name.to_lowercase().contains("front"){"Front"}else if name.to_lowercase().contains("tail"){"Lengths"}else if name.to_lowercase().contains("top"){"Crown"}else{name};
-                        if ui.button(format!("{label} · {} sections",ids.len())).clicked(){self.hair.selected=ids.iter().copied().collect();self.hair.tool=Some(HairTool::Select);}
+                        if ui.button(crate::localization::tr(format!("{label} · {} sections",ids.len()))).clicked(){self.hair.selected=ids.iter().copied().collect();self.hair.tool=Some(HairTool::Select);}
                     }
                 });
-                if ui.add_enabled(!self.hair.selected.is_empty(),egui::Button::new("Set root / group selected sections")).clicked(){self.hair.tool=Some(HairTool::Root);}
-                if ui.add_enabled(!self.hair.selected.is_empty(),egui::Button::new("Mark selected scalp sections as rigid")).clicked(){actions.push(UiAction::Hair(HairAction::Rigid));}
+                if ui.add_enabled(!self.hair.selected.is_empty(),egui::Button::new(crate::localization::tr("Set root / group selected sections"))).clicked(){self.hair.tool=Some(HairTool::Root);}
+                if ui.add_enabled(!self.hair.selected.is_empty(),egui::Button::new(crate::localization::tr("Mark selected scalp sections as rigid"))).clicked(){actions.push(UiAction::Hair(HairAction::Rigid));}
                 });
             }
-            egui::CollapsingHeader::new("Setup").show(ui,|ui| {
-                ui.label("Hairstyle name");ui.text_edit_singleline(&mut self.hair.style_name);
-                if ui.button("Apply name").clicked(){actions.push(UiAction::Hair(HairAction::Registration));}
+            crate::localization::collapsing("Setup").show(ui,|ui| {
+                ui.label(crate::localization::tr("Hairstyle name"));ui.text_edit_singleline(&mut self.hair.style_name);
+                if ui.button(crate::localization::tr("Apply name")).clicked(){actions.push(UiAction::Hair(HairAction::Registration));}
                 if generated {
-                    if ui.button("Start empty").clicked(){actions.push(UiAction::Hair(HairAction::Empty));}
-                } else if ui.button("Prepare existing hair sections").clicked(){actions.push(UiAction::Hair(HairAction::Prepare));}
-                if ui.button("Change references…").clicked(){actions.push(UiAction::CdmwCommand{command:"hair_begin",arguments:json!({"change_references":true}),label:"Change hair references"});}
+                    if ui.button(crate::localization::tr("Start empty")).clicked(){actions.push(UiAction::Hair(HairAction::Empty));}
+                } else if ui.button(crate::localization::tr("Prepare existing hair sections")).clicked(){actions.push(UiAction::Hair(HairAction::Prepare));}
+                if ui.button(crate::localization::tr("Change references…")).clicked(){actions.push(UiAction::CdmwCommand{command:"hair_begin",arguments:json!({"change_references":true}),label:"Change hair references"});}
                 if self.hair.state.as_ref().unwrap().bound_reference!=self.hair.state.as_ref().unwrap().scalp.identity {
-                    if ui.button("Rebind to changed head").clicked(){actions.push(UiAction::Hair(HairAction::Rebind));}
+                    if ui.button(crate::localization::tr("Rebind to changed head")).clicked(){actions.push(UiAction::Hair(HairAction::Rebind));}
                 }
             });
-            egui::CollapsingHeader::new("Appearance").show(ui,|ui| {
+            crate::localization::collapsing("Appearance").show(ui,|ui| {
                 let supported=self.hair.state.as_ref().unwrap().locks.iter().filter(|l|self.hair.selected.contains(&(l.id as usize))).all(|l|l.kind==LockKind::Generated);
                 ui.add_enabled_ui(!self.hair.selected.is_empty(),|ui| {
-                    ui.add(egui::Slider::new(&mut self.hair.width,0.0001..=(span*0.2).clamp(0.001,10.0)).text("Lock width"));
-                    ui.add_enabled(supported,egui::Slider::new(&mut self.hair.density,1..=32).text("Follower cards"));
-                    if ui.button("Apply to selected locks").clicked(){actions.push(UiAction::Hair(HairAction::Settings));}
+                    ui.add(egui::Slider::new(&mut self.hair.width,0.0001..=(span*0.2).clamp(0.001,10.0)).text(crate::localization::tr("Lock width")));
+                    ui.add_enabled(supported,egui::Slider::new(&mut self.hair.density,1..=32).text(crate::localization::tr("Follower cards")));
+                    if ui.button(crate::localization::tr("Apply to selected locks")).clicked(){actions.push(UiAction::Hair(HairAction::Settings));}
                 });
-                if !supported {ui.weak("Existing locks preserve their source cards and UVs; follower density is available for generated locks.");}
+                if !supported {ui.weak(crate::localization::tr("Existing locks preserve their source cards and UVs; follower density is available for generated locks."));}
                 let textures:Vec<_>=self.cdmw_state["hair"]["textures"].as_array().into_iter().flatten().filter_map(|v|v.as_str().map(String::from)).collect();
                 if !textures.is_empty() {
                     self.hair.texture_index=self.hair.texture_index.min(textures.len()-1);
-                    let texture_label = ui.label("Hair texture");
+                    let texture_label = ui.label(crate::localization::tr("Hair texture"));
                     egui::ComboBox::from_id_salt("Hair texture").width(ui.available_width()).truncate()
                         .selected_text(textures[self.hair.texture_index].rsplit('/').next().unwrap_or("DDS")).show_ui(ui,|ui| {
                         for (i,path) in textures.iter().enumerate(){ui.selectable_value(&mut self.hair.texture_index,i,path.rsplit('/').next().unwrap_or(path));}
                     }).response.labelled_by(texture_label.id).on_hover_text(&textures[self.hair.texture_index]);
                     for (title,command) in [("Open in Texture Editor","hair_texture_export"),("Apply edited DDS…","hair_texture")] {
-                        if ui.button(title).clicked(){actions.push(UiAction::CdmwCommand{command,arguments:json!({"texture_path":textures[self.hair.texture_index]}),label:"Hair texture"});}
+                        if ui.button(crate::localization::tr(title)).clicked(){actions.push(UiAction::CdmwCommand{command,arguments:json!({"texture_path":textures[self.hair.texture_index]}),label:"Hair texture"});}
                     }
                 }
             });
         });
         ui.separator();
-        ui.strong("Motion");
-        ui.weak("Editor motion preview. Static paint disables cloth in the output; physical areas retain the template's rig and physics.");
+        ui.strong(crate::localization::tr("Motion"));
+        ui.weak(crate::localization::tr("Editor motion preview. Static paint disables cloth in the output; physical areas retain the template's rig and physics."));
         let reason = self.hair_motion_reason().err();
         ui.horizontal(|ui| {
             if ui
                 .add_enabled(
                     reason.is_none() || self.hair.playing,
-                    egui::Button::new(if self.hair.playing { "Pause" } else { "Play" }),
+                    egui::Button::new(crate::localization::tr(if self.hair.playing { "Pause" } else { "Play" })),
                 )
                 .clicked()
             {
                 self.hair.playing = !self.hair.playing;
                 self.hair.last_tick = Instant::now();
             }
-            if ui.button("Reset").clicked() {
+            if ui.button(crate::localization::tr("Reset")).clicked() {
                 actions.push(UiAction::Hair(HairAction::Reset));
             }
         });
         if let Some(reason) = &reason {
-            ui.weak(reason);
+            ui.weak(crate::localization::tr(reason));
         }
         let tests = [
             "Still",
@@ -1137,33 +1137,33 @@ impl LabApplication {
             "Body sway",
             "Wind",
         ];
-        let movement_label = ui.label("Movement test");
+        let movement_label = ui.label(crate::localization::tr("Movement test"));
         egui::ComboBox::from_id_salt("Movement test")
             .width(ui.available_width())
             .truncate()
-            .selected_text(tests[self.hair.head_test.min(5) as usize])
+            .selected_text(crate::localization::tr(tests[self.hair.head_test.min(5) as usize]))
             .show_ui(ui, |ui| {
                 for (i, label) in tests.iter().enumerate() {
-                    ui.selectable_value(&mut self.hair.head_test, i as u32, *label);
+                    ui.selectable_value(&mut self.hair.head_test, i as u32, crate::localization::tr(*label));
                 }
             })
             .response
             .labelled_by(movement_label.id);
-        egui::CollapsingHeader::new("Advanced").show(ui, |ui| {
-            ui.checkbox(&mut self.hair.show_reference, "Show character bust");
-            ui.checkbox(&mut self.hair.show_guides, "Show guides and roots");
-            ui.checkbox(&mut self.hair.show_collisions, "Show collision shapes");
-            ui.weak("Alt-drag orbit · Shift-drag pan · wheel zoom · Escape cancel");
-            ui.add(egui::Slider::new(&mut self.hair.motion.damping, 0.0..=20.0).text("Damping"));
+        crate::localization::collapsing("Advanced").show(ui, |ui| {
+            ui.checkbox(&mut self.hair.show_reference, crate::localization::tr("Show character bust"));
+            ui.checkbox(&mut self.hair.show_guides, crate::localization::tr("Show guides and roots"));
+            ui.checkbox(&mut self.hair.show_collisions, crate::localization::tr("Show collision shapes"));
+            ui.weak(crate::localization::tr("Alt-drag orbit · Shift-drag pan · wheel zoom · Escape cancel"));
+            ui.add(egui::Slider::new(&mut self.hair.motion.damping, 0.0..=20.0).text(crate::localization::tr("Damping")));
             ui.add(
                 egui::Slider::new(&mut self.hair.motion.bend_compliance, 0.0..=0.005)
-                    .text("Shape softness"),
+                    .text(crate::localization::tr("Shape softness")),
             );
             ui.add(
-                egui::Slider::new(&mut self.hair.motion.gravity[1], -20.0..=0.0).text("Gravity"),
+                egui::Slider::new(&mut self.hair.motion.gravity[1], -20.0..=0.0).text(crate::localization::tr("Gravity")),
             );
             ui.horizontal(|ui| {
-                ui.label("Wind");
+                ui.label(crate::localization::tr("Wind"));
                 for v in &mut self.hair.motion.wind {
                     ui.add(egui::DragValue::new(v).speed(0.1).range(-30.0..=30.0));
                 }
@@ -1177,29 +1177,29 @@ impl LabApplication {
                             .simulation
                             .as_ref()
                             .is_some_and(|s| s.elapsed > 0.0),
-                    egui::Button::new("Use settled shape"),
+                    egui::Button::new(crate::localization::tr("Use settled shape")),
                 )
                 .clicked()
             {
                 actions.push(UiAction::Hair(HairAction::Settle));
             }
             if ui
-                .add_enabled(ready, egui::Button::new("Convert to ordinary mesh"))
+                .add_enabled(ready, egui::Button::new(crate::localization::tr("Convert to ordinary mesh")))
                 .clicked()
             {
                 actions.push(UiAction::Hair(HairAction::Convert));
             }
-            ui.weak("Preview motion is approximate. Game physics uses the donor's existing setup.");
+            ui.weak(crate::localization::tr("Preview motion is approximate. Game physics uses the donor's existing setup."));
         });
         if self.hair.topology_busy {
             ui.spinner();
-            ui.label("Preparing hair…");
+            ui.label(crate::localization::tr("Preparing hair…"));
         }
         if self.hair.saving() {
-            ui.weak("Saving completed actions in order…");
+            ui.weak(crate::localization::tr("Saving completed actions in order…"));
         }
         if !self.hair.feedback.is_empty() {
-            ui.weak(&self.hair.feedback);
+            ui.weak(crate::localization::tr(&self.hair.feedback));
         }
     }
 }

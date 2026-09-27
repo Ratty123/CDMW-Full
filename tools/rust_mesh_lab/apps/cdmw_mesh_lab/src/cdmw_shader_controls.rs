@@ -4,7 +4,7 @@ use super::*;
 impl LabApplication {
     pub(super) fn draw_cdmw_shader_controls(&self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
         let Some(state) = self.cdmw_state.get("shader_controls") else { return; };
-        egui::CollapsingHeader::new("Shader experiments").id_salt("shader_controls").show(ui, |ui| {
+        crate::localization::collapsing("Shader experiments").id_salt("shader_controls").show(ui, |ui| {
             let selected = self.selected_part_indices();
             let rows = state["parts"].as_array().into_iter().flatten()
                 .filter(|row| row["index"].as_u64().is_some_and(|i| selected.contains(&(i as u32))))
@@ -23,14 +23,14 @@ impl LabApplication {
                 } else { saved.clone() }
             });
             let available = state["available"].as_bool().unwrap_or(false);
-            if !available { ui.small(state["reason"].as_str().unwrap_or("Shader controls are unavailable.")); }
-            if ids.is_empty() { ui.small("Select one or more Parts above."); }
+            if !available { ui.small(crate::localization::tr(state["reason"].as_str().unwrap_or("Shader controls are unavailable."))); }
+            if ids.is_empty() { ui.small(crate::localization::tr("Select one or more Parts above.")); }
             if rows.iter().any(|row| row["shader_controls"] != saved) {
-                ui.small("Selected parts have different shader settings. Applying replaces their explicit overrides.");
+                ui.small(crate::localization::tr("Selected parts have different shader settings. Applying replaces their explicit overrides."));
             }
             for row in &rows {
                 if let Some(note) = row["diagnostic"].as_str().filter(|text| !text.is_empty()) {
-                    ui.small(format!("{}: {note}", row["name"].as_str().unwrap_or("Part")));
+                    ui.small(crate::localization::tr(format!("{}: {note}", row["name"].as_str().unwrap_or("Part"))));
                 }
             }
             let editing = self.cdmw_state["authoring_enabled"].as_bool().unwrap_or(false)
@@ -40,21 +40,21 @@ impl LabApplication {
                 let before = shader.clone();
                 let label = families.iter().find(|f| f["shader"] == shader)
                     .and_then(|f| f["label"].as_str()).unwrap_or("Choose experiment");
-                egui::ComboBox::from_id_salt("shader_experiment_family").selected_text(label).show_ui(ui, |ui| {
+                egui::ComboBox::from_id_salt("shader_experiment_family").selected_text(crate::localization::tr(label)).show_ui(ui, |ui| {
                     for family in &families {
                         ui.selectable_value(&mut shader, family["shader"].as_str().unwrap_or("").to_owned(),
-                                            family["label"].as_str().unwrap_or(""));
+                                            crate::localization::tr(family["label"].as_str().unwrap_or("")));
                     }
                 });
                 if shader != before { value = json!({"shader": shader, "values": {}}); }
                 if let Some(family) = families.iter().find(|f| f["shader"] == shader) {
-                    ui.small(family["note"].as_str().unwrap_or(""));
-                    ui.small("Unchecked fields retain authored values. Compatibility is checked when applying.");
+                    ui.small(crate::localization::tr(family["note"].as_str().unwrap_or("")));
+                    ui.small(crate::localization::tr("Unchecked fields retain authored values. Compatibility is checked when applying."));
                     for field in family["fields"].as_array().into_iter().flatten() {
                         let Some(name) = field["name"].as_str() else { continue; };
                         let mut enabled = !value["values"][name].is_null();
                         ui.horizontal_wrapped(|ui| {
-                            ui.checkbox(&mut enabled, field["label"].as_str().unwrap_or(name));
+                            ui.checkbox(&mut enabled, crate::localization::tr(field["label"].as_str().unwrap_or(name)));
                             let mut numbers = if value["values"][name].is_array() { value["values"][name].clone() } else { field["default"].clone() };
                             ui.add_enabled_ui(enabled, |ui| {
                                 if let Some(values) = numbers.as_array_mut() {
@@ -74,14 +74,14 @@ impl LabApplication {
                             else if let Some(values) = value["values"].as_object_mut() { values.remove(name); }
                         });
                     }
-                    ui.small("These controls preserve the source maps. Game shader activation, shadows and timing still require an in-game test.");
+                    ui.small(crate::localization::tr("These controls preserve the source maps. Game shader activation, shadows and timing still require an in-game test."));
                 }
                 ui.horizontal_wrapped(|ui| {
-                    if ui.button("Apply shader controls").clicked() {
+                    if ui.button(crate::localization::tr("Apply shader controls")).clicked() {
                         actions.push(UiAction::CdmwCommand { command: "replacement_shader_controls",
                             arguments: json!({"part_ids": ids, "shader_controls": value}), label: "Edit shader controls" });
                     }
-                    if ui.add_enabled(any_saved, egui::Button::new("Restore shader controls")).clicked() {
+                    if ui.add_enabled(any_saved, egui::Button::new(crate::localization::tr("Restore shader controls"))).clicked() {
                         actions.push(UiAction::CdmwCommand { command: "replacement_shader_controls",
                             arguments: json!({"part_ids": ids, "reset": true}), label: "Restore shader controls" });
                     }

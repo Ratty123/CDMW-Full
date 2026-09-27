@@ -191,6 +191,7 @@ class PlacementStudioWindow(
         self._model_box.setToolTip(tip("Character"))
         self._model_box.currentIndexChanged.connect(self._on_model_changed)
         self._weapon_box = QComboBox()
+        self._weapon_box.setProperty("_i18n_composed_labels", True)
         self._weapon_box.setToolTip(
             tip("Part", "Choosing a weapon here loads its own attachment points, which is "
                         "what lets it be aimed once you move it.")
@@ -233,6 +234,7 @@ class PlacementStudioWindow(
         # The part being worked on. Reachable in the tree too, but the tree groups by parent
         # bone, so finding one row of 71 meant knowing which bone carried it first.
         self._part_box = QComboBox()
+        self._part_box.setProperty("_i18n_composed_labels", True)
         self._part_box.setToolTip(tip("Part"))
         self._part_box.setMinimumWidth(230)
         self._part_box.currentIndexChanged.connect(self._on_part_box_changed)

@@ -33,6 +33,7 @@ MINIMUM_SOURCE_WORDS = 6
 SURVIVING_WORD_THRESHOLD = 0.6
 
 _PLACEHOLDER = re.compile(r"\{[^}]*\}")
+_SOURCE_FILE = re.compile(r"\b[\w./\\-]+\.(?:py|rs|cs)\b")
 _WORD = re.compile(r"[A-Za-z][A-Za-z'-]{2,}")
 
 #: Diagnostics and log lines are expected to keep their English identifiers, and are
@@ -74,7 +75,8 @@ def flatten(value: object) -> str:
 
 
 def _words(text: str) -> list[str]:
-    return [word.lower() for word in _WORD.findall(_PLACEHOLDER.sub(" ", text))]
+    prose = _SOURCE_FILE.sub(" ", _PLACEHOLDER.sub(" ", text))
+    return [word.lower() for word in _WORD.findall(prose)]
 
 
 def surviving_word_share(source: str, translation: str) -> float:

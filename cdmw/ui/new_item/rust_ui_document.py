@@ -27,6 +27,11 @@ from cdmw.ui.new_item.workflow_header import WorkflowHeader
 from cdmw.ui.themes import get_theme
 
 
+def qt_caption(value):
+    """Return the visible caption without Qt-only mnemonic escapes."""
+    return re.sub(r"&(.)", lambda match: match[1], str(value or ""))
+
+
 def plain_text(value):
     value = str(value or "")
     if "<" not in value:
@@ -259,7 +264,7 @@ class PresentationDocument:
         elif isinstance(widget, QTabWidget):
             node["kind"] = "column" if widget.tabBar().isHidden() else "tabs"
             props.update(selected=widget.currentIndex(), tabs=[
-                {"text": widget.tabText(i), "enabled": widget.isTabEnabled(i),
+                {"text": qt_caption(widget.tabText(i)), "enabled": widget.isTabEnabled(i),
                  "visible": widget.isTabVisible(i), "tooltip": widget.tabToolTip(i)} for i in range(widget.count())])
             child = self.widget(widget.currentWidget(), force=True)
             if child:
@@ -295,7 +300,7 @@ class PresentationDocument:
         else:
             if isinstance(widget, QGroupBox):
                 node["kind"] = "group"
-                node["label"] = widget.title()
+                node["label"] = qt_caption(widget.title())
                 props.update(checkable=widget.isCheckable(), checked=widget.isChecked(),
                              plain=bool(widget.property("guidedPage") or widget.property("titlelessSection")))
             elif isinstance(widget, QDialog) and widget.isWindow():
@@ -327,17 +332,17 @@ class PresentationDocument:
 
     def _button(self, widget, node):
         node["kind"] = "radio" if isinstance(widget, QRadioButton) else "check" if isinstance(widget, QCheckBox) else "button"
-        node["label"] = widget.text()
+        node["label"] = qt_caption(widget.text())
         if isinstance(widget, QToolButton) and widget.isCheckable() and widget.arrowType() != Qt.ArrowType.NoArrow:
-            node["label"] = ("▾ " if widget.isChecked() else "▸ ") + widget.text()
+            node["label"] = ("▾ " if widget.isChecked() else "▸ ") + qt_caption(widget.text())
         if widget.property("effectToolbarButton") and not widget.icon().isNull():
-            node["tooltip"] = node["tooltip"] or widget.text()
+            node["tooltip"] = node["tooltip"] or qt_caption(widget.text())
             node["label"] = ""
         parent = widget.parentWidget()
         if isinstance(parent, QDialogButtonBox) and parent.standardButton(widget) == QDialogButtonBox.NoButton:
             # Qt's shared localizer handles standard button-box labels; custom
             # roles retain their source text, so translate their presentation.
-            node["label"] = translate_active_ui_text(widget.text())
+            node["label"] = qt_caption(translate_active_ui_text(widget.text()))
         props = node["props"]
         props.update(checkable=widget.isCheckable(), checked=widget.isChecked(),
                      primary=bool(widget.property("newItemPrimary")),
@@ -358,7 +363,7 @@ class PresentationDocument:
 
     def action(self, action: QAction):
         node = {"kind": "separator" if action.isSeparator() else "action", "name": action.objectName(),
-                "label": action.text(), "tooltip": action.toolTip(), "enabled": action.isEnabled(),
+                "label": qt_caption(action.text()), "tooltip": action.toolTip(), "enabled": action.isEnabled(),
                 "props": {"checkable": action.isCheckable(), "checked": action.isChecked(),
                           "shortcut": action.shortcut().toString()}, "children": []}
         if action.menu() is not None:

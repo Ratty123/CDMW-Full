@@ -39,7 +39,7 @@ from cdmw.services.active_ui_translation import (
     translate_active_ui_text,
 )
 
-from .catalogue import FormatRow, filter_rows, groups, headline, load_rows
+from .catalogue import FormatRow, detail_text_segments, filter_rows, groups, headline, load_rows
 
 _ALL = "All areas"
 _EDITABLE = QColor(63, 143, 69, 72)
@@ -72,6 +72,10 @@ def localized_tool_location(location: str) -> str:
         )
         for segment in location.split(" > ")
     )
+
+
+def localized_detail_text(text: str) -> str:
+    return "".join(translate_active_ui_text(part) for part in detail_text_segments(text))
 
 
 def linked_tool_location(location: str, *, link_color: str = "") -> str:
@@ -157,6 +161,7 @@ class FormatExplorerTab(QWidget):
         controls.addWidget(self.search_box, 2)
         controls.addWidget(QLabel("Area"))
         self.group_box = QComboBox()
+        self.group_box.setProperty("_i18n_translate_combo_items", True)
         self.group_box.currentIndexChanged.connect(self._refresh)
         controls.addWidget(self.group_box, 1)
         self.editable_only = QCheckBox("Only what I can edit")
@@ -251,7 +256,8 @@ class FormatExplorerTab(QWidget):
                 files.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                 self.table.setItem(index, 1, files)
                 self.table.setItem(index, 2, QTableWidgetItem(
-                    f"{row.role} · {row.group.replace('_', ' ')}"))
+                    f"{translate_active_ui_text(row.role)} · "
+                    f"{translate_active_ui_text(row.group.replace('_', ' '))}"))
                 self.table.setItem(index, 3, QTableWidgetItem(row.read_label))
                 self.table.setItem(index, 4, QTableWidgetItem(row.write_label))
                 location = localized_tool_location(row.tool)
@@ -356,9 +362,10 @@ class FormatExplorerTab(QWidget):
         self._refresh_tool_link_colors()
         remaining = row.remaining.strip() or "Nothing outstanding."
         self.detail.setHtml(
-            f"<h3>{row.extension} &mdash; {row.read_label.lower()}, {row.write_label.lower()}</h3>"
+            f"<h3>{row.extension} &mdash; {translate_active_ui_text(row.read_label)}, "
+            f"{translate_active_ui_text(row.write_label)}</h3>"
             f"<p><b>{row.files:,}</b> file(s) in the shipped build &middot; "
-            f"{row.origin} format &middot; edited in: <b>{localized_tool_location(row.tool)}</b></p>"
-            f"<p><b>What this rests on:</b> {row.evidence}</p>"
-            f"<p><b>What is left:</b> {remaining}</p>"
+            f"{translate_active_ui_text(row.origin.replace('_', '-').capitalize() + ' format')} &middot; edited in: <b>{localized_tool_location(row.tool)}</b></p>"
+            f"<p><b>What this rests on:</b> {escape(localized_detail_text(row.evidence))}</p>"
+            f"<p><b>What is left:</b> {escape(localized_detail_text(remaining))}</p>"
         )

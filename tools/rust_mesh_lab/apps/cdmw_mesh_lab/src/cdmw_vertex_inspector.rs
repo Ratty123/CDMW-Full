@@ -249,13 +249,13 @@ impl LabApplication {
         actions: &mut Vec<UiAction>,
     ) {
         if self.cdmw_state["vertex_parameters"]["capability"].as_str() != Some(CAPABILITY) {
-            ui.label("Vertex Parameters is unavailable with this host/helper combination.");
+            ui.label(crate::localization::tr("Vertex Parameters is unavailable with this host/helper combination."));
             return;
         }
         if !self.vertex_inspector.note.is_empty() {
-            ui.label(&self.vertex_inspector.note);
+            ui.label(crate::localization::tr(&self.vertex_inspector.note));
         }
-        if ui.button("Refresh values").clicked() {
+        if ui.button(crate::localization::tr("Refresh values")).clicked() {
             self.cancel_vertex_inspection();
             self.vertex_inspector.fetch = true;
             self.vertex_inspector.note.clear();
@@ -263,19 +263,19 @@ impl LabApplication {
         let data = self.vertex_inspector.data.clone();
         if data.is_null() {
             ui.label(
-                if self.vertex_inspector.pending.is_some() || self.vertex_inspector.fetch {
+                crate::localization::tr(if self.vertex_inspector.pending.is_some() || self.vertex_inspector.fetch {
                     "Inspecting the current selection…"
                 } else {
                     "No current inspection. Refresh values to retry."
-                },
+                }),
             );
             return;
         }
         let count = data["count"].as_u64().unwrap_or(0);
-        ui.label(format!("{count} selected vertices · LOD {}", data["lod"]));
-        ui.small(data["space"].as_str().unwrap_or("Model editing space"));
+        ui.label(crate::localization::tr(format!("{count} selected vertices · LOD {}", data["lod"])));
+        ui.small(crate::localization::tr(data["space"].as_str().unwrap_or("Model editing space")));
         if count == 0 {
-            ui.label("Select vertices, edges, faces or whole parts.");
+            ui.label(crate::localization::tr("Select vertices, edges, faces or whole parts."));
             return;
         }
         let authoring = self.cdmw_state["authoring_enabled"].as_bool() == Some(true);
@@ -287,7 +287,7 @@ impl LabApplication {
             && authoring
             && data["token"] == self.vertex_token()
             && self.vertex_inspector.key == self.vertex_key();
-        ui.small("Edit the selection below. Blank fields stay unchanged.");
+        ui.small(crate::localization::tr("Edit the selection below. Blank fields stay unchanged."));
         for (channel, label) in [
             ("position", "Position"),
             ("uv0", "UV Coordinates"),
@@ -296,18 +296,18 @@ impl LabApplication {
             let summary = &data["summaries"][channel];
             let can_edit =
                 ready && data["capabilities"][channel]["editable"].as_bool() == Some(true);
-            egui::CollapsingHeader::new(label)
+            crate::localization::collapsing(label)
                 .id_salt(("vertex-edit", channel))
                 .default_open(count == 1 && channel == "position")
                 .show(ui, |ui| {
                     if !can_edit {
-                        ui.small(if !authoring {
+                        ui.small(crate::localization::tr(if !authoring {
                             policy_reason
                         } else {
                             data["capabilities"][channel]["reason"]
                                 .as_str()
                                 .unwrap_or("Wait for the current operation.")
-                        });
+                        }));
                     }
                     let draft = &mut self.vertex_inspector.draft;
                     let (fields, offset): (&mut [String], Option<&mut bool>) = match channel {
@@ -318,9 +318,9 @@ impl LabApplication {
                     if let Some(offset) = offset {
                         ui.add_enabled_ui(can_edit, |ui| {
                             ui.horizontal_wrapped(|ui| {
-                                ui.label("Change");
-                                ui.selectable_value(offset, false, "Set");
-                                ui.selectable_value(offset, true, "Offset");
+                                ui.label(crate::localization::tr("Change"));
+                                ui.selectable_value(offset, false, crate::localization::tr("Set"));
+                                ui.selectable_value(offset, true, crate::localization::tr("Offset"));
                             })
                         });
                     }
@@ -332,9 +332,9 @@ impl LabApplication {
                         .min_col_width(0.0)
                         .spacing([6.0, 5.0])
                         .show(ui, |ui| {
-                            ui.small("Axis");
-                            ui.small("Current");
-                            ui.small("New value");
+                            ui.small(crate::localization::tr("Axis"));
+                            ui.small(crate::localization::tr("Current"));
+                            ui.small(crate::localization::tr("New value"));
                             ui.end_row();
                             for (axis, field) in fields.iter_mut().enumerate() {
                                 let axis_label = if channel == "uv0" {
@@ -342,7 +342,7 @@ impl LabApplication {
                                 } else {
                                     ["X", "Y", "Z"][axis]
                                 };
-                                ui.label(axis_label);
+                                ui.label(crate::localization::tr(axis_label));
                                 let mixed = summary["mixed"][axis].as_bool() == Some(true);
                                 let current = if mixed {
                                     "Mixed".to_owned()
@@ -351,74 +351,74 @@ impl LabApplication {
                                 };
                                 ui.add_sized(
                                     [current_width, ui.spacing().interact_size.y],
-                                    egui::Label::new(current)
+                                    egui::Label::new(crate::localization::tr(current))
                                         .truncate()
                                         .halign(egui::Align::Min),
                                 )
-                                .on_hover_text(if mixed {
+                                .on_hover_text(crate::localization::tr(if mixed {
                                     format!(
                                         "{axis_label} range: {} to {}",
                                         summary["min"][axis], summary["max"][axis]
                                     )
                                 } else {
                                     format!("{axis_label}: {}", summary["values"][axis])
-                                });
+                                }));
                                 ui.add_enabled(
                                     can_edit,
                                     TextEdit::singleline(field)
                                         .id_salt(("vertex-input", channel, axis))
-                                        .hint_text("Unchanged")
+                                        .hint_text(crate::localization::tr("Unchanged"))
                                         .desired_width(input_width),
                                 );
                                 ui.end_row();
                             }
                         });
-                    ui.small(if channel == "normal" {
+                    ui.small(crate::localization::tr(if channel == "normal" {
                         "Enter all three components to change a normal."
                     } else {
                         "Hover Current for exact values or selection ranges."
-                    });
+                    }));
                 });
         }
-        egui::CollapsingHeader::new("Skin Weights")
+        crate::localization::collapsing("Skin Weights")
             .id_salt("vertex-skin-weights")
             .show(ui, |ui| {
-                ui.label(format!(
+                ui.label(crate::localization::tr(format!(
                     "Total influence: {}",
                     summary_text(&data["summaries"]["weight_total"])
-                ));
-                egui::CollapsingHeader::new("Current influences").show(ui, |ui| {
+                )));
+                crate::localization::collapsing("Current influences").show(ui, |ui| {
                     for influence in data["weight_summaries"].as_array().into_iter().flatten() {
-                        ui.label(format!(
+                        ui.label(crate::localization::tr(format!(
                             "{} (slot {}): {}",
                             influence["name"].as_str().unwrap_or("Unresolved bone"),
                             influence["slot"],
                             summary_text(influence)
-                        ));
+                        )));
                     }
                 });
                 let enabled = ready
                     && data["capabilities"]["weights"]["editable"].as_bool() == Some(true);
                 if !enabled {
-                    ui.small(if !authoring {
+                    ui.small(crate::localization::tr(if !authoring {
                         policy_reason
                     } else {
                         data["capabilities"]["weights"]["reason"]
                             .as_str()
                             .unwrap_or("Weight editing unavailable.")
-                    });
+                    }));
                 } else {
                     let draft = &mut self.vertex_inspector.draft;
-                    ui.checkbox(&mut draft.weight_enabled, "Stage weight change");
+                    ui.checkbox(&mut draft.weight_enabled, crate::localization::tr("Stage weight change"));
                     ui.add_enabled_ui(draft.weight_enabled, |ui| {
-                        ui.label("Operation");
+                        ui.label(crate::localization::tr("Operation"));
                         ComboBox::from_id_salt("vertex-weight-mode")
-                            .selected_text(["Set", "Offset", "Remove", "Normalize"][draft.weight_mode])
+                            .selected_text(crate::localization::tr(["Set", "Offset", "Remove", "Normalize"][draft.weight_mode]))
                             .show_ui(ui, |ui| {
                                 for (index, name) in
                                     ["Set", "Offset", "Remove", "Normalize"].iter().enumerate()
                                 {
-                                    ui.selectable_value(&mut draft.weight_mode, index, *name);
+                                    ui.selectable_value(&mut draft.weight_mode, index, crate::localization::tr(*name));
                                 }
                             });
                         if draft.weight_mode != 3 {
@@ -426,8 +426,9 @@ impl LabApplication {
                             let name = bones.iter()
                                 .find(|bone| bone["bone"].as_i64() == draft.bone)
                                 .and_then(|bone| bone["name"].as_str())
-                                .unwrap_or("Choose bone");
-                            ui.label("Bone");
+                                .map(str::to_owned)
+                                .unwrap_or_else(|| crate::localization::tr("Choose bone"));
+                            ui.label(crate::localization::tr("Bone"));
                             ComboBox::from_id_salt("vertex-weight-bone")
                                 .width(ui.available_width().max(20.0))
                                 .truncate()
@@ -437,21 +438,22 @@ impl LabApplication {
                                         ui.selectable_value(
                                             &mut draft.bone,
                                             bone["bone"].as_i64(),
-                                            bone["name"].as_str().unwrap_or("Unresolved"),
+                                            bone["name"].as_str().map(str::to_owned)
+                                                .unwrap_or_else(|| crate::localization::tr("Unresolved")),
                                         );
                                     }
                                 });
                         }
                         if draft.weight_mode < 2 {
-                            ui.label(if draft.weight_mode == 0 {
+                            ui.label(crate::localization::tr(if draft.weight_mode == 0 {
                                 "Influence (0–1)"
                             } else {
                                 "Influence offset"
-                            });
+                            }));
                             ui.add(TextEdit::singleline(&mut draft.weight)
-                                .hint_text("Value").desired_width(112.0));
+                                .hint_text(crate::localization::tr("Value")).desired_width(112.0));
                         }
-                        ui.small("Other influences redistribute proportionally. Cloth guide weights are preserved.");
+                        ui.small(crate::localization::tr("Other influences redistribute proportionally. Cloth guide weights are preserved."));
                     });
                 }
             });
@@ -460,7 +462,7 @@ impl LabApplication {
             if ui
                 .add_enabled(
                     ready && self.vertex_inspector.draft.dirty(),
-                    Button::new(format!("Apply to {count} vertices")),
+                    Button::new(crate::localization::tr(format!("Apply to {count} vertices"))),
                 )
                 .clicked()
             {
@@ -473,13 +475,13 @@ impl LabApplication {
                     Err(error) => self.vertex_inspector.note = error,
                 }
             }
-            if ui.button("Discard").clicked() {
+            if ui.button(crate::localization::tr("Discard")).clicked() {
                 self.vertex_inspector.clear_draft();
                 self.vertex_inspector.note.clear();
             }
         });
         ui.separator();
-        egui::CollapsingHeader::new("Inspect one vertex")
+        crate::localization::collapsing("Inspect one vertex")
             .id_salt("vertex-individual-inspection")
             .default_open(count == 1)
             .show(ui, |ui| {
@@ -490,27 +492,27 @@ impl LabApplication {
                     ComboBox::from_id_salt("vertex-row")
                         .width(ui.available_width().max(20.0))
                         .truncate()
-                        .selected_text(row_label(selected))
+                        .selected_text(crate::localization::tr(row_label(selected)))
                         .show_ui(ui, |ui| {
                             for (index, row) in rows.iter().enumerate() {
                                 ui.selectable_value(
                                     &mut self.vertex_inspector.row,
                                     index,
-                                    row_label(row),
+                                    crate::localization::tr(row_label(row)),
                                 );
                             }
                         })
                         .response
-                        .on_hover_text(row_label(selected));
-                    ui.small("Viewing a row does not change the batch selection.");
+                        .on_hover_text(crate::localization::tr(row_label(selected)));
+                    ui.small(crate::localization::tr("Viewing a row does not change the batch selection."));
                     let row = &rows[self.vertex_inspector.row];
-                    ui.label(format!(
+                    ui.label(crate::localization::tr(format!(
                         "Source: {} · part {} · original index {}",
                         row["source"]["kind"].as_str().unwrap_or("unmapped"),
                         shown(&row["source"]["part"]),
                         shown(&row["source"]["original_index"])
-                    ));
-                    egui::CollapsingHeader::new("Vertex values")
+                    )));
+                    crate::localization::collapsing("Vertex values")
                         .default_open(count == 1)
                         .show(ui, |ui| {
                             for (name, key) in [
@@ -519,31 +521,31 @@ impl LabApplication {
                                 ("Normal", "normal"),
                                 ("Tangent (read-only)", "tangent"),
                             ] {
-                                ui.label(format!("{name}: {}", shown(&row[key])))
-                                    .on_hover_text(row[key].to_string());
+                                ui.label(crate::localization::tr(format!("{name}: {}", shown(&row[key]))))
+                                    .on_hover_text(crate::localization::tr(row[key].to_string()));
                             }
                             ui.small(
-                                "Tangents: PAC save does not support authored tangent writeback.",
+                                crate::localization::tr("Tangents: PAC save does not support authored tangent writeback."),
                             );
                             if let Some(influences) = row["weights"]["influences"].as_array() {
                                 for influence in influences {
-                                    ui.label(format!(
+                                    ui.label(crate::localization::tr(format!(
                                         "{} (slot {}): {}",
                                         influence["name"].as_str().unwrap_or("Unresolved bone"),
                                         influence["slot"],
                                         influence["weight"]
-                                    ));
+                                    )));
                                 }
-                                ui.label(format!(
+                                ui.label(crate::localization::tr(format!(
                                     "Weight total: {}",
                                     shown(&row["weights"]["total"])
-                                ));
+                                )));
                             } else {
-                                ui.label("Skin weights unavailable.");
+                                ui.label(crate::localization::tr("Skin weights unavailable."));
                             }
                             let cloth = &row["cloth"];
                             if cloth["available"].as_bool() == Some(true) {
-                                ui.label(format!(
+                                ui.label(crate::localization::tr(format!(
                                     "Cloth: original {} · effective {} · {}",
                                     shown(&cloth["original_influence"]),
                                     shown(&cloth["effective_influence"]),
@@ -552,17 +554,17 @@ impl LabApplication {
                                     } else {
                                         "Moving"
                                     }
-                                ));
-                                ui.label(format!(
+                                )));
+                                ui.label(crate::localization::tr(format!(
                                     "Guide bindings: {} · weights {}",
                                     shown(&cloth["guide_indices"]),
                                     shown(&cloth["guide_weights"])
-                                ));
+                                )));
                             } else {
                                 ui.label(
-                                    cloth["reason"]
+                                    crate::localization::tr(cloth["reason"]
                                         .as_str()
-                                        .unwrap_or("Cloth mapping unavailable."),
+                                        .unwrap_or("Cloth mapping unavailable.")),
                                 );
                             }
                         });
@@ -571,14 +573,14 @@ impl LabApplication {
                     let pages = count.div_ceil(128);
                     let mut page = self.vertex_inspector.page;
                     if ui
-                        .add_enabled(page > 0, Button::new("Previous vertices"))
+                        .add_enabled(page > 0, Button::new(crate::localization::tr("Previous vertices")))
                         .clicked()
                     {
                         page -= 1;
                     }
-                    ui.label(format!("Page {} / {pages}", page + 1));
+                    ui.label(crate::localization::tr(format!("Page {} / {pages}", page + 1)));
                     if ui
-                        .add_enabled(page + 1 < pages, Button::new("Next vertices"))
+                        .add_enabled(page + 1 < pages, Button::new(crate::localization::tr("Next vertices")))
                         .clicked()
                     {
                         page += 1;
@@ -590,23 +592,23 @@ impl LabApplication {
                     }
                 });
             });
-        egui::CollapsingHeader::new("Cloth & other data")
+        crate::localization::collapsing("Cloth & other data")
             .id_salt("vertex-readonly-data")
             .show(ui, |ui| {
-                ui.label(format!("Tangents (read-only): {}", summary_text(&data["summaries"]["tangent"])));
-                ui.label(format!(
+                ui.label(crate::localization::tr(format!("Tangents (read-only): {}", summary_text(&data["summaries"]["tangent"]))));
+                ui.label(crate::localization::tr(format!(
                     "Cloth original: {}",
                     summary_text(&data["cloth_summary"]["original_influence"])
-                ));
-                ui.label(format!(
+                )));
+                ui.label(crate::localization::tr(format!(
                     "Cloth effective: {} · {} fixed",
                     summary_text(&data["cloth_summary"]["effective_influence"]),
                     data["cloth_summary"]["fixed_count"]
-                ));
-                if ui.button("Open Cloth Controls").clicked() {
+                )));
+                if ui.button(crate::localization::tr("Open Cloth Controls")).clicked() {
                     self.open_cdmw_tool_settings(ui.ctx(), CdmwRailPage::Cloth);
                 }
-                ui.small("UV1 and vertex colours are unavailable. Other undecoded fields are preserved without editing.");
+                ui.small(crate::localization::tr("UV1 and vertex colours are unavailable. Other undecoded fields are preserved without editing."));
             });
     }
 }
