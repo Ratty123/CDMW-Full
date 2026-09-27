@@ -10,7 +10,7 @@ import threading
 import time
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageOps
 import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QDialogButtonBox, QWidget
@@ -29,6 +29,7 @@ from cdmw.services.new_item_translucency import apply_prebuilt_translucency
 from cdmw.services.new_item_transparency_paint import TransparencyPaintSource, prepare_transparency_paint
 from tests.test_translucency_surface import source_files, PAC, XML, SP
 from tests.test_new_item_rust_ui import studio, _send
+from tests.test_new_item_model_apply import studio as model_studio
 
 
 @pytest.mark.parametrize("target", ["colour", "surface", "linked"])
@@ -111,6 +112,67 @@ def test_painter_prepares_two_lossless_masks_without_export_encoding(monkeypatch
     prepared = prepare_transparency_paint(snapshot_for(files), appearance, "Blade", "blending")
     assert prepared.mask == mask and prepared.surface_mask == selected.surface_response_mask
     assert prepared.controls == selected
+
+
+@pytest.mark.parametrize("alpha_mode", ["OPAQUE", "BLEND"])
+@pytest.mark.parametrize("saved", [False, True])
+def test_imported_glass_painter_reads_source_alpha_without_exporting_textures(tmp_path, monkeypatch, alpha_mode, saved):
+    from cdmw.core import texture_native
+    from cdmw.modding.scene_importer import import_scene_mesh_with_report
+    from cdmw.services.new_item_variants import variant_bindings, xml_path
+    from tests.test_new_item_provenance import setup_game
+    from tests.test_new_item_service import TEMPLATE
+    from tests.test_new_item_texture_fidelity import write_gltf
+
+    _, snapshot, _ = setup_game(tmp_path)
+    binding, model_path = next(iter(variant_bindings(snapshot.family(TEMPLATE))))
+    Image.new("RGBA", (24, 12), (100, 150, 200, 128)).save(tmp_path / "colour.png")
+    scene = import_scene_mesh_with_report(write_gltf(tmp_path, [{
+        "name": "Glass", "alphaMode": alpha_mode,
+        "pbrMetallicRoughness": {"baseColorTexture": {"index": 0}, "baseColorFactor": [1, 1, 1, 0.5]},
+    }], ["colour.png"]))
+    files = source_files()
+    result = SimpleNamespace(rebuilt_data=files.pac_data,
+        supplemental_file_specs=tuple(SimpleNamespace(target_path=xml_path(model_path) if key == XML else key, payload_data=data)
+                                      for key, data in files.side_files.items()),
+        source_owned_output_draw_sections=(SimpleNamespace(target_submesh_name="Blade", source_material_name="Glass"),))
+    mask = gradient() if saved else None
+    appearance = VariantAppearance(binding.prefab_path, model_path, custom_model=True,
+        material_route=MaterialRoute.PLAIN_PBR.value, glow_parts=("Glass",),
+        translucency=TranslucencyChoice.from_settings({"Glass": (.4, .6)}, {"Glass": (.9, 0)}, {"Glass": mask}))
+    monkeypatch.setattr(texture_native, "encode_dds_with_directxtex",
+                        lambda *_a, **_k: pytest.fail("Opening the painter must not export material textures"))
+    prepared = prepare_transparency_paint(snapshot, appearance, "Glass", "translucency",
+        template_key=TEMPLATE, result=result, scene=scene)
+    if saved:
+        assert prepared.mask == mask
+    else:
+        assert (prepared.mask.width, prepared.mask.height) == (24, 12)
+        assert set(prepared.mask.pixels) == ({0} if alpha_mode == "OPAQUE" else {191})
+    assert len(prepared.reference_rgba) == prepared.mask.width * prepared.mask.height * 4
+    assert files == source_files()
+
+
+@pytest.mark.parametrize("base_parameter", ["_baseColorTexture", "_overlayColorTexture"])
+def test_prebuilt_glass_painter_keeps_alpha_without_encoding_surface_overrides(monkeypatch, base_parameter):
+    from cdmw.core import texture_native
+    from cdmw.services.new_item_planning import NewItemPlanError
+
+    files = source_files()
+    files = replace(files, side_files={**files.side_files,
+        XML: files.side_files[XML].replace(b"_baseColorTexture", base_parameter.encode())})
+    appearance = VariantAppearance("fixture.prefab", PAC, custom_model=True,
+        material_route=MaterialRoute.PLAIN_PBR.value,
+        translucency=TranslucencyChoice.from_settings({"Blade": (.4, .6)}, {"Blade": (.9, 0)}))
+    monkeypatch.setattr(texture_native, "encode_dds_with_directxtex",
+                        lambda *_a, **_k: pytest.fail("Opening the painter must not export material textures"))
+    prepared = prepare_transparency_paint(snapshot_for(files), appearance, "Blade", "translucency", result=files)
+    assert (prepared.mask.width, prepared.mask.height) == (8, 8)
+    expected = ImageOps.invert(Image.open(BytesIO(files.side_files["character/texture/base.dds"])).getchannel("A"))
+    assert prepared.mask.pixels == expected.tobytes()
+    with pytest.raises(NewItemPlanError, match="Enable Plain PBR materials"):
+        prepare_transparency_paint(snapshot_for(files), replace(appearance, material_route=MaterialRoute.BUILDER.value),
+                                   "Blade", "translucency", result=files)
 
 
 def test_linked_fill_authors_both_inherited_masks_even_when_pixels_already_match():
@@ -726,6 +788,58 @@ def test_rust_paint_action_opens_canvas_and_apply_invalidates_plan(studio, monke
         from shiboken6 import isValid
         if isValid(dialog):
             dialog.close()
+
+
+@pytest.mark.parametrize("mode", ["blending", "translucency"])
+@pytest.mark.parametrize("toggle_glow", [False, True])
+def test_painter_opens_after_async_placement_without_a_glow_reset(model_studio, monkeypatch, mode, toggle_glow):
+    from cdmw.modding.scene_material_audit import ImportedMaterialBinding
+    from cdmw.ui.new_item.rust_ui_bridge import NewItemPresentationBridge
+    from tests.test_new_item_model_apply import _import
+
+    app, tab = model_studio
+    source = _import(tab)
+    source.scene = replace(source.scene, material_bindings=(ImportedMaterialBinding(material_name="Blade", submesh_index=0),))
+    controller, panel = tab.controller, tab.model_panel
+    controller._material_parts = ()
+    controller.draft.material_route = MaterialRoute.PLAIN_PBR
+    controller.draft.glow_parts = ("Blade",)
+    if mode == "blending":
+        controller.draft.shader_controls = (("Blade", controls()),)
+    else:
+        controller.draft.translucency = TranslucencyChoice(("Blade",))
+    controller.invalidate_plan()
+    panel.refresh_glow_parts()
+    tab.show_step(2)
+    tab.show()
+    bridge = NewItemPresentationBridge(tab)
+    _send(bridge, panel.inspector_tabs, "tab", 1)
+    button = (panel.shader_controls_editor if mode == "blending" else panel.translucency_editor).paint_mask
+    messages = []
+    controller.status_message.connect(lambda text, _error: messages.append(text))
+    _send(bridge, button, "activate")
+    _wait(app, lambda: not controller.busy)
+    assert any("Apply the placement" in message for message in messages)
+    assert button.isEnabled()
+    built = source_files()
+    monkeypatch.setattr("cdmw.ui.new_item.controller.build_placed_import", lambda *_a, **_k: built)
+    _send(bridge, panel.apply_button, "activate")
+    _wait(app, lambda: not controller.busy)
+    assert controller.model_result is built
+    _send(bridge, panel.inspector_tabs, "tab", 1)
+    assert button.isEnabled()
+    if toggle_glow:
+        _send(bridge, panel.glow_box, "toggle", False)
+        _send(bridge, panel.glow_box, "toggle", True)
+    _send(bridge, button, "activate")
+    _wait(app, lambda: not controller.busy)
+    dialog = panel._transparency_painter
+    try:
+        assert dialog.isVisible()
+        assert button.isEnabled()
+        assert panel.operation_banner.isHidden()
+    finally:
+        dialog.close()
 
 
 @pytest.mark.parametrize("mode", ["blending", "surface", "linked", "cutout", "translucency"])

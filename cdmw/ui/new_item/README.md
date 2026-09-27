@@ -62,6 +62,10 @@ reused when reopening the painter, avoiding repeated compression loss. Preparati
 runs on the controller's cancellable worker; changing the model, variant or draft
 rejects an outdated painting session. Model and Effects previews use derived
 resources; visible appearance and game rendering still require separate checks.
+For imported models, the Translucency painter reads the selected material's source
+colour and alpha directly, preserving its alpha mode and factors. It does not
+rebuild glow, surface or export textures before opening; placement must still be
+applied to establish the output material bindings and reject shared atlases.
 Native template graph composition retains the painted colour/absorption channel
 after composing its source layers; unrelated channels and owners still use the
 original graph. Interactive painting and preview resources do not invoke BC7.
