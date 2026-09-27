@@ -30,6 +30,10 @@ hides the existing tab bars, routes its rail through the shared activation
 path, reuses the existing actions and status widgets, and never constructs a
 second tool/controller/worker tree. Its shared application theme and category state
 are documented in `docs/features/compact-workspace.md`.
+The shared Activity drawer checks tool-log content without copying the complete
+document on tab activation or each appended line. Repeated activation keeps its
+document connection; Copy still retrieves the full log, and whitespace-only logs
+retain their empty-state and Copy/Clear behavior.
 Assets lists Browse Archives, Create New Item, Model Library, and Item Icons in
 that order.
 The Compact navigation rail sizes to its labels, icons, and layout margins,

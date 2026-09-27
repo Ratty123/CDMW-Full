@@ -338,6 +338,17 @@ The cache retains at most 16 entries and 64 MiB. Waiting for an encode and the e
 itself are cancellable; failed or cancelled work is not cached. The first encode
 still performs the full-quality conversion.
 
+The shared native encoder also reuses unchanged DDS results for imported model
+textures, viewport preparation, Apply placement and Build plan, including surface
+and emission maps. This process cache is bounded to 64 results and 128 MiB and
+matches source contents and every conversion policy, even when temporary paths
+change. Direct and full viewport preparation can reuse the same texture bytes.
+Changed images, colour/alpha settings, formats, mipmaps or encoders require a new
+conversion. Publication and cancellation checks still run on reused outputs.
+First-time BC7 encoding also reuses identical 4x4 blocks across bounded chunks and
+mip levels; it preserves the original compressor and bytes. Highly detailed
+textures with few repeated blocks can still take significant time on first encode.
+
 Layered template translucency also reuses completed material bakes in a separate
 session cache, bounded to 16 materials and 64 MiB. Its key includes the authored XML,
 model path, source DDS contents and encoder identity. Changing only thickness or

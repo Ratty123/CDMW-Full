@@ -285,6 +285,47 @@ def test_tool_log_adapter_reuses_the_existing_document() -> None:
     assert output_panel.log.toPlainText() == ""  # type: ignore[attr-defined]
 
 
+def test_drawer_switch_and_append_do_not_materialize_the_tool_log(monkeypatch):
+    app = _app()
+    host = QWidget()
+    drawer = CompactActivityDrawer(ActivityHistory(parent=host), host)
+    source = QPlainTextEdit(host)
+    source.setPlainText("Prepared texture\n" * 20000)
+    adapter = ToolLogAdapter("model", "Model", source.document())
+    original_text = ToolLogAdapter.text
+    calls = []
+
+    def text(current):
+        calls.append(current.tool_key)
+        return original_text(current)
+
+    monkeypatch.setattr(ToolLogAdapter, "text", text)
+    try:
+        drawer.tabs.setCurrentIndex(1)
+        for _ in range(20):
+            drawer.set_tool_log(adapter)
+            source.appendPlainText("Another texture")
+        assert not calls
+        assert drawer.tool_log_view.document() is source.document()
+        assert drawer.tool_log_stack.currentWidget() is drawer.tool_log_view
+        assert drawer.copy_button.isEnabled() and drawer.clear_button.isEnabled()
+        drawer._copy_current_view()
+        assert calls == ["model"]
+        assert app.clipboard().text() == source.toPlainText()
+        drawer._clear_current_view()
+        assert source.document().isEmpty()
+        assert not drawer.copy_button.isEnabled() and not drawer.clear_button.isEnabled()
+        source.setPlainText(" \n\t\u00a0")
+        assert drawer.tool_log_stack.currentWidget() is drawer.tool_log_empty_label
+        assert drawer.copy_button.isEnabled()  # Whitespace can still be copied/cleared.
+        source.appendPlainText("Visible status")
+        assert drawer.tool_log_stack.currentWidget() is drawer.tool_log_view
+    finally:
+        drawer.set_tool_log(ToolLogAdapter("", ""))
+        host.deleteLater()
+        app.processEvents()
+
+
 def test_compact_status_snapshots_cover_all_tools_without_constructing_lazy_tabs() -> None:
     _app()
     owner = _bind_feature_test_owner(QWidget())

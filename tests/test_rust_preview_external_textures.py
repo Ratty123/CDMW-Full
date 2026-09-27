@@ -128,6 +128,43 @@ def test_layer_scalar_images_do_not_become_global_surface_maps(tmp_path, image_e
     assert not image_encoder
 
 
+def test_direct_and_full_viewports_reuse_exact_native_textures(tmp_path, monkeypatch):
+    from collections import OrderedDict
+    from cdmw.core import texture_encode_cache, texture_native
+
+    monkeypatch.setattr(texture_encode_cache, "_CACHE", OrderedDict())
+    source = tmp_path / "colour.png"
+    Image.new("RGBA", (16, 16), (71, 93, 117, 128)).save(source)
+    mesh = _triangle()
+    mesh.format = "gltf"
+    mesh.submeshes[0].preview_texture_path = str(source)
+    original_run = texture_native.run_process_with_cancellation
+    calls = []
+
+    def run(command, **kwargs):
+        if command[1] == "batch-encode-json":
+            calls.append(command)
+        return original_run(command, **kwargs)
+
+    monkeypatch.setattr(texture_native, "run_process_with_cancellation", run)
+    packages = []
+    for quality in ("direct", "full"):
+        package, textures = _package(mesh, tmp_path / quality, material_quality=quality)
+        packages.append((package, textures))
+    assert len(calls) == 1, "the full viewport must reuse the direct tier's unchanged DDS"
+    first, second = packages
+    assert first[1].keys() == second[1].keys() == {"base_color"}
+    for role in first[1]:
+        before = (first[0].package_dir / first[1][role]["file"]["path"]).read_bytes()
+        after = (second[0].package_dir / second[1][role]["file"]["path"]).read_bytes()
+        assert before == after
+    assert not getattr(mesh.submeshes[0], "preview_texture_dds_path", "")
+    Image.new("RGBA", (16, 16), (117, 93, 71, 64)).save(source)
+    changed, textures = _package(mesh, tmp_path / "changed", material_quality="direct")
+    assert len(calls) == 2
+    assert (changed.package_dir / textures["base_color"]["file"]["path"]).read_bytes() != before
+
+
 def test_imported_preview_rebuilds_the_previous_material_cache(
     tmp_path, monkeypatch, image_encoder,
 ):

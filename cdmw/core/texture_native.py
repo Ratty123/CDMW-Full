@@ -1105,6 +1105,71 @@ def encode_dds_batch_with_directxtex(
     if not requests:
         return {}
 
+    output_paths = {request.output_path for request in requests}
+    if len(output_paths) != len(requests) or any(request.input_path in output_paths for request in requests):
+        # Preserve the original ordering for aliases and batches that overwrite
+        # one of their own inputs. A hit must not publish ahead of a native miss.
+        return _encode_dds_requests_with_directxtex(
+            requests, binary=binary, timeout_seconds=timeout_seconds, on_log=on_log, stop_event=stop_event,
+        )
+
+    from cdmw.core.texture_encode_cache import cached_encode, encode_key
+
+    backend_identity = (NATIVE_TEXTURE_PROTOCOL_VERSION, native_texture_backend_identity(binary=binary))
+    pending: list[NativeTextureEncodeRequest] = []
+    keys = {}
+    results: Dict[str, Dict[str, Any]] = {}
+    started_at = time.monotonic()
+    for request in requests:
+        raise_if_cancelled(stop_event, "DirectXTex DDS encode cancelled.")
+        try:
+            key = encode_key(request, backend_identity, stop_event)
+        except OSError:
+            pending.append(request)
+            continue
+        keys[request] = key
+        cached = cached_encode(key)
+        if cached is None:
+            pending.append(request)
+            continue
+        data, item = cached
+        staged = _staged_dds_path(request.output_path)
+        try:
+            staged.write_bytes(data)
+            _validate_staged_dds(staged, request, item)
+            raise_if_cancelled(stop_event, "DirectXTex DDS encode cancelled before publication.")
+            os.replace(staged, request.output_path)
+        except RunCancelled:
+            raise
+        except (OSError, ValueError):
+            # Cache reuse must pass the normal publication checks. Let the
+            # ordinary encoder report any input/output failure on a retry.
+            pending.append(request)
+            continue
+        finally:
+            staged.unlink(missing_ok=True)
+        item.update(source_path=str(request.input_path), output_path=str(request.output_path),
+                    encode_ms=0, batch_elapsed_seconds=time.monotonic() - started_at)
+        results[str(request.output_path)] = item
+
+    if pending:
+        encoded = _encode_dds_requests_with_directxtex(
+            pending, binary=binary, timeout_seconds=timeout_seconds, on_log=on_log, stop_event=stop_event,
+            cache_keys=keys,
+        )
+        results.update(encoded)
+    return results
+
+
+def _encode_dds_requests_with_directxtex(
+    requests: Sequence[NativeTextureEncodeRequest],
+    *,
+    binary: Path,
+    timeout_seconds: Optional[float],
+    on_log: Optional[Any],
+    stop_event: Optional[threading.Event],
+    cache_keys: Optional[Mapping[NativeTextureEncodeRequest, tuple]] = None,
+) -> Dict[str, Dict[str, Any]]:
     resolved_timeout = (
         _clamp_native_batch_timeout(float(timeout_seconds))
         if timeout_seconds is not None
@@ -1220,8 +1285,21 @@ def encode_dds_batch_with_directxtex(
                     reason="native_item_failed",
                 )
                 continue
+            cache_data = None
+            key = cache_keys.get(request) if cache_keys is not None else None
             try:
                 _validate_staged_dds(staged, request, raw_item)
+                if key is not None:
+                    from cdmw.core.texture_encode_cache import encode_key, prepared_encode_bytes
+
+                    try:
+                        # Read the owned staging file, never a destination that
+                        # another writer could replace immediately after publish.
+                        # Source edits during encoding must not enter the cache.
+                        if encode_key(request, key[0], stop_event) == key:
+                            cache_data = prepared_encode_bytes(staged, stop_event)
+                    except OSError:
+                        pass  # Reuse is optional; normal publication still runs.
                 raise_if_cancelled(stop_event, "DirectXTex DDS encode cancelled before publication.")
                 os.replace(staged, request.output_path)
             except RunCancelled:
@@ -1244,6 +1322,10 @@ def encode_dds_batch_with_directxtex(
             item["output_path"] = str(request.output_path)
             item["protocol_version"] = NATIVE_TEXTURE_PROTOCOL_VERSION
             item["batch_elapsed_seconds"] = time.monotonic() - started_at
+            if cache_data is not None:
+                from cdmw.core.texture_encode_cache import remember_encode
+
+                remember_encode(key, cache_data, item, stop_event)
             results[str(request.output_path)] = item
         return results
     finally:

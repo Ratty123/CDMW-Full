@@ -106,7 +106,7 @@ static const char* repeated_bc7_failure() {
     struct Case { size_t width, height; bool srgb; };
     // Odd/narrow images exercise DirectXTex's partial-block padding at every mip.
     const Case cases[] = {{13, 11, false}, {13, 11, true}, {1, 17, false},
-                          {18, 2, true}, {3, 3, false}, {12, 4, false}};
+                          {18, 2, true}, {3, 3, false}, {12, 4, false}, {12, 4, true}};
     for (const auto& item : cases) {
         const auto input_format = item.srgb ? DXGI_FORMAT_R8G8B8A8_UNORM_SRGB : DXGI_FORMAT_R8G8B8A8_UNORM;
         const auto output_format = item.srgb ? DXGI_FORMAT_BC7_UNORM_SRGB : DXGI_FORMAT_BC7_UNORM;
@@ -139,7 +139,7 @@ static const char* repeated_bc7_failure() {
             // Cross the chunk boundary without making the startup/package
             // self-test recompress tens of thousands of identical reference blocks.
             DirectX::ScratchImage tiled, tiled_result;
-            hr = tiled.Initialize2D(input_format, 1024, 1028, 1, 1);
+            hr = tiled.Initialize2D(input_format, 1024, 2052, 1, 1);
             if (FAILED(hr)) return "initialize_chunked_bc7";
             const auto& large = tiled.GetImages()[0];
             const size_t columns = large.width / 4;

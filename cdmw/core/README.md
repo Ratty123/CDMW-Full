@@ -27,6 +27,15 @@ older or unrelated processes descendants of a helper.
 leases. Builders publish complete units before returning; readers hold a lease
 while consuming paths, and pruning skips active or just-returned units.
 
+`texture_encode_cache.py` retains at most 64 validated native DDS results and
+128 MiB within the process. Its keys hash the prepared source contents and include
+the encoder identity, format, dimensions, mip count, colour/alpha policies and
+coverage threshold. Preview preparation, placement builds and output plans share
+this reuse without changing quality or output ownership. Cache hits still use
+staged DDS validation, cancellation checks and atomic publication; failures and
+sources changed during conversion are not retained. Encoding and file I/O run
+outside the cache lock so independent workers do not wait behind another encode.
+
 Brand-new archive content is split by format owner. `archive_entry_addition.py`
 adds validated PAMT/PAZ entries; `archive_overlay.py` and `papgt_format.py` build
 and mount isolated archive groups; the ItemInfo, StringInfo, StoreInfo,

@@ -195,6 +195,38 @@ def test_repeated_import_material_preparation_reuses_real_bc7_bytes(tmp_path, mo
     assert (info.format_name, info.width, info.height, info.mip_count) == ("BC7_UNORM", 32, 32, 6)
 
 
+def test_repeated_import_and_plan_materials_reuse_all_native_channels(tmp_path, monkeypatch):
+    from collections import OrderedDict
+    from cdmw.core import texture_encode_cache, texture_native
+
+    monkeypatch.setattr(texture_encode_cache, "_CACHE", OrderedDict())
+    for name, colour in (("colour.png", (72, 94, 116)), ("surface.png", (0, 80, 160)),
+                         ("emissive.png", (8, 16, 64))):
+        Image.new("RGB", (16, 16), colour).save(tmp_path / name)
+    path = write_gltf(tmp_path, [{"name": "Blade", "pbrMetallicRoughness": {
+        "baseColorTexture": {"index": 0}, "metallicRoughnessTexture": {"index": 1}},
+        "emissiveTexture": {"index": 2}, "emissiveFactor": [1, 1, 1]}],
+        ["colour.png", "surface.png", "emissive.png"])
+    original_run, calls = texture_native.run_process_with_cancellation, []
+
+    def run(command, **kwargs):
+        if command[1] == "batch-encode-json":
+            calls.append(command)
+        return original_run(command, **kwargs)
+
+    monkeypatch.setattr(texture_native, "run_process_with_cancellation", run)
+    _, first, _ = export_materials(path, tmp_path)
+    initial_calls = len(calls)
+    assert initial_calls > 0
+    _, second, _ = export_materials(path, tmp_path)
+    assert len(calls) == initial_calls
+    assert first.side_files == second.side_files
+    Image.new("RGB", (16, 16), (116, 94, 72)).save(tmp_path / "colour.png")
+    _, changed, _ = export_materials(path, tmp_path)
+    assert len(calls) > initial_calls
+    assert changed.side_files != first.side_files
+
+
 @pytest.mark.parametrize("alpha_mode, expected_alpha", [("BLEND", 64), ("OPAQUE", 255)])
 def test_selected_translucency_keeps_source_alpha_through_import_and_export(tmp_path, alpha_mode, expected_alpha):
     from cdmw.domain.new_item.translucency import TranslucencyChoice

@@ -132,9 +132,13 @@ HRESULT compress_bc7_repeated_blocks(
 
     // Bound scratch memory independently of texture size. BC7 encodes each 4x4
     // block independently: identical RGBA bytes need the same expensive search
-    // only once. Keep the original compressor, flags, mip pixels and output order.
+    // only once, including repeats in later chunks/mips. Keep the original
+    // compressor, flags, mip pixels and output order.
     constexpr size_t chunk_blocks = 65536;
     constexpr size_t atlas_columns = 256;
+    using EncodedBlock = std::array<uint8_t, 16>;
+    std::unordered_map<RgbaBlock, EncodedBlock, RgbaBlockHash> reused;
+    reused.reserve(chunk_blocks);
     for (size_t image_index = 0; image_index < source.GetImageCount(); ++image_index) {
         const auto& image = source.GetImages()[image_index];
         const auto& destination = output.GetImages()[image_index];
@@ -144,12 +148,21 @@ HRESULT compress_bc7_repeated_blocks(
             const size_t count = std::min(chunk_blocks, block_count - start);
             std::unordered_map<RgbaBlock, size_t, RgbaBlockHash> unique;
             unique.reserve(count);
-            std::vector<size_t> indices;
+            std::vector<std::pair<size_t, size_t>> indices;
             indices.reserve(count);
             for (size_t index = 0; index < count; ++index) {
-                const auto [entry, inserted] = unique.try_emplace(rgba_block(image, start + index), unique.size());
-                indices.push_back(entry->second);
+                const size_t original = start + index;
+                const auto block = rgba_block(image, original);
+                const auto cached = reused.find(block);
+                if (cached != reused.end()) {
+                    std::memcpy(destination.pixels + (original / columns) * destination.rowPitch + (original % columns) * 16,
+                                cached->second.data(), 16);
+                    continue;
+                }
+                const auto [entry, inserted] = unique.try_emplace(block, unique.size());
+                indices.emplace_back(original, entry->second);
             }
+            if (unique.empty()) continue;
             const size_t packed_columns = std::min(atlas_columns, unique.size());
             const size_t packed_rows = (unique.size() + packed_columns - 1) / packed_columns;
             DirectX::ScratchImage packed;
@@ -168,11 +181,17 @@ HRESULT compress_bc7_repeated_blocks(
                                    DirectX::TEX_THRESHOLD_DEFAULT, compressed);
             if (FAILED(hr)) return hr;
             const auto& encoded = compressed.GetImages()[0];
-            for (size_t index = 0; index < count; ++index) {
-                const size_t original = start + index;
-                const size_t distinct = indices[index];
+            for (const auto& [original, distinct] : indices) {
                 std::memcpy(destination.pixels + (original / columns) * destination.rowPitch + (original % columns) * 16,
                             encoded.pixels + (distinct / packed_columns) * encoded.rowPitch + (distinct % packed_columns) * 16, 16);
+            }
+            // Keep at most one chunk of completed blocks. Clearing only changes
+            // reuse opportunities; all misses still use the identical encoder.
+            if (reused.size() + unique.size() > chunk_blocks) reused.clear();
+            for (const auto& [block, distinct] : unique) {
+                EncodedBlock bytes;
+                std::memcpy(bytes.data(), encoded.pixels + (distinct / packed_columns) * encoded.rowPitch + (distinct % packed_columns) * 16, 16);
+                reused.emplace(block, bytes);
             }
         }
     }

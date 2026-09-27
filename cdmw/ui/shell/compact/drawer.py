@@ -108,14 +108,18 @@ class CompactActivityDrawer(QFrame):
         self._connected_document = None
 
     def set_tool_log(self, adapter: ToolLogAdapter) -> None:
-        self._disconnect_document()
         self._tool_adapter = adapter
         document = adapter.document or self._empty_document
+        if self.tool_log_view.document() is document:
+            self._update_tool_log_empty_state()
+            return
+        self._disconnect_document()
         self.tool_log_view.setDocument(document)
         if self._log_font is not None:
             self.tool_log_view.setFont(self._log_font)
             self.tool_log_view.setProperty("_cdmw_global_font_managed", False)
-            document.setDefaultFont(self._log_font)
+            if document.defaultFont() != self._log_font:
+                document.setDefaultFont(self._log_font)
         if adapter.document is not None:
             self._connected_document = adapter.document
             adapter.document.contentsChanged.connect(self._update_tool_log_empty_state)
@@ -133,12 +137,23 @@ class CompactActivityDrawer(QFrame):
         if not adapter.available:
             self.tool_log_empty_label.setText("No log is available for this tool.")
             self.tool_log_stack.setCurrentWidget(self.tool_log_empty_label)
-        elif not adapter.text().strip():
+        elif not self._document_has_content(adapter.document):
             self.tool_log_empty_label.setText("This tool's log is empty.")
             self.tool_log_stack.setCurrentWidget(self.tool_log_empty_label)
         else:
             self.tool_log_stack.setCurrentWidget(self.tool_log_view)
         self._update_action_state()
+
+    @staticmethod
+    def _document_has_content(document) -> bool:
+        # Navigation and every appended line reach this check. Stop at the
+        # first nonblank block instead of copying the complete tool log twice.
+        block = document.begin()
+        while block.isValid():
+            if block.text().strip():
+                return True
+            block = block.next()
+        return False
 
     def _clear_current_view(self) -> None:
         if self.tabs.currentIndex() == 0:
@@ -163,7 +178,7 @@ class CompactActivityDrawer(QFrame):
             self.copy_button.setEnabled(has_text)
             return
         available = self._tool_adapter.available
-        has_text = bool(self._tool_adapter.text())
+        has_text = available and not self._tool_adapter.document.isEmpty()
         self.clear_button.setEnabled(available and has_text)
         self.copy_button.setEnabled(available and has_text)
 
