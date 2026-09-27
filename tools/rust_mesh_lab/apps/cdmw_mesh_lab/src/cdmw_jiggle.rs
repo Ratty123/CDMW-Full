@@ -199,7 +199,7 @@ impl LabApplication {
             }
         }
         if self.cdmw_jiggle.show_regions {
-            if ui.add(egui::Slider::new(&mut self.cdmw_jiggle.region_opacity, 0.15..=0.85)
+            if ui.add(crate::cdmw_ui::numeric::slider(&mut self.cdmw_jiggle.region_opacity, 0.15..=0.85)
                 .text("Region tint")).changed() {
                 if self.cdmw_jiggle.preview.scene.is_some() || self.cdmw_jiggle.preview.pending.is_some() {
                     self.refresh_jiggle_regions();
@@ -263,13 +263,13 @@ impl LabApplication {
         if self.cdmw_jiggle.use_height {
             ui.horizontal(|ui| {
                 ui.label("Below Y");
-                ui.add(egui::DragValue::new(&mut self.cdmw_jiggle.height).speed(0.01));
+                ui.add(crate::cdmw_ui::numeric::value(&mut self.cdmw_jiggle.height).speed(0.01));
             });
             ui.small(format!("Source height range: {min_y:.3} to {max_y:.3}"));
             ui.small("Uses displayed model coordinates. Choose the waist height for this model.");
         }
         let relative_available = parts.iter().all(|part| state_bool(part, "relative_available"));
-        ui.add_enabled(relative_available, egui::Slider::new(&mut self.cdmw_jiggle.retained_percent, 0.0..=100.0)
+        ui.add_enabled(relative_available, crate::cdmw_ui::numeric::slider(&mut self.cdmw_jiggle.retained_percent, 0.0..=100.0)
             .text("Retain original %"));
         ui.small("Rounded to available byte steps. 100% keeps the source; 0% removes the vertex contribution.");
         if !relative_available {
@@ -476,7 +476,7 @@ impl LabApplication {
                     (4, "Angular response", 5000.0), (5, "Angular damping", 1.0),
                     (6, "Angular speed limit", 500.0), (7, "Angular offset limit (radians)", std::f32::consts::PI),
                 ] {
-                    ui.add(egui::Slider::new(&mut preview.native_settings.values[index], 0.0..=max).text(label));
+                    ui.add(crate::cdmw_ui::numeric::slider(&mut preview.native_settings.values[index], 0.0..=max).text(label));
                 }
                 if ui.button("Reset bone settings").clicked() { preview.native_settings.values = native::Settings::default().values; }
             });
@@ -484,10 +484,10 @@ impl LabApplication {
                 let wind = &mut preview.native_settings.wind;
                 ui.checkbox(&mut wind.enabled, "Enable wind");
                 ui.add_enabled_ui(wind.enabled, |ui| {
-                    ui.add(egui::Slider::new(&mut wind.speed, 0.0..=20.0).text("Wind speed"));
-                    ui.add(egui::Slider::new(&mut wind.direction, 0.0..=360.0).text("Wind direction").suffix("°"));
-                    ui.add(egui::Slider::new(&mut wind.cycle, 0.05..=10.0).text("Gust cycle (seconds)"));
-                    ui.add(egui::Slider::new(&mut wind.gusts, 0.0..=1.0).text("Gust amount"));
+                    ui.add(crate::cdmw_ui::numeric::slider(&mut wind.speed, 0.0..=20.0).text("Wind speed"));
+                    ui.add(crate::cdmw_ui::numeric::slider(&mut wind.direction, 0.0..=360.0).text("Wind direction").suffix("°"));
+                    ui.add(crate::cdmw_ui::numeric::slider(&mut wind.cycle, 0.05..=10.0).text("Gust cycle (seconds)"));
+                    ui.add(crate::cdmw_ui::numeric::slider(&mut wind.gusts, 0.0..=1.0).text("Gust amount"));
                 });
                 if ui.button("Reset wind").clicked() { *wind = native::Wind::default(); }
                 ui.small("Preview wind is supplied manually; game weather is not loaded.");
@@ -505,14 +505,14 @@ impl LabApplication {
                 let settings = &mut preview.cloth_settings;
                 // Keep the displayed sign consistent with raw profile XML.
                 let mut gravity = -settings.gravity;
-                if ui.add(egui::Slider::new(&mut gravity, -100.0..=100.0).text("Gravity"))
+                if ui.add(crate::cdmw_ui::numeric::slider(&mut gravity, -100.0..=100.0).text("Gravity"))
                     .on_hover_text("Negative pulls down; positive lifts up.").changed() {
                     settings.gravity = -gravity;
                 }
-                ui.add(egui::Slider::new(&mut settings.stretch, 0.0..=1.0).text("Stretch response"));
-                ui.add(egui::Slider::new(&mut settings.bend, 0.0..=1.0).text("Bend response"));
-                ui.add(egui::Slider::new(&mut settings.damping, 0.0..=10.0).text("Preview damping"));
-                ui.add(egui::Slider::new(&mut settings.iterations, 1..=8).text("Solver iterations"));
+                ui.add(crate::cdmw_ui::numeric::slider(&mut settings.stretch, 0.0..=1.0).text("Stretch response"));
+                ui.add(crate::cdmw_ui::numeric::slider(&mut settings.bend, 0.0..=1.0).text("Bend response"));
+                ui.add(crate::cdmw_ui::numeric::slider(&mut settings.damping, 0.0..=10.0).text("Preview damping"));
+                ui.add(crate::cdmw_ui::numeric::slider(&mut settings.iterations, 1..=8).text("Solver iterations"));
                 ui.checkbox(&mut settings.use_vertex_alpha, "Use authored vertex alpha");
                 ui.add_enabled(rotation_available, egui::Checkbox::new(&mut settings.rotate_guides, "Guide rotation correction"));
                 ui.add_enabled(rotation_available && settings.rotate_guides,
@@ -521,7 +521,7 @@ impl LabApplication {
                 ui.add_enabled(body_available, egui::Checkbox::new(&mut settings.body_collisions, "Body collisions"));
                 if body_available {
                     if settings.body_collisions {
-                        ui.add(egui::Slider::new(&mut settings.collision_margin, 0.0..=0.1).text("Collision margin"));
+                        ui.add(crate::cdmw_ui::numeric::slider(&mut settings.collision_margin, 0.0..=0.1).text("Collision margin"));
                     }
                     if body_source == Some("pac_model") {
                         ui.small("Uses this model's authored collision volumes.");
@@ -537,7 +537,7 @@ impl LabApplication {
                 let mut floor = settings.ground_height.is_some();
                 if ui.checkbox(&mut floor, "Preview floor").changed() { settings.ground_height = floor.then_some(0.0); }
                 if let Some(height) = &mut settings.ground_height {
-                    ui.horizontal(|ui| { ui.label("Floor height (Y)"); ui.add(egui::DragValue::new(height).speed(0.01)); });
+                    ui.horizontal(|ui| { ui.label("Floor height (Y)"); ui.add(crate::cdmw_ui::numeric::value(height).speed(0.01)); });
                 }
                 if ui.button("Reset cloth preview settings").clicked() {
                     *settings = cdmw_mesh::cloth::Settings::default();
@@ -549,8 +549,8 @@ impl LabApplication {
                 cloth_state["available"].as_bool() == Some(true), rotation_available, actions, can_author);
             ui.small("Experimental guide cloth with controlled motion and preview settings.");
         } else {
-            ui.add(egui::Slider::new(&mut preview.settings.softness, 0.0..=1.0).text("Preview softness"));
-            ui.add(egui::Slider::new(&mut preview.settings.damping, 0.0..=1.0).text("Preview damping"));
+            ui.add(crate::cdmw_ui::numeric::slider(&mut preview.settings.softness, 0.0..=1.0).text("Preview softness"));
+            ui.add(crate::cdmw_ui::numeric::slider(&mut preview.settings.damping, 0.0..=1.0).text("Preview damping"));
         }
         if changed {
             self.cancel_pending_jiggle();

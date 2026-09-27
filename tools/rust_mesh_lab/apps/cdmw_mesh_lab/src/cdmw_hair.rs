@@ -1035,21 +1035,21 @@ impl LabApplication {
                 ui.checkbox(&mut self.hair.draw_follow_scalp, crate::localization::tr("Follow scalp"));
                 ui.weak(crate::localization::tr("Scalp collision stays active. Hold Ctrl to temporarily draw in the view plane."));
                 match self.hair.draw_shape {
-                    DrawShape::Freehand => { ui.add(egui::Slider::new(&mut self.hair.draw_smoothing, 0.0..=1.0).text(crate::localization::tr("Stroke smoothing"))); }
+                    DrawShape::Freehand => { ui.add(crate::cdmw_ui::numeric::slider(&mut self.hair.draw_smoothing, 0.0..=1.0).text(crate::localization::tr("Stroke smoothing"))); }
                     DrawShape::Arc => {
                         ui.label(crate::localization::tr("Drag from the scalp to set the endpoints. Bend controls the curve and its direction."));
-                        ui.add(egui::Slider::new(&mut self.hair.arc_bend, -1.5..=1.5).text(crate::localization::tr("Bend")));
+                        ui.add(crate::cdmw_ui::numeric::slider(&mut self.hair.arc_bend, -1.5..=1.5).text(crate::localization::tr("Bend")));
                     }
                     DrawShape::Circle => { ui.label(crate::localization::tr("Drag from the scalp to set the circle diameter. Hold Ctrl to draw in the view plane.")); }
                     DrawShape::Straight => { ui.label(crate::localization::tr("Drag from the scalp to the tip. Enable Follow scalp to fit the line to the head.")); }
                 }
             }
             if self.hair.tool == Some(HairTool::Move) {
-                ui.add(egui::Slider::new(&mut self.hair.move_reach, 0.05..=1.0).text(crate::localization::tr("Move reach")));
+                ui.add(crate::cdmw_ui::numeric::slider(&mut self.hair.move_reach, 0.05..=1.0).text(crate::localization::tr("Move reach")));
             }
             if !matches!(self.hair.tool,Some(HairTool::Select|HairTool::Move|HairTool::Cut|HairTool::Guide|HairTool::Root)) {
-                ui.add(egui::Slider::new(&mut self.hair.radius,5.0..=160.0).text(crate::localization::tr("Brush size")));
-                if self.hair.tool != Some(HairTool::Physics) { ui.add(egui::Slider::new(&mut self.hair.strength,0.01..=1.0).text(crate::localization::tr("Strength"))); }
+                ui.add(crate::cdmw_ui::numeric::slider(&mut self.hair.radius,5.0..=160.0).text(crate::localization::tr("Brush size")));
+                if self.hair.tool != Some(HairTool::Physics) { ui.add(crate::cdmw_ui::numeric::slider(&mut self.hair.strength,0.01..=1.0).text(crate::localization::tr("Strength"))); }
             }
             ui.checkbox(&mut self.hair.symmetry,crate::localization::tr("Symmetry"));
             if self.hair.tool==Some(HairTool::Select) {ui.checkbox(&mut self.hair.select_through,crate::localization::tr("Select through"));}
@@ -1088,8 +1088,8 @@ impl LabApplication {
             crate::localization::collapsing("Appearance").show(ui,|ui| {
                 let supported=self.hair.state.as_ref().unwrap().locks.iter().filter(|l|self.hair.selected.contains(&(l.id as usize))).all(|l|l.kind==LockKind::Generated);
                 ui.add_enabled_ui(!self.hair.selected.is_empty(),|ui| {
-                    ui.add(egui::Slider::new(&mut self.hair.width,0.0001..=(span*0.2).clamp(0.001,10.0)).text(crate::localization::tr("Lock width")));
-                    ui.add_enabled(supported,egui::Slider::new(&mut self.hair.density,1..=32).text(crate::localization::tr("Follower cards")));
+                    ui.add(crate::cdmw_ui::numeric::slider(&mut self.hair.width,0.0001..=(span*0.2).clamp(0.001,10.0)).text(crate::localization::tr("Lock width")));
+                    ui.add_enabled(supported,crate::cdmw_ui::numeric::slider(&mut self.hair.density,1..=32).text(crate::localization::tr("Follower cards")));
                     if ui.button(crate::localization::tr("Apply to selected locks")).clicked(){actions.push(UiAction::Hair(HairAction::Settings));}
                 });
                 if !supported {ui.weak(crate::localization::tr("Existing locks preserve their source cards and UVs; follower density is available for generated locks."));}
@@ -1154,18 +1154,18 @@ impl LabApplication {
             ui.checkbox(&mut self.hair.show_guides, crate::localization::tr("Show guides and roots"));
             ui.checkbox(&mut self.hair.show_collisions, crate::localization::tr("Show collision shapes"));
             ui.weak(crate::localization::tr("Alt-drag orbit · Shift-drag pan · wheel zoom · Escape cancel"));
-            ui.add(egui::Slider::new(&mut self.hair.motion.damping, 0.0..=20.0).text(crate::localization::tr("Damping")));
+            ui.add(crate::cdmw_ui::numeric::slider(&mut self.hair.motion.damping, 0.0..=20.0).text(crate::localization::tr("Damping")));
             ui.add(
-                egui::Slider::new(&mut self.hair.motion.bend_compliance, 0.0..=0.005)
+                crate::cdmw_ui::numeric::slider(&mut self.hair.motion.bend_compliance, 0.0..=0.005)
                     .text(crate::localization::tr("Shape softness")),
             );
             ui.add(
-                egui::Slider::new(&mut self.hair.motion.gravity[1], -20.0..=0.0).text(crate::localization::tr("Gravity")),
+                crate::cdmw_ui::numeric::slider(&mut self.hair.motion.gravity[1], -20.0..=0.0).text(crate::localization::tr("Gravity")),
             );
             ui.horizontal(|ui| {
                 ui.label(crate::localization::tr("Wind"));
                 for v in &mut self.hair.motion.wind {
-                    ui.add(egui::DragValue::new(v).speed(0.1).range(-30.0..=30.0));
+                    ui.add(crate::cdmw_ui::numeric::value(v).speed(0.1).range(-30.0..=30.0));
                 }
             });
             if ui

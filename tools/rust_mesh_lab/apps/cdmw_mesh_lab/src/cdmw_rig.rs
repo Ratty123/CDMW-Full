@@ -630,7 +630,7 @@ impl LabApplication {
         ui.horizontal(|ui| {
             ui.label(crate::localization::tr("Weight step"));
             ui.add(
-                egui::DragValue::new(&mut self.cdmw_weight_step)
+                crate::cdmw_ui::numeric::value(&mut self.cdmw_weight_step)
                     .speed(0.01)
                     .range(0.001..=1.0),
             );

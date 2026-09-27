@@ -3,6 +3,345 @@
 use super::*;
 use egui::{Button, ComboBox, ScrollArea, Spinner};
 
+pub(crate) mod numeric {
+    //! Shared precision controls. Increments are per-widget session UI state,
+    //! never part of a mesh, material, physics profile or undo command.
+    use egui::{Response, SliderClamping, Ui, Widget, emath::Numeric};
+    use std::ops::RangeInclusive;
+
+    pub(crate) struct Number<'a> {
+        get_set: Box<dyn FnMut(Option<f64>) -> f64 + 'a>,
+        range: RangeInclusive<f64>,
+        step: f64,
+        integer: bool,
+        slider: bool,
+        clamping: SliderClamping,
+        text: egui::WidgetText,
+        suffix: String,
+        min_decimals: usize,
+    }
+
+    pub(crate) fn value<N: Numeric>(value: &mut N) -> Number<'_> {
+        Number {
+            get_set: Box::new(move |next| {
+                if let Some(next) = next.filter(|next| next.is_finite()) {
+                    *value = N::from_f64(next);
+                }
+                value.to_f64()
+            }),
+            range: N::MIN.to_f64()..=N::MAX.to_f64(),
+            step: if N::INTEGRAL { 1.0 } else { 0.01 },
+            integer: N::INTEGRAL,
+            slider: false,
+            clamping: SliderClamping::Always,
+            text: Default::default(),
+            suffix: String::new(),
+            min_decimals: 0,
+        }
+    }
+
+    pub(crate) fn slider<N: Numeric>(value: &mut N, range: RangeInclusive<N>) -> Number<'_> {
+        let mut number = self::value(value).range(range);
+        number.slider = true;
+        if !number.integer {
+            let span = number.range.end() - number.range.start();
+            number.step = 10.0_f64
+                .powf((span / 100.0).log10().floor())
+                .clamp(0.000001, 1.0);
+        }
+        number
+    }
+
+    impl Number<'_> {
+        pub(crate) fn range<N: Numeric>(mut self, range: RangeInclusive<N>) -> Self {
+            self.range = range.start().to_f64()..=range.end().to_f64();
+            self
+        }
+
+        pub(crate) fn speed(mut self, step: impl Into<f64>) -> Self {
+            self.step = step.into();
+            self
+        }
+
+        pub(crate) fn step_by(self, step: f64) -> Self {
+            self.speed(step)
+        }
+
+        pub(crate) fn text(mut self, text: impl Into<egui::WidgetText>) -> Self {
+            self.text = text.into();
+            self
+        }
+
+        pub(crate) fn suffix(mut self, suffix: impl ToString) -> Self {
+            self.suffix = suffix.to_string();
+            self
+        }
+
+        pub(crate) fn clamping(mut self, clamping: SliderClamping) -> Self {
+            self.clamping = clamping;
+            self
+        }
+
+        pub(crate) fn max_decimals(mut self, decimals: usize) -> Self {
+            // Decimal limits on old controls identified integer-valued fields.
+            // Float text entry must retain precision independently of the step.
+            self.integer |= decimals == 0;
+            self
+        }
+
+        pub(crate) fn fixed_decimals(mut self, decimals: usize) -> Self {
+            self.min_decimals = decimals;
+            self.max_decimals(decimals)
+        }
+    }
+
+    fn bounded(value: f64, range: &RangeInclusive<f64>, integer: bool) -> f64 {
+        let value = if integer { value.round() } else { value };
+        value.clamp(*range.start(), *range.end())
+    }
+
+    fn parse(text: &str) -> Option<f64> {
+        text.trim()
+            .replace('−', "-")
+            .replace(',', ".")
+            .parse::<f64>()
+            .ok()
+            .filter(|value| value.is_finite())
+    }
+
+    fn arrows(ui: &mut Ui, id: egui::Id) -> f64 {
+        if !ui.is_enabled() || !ui.memory(|memory| memory.has_focus(id)) {
+            return 0.0;
+        }
+        ui.input_mut(|input| {
+            input.count_and_consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp) as f64
+                - input.count_and_consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown) as f64
+        })
+    }
+
+    pub(crate) fn menu(ui: &mut Ui, label: &str, content: impl FnOnce(&mut Ui)) -> Response {
+        egui::containers::menu::MenuButton::new(label)
+            .config(
+                egui::containers::menu::MenuConfig::new()
+                    .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside),
+            )
+            .ui(ui, content)
+            .0
+    }
+
+    fn increment(ui: &mut Ui, id: egui::Id, step: &mut f64, integer: bool) {
+        menu(ui, "⋮", |ui| {
+            ui.label(crate::localization::tr("Custom increment"));
+            let mut custom = *step;
+            if ui
+                .add(
+                    egui::DragValue::new(&mut custom)
+                        .range(if integer { 1.0..=1e12 } else { 1e-9..=1e12 })
+                        .speed(*step / 10.0)
+                        .max_decimals(if integer { 0 } else { 9 })
+                        .custom_parser(parse),
+                )
+                .changed()
+                && custom.is_finite()
+                && custom > 0.0
+            {
+                *step = if integer {
+                    custom.round().max(1.0)
+                } else {
+                    custom
+                };
+            }
+            ui.separator();
+            ui.label(crate::localization::tr("Increment"));
+            for candidate in [
+                0.000001, 0.0001, 0.001, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0, 100.0,
+            ] {
+                if integer && candidate < 1.0 {
+                    continue;
+                }
+                if ui
+                    .selectable_value(step, candidate, candidate.to_string())
+                    .clicked()
+                {
+                    ui.close();
+                }
+            }
+        })
+        .on_hover_text(crate::localization::tr(format!("Increment: {step}")));
+        ui.data_mut(|data| data.insert_temp(id, *step));
+    }
+
+    // Only a focused number under the pointer consumes the wheel. Raw events
+    // give one step per notch, rather than one per smoothed animation frame.
+    fn wheel(ui: &mut Ui, response: &Response) -> f64 {
+        let remainder_id = response.id.with("wheel-remainder");
+        if !response.enabled() || !response.hovered() || !response.has_focus() {
+            ui.data_mut(|data| data.remove::<f64>(remainder_id));
+            return 0.0;
+        }
+        let delta = ui.input_mut(|input| {
+            let mut ticks = 0.0;
+            input.events.retain(|event| {
+                if let egui::Event::MouseWheel {
+                    unit,
+                    delta,
+                    modifiers,
+                    ..
+                } = event
+                    && !modifiers.ctrl
+                    && !modifiers.command
+                    && delta.y.is_finite()
+                    && delta.y != 0.0
+                {
+                    ticks += match unit {
+                        egui::MouseWheelUnit::Line => f64::from(delta.y),
+                        egui::MouseWheelUnit::Point => f64::from(delta.y) / 40.0,
+                        egui::MouseWheelUnit::Page => f64::from(delta.y.signum()),
+                    };
+                    false
+                } else {
+                    true
+                }
+            });
+            input.smooth_scroll_delta = egui::Vec2::ZERO;
+            ticks
+        });
+        ui.data_mut(|data| {
+            let sum = data.get_temp::<f64>(remainder_id).unwrap_or_default() + delta;
+            data.insert_temp(remainder_id, sum.fract());
+            sum.trunc()
+        })
+    }
+
+    /// Preserve the vertex inspector's empty/mixed and invalid draft text while
+    /// adding the same increment UI and focused scrolling to its staged fields.
+    pub(crate) fn text(
+        ui: &mut Ui,
+        field: &mut String,
+        baseline: Option<f64>,
+        id: egui::Id,
+        width: f32,
+        range: RangeInclusive<f64>,
+        hint: &str,
+    ) -> Response {
+        let step_id = id.with("numeric-increment");
+        let mut step = ui
+            .data_mut(|data| data.get_temp::<f64>(step_id))
+            .unwrap_or(0.01);
+        let mut ticks = arrows(ui, id);
+        let response = ui.horizontal(|ui| {
+            let response = ui.add(
+                egui::TextEdit::singleline(field)
+                    .id(id)
+                    .hint_text(crate::localization::tr(hint))
+                    .desired_width((width - 24.0).max(24.0)),
+            );
+            ticks += wheel(ui, &response);
+            increment(ui, step_id, &mut step, false);
+            response
+        });
+        let mut response = response.inner;
+        if ticks != 0.0 {
+            let current = if field.trim().is_empty() {
+                baseline
+            } else {
+                parse(field)
+            };
+            if let Some(current) = current {
+                let next = current + ticks * step;
+                if next.is_finite() {
+                    *field = bounded(next, &range, false).to_string();
+                    response.mark_changed();
+                }
+            }
+        }
+        response
+    }
+
+    impl Widget for Number<'_> {
+        fn ui(mut self, ui: &mut Ui) -> Response {
+            let id = ui.next_auto_id().with("numeric-increment");
+            let mut step = ui
+                .data_mut(|data| data.get_temp::<f64>(id))
+                .unwrap_or(self.step);
+            if self.integer {
+                step = step.round().max(1.0);
+            }
+            let old = (self.get_set)(None);
+            let mut next = old;
+            if self.clamping == SliderClamping::Always {
+                next = bounded(next, &self.range, self.integer);
+            }
+            let response = ui.horizontal_wrapped(|ui| {
+                let value_id = ui.next_auto_id();
+                let cancel = ui.input(|input| input.key_pressed(egui::Key::Escape));
+                let ticks = arrows(ui, ui.next_auto_id());
+                if ticks != 0.0 {
+                    next = bounded(next + ticks * step, &self.range, self.integer);
+                    ui.data_mut(|data| data.remove::<String>(ui.next_auto_id()));
+                }
+                let mut drag = egui::DragValue::new(&mut next)
+                    .speed(step).suffix(&self.suffix)
+                    .min_decimals(self.min_decimals)
+                    .max_decimals(if self.integer { 0 } else { 9 })
+                    .custom_parser(parse).update_while_editing(false);
+                if self.clamping != SliderClamping::Never {
+                    drag = drag.range(self.range.clone()).clamp_existing_to_range(false);
+                }
+                let mut response = ui.add(drag).on_hover_text(crate::localization::tr(
+                    "Click to type. Scroll or use Up/Down while focused. Choose an increment with ⋮."
+                ));
+                if cancel {
+                    next = old;
+                    ui.data_mut(|data| data.remove::<String>(value_id));
+                }
+                if response.drag_started() {
+                    ui.data_mut(|data| data.insert_temp(id.with("drag-origin"), old));
+                }
+                if response.dragged() {
+                    let origin = ui.data_mut(|data| data.get_temp::<f64>(id.with("drag-origin"))).unwrap_or(old);
+                    next = origin + ((next - origin) / step).round() * step;
+                }
+                let ticks = wheel(ui, &response);
+                if ticks != 0.0 {
+                    next += ticks * step;
+                    // egui 0.36.1 caches its edit text under the value's ID.
+                    // Clear it after an external step so Enter cannot restore
+                    // the pre-scroll number and the display refreshes as well.
+                    ui.data_mut(|data| data.remove::<String>(response.id));
+                    ui.ctx().request_repaint();
+                }
+                increment(ui, id, &mut step, self.integer);
+                if !self.text.is_empty() { ui.label(self.text); }
+                if self.slider {
+                    // The slider edits a copy so merely opening a panel or
+                    // selecting a coarser step never quantizes authored values.
+                    let mut position = next;
+                    let available = ui.available_width();
+                    ui.spacing_mut().slider_width = available.clamp(48.0, 100.0);
+                    let slider = ui.add(egui::Slider::new(&mut position, self.range.clone())
+                        .show_value(false).clamping(SliderClamping::Edits)
+                        .step_by(step).smart_aim(false));
+                    if slider.changed() { next = position; }
+                    response |= slider;
+                }
+                response
+            }).response;
+            if next != old && next.is_finite() {
+                if self.clamping != SliderClamping::Never {
+                    next = bounded(next, &self.range, self.integer);
+                }
+                (self.get_set)(Some(next));
+            }
+            let mut response = response;
+            if (self.get_set)(None) != old {
+                response.mark_changed();
+            }
+            response
+        }
+    }
+}
+
 pub(super) mod layout {
     //! Presentation-only geometry. The host persists it in its existing user cfg.
 
@@ -1773,10 +2112,10 @@ impl LabApplication {
                     &mut self.overlay_live_selection_colour,
                 );
                 ui.add(
-                    egui::Slider::new(&mut self.overlay_wire_width, 0.5..=6.0).text(crate::localization::tr("Wire width")),
+                    crate::cdmw_ui::numeric::slider(&mut self.overlay_wire_width, 0.5..=6.0).text(crate::localization::tr("Wire width")),
                 );
                 ui.add(
-                    egui::Slider::new(&mut self.overlay_vertex_size, 0.5..=10.0)
+                    crate::cdmw_ui::numeric::slider(&mut self.overlay_vertex_size, 0.5..=10.0)
                         .text(crate::localization::tr("Vertex size")),
                 );
                 colour_row(ui, "Background", &mut self.viewport_background_colour);
@@ -1921,7 +2260,7 @@ impl LabApplication {
             ui.selectable_value(&mut self.selection_visible_only, false, crate::localization::tr("X-Ray"));
         });
         if self.selection_tool == SelectionTool::Brush {
-            ui.add(egui::Slider::new(&mut self.brush_radius, 4.0..=240.0).text(crate::localization::tr("Radius px")));
+            ui.add(crate::cdmw_ui::numeric::slider(&mut self.brush_radius, 4.0..=240.0).text(crate::localization::tr("Radius px")));
         }
         let selected = self.selected_counts().for_domain(self.selection_domain);
         ui.horizontal_wrapped(|ui| {
@@ -1974,7 +2313,7 @@ impl LabApplication {
                 ui.horizontal(|ui| {
                     ui.label(crate::localization::tr("Angle °"));
                     ui.add(
-                        egui::DragValue::new(&mut self.transform_rotate_step)
+                        crate::cdmw_ui::numeric::value(&mut self.transform_rotate_step)
                             .speed(0.5)
                             .range(-360.0..=360.0),
                     );
@@ -2001,7 +2340,7 @@ impl LabApplication {
                 ui.horizontal(|ui| {
                     ui.label(crate::localization::tr("Factor"));
                     ui.add(
-                        egui::DragValue::new(&mut self.transform_scale_factor)
+                        crate::cdmw_ui::numeric::value(&mut self.transform_scale_factor)
                             .speed(0.01)
                             .range(0.001..=100.0),
                     );
@@ -2023,7 +2362,7 @@ impl LabApplication {
             _ => {
                 ui.horizontal(|ui| {
                     ui.label(crate::localization::tr("Axis step"));
-                    ui.add(egui::DragValue::new(&mut self.transform_translate_step).speed(0.001));
+                    ui.add(crate::cdmw_ui::numeric::value(&mut self.transform_translate_step).speed(0.001));
                 });
                 let step = self.transform_translate_step;
                 ui.horizontal_wrapped(|ui| {
@@ -2057,7 +2396,7 @@ impl LabApplication {
     }
 
     fn draw_cdmw_brush_page(&mut self, ui: &mut egui::Ui, page: CdmwRailPage) {
-        ui.add(egui::Slider::new(&mut self.brush_radius, 4.0..=240.0).text(crate::localization::tr("Radius px")));
+        ui.add(crate::cdmw_ui::numeric::slider(&mut self.brush_radius, 4.0..=240.0).text(crate::localization::tr("Radius px")));
         if page != CdmwRailPage::Grab {
             let range = if page == CdmwRailPage::Inflate {
                 -1.0..=1.0
@@ -2072,7 +2411,7 @@ impl LabApplication {
                 egui::SliderClamping::Edits
             };
             ui.add(
-                egui::Slider::new(&mut self.brush_strength, range)
+                crate::cdmw_ui::numeric::slider(&mut self.brush_strength, range)
                     .clamping(clamping)
                     .text(crate::localization::tr("Strength")),
             );
@@ -2140,7 +2479,7 @@ impl LabApplication {
             .spacing([6.0, 6.0])
             .show(ui, |ui| {
                 ui.label(crate::localization::tr("Extrude distance"));
-                ui.add(egui::DragValue::new(&mut self.extrude_distance).speed(0.001));
+                ui.add(crate::cdmw_ui::numeric::value(&mut self.extrude_distance).speed(0.001));
                 ui.end_row();
                 ui.label(crate::localization::tr("Extrude axis"));
                 ComboBox::from_id_salt("cdmw_extrude_axis")
@@ -2158,42 +2497,42 @@ impl LabApplication {
                 ui.end_row();
                 ui.label(crate::localization::tr("Inset amount"));
                 ui.add(
-                    egui::DragValue::new(&mut self.inset_amount)
+                    crate::cdmw_ui::numeric::value(&mut self.inset_amount)
                         .speed(0.01)
                         .range(0.01..=0.95),
                 );
                 ui.end_row();
                 ui.label(crate::localization::tr("Loop cuts"));
                 ui.add(
-                    egui::DragValue::new(&mut self.cdmw_loop_cut_count)
+                    crate::cdmw_ui::numeric::value(&mut self.cdmw_loop_cut_count)
                         .speed(1)
                         .range(1..=16),
                 );
                 ui.end_row();
                 ui.label(crate::localization::tr("Cut position"));
                 ui.add(
-                    egui::DragValue::new(&mut self.cdmw_loop_cut_factor)
+                    crate::cdmw_ui::numeric::value(&mut self.cdmw_loop_cut_factor)
                         .speed(0.01)
                         .range(0.001..=0.999),
                 );
                 ui.end_row();
                 ui.label(crate::localization::tr("Smooth strength"));
                 ui.add(
-                    egui::DragValue::new(&mut self.cdmw_refine_strength)
+                    crate::cdmw_ui::numeric::value(&mut self.cdmw_refine_strength)
                         .speed(0.01)
                         .range(0.0..=1.0),
                 );
                 ui.end_row();
                 ui.label(crate::localization::tr("Smooth passes"));
                 ui.add(
-                    egui::DragValue::new(&mut self.cdmw_refine_iterations)
+                    crate::cdmw_ui::numeric::value(&mut self.cdmw_refine_iterations)
                         .speed(1)
                         .range(1..=12),
                 );
                 ui.end_row();
                 ui.label(crate::localization::tr("Weld distance"));
                 ui.add(
-                    egui::DragValue::new(&mut self.cdmw_weld_distance)
+                    crate::cdmw_ui::numeric::value(&mut self.cdmw_weld_distance)
                         .speed(0.00001)
                         .range(0.000001..=1.0),
                 );
@@ -2314,7 +2653,7 @@ impl LabApplication {
         ui.horizontal(|ui| {
             ui.label(crate::localization::tr("Merge distance"));
             ui.add(
-                egui::DragValue::new(&mut self.cdmw_cleanup_merge_distance)
+                crate::cdmw_ui::numeric::value(&mut self.cdmw_cleanup_merge_distance)
                     .speed(0.00001)
                     .range(0.000001..=1.0),
             );
@@ -2432,7 +2771,7 @@ impl LabApplication {
         ui.horizontal(|ui| {
             ui.label(crate::localization::tr("Move step"));
             ui.add(
-                egui::DragValue::new(&mut self.cdmw_uv_offset_step)
+                crate::cdmw_ui::numeric::value(&mut self.cdmw_uv_offset_step)
                     .speed(0.005)
                     .range(0.0001..=10.0),
             );
@@ -2457,7 +2796,7 @@ impl LabApplication {
         ui.horizontal(|ui| {
             ui.label(crate::localization::tr("Scale factor"));
             ui.add(
-                egui::DragValue::new(&mut self.cdmw_uv_scale_factor)
+                crate::cdmw_ui::numeric::value(&mut self.cdmw_uv_scale_factor)
                     .speed(0.01)
                     .range(0.001..=100.0),
             );
@@ -2535,13 +2874,13 @@ impl LabApplication {
             ui.label(crate::localization::tr("Texture px"));
             ui.label(crate::localization::tr("W"));
             ui.add(
-                egui::DragValue::new(&mut self.cdmw_uv_pixel_width)
+                crate::cdmw_ui::numeric::value(&mut self.cdmw_uv_pixel_width)
                     .speed(1)
                     .range(1..=32768),
             );
             ui.label(crate::localization::tr("H"));
             ui.add(
-                egui::DragValue::new(&mut self.cdmw_uv_pixel_height)
+                crate::cdmw_ui::numeric::value(&mut self.cdmw_uv_pixel_height)
                     .speed(1)
                     .range(1..=32768),
             );
@@ -3043,7 +3382,7 @@ impl LabApplication {
                     .copied()
                     .unwrap_or(host_value);
                 let response = ui
-                .add(egui::Slider::new(&mut value, minimum..=maximum).text(crate::localization::tr(&label)))
+                .add(crate::cdmw_ui::numeric::slider(&mut value, minimum..=maximum).text(crate::localization::tr(&label)))
                 .on_hover_text(crate::localization::tr(format!(
                     "Stored {rule_name} rule · axis {rule_axis} · 100% strength {rule_amount:.3}"
                 )));
@@ -3209,7 +3548,7 @@ impl LabApplication {
                             "100% strength"
                         }));
                         ui.add(
-                            egui::DragValue::new(&mut self.cdmw_morph_amount)
+                            crate::cdmw_ui::numeric::value(&mut self.cdmw_morph_amount)
                                 .speed(if twist { 1.0 } else { 0.01 })
                                 .range(if twist { -180.0..=180.0 } else { -10.0..=10.0 }),
                         );
@@ -3218,7 +3557,7 @@ impl LabApplication {
                         ui.vertical(|ui| {
                             ui.label(crate::localization::tr("Feather rings"));
                             ui.add(
-                                egui::DragValue::new(&mut self.cdmw_morph_feather).range(0..=64),
+                                crate::cdmw_ui::numeric::value(&mut self.cdmw_morph_feather).range(0..=64),
                             );
                         });
                         ui.label(crate::localization::tr("Falloff"));
@@ -3541,11 +3880,11 @@ impl LabApplication {
                             .on_hover_text(crate::localization::tr("Move each Part as a rigid piece. Suitable for hard armor plates."));
                     });
                 ui.add(
-                    egui::Slider::new(&mut self.cdmw_refit_intensity, 0.0..=200.0)
+                    crate::cdmw_ui::numeric::slider(&mut self.cdmw_refit_intensity, 0.0..=200.0)
                         .text(crate::localization::tr("Intensity %")),
                 ).on_hover_text(crate::localization::tr("How strongly the garment follows body changes. 100% follows fully; 0% stays still."));
                 ui.add(
-                    egui::Slider::new(&mut self.cdmw_refit_clearance, 0.0..=5.0)
+                    crate::cdmw_ui::numeric::slider(&mut self.cdmw_refit_clearance, 0.0..=5.0)
                         .text(crate::localization::tr("Clearance %")),
                 ).on_hover_text(crate::localization::tr("Minimum outward space from the body, as a percentage of body size. Positive clearance also repairs vertices already inside the body."));
                 if before
@@ -4331,6 +4670,16 @@ fn colour_row(ui: &mut egui::Ui, label: &str, colour: &mut Color32) {
     ui.horizontal(|ui| {
         ui.label(crate::localization::tr(label));
         ui.color_edit_button_srgba(colour);
+        numeric::menu(ui, &crate::localization::tr("RGBA"), |ui| {
+            let mut channels = colour.to_srgba_unmultiplied();
+            let mut changed = false;
+            for (channel, label) in channels.iter_mut().zip(["R", "G", "B", "A"]) {
+                changed |= ui.add(numeric::value(channel).range(0..=255).text(label)).changed();
+            }
+            if changed {
+                *colour = Color32::from_rgba_unmultiplied(channels[0], channels[1], channels[2], channels[3]);
+            }
+        });
     });
 }
 
@@ -4575,7 +4924,7 @@ impl LabApplication {
                     let mut strength = (values[0] * values[1]).sqrt();
                     ui.horizontal(|ui| {
                         ui.label(crate::localization::tr("Clear glass"));
-                        if ui.add(egui::Slider::new(&mut strength, 0.0..=1.0).show_value(false))
+                        if ui.add(crate::cdmw_ui::numeric::slider(&mut strength, 0.0..=1.0))
                             .on_hover_text(crate::localization::tr("Adjusts thickness and extinction together. This is absorption strength, not an opacity percentage."))
                             .changed() { values = [strength, strength]; }
                         ui.label(crate::localization::tr("Dense"));
@@ -4599,7 +4948,7 @@ impl LabApplication {
                             ui.checkbox(&mut enabled, crate::localization::tr(label))
                                 .on_hover_text(crate::localization::tr("Override this channel on selected parts. Uncheck to keep the source texture."));
                             let mut value = surface[index].unwrap_or(if index == 0 { 0.9 } else { 0.0 });
-                            ui.add_enabled(enabled, egui::Slider::new(&mut value, 0.0..=1.0));
+                            ui.add_enabled(enabled, crate::cdmw_ui::numeric::slider(&mut value, 0.0..=1.0));
                             surface[index] = enabled.then_some(value);
                         });
                     }
@@ -4608,7 +4957,7 @@ impl LabApplication {
                         for (name, value) in ["Thickness", "Extinction"].into_iter().zip(values.iter_mut()) {
                             ui.horizontal(|ui| {
                                 ui.label(crate::localization::tr(name));
-                                ui.add(egui::Slider::new(value, 0.0..=1.0).fixed_decimals(3));
+                                ui.add(crate::cdmw_ui::numeric::slider(value, 0.0..=1.0).fixed_decimals(3));
                             });
                         }
                     });

@@ -25742,6 +25742,16 @@
       ]
     },
     {
+      "key": "Click to type. Scroll or use Up/Down while focused. Choose an increment with ⋮.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 292,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Click visible hair. Ctrl-click adds or removes locks. Drag empty space for a marquee.",
       "origins": [
         {
@@ -31603,6 +31613,16 @@
           "path": "cdmw/ui/texture_workflow/dds_output_panel.py",
           "line": 79,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Custom increment",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 134,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -54415,6 +54435,26 @@
       "key": "Incomplete table row directory.",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Increment",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 155,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Increment: {value_0}",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 170,
+          "sink": "rust-presentation"
+        }
+      ]
     },
     {
       "key": "Incremental hair state has a stale or conflicting base revision.",
@@ -95003,6 +95043,11 @@
           "path": "cdmw/ui/texture_editor_tab.py",
           "line": 1001,
           "sink": "QPushButton"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_emission.rs",
+          "line": 51,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -95022,6 +95067,16 @@
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_emission.rs",
           "line": 61,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "RGBA",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 4673,
           "sink": "rust-presentation"
         }
       ]

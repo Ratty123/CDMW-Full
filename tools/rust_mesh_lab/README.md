@@ -400,6 +400,12 @@ renderer output, not in-game parity.
 
 ## User interface
 
+Editable Mesh Editor numbers share direct entry, focused wheel/arrow adjustment,
+and a per-control **⋮** increment menu with presets and custom steps. Sliders
+and number dragging respect that step without rounding idle or typed values.
+Integer counts retain whole steps. See the
+[Mesh Editor numeric controls](../../cdmw/ui/mesh_editor/README.md#precise-numeric-controls).
+
 In CDMW-managed mode, Rust controls use the selected app language. The host sends
 the native catalog at launch and with live theme/language updates. Labels,
 tooltips, dialogs and formatted statuses translate without changing command IDs

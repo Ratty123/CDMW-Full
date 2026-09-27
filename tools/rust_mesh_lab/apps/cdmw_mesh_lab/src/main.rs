@@ -4180,7 +4180,7 @@ impl LabApplication {
                     || self.viewport_tool.sculpt_tool().is_some()
                 {
                     ui.add(
-                        egui::Slider::new(&mut self.brush_radius, 4.0..=240.0)
+                        crate::cdmw_ui::numeric::slider(&mut self.brush_radius, 4.0..=240.0)
                             .text(crate::localization::tr("Brush radius px")),
                     );
                 }
@@ -4227,7 +4227,7 @@ impl LabApplication {
                 if self.viewport_tool.sculpt_tool().is_some() {
                     if self.viewport_tool != ViewportTool::Grab {
                         ui.add(
-                            egui::Slider::new(&mut self.brush_strength, 0.01..=1.0)
+                            crate::cdmw_ui::numeric::slider(&mut self.brush_strength, 0.01..=1.0)
                                 .text(crate::localization::tr("Strength")),
                         );
                     }
@@ -4264,7 +4264,7 @@ impl LabApplication {
                 ui.horizontal(|ui| {
                     ui.label(crate::localization::tr("Extrude distance"));
                     ui.add(
-                        egui::DragValue::new(&mut self.extrude_distance)
+                        crate::cdmw_ui::numeric::value(&mut self.extrude_distance)
                             .speed(0.001)
                             .range(0.000_01..=1_000_000.0)
                             .max_decimals(6),
@@ -4274,7 +4274,7 @@ impl LabApplication {
                 ui.horizontal(|ui| {
                     ui.label(crate::localization::tr("Inset amount"));
                     ui.add(
-                        egui::DragValue::new(&mut self.inset_amount)
+                        crate::cdmw_ui::numeric::value(&mut self.inset_amount)
                             .speed(0.01)
                             .range(0.01..=0.95)
                             .max_decimals(3),

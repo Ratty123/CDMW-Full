@@ -43,13 +43,24 @@ impl LabApplication {
                 && self.cdmw_state["replacement"]["comparison"].as_str().unwrap_or("edit") == "edit";
             ui.add_enabled_ui(available && !ids.is_empty() && !self.cdmw_busy() && editing, |ui| {
                 let mut color = [values[0], values[1], values[2]];
-                let changed = ui.horizontal(|ui| { ui.label(crate::localization::tr("Glow colour")); ui.color_edit_button_rgb(&mut color).changed() }).inner;
+                let changed = ui.horizontal(|ui| {
+                    ui.label(crate::localization::tr("Glow colour"));
+                    let mut picked = color;
+                    let mut changed = ui.color_edit_button_rgb(&mut picked).changed();
+                    if changed { color = picked; }
+                    crate::cdmw_ui::numeric::menu(ui, &crate::localization::tr("RGB"), |ui| {
+                        for (channel, label) in color.iter_mut().zip(["R", "G", "B"]) {
+                            changed |= ui.add(crate::cdmw_ui::numeric::value(channel).range(0.0..=1.0).text(label)).changed();
+                        }
+                    });
+                    changed
+                }).inner;
                 if changed { values[..3].copy_from_slice(&color); }
                 else { color.copy_from_slice(&values[..3]); }
                 for (i, (label, maximum)) in [("Strength", 20.0), ("Scroll U", 10.0), ("Scroll V", 10.0),
                     ("Pulse speed", 10.0), ("Pulse floor", 1.0)].into_iter().enumerate() {
                     ui.horizontal(|ui| { ui.label(crate::localization::tr(label));
-                        ui.add(egui::Slider::new(&mut values[3 + i], 0.0..=maximum).fixed_decimals(3));
+                        ui.add(crate::cdmw_ui::numeric::slider(&mut values[3 + i], 0.0..=maximum).fixed_decimals(3));
                     });
                 }
                 ui.small(crate::localization::tr("Zero speed is static. Scroll moves the glow map only; a solid map cannot show movement. Pulse floor is capped by each pixel's glow. Preview timing is approximate."));
@@ -59,7 +70,7 @@ impl LabApplication {
                 values[8] = if rgb { 1.0 } else { 0.0 };
                 if rgb {
                     for (index, label, minimum) in [(9, "RGB strength", 0.0), (10, "Reveal", 0.0), (11, "Reveal softness", 0.001)] {
-                        ui.horizontal(|ui| { ui.label(crate::localization::tr(label)); ui.add(egui::Slider::new(&mut values[index], minimum..=1.0).fixed_decimals(3)); });
+                        ui.horizontal(|ui| { ui.label(crate::localization::tr(label)); ui.add(crate::cdmw_ui::numeric::slider(&mut values[index], minimum..=1.0).fixed_decimals(3)); });
                     }
                     let mut inverse = values[12] > 0.5;
                     ui.checkbox(&mut inverse, crate::localization::tr("Invert reveal mask"));

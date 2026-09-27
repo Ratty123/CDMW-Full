@@ -61,7 +61,7 @@ impl LabApplication {
                                     for number in values {
                                         let mut n = number.as_f64().unwrap_or(0.0);
                                         let integer = field["integer"].as_bool().unwrap_or(false);
-                                        let mut slider = egui::Slider::new(&mut n,
+                                        let mut slider = crate::cdmw_ui::numeric::slider(&mut n,
                                             field["minimum"].as_f64().unwrap_or(0.0)..=field["maximum"].as_f64().unwrap_or(1.0))
                                             .fixed_decimals(if integer { 0 } else { 4 });
                                         if integer { slider = slider.step_by(1.0); }

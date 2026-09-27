@@ -16,6 +16,360 @@ use winit::event::DeviceId;
 
 mod cloth_preview_tests;
 mod island_controls_tests;
+mod precision_controls {
+    use super::*;
+    use crate::cdmw_ui::numeric;
+
+    struct Controls {
+        context: egui::Context,
+        output: FullOutput,
+        value: f64,
+        count: u32,
+        text: String,
+        kind: u8,
+        enabled: bool,
+        changed: bool,
+        time: f64,
+    }
+
+    impl Controls {
+        fn new(kind: u8) -> Self {
+            let mut result = Self {
+                context: egui::Context::default(),
+                output: FullOutput::default(),
+                value: 0.25,
+                count: 3,
+                text: String::new(),
+                kind,
+                enabled: true,
+                changed: false,
+                time: 0.0,
+            };
+            result.frame(vec![]);
+            result.frame(vec![]);
+            result
+        }
+
+        fn frame(&mut self, events: Vec<Event>) {
+            self.time += 1.0 / 60.0;
+            let input = egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, egui::vec2(500.0, 600.0))),
+                time: Some(self.time),
+                events,
+                ..Default::default()
+            };
+            self.output = self.context.run_ui(input, |root| {
+                egui::CentralPanel::default().show(root, |ui| {
+                    ui.set_max_width(240.0);
+                    self.changed = ui
+                        .add_enabled_ui(self.enabled, |ui| match self.kind {
+                            0 => {
+                                ui.add(numeric::slider(&mut self.value, -10.0..=10.0).text("Value"))
+                            }
+                            1 => ui.add(
+                                numeric::value(&mut self.value)
+                                    .range(-10.0..=10.0)
+                                    .speed(0.01),
+                            ),
+                            2 => ui.add(numeric::slider(&mut self.count, 1..=8).text("Count")),
+                            _ => numeric::text(
+                                ui,
+                                &mut self.text,
+                                Some(1.25),
+                                egui::Id::new("draft"),
+                                136.0,
+                                -10.0..=10.0,
+                                "Unchanged",
+                            ),
+                        })
+                        .inner
+                        .changed();
+                });
+            });
+            self.output.textures_delta.clear();
+        }
+
+        fn rect(&self, label: &str) -> Rect {
+            self.output
+                .shapes
+                .iter()
+                .rev()
+                .find_map(|shape| {
+                    if let egui::Shape::Text(text) = &shape.shape
+                        && text.galley.job.text == label
+                    {
+                        Some(text.visual_bounding_rect())
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or_else(|| panic!("Missing painted label {label:?}"))
+        }
+
+        fn number(&self, value: f64) -> Pos2 {
+            self.output
+                .shapes
+                .iter()
+                .find_map(|shape| {
+                    if let egui::Shape::Text(text) = &shape.shape
+                        && text.galley.job.text.replace('−', "-").parse::<f64>() == Ok(value)
+                    {
+                        Some(text.visual_bounding_rect().center())
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or_else(|| {
+                    panic!(
+                        "Missing numeric value {value}: {:?}",
+                        self.output
+                            .shapes
+                            .iter()
+                            .filter_map(|shape| match &shape.shape {
+                                egui::Shape::Text(text) => Some(&text.galley.job.text),
+                                _ => None,
+                            })
+                            .collect::<Vec<_>>()
+                    )
+                })
+        }
+
+        fn click_at(&mut self, position: Pos2) {
+            self.frame(vec![Event::PointerMoved(position)]);
+            self.frame(vec![pointer_button(position, PointerButton::Primary, true)]);
+            self.frame(vec![pointer_button(
+                position,
+                PointerButton::Primary,
+                false,
+            )]);
+            self.frame(vec![]);
+        }
+
+        fn step(&mut self, step: &str) {
+            self.click_at(self.rect("⋮").center());
+            self.click_at(self.rect(step).center());
+        }
+
+        fn type_value(&mut self, value: &str) {
+            let current = if self.kind == 2 {
+                f64::from(self.count)
+            } else {
+                self.value
+            };
+            self.click_at(self.number(current));
+            self.frame(vec![Event::Text(value.into())]);
+            self.frame(vec![key_event(egui::Key::Enter, true)]);
+            self.frame(vec![key_event(egui::Key::Enter, false)]);
+        }
+
+        fn scroll(&mut self, position: Pos2, up: bool) {
+            self.frame(vec![
+                Event::PointerMoved(position),
+                Event::MouseWheel {
+                    unit: egui::MouseWheelUnit::Line,
+                    delta: egui::vec2(0.0, if up { 1.0 } else { -1.0 }),
+                    phase: egui::TouchPhase::Move,
+                    modifiers: egui::Modifiers::NONE,
+                },
+            ]);
+        }
+    }
+
+    #[test]
+    fn exact_entry_is_independent_of_increment_and_clamped_on_commit() {
+        for kind in [0, 1] {
+            let mut ui = Controls::new(kind);
+            ui.step("0.5");
+            assert_eq!(
+                ui.value, 0.25,
+                "changing the step must not change the value"
+            );
+            ui.type_value("-0.1234567");
+            assert_eq!(ui.value, -0.1234567);
+            ui.type_value("80");
+            assert_eq!(ui.value, 10.0);
+            ui.type_value("NaN");
+            assert_eq!(ui.value, 10.0);
+            ui.type_value("inf");
+            assert_eq!(ui.value, 10.0);
+        }
+    }
+
+    #[test]
+    fn focused_wheel_and_arrows_use_selected_steps_without_smoothed_repeats() {
+        for step in [0.1, 0.5, 1.0] {
+            let mut ui = Controls::new(0);
+            ui.step(&step.to_string());
+            let position = ui.number(ui.value);
+            ui.scroll(position, true);
+            assert_eq!(ui.value, 0.25, "unfocused page scroll must not edit values");
+            ui.click_at(position);
+            ui.scroll(position, true);
+            assert!((ui.value - (0.25 + step)).abs() < 1e-12);
+            assert!(ui.changed);
+            for _ in 0..8 {
+                ui.frame(vec![]);
+            }
+            assert!((ui.value - (0.25 + step)).abs() < 1e-12);
+            ui.frame(vec![key_event(egui::Key::ArrowDown, true)]);
+            assert!((ui.value - 0.25).abs() < 1e-12);
+        }
+    }
+
+    #[test]
+    fn integer_controls_offer_only_whole_steps_and_keep_limits() {
+        let mut ui = Controls::new(2);
+        ui.click_at(ui.rect("⋮").center());
+        assert!(!ui.output.shapes.iter().any(|shape| matches!(&shape.shape,
+            egui::Shape::Text(text) if text.galley.job.text == "0.5")));
+        ui.click_at(ui.rect("5").center());
+        ui.click_at(ui.number(3.0));
+        ui.scroll(ui.number(3.0), true);
+        assert_eq!(ui.count, 8);
+        ui.frame(vec![key_event(egui::Key::ArrowUp, true)]);
+        assert_eq!(ui.count, 8);
+        ui.frame(vec![key_event(egui::Key::ArrowUp, false)]);
+        assert_eq!(ui.count, 8);
+        ui.type_value("2.8");
+        assert_eq!(ui.count, 3);
+    }
+
+    #[test]
+    fn disabled_controls_cannot_scroll_or_type() {
+        let mut ui = Controls::new(0);
+        ui.enabled = false;
+        ui.frame(vec![]);
+        ui.click_at(ui.number(0.25));
+        ui.scroll(ui.number(0.25), true);
+        ui.frame(vec![
+            Event::Text("5".into()),
+            key_event(egui::Key::Enter, true),
+        ]);
+        assert_eq!(ui.value, 0.25);
+    }
+
+    #[test]
+    fn draft_text_preserves_unchanged_and_invalid_values_with_optional_stepping() {
+        let mut ui = Controls::new(3);
+        ui.step("0.5");
+        assert!(ui.text.is_empty());
+        let position = ui.rect("Unchanged").center();
+        ui.click_at(position);
+        ui.scroll(position, true);
+        assert_eq!(ui.text, "1.75");
+        ui.text = "invalid".into();
+        ui.frame(vec![]);
+        ui.scroll(position, true);
+        assert_eq!(ui.text, "invalid");
+    }
+
+    #[test]
+    fn dragging_number_uses_step_without_requantizing_an_idle_value() {
+        let mut ui = Controls::new(1);
+        ui.step("0.5");
+        let start = ui.number(0.25);
+        ui.frame(vec![
+            Event::PointerMoved(start),
+            pointer_button(start, PointerButton::Primary, true),
+        ]);
+        for offset in [5.0, 8.3, 10.7] {
+            ui.frame(vec![Event::PointerMoved(start + egui::vec2(offset, 0.0))]);
+            let ticks = (ui.value - 0.25) / 0.5;
+            assert!((ticks - ticks.round()).abs() < 1e-9);
+        }
+        assert_ne!(ui.value, 0.25);
+    }
+
+    #[test]
+    fn slider_dragging_snaps_to_the_selected_increment() {
+        let mut ui = Controls::new(0);
+        ui.step("0.5");
+        let start = ui
+            .output
+            .shapes
+            .iter()
+            .find_map(|shape| match &shape.shape {
+                egui::Shape::Rect(shape)
+                    if shape.rect.width() > 30.0 && shape.rect.height() <= 8.0 =>
+                {
+                    Some(shape.rect.center())
+                }
+                _ => None,
+            })
+            .expect("painted slider rail");
+        ui.frame(vec![
+            Event::PointerMoved(start),
+            pointer_button(start, PointerButton::Primary, true),
+        ]);
+        ui.frame(vec![Event::PointerMoved(start + egui::vec2(10.3, 0.0))]);
+        assert_ne!(ui.value, 0.25);
+        assert!((ui.value / 0.5 - (ui.value / 0.5).round()).abs() < 1e-9);
+    }
+
+    #[test]
+    fn custom_increment_is_editable_and_enter_does_not_revert_a_wheel_step() {
+        let mut ui = Controls::new(1);
+        ui.click_at(ui.rect("⋮").center());
+        let custom_label = ui.rect("Custom increment");
+        let custom = ui
+            .output
+            .shapes
+            .iter()
+            .find_map(|shape| match &shape.shape {
+                egui::Shape::Text(text)
+                    if text.galley.job.text.parse::<f64>() == Ok(0.01)
+                        && text.visual_bounding_rect().top() > custom_label.bottom() =>
+                {
+                    Some(text.visual_bounding_rect().center())
+                }
+                _ => None,
+            })
+            .expect("custom increment field");
+        ui.click_at(custom);
+        ui.frame(vec![Event::Text("0.125".into())]);
+        ui.frame(vec![key_event(egui::Key::Enter, true)]);
+        ui.frame(vec![key_event(egui::Key::Enter, false)]);
+        ui.click_at(egui::pos2(450.0, 550.0));
+        assert_eq!(ui.value, 0.25);
+        let value = ui.number(0.25);
+        ui.click_at(value);
+        ui.scroll(value, true);
+        ui.frame(vec![key_event(egui::Key::Enter, true)]);
+        ui.frame(vec![key_event(egui::Key::Enter, false)]);
+        assert_eq!(ui.value, 0.375);
+    }
+
+    #[test]
+    fn fractional_wheel_events_accumulate_and_text_commit_and_cancel_are_explicit() {
+        let mut ui = Controls::new(1);
+        let value = ui.number(0.25);
+        ui.click_at(value);
+        ui.frame(vec![Event::Text("0.75".into())]);
+        assert_eq!(ui.value, 0.25);
+        assert!(!ui.changed);
+        ui.frame(vec![key_event(egui::Key::Escape, true)]);
+        ui.frame(vec![key_event(egui::Key::Escape, false)]);
+        assert_eq!(ui.value, 0.25);
+        ui.click_at(ui.number(0.25));
+        for _ in 0..3 {
+            ui.frame(vec![Event::MouseWheel {
+                unit: egui::MouseWheelUnit::Point,
+                delta: egui::vec2(0.0, 10.0),
+                phase: egui::TouchPhase::Move,
+                modifiers: egui::Modifiers::NONE,
+            }]);
+            assert_eq!(ui.value, 0.25);
+        }
+        ui.frame(vec![Event::MouseWheel {
+            unit: egui::MouseWheelUnit::Point,
+            delta: egui::vec2(0.0, 10.0),
+            phase: egui::TouchPhase::Move,
+            modifiers: egui::Modifiers::NONE,
+        }]);
+        assert_eq!(ui.value, 0.26);
+    }
+}
+
 mod localization_tests;
 mod guide_authoring_tests {
     use super::*;
@@ -1068,6 +1422,20 @@ impl HeadlessUi {
         let position = self.reveal(label)?.center();
         self.click_at(position);
         self.settle_layout();
+        Ok(())
+    }
+
+    fn type_number_in_row(&mut self, label: &str, old: f64, new: &str) -> TestResult {
+        let label = self.reveal(label)?;
+        let position = self.output.shapes.iter().find_map(|shape| match &shape.shape {
+            egui::Shape::Text(text) if text.galley.job.text.replace('−', "-").parse::<f64>() == Ok(old)
+                && (text.visual_bounding_rect().center().y - label.center().y).abs() < 4.0 => Some(text.visual_bounding_rect().center()),
+            _ => None,
+        }).ok_or("editable number beside its label")?;
+        self.click_at(position);
+        self.frame(vec![Event::Text(new.into())]);
+        self.frame(vec![key_event(egui::Key::Enter, true)]);
+        self.frame(vec![key_event(egui::Key::Enter, false)]);
         Ok(())
     }
 
@@ -7868,12 +8236,11 @@ fn translucency_controls_send_selected_parts_and_restore_without_changing_geomet
     )));
     ui.application.cdmw_pending_request = None;
     ui.click("Advanced")?;
-    let track = ui.reveal("Thickness")?;
-    ui.click_at(egui::pos2(track.right() + 55.0, track.center().y));
+    ui.type_number_in_row("Thickness", 0.25, "0.625")?;
     let actions = ui.actions_from_click("Apply translucency")?;
     assert!(actions.iter().any(|action| matches!(action,
         UiAction::CdmwCommand { command: "replacement_translucency", arguments, .. }
-        if arguments["translucency"][0].as_f64().is_some_and(|n| (0.0..=1.0).contains(&n) && n != 0.25)
+        if arguments["translucency"][0] == json!(0.625)
     )));
     ui.application.cdmw_pending_request = None;
     ui.click("Custom")?;
@@ -7927,13 +8294,19 @@ fn emission_controls_send_selected_parts_and_restore() -> TestResult {
     });
     assert_eq!(actual, Some(json!({"part_ids": ["b"], "emission": emission})));
     ui.application.cdmw_pending_request = None;
-    let track = ui.reveal("Strength")?;
-    ui.click_at(egui::pos2(track.right() + 55.0, track.center().y));
+    ui.click("RGB")?;
+    ui.type_number_in_row("R", 1.0, "0.375")?;
+    // Clicking outside commits the colour field before applying the material.
+    ui.click("Glow colour")?;
+    ui.type_number_in_row("Strength", 6.125, "7.375")?;
     let actions = ui.actions_from_click("Apply glow")?;
     assert!(actions.iter().any(|action| matches!(action,
         UiAction::CdmwCommand { command: "replacement_emission", arguments, .. }
-        if arguments["emission"]["intensity"].as_f64().is_some_and(|n| (0.0..=20.0).contains(&n) && n != 6.125)
-    )));
+        if arguments["emission"]["intensity"] == json!(7.375)
+            && arguments["emission"]["color"] == json!([0.375, 0.5, 0.25])
+    )), "{:?}", actions.iter().filter_map(|action| match action {
+        UiAction::CdmwCommand { arguments, .. } => Some(arguments), _ => None,
+    }).collect::<Vec<_>>());
     ui.application.cdmw_pending_request = None;
     ui.click("Use RGB glow map")?;
     let actions = ui.actions_from_click("Apply glow")?;
@@ -7972,13 +8345,11 @@ fn shader_controls_send_selected_parts_and_restore() -> TestResult {
         UiAction::CdmwCommand { command: "replacement_shader_controls", arguments, .. }
         if arguments == &json!({"part_ids": ["b"], "shader_controls": controls}))));
     ui.application.cdmw_pending_request = None;
-    let track = ui.reveal("Reveal progress")?;
-    ui.click_at(egui::pos2(track.right() + 65.0, track.center().y));
+    ui.type_number_in_row("Reveal progress", 0.5, "0.875")?;
     let actions = ui.actions_from_click("Apply shader controls")?;
     assert!(actions.iter().any(|action| matches!(action,
         UiAction::CdmwCommand { command: "replacement_shader_controls", arguments, .. }
-        if arguments["shader_controls"]["values"]["_wingFlowProgress"][0].as_f64()
-            .is_some_and(|n| (-1.0..=2.0).contains(&n) && n != 0.5)
+        if arguments["shader_controls"]["values"]["_wingFlowProgress"][0] == json!(0.875)
     )));
     ui.application.cdmw_pending_request = None;
     let actions = ui.actions_from_click("Restore shader controls")?;

@@ -12,6 +12,23 @@ context pane and detached editor window.
 the existing Parts workflow with captured material dependencies, Undo/Redo and
 replacement draft version 12. Static Dissolve stays object-only.
 
+### Precise numeric controls
+
+Click a number to type an exact value and press Enter to apply it. While the
+number is focused, hover it and use the mouse wheel or Up/Down to adjust it.
+The **⋮** menu beside each number selects its increment, including **0.1**,
+**0.5**, **1**, smaller steps and a custom increment. Number dragging and sliders
+use the selected increment; typing remains independent of it. Each control
+remembers its increment for the editor session. Count fields use whole numbers
+and all existing limits still apply. Scrolling an unfocused control scrolls
+the panel without changing its value.
+
+This applies to Cloth preview and profile settings, transforms, brushes,
+topology, UVs, Morph & Refit, rigging, Hair Tools and material settings.
+Colour swatches also have **RGB** or **RGBA** channel menus for numeric editing.
+Vertex Parameters also supports stepping while retaining its staged Apply
+workflow and blank **Unchanged** fields.
+
 Owns the direct, mesh-only Mesh Editor tab shell, typed archive-session requests,
 resident authoring workspace, and output orchestration. Archive internals and
 destructive writes stay outside this UI package. Static-replacement builder

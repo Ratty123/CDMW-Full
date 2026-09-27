@@ -63,7 +63,7 @@ mod authoring {
                 ui.small(crate::localization::tr(format!("{vertices} source vertices before welding; maximum 1,024 guides across all parts.")));
                 ui.horizontal(|ui| {
                     ui.label(crate::localization::tr("Pin guides at or above Y"));
-                    ui.add(egui::DragValue::new(&mut view.height).speed(0.01));
+                    ui.add(crate::cdmw_ui::numeric::value(&mut view.height).speed(0.01));
                 });
                 ui.small(crate::localization::tr("Height uses displayed model coordinates. Each disconnected piece needs an anchor."));
                 ui.checkbox(&mut view.reduce_skinning, crate::localization::tr("Reduce skinning to four bones"));
@@ -352,7 +352,7 @@ pub(super) mod profiles {
                             .filter(|number| number.is_finite()).or(original).unwrap_or(low).clamp(low, high);
                         ui.checkbox(&mut overridden, crate::localization::tr(format!("Override {label}")));
                         if overridden {
-                            let mut control = egui::DragValue::new(&mut value).range(low..=high).speed(if integer { 1.0 } else { 0.01 });
+                            let mut control = crate::cdmw_ui::numeric::value(&mut value).range(low..=high).speed(if integer { 1.0 } else { 0.01 });
                             if integer { control = control.max_decimals(0); }
                             ui.add(control);
                             // Invalid text entered into a numeric control must
@@ -609,19 +609,19 @@ impl LabApplication {
             ui.small(crate::localization::tr("Mixed saved settings. Apply replaces them for these parts."));
         }
         ui.add(
-            egui::Slider::new(&mut self.cdmw_cloth.amount_percent, 0.0..=100.0)
+            crate::cdmw_ui::numeric::slider(&mut self.cdmw_cloth.amount_percent, 0.0..=100.0)
                 .text(crate::localization::tr("Cloth amount")),
         );
         ui.checkbox(&mut self.cdmw_cloth.use_height, crate::localization::tr("Fix vertices above height"));
         if self.cdmw_cloth.use_height {
             ui.horizontal(|ui| {
                 ui.label(crate::localization::tr("Height (Y)"));
-                ui.add(egui::DragValue::new(&mut self.cdmw_cloth.height).speed(0.01));
+                ui.add(crate::cdmw_ui::numeric::value(&mut self.cdmw_cloth.height).speed(0.01));
             });
             ui.horizontal(|ui| {
                 ui.label(crate::localization::tr("Fade below height"));
                 ui.add(
-                    egui::DragValue::new(&mut self.cdmw_cloth.fade)
+                    crate::cdmw_ui::numeric::value(&mut self.cdmw_cloth.fade)
                         .range(0.0..=f64::MAX)
                         .speed(0.01),
                 );

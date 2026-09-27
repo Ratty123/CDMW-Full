@@ -555,6 +555,77 @@ fn fixture() -> Result<(tempfile::TempDir, HeadlessUi, Vec<u8>), Box<dyn std::er
     Ok((root, ui, payload))
 }
 
+#[test]
+fn cloth_precision_controls_type_scroll_and_step_without_editing_mesh() -> TestResult {
+    let (_root, mut ui, _) = fixture()?;
+    let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
+    ui.click("Cloth preview settings")?;
+    let label = ui.reveal("Gravity")?;
+    let menu = ui
+        .label_rect_where("⋮", |rect| {
+            (rect.center().y - label.center().y).abs() < 4.0
+        })
+        .ok_or("gravity increment menu")?;
+    ui.click_at(menu.center());
+    ui.click("0.5")?;
+    let number = |ui: &HeadlessUi| -> Result<Pos2, Box<dyn std::error::Error>> {
+        let label = ui.label_rect("Gravity").ok_or("gravity label")?;
+        ui.output
+            .shapes
+            .iter()
+            .find_map(|shape| match &shape.shape {
+                egui::Shape::Text(text)
+                    if text
+                        .galley
+                        .job
+                        .text
+                        .replace('−', "-")
+                        .parse::<f64>()
+                        .is_ok()
+                        && (text.visual_bounding_rect().center().y - label.center().y).abs()
+                            < 4.0
+                        && text.visual_bounding_rect().right() < label.left() =>
+                {
+                    Some(text.visual_bounding_rect().center())
+                }
+                _ => None,
+            })
+            .ok_or_else(|| "gravity number".into())
+    };
+    ui.click_at(number(&ui)?);
+    ui.frame(vec![
+        Event::Text("-9.875".into()),
+        key_event(egui::Key::Enter, true),
+    ]);
+    ui.frame(vec![key_event(egui::Key::Enter, false)]);
+    assert_eq!(
+        ui.application.cdmw_jiggle.preview.cloth_settings.gravity,
+        9.875
+    );
+    ui.click_at(number(&ui)?);
+    ui.frame(vec![Event::MouseWheel {
+        unit: egui::MouseWheelUnit::Line,
+        delta: egui::vec2(0.0, 1.0),
+        phase: egui::TouchPhase::Move,
+        modifiers: egui::Modifiers::NONE,
+    }]);
+    assert_eq!(
+        ui.application.cdmw_jiggle.preview.cloth_settings.gravity,
+        9.375
+    );
+    ui.frame(vec![key_event(egui::Key::Enter, true)]);
+    ui.frame(vec![key_event(egui::Key::Enter, false)]);
+    assert_eq!(
+        ui.application.cdmw_jiggle.preview.cloth_settings.gravity,
+        9.375
+    );
+    assert_eq!(
+        ui.application.mesh.as_ref().unwrap().draw_snapshot(),
+        authored
+    );
+    Ok(())
+}
+
 fn wait(ui: &mut HeadlessUi) -> TestResult {
     let deadline = Instant::now() + std::time::Duration::from_secs(5);
     while ui.application.cdmw_jiggle.preview.pending.is_some() {

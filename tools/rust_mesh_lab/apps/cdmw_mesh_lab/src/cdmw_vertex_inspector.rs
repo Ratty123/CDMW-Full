@@ -1,7 +1,7 @@
 //! Host-authoritative, selection-bound vertex inspection and staged editing.
 
 use super::*;
-use egui::{Button, ComboBox, TextEdit};
+use egui::{Button, ComboBox};
 use std::time::Duration;
 
 pub(super) const CAPABILITY: &str = "vertex_parameters_v1";
@@ -315,6 +315,7 @@ impl LabApplication {
                         "uv0" => (&mut draft.uv0, Some(&mut draft.uv_offset)),
                         _ => (&mut draft.normal, None),
                     };
+                    let mut is_offset = false;
                     if let Some(offset) = offset {
                         ui.add_enabled_ui(can_edit, |ui| {
                             ui.horizontal_wrapped(|ui| {
@@ -323,6 +324,7 @@ impl LabApplication {
                                 ui.selectable_value(offset, true, crate::localization::tr("Offset"));
                             })
                         });
+                        is_offset = *offset;
                     }
                     let current_width = (ui.available_width() * 0.28).clamp(50.0, 76.0);
                     let input_width =
@@ -363,13 +365,12 @@ impl LabApplication {
                                 } else {
                                     format!("{axis_label}: {}", summary["values"][axis])
                                 }));
-                                ui.add_enabled(
-                                    can_edit,
-                                    TextEdit::singleline(field)
-                                        .id_salt(("vertex-input", channel, axis))
-                                        .hint_text(crate::localization::tr("Unchanged"))
-                                        .desired_width(input_width),
-                                );
+                                ui.add_enabled_ui(can_edit, |ui| {
+                                    crate::cdmw_ui::numeric::text(ui, field,
+                                        if is_offset { Some(0.0) } else { summary["values"][axis].as_f64() },
+                                        ui.make_persistent_id(("vertex-input", channel, axis)),
+                                        input_width, -f64::MAX..=f64::MAX, "Unchanged");
+                                });
                                 ui.end_row();
                             }
                         });
@@ -450,8 +451,9 @@ impl LabApplication {
                             } else {
                                 "Influence offset"
                             }));
-                            ui.add(TextEdit::singleline(&mut draft.weight)
-                                .hint_text(crate::localization::tr("Value")).desired_width(112.0));
+                            crate::cdmw_ui::numeric::text(ui, &mut draft.weight, Some(0.0),
+                                ui.make_persistent_id("vertex-weight-value"), 136.0,
+                                if draft.weight_mode == 0 { 0.0..=1.0 } else { -1.0..=1.0 }, "Value");
                         }
                         ui.small(crate::localization::tr("Other influences redistribute proportionally. Cloth guide weights are preserved."));
                     });
