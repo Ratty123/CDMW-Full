@@ -186,8 +186,10 @@ interface for that same workflow without exposing Classic.
 After the main window is visible and startup dialogs finish, the shell preloads
 only the archive tables on the existing cancellable snapshot worker. Create New
 Item's interface stays unconstructed until opened; startup does not launch its
-Rust renderer or warm a native preview. Opening the tab reuses the loaded tables
-or the read already in progress, without requiring **Read the archives**. An early
+Rust renderer or warm a native preview. Controller and parser imports also run
+off the GUI thread, in an owned preparation worker, before the data read starts.
+Opening the tab reuses the loaded tables or the read already in progress, without
+requiring **Read the archives**. An early
 click or restoring this tab can still show loading until the data is ready. A
 failed preload keeps its error and **Try again** action when the tab is opened,
 instead of retrying repeatedly. The shared controller is registered with shell

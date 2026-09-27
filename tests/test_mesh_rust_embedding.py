@@ -24,6 +24,7 @@ class _FakeUser32:
         self.visible: list[int] = []
         self.positions: list[tuple[int, int, int]] = []
         self.focused: list[int] = []
+        self.paints: list[int] = []
         self.client_size = (800, 600)
 
     def IsWindow(self, _hwnd: object) -> bool:  # noqa: N802
@@ -64,6 +65,11 @@ class _FakeUser32:
     def SetFocus(self, hwnd: object) -> int:  # noqa: N802
         self.focused.append(int(hwnd.value or 0))
         return 1
+
+    def PostMessageW(self, hwnd, message, wparam, lparam):  # noqa: N802
+        assert (message, wparam, lparam) == (0x000F, 0, 0)
+        self.paints.append(int(hwnd.value))
+        return True
 
 
 def _tab(tmp_path: Path) -> MeshEditorTab:
@@ -164,6 +170,8 @@ def test_host_rejects_child_window_owned_by_another_process() -> None:
     application = QApplication.instance() or QApplication([])
     host = RustMeshEditorHostFrame()
     launch_parent = host.prepare_launch()
+    assert launch_parent == int(host._surface.winId())
+    assert launch_parent != int(host.winId())
     api = _FakeUser32(owner_pid=999, parent_hwnd=launch_parent)
     with patch("cdmw.ui.mesh_editor.rust_host._windows_api", return_value=api):
         attached, reason = host.attach_child_window(123, 77, launch_parent)
@@ -218,13 +226,15 @@ def test_host_resizes_hides_focuses_and_reparents_the_owned_child() -> None:
         host.event(QEvent(QEvent.Type.FocusIn))
         host.host_hwnd = lambda: launch_parent + 10  # type: ignore[method-assign]
         host.event(QEvent(QEvent.Type.WinIdChange))
+        host.host_hwnd = lambda: launch_parent + 20  # type: ignore[method-assign]
+        application.sendEvent(host._surface, QEvent(QEvent.Type.WinIdChange))
 
     assert api.positions
     assert api.positions[-1][:2] == (800, 600)
     assert 0 in api.visible
     assert 5 in api.visible
     assert api.focused[-1] == 123
-    assert api.parent_hwnd == launch_parent + 10
+    assert api.parent_hwnd == launch_parent + 20
     host.deleteLater()
     application.processEvents()
 

@@ -14931,7 +14931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 415,
+          "line": 454,
           "sink": "_run"
         }
       ]
@@ -18256,7 +18256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 50,
+          "line": 54,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -18731,7 +18731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 204,
+          "line": 206,
           "sink": "python-return:attach_child_window"
         }
       ]
@@ -20886,7 +20886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 432,
+          "line": 471,
           "sink": "setText"
         }
       ]
@@ -21936,7 +21936,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 142,
+          "line": 146,
           "sink": "QPushButton"
         }
       ]
@@ -22236,7 +22236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 374,
+          "line": 413,
           "sink": "_run"
         }
       ]
@@ -22366,7 +22366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 157,
+          "line": 160,
           "sink": "show_loading"
         }
       ]
@@ -22386,7 +22386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 392,
+          "line": 431,
           "sink": "_run"
         }
       ]
@@ -23941,7 +23941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 82,
+          "line": 86,
           "sink": "setToolTip"
         }
       ]
@@ -24496,7 +24496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 318,
+          "line": 328,
           "sink": "setText"
         }
       ]
@@ -27306,7 +27306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 380,
+          "line": 419,
           "sink": "_run"
         }
       ]
@@ -29901,7 +29901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 224,
+          "line": 229,
           "sink": "_details_ready"
         }
       ]
@@ -34696,7 +34696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 340,
+          "line": 377,
           "sink": "tr"
         },
         {
@@ -34856,7 +34856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 199,
+          "line": 204,
           "sink": "setText"
         }
       ]
@@ -34876,12 +34876,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 133,
+          "line": 137,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 173,
+          "line": 178,
           "sink": "setText"
         }
       ]
@@ -38461,7 +38461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 201,
+          "line": 203,
           "sink": "python-return:attach_child_window"
         }
       ]
@@ -38846,7 +38846,7 @@
         },
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 340,
+          "line": 377,
           "sink": "tr"
         },
         {
@@ -38926,7 +38926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 173,
+          "line": 178,
           "sink": "setText"
         }
       ]
@@ -44086,7 +44086,7 @@
         },
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 50,
+          "line": 54,
           "sink": "setHorizontalHeaderLabels"
         },
         {
@@ -44116,7 +44116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 127,
+          "line": 131,
           "sink": "addTab"
         }
       ]
@@ -46251,7 +46251,7 @@
         },
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 50,
+          "line": 54,
           "sink": "setHorizontalHeaderLabels"
         },
         {
@@ -47806,7 +47806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 50,
+          "line": 54,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -55541,7 +55541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 50,
+          "line": 54,
           "sink": "setHorizontalHeaderLabels"
         },
         {
@@ -55606,7 +55606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 37,
+          "line": 41,
           "sink": "setWindowTitle"
         },
         {
@@ -57611,7 +57611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 50,
+          "line": 54,
           "sink": "setHorizontalHeaderLabels"
         },
         {
@@ -68166,7 +68166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 341,
+          "line": 378,
           "sink": "tr"
         }
       ]
@@ -71951,7 +71951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 338,
+          "line": 375,
           "sink": "tr"
         }
       ]
@@ -71961,7 +71961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 341,
+          "line": 378,
           "sink": "tr"
         }
       ]
@@ -72516,7 +72516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 357,
+          "line": 396,
           "sink": "setText"
         }
       ]
@@ -74776,7 +74776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 260,
+          "line": 262,
           "sink": "setText"
         }
       ]
@@ -76991,12 +76991,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 339,
+          "line": 376,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 340,
+          "line": 377,
           "sink": "tr"
         }
       ]
@@ -80621,7 +80621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 467,
+          "line": 510,
           "sink": "setText"
         }
       ]
@@ -81806,7 +81806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 50,
+          "line": 54,
           "sink": "setHorizontalHeaderLabels"
         },
         {
@@ -89511,7 +89511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 388,
+          "line": 427,
           "sink": "_run"
         }
       ]
@@ -89571,7 +89571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 635,
+          "line": 656,
           "sink": "pump_startup_splash"
         }
       ]
@@ -89816,12 +89816,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 69,
+          "line": 70,
           "sink": "show_loading"
         },
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 192,
+          "line": 196,
           "sink": "show_loading"
         },
         {
@@ -90191,7 +90191,7 @@
         },
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 79,
+          "line": 83,
           "sink": "addTab"
         },
         {
@@ -91016,7 +91016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 222,
+          "line": 224,
           "sink": "python-return:attach_child_window"
         }
       ]
@@ -91026,7 +91026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 217,
+          "line": 219,
           "sink": "python-return:attach_child_window"
         }
       ]
@@ -91036,7 +91036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 225,
+          "line": 227,
           "sink": "python-return:attach_child_window"
         }
       ]
@@ -91196,7 +91196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 208,
+          "line": 210,
           "sink": "python-return:attach_child_window"
         }
       ]
@@ -92586,7 +92586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 206,
+          "line": 208,
           "sink": "python-return:attach_child_window"
         }
       ]
@@ -92596,7 +92596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 213,
+          "line": 215,
           "sink": "python-return:attach_child_window"
         }
       ]
@@ -95706,13 +95706,13 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 41,
+          "line": 45,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 323,
-          "sink": "_run"
+          "line": 334,
+          "sink": "setText"
         }
       ]
     },
@@ -95796,7 +95796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 209,
+          "line": 214,
           "sink": "setPlainText"
         }
       ]
@@ -96696,7 +96696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 145,
+          "line": 149,
           "sink": "QPushButton"
         }
       ]
@@ -98666,7 +98666,7 @@
         },
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 139,
+          "line": 143,
           "sink": "QPushButton"
         },
         {
@@ -99081,7 +99081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 669,
+          "line": 690,
           "sink": "pump_startup_splash"
         }
       ]
@@ -99451,7 +99451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 107,
+          "line": 111,
           "sink": "QPushButton"
         }
       ]
@@ -99741,7 +99741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 136,
+          "line": 140,
           "sink": "QPushButton"
         }
       ]
@@ -99961,7 +99961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 189,
+          "line": 194,
           "sink": "setText"
         }
       ]
@@ -104206,7 +104206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 397,
+          "line": 436,
           "sink": "question"
         }
       ]
@@ -104226,7 +104226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 418,
+          "line": 457,
           "sink": "setText"
         }
       ]
@@ -105046,7 +105046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 176,
+          "line": 181,
           "sink": "setToolTip"
         }
       ]
@@ -106726,7 +106726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 338,
+          "line": 375,
           "sink": "tr"
         }
       ]
@@ -108761,7 +108761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 46,
+          "line": 50,
           "sink": "setPlaceholderText"
         }
       ]
@@ -111341,7 +111341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 262,
+          "line": 265,
           "sink": "setText"
         }
       ]
@@ -111556,12 +111556,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 71,
+          "line": 75,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 188,
+          "line": 193,
           "sink": "setText"
         }
       ]
@@ -111571,18 +111571,23 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 96,
+          "line": 100,
           "sink": "setText"
-        },
-        {
-          "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 99,
-          "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
           "line": 103,
           "sink": "QLabel"
+        },
+        {
+          "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
+          "line": 107,
+          "sink": "QLabel"
+        },
+        {
+          "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
+          "line": 262,
+          "sink": "setText"
         }
       ]
     },
@@ -120221,7 +120226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 397,
+          "line": 436,
           "sink": "question"
         },
         {
@@ -120236,7 +120241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 148,
+          "line": 152,
           "sink": "QPushButton"
         }
       ]
@@ -120496,7 +120501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 404,
+          "line": 443,
           "sink": "setText"
         }
       ]
@@ -120731,7 +120736,7 @@
         },
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 50,
+          "line": 54,
           "sink": "setHorizontalHeaderLabels"
         },
         {
@@ -125661,7 +125666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 302,
+          "line": 315,
           "sink": "_fail"
         }
       ]
@@ -125671,7 +125676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 315,
+          "line": 328,
           "sink": "_fail"
         }
       ]
@@ -125681,7 +125686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 80,
+          "line": 81,
           "sink": "_fail"
         }
       ]
@@ -125691,7 +125696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 281,
+          "line": 294,
           "sink": "_fail"
         }
       ]
@@ -125701,7 +125706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 333,
+          "line": 346,
           "sink": "show_error"
         }
       ]
@@ -127816,7 +127821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 192,
+          "line": 197,
           "sink": "setText"
         }
       ]
@@ -129666,7 +129671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 189,
+          "line": 194,
           "sink": "setText"
         }
       ]
@@ -129971,7 +129976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 176,
+          "line": 181,
           "sink": "setToolTip"
         }
       ]
@@ -133241,7 +133246,7 @@
         },
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 339,
+          "line": 376,
           "sink": "tr"
         },
         {
@@ -134376,7 +134381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 443,
+          "line": 482,
           "sink": "_run"
         }
       ]
@@ -137841,7 +137846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 312,
+          "line": 315,
           "sink": "failed"
         }
       ]
@@ -138086,7 +138091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 229,
+          "line": 234,
           "sink": "setText"
         }
       ]
@@ -157431,12 +157436,12 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 343,
+          "line": 345,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 739,
+          "line": 760,
           "sink": "_register_detachable_tool"
         }
       ]
@@ -159031,7 +159036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 746,
+          "line": 767,
           "sink": "_register_detachable_tool"
         },
         {
@@ -160916,7 +160921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 735,
+          "line": 756,
           "sink": "_register_detachable_tool"
         }
       ]
@@ -164916,7 +164921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 195,
+          "line": 200,
           "sink": "setText"
         }
       ]
@@ -165856,7 +165861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 357,
+          "line": 396,
           "sink": "setText"
         }
       ]
@@ -166871,7 +166876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 426,
+          "line": 465,
           "sink": "question"
         }
       ]
@@ -167061,7 +167066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 354,
+          "line": 393,
           "sink": "setText"
         }
       ]
@@ -167746,7 +167751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 447,
+          "line": 486,
           "sink": "setText"
         }
       ]
@@ -167766,7 +167771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 426,
+          "line": 465,
           "sink": "question"
         }
       ]
@@ -169441,7 +169446,7 @@
         },
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 348,
+          "line": 385,
           "sink": "setToolTip"
         },
         {

@@ -181,6 +181,7 @@ class LazyToolTabTests(unittest.TestCase):
                 warmed = []
                 tool = _ProbeTool()
                 controller = SimpleNamespace(busy=False, snapshot=None, _snapshot_error="")
+                shell._new_item_controller = controller
                 shell._shared_new_item_controller = lambda: controller
                 shell._preload_new_item_archive_data = warmed.append
                 lazy = LazyToolTab(lambda: tool)

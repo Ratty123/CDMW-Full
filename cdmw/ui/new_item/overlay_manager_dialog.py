@@ -26,6 +26,10 @@ class OverlayManagerDialog(QDialog):
             self.setWindowFlags(Qt.WindowType.Widget)
         self.controller, self.package_root, self.mutations = controller, package_root, mutation_service
         self._closed, self._working, self._applying = False, False, False
+        self._reading = False
+        self._inventory_lane = controller.create_lookup_lane()
+        self._inventory_lane.completed.connect(self._inventory_ready)
+        self._inventory_lane.failed.connect(self._inventory_failed)
         self._queued = None
         self._entries = ()
         self._preview_entry = None
@@ -161,9 +165,10 @@ class OverlayManagerDialog(QDialog):
             QTimer.singleShot(0, self, self.refresh)
 
     def _buttons(self):
-        available = not self._working and not self.controller.busy
-        self.table.setEnabled(available)
-        self.refresh_button.setEnabled(available)
+        available = not self._working and not self._reading and not self.controller.busy
+        browsing = not self._working and not self._reading and not self._inventory_blocked()
+        self.table.setEnabled(browsing)
+        self.refresh_button.setEnabled(browsing)
         self.update_button.setEnabled(available and bool(self._entries))
         selected = self._selected_entry()
         mutable = available and self.mutations is not None
@@ -242,12 +247,9 @@ class OverlayManagerDialog(QDialog):
             self.table.setRowHidden(row, not matches)
             if matches:
                 visible.append(row)
-        current = self.table.currentRow() if self._selected_entry() is not None else -1
-        if current not in visible:
-            if visible:
-                self.table.selectRow(visible[0])
-            else:
-                self.table.clearSelection()
+        if self.table.currentRow() not in visible:
+            self.table.clearSelection()
+            self.table.setCurrentCell(-1, -1)
         self._selection_changed()
 
     def _show_preview(self, *_args):
@@ -257,7 +259,8 @@ class OverlayManagerDialog(QDialog):
         if entry is None or key is None or not entry.enabled or entry.health != 'mounted' or entry.compatibility_status == 'unmounted':
             self.preview.show(None)
             self.preview.setVisible(False)
-            self.preview_empty.setText(entry.issue if entry and entry.issue else 'No mounted item model is available for this overlay.')
+            self.preview_empty.setText('Select an overlay to preview its installed items.' if entry is None else
+                                       entry.issue or 'No mounted item model is available for this overlay.')
             self.preview_empty.setVisible(True)
             self.preview_status.setText('Select an enabled, mounted overlay with an item model.')
             return
@@ -312,15 +315,46 @@ class OverlayManagerDialog(QDialog):
             failed('Wait for the current operation to finish, then refresh.')
 
     def refresh(self):
+        if self._closed:
+            return
+        if self._inventory_blocked():
+            self._queued = ('refresh', None)
+            return
         root = str(self.package_root or '').strip()
+        self._inventory_lane.cancel()
         if not root:
+            self._reading = False
             self._loaded(())
             self.status.setText('Choose the game archive folder, then refresh.')
             return
         from cdmw.services.overlay_inventory_details import external_overlay_summary
-        def read(_log, stop):
+        def read(stop):
             return list_installed_overlays(root, stop_event=stop), external_overlay_summary(root, stop_event=stop)
-        self._run(read, self._inventory_loaded, 'Reading installed overlays…')
+        self._reading = True
+        self.status.setText('Reading installed overlays…')
+        self.activity.emit(self.status.text())
+        self._buttons()
+        self._inventory_lane.request(root, read)
+
+    def _inventory_blocked(self):
+        # Snapshot preparation is read-only and independent of the inventory.
+        # Writes and management operations still use the shared operation lane.
+        return self.controller.busy and self.controller._lane != 'snapshot'
+
+    def _inventory_ready(self, root, result):
+        if self._closed or root != str(self.package_root or '').strip():
+            return
+        self._reading = False
+        self._inventory_loaded(result)
+        self._buttons()
+
+    def _inventory_failed(self, root, message):
+        if self._closed or root != str(self.package_root or '').strip():
+            return
+        self._reading = False
+        self.status.setText(message)
+        self.activity.emit(str(message))
+        self._buttons()
 
     def _inventory_loaded(self, result):
         entries, external = result
@@ -333,6 +367,9 @@ class OverlayManagerDialog(QDialog):
         self._preview_entry = object()
         self._preview_revision += 1
         self._entries = tuple(entries)
+        selection_blocker = QSignalBlocker(self.table)
+        self.table.clearSelection()
+        self.table.setCurrentCell(-1, -1)
         self.table.setRowCount(len(entries))
         for row, entry in enumerate(entries):
             check = {'changed': self.tr('Needs comparison'), 'same': self.tr('Same build'),
@@ -347,8 +384,10 @@ class OverlayManagerDialog(QDialog):
                 item = QTableWidgetItem(value)
                 item.setToolTip(tooltip)
                 self.table.setItem(row, column, item)
-        if entries:
-            self.table.selectRow(next((i for i, entry in enumerate(entries) if entry.id == previous_id), 0))
+        selected_row = next((i for i, entry in enumerate(entries) if entry.id == previous_id), None)
+        if selected_row is not None:
+            self.table.selectRow(selected_row)
+        selection_blocker.unblock()
         unmounted = sum(entry.compatibility_status == 'unmounted' for entry in entries)
         if unmounted:
             self.status.setText(f'{len(entries)} recorded overlay(s); {unmounted} not mounted by the game.')
@@ -462,6 +501,10 @@ class OverlayManagerDialog(QDialog):
 
     def _busy_changed(self, _busy):
         if not self._closed:
+            if self._inventory_blocked() and self._reading:
+                self._inventory_lane.cancel()
+                self._reading = False
+                self._queued = ('refresh', None)
             if not _busy and self._working:
                 self._working = self._applying = False
                 self.status.setText('Operation finished or cancelled. Refresh to read the installed state.')
@@ -484,6 +527,7 @@ class OverlayManagerDialog(QDialog):
     def request_shutdown(self):
         self._closed = True
         self._queued = None
+        self._inventory_lane.request_shutdown()
         self._details_lane.request_shutdown()
         self.preview.request_shutdown()
 

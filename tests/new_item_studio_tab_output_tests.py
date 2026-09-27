@@ -398,6 +398,7 @@ class _TabOutputMixin:
         dialog = management.findChild(OverlayManagerDialog)
         self.assertIsNotNone(dialog)
         self.assertEqual(dialog.table.rowCount(), 1)
+        dialog.table.selectRow(0)
         with patch("cdmw.ui.new_item.overlay_manager_dialog.QMessageBox.question", return_value=QMessageBox.No):
             dialog.remove_button.click()
         self.assertTrue((overlay / "0.pamt").is_file(), "declining leaves it alone")

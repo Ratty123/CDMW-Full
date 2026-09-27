@@ -151,7 +151,7 @@ class ModManagementTab(QWidget):
             QTimer.singleShot(0, self, self._refresh_inventory)
 
     def _refresh_inventory(self):
-        if self._closed or not self._refresh_needed or self.controller.busy or not self.isVisible():
+        if self._closed or not self._refresh_needed or self.inventory._inventory_blocked() or not self.isVisible():
             return
         self._refresh_needed = False
         root = str(self._get_package_root() or '').strip()

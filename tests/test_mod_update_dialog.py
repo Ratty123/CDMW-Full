@@ -164,6 +164,7 @@ def test_overlay_list_shows_build_status_and_opens_installed_update(app, tmp_pat
         dialog.refresh()
         assert dialog.table.item(0, 5).text() == "2.00.00"
         assert dialog.table.item(0, 6).text() == "Needs comparison"
+        dialog.table.selectRow(0)
         assert "Check game updates" in dialog.details.text()
         dialog.update_button.click()
         update = dialog.findChild(ModUpdateDialog)

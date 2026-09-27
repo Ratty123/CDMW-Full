@@ -107,11 +107,66 @@ def preload_shell():
         finally:
             request_tab_shutdowns(shell)
             request_transient_shutdowns(shell)
-            _until(lambda: not controller.iter_shutdown_workers())
+            _until(lambda: not tuple(iter_transient_shutdown_workers(shell)))
             shell.close()
             fixture.tearDown()
             shell.deleteLater()
             QApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+
+
+@pytest.mark.parametrize("outcome", ['complete', 'close', 'failed'])
+def test_startup_imports_leave_the_ui_responsive_and_are_owned_until_shutdown(preload_shell, monkeypatch, outcome):
+    from cdmw.ui.shell import tool_tabs
+    shell, controller, _tabs, lazy, timer, created, renderer = preload_shell
+    shell._new_item_controller = None
+    entered, release = threading.Event(), threading.Event()
+    import_threads = []
+    captured = []
+
+    def prepare(module):
+        assert module == 'cdmw.ui.new_item.controller'
+        import_threads.append(QThread.currentThread())
+        entered.set()
+        assert release.wait(5)
+        if outcome == 'failed':
+            raise ImportError('Fixture dependency is unavailable')
+
+    def shared():
+        assert release.is_set()
+        assert QThread.currentThread() is QApplication.instance().thread()
+        shell._new_item_controller = controller
+        return controller
+
+    monkeypatch.setattr(tool_tabs.importlib, 'import_module', prepare)
+    monkeypatch.setattr(shell, '_shared_new_item_controller', shared)
+    monkeypatch.setattr(shell, '_preload_new_item_archive_data', captured.append)
+    shell._startup_splash_window = None
+    shell.show()
+    try:
+        timer.timeout.emit()
+        _until(entered.is_set)
+        assert all(thread is not QApplication.instance().thread() for thread in import_threads)
+        assert tuple(iter_transient_shutdown_workers(shell))
+        assert not created and not lazy._load_requested
+        beats = []
+        QTimer.singleShot(0, lambda: beats.append(True))
+        _until(lambda: bool(beats))
+        timer.timeout.emit()
+        assert len(import_threads) == 1 and not captured
+        if outcome == 'close':
+            request_tab_shutdowns(shell)
+            request_transient_shutdowns(shell)
+        release.set()
+        _until(lambda: not tuple(iter_transient_shutdown_workers(shell)))
+        assert captured == ([controller] if outcome == 'complete' else [])
+        if outcome == 'failed':
+            assert not timer.isActive()
+        assert not created
+        renderer.assert_not_called()
+    finally:
+        release.set()
+        request_transient_shutdowns(shell)
+        _until(lambda: not tuple(iter_transient_shutdown_workers(shell)))
 
 
 @pytest.mark.parametrize("restored", [False, True])

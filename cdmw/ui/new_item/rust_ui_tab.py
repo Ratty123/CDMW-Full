@@ -50,6 +50,7 @@ class RustNewItemStudioTab(QWidget):
         self._prepare_worker = None
         self._launch = None
         self._ready = False
+        self._first_frame_ready = False
         self._prewarming = False
         self._snapshot_prewarm_requested = False
         self._stopping = False
@@ -112,6 +113,8 @@ class RustNewItemStudioTab(QWidget):
         elif self._rust_mode and not self._closed:
             self.workflow.show()
             if self._ready:
+                if not self._first_frame_ready:
+                    self._startup_deadline.start(30000)
                 self._timer.start()
                 self._state_fingerprint = b""
                 self._publish_state()
@@ -176,6 +179,7 @@ class RustNewItemStudioTab(QWidget):
             return
         self._launch = launch
         self._ready = False
+        self._first_frame_ready = False
         self._stopping = False
         self._reader = JsonLineReader()
         self._stderr = ""
@@ -231,12 +235,11 @@ class RustNewItemStudioTab(QWidget):
         kind = message.get("type")
         if kind == "ready":
             attached, reason = self._host.attach_child_window(message.get("child_hwnd", 0),
-                int(self._process.processId()), message.get("embedded_parent_hwnd", 0))
+                int(self._process.processId()), message.get("embedded_parent_hwnd", 0), reveal=False)
             if not attached:
                 self._fail(reason)
                 return
             self._ready = True
-            self._startup_deadline.stop()
             self._timer.start()
             self._publish_state()
         elif kind == "input":
@@ -246,14 +249,26 @@ class RustNewItemStudioTab(QWidget):
             if type(generation) is not int or not self._received_generation <= generation <= self._sent_generation:
                 raise PresentationProtocolError("Invalid presentation state acknowledgement.")
             self._received_generation = generation
+            if not self._first_frame_ready:
+                self._host.request_first_frame()
             if self._prewarming and generation == self._sent_generation:
                 self._prewarming = False
                 if not self.isVisible():
+                    # Hidden preparation can idle without normal paint events;
+                    # restore the first-frame deadline when the tab opens.
+                    self._startup_deadline.stop()
                     self._timer.stop()
                     self.workflow.hide()
         elif kind == "layout":
-            if message.get("generation") == self._sent_generation and self._rust_mode and self.isVisible():
-                self._portals.update(self._bridge.document, message)
+            if message.get("generation") == self._sent_generation and self._rust_mode:
+                # The native window's ready message precedes its first frame.
+                # Layout is emitted only after rendering this state has completed.
+                if not self._first_frame_ready:
+                    self._first_frame_ready = True
+                    self._startup_deadline.stop()
+                    self._host.show_editor()
+                if self.isVisible():
+                    self._portals.update(self._bridge.document, message)
         elif kind == "failed":
             self._fail(str(message.get("message", "The Rust renderer stopped.")))
         else:

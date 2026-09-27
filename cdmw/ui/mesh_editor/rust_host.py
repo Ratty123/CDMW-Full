@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QStackedLayout,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -57,6 +58,8 @@ def _windows_api() -> object:
     user32.SetWindowPos.restype = wintypes.BOOL
     user32.ShowWindowAsync.argtypes = [hwnd, ctypes.c_int]
     user32.ShowWindowAsync.restype = wintypes.BOOL
+    user32.PostMessageW.argtypes = [hwnd, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+    user32.PostMessageW.restype = wintypes.BOOL
     user32.SetFocus.argtypes = [hwnd]
     user32.SetFocus.restype = hwnd
     user32.GetWindowLongPtrW.argtypes = [hwnd, ctypes.c_int]
@@ -101,11 +104,21 @@ class RustMeshEditorHostFrame(QFrame):
         self._geometry_sync_timer.setSingleShot(True)
         self._geometry_sync_timer.timeout.connect(self._sync_child_geometry_after_layout)
 
-        root = QVBoxLayout(self)
+        root = QStackedLayout(self)
+        root.setStackingMode(QStackedLayout.StackAll)
         root.setContentsMargins(0, 0, 0, 0)
+        # A native child cannot paint over a sibling of its parent. Keep the
+        # renderer in its own surface so the loading page also covers the window
+        # it creates before reporting ready (while its GPU is initializing).
+        self._surface = QFrame(self)
+        self._surface.setAttribute(Qt.WidgetAttribute.WA_NativeWindow, True)
+        self._surface.installEventFilter(self)
+        root.addWidget(self._surface)
         self._pages = QStackedWidget(self)
+        self._pages.setAttribute(Qt.WidgetAttribute.WA_NativeWindow, True)
         self._pages.setObjectName("MeshEditorRustHostPages")
-        root.addWidget(self._pages, 1)
+        root.addWidget(self._pages)
+        root.setCurrentWidget(self._pages)
 
         self._status_page = QFrame(self._pages)
         status_layout = QVBoxLayout(self._status_page)
@@ -177,7 +190,7 @@ class RustMeshEditorHostFrame(QFrame):
 
     def host_hwnd(self) -> int:
         try:
-            return max(0, int(self.winId()))
+            return max(0, int(self._surface.winId()))
         except (RuntimeError, TypeError, ValueError):
             return 0
 
@@ -196,6 +209,8 @@ class RustMeshEditorHostFrame(QFrame):
         child_hwnd: int,
         process_id: int,
         embedded_parent_hwnd: int,
+        *,
+        reveal: bool = True,
     ) -> tuple[bool, str]:
         if sys.platform != "win32":
             return False, "Embedded Mesh Editor is supported on Windows only"
@@ -223,8 +238,20 @@ class RustMeshEditorHostFrame(QFrame):
         except (AttributeError, OSError, TypeError, ValueError) as exc:
             self.detach_child_window()
             return False, f"Preview child-window validation failed: {exc}"
-        self.show_editor()
+        if reveal:
+            self.show_editor()
+        else:
+            # Windows does not paint a hidden child. Let it render underneath
+            # a native loading page, which can cover an embedded native window.
+            self._editor_visible = True
+            self._set_child_visible(self.isVisible())
+            self._pages.raise_()
         return True, ""
+
+    def request_first_frame(self) -> None:
+        """Request an asynchronous paint while the loading page covers the child."""
+        if sys.platform == "win32" and self._child_hwnd > 0:
+            _windows_api().PostMessageW(wintypes.HWND(self._child_hwnd), 0x000F, 0, 0)
 
     def _reparent_child(self) -> bool:
         if sys.platform != "win32" or self._child_hwnd <= 0:
@@ -329,6 +356,11 @@ class RustMeshEditorHostFrame(QFrame):
         self._result_label.setText(str(message or "The validated mesh revision is ready for output."))
         self._pages.setCurrentWidget(self._result_page)
         self._pages.setVisible(True)
+
+    def eventFilter(self, watched: object, event: QEvent) -> bool:
+        if watched is self._surface and event.type() == QEvent.Type.WinIdChange and self._child_hwnd > 0:
+            self._reparent_child()
+        return super().eventFilter(watched, event)
 
     def event(self, event: QEvent) -> bool:
         event_type = event.type()

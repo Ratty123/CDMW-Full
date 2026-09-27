@@ -175,6 +175,7 @@ def test_overlay_selection_enables_review_and_drives_independent_installed_previ
         dialog.table.clearSelection()
         assert not dialog.remove_button.isEnabled()
         dialog._loaded((replace(entries[0], compatibility_status='unmounted'),))
+        _send(bridge, dialog.table, 'select', {'path': [0], 'column': 0})
         assert not dialog.remove_button.isEnabled()
         assert 'no longer mounted' in dialog.remove_button.toolTip()
         assert shown.call_args.args[0] is None

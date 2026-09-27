@@ -74,6 +74,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Mod Management keeps its loading page until the first rendered frame, opens without automatically selecting or previewing a mod, and loads its inventory independently of Create New Item's background data preparation. Startup also moves controller and parser imports off the GUI thread.
 - Completed interface translation coverage across the built-in languages, including native Rust Mesh Editor tools, selectors, settings and Format Explorer details. Language changes update open native tools; Placement & Animations and other ampersand captions now use their proper translations.
 
 - Startup preloads Create New Item's archive data without constructing its panels or launching its renderer and preview warm-up. The interface opens on demand and reuses the data. Mod Management keeps its own loading message and no longer imports the full authoring workspace.

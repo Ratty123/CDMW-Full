@@ -37,6 +37,7 @@ _LAZY_TOOL_PRELOAD_MODULES: dict[str, tuple[str, ...]] = {
         "numpy",
     ),
     "new_item_studio": (
+        "cdmw.ui.new_item.controller",
         "cdmw.models",
         "cdmw.ui.localization_catalogs_v2",
         "cdmw.modding.static_mesh_types",
@@ -44,6 +45,7 @@ _LAZY_TOOL_PRELOAD_MODULES: dict[str, tuple[str, ...]] = {
         "PIL.Image",
         "numpy",
     ),
+    "mod_management": ("cdmw.ui.new_item.controller",),
     "replace_assistant": (
         "cdmw.models",
         "cdmw.ui.localization_catalogs_v2",
@@ -559,8 +561,19 @@ class ShellToolTabsMixin:
         return tab
 
     def _schedule_new_item_rust_prewarm(self) -> None:
+        from cdmw.workers.new_item_lookup import NewItemLookupLane
+        from cdmw.ui.shell.close_controller import register_transient_worker_controller
+
+        preparation = NewItemLookupLane(parent=self)
+        register_transient_worker_controller(self, preparation)
+        imports_ready = False
         timer = QTimer(self)
         timer.setInterval(1000)
+
+        def prepared(_key, _result):
+            nonlocal imports_ready
+            imports_ready = True
+            prepare_when_idle()
 
         def prepare_when_idle():
             container = self.new_item_studio_tab
@@ -570,6 +583,12 @@ class ShellToolTabsMixin:
             if (not self.isVisible() or getattr(self, "_startup_splash_window", None) is not None
                     or QApplication.activeModalWidget() is not None):
                 return
+            if getattr(self, "_new_item_controller", None) is None and not imports_ready:
+                # Importing the controller also imports its parsers and services.
+                # A QThread around the later data read does not cover this cost.
+                if not preparation.busy:
+                    preparation.request('imports', lambda _stop: importlib.import_module('cdmw.ui.new_item.controller'))
+                return
             controller = self._shared_new_item_controller()
             if controller.busy:
                 return
@@ -578,6 +597,8 @@ class ShellToolTabsMixin:
                 return
             self._preload_new_item_archive_data(controller)
 
+        preparation.completed.connect(prepared)
+        preparation.failed.connect(timer.stop)
         timer.timeout.connect(prepare_when_idle)
         timer.start()
 

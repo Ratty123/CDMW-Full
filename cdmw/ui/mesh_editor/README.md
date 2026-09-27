@@ -1007,6 +1007,10 @@ Rust creates one undecorated winit/wgpu child containing the complete editor UI.
 attaches it to the native Qt host, and synchronizes resize, show/hide, focus,
 DPI/screen changes, and Qt `WinIdChange` re-parenting. Failure terminates the
 owned process, leaves no detached window, and offers Retry from a fresh shadow.
+The child uses a dedicated native surface beneath the loading/result pages, so
+GPU initialization cannot cover the loading page with a blank window. The New
+Item and Mod Management hosts retain that page until their first rendered state;
+an asynchronous paint request lets the covered child produce that first frame.
 The compiled Rust UI emits the merged
 `cdmw_rust_mesh_editor_control_contract_v2`; every enabled row has a compiled UI
 and dispatch anchor, while every disabled row carries a reason. It has no

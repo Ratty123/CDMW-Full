@@ -54,10 +54,12 @@ def fingerprints(root):
 
 def drain(app, controller):
     deadline = time.monotonic() + 5
-    while controller.busy and time.monotonic() < deadline:
+    def busy():
+        return controller.busy or any(lane.busy for lane in controller._lookup_lanes)
+    while busy() and time.monotonic() < deadline:
         app.processEvents()
         time.sleep(0.002)
-    assert not controller.busy
+    assert not busy()
 
 
 @pytest.mark.parametrize("synchronous", [True, False])
@@ -322,6 +324,7 @@ def test_start_fresh_dialog_reviews_then_retires_unmounted_set(old_set, monkeypa
         app.processEvents()
         drain(app, controller)
         assert dialog.table.item(0, 6).text() == "Not mounted"
+        dialog.table.selectRow(0)
         assert "not mounted by the game" in dialog.details.text()
         assert "1 recorded overlay(s); 1 not mounted" in dialog.status.text()
         assert dialog.start_fresh_button.isEnabled()
