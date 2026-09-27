@@ -74,6 +74,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Create New Item opens transparency and cutout painting before Apply placement by preparing the imported model's texture bindings in the background. Placement stays editable and unapplied; shared-atlas checks, cancellation and rejection of outdated requests remain in effect.
 - Create New Item's Translucency painter reads the selected imported material without recompressing glow, surface and translucent export textures, avoiding long “Preparing the transparency painter” waits that kept Paint transparency disabled after placement.
 - Create New Item's startup data preparation waits for the cached archive catalogue instead of racing it with a second full archive scan, and shared lookup construction yields to keep the interface responsive. Mod Management previews reuse those lookups and filter skeleton/descriptor filenames before decoding records, avoiding repeated scans through millions of unrelated entries.
 - Mod Management keeps its loading page until the first rendered frame, opens without automatically selecting or previewing a mod, and loads its inventory independently of Create New Item's background data preparation. Startup also moves controller and parser imports off the GUI thread.

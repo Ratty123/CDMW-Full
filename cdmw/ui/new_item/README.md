@@ -19,9 +19,12 @@ Unchecked fields retain the source; missing inputs use explicit neutral maps,
 avoiding the shader's stock face textures. Restore removes the experiment.
 
 **Paint transparency…** opens a texture canvas directly from the selected part's
-Translucency controls or Transparent surface blending controls. For an imported
-model, apply its placement first. Paint lighter for more transparency, darker for
-less; Brush, Hardness and Opacity control the stroke. The red overlay locates the
+Translucency controls or Transparent surface blending controls. Imported models
+can be painted before applying placement: the worker prepares a temporary model
+to resolve the selected part's output textures, while placement stays editable
+and unapplied. Already-applied models reuse their prepared bindings.
+Paint lighter for more transparency, darker for less; Brush, Hardness and Opacity
+control the stroke. The red overlay locates the
 mask on the colour texture; **Mask only** shows its greyscale values. Scroll to
 zoom, middle-drag to pan, and use Undo/Redo or Reset as needed. **Apply**
 keeps the edit on this variant and updates the preview; Cancel discards it.
@@ -64,8 +67,10 @@ rejects an outdated painting session. Model and Effects previews use derived
 resources; visible appearance and game rendering still require separate checks.
 For imported models, the Translucency painter reads the selected material's source
 colour and alpha directly, preserving its alpha mode and factors. It does not
-rebuild glow, surface or export textures before opening; placement must still be
-applied to establish the output material bindings and reject shared atlases.
+reroute glow, surface or export textures when preparing the canvas. Pending imports
+first use the normal model conversion to establish temporary output material
+bindings and reject shared atlases; this can take the same time as Apply placement.
+Preparation is cancellable, and draft changes discard an outdated request.
 Native template graph composition retains the painted colour/absorption channel
 after composing its source layers; unrelated channels and owners still use the
 original graph. Interactive painting and preview resources do not invoke BC7.

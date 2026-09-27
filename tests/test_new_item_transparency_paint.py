@@ -790,9 +790,10 @@ def test_rust_paint_action_opens_canvas_and_apply_invalidates_plan(studio, monke
             dialog.close()
 
 
-@pytest.mark.parametrize("mode", ["blending", "translucency"])
+@pytest.mark.parametrize("mode", ["blending", "translucency", "cutout"])
 @pytest.mark.parametrize("toggle_glow", [False, True])
-def test_painter_opens_after_async_placement_without_a_glow_reset(model_studio, monkeypatch, mode, toggle_glow):
+@pytest.mark.parametrize("applied", [False, True])
+def test_painter_opens_with_or_without_applied_placement(model_studio, monkeypatch, mode, toggle_glow, applied):
     from cdmw.modding.scene_material_audit import ImportedMaterialBinding
     from cdmw.ui.new_item.rust_ui_bridge import NewItemPresentationBridge
     from tests.test_new_item_model_apply import _import
@@ -804,8 +805,8 @@ def test_painter_opens_after_async_placement_without_a_glow_reset(model_studio, 
     controller._material_parts = ()
     controller.draft.material_route = MaterialRoute.PLAIN_PBR
     controller.draft.glow_parts = ("Blade",)
-    if mode == "blending":
-        controller.draft.shader_controls = (("Blade", controls()),)
+    if mode != "translucency":
+        controller.draft.shader_controls = (("Blade", controls() if mode == "blending" else ShaderControls("SkinnedMeshWing")),)
     else:
         controller.draft.translucency = TranslucencyChoice(("Blade",))
     controller.invalidate_plan()
@@ -814,23 +815,25 @@ def test_painter_opens_after_async_placement_without_a_glow_reset(model_studio, 
     tab.show()
     bridge = NewItemPresentationBridge(tab)
     _send(bridge, panel.inspector_tabs, "tab", 1)
-    button = (panel.shader_controls_editor if mode == "blending" else panel.translucency_editor).paint_mask
+    button = (panel.translucency_editor if mode == "translucency" else panel.shader_controls_editor).paint_mask
     messages = []
     controller.status_message.connect(lambda text, _error: messages.append(text))
-    _send(bridge, button, "activate")
-    _wait(app, lambda: not controller.busy)
-    assert any("Apply the placement" in message for message in messages)
-    assert button.isEnabled()
     built = source_files()
-    monkeypatch.setattr("cdmw.ui.new_item.controller.build_placed_import", lambda *_a, **_k: built)
-    _send(bridge, panel.apply_button, "activate")
-    _wait(app, lambda: not controller.busy)
-    assert controller.model_result is built
+    builds = []
+    def build(entry, captured, placement, **kwargs):
+        builds.append((threading.get_ident(), entry.path, captured, placement, kwargs))
+        return built
+    monkeypatch.setattr("cdmw.ui.new_item.controller.build_placed_import", build)
+    if applied:
+        _send(bridge, panel.apply_button, "activate")
+        _wait(app, lambda: not controller.busy)
+        assert controller.model_result is built
     _send(bridge, panel.inspector_tabs, "tab", 1)
     assert button.isEnabled()
     if toggle_glow:
         _send(bridge, panel.glow_box, "toggle", False)
         _send(bridge, panel.glow_box, "toggle", True)
+    revision = controller._draft_revision
     _send(bridge, button, "activate")
     _wait(app, lambda: not controller.busy)
     dialog = panel._transparency_painter
@@ -838,8 +841,136 @@ def test_painter_opens_after_async_placement_without_a_glow_reset(model_studio, 
         assert dialog.isVisible()
         assert button.isEnabled()
         assert panel.operation_banner.isHidden()
+        assert not any("Apply the placement" in message for message in messages)
+        assert len(builds) == 1
+        worker, path, captured, placement, kwargs = builds[0]
+        assert worker != threading.get_ident()
+        assert captured is not source and captured.scene is source.scene
+        assert path == controller.current_variant_identity()[1]
+        assert placement == controller.model_placement
+        assert kwargs["attachment_prefab_data"] == controller.snapshot.payload(controller.current_variant_identity()[0])
+        assert controller._draft_revision == revision
+        assert controller.model_result is (built if applied else None)
+        assert source.applied == ((source.bake, placement) if applied else None)
+        dialog.canvas.stroke_committed.emit({"points": [(1, 1), (5, 1)]})
+        dialog.buttons.button(QDialogButtonBox.StandardButton.Apply).click()
+        if mode == "translucency":
+            mask = controller.draft.translucency.mask_for("Blade")
+        else:
+            choice = dict(controller.draft.shader_controls)["Blade"]
+            mask = choice.cutout_mask if mode == "cutout" else choice.transparency_mask
+        assert mask is not None
+        assert controller._draft_revision > revision
+        if not applied:
+            _send(bridge, panel.apply_button, "activate")
+            _wait(app, lambda: not controller.busy)
+            assert controller.model_result is built
+            if mode == "translucency":
+                assert controller.draft.translucency.mask_for("Blade") == mask
+            else:
+                choice = dict(controller.draft.shader_controls)["Blade"]
+                assert (choice.cutout_mask if mode == "cutout" else choice.transparency_mask) == mask
     finally:
-        dialog.close()
+        from shiboken6 import isValid
+        if isValid(dialog):
+            dialog.close()
+
+
+@pytest.mark.parametrize("ending", ["cancel", "placement", "variant", "shutdown", "build_failure", "paint_failure"])
+def test_unapplied_paint_preparation_preserves_draft_and_releases_inputs(model_studio, monkeypatch, ending):
+    from cdmw.ui.new_item.model_import import ModelPlacement
+    from tests.test_new_item_model_apply import _import
+
+    app, tab = model_studio
+    source = _import(tab)
+    controller = tab.controller
+    # This fixture switches its main worker to async after constructing the tab.
+    # Shutdown must also use the production async cleanup lane while a lease lives.
+    controller._model_cleanup_lane._synchronous = False
+    controller.draft.shader_controls = (("Blade", controls()),)
+    controller.invalidate_plan()
+    entered, release = threading.Event(), threading.Event()
+    builds, paints, cleaned, callbacks, errors = [], [], [], [], []
+    built = SimpleNamespace(cleanup=lambda: cleaned.append(threading.get_ident()))
+    controller.status_message.connect(lambda message, error: errors.append(message) if error else None)
+
+    def build(_entry, captured, placement, **_kwargs):
+        entered.set()
+        assert release.wait(3)
+        builds.append((captured, captured.flip_texture_v, placement, source._active_usage_count))
+        if ending == "build_failure":
+            raise ValueError("fixture conversion failed")
+        return built
+
+    def prepare(*_args, **kwargs):
+        paints.append(kwargs)
+        assert kwargs["result"] is built and kwargs["scene"] is source.scene
+        raise ValueError("fixture texture unavailable")
+
+    monkeypatch.setattr("cdmw.ui.new_item.controller.build_placed_import", build)
+    monkeypatch.setattr("cdmw.services.new_item_transparency_paint.prepare_transparency_paint", prepare)
+    try:
+        assert controller.start_transparency_paint("Blade", "blending", lambda *args: callbacks.append(args))
+        _wait(app, entered.is_set)
+        if ending == "cancel":
+            assert controller.cancel_operation("transparency_mask")
+        elif ending == "placement":
+            source.flip_texture_v = True
+            controller.set_model_placement(ModelPlacement(offset=(1, 0, 0)))
+        elif ending == "variant":
+            controller.select_variant(next(identity for identity, _ in controller.variant_choices()
+                                           if identity != controller.current_variant_identity()))
+        elif ending == "shutdown":
+            controller.request_shutdown()
+        release.set()
+        _wait(app, lambda: not controller.busy)
+        assert not callbacks
+        assert controller.model_result is None and source.applied is None
+        captured, flip, placement, usage = builds[0]
+        assert captured is not source and not flip and placement == ModelPlacement()
+        assert usage > 0 and source._active_usage_count == 0
+        assert source.scene is captured.scene
+        assert bool(paints) == (ending == "paint_failure")
+        assert len(cleaned) == (0 if ending == "build_failure" else 1)
+        assert all(thread != threading.get_ident() for thread in cleaned)
+        if ending.endswith("failure"):
+            assert errors == ["fixture conversion failed" if ending == "build_failure" else "fixture texture unavailable"]
+        else:
+            assert not errors
+    finally:
+        release.set()
+        controller.request_shutdown()
+        _wait(app, lambda: not controller.iter_shutdown_workers())
+
+
+@pytest.mark.parametrize("mode", ["translucency", "blending", "cutout"])
+def test_unapplied_paint_still_rejects_shared_output_atlases(model_studio, monkeypatch, mode):
+    from cdmw.modding.scene_material_audit import ImportedMaterialBinding
+    from tests.test_new_item_model_apply import _import
+
+    app, tab = model_studio
+    source = _import(tab)
+    source.scene = replace(source.scene, material_bindings=tuple(
+        ImportedMaterialBinding(material_name=name, submesh_index=index)
+        for index, name in enumerate(("Blade", "Gem"))))
+    controller = tab.controller
+    controller.draft.material_route = MaterialRoute.PLAIN_PBR
+    if mode == "translucency":
+        controller.draft.translucency = TranslucencyChoice(("Blade",))
+    else:
+        controller.draft.shader_controls = (("Blade", controls() if mode == "blending" else ShaderControls("SkinnedMeshWing")),)
+    controller.invalidate_plan()
+    built = SimpleNamespace(source_owned_output_draw_sections=(SimpleNamespace(
+        target_submesh_name="Merged", source_material_name="Blade + Gem", atlas_material_name="Merged_atlas",
+        atlas_rects=tuple(SimpleNamespace(source_material_name=name) for name in ("Blade", "Gem"))),))
+    monkeypatch.setattr("cdmw.ui.new_item.controller.build_placed_import", lambda *_args, **_kwargs: built)
+    callbacks, errors = [], []
+    controller.status_message.connect(lambda message, error: errors.append(message) if error else None)
+    assert controller.start_transparency_paint("Blade", mode, lambda *args: callbacks.append(args))
+    _wait(app, lambda: not controller.busy)
+    assert not callbacks and len(errors) == 1
+    assert "atlas parts separately" in errors[0]
+    assert controller.model_result is None and source.applied is None
 
 
 @pytest.mark.parametrize("mode", ["blending", "surface", "linked", "cutout", "translucency"])

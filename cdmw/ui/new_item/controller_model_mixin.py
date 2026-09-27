@@ -91,11 +91,34 @@ class NewItemModelControllerMixin:
         snapshot, source, result, scene = self.snapshot, self.model_import, self.model_result, self.model_scene
         template_key, revision = self.draft.template_key, self._draft_revision
         session = (snapshot, identity, source, result, revision, part, mode)
+        # Resolve the real output bindings without committing the user's placement.
+        # Freeze the import just as Apply placement does; the worker lease below
+        # keeps its source files alive until both conversion and painting are ready.
+        build_source = copy.copy(source) if appearance.custom_model and result is None and source is not None else None
+        placement = self.model_placement
 
-        def task(log, stop_event):
+        def task(log, progress, stop_event):
             from cdmw.services.new_item_transparency_paint import prepare_transparency_paint
-            return prepare_transparency_paint(snapshot, appearance, part, mode, template_key=template_key,
-                result=result, scene=scene, on_log=log, stop_event=stop_event)
+            paint_result, paint_scene = result, scene
+            try:
+                raise_if_cancelled(stop_event)
+                if build_source is not None:
+                    by_path, by_basename = snapshot.archive_index_maps()
+                    paint_result = build_placed_import(
+                        snapshot.entry(identity[1]), build_source, placement,
+                        entries_by_normalized_path=by_path, entries_by_basename=by_basename,
+                        attachment_prefab_data=snapshot.payload(identity[0]),
+                        stop_event=stop_event, on_progress=progress,
+                    )
+                    paint_scene = build_source.scene
+                raise_if_cancelled(stop_event)
+                return prepare_transparency_paint(snapshot, appearance, part, mode, template_key=template_key,
+                    result=paint_result, scene=paint_scene, on_log=log, stop_event=stop_event)
+            finally:
+                if build_source is not None:
+                    cleanup = getattr(paint_result, "cleanup", None)
+                    if callable(cleanup):
+                        cleanup()
 
         def done(prepared):
             if self._transparency_paint_current(session):
@@ -103,6 +126,7 @@ class NewItemModelControllerMixin:
 
         return self._run("transparency_mask", task, done,
                          lambda message: self.status_message.emit(message, True),
+                         task_accepts_progress=True,
                          source_owners=(source,) if source is not None else ())
 
     def _transparency_paint_current(self, session):
