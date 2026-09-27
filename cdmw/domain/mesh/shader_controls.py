@@ -94,7 +94,8 @@ EYE_COVER_OVERLAP_FIELD = "global_overlap_test"
 EYE_COVER = ShaderFamily("SkinnedMeshEyeCover", "Transparent surface blending (experimental)",
     "Blends this surface with what is behind it. Colour mixing and Colour reduction control colour coverage; "
     "Surface detail and shine controls highlights and normal-map detail separately. "
-    "The preview is approximate. Test lighting, depth and shadows in game.", (
+    "Approximate viewport preview; the game's projection-dependent surface weighting is not reproduced. "
+    "Test lighting, depth and shadows in game.", (
         ShaderField("_eyeCoverDiffuseParameter", "Colour mixing", (.5,), 0, 1,
                     "NormalizedByte4", "3844829386637310"),
         ShaderField("surface_alpha", "Surface detail and shine", (1.,), 0, 1, "TextureChannel"),
@@ -120,12 +121,55 @@ class ShaderControls:
     # Only explicitly edited fields are written. Omitted fields retain source values.
     values: tuple[tuple[str, tuple[float, ...]], ...] = ()
     transparency_mask: TransparencyMask | None = None
+    surface_response_mask: TransparencyMask | None = None
+    # Versioned mapping; omission always means the original raw red-channel mask.
+    coverage_mapping: str = "raw"
+    colour_coverage: float | None = None
+    cutout_mask: TransparencyMask | None = None
+
+    @property
+    def has_masks(self):
+        return any(mask is not None for mask in (
+            self.transparency_mask, self.surface_response_mask, self.cutout_mask))
+
+    def effective_values(self):
+        """Derived output values never replace the recoverable raw authoring values."""
+        values = dict(self.values)
+        if self.coverage_mapping == "calibrated_v1":
+            values["_eyeCoverDiffuseParameter"] = (127 / 255,)
+            values["material_red"] = ((254 - round(self.colour_coverage * 255)) / 255,)
+        if self.cutout_mask is not None:
+            values["_wingFlowProgress"] = (.5,)
+            values["_wingFlowInverse"] = (0.,)
+        return values
+
+    def colour_mask_for_output(self):
+        mask = self.transparency_mask
+        if mask is None or self.coverage_mapping == "raw":
+            return mask
+        # q = coverage * (1 - fade); R = 254/255 - q. Quantize once.
+        table = bytes(254 - round(self.colour_coverage * (255 - fade)) for fade in range(256))
+        return TransparencyMask(mask.width, mask.height, mask.pixels.translate(table))
 
     def validate(self):
         family = family_for(self.shader)
         if self.transparency_mask is not None and (
                 family != EYE_COVER or not isinstance(self.transparency_mask, TransparencyMask)):
             raise ValueError("Painted transparency requires Transparent surface blending.")
+        if self.surface_response_mask is not None and (
+                family != EYE_COVER or not isinstance(self.surface_response_mask, TransparencyMask)):
+            raise ValueError("Surface response painting requires Transparent surface blending.")
+        if self.cutout_mask is not None and (
+                self.shader != "SkinnedMeshWing" or not isinstance(self.cutout_mask, TransparencyMask)):
+            raise ValueError("Painted cutouts require Patterned reveal.")
+        if self.coverage_mapping not in ("raw", "calibrated_v1"):
+            raise ValueError("Unknown colour coverage mapping.")
+        if self.coverage_mapping == "calibrated_v1":
+            if (family != EYE_COVER or type(self.colour_coverage) not in (int, float)
+                    or not math.isfinite(self.colour_coverage) or not 0 <= self.colour_coverage <= 254 / 255):
+                raise ValueError("Calibrated colour coverage must be between 0 and 254/255.")
+        elif self.colour_coverage is not None:
+            raise ValueError("Colour coverage requires the calibrated mapping.")
         fields = {field.name: field for field in family.fields}
         seen = set()
         for name, values in self.values:
@@ -144,16 +188,23 @@ class ShaderControls:
     def to_dict(self):
         self.validate()
         return {"shader": self.shader, "values": {name: list(values) for name, values in self.values},
-                **({"transparency_mask": self.transparency_mask.to_dict()} if self.transparency_mask is not None else {})}
+                **{name: mask.to_dict() for name in ("transparency_mask", "surface_response_mask", "cutout_mask")
+                   if (mask := getattr(self, name)) is not None},
+                **({"coverage_mapping": self.coverage_mapping, "colour_coverage": self.colour_coverage}
+                   if self.coverage_mapping != "raw" else {})}
 
     @classmethod
     def from_dict(cls, value):
-        if (not isinstance(value, dict) or set(value) not in ({"shader", "values"}, {"shader", "values", "transparency_mask"})
+        if (not isinstance(value, dict) or not {"shader", "values"} <= set(value)
+                or set(value) - {"shader", "values", "transparency_mask", "surface_response_mask",
+                                 "coverage_mapping", "colour_coverage", "cutout_mask"}
                 or not isinstance(value["shader"], str) or not isinstance(value["values"], dict)):
             raise ValueError("Invalid experimental shader controls.")
         try:
             result = cls(value["shader"], tuple((name, tuple(values)) for name, values in value["values"].items()),
-                         TransparencyMask.from_dict(value["transparency_mask"]) if "transparency_mask" in value else None)
+                         **{name: TransparencyMask.from_dict(value[name]) for name in
+                            ("transparency_mask", "surface_response_mask", "cutout_mask") if name in value},
+                         coverage_mapping=value.get("coverage_mapping", "raw"), colour_coverage=value.get("colour_coverage"))
             result.validate()
         except (TypeError, OverflowError) as exc:
             raise ValueError("Invalid experimental shader controls.") from exc
@@ -187,13 +238,15 @@ def preview_factors(controls, authored=None):
     Header: family ID, dye-alpha gate, material flag bit 0, reserved.
     Remaining values follow the family's declared field order. Unknown vertex
     masks are carried separately and never replaced with guessed colour means.
+    Lane 30 selects authored Wing cutout mips; lane 31 belongs to the renderer's
+    normal-texture presence flag and must never carry an authoring setting.
     """
     controls.validate()
     family = family_for(controls.shader)
     if family == EYE_COVER:
         # Family 7 uses independent colour coverage and surface weights. -1
         # inherits a sampled channel; it must not become an opacity override.
-        values = dict(controls.values)
+        values = controls.effective_values()
         try:
             colour = (int((authored or {}).get("_eyeCoverDiffuseParameter", 128)) & 255) / 255
         except (ValueError, TypeError, OverflowError):
@@ -204,9 +257,11 @@ def preview_factors(controls, authored=None):
                     for name in ("surface_alpha", "material_red", "roughness", "metallic")]
         if controls.transparency_mask is not None:
             channels[1] = -1.  # Sample the painted red channel instead of the scalar.
+        if controls.surface_response_mask is not None:
+            channels[0] = -1.
         return tuple([7., 0., 0., 0., colour, *channels, *([0.] * 23)])
     authored = authored or {}
-    values = dict(controls.values)
+    values = controls.effective_values()
     dye = str(authored.get("_hairDyeingColor", ""))
     dye_active = len(dye) == 9 and dye.startswith("#") and dye[-2:] != "00"
     try:
@@ -234,4 +289,26 @@ def preview_factors(controls, authored=None):
             except (ValueError, TypeError, OverflowError):
                 numbers = field.default
         result.extend(numbers)
-    return tuple((*result, *([0.] * (32 - len(result)))))
+    result.extend([0.] * (32 - len(result)))
+    result[30] = float(controls.cutout_mask is not None)
+    return tuple(result)
+
+
+def eye_cover_colour_range(controls, authored=None):
+    """Unclamped nominal colour contribution; this is not final pixel visibility."""
+    factors = preview_factors(controls, authored)
+    mask = controls.transparency_mask
+    if mask is not None:
+        # This diagnostic is also displayed by Qt. Reduce in C without copying
+        # or walking millions of pixels in Python on every control change.
+        import numpy as np
+        pixels = np.frombuffer(mask.pixels, dtype=np.uint8)
+        low, high = int(pixels.min()), int(pixels.max())
+        if controls.coverage_mapping == "calibrated_v1":
+            low, high = (254 - round(controls.colour_coverage * (255 - value)) for value in (low, high))
+        low, high = low / 255, high / 255
+    elif factors[6] >= 0:
+        low = high = factors[6]
+    else:
+        low, high = 0., 1.  # Source sampling can span the channel's entire range.
+    return 2 * factors[4] - high, 2 * factors[4] - low

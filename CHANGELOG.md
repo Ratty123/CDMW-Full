@@ -13,6 +13,7 @@ The format is intentionally simple:
 
 ### Added
 
+- Create New Item has independent Colour coverage and Surface response masks, atomic Linked fade painting, an opt-in calibrated coverage preset, per-channel restoration, and lossless PNG import/export, fill, invert and gradients. Existing raw settings keep their semantics. Patterned reveal adds experimental painted hard cutouts with private textures and coverage-aware mips; in-game validation remains pending.
 - Installed overlays can be disabled and enabled with dependency checks, or rebuilt directly against the current game while retaining individual ownership and recovery history. Rebuild preserves independent shared-table and texture-registry changes and refuses conflicting ownership.
 - Create New Item can paint varying transparency across a selected part's texture from Translucency or Transparent surface blending. The painter includes soft brushes, a texture overlay, Undo/Redo and Restore mask; edits stay with their variant, update the preview and export as private textures in the DMM mod.
 
@@ -73,6 +74,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Painted transparency channels survive native template material composition, preserving other material channels and owners. EyeCover painter preparation reuses source inputs and lossless masks without encoding an intermediate BC7 export.
 - Placement & Animations validates package names and keeps output inside the selected folder. Existing folders require replacement confirmation, and their complete previous contents are retained as backups while the new packages contain only the selected operations.
 - Placement & Animations can retry the same mesh selection after preparation fails, preserving the previous scene and rejecting superseded results.
 - Create New Item commits text fields when Enter is pressed before the preceding text change is acknowledged, including the emitter's Sprite DDS archive path.

@@ -22,10 +22,11 @@ def prepare_eye_cover_textures(text, choices, model_path, read_texture, *, stop_
         raise_if_cancelled(stop_event)
         controls = settings[key]
         controls.validate()
-        values = dict(controls.values)
+        values = controls.effective_values()
         paths[wrapper.start] = {}
         for parameter in ("_alphaTexture", "_materialTexture"):
-            mask = controls.transparency_mask if parameter == "_materialTexture" else None
+            mask = (controls.colour_mask_for_output() if parameter == "_materialTexture"
+                    else controls.surface_response_mask)
             channels = {channel: values[name][0] for name, (texture, channel) in EYE_COVER_TEXTURE_FIELDS.items()
                         if texture == parameter and name in values}
             source = wrapper.textures.get(parameter, "")
@@ -42,15 +43,16 @@ def prepare_eye_cover_textures(text, choices, model_path, read_texture, *, stop_
                     on_log(f"{wrapper.submesh_name}: EyeCover {label}: {message}")
             report("Preparing texture...")
             data = _encode_channels(payload, channels, default, wrapper.submesh_name,
-                                    stop_event=stop_event, on_log=report, mask=mask)
-            identity = hashlib.sha256(parameter.encode() + data).hexdigest()[:16]
+                                    stop_event=stop_event, on_log=report, mask=mask,
+                                    invert_mask=parameter == "_alphaTexture")
+            identity = hashlib.sha256((wrapper.submesh_name.casefold() + "\0" + parameter + "\0" + source.casefold()).encode() + data).hexdigest()[:24]
             path = f"{stem}_cdmw_eyecover_{identity}.dds"
             files[path] = data
             paths[wrapper.start][parameter] = path
     return paths, files
 
 
-def _encode_channels(payload, channels, default, part_name, *, stop_event=None, on_log=None, mask=None):
+def _encode_channels(payload, channels, default, part_name, *, stop_event=None, on_log=None, mask=None, invert_mask=False):
     from PIL import Image
     from cdmw.core.texture_native import ensure_directxtex_dds_preview_png, encode_dds_with_directxtex
     from cdmw.domain.textures.output import max_mips_for_size
@@ -76,7 +78,7 @@ def _encode_channels(payload, channels, default, part_name, *, stop_event=None, 
         rgba = Image.merge("RGBA", planes)
         if mask is not None:
             from cdmw.services.transparency_masks import masked_texture
-            rgba = masked_texture(rgba, mask, 0)
+            rgba = masked_texture(rgba, mask, 0, invert=invert_mask)
         rgba.save(source)
         output = root / "channels.dds"
         raise_if_cancelled(stop_event)

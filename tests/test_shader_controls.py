@@ -17,6 +17,50 @@ from tests.test_mesh_editor_replacement import editor
 from tests.test_mesh_translucency import sidecar
 
 
+@pytest.mark.parametrize("packed", [0, 64, 127, 128, 191, 255])
+@pytest.mark.parametrize("pixel", [0, 64, 128, 255])
+def test_raw_eye_cover_mask_keeps_unclamped_legacy_channel_math(packed, pixel):
+    from cdmw.domain.mesh.shader_controls import EYE_COVER, eye_cover_colour_range
+    from cdmw.domain.textures.transparency_mask import TransparencyMask
+    mask = TransparencyMask(1, 1, bytes([pixel]))
+    controls = ShaderControls(EYE_COVER.shader, (("_eyeCoverDiffuseParameter", (packed / 255,)),), mask)
+    assert ShaderControls.from_dict(controls.to_dict()) == controls
+    assert "coverage_mapping" not in controls.to_dict()
+    assert controls.colour_mask_for_output() == mask
+    low, high = eye_cover_colour_range(controls)
+    assert low == high == pytest.approx((2 * packed - pixel) / 255)
+
+
+@pytest.mark.parametrize("coverage", [0., 64 / 255, 128 / 255, 254 / 255])
+def test_calibrated_eye_cover_mask_is_explicit_bounded_and_reversible(coverage):
+    from dataclasses import replace
+    from cdmw.domain.mesh.shader_controls import EYE_COVER
+    from cdmw.domain.textures.transparency_mask import TransparencyMask
+    mask = TransparencyMask(4, 1, bytes([0, 64, 128, 255]))
+    raw = ShaderControls(EYE_COVER.shader, (("_eyeCoverDiffuseParameter", (0.,)), ("material_red", (0.,))), mask)
+    calibrated = replace(raw, coverage_mapping="calibrated_v1", colour_coverage=coverage, surface_response_mask=mask)
+    assert ShaderControls.from_dict(calibrated.to_dict()) == calibrated
+    assert calibrated.values == raw.values  # Explicit zero is not an absent setting.
+    assert preview_factors(calibrated)[4:7] == (127 / 255, -1., -1.)
+    result = calibrated.colour_mask_for_output().pixels
+    for fade, red in zip(mask.pixels, result):
+        assert 0 <= (254 - red) / 255 <= 254 / 255
+        assert abs((254 - red) / 255 - coverage * (1 - fade / 255)) <= .5 / 255
+    assert replace(calibrated, coverage_mapping="raw", colour_coverage=None).colour_mask_for_output() == mask
+    assert raw.transparency_mask == mask
+
+
+@pytest.mark.parametrize("extra", [
+    {"coverage_mapping": "future_v2"}, {"coverage_mapping": "calibrated_v1"},
+    {"colour_coverage": 0.}, {"coverage_mapping": "calibrated_v1", "colour_coverage": 1.},
+    {"coverage_mapping": "calibrated_v1", "colour_coverage": True},
+    {"surface_response_mask": None}, {"cutout_mask": {}}, {"surface_mask": {}},
+])
+def test_unknown_or_malformed_mask_state_is_never_silently_dropped(extra):
+    with pytest.raises(ValueError):
+        ShaderControls.from_dict({"shader": "SkinnedMeshEyeCover", "values": {}, **extra})
+
+
 def material(shader="SkinnedMeshStandard", extra="", name="Blade"):
     block = plain_material_xml(PlainMaterial(base="texture/base.dds", normal="texture/normal.dds"))
     block = block.replace('SkinnedMeshStandard"', shader + '"')

@@ -28,6 +28,45 @@ def decode_texture(payload, *, stop_event=None):
             return image.convert("RGBA")
 
 
+def read_mask_image(path, size, channel="Gray", *, stop_event=None):
+    """Bounded lossless import: explicit channel, exact layout, no hidden flip."""
+    path = Path(path)
+    if path.stat().st_size > 64 * 1024 * 1024:
+        raise ValueError("Mask images must be at most 64 MiB.")
+    if channel not in {"Gray", "R", "G", "B", "A"}:
+        raise ValueError("Select a valid mask image channel.")
+    raise_if_cancelled(stop_event)
+    with Image.open(path) as source:
+        if (source.format != "PNG" or source.size != size or source.width * source.height > 16_777_216
+                or not all(1 <= value <= 8192 for value in source.size)):
+            raise ValueError(f"Import a PNG matching this mask's {size[0]} × {size[1]} pixels. Images are never stretched.")
+        if source.mode not in {"L", "RGB", "RGBA"}:
+            raise ValueError("Use an 8-bit grayscale, RGB or RGBA PNG for the mask.")
+        if source.getexif().get(274, 1) != 1:
+            raise ValueError("Normalize the image orientation before importing the mask.")
+        if channel == "Gray":
+            if source.mode != "L":
+                raise ValueError("Select an explicit R, G, B or A channel for a colour image.")
+            plane = source.copy()
+        else:
+            if channel == "A" and "A" not in source.getbands():
+                raise ValueError("This image has no alpha channel.")
+            plane = source.convert("RGBA").getchannel(channel)
+        raise_if_cancelled(stop_event)
+        return TransparencyMask(*size, plane.tobytes())
+
+
+def write_mask_image(path, mask, *, stop_event=None):
+    from cdmw.core.atomic_file import atomic_write_bytes
+    if Path(path).suffix.casefold() != ".png":
+        raise ValueError("Export masks as lossless PNG files.")
+    buffer = BytesIO()
+    mask_plane(mask).save(buffer, format="PNG")
+    raise_if_cancelled(stop_event)
+    atomic_write_bytes(Path(path), buffer.getvalue())
+    return str(path)
+
+
 def mask_plane(mask, size=None, *, invert=False):
     plane = Image.frombytes("L", (mask.width, mask.height), mask.pixels)
     if size is not None and plane.size != size:
@@ -92,18 +131,18 @@ def apply_translucency_masks(text, masks, model_path, read_texture, *, stop_even
     return text, files
 
 
-def preview_masked_part(part, mask, *, glass=False, snapshot=None, stop_event=None, part_index=0):
+def preview_masked_part(part, mask, *, glass=False, surface=False, snapshot=None, stop_event=None, part_index=0):
     """Use lossless derived DDS resources; preview never invokes the BC7 encoder."""
     from types import SimpleNamespace
     from cdmw.services.shader_controls_preview import publish_preview_texture
     import copy
-    parameter = "_baseColorTexture" if glass else "_materialTexture"
+    parameter = "_baseColorTexture" if glass else "_cdmwEyeCoverAlphaTexture" if surface else "_materialTexture"
     inputs = list(getattr(part, "preview_material_texture_inputs", ()) or ())
-    aliases = {parameter} if glass else {parameter, "_metallicRoughnessTexture"}
+    aliases = {parameter, "_alphaTexture"} if surface else {parameter} if glass else {parameter, "_metallicRoughnessTexture"}
     def field(row, name):
         return row.get(name, "") if isinstance(row, dict) else getattr(row, name, "")
     current = next((row for row in inputs if field(row, "parameter_name") in aliases), None)
-    attributes = (("preview_texture_dds_path", "preview_texture_path", "texture") if glass else
+    attributes = (() if surface else ("preview_texture_dds_path", "preview_texture_path", "texture") if glass else
                   ("preview_material_texture_dds_path", "preview_material_texture_path"))
     candidates = tuple(str(path) for path in (
         *(field(current, name) for name in ("source_dds_path", "preview_texture_path", "source_texture_path")),
@@ -120,7 +159,7 @@ def preview_masked_part(part, mask, *, glass=False, snapshot=None, stop_event=No
     if payload is None and candidates:
         raise ValueError(f"{part.name}: the preview texture is unavailable for the painted transparency mask.")
     factors = getattr(part, "preview_native_material_overrides", {}) or {}
-    if glass:
+    if glass or surface:
         # Colour-only imports keep their tint in the material factors. White
         # supplies an alpha-bearing texture without multiplying that tint twice.
         neutral = (255, 255, 255, 255)
@@ -129,7 +168,7 @@ def preview_masked_part(part, mask, *, glass=False, snapshot=None, stop_event=No
         # source map those channels must remain identity when adding our red mask.
         neutral = (0, 255, 255, 255) if factors.get("gltf_metallic_roughness") else (0, 0, 0, 255)
     image = decode_texture(payload, stop_event=stop_event) if payload else Image.new("RGBA", (4, 4), neutral)
-    image = masked_texture(image, mask, 3 if glass else 0, invert=glass)
+    image = masked_texture(image, mask, 3 if glass else 0, invert=glass or surface)
     buffer = BytesIO()
     raise_if_cancelled(stop_event)
     image.save(buffer, format="DDS")
@@ -156,6 +195,11 @@ def preview_masked_part(part, mask, *, glass=False, snapshot=None, stop_event=No
             material_name=part.material, submesh_name=part.name, binding_authority="authoritative",
             owner_slot_index=max(0, int(getattr(part, "preview_pac_material_owner_slot_index", part_index))))
     clone = copy.copy(part)
+    clone.preview_native_material_overrides = dict(factors)
+    # The native graph must preserve this derived channel at its final handoff.
+    authored = dict(factors.get("painted_texture_channels", {}))
+    authored["opacity" if glass else "eye_surface" if surface else "material"] = resource
+    clone.preview_native_material_overrides["painted_texture_channels"] = authored
     clone.preview_material_texture_inputs = tuple(row for row in inputs if field(row, "parameter_name") not in aliases) + (binding,)
     for attribute in attributes[:2]:
         setattr(clone, attribute, resource)
@@ -163,8 +207,92 @@ def preview_masked_part(part, mask, *, glass=False, snapshot=None, stop_event=No
         # Explicit painting replaces alpha even when glTF declares OPAQUE. The
         # renderer's absorption gate must therefore sample these authored pixels.
         clone.preview_alpha_mode = "BLEND"
-        clone.preview_native_material_overrides = dict(getattr(part, "preview_native_material_overrides", {}) or {})
         clone.preview_native_material_overrides["alpha_mode"] = "blend"
         # Export replaces the complete base alpha, including any source factor.
         clone.preview_native_material_overrides["opacity"] = 1.
     return clone
+
+
+def cutout_mips(mask, *, stop_event=None):
+    """Wing recipe: R=1 at every UV; B=fade, progress=.5, inversion=0.
+
+    cut = saturate(2*saturate(2*B-.5)-1); discard when cut>.001,
+    hence B>.50025. Lower mips preserve the nearest representable removed
+    pixel count at this fixed threshold. No alpha-channel coverage heuristic.
+    """
+    import numpy as np
+    plane = mask_plane(mask)
+    removed = sum(count for value, count in enumerate(plane.histogram()) if value / 255 > .50025)
+    fraction = removed / (mask.width * mask.height)
+    first = True
+    while True:
+        raise_if_cancelled(stop_event)
+        blue = plane
+        if not first:
+            values = np.asarray(plane).ravel()
+            count = round(fraction * len(values))
+            pixels = np.zeros(len(values), dtype=np.uint8)
+            if count:
+                pixels[np.argsort(values, kind="stable")[-count:]] = 255
+            blue = Image.frombytes("L", plane.size, pixels.tobytes())
+        yield Image.merge("RGBA", (Image.new("L", plane.size, 255), Image.new("L", plane.size, 0),
+                                    blue, Image.new("L", plane.size, 255)))
+        if plane.size == (1, 1):
+            break
+        plane = plane.resize((max(1, plane.width // 2), max(1, plane.height // 2)), Image.Resampling.BOX)
+        first = False
+
+
+def encode_cutout_texture(mask, *, compressed=True, stop_event=None, on_log=None):
+    """Encode each owned mip once, then assemble that exact DDS mip chain."""
+    import struct
+    from cdmw.core.texture_native import encode_dds_with_directxtex
+    header, payloads = None, []
+    with TemporaryDirectory(prefix="cdmw-cutout-") as directory:
+        root = Path(directory)
+        for image in cutout_mips(mask, stop_event=stop_event):
+            if compressed:
+                source, output = root / "mip.png", root / "mip.dds"
+                image.save(source)
+                report = encode_dds_with_directxtex(source, output, dds_format="BC7_UNORM",
+                    width=image.width, height=image.height, mip_count=1, source_color_policy="ignore_srgb_metadata",
+                    stop_event=stop_event, on_log=on_log)
+                raise_if_cancelled(stop_event)
+                if not report or not output.is_file():
+                    raise ValueError("The cutout mask texture could not be encoded.")
+                data, offset = output.read_bytes(), 148
+                if data[84:88] != b"DX10" or struct.unpack_from("<I", data, 128)[0] != 98:
+                    raise ValueError("The cutout encoder did not return BC7_UNORM.")
+                expected = ((image.width + 3) // 4) * ((image.height + 3) // 4) * 16
+            else:
+                buffer = BytesIO()
+                image.save(buffer, format="DDS")
+                data, offset = buffer.getvalue(), 128
+                expected = image.width * image.height * 4
+            if len(data) != offset + expected:
+                raise ValueError("Invalid cutout mip payload size.")
+            if header is None:
+                header = bytearray(data[:offset])
+            payloads.append(data[offset:])
+        struct.pack_into("<I", header, 28, len(payloads))
+        if len(payloads) > 1:
+            struct.pack_into("<I", header, 8, struct.unpack_from("<I", header, 8)[0] | 0x20000)
+            struct.pack_into("<I", header, 108, struct.unpack_from("<I", header, 108)[0] | 0x400008)
+        raise_if_cancelled(stop_event)
+        return bytes(header) + b"".join(payloads)
+
+
+def prepare_cutout_textures(wrappers, settings, model_path, *, stop_event=None, on_log=None):
+    paths, files = {}, {}
+    stem = str(PurePosixPath(model_path.replace("\\", "/").replace("/modelproperty/", "/texture/", 1)
+                            .replace("/model/", "/texture/", 1)).with_suffix(""))
+    for wrapper in wrappers:
+        mask = settings[wrapper.submesh_name.casefold()].cutout_mask
+        if mask is None:
+            continue
+        data = encode_cutout_texture(mask, stop_event=stop_event, on_log=on_log)
+        identity = hashlib.sha256(wrapper.submesh_name.encode() + b"\0wing-cutout-v1\0" + data).hexdigest()[:24]
+        path = f"{stem}_cdmw_cutout_{identity}.dds"
+        paths[wrapper.start] = {"_wingFlowTex1": path}
+        files[path] = data
+    return paths, files

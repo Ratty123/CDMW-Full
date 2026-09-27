@@ -1484,7 +1484,9 @@ def _composite_preview_core_material_graph(package_dir, scene, textures, present
             overrides = getattr(submesh, "preview_native_material_overrides", {}) or {}
             source = overrides.get("preview_core_material_source")
             if source is not None:
-                sources.append((lod_index, material_index, source))
+                painted = overrides.get("painted_texture_channels", {})
+                channels = (1 if "opacity" in painted else 0) | (2 if "material" in painted else 0)
+                sources.append((lod_index, material_index, source, channels))
     if not sources:
         return None
     if len(sources) > _PREVIEW_CORE_BATCH_LIMIT:
@@ -1494,7 +1496,7 @@ def _composite_preview_core_material_graph(package_dir, scene, textures, present
     copied_sources, materials = {}, []
     source_edge_count = 0
     slots = {(row["lod_index"], row["material_index"]): row["material_slot_index"] for row in presentations}
-    for lod_index, material_index, source in sources:
+    for lod_index, material_index, source, channels in sources:
         _cancelled(cancelled)
         aggregate_bytes, source_edge_count = _copy_preview_core_material_layers(
             [source["batch"]], Path(source["package"]), package_dir, quality, resources,
@@ -1502,6 +1504,8 @@ def _composite_preview_core_material_graph(package_dir, scene, textures, present
         )
         materials[-1].update(lod_index=lod_index, material_index=material_index,
                              material_slot_index=slots.get((lod_index, material_index), material_index))
+        if channels:
+            materials[-1]["authoring_channels"] = channels
         next_index = max(next_index, len(resources))
     return {
         "schema_version": _PREVIEW_CORE_MATERIAL_GRAPH_SCHEMA,

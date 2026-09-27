@@ -25,15 +25,30 @@ less; Brush, Hardness and Opacity control the stroke. The red overlay locates th
 mask on the colour texture; **Mask only** shows its greyscale values. Scroll to
 zoom, middle-drag to pan, and use Undo/Redo or Reset as needed. **Apply**
 keeps the edit on this variant and updates the preview; Cancel discards it.
-**Restore mask** removes the painted override.
+Fill, Invert and horizontal/vertical Gradient share the same undo history.
+Import/Export PNG uses lossless pixels on the cancellable worker. Import requires
+the selected target's exact dimensions and normal orientation; choose Gray for
+a grayscale PNG or explicitly select R/G/B/A. Images are never stretched or
+automatically flipped. Export each target separately.
+
+Transparent surface blending offers **Colour coverage**, **Surface response**
+and **Linked fade** targets. Switching targets does not copy or discard a mask.
+Linked strokes change both masks in one undo step, including masks at different
+resolutions using the same normalized UV positions. **Restore colour mask** and
+**Restore surface mask** remove just that mask. **Restore colour channel** also
+restores source colour parameters and raw mapping; **Restore surface channel**
+also clears the uniform surface override. **Restore source shader controls**
+removes the entire experiment. The painter's Reset returns to its opening pixels.
 
 For Translucency the mask replaces base-colour alpha (white mask means zero
 absorption alpha), including explicit overrides on opaque glTF imports and their
 source alpha factors. Colour-only imports can also be painted; their material colour
 is retained in the preview. Thickness, extinction and surface reflection controls
-still apply. For Transparent surface
-blending it replaces material red, taking precedence over uniform Colour reduction;
-Colour mixing and Surface detail and shine remain independent. White therefore
+still apply. For Transparent surface blending, colour painting replaces material
+red, taking precedence over uniform Colour reduction. Surface painting replaces
+`_alphaTexture.R` with `1 - mask`, independently of colour: white fades normal
+and material contribution, black retains full response. Superseded uniform controls
+are disabled; removing the mask recovers their previous values. White therefore
 means *more transparent*, not guaranteed invisibility or removal of reflections.
 Only the selected channel is edited; BC7 compression can introduce small differences
 in other channels. Other parts keep their source textures. Export creates private
@@ -47,6 +62,39 @@ reused when reopening the painter, avoiding repeated compression loss. Preparati
 runs on the controller's cancellable worker; changing the model, variant or draft
 rejects an outdated painting session. Model and Effects previews use derived
 resources; visible appearance and game rendering still require separate checks.
+Native template graph composition retains the painted colour/absorption channel
+after composing its source layers; unrelated channels and owners still use the
+original graph. Interactive painting and preview resources do not invoke BC7.
+
+**Calibrated coverage (experimental)** is an opt-in mapping. Old drafts always
+load as **Raw channels (compatible)** with their original numbers and masks.
+The preset fixes the packed colour byte at 127 and exposes contribution in 255
+steps, from 0 to 254/255. A white colour mask fades this selected contribution
+toward zero: `q = coverage * (1 - mask)`, `R = 254/255 - q`, quantized once.
+This is a numerical preset, not a game-validated visibility control. The range is
+before BC7 compression, which can shift endpoints. Advanced raw numbers remain
+recoverable when switching back to raw mapping. Raw combinations outside 0–1
+show a warning: the viewport clamps colour weight, while the inspected game
+expression does not. When the packed colour is inherited, its range depends on
+that source value. The preview also omits the game's projection-dependent
+surface weighting; it is not a distance-in-metres control.
+
+**Paint cutout…** is available under **Patterned reveal** for compatible parts.
+It authors a separate, experimental hard-cutout mask: white removes pixels,
+black keeps them, and gray is a threshold field rather than smooth transparency.
+The owned Wing texture uses red=1 everywhere and blue=mask, progress=0.5 and
+inversion=0. This neutralizes red's different UV scale and discards at
+`B > 0.50025`. Restore cutout mask recovers the previous Patterned reveal settings;
+its optional animated reveal is a separate mode. Base colour, normal and material
+bindings are preserved. Each lower mip keeps the nearest representable removed
+pixel count at that fixed threshold, with deterministic placement at tied values;
+tiny holes can still change at coarse mips and during filtering. Alpha-coverage
+heuristics are not used for this blue-channel formula. Source preview uses the
+same recipe/mips losslessly; export encodes every mip as BC7 once.
+Sky/character backgrounds, animation, depth prepass, shadows and LOD changes
+still need controlled game checks. Existing atlas/layout and PAC part-creation
+guards remain in force. UV island tools and a shared Mesh Editor painter are
+tracked in the [authoring plan](../../../docs/plans/active/transparency-authoring-improvements-v1.md).
 
 **Transparency limitation:** Overlapping transparent surfaces may show visible
 triangles or other visual glitches in game, even within the same model. Avoid

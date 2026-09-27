@@ -54,12 +54,35 @@ pub(super) fn verify(
     cases.push(("eye inherited maps", eye, [1.0, 1.0, 1.0], 0.0));
     eye[5] = 64.0 / 255.0; eye[6] = 64.0 / 255.0;
     cases.push(("eye explicit maps", eye, [1.0, 1.0, 1.0], 0.0));
+    let mut cutout = [0.0; 32]; cutout[0] = 1.0; cutout[4] = 0.5; cutout[30] = 1.0;
+    for name in ["painted cutout left", "painted cutout right", "painted cutout below", "painted cutout above"] {
+        cases.push((name, cutout, [1.0; 3], 0.0));
+    }
+    let mut painted_eye = [0.0; 32]; painted_eye[0] = 7.0; painted_eye[4] = 127.0 / 255.0;
+    painted_eye[6] = -1.0; painted_eye[7] = 0.4;
+    for name in ["painted colour left", "painted colour right"] {
+        cases.push((name, painted_eye, [1.0; 3], 0.0));
+    }
+    painted_eye[4] = 0.0; painted_eye[5] = -1.0; painted_eye[6] = 0.0;
+    for name in ["painted surface left", "painted surface right"] {
+        cases.push((name, painted_eye, [1.0; 3], 0.0));
+    }
     let mut samples = BTreeMap::new();
     for (name, controls, vertex_mask, time) in cases {
+        let mut active_mask = mask.clone();
+        if name.starts_with("painted") {
+            for (index, pixel) in active_mask[148..].chunks_exact_mut(4).enumerate() {
+                let right = index % width >= width / 2;
+                let blue = if name.ends_with("below") { 127 } else if name.ends_with("above") { 128 } else if right { 255 } else { 0 };
+                let red = if name.starts_with("painted cutout") { 255 } else if right { 254 } else { 0 };
+                pixel.copy_from_slice(&[red, 128, blue, 255]);
+            }
+        }
+        let uv = if name.ends_with("right") { [0.75, 0.25] } else if name.starts_with("painted") { [0.25, 0.25] } else { [0.125, 0.125] };
         let snapshot = DrawSnapshot {
             mesh_identity: u64::MAX - 32, draw_revision: 1, topology_generation: 1,
             positions: vec![[-0.8, -0.8, 0.5], [0.8, -0.8, 0.5], [0.8, 0.8, 0.5], [-0.8, 0.8, 0.5]],
-            normals: vec![[0.0, 0.0, -1.0]; 4], uvs: vec![[0.125, 0.125]; 4],
+            normals: vec![[0.0, 0.0, -1.0]; 4], uvs: vec![uv; 4],
             shader_masks: vec![vertex_mask; 4], indices: vec![0, 1, 2, 0, 2, 3],
             triangle_materials: vec![0; 2], selected_vertices: Vec::new(), fingerprint: "shader-controls-proof".to_owned(),
         };
@@ -69,7 +92,7 @@ pub(super) fn verify(
             // Conversion from glass/cutout must still use EyeCover coverage.
             translucency: eye_cover.then_some([0.8, 0.8]), alpha_cutoff: eye_cover.then_some(0.9),
             ..Default::default() };
-        let binding = make_binding(&mask, &base, factors)?;
+        let binding = make_binding(&active_mask, &base, factors)?;
         if eye_cover && (!binding.alpha_blend || binding.translucent) {
             return Err(RenderError::Device("EyeCover did not select independent alpha blending".to_owned()));
         }
@@ -94,7 +117,12 @@ pub(super) fn verify(
         || !close("eye clear", "wing cut") || close("eye clear", "eye half")
         || close("eye half", "eye opaque") || !close("eye opaque", "eye saturated")
         || !close("eye half", "eye red mask") || close("eye clear", "eye shine only")
-        || close("eye shine only", "eye rough metal") || !close("eye inherited maps", "eye explicit maps") {
+        || close("eye shine only", "eye rough metal") || !close("eye inherited maps", "eye explicit maps")
+        || close("painted cutout left", "painted cutout right")
+        || !close("painted cutout right", "wing cut") || !close("painted cutout above", "wing cut")
+        || close("painted cutout below", "wing cut")
+        || close("painted colour left", "painted colour right") || !close("painted colour right", "eye clear")
+        || !close("painted surface left", "eye clear") || close("painted surface right", "eye clear") {
         return Err(RenderError::Device(format!("Shader-control pixel mismatch: {samples:?}")));
     }
     *camera = saved;

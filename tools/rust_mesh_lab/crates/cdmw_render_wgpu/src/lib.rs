@@ -438,8 +438,14 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
         sample_uv += sin(phase * frequency + camera.material_time * speed) * amplitude * (1.0 - input.shader_masks.y);
     }
     if shader_kind == 1.0 && shader_has_mask {
-        let red = textureSampleLevel(skin_detail_mask_texture, material_sampler, sample_uv * 4.0, 0.0).r;
-        let blue = textureSampleLevel(skin_detail_mask_texture, material_sampler, sample_uv, 0.0).b;
+        var red = textureSampleLevel(skin_detail_mask_texture, material_sampler, sample_uv * 4.0, 0.0).r;
+        var blue = textureSampleLevel(skin_detail_mask_texture, material_sampler, sample_uv, 0.0).b;
+        if shader_value(30u) > 0.5 {
+            // Authored cutouts carry a coverage-preserving mip chain for the
+            // fixed R=1, progress=.5 recipe. Legacy reveal retains its sampling.
+            red = textureSampleBias(skin_detail_mask_texture, material_sampler, sample_uv * 4.0, MATERIAL_MIP_LOD_BIAS).r;
+            blue = textureSampleBias(skin_detail_mask_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS).b;
+        }
         let mask = select(blue, 1.0 - blue, shader_value(5u) >= 0.001);
         let cut = clamp(2.0 * clamp(2.0 * mask - shader_value(4u), 0.0, 1.0) - red, 0.0, 1.0);
         if cut > 0.001 { discard; }

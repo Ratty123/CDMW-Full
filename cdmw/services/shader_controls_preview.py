@@ -8,7 +8,7 @@ from tempfile import gettempdir
 from types import SimpleNamespace
 
 from cdmw.core.common import raise_if_cancelled
-from cdmw.domain.mesh.shader_controls import EYE_COVER, family_for, preview_factors
+from cdmw.domain.mesh.shader_controls import EYE_COVER, family_for, preview_factors, eye_cover_colour_range
 
 
 EFFECT_MASK_PARAMETERS = frozenset({"_wingFlowTex1", "_tornPatternTexture", "_posterGlowNoiseTex",
@@ -34,7 +34,10 @@ def source_inputs(part):
 def shader_control_diagnostic(part, controls, authored):
     """Read actual mask gates during worker preparation, never during UI repaint."""
     if controls.shader == EYE_COVER.shader:
-        return EYE_COVER.note
+        low, high = eye_cover_colour_range(controls, authored)
+        warning = (f" Raw colour contribution can be outside 0–1 ({low:.4f} to {high:.4f}); "
+                   "the viewport clamps it, while the inspected game expression does not.") if low < 0 or high > 1 else ""
+        return EYE_COVER.note + warning
     if controls.shader in {"SkinnedMeshTornCloth_Ver2", "SkinnedMeshHairAnimatedUV"}:
         total = len(part.vertices)
         masks = getattr(part, "shader_masks", ())
@@ -140,6 +143,7 @@ def shader_preview_mesh(mesh, choices, *, snapshot=None, stop_event=None, plain_
             result.submeshes.append(part)
             continue
         controls = selected[0]
+        controls.validate()
         if any(value != controls for value in selected):
             raise ValueError("Parts sharing a preview material need the same shader controls.")
         clone = copy.copy(part)
@@ -161,7 +165,7 @@ def shader_preview_mesh(mesh, choices, *, snapshot=None, stop_event=None, plain_
             if source_name is not None:
                 # Use the same compatibility checks and inherited values as
                 # output, including Wing's visible starting pose on conversion.
-                if controls.shader == EYE_COVER.shader:
+                if controls.shader == EYE_COVER.shader or controls.cutout_mask is not None:
                     # Read inherited values without generating export BC7 maps
                     # on every preview edit. The GPU applies channel overrides.
                     _, values, textures = sources[source_name]
@@ -184,6 +188,15 @@ def shader_preview_mesh(mesh, choices, *, snapshot=None, stop_event=None, plain_
                      (EFFECT_NORMAL_PARAMETER, textures.get(EFFECT_NORMAL_PARAMETER, "") if controls.shader == "SkinnedMeshAnisotropy" else "", EFFECT_NORMAL_PARAMETER))
         if family == EYE_COVER:
             resources = ((EYE_COVER_ALPHA_PARAMETER, textures.get("_alphaTexture", ""), "_alphaTexture"),)
+        if controls.cutout_mask is not None:
+            from cdmw.services.transparency_masks import encode_cutout_texture
+            resource = publish_preview_texture(encode_cutout_texture(controls.cutout_mask, compressed=False, stop_event=stop_event))
+            bindings = [item for item in bindings if getattr(item, "parameter_name", "") != "_wingFlowTex1"]
+            bindings.append(SimpleNamespace(parameter_name="_wingFlowTex1", source_texture_path=resource,
+                source_dds_path=resource, preview_texture_path=resource, shader_family=family.shader,
+                material_name=part.material, submesh_name=part.name, binding_authority="authoritative",
+                owner_slot_index=max(0, int(getattr(part, "preview_pac_material_owner_slot_index", part_index)))))
+            resources = ()
         for parameter, source_path, source_parameter in resources:
             if not source_path:
                 continue
@@ -208,9 +221,13 @@ def shader_preview_mesh(mesh, choices, *, snapshot=None, stop_event=None, plain_
         clone.preview_material_texture_inputs = tuple(bindings)
         if controls.transparency_mask is not None:
             from cdmw.services.transparency_masks import preview_masked_part
-            clone = preview_masked_part(clone, controls.transparency_mask, snapshot=snapshot, stop_event=stop_event,
+            clone = preview_masked_part(clone, controls.colour_mask_for_output(), snapshot=snapshot, stop_event=stop_event,
                                         part_index=part_index)
-        clone.preview_native_material_overrides = dict(getattr(part, "preview_native_material_overrides", {}) or {})
+        if controls.surface_response_mask is not None:
+            from cdmw.services.transparency_masks import preview_masked_part
+            clone = preview_masked_part(clone, controls.surface_response_mask, surface=True, snapshot=snapshot,
+                                        stop_event=stop_event, part_index=part_index)
+        clone.preview_native_material_overrides = dict(getattr(clone, "preview_native_material_overrides", {}) or {})
         clone.preview_native_material_overrides["shader_controls"] = list(preview_factors(controls, values))
         result.submeshes.append(clone)
     result.lod_levels = [result.submeshes]

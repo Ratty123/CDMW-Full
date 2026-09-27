@@ -452,7 +452,7 @@ def test_complete_plan_and_loose_export_include_owned_eye_cover_maps(tmp_path, v
         assert len([patch for patch in plan.patches if patch.entry.path == RENDERPASS_PATH]) == 1
         assert plan.loose_files[RENDERPASS_PATH] == rewrite_eye_cover_overlap(data[RENDERPASS_PATH])
         assert plan.manifest["eye_cover_overlap_test"]["scope"] == "all_eye_cover_materials"
-        assert any("affects all EyeCover materials" in line for line in plan.warnings)
+        assert any("including character eyes" in line for line in plan.warnings)
         assert "global_overlap_test" not in plan.loose_files[xml_path(output)].decode()
     service.export_loose(plan, tmp_path / "mod", manager="JMM")
     for path in generated:

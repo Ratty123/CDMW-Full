@@ -8,6 +8,23 @@ plus a known-data flag; older documents default to unknown. The GPU vertex is 80
 bytes. `shader_mask` / `shader_normal` reuse skin-detail bindings only while an
 experiment is active; ordinary materials keep their previous bindings.
 
+New Item's two-mask and cutout authoring reuse these preview controls without
+adding families to Mesh Editor's catalogue. Shader-control lane 30 marks the
+fixed Wing cutout recipe and enables its authored mip chain; lane 31 remains
+the renderer-owned normal-texture presence flag. Legacy reveal keeps its prior
+sampling. EyeCover colour remains clamped in this approximate forward renderer;
+the authoring UI reports the unclamped nominal range and the omitted game
+projection-dependent surface weighting.
+
+Combined native material graphs accept optional `authoring_channels` on each
+material (default 0): bit 0 preserves the owned base-alpha channel, bit 1 the
+owned material-red channel after source-layer composition. Other bits, missing
+or ambiguous painted sources are rejected. Composition retains other channels,
+LOD/material ownership and the higher source/mask resolution. Source snapshots
+remain immutable. The focused compositor test and the offscreen shader-control
+pixel proof cover this path; they do not establish game parity or packaged
+availability. The UI painter's Mesh Editor port remains tracked separately.
+
 Product labels use Preview and Mesh Editor, with neutral Layer, Morph Profile,
 Morph and Preset defaults. Internal renderer and protocol identities remain unchanged.
 Particle BC4/R8 masks use linear sampling; RGB mask coverage is converted back from

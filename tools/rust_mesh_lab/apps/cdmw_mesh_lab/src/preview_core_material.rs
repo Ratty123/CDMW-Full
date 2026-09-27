@@ -262,7 +262,10 @@ where
             composition.layers.remove(index);
         }
         let material = &composition;
-        if let Some(pixels) = compose_base_color(material, resources, &mut cache)? {
+        if let Some(mut pixels) = compose_base_color(material, resources, &mut cache)? {
+            if material.authoring_channels & 1 != 0 {
+                apply_authored_channel(&mut pixels, resources, material, TextureRole::BaseColor, 3)?;
+            }
             publish_composed_resource(
                 resources,
                 document,
@@ -272,7 +275,10 @@ where
                 MAX_TEXTURE_TOTAL_BYTES,
             )?;
         }
-        if let Some(pixels) = compose_material_response(material, presentations, &mut cache)? {
+        if let Some(mut pixels) = compose_material_response(material, presentations, &mut cache)? {
+            if material.authoring_channels & 2 != 0 {
+                apply_authored_channel(&mut pixels, resources, material, TextureRole::Material, 0)?;
+            }
             publish_composed_resource(
                 resources,
                 document,
@@ -310,6 +316,36 @@ where
             .any(|owners| !owners.is_empty())
     });
     Ok(cache.metrics)
+}
+
+fn apply_authored_channel(
+    composed: &mut DecodedRgba8,
+    resources: &[CdmwTextureResource],
+    material: &PreviewCoreMaterial,
+    role: TextureRole,
+    channel: usize,
+) -> Result<(), SessionError> {
+    let sources: Vec<_> = resources.iter().filter(|resource| {
+        resource.role == role && resource.material_indices_by_lod
+            .get(material.lod_index as usize)
+            .is_some_and(|owners| owners.contains(&material.material_index))
+    }).collect();
+    if sources.len() != 1 {
+        return Err(SessionError::InvalidPayload("Painted material channel requires one owned source texture".to_owned()));
+    }
+    let authored = decode_dds_rgba8(&sources[0].bytes, role)
+        .map_err(|error| SessionError::InvalidPayload(error.to_string()))?;
+    let (width, height) = (composed.width.max(authored.width), composed.height.max(authored.height));
+    checked_pixel_count(width, height)?;
+    let mut pixels = resize_rgba8(composed, width, height)?;
+    let authored = resize_rgba8(&authored, width, height)?;
+    for (pixel, source) in pixels.chunks_exact_mut(4).zip(authored.chunks_exact(4)) {
+        pixel[channel] = source[channel];
+    }
+    composed.width = width;
+    composed.height = height;
+    composed.pixels = pixels;
+    Ok(())
 }
 
 fn compose_base_color(
@@ -1332,6 +1368,7 @@ mod tests {
         let submesh = document.lods[0].submeshes[0].clone();
         document.lods[0].submeshes.resize(3, submesh);
         let mut material = PreviewCoreMaterial {
+            authoring_channels: 0,
             lod_index: 0,
             material_index: 0,
             material_slot_index: 0,
@@ -1447,6 +1484,7 @@ mod tests {
     fn composed_resource_failure_does_not_remove_existing_owners() {
         let document = document();
         let material = PreviewCoreMaterial {
+            authoring_channels: 0,
             lod_index: 0,
             material_index: 0,
             material_slot_index: 0,
@@ -1490,6 +1528,54 @@ mod tests {
             resources[0].material_indices_by_lod,
             original[0].material_indices_by_lod
         );
+    }
+
+    #[test]
+    fn authored_channels_survive_full_graph_composition_without_changing_other_owners() {
+        let source = encode_rgba8_mipmapped_dds(2, 2, &[32, 90, 170, 220].repeat(4), TextureRole::Material).unwrap();
+        let original = reference(0, &source);
+        let mut base = layer("base", "r");
+        base.diffuse = Some(original.clone());
+        base.material = Some(original);
+        let mut graph = PreviewCoreMaterialGraph {
+            schema_version: 1, graph_version: 4, semantics_version: 10,
+            quality: "full".to_owned(), resources_included: true, source_edge_count: 2,
+            unique_resource_count: 1, copied_resource_count: 0, unique_resource_bytes: source.len() as u64,
+            materials: vec![PreviewCoreMaterial {
+                lod_index: 0, material_index: 0, material_slot_index: 0,
+                material_name: "test".to_owned(), base_color: [1.0; 3], layers: vec![base], authoring_channels: 0,
+            }],
+        };
+        let painted_pixels = [201, 1, 2, 17, 3, 1, 2, 239].repeat(4);
+        let mut inputs = Vec::new();
+        for role in [TextureRole::BaseColor, TextureRole::Material] {
+            let bytes = encode_rgba8_mipmapped_dds(4, 2, &painted_pixels, role).unwrap();
+            inputs.push(CdmwTextureResource {
+                label: "owned paint".to_owned(), role, metadata: inspect_dds(&bytes, role).unwrap(),
+                bytes, material_indices_by_lod: vec![vec![0, 1]],
+            });
+        }
+        let mut baseline = inputs.clone();
+        compose_preview_core_material_resources(&graph, &[], &document(), &mut baseline, |_| Ok(source.clone())).unwrap();
+        graph.materials[0].authoring_channels = 3;
+        let mut painted = inputs.clone();
+        compose_preview_core_material_resources(&graph, &[], &document(), &mut painted, |_| Ok(source.clone())).unwrap();
+        for (role, channel) in [(TextureRole::BaseColor, 3), (TextureRole::Material, 0)] {
+            let owned = |resources: &[CdmwTextureResource]| {
+                let resource = resources.iter().find(|row| row.role == role && row.material_indices_by_lod[0].contains(&0)).unwrap();
+                decode_dds_rgba8(&resource.bytes, role).unwrap()
+            };
+            let actual = owned(&painted);
+            assert_eq!((actual.width, actual.height), (4, 2));
+            let expected = resize_rgba8(&owned(&baseline), 4, 2).unwrap();
+            for ((pixel, composed), authored) in actual.pixels.chunks_exact(4).zip(expected.chunks_exact(4)).zip(painted_pixels.chunks_exact(4)) {
+                for lane in 0..4 { assert_eq!(pixel[lane], if lane == channel { authored[lane] } else { composed[lane] }); }
+            }
+            let untouched = painted.iter().find(|row| row.role == role && row.material_indices_by_lod[0] == vec![1]).unwrap();
+            assert_eq!(untouched.bytes, inputs.iter().find(|row| row.role == role).unwrap().bytes);
+        }
+        let mut image = DecodedRgba8 { width: 1, height: 1, pixels: vec![255; 4] };
+        assert!(apply_authored_channel(&mut image, &[], &graph.materials[0], TextureRole::Material, 0).is_err());
     }
 
     #[test]
@@ -1543,6 +1629,7 @@ mod tests {
                 lod_index: 0,
                 material_index: 0,
                 material_slot_index: 7,
+                authoring_channels: 0,
                 material_name: "skin".to_owned(),
                 base_color: [1.0; 3],
                 layers: vec![base, skin],
@@ -1766,6 +1853,7 @@ mod tests {
                 lod_index: 0,
                 material_index: 0,
                 material_slot_index: 0,
+                authoring_channels: 0,
                 material_name: "handle".to_owned(),
                 base_color: [0.62; 3],
                 layers: vec![base, blue, copper],

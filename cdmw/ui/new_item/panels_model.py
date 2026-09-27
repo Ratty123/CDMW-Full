@@ -713,6 +713,8 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self.shader_controls_editor.changed.connect(self._shader_controls_changed)
         self.shader_controls_editor.paint_requested.connect(lambda part: self._paint_transparency(part, "blending"))
         self.shader_controls_editor.restore_mask_requested.connect(lambda part: self._restore_transparency_mask(part, "blending"))
+        self.shader_controls_editor.restore_surface_mask_requested.connect(
+            lambda part: self._restore_transparency_mask(part, "blending", target="surface"))
         self._controller.transparency_mask_changed.connect(self._transparency_mask_changed)
         model_layout.addWidget(self.shader_controls_editor)
         self.flip_texture_v = QCheckBox("Flip texture V")
@@ -1072,23 +1074,29 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
             self._appearance_preview_timer.start()
 
     def _paint_transparency(self, part, mode):
+        if mode == "blending" and dict(self._controller.draft.shader_controls)[part].shader == "SkinnedMeshWing":
+            mode = "cutout"
         self._controller.start_transparency_paint(part, mode, self._show_transparency_painter)
 
     def _show_transparency_painter(self, session, prepared):
         from cdmw.ui.new_item.transparency_painter import TransparencyPaintDialog
         dialog = TransparencyPaintDialog(prepared, lambda mask: self._controller.apply_transparency_paint(session, mask),
-            part=session[-2], glass=session[-1] == "translucency", parent=self)
+            part=session[-2], glass=session[-1] == "translucency", parent=self,
+            run_file_task=lambda task, done, failed: self._controller.start_transparency_mask_io(session, task, done, failed),
+            cancel_file_task=lambda: self._controller.cancel_operation("transparency_mask"))
         dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-        # The dialog has no background work; the controller already prepared all
-        # pixels. Cancelling therefore leaves the draft and worker lifetime alone.
+        # The controller owns cancellable file I/O; closing discards draft paint
+        # and cancels that lane without destroying a running worker.
         self._transparency_painter = dialog
         dialog.open()
 
-    def _restore_transparency_mask(self, part, mode):
+    def _restore_transparency_mask(self, part, mode, *, target="colour"):
         controller = self._controller
+        if mode == "blending" and dict(controller.draft.shader_controls)[part].shader == "SkinnedMeshWing":
+            mode = "cutout"
         session = (controller.snapshot, controller.current_variant_identity(), controller.model_import,
                    controller.model_result, controller._draft_revision, part, mode)
-        controller.apply_transparency_paint(session, None)
+        controller.apply_transparency_paint(session, None, target=target)
 
     def _transparency_mask_changed(self):
         self.refresh_glow_parts()
@@ -1109,7 +1117,10 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         previous = self._controller.draft.shader_controls
         self._controller.draft.shader_controls = choices
         self._controller.invalidate_plan()
-        if tuple((n, c.shader, c.transparency_mask) for n, c in previous) != tuple((n, c.shader, c.transparency_mask) for n, c in choices):
+        def texture_state(items):
+            return tuple((n, c.shader, c.transparency_mask, c.surface_response_mask, c.cutout_mask,
+                          c.coverage_mapping, c.colour_coverage) for n, c in items)
+        if texture_state(previous) != texture_state(choices):
             self._appearance_preview_timer.start()
         else:
             self._sync_glow_preview()

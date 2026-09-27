@@ -140,7 +140,7 @@ def _rewrite_block(block, shader, controls, *, static, texture_paths=None):
     if family == EYE_COVER and texture_paths is None:
         raise ValueError("EyeCover requires Create New Item texture preparation.")
     fields = {field.name: field for field in family.fields}
-    for name, numbers in controls.values:
+    for name, numbers in controls.effective_values().items():
         field = fields[name]
         if field.kind == "ExportToggle":
             # These options belong to the New Item plan, never to PAC parameters.
@@ -170,7 +170,7 @@ def _rewrite_block(block, shader, controls, *, static, texture_paths=None):
         kind = "Byte4" if field.kind == "NormalizedByte4" else field.kind
         block = _write_parameter(block, name, kind, value, field.item_id, static=static)
     if family == EYE_COVER:
-        if "_eyeCoverDiffuseParameter" not in parameters and "_eyeCoverDiffuseParameter" not in dict(controls.values):
+        if "_eyeCoverDiffuseParameter" not in parameters and "_eyeCoverDiffuseParameter" not in controls.effective_values():
             block = _write_parameter(block, "_eyeCoverDiffuseParameter", "Byte4", "128",
                                      family.fields[0].item_id, static=False)
         for name in ("_alphaTexture", "_materialTexture"):
@@ -178,15 +178,19 @@ def _rewrite_block(block, shader, controls, *, static, texture_paths=None):
                 block = _write_parameter(block, name, "Texture", texture_paths[name], "0", static=False)
             elif name not in parameters:
                 raise ValueError(f"EyeCover requires an explicit {name} binding; its game default uses a face texture.")
+    if controls.cutout_mask is not None:
+        if not texture_paths or not texture_paths.get("_wingFlowTex1"):
+            raise ValueError("Painted cutouts require owned mask texture preparation.")
+        block = _write_parameter(block, "_wingFlowTex1", "Texture", texture_paths["_wingFlowTex1"], "0", static=False)
     if shader != family.shader:
         block, count = re.subn(r'\b_materialName="[^"]*"', f'_materialName="{family.shader}"', block, count=1)
         if count != 1:
             raise ValueError("Cannot identify the equipment material shader.")
         # Explicit defaults avoid inheriting Wing's partially hidden default pose.
-        if family.shader == "SkinnedMeshWing" and "_wingFlowProgress" not in dict(controls.values):
+        if family.shader == "SkinnedMeshWing" and "_wingFlowProgress" not in controls.effective_values():
             block = _write_parameter(block, "_wingFlowProgress", "Float", "2", "0", static=False)
     # Make inherited mask dependencies visible to the package/preview resolvers.
-    if family.mask and family.default_mask and family.mask not in parameters:
+    if family.mask and family.default_mask and family.mask not in parameters and controls.cutout_mask is None:
         block = _write_parameter(block, family.mask, "Texture", family.default_mask, "0", static=static)
     return block
 

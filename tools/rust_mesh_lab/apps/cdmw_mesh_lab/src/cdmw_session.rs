@@ -305,6 +305,10 @@ pub struct PreviewCoreMaterial {
     pub material_name: String,
     pub base_color: [f32; 3],
     pub layers: Vec<PreviewCoreMaterialLayer>,
+    /// Explicit lossless authoring overrides: bit 0 base alpha, bit 1 material red.
+    /// Zero preserves the original graph composition for all older packages.
+    #[serde(default)]
+    pub authoring_channels: u8,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -1618,6 +1622,7 @@ fn validate_preview_core_material_graph(
             || material.material_name != *name
             || material.material_name.trim().is_empty()
             || material.material_name.len() > 256
+            || material.authoring_channels > 3
             || material.layers.is_empty()
             || material.layers.len() > MAX_PREVIEW_CORE_MATERIAL_LAYERS
             || material.layers[0].layer_role != "base"
@@ -3856,13 +3861,21 @@ mod tests {
         assert_eq!(package.document().lods[0].submeshes.len(), 2);
         assert_eq!(package.document().lods[0].submeshes[0].material, "anchor");
         assert_eq!(package.manifest().preview_core_material_graph.as_ref().unwrap().materials[0].material_index, 1);
+        assert_eq!(package.manifest().preview_core_material_graph.as_ref().unwrap().materials[0].authoring_channels, 0);
         assert!(!package.textures.is_empty());
+
+        let mut manifest: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        manifest["preview_core_material_graph"]["materials"][0]["authoring_channels"] = json!(1);
+        fs::write(&path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+        let painted = LoadedCdmwSessionPackage::load_preview(&path).expect("owned alpha channel");
+        assert_eq!(painted.manifest().preview_core_material_graph.as_ref().unwrap().materials[0].authoring_channels, 1);
+        assert_eq!(painted.document(), package.document());
     }
 
     #[test]
     fn pure_preview_loader_rejects_wrong_composite_material_ownership() {
         for (field, value) in [("material_index", json!(0)), ("material_slot_index", json!(999)),
-                               ("material_name", json!("other"))] {
+                               ("material_name", json!("other")), ("authoring_channels", json!(4))] {
             let root = tempdir().unwrap();
             let path = write_composite_material_fixture(root.path());
             let mut manifest: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();

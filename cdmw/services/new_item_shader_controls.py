@@ -41,7 +41,7 @@ def shader_control_bindings(files, choices, *, result=None, scene=None):
             if atlas & wanted.keys() and not atlas <= wanted.keys() and not names & wanted.keys():
                 raise ValueError("Shader controls affect a whole atlas material. Select all its parts or import them separately.")
             controls = wanted[next(iter(selected))]
-            if atlas and controls.transparency_mask is not None:
+            if atlas and controls.has_masks:
                 raise ValueError("Painted transparency needs separate material textures. Import these atlas parts separately before painting.")
             if any(wanted[alias] != controls for alias in selected):
                 raise ValueError("Parts sharing an atlas material need the same shader controls.")
@@ -79,6 +79,11 @@ def rewrite_new_item_shader_controls(text, choices, model_path, read_texture, *,
         validate_source(wrapper.shader, settings[wrapper.submesh_name.casefold()],
                         _parameter_rows(text[wrapper.start:wrapper.end]))
     paths, textures = prepare_eye_cover_textures(text, choices, model_path, read_texture, stop_event=stop_event, on_log=on_log)
+    from cdmw.services.transparency_masks import prepare_cutout_textures
+    cutout_paths, cutout_textures = prepare_cutout_textures(wrappers, settings, model_path, stop_event=stop_event, on_log=on_log)
+    for start, bindings in cutout_paths.items():
+        paths.setdefault(start, {}).update(bindings)
+    textures.update(cutout_textures)
     # Repeated names share the user's controls, but each section owns its source
     # maps and parameter metadata. Offset-keyed textures cannot overwrite another
     # section's inherited roughness/metallic channels.

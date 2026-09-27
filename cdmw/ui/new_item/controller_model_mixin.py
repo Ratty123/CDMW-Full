@@ -71,7 +71,7 @@ def load_model_import_source(*args, **kwargs):
 class NewItemModelControllerMixin:
     def start_transparency_paint(self, part, mode, on_ready):
         """Capture the selected material and retain its input until preparation ends."""
-        if mode not in {"translucency", "blending"}:
+        if mode not in {"translucency", "blending", "cutout"}:
             raise ValueError("Unknown transparency mode.")
         identity = self.current_variant_identity()
         if self.snapshot is None or identity is None:
@@ -84,7 +84,7 @@ class NewItemModelControllerMixin:
         else:
             from cdmw.domain.mesh.shader_controls import EYE_COVER
             choice = dict(appearance.shader_controls).get(part)
-            valid = choice is not None and choice.shader == EYE_COVER.shader
+            valid = choice is not None and choice.shader == ("SkinnedMeshWing" if mode == "cutout" else EYE_COVER.shader)
         if not valid:
             self.status_message.emit("Enable transparency on this part before painting its mask.", True)
             return False
@@ -111,7 +111,18 @@ class NewItemModelControllerMixin:
                 and identity == self.current_variant_identity() and source is self.model_import
                 and result is self.model_result and revision == self._draft_revision)
 
-    def apply_transparency_paint(self, session, mask):
+    def start_transparency_mask_io(self, session, task, on_done, on_error):
+        if not self._transparency_paint_current(session):
+            on_error("The model or material changed. Reopen the painter for the current part.")
+            return True
+        def done(result):
+            if self._transparency_paint_current(session):
+                on_done(result)
+            else:
+                on_error("The model or material changed. Reopen the painter for the current part.")
+        return self._run("transparency_mask", task, done, on_error)
+
+    def apply_transparency_paint(self, session, mask, *, target="colour"):
         if not self._transparency_paint_current(session):
             raise ValueError("The model or material changed. Close this painter and reopen it for the current part.")
         part, mode = session[-2:]
@@ -122,7 +133,23 @@ class NewItemModelControllerMixin:
             updated.validate()
             self.draft.translucency = updated
         else:
-            updated = tuple((name, replace(choice, transparency_mask=mask) if name == part else choice)
+            from cdmw.domain.mesh.shader_controls import ShaderControls
+            if target not in {"colour", "surface", "linked"}:
+                raise ValueError("Unknown transparency painting target.")
+            current = dict(self.draft.shader_controls)[part]
+            if isinstance(mask, ShaderControls):
+                if mask.shader != current.shader:
+                    raise ValueError("The shader changed while painting.")
+                changes = {key: getattr(mask, key) for key in ("transparency_mask", "surface_response_mask", "cutout_mask")}
+            elif mode == "cutout":
+                changes = {"cutout_mask": mask}
+            else:
+                changes = {}
+                if target in {"colour", "linked"}:
+                    changes["transparency_mask"] = mask
+                if target in {"surface", "linked"}:
+                    changes["surface_response_mask"] = mask
+            updated = tuple((name, replace(choice, **changes) if name == part else choice)
                             for name, choice in self.draft.shader_controls)
             for _, choice in updated:
                 choice.validate()

@@ -996,8 +996,18 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 86,
+          "line": 117,
           "sink": "python-return:_source_note"
+        }
+      ]
+    },
+    {
+      "key": " Calibrated range before BC7: 0–254/255; this is colour contribution, not whole-surface visibility.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/shader_controls_editor.py",
+          "line": 284,
+          "sink": "python-return:_coverage_note"
         }
       ]
     },
@@ -1056,7 +1066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 86,
+          "line": 117,
           "sink": "python-return:_source_note"
         }
       ]
@@ -1066,8 +1076,18 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 86,
+          "line": 117,
           "sink": "python-return:_source_note"
+        }
+      ]
+    },
+    {
+      "key": " Packed colour is inherited; its range depends on the source. Weights outside 0–1 are clamped only in this preview.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/shader_controls_editor.py",
+          "line": 284,
+          "sink": "python-return:_coverage_note"
         }
       ]
     },
@@ -1078,6 +1098,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_preview_part_02.py",
           "line": 12,
           "sink": "python-return:_hkx_preview_placement_status_suffix"
+        }
+      ]
+    },
+    {
+      "key": " Raw colour weight can span {value_0}–{value_1}, outside 0–1. Preview clamps it; the inspected game expression does not.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/shader_controls_editor.py",
+          "line": 284,
+          "sink": "python-return:_coverage_note"
         }
       ]
     },
@@ -1321,7 +1351,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 840,
+          "line": 842,
           "sink": "setFormat"
         }
       ]
@@ -3240,6 +3270,11 @@
       "key": "A",
       "origins": [
         {
+          "path": "cdmw/ui/new_item/transparency_painter.py",
+          "line": 108,
+          "sink": "addItems"
+        },
+        {
           "path": "cdmw/ui/texture_editor_tab.py",
           "line": 987,
           "sink": "QCheckBox"
@@ -3716,7 +3751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 864,
+          "line": 866,
           "sink": "setToolTip"
         }
       ]
@@ -5532,6 +5567,16 @@
       "manual": true
     },
     {
+      "key": "Advanced raw channels",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/shader_controls_editor.py",
+          "line": 48,
+          "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
       "key": "Advanced replacement-only option. Normal placement keeps target-owned HKX/physics.",
       "origins": [
         {
@@ -5706,7 +5751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 140,
+          "line": 189,
           "sink": "QLabel"
         }
       ]
@@ -6361,7 +6406,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 939,
+          "line": 941,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -7702,6 +7747,16 @@
       ]
     },
     {
+      "key": "Another material operation is still finishing. Try again shortly.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/transparency_painter.py",
+          "line": 268,
+          "sink": "finish"
+        }
+      ]
+    },
+    {
       "key": "Another mesh was opened while this model was being prepared.",
       "origins": [
         {
@@ -8041,7 +8096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1256,
+          "line": 1267,
           "sink": "set_note"
         },
         {
@@ -8451,7 +8506,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_transparency_paint.py",
-          "line": 40,
+          "line": 49,
           "sink": "ValueError"
         }
       ]
@@ -8707,12 +8762,12 @@
       ]
     },
     {
-      "key": "Approximate preview: Colour mixing and Colour reduction change colour coverage; Surface detail and shine changes highlights and surface detail. Test the final result in game.",
+      "key": "Approximate preview: colour and normal/material contribution are independent. The game's projection-dependent surface weighting is not reproduced. {value_0}",
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 128,
-          "sink": "setText"
+          "line": 284,
+          "sink": "python-return:_coverage_note"
         }
       ]
     },
@@ -13380,6 +13435,11 @@
       "key": "B",
       "origins": [
         {
+          "path": "cdmw/ui/new_item/transparency_painter.py",
+          "line": 108,
+          "sink": "addItems"
+        },
+        {
           "path": "cdmw/ui/texture_editor_tab.py",
           "line": 986,
           "sink": "QCheckBox"
@@ -14256,7 +14316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 939,
+          "line": 941,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -15166,12 +15226,12 @@
         },
         {
           "path": "cdmw/ui/new_item/transparency_painter.py",
-          "line": 50,
+          "line": 68,
           "sink": "addRow"
         },
         {
           "path": "cdmw/ui/new_item/transparency_painter.py",
-          "line": 50,
+          "line": 68,
           "sink": "addRow"
         }
       ]
@@ -16521,7 +16581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 405,
+          "line": 432,
           "sink": "log"
         }
       ]
@@ -17582,6 +17642,16 @@
       ]
     },
     {
+      "key": "Calibrated coverage (experimental)",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/shader_controls_editor.py",
+          "line": 42,
+          "sink": "addItem"
+        }
+      ]
+    },
+    {
       "key": "Camera Input",
       "origins": [
         {
@@ -18316,7 +18386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 799,
+          "line": 801,
           "sink": "setToolTip"
         }
       ]
@@ -21051,7 +21121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 124,
+          "line": 170,
           "sink": "setToolTip"
         }
       ]
@@ -21416,7 +21486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 251,
+          "line": 278,
           "sink": "emit"
         }
       ]
@@ -21436,7 +21506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1009,
+          "line": 1011,
           "sink": "setToolTip"
         }
       ]
@@ -21786,7 +21856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 817,
+          "line": 819,
           "sink": "QPushButton"
         }
       ]
@@ -22091,7 +22161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 939,
+          "line": 941,
           "sink": "getOpenFileName"
         }
       ]
@@ -23967,6 +24037,36 @@
       ]
     },
     {
+      "key": "Colour contribution in 255 steps before BC7 compression, which can shift the endpoints. This preset reaches 0–254/255, not exact full coverage. White paint fades toward zero. Existing raw settings remain recoverable.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/shader_controls_editor.py",
+          "line": 47,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Colour coverage",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/transparency_painter.py",
+          "line": 53,
+          "sink": "addItems"
+        }
+      ]
+    },
+    {
+      "key": "Colour coverage / 255",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/shader_controls_editor.py",
+          "line": 51,
+          "sink": "addRow"
+        }
+      ]
+    },
+    {
       "key": "Colour curve",
       "origins": [
         {
@@ -24001,7 +24101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1182,
+          "line": 1193,
           "sink": "setText"
         },
         {
@@ -24096,7 +24196,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 1491,
+          "line": 1493,
           "sink": "ValueError"
         }
       ]
@@ -27158,6 +27258,16 @@
           "path": "cdmw/ui/new_item/recipe_editor.py",
           "line": 68,
           "sink": "setHorizontalHeaderLabels"
+        }
+      ]
+    },
+    {
+      "key": "Coverage mapping",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/shader_controls_editor.py",
+          "line": 50,
+          "sink": "addRow"
         }
       ]
     },
@@ -31256,7 +31366,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 768,
+          "line": 770,
           "sink": "QPushButton"
         },
         {
@@ -31306,7 +31416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 769,
+          "line": 771,
           "sink": "setToolTip"
         }
       ]
@@ -34651,7 +34761,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_transparency_paint.py",
-          "line": 35,
+          "line": 39,
           "sink": "ValueError"
         },
         {
@@ -34771,7 +34881,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_eye_cover.py",
-          "line": 94,
+          "line": 96,
           "sink": "on_log"
         }
       ]
@@ -34856,7 +34966,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_eye_cover.py",
-          "line": 85,
+          "line": 87,
           "sink": "on_log"
         }
       ]
@@ -36007,6 +36117,26 @@
       ]
     },
     {
+      "key": "Experimental hard cutout: white removes surface pixels; black keeps them. Grays form a threshold field, not continuous transparency. Test fine holes, animation, shadows and LODs in game.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/transparency_painter.py",
+          "line": 46,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Experimental painted cutout: white removes pixels and black keeps them. Grays form a threshold field, not smooth transparency. Restore cutout mask to use Patterned reveal progress. Test shadows, animation and LODs in game.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/shader_controls_editor.py",
+          "line": 177,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Experimental read-only decode. Strings, references, offsets, count/table candidates, and numeric rows are shown for schema recovery; writing is disabled until safe rebuilds are proven.",
       "origins": [
         {
@@ -36897,6 +37027,16 @@
       ]
     },
     {
+      "key": "Export PNG…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/transparency_painter.py",
+          "line": 106,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Export Prefab Edit JSON",
       "origins": [
         {
@@ -37278,6 +37418,26 @@
           "path": "cdmw/ui/text_search/remote_catalogue.py",
           "line": 306,
           "sink": "append_log"
+        }
+      ]
+    },
+    {
+      "key": "Export mask",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/transparency_painter.py",
+          "line": 287,
+          "sink": "getSaveFileName"
+        }
+      ]
+    },
+    {
+      "key": "Export masks as lossless PNG files.",
+      "origins": [
+        {
+          "path": "cdmw/services/transparency_masks.py",
+          "line": 62,
+          "sink": "ValueError"
         }
       ]
     },
@@ -38676,7 +38836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 818,
+          "line": 820,
           "sink": "setToolTip"
         }
       ]
@@ -38686,7 +38846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 832,
+          "line": 834,
           "sink": "setText"
         }
       ]
@@ -38696,7 +38856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 926,
+          "line": 928,
           "sink": "setText"
         }
       ]
@@ -38706,7 +38866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 960,
+          "line": 962,
           "sink": "emit"
         }
       ]
@@ -39518,6 +39678,11 @@
           "path": "cdmw/ui/mesh_editor/actions.py",
           "line": 307,
           "sink": "MeshEditorAction"
+        },
+        {
+          "path": "cdmw/ui/new_item/transparency_painter.py",
+          "line": 94,
+          "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
@@ -40891,7 +41056,7 @@
         },
         {
           "path": "cdmw/ui/new_item/transparency_painter.py",
-          "line": 67,
+          "line": 85,
           "sink": "QPushButton"
         },
         {
@@ -41011,7 +41176,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1218,
+          "line": 1229,
           "sink": "setText"
         }
       ]
@@ -41241,7 +41406,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 718,
+          "line": 720,
           "sink": "QCheckBox"
         }
       ]
@@ -41661,7 +41826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 928,
+          "line": 930,
           "sink": "setText"
         }
       ]
@@ -41776,7 +41941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 826,
+          "line": 828,
           "sink": "QPushButton"
         }
       ]
@@ -42509,6 +42674,11 @@
     {
       "key": "G",
       "origins": [
+        {
+          "path": "cdmw/ui/new_item/transparency_painter.py",
+          "line": 108,
+          "sink": "addItems"
+        },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
           "line": 985,
@@ -43580,6 +43750,11 @@
       "key": "Gradient",
       "origins": [
         {
+          "path": "cdmw/ui/new_item/transparency_painter.py",
+          "line": 95,
+          "sink": "QPushButton"
+        },
+        {
           "path": "cdmw/ui/texture_editor_tab.py",
           "line": 460,
           "sink": "setText"
@@ -43613,6 +43788,16 @@
           "path": "cdmw/ui/texture_editor_tab.py",
           "line": 731,
           "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "Gray",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/transparency_painter.py",
+          "line": 108,
+          "sink": "addItems"
         }
       ]
     },
@@ -45166,12 +45351,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/transparency_painter.py",
-          "line": 50,
+          "line": 68,
           "sink": "addRow"
         },
         {
           "path": "cdmw/ui/new_item/transparency_painter.py",
-          "line": 50,
+          "line": 68,
           "sink": "addRow"
         },
         {
@@ -47112,6 +47297,16 @@
       "manual": true
     },
     {
+      "key": "Import PNG…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/transparency_painter.py",
+          "line": 106,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Import Placement Profile XML",
       "origins": [
         {
@@ -47237,6 +47432,16 @@
       ]
     },
     {
+      "key": "Import a PNG matching this mask's {value_0} × {value_1} pixels. Images are never stretched.",
+      "origins": [
+        {
+          "path": "cdmw/services/transparency_masks.py",
+          "line": 42,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Import a folder of edited textures",
       "origins": [
         {
@@ -47271,7 +47476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 387,
+          "line": 414,
           "sink": "emit"
         }
       ]
@@ -47356,7 +47561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 784,
+          "line": 786,
           "sink": "setText"
         }
       ]
@@ -47412,11 +47617,21 @@
       ]
     },
     {
+      "key": "Import mask",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/transparency_painter.py",
+          "line": 271,
+          "sink": "getOpenFileName"
+        }
+      ]
+    },
+    {
       "key": "Import model…",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 760,
+          "line": 762,
           "sink": "QPushButton"
         }
       ]
@@ -47647,6 +47862,16 @@
       ]
     },
     {
+      "key": "Imported image channel. Gray requires a grayscale PNG. Dimensions and orientation must match; no stretching or flipping.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/transparency_painter.py",
+          "line": 109,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Imported language:",
       "origins": [],
       "manual": true
@@ -47776,7 +48001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 752,
+          "line": 754,
           "sink": "QRadioButton"
         }
       ]
@@ -49386,7 +49611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 274,
+          "line": 301,
           "sink": "report"
         }
       ]
@@ -49887,6 +50112,16 @@
         {
           "path": "cdmw/services/mesh_rust_cloth.py",
           "line": 71,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Invalid cutout mip payload size.",
+      "origins": [
+        {
+          "path": "cdmw/services/transparency_masks.py",
+          "line": 273,
           "sink": "ValueError"
         }
       ]
@@ -50473,6 +50708,11 @@
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
           "line": 735,
           "sink": "_part_control_button"
+        },
+        {
+          "path": "cdmw/ui/new_item/transparency_painter.py",
+          "line": 94,
+          "sink": "QPushButton"
         }
       ]
     },
@@ -51286,7 +51526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 137,
+          "line": 164,
           "sink": "emit"
         }
       ]
@@ -51876,7 +52116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 25,
+          "line": 26,
           "sink": "addItem"
         }
       ]
@@ -52792,6 +53032,16 @@
       ]
     },
     {
+      "key": "Left to right",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/transparency_painter.py",
+          "line": 97,
+          "sink": "addItems"
+        }
+      ]
+    },
+    {
       "key": "Legacy CFT profile",
       "origins": [
         {
@@ -52861,7 +53111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/transparency_painter.py",
-          "line": 58,
+          "line": 76,
           "sink": "QPushButton"
         }
       ]
@@ -53358,6 +53608,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_workspace_part_01.py",
           "line": 179,
           "sink": "setPlainText"
+        }
+      ]
+    },
+    {
+      "key": "Linked fade",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/transparency_painter.py",
+          "line": 53,
+          "sink": "addItems"
         }
       ]
     },
@@ -55852,6 +56112,36 @@
       ]
     },
     {
+      "key": "Mask PNG",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/transparency_painter.py",
+          "line": 271,
+          "sink": "getOpenFileName:filter-label"
+        },
+        {
+          "path": "cdmw/ui/new_item/transparency_painter.py",
+          "line": 287,
+          "sink": "getSaveFileName:filter-label"
+        }
+      ]
+    },
+    {
+      "key": "Mask PNG (*.png)",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/transparency_painter.py",
+          "line": 271,
+          "sink": "getOpenFileName"
+        },
+        {
+          "path": "cdmw/ui/new_item/transparency_painter.py",
+          "line": 287,
+          "sink": "getSaveFileName"
+        }
+      ]
+    },
+    {
       "key": "Mask To Selection",
       "origins": [
         {
@@ -55872,11 +56162,31 @@
       ]
     },
     {
+      "key": "Mask dimensions must match the selected target.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/transparency_painter.py",
+          "line": 190,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Mask images must be at most 64 MiB.",
+      "origins": [
+        {
+          "path": "cdmw/services/transparency_masks.py",
+          "line": 35,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Mask only",
       "origins": [
         {
           "path": "cdmw/ui/new_item/transparency_painter.py",
-          "line": 53,
+          "line": 71,
           "sink": "addItems"
         }
       ]
@@ -55892,11 +56202,21 @@
       ]
     },
     {
+      "key": "Mask: {value_0} × {value_1}. Red shows fade. Scroll to zoom; middle-drag to pan. Mirrored, overlapping and tiled UVs share paint.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/transparency_painter.py",
+          "line": 174,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Mask: {value_0} × {value_1}. The mask is resized to the material texture on export. Red overlay shows the painted transparency. Scroll to zoom; middle-drag to pan.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/transparency_painter.py",
-          "line": 88,
+          "line": 130,
           "sink": "QLabel"
         }
       ]
@@ -58241,12 +58561,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 556,
+          "line": 583,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 557,
+          "line": 584,
           "sink": "emit"
         }
       ]
@@ -61691,12 +62011,12 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 739,
+          "line": 741,
           "sink": "QGroupBox"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 741,
+          "line": 743,
           "sink": "setAccessibleName"
         },
         {
@@ -62116,7 +62436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 282,
+          "line": 309,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -62276,7 +62596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 312,
+          "line": 339,
           "sink": "progress"
         }
       ]
@@ -62791,7 +63111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/transparency_painter.py",
-          "line": 57,
+          "line": 75,
           "sink": "QPushButton"
         }
       ]
@@ -66541,22 +66861,22 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 776,
+          "line": 778,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 782,
+          "line": 784,
           "sink": "NoteLabel"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1228,
+          "line": 1239,
           "sink": "set_note"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1229,
+          "line": 1240,
           "sink": "setText"
         }
       ]
@@ -69002,6 +69322,16 @@
       ]
     },
     {
+      "key": "Normalize the image orientation before importing the mask.",
+      "origins": [
+        {
+          "path": "cdmw/services/transparency_masks.py",
+          "line": 46,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Normals",
       "origins": [
         {
@@ -69081,7 +69411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1258,
+          "line": 1269,
           "sink": "set_note"
         },
         {
@@ -70286,12 +70616,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/transparency_painter.py",
-          "line": 50,
+          "line": 68,
           "sink": "addRow"
         },
         {
           "path": "cdmw/ui/new_item/transparency_painter.py",
-          "line": 50,
+          "line": 68,
           "sink": "addRow"
         },
         {
@@ -71251,12 +71581,12 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 791,
+          "line": 793,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 913,
+          "line": 915,
           "sink": "setText"
         }
       ]
@@ -71591,7 +71921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 476,
+          "line": 503,
           "sink": "emit"
         },
         {
@@ -71611,7 +71941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 792,
+          "line": 794,
           "sink": "setToolTip"
         }
       ]
@@ -73391,7 +73721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 32,
+          "line": 33,
           "sink": "QLabel"
         },
         {
@@ -74171,7 +74501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 135,
+          "line": 184,
           "sink": "setToolTip"
         }
       ]
@@ -75086,7 +75416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 156,
+          "line": 205,
           "sink": "setToolTip"
         }
       ]
@@ -75152,11 +75482,31 @@
       ]
     },
     {
+      "key": "Paint Colour coverage, Surface response, or Linked fade. Targets keep independent masks; white means more fade.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/shader_controls_editor.py",
+          "line": 153,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Paint cutout…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/shader_controls_editor.py",
+          "line": 152,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Paint different transparency values across this part's texture. White reduces colour coverage; black retains the selected Colour mixing.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 45,
+          "line": 68,
           "sink": "setToolTip"
         }
       ]
@@ -75166,17 +75516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/transparency_painter.py",
-          "line": 33,
-          "sink": "QLabel"
-        }
-      ]
-    },
-    {
-      "key": "Paint lighter for more transparency and darker for less. White reduces colour coverage; black uses the selected Colour mixing. Surface detail and shine are controlled separately.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/transparency_painter.py",
-          "line": 35,
+          "line": 44,
           "sink": "QLabel"
         }
       ]
@@ -75196,7 +75536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/transparency_painter.py",
-          "line": 19,
+          "line": 20,
           "sink": "setWindowTitle"
         }
       ]
@@ -75206,8 +75546,13 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 43,
+          "line": 63,
           "sink": "QPushButton"
+        },
+        {
+          "path": "cdmw/ui/new_item/shader_controls_editor.py",
+          "line": 152,
+          "sink": "setText"
         },
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
@@ -75221,7 +75566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/transparency_painter.py",
-          "line": 42,
+          "line": 60,
           "sink": "setToolTip"
         }
       ]
@@ -75246,7 +75591,7 @@
         },
         {
           "path": "cdmw/services/new_item_transparency_paint.py",
-          "line": 44,
+          "line": 53,
           "sink": "ValueError"
         }
       ]
@@ -75751,12 +76096,12 @@
       "origins": [
         {
           "path": "cdmw/services/shader_controls_preview.py",
-          "line": 65,
+          "line": 68,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/shader_controls_preview.py",
-          "line": 144,
+          "line": 148,
           "sink": "ValueError"
         }
       ]
@@ -77461,7 +77806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 761,
+          "line": 763,
           "sink": "setToolTip"
         }
       ]
@@ -77681,7 +78026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1254,
+          "line": 1265,
           "sink": "setToolTip"
         }
       ]
@@ -77691,7 +78036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1254,
+          "line": 1265,
           "sink": "setToolTip"
         }
       ]
@@ -77991,7 +78336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 428,
+          "line": 455,
           "sink": "emit"
         }
       ]
@@ -78306,7 +78651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 846,
+          "line": 848,
           "sink": "QCheckBox"
         }
       ]
@@ -79866,7 +80211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 447,
+          "line": 474,
           "sink": "log"
         },
         {
@@ -80302,6 +80647,16 @@
       ]
     },
     {
+      "key": "Preparing mask file…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/transparency_painter.py",
+          "line": 254,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Preparing matched archive originals through the standalone worker before package build.",
       "origins": [
         {
@@ -80706,7 +81061,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_eye_cover.py",
-          "line": 43,
+          "line": 44,
           "sink": "report"
         }
       ]
@@ -80716,7 +81071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 495,
+          "line": 522,
           "sink": "log"
         },
         {
@@ -85320,6 +85675,11 @@
       "key": "R",
       "origins": [
         {
+          "path": "cdmw/ui/new_item/transparency_painter.py",
+          "line": 108,
+          "sink": "addItems"
+        },
+        {
           "path": "cdmw/ui/texture_editor_tab.py",
           "line": 984,
           "sink": "QCheckBox"
@@ -85518,6 +85878,16 @@
           "path": "cdmw/ui/archive_browser/asset_family_layout.py",
           "line": 145,
           "sink": "addTab"
+        }
+      ]
+    },
+    {
+      "key": "Raw channels (compatible)",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/shader_controls_editor.py",
+          "line": 41,
+          "sink": "addItem"
         }
       ]
     },
@@ -86361,7 +86731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 279,
+          "line": 306,
           "sink": "report"
         }
       ]
@@ -88336,7 +88706,7 @@
         },
         {
           "path": "cdmw/ui/new_item/transparency_painter.py",
-          "line": 61,
+          "line": 79,
           "sink": "QPushButton"
         },
         {
@@ -88406,7 +88776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 156,
+          "line": 205,
           "sink": "setToolTip"
         }
       ]
@@ -89886,7 +90256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 46,
+          "line": 69,
           "sink": "setToolTip"
         }
       ]
@@ -91301,7 +91671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 156,
+          "line": 205,
           "sink": "setToolTip"
         }
       ]
@@ -91311,7 +91681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 156,
+          "line": 205,
           "sink": "setToolTip"
         }
       ]
@@ -91321,7 +91691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 156,
+          "line": 205,
           "sink": "setToolTip"
         }
       ]
@@ -91736,7 +92106,7 @@
         },
         {
           "path": "cdmw/ui/new_item/transparency_painter.py",
-          "line": 64,
+          "line": 82,
           "sink": "QPushButton"
         },
         {
@@ -92061,7 +92431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/transparency_painter.py",
-          "line": 65,
+          "line": 83,
           "sink": "setToolTip"
         }
       ]
@@ -92071,7 +92441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1218,
+          "line": 1229,
           "sink": "setText"
         }
       ]
@@ -93447,6 +93817,36 @@
       ]
     },
     {
+      "key": "Restore colour channel",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/shader_controls_editor.py",
+          "line": 66,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Restore colour mask",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/shader_controls_editor.py",
+          "line": 155,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Restore cutout mask",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/shader_controls_editor.py",
+          "line": 155,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Restore defaults",
       "origins": [
         {
@@ -93511,7 +93911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 44,
+          "line": 64,
           "sink": "QPushButton"
         },
         {
@@ -93561,7 +93961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 53,
+          "line": 84,
           "sink": "QPushButton"
         }
       ]
@@ -93572,6 +93972,26 @@
         {
           "path": "cdmw/ui/new_item/surface_editor.py",
           "line": 64,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Restore surface channel",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/shader_controls_editor.py",
+          "line": 67,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Restore surface mask",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/shader_controls_editor.py",
+          "line": 65,
           "sink": "QPushButton"
         }
       ]
@@ -93791,7 +94211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 747,
+          "line": 749,
           "sink": "setToolTip"
         }
       ]
@@ -94116,7 +94536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 913,
+          "line": 915,
           "sink": "setText"
         }
       ]
@@ -98297,6 +98717,16 @@
       ]
     },
     {
+      "key": "Select Colour coverage or Surface response to export its independent mask.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/transparency_painter.py",
+          "line": 285,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Select Converted Output",
       "origins": [
         {
@@ -99897,6 +100327,16 @@
       ]
     },
     {
+      "key": "Select a valid mask image channel.",
+      "origins": [
+        {
+          "path": "cdmw/services/transparency_masks.py",
+          "line": 37,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Select a value, relationship, or decoded row to see original/current value, confidence, risk, byte offset, and editing guidance.",
       "origins": [
         {
@@ -100252,6 +100692,16 @@
         {
           "path": "cdmw/ui/new_item/controller_variant_mixin.py",
           "line": 92,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Select an explicit R, G, B or A channel for a colour image.",
+      "origins": [
+        {
+          "path": "cdmw/services/transparency_masks.py",
+          "line": 49,
           "sink": "ValueError"
         }
       ]
@@ -104081,7 +104531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 857,
+          "line": 859,
           "sink": "setToolTip"
         }
       ]
@@ -105056,7 +105506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 848,
+          "line": 850,
           "sink": "setToolTip"
         }
       ]
@@ -106536,7 +106986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 78,
+          "line": 109,
           "sink": "python-return:_source_note"
         }
       ]
@@ -106656,7 +107106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 120,
+          "line": 166,
           "sink": "setText"
         }
       ]
@@ -106666,7 +107116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 86,
+          "line": 117,
           "sink": "python-return:_source_note"
         }
       ]
@@ -109156,7 +109606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 753,
+          "line": 755,
           "sink": "setToolTip"
         }
       ]
@@ -109238,6 +109688,26 @@
           "path": "cdmw/ui/new_item/translucency_editor.py",
           "line": 84,
           "sink": "addRow"
+        }
+      ]
+    },
+    {
+      "key": "Surface response",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/transparency_painter.py",
+          "line": 53,
+          "sink": "addItems"
+        }
+      ]
+    },
+    {
+      "key": "Surface response means normal/material contribution, independent of colour. Linked fade edits both masks in one undo step. This does not guarantee an invisible surface.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/transparency_painter.py",
+          "line": 49,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -110501,7 +110971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 863,
+          "line": 865,
           "sink": "QCheckBox"
         }
       ]
@@ -110531,7 +111001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 746,
+          "line": 748,
           "sink": "QRadioButton"
         }
       ]
@@ -110786,7 +111256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 52,
+          "line": 83,
           "sink": "setToolTip"
         }
       ]
@@ -110946,7 +111416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/transparency_painter.py",
-          "line": 53,
+          "line": 71,
           "sink": "addItems"
         }
       ]
@@ -112336,22 +112806,22 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 487,
+          "line": 514,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 489,
+          "line": 516,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 494,
+          "line": 521,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 525,
+          "line": 552,
           "sink": "RuntimeError"
         },
         {
@@ -113106,7 +113576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1172,
+          "line": 1183,
           "sink": "getColor"
         }
       ]
@@ -113243,6 +113713,26 @@
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
           "line": 660,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "The cutout encoder did not return BC7_UNORM.",
+      "origins": [
+        {
+          "path": "cdmw/services/transparency_masks.py",
+          "line": 265,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The cutout mask texture could not be encoded.",
+      "origins": [
+        {
+          "path": "cdmw/services/transparency_masks.py",
+          "line": 262,
+          "sink": "ValueError"
         }
       ]
     },
@@ -114056,12 +114546,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 346,
+          "line": 373,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 347,
+          "line": 374,
           "sink": "emit"
         }
       ]
@@ -114091,7 +114581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 320,
+          "line": 347,
           "sink": "emit"
         }
       ]
@@ -114111,8 +114601,23 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 116,
+          "line": 127,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The model or material changed. Reopen the painter for the current part.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/controller_model_mixin.py",
+          "line": 116,
+          "sink": "on_error"
+        },
+        {
+          "path": "cdmw/ui/new_item/controller_model_mixin.py",
+          "line": 122,
+          "sink": "on_error"
         }
       ]
     },
@@ -114486,7 +114991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 170,
+          "line": 219,
           "sink": "setToolTip"
         }
       ]
@@ -114496,17 +115001,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 432,
+          "line": 459,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 433,
+          "line": 460,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 434,
+          "line": 461,
           "sink": "emit"
         }
       ]
@@ -115152,6 +115657,16 @@
       ]
     },
     {
+      "key": "The shader changed while painting.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/controller_model_mixin.py",
+          "line": 142,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "The shader mask is unavailable: {value_0}. Reopen this mesh from Browse Archives.",
       "origins": [
         {
@@ -115223,6 +115738,16 @@
           "path": "cdmw/services/archive_overlay_manager.py",
           "line": 136,
           "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
+      "key": "The source material document is unavailable for transparency painting.",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_transparency_paint.py",
+          "line": 71,
+          "sink": "ValueError"
         }
       ]
     },
@@ -115351,7 +115876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 954,
+          "line": 956,
           "sink": "emit"
         }
       ]
@@ -115481,7 +116006,7 @@
       "origins": [
         {
           "path": "cdmw/services/transparency_masks.py",
-          "line": 60,
+          "line": 99,
           "sink": "ValueError"
         }
       ]
@@ -115491,7 +116016,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_transparency_paint.py",
-          "line": 68,
+          "line": 82,
           "sink": "ValueError"
         }
       ]
@@ -115703,6 +116228,16 @@
           "path": "cdmw/ui/archive_browser/prefab_inspector_review.py",
           "line": 92,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "These masks have different resolutions. Import each target separately.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/transparency_painter.py",
+          "line": 276,
+          "sink": "setText"
         }
       ]
     },
@@ -116072,6 +116607,16 @@
       ]
     },
     {
+      "key": "This image has no alpha channel.",
+      "origins": [
+        {
+          "path": "cdmw/services/transparency_masks.py",
+          "line": 53,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "This is a model-library preview. It has not been imported or written into any game archive.",
       "origins": [
         {
@@ -116317,11 +116862,21 @@
       ]
     },
     {
+      "key": "This part uses several surface maps. Import it as separate materials before painting.",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_transparency_paint.py",
+          "line": 124,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "This part uses several texture layouts. Import it as separate materials to paint each texture.",
       "origins": [
         {
           "path": "cdmw/services/new_item_transparency_paint.py",
-          "line": 78,
+          "line": 92,
           "sink": "ValueError"
         }
       ]
@@ -116331,7 +116886,12 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_transparency_paint.py",
-          "line": 89,
+          "line": 97,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/new_item_transparency_paint.py",
+          "line": 107,
           "sink": "ValueError"
         }
       ]
@@ -117307,6 +117867,16 @@
       ]
     },
     {
+      "key": "Top to bottom",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/transparency_painter.py",
+          "line": 97,
+          "sink": "addItems"
+        }
+      ]
+    },
+    {
       "key": "Topic",
       "origins": [],
       "manual": true
@@ -117831,7 +118401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 32,
+          "line": 33,
           "sink": "QLabel"
         },
         {
@@ -117846,7 +118416,7 @@
       "origins": [
         {
           "path": "cdmw/services/transparency_masks.py",
-          "line": 91,
+          "line": 130,
           "sink": "ValueError"
         }
       ]
@@ -118566,7 +119136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 101,
+          "line": 132,
           "sink": "setToolTip"
         }
       ]
@@ -118766,7 +119336,7 @@
         },
         {
           "path": "cdmw/ui/new_item/transparency_painter.py",
-          "line": 61,
+          "line": 79,
           "sink": "QPushButton"
         },
         {
@@ -119192,6 +119762,16 @@
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
           "line": 75,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Unknown transparency painting target.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/controller_model_mixin.py",
+          "line": 138,
           "sink": "ValueError"
         }
       ]
@@ -119661,7 +120241,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 1626,
+          "line": 1630,
           "sink": "ValueError"
         }
       ]
@@ -119681,7 +120261,7 @@
         },
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 1620,
+          "line": 1624,
           "sink": "ValueError"
         }
       ]
@@ -120526,7 +121106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 798,
+          "line": 800,
           "sink": "QPushButton"
         }
       ]
@@ -120817,6 +121397,16 @@
       ]
     },
     {
+      "key": "Use an 8-bit grayscale, RGB or RGBA PNG for the mask.",
+      "origins": [
+        {
+          "path": "cdmw/services/transparency_masks.py",
+          "line": 44,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Use an original archive mesh with Exact output before replacing parts.",
       "origins": [
         {
@@ -120966,7 +121556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 855,
+          "line": 857,
           "sink": "QCheckBox"
         }
       ]
@@ -121961,12 +122551,12 @@
         },
         {
           "path": "cdmw/ui/new_item/transparency_painter.py",
-          "line": 50,
+          "line": 68,
           "sink": "addRow"
         },
         {
           "path": "cdmw/ui/new_item/transparency_painter.py",
-          "line": 50,
+          "line": 68,
           "sink": "addRow"
         },
         {
@@ -123301,7 +123891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1037,
+          "line": 1039,
           "sink": "set_note"
         }
       ]
@@ -123321,7 +123911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1037,
+          "line": 1039,
           "sink": "set_note"
         }
       ]
@@ -124558,6 +125148,26 @@
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
           "line": 433,
           "sink": "_manual_int"
+        }
+      ]
+    },
+    {
+      "key": "White fades; black retains. Choose colour, surface or both. Switching targets keeps your work.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/transparency_painter.py",
+          "line": 48,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "White removes pixels; black keeps pixels. Experimental hard cutouts use a private Wing mask; restoring the mask restores Patterned reveal controls.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/shader_controls_editor.py",
+          "line": 153,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -132791,7 +133401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 719,
+          "line": 721,
           "sink": "setToolTip"
         }
       ]
@@ -137736,12 +138346,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 1741,
+          "line": 1745,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 1763,
+          "line": 1767,
           "sink": "ValueError"
         }
       ]
@@ -137751,7 +138361,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 1766,
+          "line": 1770,
           "sink": "ValueError"
         }
       ]
@@ -137761,7 +138371,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 1775,
+          "line": 1779,
           "sink": "ValueError"
         }
       ]
@@ -138408,6 +139018,11 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_collision_part_01.py",
           "line": 229,
           "sink": "QTreeWidgetItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/shader_controls_editor.py",
+          "line": 41,
+          "sink": "addItem"
         }
       ]
     },
@@ -144396,7 +145011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1253,
+          "line": 1264,
           "sink": "setText"
         }
       ]
@@ -144406,7 +145021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1244,
+          "line": 1255,
           "sink": "setText"
         }
       ]
@@ -146566,7 +147181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 957,
+          "line": 959,
           "sink": "emit"
         }
       ]
@@ -148246,7 +148861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
-          "line": 96,
+          "line": 127,
           "sink": "setText"
         }
       ]
@@ -148866,7 +149481,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_eye_cover.py",
-          "line": 42,
+          "line": 43,
           "sink": "on_log"
         }
       ]
@@ -148911,7 +149526,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_eye_cover.py",
-          "line": 67,
+          "line": 69,
           "sink": "ValueError"
         }
       ]
@@ -148941,7 +149556,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_eye_cover.py",
-          "line": 92,
+          "line": 94,
           "sink": "ValueError"
         }
       ]
@@ -149036,7 +149651,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_eye_cover.py",
-          "line": 36,
+          "line": 37,
           "sink": "ValueError"
         }
       ]
@@ -149161,7 +149776,7 @@
       "origins": [
         {
           "path": "cdmw/services/transparency_masks.py",
-          "line": 82,
+          "line": 121,
           "sink": "ValueError"
         }
       ]
@@ -149171,7 +149786,7 @@
       "origins": [
         {
           "path": "cdmw/services/transparency_masks.py",
-          "line": 121,
+          "line": 160,
           "sink": "ValueError"
         }
       ]
@@ -149181,7 +149796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1255,
+          "line": 1266,
           "sink": "note"
         }
       ]
@@ -149201,7 +149816,7 @@
       "origins": [
         {
           "path": "cdmw/services/shader_controls_preview.py",
-          "line": 194,
+          "line": 207,
           "sink": "ValueError"
         }
       ]
@@ -149256,7 +149871,7 @@
         },
         {
           "path": "cdmw/services/new_item_shader_controls.py",
-          "line": 90,
+          "line": 95,
           "sink": "ValueError"
         },
         {
@@ -149686,7 +150301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1243,
+          "line": 1254,
           "sink": "note"
         }
       ]

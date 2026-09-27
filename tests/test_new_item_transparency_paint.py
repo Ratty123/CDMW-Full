@@ -31,6 +31,325 @@ from tests.test_translucency_surface import source_files, PAC, XML, SP
 from tests.test_new_item_rust_ui import studio, _send
 
 
+@pytest.mark.parametrize("target", ["colour", "surface", "linked"])
+@pytest.mark.parametrize("calibrated", [False, True])
+def test_independent_eye_masks_preserve_exact_channels_before_encoding(target, calibrated, monkeypatch):
+    from cdmw.core import texture_native
+    files, mask = source_files(), gradient()
+    selected = replace(controls(), transparency_mask=mask if target != "surface" else None,
+        surface_response_mask=mask if target != "colour" else None,
+        coverage_mapping="calibrated_v1" if calibrated else "raw", colour_coverage=254 / 255 if calibrated else None)
+    before = dict(files.side_files)
+    encoded = []
+    real_encode = texture_native.encode_dds_with_directxtex
+    def encode(source, output, **kwargs):
+        encoded.append(np.asarray(Image.open(source).convert("RGBA")))
+        return real_encode(source, output, **kwargs)
+    monkeypatch.setattr(texture_native, "encode_dds_with_directxtex", encode)
+    output = apply_shader_controls(files, (("Blade", selected),))
+    blade, gem = find_material_wrappers(output.side_files[XML].decode())
+    old_blade, old_gem = find_material_wrappers(before[XML].decode())
+    assert output.side_files[XML].decode()[gem.start:gem.end] == before[XML].decode()[old_gem.start:old_gem.end]
+    assert files.side_files == before
+    alpha, material = encoded
+    if target != "colour":
+        assert np.array_equal(alpha[..., 0], 255 - np.frombuffer(mask.pixels, dtype=np.uint8).reshape(16, 64))
+    assert (alpha[..., 1:] == 255).all()
+    original = np.asarray(Image.open(BytesIO(before[SP])).convert("RGBA").resize((material.shape[1], material.shape[0]), Image.Resampling.BILINEAR))
+    assert np.array_equal(material[..., 1:], original[..., 1:])
+    if target != "surface":
+        assert np.array_equal(material[..., 0], np.frombuffer(selected.colour_mask_for_output().pixels, dtype=np.uint8).reshape(16, 64))
+    for parameter, expected in (("_alphaTexture", alpha), ("_materialTexture", material)):
+        actual = rgba(output.side_files[blade.textures[parameter]])
+        error = np.abs(actual.astype(int) - expected.astype(int)).max()
+        assert error <= 6, f"Measured BC7 maximum channel error {error}/255"
+    assert gem.textures == old_gem.textures
+    restored = apply_shader_controls(files, (("Blade", controls()),))
+    assert find_material_wrappers(restored.side_files[XML].decode())[0].textures["_materialTexture"] != blade.textures["_materialTexture"] or target == "surface"
+
+
+def test_two_mask_painter_links_atomically_and_keeps_untouched_target_inherited():
+    from cdmw.ui.new_item.transparency_painter import TransparencyPaintDialog
+    app = QApplication.instance() or QApplication([])
+    initial = TransparencyMask(32, 16, bytes(512))
+    surface = TransparencyMask(16, 8, bytes([80]) * 128)
+    prepared = TransparencyPaintSource(initial, bytes([90, 120, 160, 255]) * 512, surface, controls())
+    accepted = []
+    dialog = TransparencyPaintDialog(prepared, accepted.append, part="Blade")
+    try:
+        dialog.target.setCurrentIndex(1)
+        dialog.value.setValue(140)
+        dialog.fill_button.click()
+        assert dialog._history[-1] == initial.pixels
+        dialog.target.setCurrentIndex(0)
+        dialog.target.setCurrentIndex(1)
+        assert set(dialog._surface_history[-1]) == {140}
+        dialog.target.setCurrentIndex(2)
+        dialog.invert_button.click()
+        assert set(dialog._history[-1]) == {255}
+        assert set(dialog._surface_history[-1]) == {115}
+        dialog.undo_button.click()
+        assert dialog._history[dialog._history_index] == initial.pixels
+        assert set(dialog._surface_history[dialog._history_index]) == {140}
+        dialog.redo_button.click()
+        dialog.undo_button.click()
+        dialog.target.setCurrentIndex(1)
+        dialog._apply()
+        assert accepted[0].transparency_mask is None
+        assert accepted[0].surface_response_mask == TransparencyMask(16, 8, bytes([140]) * 128)
+        assert prepared.surface_mask == surface
+    finally:
+        dialog.close(); dialog.deleteLater(); app.processEvents()
+
+
+def test_painter_prepares_two_lossless_masks_without_export_encoding(monkeypatch):
+    from cdmw.core import texture_native
+    monkeypatch.setattr(texture_native, "encode_dds_with_directxtex", lambda *_a, **_k: pytest.fail("Painter preparation must not encode EyeCover output"))
+    files, mask = source_files(), gradient()
+    selected = replace(controls(mask), surface_response_mask=TransparencyMask(8, 8, bytes([33]) * 64))
+    appearance = VariantAppearance("fixture.prefab", PAC, shader_controls=(("Blade", selected),))
+    prepared = prepare_transparency_paint(snapshot_for(files), appearance, "Blade", "blending")
+    assert prepared.mask == mask and prepared.surface_mask == selected.surface_response_mask
+    assert prepared.controls == selected
+
+
+def test_linked_fill_authors_both_inherited_masks_even_when_pixels_already_match():
+    from cdmw.ui.new_item.transparency_painter import TransparencyPaintDialog
+    app = QApplication.instance() or QApplication([])
+    mask = TransparencyMask(8, 8, bytes(64))
+    prepared = TransparencyPaintSource(mask, bytes([90, 120, 160, 255]) * 64, mask, controls())
+    accepted = []
+    dialog = TransparencyPaintDialog(prepared, accepted.append, part="Blade")
+    try:
+        dialog.target.setCurrentIndex(2)
+        dialog.value.setValue(0)
+        dialog.fill_button.click()
+        dialog._apply()
+        assert accepted[0].transparency_mask == mask
+        assert accepted[0].surface_response_mask == mask
+    finally:
+        dialog.close(); dialog.deleteLater(); app.processEvents()
+
+
+def test_mask_png_import_export_checks_layout_channel_orientation_and_cancel(tmp_path):
+    from cdmw.services.transparency_masks import read_mask_image, write_mask_image
+    mask, path = gradient(), tmp_path / "mask.png"
+    write_mask_image(path, mask)
+    assert read_mask_image(path, (64, 16)) == mask
+    before = path.read_bytes()
+    stop = threading.Event(); stop.set()
+    with pytest.raises(RunCancelled):
+        write_mask_image(path, TransparencyMask(64, 16, bytes(1024)), stop_event=stop)
+    assert path.read_bytes() == before
+    with pytest.raises(ValueError, match="never stretched"):
+        read_mask_image(path, (16, 64))
+    Image.new("RGBA", (64, 16), (32, 64, 128, 192)).save(path)
+    with pytest.raises(ValueError, match="explicit"):
+        read_mask_image(path, (64, 16))
+    assert set(read_mask_image(path, (64, 16), "B").pixels) == {128}
+    exif = Image.Exif(); exif[274] = 6
+    Image.new("L", (64, 16)).save(path, exif=exif)
+    with pytest.raises(ValueError, match="orientation"):
+        read_mask_image(path, (64, 16))
+
+
+@pytest.mark.parametrize("mode", ["I;16", "P"])
+def test_mask_import_rejects_implicit_bit_depth_and_palette_conversion(tmp_path, mode):
+    from cdmw.services.transparency_masks import read_mask_image
+    path = tmp_path / "mask.png"
+    Image.new(mode, (64, 16)).save(path)
+    with pytest.raises(ValueError, match="8-bit grayscale, RGB or RGBA"):
+        read_mask_image(path, (64, 16), "R")
+
+
+@pytest.mark.parametrize("pattern", ["keep", "remove", "half", "hole", "gradient"])
+def test_cutout_recipe_endpoints_mips_and_bc7_decode(pattern):
+    from cdmw.services.transparency_masks import cutout_mips, encode_cutout_texture
+    from cdmw.core.dds_native import inspect_dds_native
+    pixels = np.zeros((16, 64), dtype=np.uint8)
+    if pattern == "remove": pixels[:] = 255
+    if pattern == "half": pixels[:, 32:] = 255
+    if pattern == "hole": pixels[6:10, 30:34] = 255
+    if pattern == "gradient": pixels[:] = np.arange(64) * 4
+    mask = TransparencyMask(64, 16, pixels.tobytes())
+    mips = list(cutout_mips(mask))
+    expected = pixels / 255 > .50025
+    for index, image in enumerate(mips):
+        channels = np.asarray(image)
+        assert (channels[..., 0] == 255).all() and (channels[..., 1] == 0).all()
+        # Actual two-channel shader equation, including the differently scaled red sample.
+        cut = np.clip(2 * np.clip(2 * (channels[..., 2] / 255) - .5, 0, 1) - channels[..., 0] / 255, 0, 1) > .001
+        if index == 0:
+            assert np.array_equal(cut, expected)
+        assert abs(cut.mean() - expected.mean()) <= .5 / cut.size + 1e-12
+    encoded = encode_cutout_texture(mask)
+    info = inspect_dds_native(encoded)
+    assert info.format_name == "BC7_UNORM" and len(info.mip_levels) == len(mips) == 7
+    import struct
+    for level, expected_mip in zip(info.mip_levels, mips):
+        header = bytearray(encoded[:148])
+        struct.pack_into("<II", header, 12, level.height, level.width)
+        struct.pack_into("<I", header, 28, 1)
+        decoded_mip = rgba(bytes(header) + encoded[level.offset:level.offset + level.byte_count])
+        assert np.abs(decoded_mip.astype(int) - np.asarray(expected_mip).astype(int)).max() <= 3
+    actual = rgba(encoded)
+    assert np.abs(actual.astype(int) - np.asarray(mips[0]).astype(int)).max() <= 3
+    cut = np.clip(2 * np.clip(2 * (actual[..., 2] / 255) - .5, 0, 1) - actual[..., 0] / 255, 0, 1) > .001
+    assert np.array_equal(cut, expected)
+
+
+def test_cutout_export_and_preview_share_recipe_and_preserve_raw_reveal(tmp_path):
+    from cdmw.services.shader_controls_preview import shader_preview_mesh
+    from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+    files, mask = source_files(), gradient()
+    selected = ShaderControls("SkinnedMeshWing", (("_wingFlowProgress", (1.25,)),), cutout_mask=mask)
+    output = apply_shader_controls(files, (("Blade", selected),))
+    blade, gem = find_material_wrappers(output.side_files[XML].decode())
+    assert blade.shader == "SkinnedMeshWing" and blade.value("_wingFlowProgress") == "0.5"
+    assert blade.value("_wingFlowInverse") == "0"
+    assert all(blade.textures[name] == find_material_wrappers(files.side_files[XML].decode())[0].textures[name]
+               for name in ("_baseColorTexture", "_materialTexture"))
+    assert gem.shader == "SkinnedMeshEmissive"
+    mesh = ParsedMesh(path=PAC, format="pac", submeshes=[SubMesh(name="Blade", material="Blade")])
+    preview = shader_preview_mesh(mesh, (("Blade", selected),), plain_pbr=True)
+    binding = next(item for item in preview.submeshes[0].preview_material_texture_inputs if item.parameter_name == "_wingFlowTex1")
+    assert np.abs(rgba(Path(binding.source_dds_path).read_bytes()).astype(int) - rgba(output.side_files[blade.textures["_wingFlowTex1"]]).astype(int)).max() <= 3
+    assert preview_factors(selected)[4:6] == (.5, 0.) and preview_factors(selected)[30] == 1.
+    assert preview_factors(replace(selected, cutout_mask=None))[4] == 1.25
+
+
+@pytest.mark.parametrize("mode", ["blending", "translucency"])
+def test_template_preview_transports_authored_channels_through_native_graph(tmp_path, mode):
+    from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+    from cdmw.services.shader_controls_preview import shader_preview_mesh
+    from cdmw.services.new_item_translucency import translucency_preview_mesh
+    from cdmw.services.mesh_rust_preview_package import build_rust_preview_package
+    import json
+    source = tmp_path / "native_source"; source.mkdir()
+    files = source_files()
+    base, material_path = source / "base.dds", source / "material.dds"
+    base.write_bytes(files.side_files["character/texture/base.dds"])
+    material_path.write_bytes(files.side_files[SP])
+    parts = []
+    for index, name in enumerate(("Blade", "Gem")):
+        part = SubMesh(name=name, material=name, vertices=[(0., 0., 0.), (1., 0., 0.), (0., 1., 0.)],
+                       uvs=[(0., 0.), (1., 0.), (0., 1.)], faces=[(0, 1, 2)])
+        part.preview_texture_dds_path = str(base)
+        part.preview_material_texture_dds_path = str(material_path)
+        part.preview_material_texture_inputs = tuple(SimpleNamespace(parameter_name=parameter, source_texture_path=str(path),
+            source_dds_path=str(path), preview_texture_path=str(path), material_name=name, submesh_name=name,
+            owner_slot_index=index, binding_authority="authoritative")
+            for parameter, path in (("_baseColorTexture", base), ("_materialTexture", material_path)))
+        part.preview_native_material_overrides = {"preview_core_material_source": {
+            "package": str(source), "conservation": {"conserved": True, "declared_parameter_count": 2, "transported_parameter_count": 2},
+            "batch": {"index": index, "material_name": name, "base_color": [1., 1., 1.], "material_layers": [{
+                "material_wrapper_index": index, "owner_wrapper_item_id": str(index + 100), "layer_role": "base",
+                "diffuse_source": "base.dds", "material_source": "material.dds", "source_parameter": "_baseColorTexture"}]}}}
+        parts.append(part)
+    mesh = ParsedMesh(path=PAC, format="pac", submeshes=parts)
+    selected = replace(controls(gradient()), surface_response_mask=gradient())
+    preview = (shader_preview_mesh(mesh, (("Blade", selected),)) if mode == "blending" else
+               translucency_preview_mesh(mesh, TranslucencyChoice(("Blade",), masks=(("Blade", gradient()),))))
+    package = build_rust_preview_package(preview, output_root=tmp_path / "packages")
+    data = json.loads(package.manifest_path.read_text())
+    graph = data["preview_core_material_graph"]["materials"]
+    assert graph[0]["authoring_channels"] == (2 if mode == "blending" else 1)
+    assert "authoring_channels" not in graph[1]
+    assert graph[0]["layers"][0]["owner_wrapper_item_id"] == "100"
+    role = "material" if mode == "blending" else "base_color"
+    resource = next(row for row in data["textures"] if row["role"] == role and row["material_indices_by_lod"] == [[0]])
+    pixels = rgba((package.package_dir / resource["file"]["path"]).read_bytes())
+    expected = np.frombuffer(gradient().pixels, dtype=np.uint8).reshape(16, 64)
+    assert np.array_equal(pixels[..., 0 if mode == "blending" else 3], expected if mode == "blending" else 255 - expected)
+    if mode == "blending":
+        surface = next(row for row in data["textures"] if row["role"] == "shader_mask" and row["material_indices_by_lod"] == [[0]])
+        assert np.array_equal(rgba((package.package_dir / surface["file"]["path"]).read_bytes())[..., 0], 255 - expected)
+    assert "painted_texture_channels" not in parts[0].preview_native_material_overrides
+
+
+@pytest.mark.parametrize("ending", ["apply", "close", "stale"])
+def test_mask_file_worker_is_cancelled_on_close_and_rejects_stale_drafts(ending):
+    from cdmw.ui.new_item.transparency_painter import TransparencyPaintDialog
+    from cdmw.domain.cancellation import raise_if_cancelled
+    app = QApplication.instance() or QApplication([])
+    controller = _controller()
+    controller.draft.shader_controls = (("Blade", controls()),)
+    session = (controller.snapshot, controller.current_variant_identity(), controller.model_import,
+               controller.model_result, controller._draft_revision, "Blade", "blending")
+    prepared = TransparencyPaintSource(gradient(), bytes([90, 120, 160, 255]) * 1024)
+    started, release, stopped = threading.Event(), threading.Event(), threading.Event()
+    dialog = TransparencyPaintDialog(prepared, lambda mask: controller.apply_transparency_paint(session, mask), part="Blade",
+        run_file_task=lambda task, done, failed: controller.start_transparency_mask_io(session, task, done, failed),
+        cancel_file_task=lambda: controller.cancel_operation("transparency_mask"))
+    worker_threads = []
+    def task(_log, stop_event):
+        worker_threads.append(threading.get_ident()); started.set()
+        try:
+            while not release.wait(.005):
+                raise_if_cancelled(stop_event)
+            raise_if_cancelled(stop_event)
+            return TransparencyMask(64, 16, bytes([123]) * 1024)
+        finally:
+            stopped.set()
+    try:
+        dialog._file_task(task, lambda mask: dialog._remember(mask.pixels))
+        _wait(app, started.is_set)
+        assert worker_threads != [threading.get_ident()]
+        assert not dialog.buttons.button(QDialogButtonBox.StandardButton.Apply).isEnabled()
+        if ending == "close":
+            dialog.reject()
+        if ending == "stale":
+            controller._draft_revision += 1
+        release.set()
+        _wait(app, lambda: stopped.is_set() and not controller.iter_shutdown_workers())
+        if ending == "apply":
+            assert set(dialog._history[-1]) == {123}
+            dialog._apply()
+            assert set(controller.draft.shader_controls[0][1].transparency_mask.pixels) == {123}
+        else:
+            assert controller.draft.shader_controls[0][1].transparency_mask is None
+            assert dialog._history == [prepared.mask.pixels]
+    finally:
+        release.set(); dialog.close(); controller.request_shutdown()
+        _wait(app, lambda: not controller.iter_shutdown_workers())
+        dialog.deleteLater(); controller.deleteLater(); app.processEvents()
+
+
+def test_cutout_cancellation_during_mips_never_publishes_model_changes(monkeypatch):
+    from cdmw.core import texture_native
+    files = source_files(); original = dict(files.side_files)
+    stop = threading.Event()
+    real_encode = texture_native.encode_dds_with_directxtex
+    def cancel_after_mip(*args, **kwargs):
+        result = real_encode(*args, **kwargs)
+        stop.set()
+        return result
+    monkeypatch.setattr(texture_native, "encode_dds_with_directxtex", cancel_after_mip)
+    with pytest.raises(RunCancelled):
+        apply_shader_controls(files, (("Blade", ShaderControls("SkinnedMeshWing", cutout_mask=gradient())),), stop_event=stop)
+    assert files.side_files == original
+
+
+def test_surface_restore_does_not_clear_colour_or_calibration():
+    from cdmw.ui.new_item.shader_controls_editor import ShaderControlsEditor
+    app = QApplication.instance() or QApplication([])
+    selected = replace(controls(gradient()), surface_response_mask=gradient(), coverage_mapping="calibrated_v1", colour_coverage=128 / 255)
+    editor = ShaderControlsEditor(); changed = []
+    try:
+        editor.refresh((("Blade", "Blade"),), (("Blade", selected),))
+        editor.changed.connect(changed.append)
+        assert not next(row for row in editor._rows if row[0].name == "surface_alpha")[1].isEnabled()
+        editor.restore_surface_channel.click()
+        actual = changed[-1][0][1]
+        assert actual.surface_response_mask is None
+        assert actual.transparency_mask == selected.transparency_mask
+        assert actual.colour_coverage == selected.colour_coverage
+        editor.restore_colour_channel.click()
+        assert changed[-1][0][1].coverage_mapping == "raw" and changed[-1][0][1].transparency_mask is None
+    finally:
+        editor.deleteLater(); app.processEvents()
+
+
 def gradient():
     return TransparencyMask(64, 16, np.tile(np.linspace(0, 255, 64, dtype=np.uint8), (16, 1)).tobytes())
 
@@ -409,7 +728,7 @@ def test_rust_paint_action_opens_canvas_and_apply_invalidates_plan(studio, monke
             dialog.close()
 
 
-@pytest.mark.parametrize("mode", ["blending", "translucency"])
+@pytest.mark.parametrize("mode", ["blending", "surface", "linked", "cutout", "translucency"])
 def test_full_plan_dmm_export_contains_private_spatial_texture(tmp_path, monkeypatch, mode):
     from cdmw.core.archive_format import parse_archive_pamt
     from cdmw.core.archive_extraction import read_archive_entry_data
@@ -423,19 +742,25 @@ def test_full_plan_dmm_export_contains_private_spatial_texture(tmp_path, monkeyp
     data[PAC_XML] = owned.side_files[XML]
     service = NewItemService()
     snapshot = service.build_snapshot(parse_archive_pamt(build_package(tmp_path / "fixture", data)), read_entry=_read)
+    shaders = ShaderControls("SkinnedMeshWing", cutout_mask=mask) if mode == "cutout" else replace(
+        controls(mask if mode in {"blending", "linked"} else None), surface_response_mask=mask if mode in {"surface", "linked"} else None)
     request = replace(spec(), translucency=TranslucencyChoice(("Blade",), masks=(("Blade", mask),)) if mode == "translucency" else None,
-                      shader_controls=(("Blade", controls(mask)),) if mode == "blending" else ())
+                      shader_controls=(("Blade", shaders),) if mode != "translucency" else ())
     entry = snapshot.entry(TEMPLATE_PAC)
     archives = {Path(path): Path(path).read_bytes() for path in (entry.pamt_path, entry.paz_file)}
     plan = service.plan(request, snapshot)
     output = next(path for path in plan.loose_files if path.endswith(".pac"))
     blade = find_material_wrappers(plan.loose_files[xml_path(output)].decode("utf-8-sig"))[0]
-    parameter, channel = ("_baseColorTexture", 3) if mode == "translucency" else ("_materialTexture", 0)
+    parameter, channel = ({"translucency": ("_baseColorTexture", 3), "surface": ("_alphaTexture", 0),
+                           "cutout": ("_wingFlowTex1", 2)}.get(mode, ("_materialTexture", 0)))
     texture = blade.textures[parameter]
     service.export_loose(plan, tmp_path / "mod", manager="DMM")
     entries = parse_archive_pamt(tmp_path / "mod/0036/0.pamt")
     payload = read_archive_entry_data(next(entry for entry in entries if entry.path == texture))[0]
     assert payload == plan.loose_files[texture]
+    if mode == "linked":
+        surface = blade.textures["_alphaTexture"]
+        assert read_archive_entry_data(next(entry for entry in entries if entry.path == surface))[0] == plan.loose_files[surface]
     assert len(np.unique(rgba(payload)[..., channel])) > 32
     assert texture not in data
     assert all(path.read_bytes() == content for path, content in archives.items())
@@ -464,15 +789,17 @@ def test_template_glass_preview_retains_base_role_and_resolves_owned_direct_text
     assert part.preview_texture_dds_path == str(base)
 
 
-@pytest.mark.parametrize("mode", ["blending", "translucency"])
+@pytest.mark.parametrize("mode", ["blending", "surface", "linked", "cutout", "translucency"])
 def test_variant_switch_restores_the_owning_mask(monkeypatch, mode):
     app = QApplication.instance() or QApplication([])
     controller = _controller()
     first, second = controller._active_variant, ("second.prefab", "character/model/second.pac")
     monkeypatch.setattr(controller, "variant_choices", lambda: ((first, "First"), (second, "Second")))
     mask = gradient()
-    if mode == "blending":
-        controller.draft.shader_controls = (("Blade", controls(mask)),)
+    if mode != "translucency":
+        selected = ShaderControls("SkinnedMeshWing", cutout_mask=mask) if mode == "cutout" else replace(
+            controls(mask if mode in {"blending", "linked"} else None), surface_response_mask=mask if mode in {"surface", "linked"} else None)
+        controller.draft.shader_controls = (("Blade", selected),)
     else:
         controller.draft.shader_controls = ()
         controller.draft.translucency = TranslucencyChoice(("Blade",), masks=(("Blade", mask),))
@@ -481,8 +808,12 @@ def test_variant_switch_restores_the_owning_mask(monkeypatch, mode):
         assert controller.draft.translucency is None and not controller.draft.shader_controls
         controller.select_variant(first)
         actual = (controller.draft.translucency.mask_for("Blade") if mode == "translucency"
+                  else controller.draft.shader_controls[0][1].cutout_mask if mode == "cutout"
+                  else controller.draft.shader_controls[0][1].surface_response_mask if mode == "surface"
                   else controller.draft.shader_controls[0][1].transparency_mask)
         assert actual == mask
+        if mode != "translucency":
+            assert ShaderControls.from_dict(controller.draft.shader_controls[0][1].to_dict()) == selected
     finally:
         controller.request_shutdown()
         _wait(app, lambda: not controller.iter_shutdown_workers())
@@ -504,14 +835,17 @@ def test_shared_atlas_is_rejected_before_a_mask_can_reach_other_parts(tmp_path):
 
 @pytest.mark.parametrize("font_size", [12, 20])
 @pytest.mark.parametrize("language", ["en", "de", "fr", "ru"])
-def test_painter_controls_fit_compact_window_and_large_fonts(font_size, language, tmp_path):
+@pytest.mark.parametrize("dual", [False, True])
+def test_painter_controls_fit_compact_window_and_large_fonts(font_size, language, dual, tmp_path):
     from PySide6.QtGui import QFont
     from cdmw.ui.localization import UiLocalizer
     from cdmw.ui.new_item.transparency_painter import TransparencyPaintDialog
     app = QApplication.instance() or QApplication([])
     mask = gradient()
-    prepared = TransparencyPaintSource(mask, bytes([90, 120, 160, 255]) * 1024)
-    dialog = TransparencyPaintDialog(prepared, lambda _mask: None, part="Blade")
+    prepared = TransparencyPaintSource(mask, bytes([90, 120, 160, 255]) * 1024,
+        mask if dual else None, controls() if dual else None)
+    dialog = TransparencyPaintDialog(prepared, lambda _mask: None, part="Blade",
+        run_file_task=(lambda *_args: True) if dual else None)
     try:
         localizer = UiLocalizer(language_dir=tmp_path / "languages", language_code=language)
         localizer.apply(dialog)
@@ -527,6 +861,10 @@ def test_painter_controls_fit_compact_window_and_large_fonts(font_size, language
         for widget in (dialog.more, dialog.less, dialog.undo_button, dialog.redo_button, dialog.value, dialog.brush_size, dialog.view):
             assert widget.isVisibleTo(dialog)
             assert widget.geometry().right() < dialog.width()
+        if dual:
+            for widget in (dialog.target, dialog.import_button, dialog.export_button, dialog.import_channel):
+                assert widget.isVisibleTo(dialog)
+                assert widget.geometry().right() < dialog.width()
     finally:
         dialog.close()
         dialog.deleteLater()
