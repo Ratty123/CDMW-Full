@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+import weakref
 
 from PySide6.QtCore import QByteArray, QBuffer, QIODevice, Qt
 from PySide6.QtGui import QAction, QIntValidator, QPalette, QTextDocument
@@ -111,8 +112,15 @@ class PresentationDocument:
         self._images = {}
         self.portals = {}
         self._text_revisions = {}
+        self._formatted_text = {}
+        self._format_font = None
+        self._document_texts = weakref.WeakKeyDictionary()
 
     def snapshot(self, root, *, dialogs=()):
+        font = QApplication.font().key()
+        if font != self._format_font:
+            self._formatted_text.clear()
+            self._format_font = font
         self.registry.begin()
         self.unsupported, self.assets, self.portals = [], {}, {}
         self._depth, self._nodes = 0, 0
@@ -123,6 +131,34 @@ class PresentationDocument:
                 "strings": {"copy": translate_active_ui_text("Copy"),
                             "previous": translate_active_ui_text("Previous"),
                             "next": translate_active_ui_text("Next")}}
+
+    def _format_text(self, value, formatter):
+        if "<" not in value:
+            return formatter(value)
+        key = formatter, value
+        if key not in self._formatted_text:
+            result = formatter(value)
+            # Keep only small UI captions/tooltips, never unbounded HTML reports.
+            if len(value) > 8192:
+                return result
+            if len(self._formatted_text) >= 128:
+                self._formatted_text.pop(next(iter(self._formatted_text)))
+            self._formatted_text[key] = result
+        return self._formatted_text[key]
+
+    def _document_text(self, widget):
+        document = widget.document()
+        revision = document.revision()
+        cached = self._document_texts.get(document)
+        if cached is not None and revision >= 0 and cached[0] == revision:
+            return cached[1]
+        text = widget.toPlainText()
+        self._document_texts.pop(document, None)
+        if revision >= 0 and len(text) <= MAX_EDITABLE_TEXT_CHARS:
+            if len(self._document_texts) >= 8:
+                self._document_texts.clear()
+            self._document_texts[document] = revision, text
+        return text
 
     def image(self, pixmap):
         if pixmap is None or pixmap.isNull():
@@ -157,7 +193,7 @@ class PresentationDocument:
         try:
             identifier = self.registry.identify(widget)
             node = {"kind": "column", "name": widget.objectName(),
-                    "label": widget.accessibleName(), "tooltip": plain_text(widget.toolTip())[0],
+                    "label": widget.accessibleName(), "tooltip": self._format_text(widget.toolTip(), plain_text)[0],
                     "enabled": widget.isEnabled(), "props": {}, "children": []}
             node["props"]["grow_x"] = bool(widget.sizePolicy().horizontalPolicy().value & 2)
             node["props"]["grow_y"] = bool(widget.sizePolicy().verticalPolicy().value & 2)
@@ -220,7 +256,7 @@ class PresentationDocument:
                 props["digits_only"] = True
         elif isinstance(widget, (QPlainTextEdit, QTextEdit)):
             node["kind"] = "text"
-            text = widget.toPlainText()
+            text = self._document_text(widget)
             offset = self.models.ranges.get((identifier, ()), 0) if widget.isReadOnly() else 0
             limit = MAX_TEXT_CHARS if widget.isReadOnly() else MAX_EDITABLE_TEXT_CHARS
             if widget.isReadOnly() and widget.property("followTail"):
@@ -253,10 +289,10 @@ class PresentationDocument:
             props.update(self.models.view(widget, identifier, self.widget))
         elif isinstance(widget, QLabel):
             node["kind"] = "label"
-            text, links = plain_text(widget.text()) if widget.textFormat() != Qt.PlainText else (widget.text(), [])
+            text, links = self._format_text(widget.text(), plain_text) if widget.textFormat() != Qt.PlainText else (widget.text(), [])
             props.update(text=text, links=links, bold=widget.font().bold(), wrap=widget.wordWrap(),
                          image=self.image(widget.pixmap()), align=int(widget.alignment()),
-                         spans=rich_spans(widget.text()) if widget.textFormat() != Qt.PlainText else [])
+                         spans=self._format_text(widget.text(), rich_spans) if widget.textFormat() != Qt.PlainText else [])
         elif isinstance(widget, QProgressBar):
             node["kind"] = "progress"
             props.update(value=widget.value(), minimum=widget.minimum(), maximum=widget.maximum(),

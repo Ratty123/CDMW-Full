@@ -271,6 +271,13 @@ and original toggle/click handlers when switched on or off from Rust.
 `rust_ui_bridge.py` checks session, control revisions, enabled/visible state and
 modal ownership. Large result lists and review text are paged; Copy retains the
 complete source text. Editable descriptions support up to 1,048,576 characters.
+Unchanged rich captions/tooltips and text documents reuse their derived text
+during the 100 ms presentation polling. Caption reuse is bounded to 128 small
+values and resets on application-font changes. Document reuse is keyed by the
+live document and its revision, with at most eight texts of 1,048,576 characters;
+larger documents retain the normal projection path. Every snapshot still checks
+current control state, and edits, Undo/Redo, replaced documents, paging and
+stale-input rejection retain their existing behavior.
 Queued Enter and focus-loss commits follow the acknowledged revision of the same
 text field, so typing and immediately pressing Enter still commits fields such as
 the emitter's Sprite DDS archive path. Other controls retain stale-input rejection.

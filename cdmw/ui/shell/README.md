@@ -34,6 +34,11 @@ The shared Activity drawer checks tool-log content without copying the complete
 document on tab activation or each appended line. Repeated activation keeps its
 document connection; Copy still retrieves the full log, and whitespace-only logs
 retain their empty-state and Copy/Clear behavior.
+Activity history redraws are batched on a 40 ms timer while its page is visible;
+hidden drawers and the Current Tool Log page do not rebuild the history text.
+Opening Activity immediately catches up, Clear remains immediate, and Copy reads
+the current history even before a scheduled redraw. All retained events and
+duplicate coalescing keep their existing semantics.
 Assets lists Browse Archives, Create New Item, Model Library, and Item Icons in
 that order.
 The Compact navigation rail sizes to its labels, icons, and layout margins,

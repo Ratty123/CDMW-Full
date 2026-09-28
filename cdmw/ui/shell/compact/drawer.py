@@ -28,6 +28,7 @@ class CompactActivityDrawer(QFrame):
         self.setMinimumHeight(168)
         self.setMaximumHeight(280)
         self._history = history
+        self._activity_dirty = True
         self._tool_adapter = ToolLogAdapter("", "")
         self._connected_document: QTextDocument | None = None
         self._log_font: QFont | None = None
@@ -79,24 +80,48 @@ class CompactActivityDrawer(QFrame):
 
         self.clear_button.clicked.connect(self._clear_current_view)
         self.copy_button.clicked.connect(self._copy_current_view)
-        self.tabs.currentChanged.connect(self._update_action_state)
+        self.tabs.currentChanged.connect(self._activity_tab_changed)
         history.changed.connect(self._schedule_activity_refresh)
-        history.cleared.connect(self._refresh_activity_text)
-        self._refresh_activity_text()
+        history.cleared.connect(self._clear_activity_text)
         self._update_action_state()
 
     def _schedule_activity_refresh(self, _event: object) -> None:
-        if self.isVisible():
-            self._refresh_timer.stop()
-            self._refresh_activity_text()
-            return
-        self._refresh_timer.start()
+        self._activity_dirty = True
+        self._update_action_state()
+        # Status bursts can contain hundreds of messages in a single GUI turn.
+        # Keep the full history, but render it at most once per refresh interval
+        # and only while the Activity page is actually on screen.
+        if self.isVisible() and self.tabs.currentIndex() == 0 and not self._refresh_timer.isActive():
+            self._refresh_timer.start()
 
     def _refresh_activity_text(self) -> None:
+        self._refresh_timer.stop()
+        if not self._activity_dirty or not self.isVisible() or self.tabs.currentIndex() != 0:
+            return
         self.activity_view.setPlainText(self._history.formatted_text())
+        self._activity_dirty = False
         scrollbar = self.activity_view.verticalScrollBar()
         scrollbar.setValue(scrollbar.maximum())
         self._update_action_state()
+
+    def _clear_activity_text(self) -> None:
+        self._refresh_timer.stop()
+        self._activity_dirty = False
+        self.activity_view.clear()
+        self._update_action_state()
+
+    def _activity_tab_changed(self, _index: int) -> None:
+        self._refresh_timer.stop()
+        self._refresh_activity_text()
+        self._update_action_state()
+
+    def showEvent(self, event) -> None:  # noqa: N802
+        super().showEvent(event)
+        self._refresh_activity_text()
+
+    def hideEvent(self, event) -> None:  # noqa: N802
+        self._refresh_timer.stop()
+        super().hideEvent(event)
 
     def _disconnect_document(self) -> None:
         if self._connected_document is None:

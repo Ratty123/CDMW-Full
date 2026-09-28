@@ -19,6 +19,7 @@ The format is intentionally simple:
 
 ### Changed
 
+- Interface responsiveness improves during status bursts: Compact Activity batches visible history redraws and skips hidden history work, while the Rust interface reuses unchanged caption formatting and document text. Current controls, full-log Copy, Clear, paging and edit validation retain their existing behavior.
 - Repeated model/texture preparation, viewport loads, Apply placement and Build plan reuse validated native DDS outputs when source contents and every encoding setting match. BC7 also reuses identical blocks across chunks and mip levels without changing compression quality or output bytes. Compact tab switching and log updates avoid copying complete tool logs.
 - Mesh Editor numeric controls support exact typing, focused mouse-wheel and arrow-key adjustment, and per-value increments such as 0.1, 0.5 and 1 or a custom step. This includes Cloth preview/profile settings, transforms, brushes, topology, UVs, Morph & Refit, rigging, Hair Tools, materials and staged Vertex Parameters.
 - Assets navigation now lists Browse Archives, Create New Item, Model Library, and Item Icons in that order.

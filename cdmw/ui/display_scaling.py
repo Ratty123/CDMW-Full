@@ -188,10 +188,10 @@ class DisplayScalingPolicy(QObject):
                 if isinstance(child, (QAbstractButton, QComboBox, QLineEdit, QAbstractSpinBox, QLabel)):
                     self._controls.add(child)
             self._schedule()
-        if _normal_window(watched) and kind in (
+        if kind in (
             QEvent.Show, QEvent.Resize, QEvent.LayoutRequest, QEvent.WindowStateChange,
             QEvent.ScreenChangeInternal, QEvent.DevicePixelRatioChange,
-        ):
+        ) and _normal_window(watched):
             self._windows.add(watched)
             # A DPI transition can emit many resize/layout events while the
             # user drags. Do not keep moving/resizing the window in response.
