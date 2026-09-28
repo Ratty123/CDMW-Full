@@ -80,8 +80,7 @@ def _placement_progressive_source(
 
         model = source.baked_preview_mesh()
         if translucency is not None and translucency.masks:
-            model = translucency_preview_mesh(model, translucency, source_transmission=plain_pbr,
-                                              snapshot=snapshot, stop_event=stop_event)
+            model = translucency_preview_mesh(model, translucency, snapshot=snapshot, stop_event=stop_event)
         return compose_template_materials(
             template_build,
             lambda template: PlacementScene(
@@ -656,11 +655,12 @@ class NewItemPreviewControllerMixin:
                 # Builder wrappers are not interchangeable with source materials.
                 # Without a proven binding, do not advertise every shader family.
                 return {}
-            from cdmw.services.new_item_translucency import source_translucency
             from cdmw.services.new_item_materials import appearance_preview_part_names
             mesh = getattr(getattr(self.model_import, "scene", None), "mesh", None)
+            choice = self.draft.translucency
             glass = {name.casefold() for part in getattr(mesh, "submeshes", ())
-                     if source_translucency(part) is not None for name in appearance_preview_part_names(part)}
+                     if choice is not None and choice.matches(*appearance_preview_part_names(part))
+                     for name in appearance_preview_part_names(part)}
             return {name.casefold(): (
                 "SkinnedMeshTranslucent" if name.casefold() in glass else "SkinnedMeshStandard",
                 ("SkinnedMeshEyeCover",) if name.casefold() in glass else ("SkinnedMeshWing", "SkinnedMeshEyeCover"),

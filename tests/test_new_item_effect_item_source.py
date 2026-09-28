@@ -98,7 +98,9 @@ def test_cancelled_import_decode_does_not_start_mesh_baking():
 
 
 @pytest.mark.parametrize("route", [MaterialRoute.PLAIN_PBR, MaterialRoute.BUILDER])
-def test_source_glass_and_emission_follow_captured_material_route(route):
+@pytest.mark.parametrize("selected", [False, True])
+def test_effects_glass_requires_a_captured_explicit_selection(route, selected):
+    from cdmw.domain.new_item.translucency import TranslucencyChoice
     app = QApplication.instance() or QApplication([])
     controller = NewItemStudioController(synchronous=True)
     original = mesh()
@@ -108,12 +110,14 @@ def test_source_glass_and_emission_follow_captured_material_route(route):
     controller.model_import = SimpleNamespace(baked_preview_mesh=lambda: original, baked_scene_mesh=lambda: original)
     controller.draft.model_source = ModelSource.IMPORTED
     controller.draft.material_route = route
+    controller.draft.translucency = TranslucencyChoice(("blade",), 0.2, 0.4) if selected else None
     source = controller.item_effect_preview_source()
     controller.draft.material_route = MaterialRoute.BUILDER if route is MaterialRoute.PLAIN_PBR else MaterialRoute.PLAIN_PBR
+    controller.draft.translucency = None if selected else TranslucencyChoice(("blade",))
     prepared, label = source(threading.Event())
     overrides = prepared.submeshes[0].preview_native_material_overrides
     assert label == "placed"
-    assert overrides.get("translucency") == ([0.1, 0.3] if route is MaterialRoute.PLAIN_PBR else None)
+    assert overrides.get("translucency") == ([0.2, 0.4] if selected else None)
     assert overrides["emissive_color"] == [1.0, 0.0, 0.0]
     assert overrides["emissive_intensity"] == 10.0
     assert "translucency" not in part.preview_native_material_overrides

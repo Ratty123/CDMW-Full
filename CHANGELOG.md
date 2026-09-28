@@ -77,6 +77,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Create New Item applies experimental glass only to explicitly selected material parts. Untouched imported gems keep their normal Plain PBR conversion, colours, surface maps and emission, including when another part is edited. Model and Effects previews and material options follow the same rule; disabling Translucency restores the normal route.
 - Create New Item prepares effect metadata in the background as soon as its workspace is ready, avoiding the delayed start on first opening Perks & Effects. The page reuses cached or ongoing indexing and immediately shows metadata prepared before it was opened.
 - Create New Item opens transparency and cutout painting before Apply placement by preparing the imported model's texture bindings in the background. Placement stays editable and unapplied; shared-atlas checks, cancellation and rejection of outdated requests remain in effect.
 - Create New Item's Translucency painter reads the selected imported material without recompressing glow, surface and translucent export textures, avoiding long “Preparing the transparency painter” waits that kept Paint transparency disabled after placement.
@@ -185,7 +186,6 @@ The format is intentionally simple:
 - Create New Item uses Browse Archives' prepared material and texture dependencies instead of another archive search. Combined previews preserve the same layered materials, detail masks and full texture quality without recompiling template textures.
 - Discarding an imported New Item model clears its material overrides before restoring the template, preventing imported glow or translucency from changing the template's appearance.
 - New Item retains glass and glow after mesh-part edits, preserves existing materials when changing translucency on prebuilt imports, and includes manual translucency in dye previews.
-- New Item's Plain PBR export and previews keep authored glTF transmission layers translucent, including glass shells around emissive gems, even when translucency is manually selected only on another part. Source colours and glow are retained. The glass mapping remains experimental, and mixed glass/opaque atlases require separate parts or an explicit whole-atlas override.
 - Cloth preview accepts upward gravity from authored profiles. Its gravity control now uses the XML sign: negative pulls down, positive lifts up. The profile panel distinguishes absent cloth guides from guide data it cannot decode; profile edits do not create new bindings.
 - Physics profile assignments match PAC and sidecar part names that differ in letter case, including clothing 0166; ambiguous duplicate names are still rejected.
 - Selecting parts on PACs with large jiggle data no longer closes Mesh Editor because the host response exceeds the control-message limit. Large responses use a bounded, size- and hash-verified session file.

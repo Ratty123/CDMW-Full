@@ -1131,8 +1131,8 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         Template choices rebuild from cached native materials. Imports use the live
         parameter channel. Its groups cover the model's submeshes, so un-ticking a
         part restores the import's own emissive without remembering what was sent.
-        Source glass also follows the export route without requiring a manual
-        override. An untouched import with no glass or overrides sends nothing.
+        Experimental glass requires a selected part, as in export. An untouched
+        import sends no material overrides.
         """
 
         self._update_material_overlap_warning()
@@ -1147,16 +1147,12 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
             return
         glow = glow_choice(self._controller.draft)
         translucency = self._controller.draft.translucency
-        from cdmw.services.new_item_translucency import source_translucency, translucency_preview_parameter_groups
+        from cdmw.services.new_item_translucency import translucency_preview_parameter_groups
 
-        source_transmission = self._controller.draft.material_route is MaterialRoute.PLAIN_PBR
         source_mesh = getattr(getattr(source, "scene", None), "mesh", None)
-        authored_glass = source_transmission and any(
-            source_translucency(part) is not None for part in getattr(source_mesh, "submeshes", ())
-        )
         surface = self._controller.draft.surface_settings
         self.surface_editor.update_glow(source_mesh, glow)
-        if glow is None and translucency is None and not surface and not self._controller.draft.shader_controls and not authored_glass and not self._glow_preview_touched:
+        if glow is None and translucency is None and not surface and not self._controller.draft.shader_controls and not self._glow_preview_touched:
             return
         # Material names and factors do not depend on baked vertex positions.
         mesh = getattr(source, "preview_mesh", None) or source_mesh
@@ -1164,7 +1160,7 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
             return
         from cdmw.services.new_item_materials import glow_preview_parameter_groups
         groups = glow_preview_parameter_groups(mesh, glow) + translucency_preview_parameter_groups(
-            mesh, translucency, source_transmission=source_transmission,
+            mesh, translucency,
         )
         from cdmw.services.new_item_surface import surface_preview_groups
         groups += surface_preview_groups(mesh, surface, translucency=translucency)
@@ -1172,7 +1168,7 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         groups += shader_preview_groups(mesh, self._controller.draft.shader_controls,
                                         plain_pbr=self._controller.draft.material_route is MaterialRoute.PLAIN_PBR)
         if groups and sender(groups):
-            self._glow_preview_touched = self._glow_preview_touched or glow is not None or translucency is not None or bool(surface) or authored_glass or bool(self._controller.draft.shader_controls)
+            self._glow_preview_touched = self._glow_preview_touched or glow is not None or translucency is not None or bool(surface) or bool(self._controller.draft.shader_controls)
 
     def _pick_glow_color(self) -> None:
         from PySide6.QtGui import QColor

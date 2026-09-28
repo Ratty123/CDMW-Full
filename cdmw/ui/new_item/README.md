@@ -571,16 +571,15 @@ Rebuild the plan from the imported source to obtain the higher-precision output;
 converting an already compressed exported DDS cannot recover lost detail.
 The plain-PBR route reports unsupported alpha mode/cutoff and double-sided shader
 semantics explicitly: preserved alpha pixels do not establish matching game
-transparency. Imported glTF materials with positive `KHR_materials_transmission`
-use the experimental translucent route automatically, including glass shells
-around emissive gems. This keeps those shells from exporting as opaque surfaces
-when translucency is selected only on another part. Authored base colours and
-emission remain unchanged unless the user explicitly selects a Glow override.
-Source transmission uses the default thickness and extinction
-below, not a conversion of the glTF transmission factor, alpha, or transmission
-texture. The export reports this approximation. Ordinary BLEND/MASK materials
-without transmission retain the unsupported-alpha warning. Existing exported or
-installed items need to be rebuilt to pick up these material corrections.
+transparency. Experimental glass requires an explicit **Translucency** selection
+for that material part. A glTF `KHR_materials_transmission` hint alone never
+switches an untouched part to `SkinnedMeshTranslucent` or supplies absorption
+defaults. Unselected parts keep their normal Plain PBR conversion, base colours,
+surface maps and source emission, including when another part is edited. Model
+and Effects previews follow the same selection rule. BLEND/MASK materials retain
+the unsupported-alpha warning when their normal game shader cannot reproduce
+the source transparency. Existing exported or installed items need a new plan
+and export to replace an earlier automatic glass conversion.
 Template models also support Move, Rotate, Scale, Glow and **Translucency (experimental)**
 without importing a replacement. Template placement goes directly into Build plan;
 Reset placement restores the authored geometry. Each selected variant receives its
@@ -693,9 +692,10 @@ exposes **Thickness** and **Extinction** from 0 to 1. Defaults are 0.1 and 0.3 r
 either generally reduces transmission. Texture colour, texture alpha and viewing
 angle also matter, so these values are not percentages of opacity. Selecting parts
 enables Plain PBR for imports and writes `SkinnedMeshTranslucent` with `_thickness` and
-`_extinctionCoefficient`, preserving the chosen parts' texture bindings. These
-settings override the source glass defaults on selected parts. Other parts retain
-their source glass or ordinary Plain PBR route. Settings follow each model variant;
+`_extinctionCoefficient`, preserving the chosen parts' texture bindings. Only
+explicitly selected parts receive this experimental conversion; turning it off
+restores their normal export route. Existing template and prebuilt game materials
+remain unchanged unless selected. Settings follow each model variant;
 old shared-value choices remain supported. Parts combined into one atlas must use
 the same absorption and surface settings or remain separate materials.
 

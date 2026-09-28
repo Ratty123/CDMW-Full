@@ -9567,7 +9567,7 @@
       ]
     },
     {
-      "key": "Approximate viewport preview; game refraction and lighting may differ. Uses Plain PBR materials. Authored glass is preserved automatically; these controls override selected parts. Glow maps and colours are kept; brightness and tint may differ in game.",
+      "key": "Approximate viewport preview; game refraction and lighting may differ. Uses Plain PBR materials. Experimental translucency changes only explicitly selected parts. Glow maps and colours are kept; brightness and tint may differ in game.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
@@ -132157,7 +132157,7 @@
       ]
     },
     {
-      "key": "Turn off to restore the source materials, including authored glass.",
+      "key": "Turn off to restore the source materials.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",

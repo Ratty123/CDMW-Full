@@ -324,6 +324,9 @@ def test_template_and_import_shader_options_follow_the_output_route(monkeypatch)
         part = SimpleNamespace(name="Imported", material="Imported", preview_material_parameters=(
             SimpleNamespace(parameter_name="_transmissionFactor", value="0.7"),))
         controller.model_import = SimpleNamespace(scene=SimpleNamespace(mesh=SimpleNamespace(submeshes=[part])))
+        assert controller.material_shader_options()["imported"] == ("SkinnedMeshStandard", ("SkinnedMeshWing", "SkinnedMeshEyeCover"))
+        from cdmw.domain.new_item.translucency import TranslucencyChoice
+        controller.draft.translucency = TranslucencyChoice(("Imported",))
         assert controller.material_shader_options()["imported"] == ("SkinnedMeshTranslucent", ("SkinnedMeshEyeCover",))
         from cdmw.domain.new_item.spec import MaterialRoute
         controller.draft.material_route = MaterialRoute.BUILDER

@@ -68,8 +68,7 @@ class SourceMaterialTextures:
     #: An atlas retains the authored materials and their exact output UV regions.
     atlas_section: object = None
     atlas_sources: Tuple[SourceMaterialTextures, ...] = ()
-    #: Positive glTF KHR_materials_transmission requires a glass shader, even
-    #: when the user only overrides translucency on another part of the item.
+    #: Authored glTF transmission metadata; it does not opt into experimental glass.
     transmission_factor: float = 0.0
     #: Uncompressed source and its factors, before the Builder's template DDS encode.
     base_slot: Optional[ReplacementTextureSlot] = None
@@ -702,7 +701,7 @@ def route_plain_pbr(
     from cdmw.domain.cancellation import raise_if_cancelled
     raise_if_cancelled(stop_event)
     sources = dict(sources or {})
-    from cdmw.services.new_item_translucency import encode_translucent_base, selected_translucency, source_translucency
+    from cdmw.services.new_item_translucency import encode_translucent_base, selected_translucency
     from cdmw.services.new_item_glow_surface import encode_glow_surface, glow_surface_regions
     from cdmw.domain.mesh.emission import GlowAnimation
 
@@ -742,8 +741,9 @@ def route_plain_pbr(
         source = sources.get(wrapper.submesh_name.casefold()) or source_by_base.get(base.replace("\\", "/").casefold())
         matches = selected_translucency(translucency, wrapper.submesh_name, source)
         translucent_matches.update(matches)
-        absorption = (translucency.values_for(*matches) if matches
-                      else source_translucency(source))
+        # A source transmission hint is not an explicit glass edit. Keep the
+        # normal material route for every part the user has not selected.
+        absorption = translucency.values_for(*matches) if matches else None
         if matches and translucency.surface_for(*matches) is not None:
             surface_settings[wrapper.submesh_name] = translucency.surface_for(*matches)
             absorption_settings[wrapper.submesh_name] = absorption
@@ -776,13 +776,6 @@ def route_plain_pbr(
             base = translucent_bases[precise_base]
         if source is not None and source.name not in warned_sources:
             warned_sources.add(source.name)
-            if absorption is not None and not matches:
-                warnings.append(
-                    f"{source.name}: authored transmission uses experimental SkinnedMeshTranslucent "
-                    "with default thickness and extinction so the glass layer does not become opaque. "
-                    "This approximates glass absorption, not the source's alpha/transmission percentages; "
-                    "use the Translucency controls to adjust it."
-                )
             if source.alpha_mode in {"BLEND", "MASK"} and absorption is None:
                 detail = f" (cutoff {source.alpha_cutoff:g})" if source.alpha_mode == "MASK" else ""
                 warnings.append(

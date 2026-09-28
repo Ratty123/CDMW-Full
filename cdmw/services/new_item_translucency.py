@@ -2,7 +2,6 @@
 
 import copy
 import hashlib
-import math
 import threading
 from collections import OrderedDict
 from dataclasses import replace
@@ -164,37 +163,6 @@ def apply_prebuilt_translucency(files, route: MaterialRoute, choice: Translucenc
     )
 
 
-def source_translucency(source) -> tuple[float, float] | None:
-    """Map authored glass to the existing experimental absorption preset.
-
-    glTF transmission is not ordinary alpha blending. Keep this separate from
-    BLEND/MASK, which can describe decals and foliage as well as glass. The game
-    controls are an approximation, not a conversion of transmission percentages.
-    """
-    atlas = tuple(getattr(source, "atlas_sources", ()) or ())
-    if atlas:
-        values = [source_translucency(part) for part in atlas]
-        if any(value is not None for value in values) and any(value is None for value in values):
-            raise NewItemPlanError(
-                f"{source.name}: glass and opaque materials share one atlas. "
-                "Import them as separate parts, or explicitly select the whole atlas for translucency."
-            )
-        return values[0]
-    factor = getattr(source, "transmission_factor", 0.0)
-    for parameter in tuple(getattr(source, "preview_material_parameters", ()) or ()):
-        if getattr(parameter, "parameter_name", "") == "_transmissionFactor":
-            factor = getattr(parameter, "value", 0.0)
-            break
-    try:
-        factor = float(factor)
-    except (TypeError, ValueError):
-        return None
-    if not math.isfinite(factor) or factor <= 0:
-        return None
-    preset = TranslucencyChoice()
-    return preset.thickness, preset.extinction
-
-
 def selected_translucency(choice: TranslucencyChoice | None, wrapper_name: str, source) -> set[str]:
     """Resolve source names through Builder wrappers, refusing mixed opaque atlases."""
     if choice is None:
@@ -217,7 +185,7 @@ def selected_translucency(choice: TranslucencyChoice | None, wrapper_name: str, 
     return matches
 
 
-def translucency_preview_parameter_groups(mesh, choice: TranslucencyChoice | None = None, *, source_transmission=True):
+def translucency_preview_parameter_groups(mesh, choice: TranslucencyChoice | None = None):
     from cdmw.services.new_item_materials import appearance_preview_part_names
 
     if choice is not None:
@@ -226,8 +194,6 @@ def translucency_preview_parameter_groups(mesh, choice: TranslucencyChoice | Non
     for index, part in enumerate(getattr(mesh, "submeshes", ())):
         names = appearance_preview_part_names(part)
         absorption = choice.values_for(*names) if choice else None
-        if absorption is None:
-            absorption = source_translucency(part) if source_transmission else None
         groups.append({
             "source_submesh_indices": [index],
             "editor_role": "replacement_preview",
@@ -239,12 +205,11 @@ def translucency_preview_parameter_groups(mesh, choice: TranslucencyChoice | Non
     return tuple(groups)
 
 
-def translucency_preview_mesh(mesh, choice: TranslucencyChoice | None = None, *, source_transmission=True,
-                              snapshot=None, stop_event=None):
+def translucency_preview_mesh(mesh, choice: TranslucencyChoice | None = None, *, snapshot=None, stop_event=None):
     """Copy authored inputs for Effects without changing the reusable import."""
-    groups = translucency_preview_parameter_groups(mesh, choice, source_transmission=source_transmission)
-    if choice is None and not any(group["translucency"] is not None for group in groups):
+    if choice is None:
         return mesh
+    groups = translucency_preview_parameter_groups(mesh, choice)
     result = copy.copy(mesh)
     result.submeshes = []
     for part_index, (part, group) in enumerate(zip(mesh.submeshes, groups)):

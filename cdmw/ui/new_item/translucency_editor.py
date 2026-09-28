@@ -127,7 +127,7 @@ class TranslucencyEditor(QGroupBox):
         details.addWidget(self.controls)
         self.setToolTip(
             "Approximate viewport preview; game refraction and lighting may differ. "
-            "Uses Plain PBR materials. Authored glass is preserved automatically; these controls override selected parts. "
+            "Uses Plain PBR materials. Experimental translucency changes only explicitly selected parts. "
             "Glow maps and colours are kept; brightness and tint may differ in game."
         )
         layout.addWidget(self.details)
@@ -164,7 +164,7 @@ class TranslucencyEditor(QGroupBox):
             self.setChecked(choice is not None and bool(parts))
             self.setEnabled(bool(parts))
             self.details.setVisible(self.isChecked())
-            self.setToolTip("Choose a template or import a model to edit its materials." if not parts else "Turn off to restore the source materials, including authored glass.")
+            self.setToolTip("Choose a template or import a model to edit its materials." if not parts else "Turn off to restore the source materials.")
         finally:
             self._loading = False
         self._show_current()
