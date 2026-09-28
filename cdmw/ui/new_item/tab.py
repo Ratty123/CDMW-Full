@@ -435,12 +435,12 @@ class NewItemStudioTab(QWidget):
                 self._stats_panel.rebuild()
             if self._perks_panel is not None:
                 self._perks_panel._refresh_all()
-                self.controller.start_effect_index()
             if self._placement_panel is not None:
                 self._placement_panel._refresh_stores()
             # The install changes group membership, not the catalogue; keep its Qt item wrappers.
             self.identity_panel.refresh_issues()
             self._refresh_summary()
+            self.controller.start_effect_index()
             return
         try:
             self.controller.log_message.disconnect(self._status.setText)
@@ -450,6 +450,9 @@ class NewItemStudioTab(QWidget):
 
     def _panels_ready(self) -> None:
         self._append_log("New Item workspace ready.")
+        # The shell preloads only archive tables. Once this workspace is opened,
+        # prepare effect metadata on its own lane before the user reaches Effects.
+        self.controller.start_effect_index()
         if self._pending_template is not None:
             key, self._pending_template = self._pending_template, None
             self.template_panel.prefill(key)
@@ -672,8 +675,6 @@ class NewItemStudioTab(QWidget):
         self.pages.removeWidget(old)
         self.pages.insertWidget(index, self._page_for_panel(index, panel))
         old.deleteLater()
-        if index == 4 and controller.ready:
-            controller.start_effect_index()
         return panel
 
     def _has_staged_effect_changes(self):

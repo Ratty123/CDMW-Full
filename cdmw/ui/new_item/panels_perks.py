@@ -82,6 +82,8 @@ class PerksPanel(QGroupBox):
         controller.effect_compatibility_ready.connect(self._refresh_effect_support)
         controller.template_changed.connect(self._template_changed)
         self._refresh_all()
+        if controller.effect_catalogue is not None:
+            self._catalogue_ready()
 
     def _build_perks_section(self) -> QGroupBox:
         perks = QGroupBox("Gameplay perks and abilities")

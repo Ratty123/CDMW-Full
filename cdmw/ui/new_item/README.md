@@ -212,10 +212,14 @@ the shell can handle input between panels. The loading view stays in place until
 the complete workspace is ready. Template and model handoffs during this setup
 reuse the snapshot and wait for the panels; closing the tab stops the remaining
 construction and shuts down any preview already created.
-Effect metadata loading starts on the first visit to **Perks & Effects**, using
-the existing background cache/index worker. Startup preparation does not load
-that optional catalogue. Returning to Effects reuses it; rereading the archives
-refreshes the catalogue if that workspace has already been opened.
+Effect metadata loading starts when the **Create New Item** workspace is ready,
+using the existing background cache/index worker, before the first visit to
+**Perks & Effects**. Startup's data-only preparation does not load that optional
+catalogue. Opening Effects reuses the completed metadata or the build already in
+progress; it never restarts indexing. A valid disk cache avoids decoding again,
+and rereading the archives refreshes the catalogue even before Effects is opened.
+A first build after a missing or outdated cache can still be in progress on an
+immediate visit to Effects; the workspace stays usable while it finishes.
 The native window resizes after Qt settles its container geometry, so the first
 opening fills the workspace even when preparation happened in a hidden tab.
 

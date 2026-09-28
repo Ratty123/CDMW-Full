@@ -252,6 +252,7 @@ def test_shell_preloads_only_data_and_reuses_it_when_opened(preload_shell, resto
                 assert lazy.widget_if_created() is None
                 assert not lazy._load_requested and not created
                 renderer.assert_not_called()
+                controller.start_effect_index.assert_not_called()
             assert support.TEMPLATE in controller.snapshot.rows
             snapshot, draft = controller.snapshot, controller.draft
             tabs.setCurrentWidget(lazy)
@@ -260,7 +261,8 @@ def test_shell_preloads_only_data_and_reuses_it_when_opened(preload_shell, resto
             workflow = tab.workflow
             assert workflow._current_step == 0
             assert workflow._panels[0] is workflow.template_panel
-            controller.start_effect_index.assert_not_called()
+            controller.start_effect_index.assert_called_once_with()
+            assert workflow._perks_panel is None
             tabs.setCurrentWidget(current)
             tabs.setCurrentWidget(lazy)
             assert read.call_count == 1
@@ -441,7 +443,8 @@ def test_workspace_mount_yields_between_panels_and_publishes_only_when_complete(
     assert workflow._panel_mount_steps is None
     assert not workflow._panel_mount_timer.isActive()
     assert tab.isVisible() == early_open
-    tab.controller.start_effect_index.assert_not_called()
+    tab.controller.start_effect_index.assert_called_once_with()
+    assert workflow._perks_panel is None
 
 
 def test_handoff_during_workspace_mount_reuses_snapshot_and_waits_for_panels(unprepared, tmp_path):
@@ -498,18 +501,16 @@ def test_shutdown_stops_partial_workspace_mount(unprepared, after_model):
     controller.start_effect_index.assert_not_called()
 
 
-def test_effect_cache_load_waits_for_first_perks_visit_and_refreshes_with_snapshot(unprepared, tmp_path):
-    from cdmw.services.effect_catalogue import EffectCatalogue, catalogue_signature, save_effect_catalogue
+def test_effect_cache_is_ready_before_first_perks_visit_and_refreshes_with_snapshot(unprepared, tmp_path):
+    from cdmw.services.effect_catalogue import build_effect_catalogue, save_effect_catalogue
     from cdmw.workers import effect_catalogue_worker
 
     tab = unprepared
     workflow, controller = tab.workflow, tab.controller
-    tab.prewarm()
-    _until(lambda: workflow._panels_built and not controller.busy)
-    controller.start_effect_index.assert_not_called()
-    assert controller.effect_catalogue is None
+    snapshot = controller.service.build_snapshot(workflow._get_entries(), read_entry=support._read)
     cache_path = tmp_path / "effects.json"
-    save_effect_catalogue(EffectCatalogue(signature=catalogue_signature(controller.snapshot)), cache_path)
+    expected = build_effect_catalogue(snapshot)
+    save_effect_catalogue(expected, cache_path)
     controller.effect_cache_path = cache_path
     load = effect_catalogue_worker.load_effect_catalogue
     load_threads = []
@@ -522,19 +523,82 @@ def test_effect_cache_load_waits_for_first_perks_visit_and_refreshes_with_snapsh
     with patch.object(controller, "start_effect_index", wraps=start_index) as start, \
             patch.object(effect_catalogue_worker, "load_effect_catalogue", side_effect=load_cache), \
             patch.object(effect_catalogue_worker, "build_effect_catalogue") as rebuild:
-        workflow.show_step(4)
+        tab.prewarm()
         _until(lambda: controller.effect_catalogue is not None and not controller.iter_shutdown_workers())
         assert start.call_count == 1
-        assert not workflow.perks_panel.index_button.isEnabled()
-        catalogue = controller.effect_catalogue
-        workflow.show_step(0)
-        workflow.show_step(4)
-        assert start.call_count == 1
-        assert controller.effect_catalogue is catalogue
-
+        assert workflow._perks_panel is None
+        assert workflow._current_step == 0
+        assert controller.effect_catalogue == expected
+        original = controller.effect_catalogue
         workflow.start_snapshot()
         _until(lambda: start.call_count == 2 and not controller.iter_shutdown_workers())
+        assert controller.effect_catalogue is not original
+        assert workflow._perks_panel is None
+        catalogue = controller.effect_catalogue
+        workflow.show_step(4)
+        assert not workflow.perks_panel.index_button.isEnabled()
+        workspace = workflow.perks_panel.effects_workspace
+        _until(lambda: bool(workspace._library_rows))
+        assert all(row.facts == catalogue.get(stem) for stem, row in workspace._library_rows.items())
+        workflow.show_step(0)
+        workflow.show_step(4)
+        assert start.call_count == 2
+        assert controller.effect_catalogue is catalogue
+
+        # A reread refreshes prewarmed metadata even while another step is open.
+        workflow.show_step(0)
+        workflow.start_snapshot()
+        _until(lambda: start.call_count == 3 and not controller.iter_shutdown_workers())
         assert controller.effect_catalogue is not catalogue
-        assert len(load_threads) == 2
+        assert len(load_threads) == 3
         assert all(thread is not QApplication.instance().thread() for thread in load_threads)
         rebuild.assert_not_called()
+
+
+@pytest.mark.parametrize("visit_while_indexing", [False, True])
+def test_cold_effect_index_starts_before_perks_and_is_reused(unprepared, visit_while_indexing):
+    from cdmw.services.effect_catalogue import build_effect_catalogue
+    from cdmw.workers import effect_catalogue_worker
+
+    tab = unprepared
+    workflow, controller = tab.workflow, tab.controller
+    entered, release = threading.Event(), threading.Event()
+    threads = []
+
+    def build(snapshot, **kwargs):
+        threads.append(QThread.currentThread())
+        entered.set()
+        assert release.wait(5), "Test did not release the effect worker"
+        return build_effect_catalogue(snapshot, **kwargs)
+
+    start_index = NewItemStudioController.start_effect_index.__get__(controller)
+    with patch.object(controller, "start_effect_index", wraps=start_index) as start, \
+            patch.object(effect_catalogue_worker, "build_effect_catalogue", side_effect=build) as rebuild:
+        try:
+            tab.prewarm()
+            _until(lambda: entered.is_set() and workflow._panels_built and not controller.busy)
+            assert workflow._current_step == 0
+            assert workflow._perks_panel is None
+            assert controller.effect_catalogue is None
+            assert threads == [controller._effect_lane._thread]
+            assert threads[0] is not QApplication.instance().thread()
+            if visit_while_indexing:
+                workflow.show_step(4)
+                assert start.call_count == 1
+            beats = []
+            QTimer.singleShot(0, lambda: beats.append(True))
+            _until(lambda: bool(beats))
+        finally:
+            release.set()
+            _until(lambda: not controller.iter_shutdown_workers())
+
+        assert controller.effect_catalogue is not None
+        catalogue = controller.effect_catalogue
+        if not visit_while_indexing:
+            workflow.show_step(4)
+        assert not workflow.perks_panel.index_button.isEnabled()
+        workflow.show_step(0)
+        workflow.show_step(4)
+        assert controller.effect_catalogue is catalogue
+        assert start.call_count == 1
+        assert rebuild.call_count == 1
