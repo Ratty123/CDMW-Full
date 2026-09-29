@@ -350,6 +350,13 @@ class NewItemService:
         from cdmw.core.mod_package import finalize_mod_package_export
         import json
 
+        if not replace_existing and plan.unselected_source_items:
+            raise ValueError(
+                "Cannot create a separate mod from source tables containing other custom items: "
+                + ", ".join(plan.unselected_source_items) + ". "
+                "Unmount existing item mods and read the archives again before building the plan, "
+                "or select the intended mod folder with Add to existing mod."
+            )
         if plan.source_revision is not None:
             plan.source_revision.validate(stop_event)
 

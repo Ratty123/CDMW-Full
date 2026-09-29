@@ -20382,6 +20382,16 @@
       ]
     },
     {
+      "key": "Cannot create a separate mod from source tables containing other custom items: {value_0}. Unmount existing item mods and read the archives again before building the plan, or select the intended mod folder with Add to existing mod.",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_service.py",
+          "line": 354,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Cannot decode the source texture for transparency painting.",
       "origins": [
         {
@@ -22807,11 +22817,11 @@
       ]
     },
     {
-      "key": "Choose DMM for new item exports.",
+      "key": "Choose DMM, CDUMM or JMM for new item exports.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 294,
+          "line": 300,
           "sink": "emit"
         }
       ]

@@ -253,6 +253,8 @@ class OutputPanel(QGroupBox):
             "<b>DMM compatibility warning:</b> Not every item or mod has been tested with DMM. Some exports may not load or work correctly. After mounting, check in game that your item appears and works as expected.")
         self.dmm_warning.setWordWrap(True)
         export.addWidget(self.dmm_warning)
+        self.manager.currentTextChanged.connect(lambda text: self.dmm_warning.setVisible(text == "DMM"))
+        self.dmm_warning.setVisible(self.manager.currentText() == "DMM")
         export.addWidget(QLabel("Mod name"))
         self.mod_name = QLineEdit(controller.draft.mod_name)
         self.mod_name.setPlaceholderText(controller.draft.display_names.get("eng", "") or self.tr("Mod name"))

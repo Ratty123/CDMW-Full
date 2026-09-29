@@ -1240,15 +1240,33 @@ the previous geometry. The Mesh Editor session remains open so another revision 
 accepted without losing its history. New Item exposes the generated submesh name beside
 the source materials for per-part Glow. This is face separation, not a knife/cap tool.
 
-**Create New Item → Output → Mod folder** currently offers **DMM** only.
-CDUMM and JMM export choices are withdrawn from Create New Item until further
-notice; their options in other tools and support for existing packages remain.
-New drafts default to DMM, and the controller rejects unavailable manager choices
-before starting an export.
-The export controls show a **DMM compatibility warning**: not every item or mod
+**Create New Item → Output → Mod folder** offers **DMM**, **CDUMM** and **JMM**.
+CDUMM writes a `files/` package with manager metadata; JMM writes game-relative
+files with its `mod.json` replacement map. Both retain the complete planned
+tables and added assets. New drafts default to DMM, and the controller rejects
+unknown manager choices before starting an export.
+Selecting DMM shows a **DMM compatibility warning**: not every item or mod
 has been tested, and some exports may fail to load or work correctly. After
 mounting, check the item in game. Successful package generation or mounting is
 not a guarantee of gameplay compatibility.
+
+DMM 3.2.1 can reject freshly generated standalone archives because its foreign-table
+check treats expanded loot, multichange, dye and string tables as an incompatible
+game version. Adding new records legitimately grows these tables. The supplied working
+variant separates loose game-data tables/localization from an assets-only
+`0036` archive in two enabled mod folders. This is a DMM routing workaround for that
+case, not a requirement to combine an overlay with an unrelated mod. CDMW's normal
+DMM export remains a single archive group; a general single-folder solution has not
+been verified in DMM.
+
+The plan uses the currently mounted game data. A clean shipped archive underneath
+an active overlay does not make those source tables clean. Plan review names existing
+items in CDMW's reserved custom-item range and identifies the source archive when no
+mod base was selected. A fresh separate-folder export refuses to silently carry those
+items forward. Unmount the item mods, read the archives again and rebuild the plan,
+or explicitly choose **Add to existing mod** and the intended package. Installing a
+composed game overlay and deliberately extending a selected mod keep their existing
+behavior. This check does not certify arbitrary third-party edits as vanilla.
 
 For a new mod, **Output folder** is the parent folder. With mod name `heahea`
 and output `Desktop/mods`, **Write mod folder** creates `Desktop/mods/heahea`.

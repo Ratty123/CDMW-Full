@@ -23,7 +23,7 @@ def test_rust_mod_name_reaches_export_metadata_without_replanning(studio, entere
     _send(bridge, tab.identity_panel.display_name, "text", "Frost")
     tab.show_step(6)
     panel = tab.output_panel
-    assert [panel.manager.itemText(i) for i in range(panel.manager.count())] == ["DMM"]
+    assert [panel.manager.itemText(i) for i in range(panel.manager.count())] == ["DMM", "CDUMM", "JMM"]
     assert tab.controller.draft.manager == "DMM"
     assert _send(bridge, panel.manager, "choose", panel.manager.findText("DMM"))["type"] == "ack"
     parent = fixture.root / "mods"
@@ -77,7 +77,7 @@ def test_rust_mod_name_reaches_export_metadata_without_replanning(studio, entere
         fixture.opened_folders.assert_not_called()
 
 
-@pytest.mark.parametrize("manager", ["CDUMM", "JMM"])
+@pytest.mark.parametrize("manager", ["Unknown", ""])
 def test_new_item_refuses_unavailable_managers_before_starting_export(studio, manager):
     fixture, tab, _bridge = studio
     folder = fixture.root / "unavailable_manager"
@@ -85,6 +85,41 @@ def test_new_item_refuses_unavailable_managers_before_starting_export(studio, ma
         assert not tab.controller.start_export(folder, manager)
         run.assert_not_called()
     assert not folder.exists()
+
+
+@pytest.mark.parametrize("manager", ["CDUMM", "JMM"])
+def test_rust_manager_selection_exports_the_complete_loose_package(studio, manager):
+    from cdmw.services.new_item_mod_base import mod_folder_payloads
+
+    fixture, tab, bridge = studio
+    tab.show_step(1)
+    tab.identity_panel.internal_name.setText("Manager_Test_Sword")
+    _send(bridge, tab.identity_panel.display_name, "text", "Manager test")
+    tab.show_step(6)
+    panel = tab.output_panel
+    assert _send(bridge, panel.manager, "choose", panel.manager.findText(manager))["type"] == "ack"
+    assert tab.controller.draft.manager == manager
+    assert not panel.dmm_warning.isVisibleTo(tab)
+    _send(bridge, panel.export_root, "text", str(fixture.root / "mods"))
+    _send(bridge, panel.mod_name, "text", "Manager test")
+    _send(bridge, panel.open_folder_after_creation, "toggle", False)
+    assert _send(bridge, panel.build_button, "activate")["type"] == "ack"
+    plan = tab.controller.plan
+    assert plan is not None, panel.summary.toPlainText()
+    with patch("cdmw.ui.new_item.panels_output.QMessageBox.information"):
+        assert _send(bridge, panel.export_button, "activate")["type"] == "ack"
+    folder = fixture.root / "mods" / "Manager test"
+    payloads = mod_folder_payloads(folder)
+    assert {path: payload.read_bytes() for path, payload in payloads.items()} == dict(plan.loose_files)
+    if manager == "CDUMM":
+        manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
+        assert manifest["manager_targets"] == ["cdumm"]
+        assert (folder / "files").is_dir()
+    else:
+        assert (folder / "gamedata").is_dir()
+        assert not (folder / "files").exists()
+    _send(bridge, panel.manager, "choose", panel.manager.findText("DMM"))
+    assert panel.dmm_warning.isVisibleTo(tab)
 
 
 def test_dmm_warning_is_readable_in_rust_and_scoped_to_mod_folder(studio):

@@ -97,6 +97,8 @@ class NewItemPlan:
     # Worker handoff only; never part of the mod manifest or exported package.
     refreshed_snapshot: Optional[NewItemSnapshot] = field(default=None, repr=False, compare=False)
     source_revision: object = field(default=None, repr=False, compare=False)
+    #: Existing CDMW-range items inherited from the game, without a selected mod base.
+    unselected_source_items: Tuple[str, ...] = ()
 
     @property
     def touched_paths(self) -> Tuple[str, ...]:
@@ -839,6 +841,20 @@ def build_plan(
     planner.manifest["previous_items"] = list(snapshot.base_manifest.get("previous_items", ()))
     if snapshot.base_manifest.get("item_key"):
         planner.manifest["previous_items"].append(dict(snapshot.base_manifest, previous_items=[]))
+    from cdmw.domain.new_item.allocation import DEFAULT_ITEM_KEY_RANGE
+
+    inherited = tuple(
+        f"{snapshot.item_display_names().get(key) or snapshot.rows[key].string_key} (item {key})"
+        for key in sorted(snapshot.rows) if key in DEFAULT_ITEM_KEY_RANGE
+    ) if not snapshot.base_payloads else ()
+    if inherited:
+        planner.warnings.append(
+            "The source item table already contains custom items: " + ", ".join(inherited) + ". "
+            "Their records would be included in the exported tables. To create a separate mod, "
+            "unmount existing item mods and read the archives again before building the plan. "
+            "To extend a mod, select its folder with Add to existing mod. "
+            f"Source: {snapshot.iteminfo.payload_entry.pamt_path}"
+        )
     return NewItemPlan(
         spec=spec,
         patches=tuple(planner.patches),
@@ -851,6 +867,7 @@ def build_plan(
         issues=tuple(issues),
         meta_files=tuple(planner.meta_files),
         source_revision=revision,
+        unselected_source_items=inherited,
     )
 
 

@@ -13,6 +13,8 @@ The format is intentionally simple:
 
 ### Added
 
+- Create New Item supports CDUMM and JMM folder exports again, alongside DMM. The DMM compatibility warning appears only when DMM is selected.
+- Create New Item identifies existing custom items inherited from the loaded game tables and refuses to silently include them in a fresh separate mod. Explicit Add to existing mod exports remain supported.
 - Create New Item has independent Colour coverage and Surface response masks, atomic Linked fade painting, an opt-in calibrated coverage preset, per-channel restoration, and lossless PNG import/export, fill, invert and gradients. Existing raw settings keep their semantics. Patterned reveal adds experimental painted hard cutouts with private textures and coverage-aware mips; in-game validation remains pending.
 - Installed overlays can be disabled and enabled with dependency checks, or rebuilt directly against the current game while retaining individual ownership and recovery history. Rebuild preserves independent shared-table and texture-registry changes and refuses conflicting ownership.
 - Create New Item can paint varying transparency across a selected part's texture from Translucency or Transparent surface blending. The painter includes soft brushes, a texture overlay, Undo/Redo and Restore mask; edits stay with their variant, update the preview and export as private textures in the DMM mod.
@@ -26,7 +28,7 @@ The format is intentionally simple:
 - Mesh Editor numeric controls support exact typing, focused mouse-wheel and arrow-key adjustment, and per-value increments such as 0.1, 0.5 and 1 or a custom step. This includes Cloth preview/profile settings, transforms, brushes, topology, UVs, Morph & Refit, rigging, Hair Tools, materials and staged Vertex Parameters.
 - Assets navigation now lists Browse Archives, Create New Item, Model Library, and Item Icons in that order.
 - Mod Management uses the Rust interface with an automatically loaded, searchable inventory, an integrated model preview and file/history inspector, inline merge/update/recovery pages and compact activity. Overlay health is shown separately from the game-build comparison.
-- Create New Item offers DMM as its only mod-folder export target until further notice, with a visible warning that compatibility is not confirmed for every item or mod and exported items need in-game checks. CDUMM and JMM options remain available in other tools; existing packages remain readable.
+- Create New Item shows a DMM-specific warning that compatibility is not confirmed for every item or mod and exported items need in-game checks.
 - Material tools use effect-based names: Transparent surface blending, Surface detail and roughness, and Glowing band sweep. Blending controls and the global Character visibility test use matching plain-language labels and help; saved settings and exported shader identifiers are unchanged.
 - Mod Management moves from Create New Item's Output to Utilities, with direct access to installed overlays, mod merging, game-update checks and archive recovery.
 - Window and dialog sizes, split panes, viewport proportions and manually resized columns are saved in the user CFG across restarts, including Browse Archives, Create New Item, Mesh Editor and Placement & Animations. Startup defaults respect saved layouts; restored windows remain bounded by the available screen.
