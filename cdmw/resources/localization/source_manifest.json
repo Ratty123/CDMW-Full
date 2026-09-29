@@ -5812,6 +5812,16 @@
       ]
     },
     {
+      "key": "Adds wind to the preview. For example, enable it while Freehand is still to see wind-driven movement on its own.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 503,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Adjust Bone Weight",
       "origins": [
         {
@@ -6912,6 +6922,16 @@
       ]
     },
     {
+      "key": "All disabled",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 480,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "All equipment",
       "origins": [
         {
@@ -7542,6 +7562,16 @@
       "manual": true
     },
     {
+      "key": "Ambiguous jiggle vertex ownership.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 743,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Ambiguous match review updated. Matched {value_0} item(s), unresolved {value_1}.",
       "origins": [
         {
@@ -7908,6 +7938,46 @@
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
           "line": 132,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Angular damping",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 19,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Angular offset limit (radians)",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 21,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Angular response",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 18,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Angular speed limit",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 20,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -9037,6 +9107,16 @@
       ]
     },
     {
+      "key": "Apply contribution",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 298,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Apply decoded handoffs from the initial state. Conditional or conflicting timelines use manual inspection.",
       "origins": [
         {
@@ -9557,6 +9637,16 @@
       ]
     },
     {
+      "key": "Approximate",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 163,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Approximate preview: colour and normal/material contribution are independent. The game's projection-dependent surface weighting is not reproduced. {value_0}",
       "origins": [
         {
@@ -9583,6 +9673,16 @@
           "path": "cdmw/ui/archive_browser/material_sidecar_editor_helpers.py",
           "line": 473,
           "sink": "python-return:material_sidecar_reused_package_summary"
+        }
+      ]
+    },
+    {
+      "key": "Approximate vertices",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 443,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -15477,11 +15577,31 @@
       ]
     },
     {
+      "key": "Below Y",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 284,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Bend",
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
           "line": 1041,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Bend response",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 535,
           "sink": "rust-presentation"
         }
       ]
@@ -16067,6 +16187,26 @@
       ]
     },
     {
+      "key": "Body collisions",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 543,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Body collisions need supported model or rig volumes.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 556,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Body family compatibility: target {value_0} / donor {value_1} / {value_2}",
       "origins": [
         {
@@ -16102,6 +16242,16 @@
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
           "line": 1137,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Body volumes",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 391,
           "sink": "rust-presentation"
         }
       ]
@@ -16190,6 +16340,16 @@
       "key": "Bone mapping",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Bone solver settings",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 493,
+          "sink": "rust-presentation"
+        }
+      ]
     },
     {
       "key": "Bone {value_0}",
@@ -24102,6 +24262,16 @@
       ]
     },
     {
+      "key": "Choose body/head PABV files for this preview. Inputs are not saved to the model or draft.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 389,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Choose bone",
       "origins": [
         {
@@ -24737,6 +24907,16 @@
       ]
     },
     {
+      "key": "Choose {value_0} PABV…",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 393,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Choosing mesh replacement export metadata...",
       "origins": [
         {
@@ -25363,6 +25543,21 @@
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_callbacks_parts_outliner_mapping_part_02.py",
           "line": 6,
           "sink": "_push_geometry_undo_snapshot"
+        }
+      ]
+    },
+    {
+      "key": "Clear collision inputs",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 398,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 400,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -26165,6 +26360,11 @@
       "key": "Cloth",
       "origins": [
         {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 163,
+          "sink": "rust-presentation"
+        },
+        {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 220,
           "sink": "rust-presentation"
@@ -26303,6 +26503,26 @@
           "path": "cdmw/services/mesh_rust_cloth.py",
           "line": 76,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Cloth preview needs a decoded guide mesh.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 596,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Cloth preview settings",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 526,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -26537,6 +26757,16 @@
       ]
     },
     {
+      "key": "Collision margin",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 546,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Collision plane component.",
       "origins": [
         {
@@ -26553,6 +26783,16 @@
           "path": "cdmw/services/mesh_rust_jiggle.py",
           "line": 250,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Collision sources",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 388,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -28538,6 +28778,16 @@
           "path": "cdmw/ui/texture_workflow/editor_adjustments.py",
           "line": 510,
           "sink": "_adjustment_param_state"
+        }
+      ]
+    },
+    {
+      "key": "Contribution edits are saved with Build PAC and drafts.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 325,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -31327,6 +31577,16 @@
       ]
     },
     {
+      "key": "Current flags",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 478,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Current game data:",
       "origins": [
         {
@@ -31467,6 +31727,16 @@
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 2926,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Current vertex contribution on visible parts. Colours do not prove live physics activation.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 235,
           "sink": "rust-presentation"
         }
       ]
@@ -32623,6 +32893,21 @@
           "path": "tools/placement_studio/window_constraints.py",
           "line": 169,
           "sink": "setHorizontalHeaderLabels"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 163,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Decoded bones",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 443,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -32733,6 +33018,11 @@
           "path": "cdmw/services/mesh_rust_jiggle.py",
           "line": 35,
           "sink": "python-return:_decoded_preview_state"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 593,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -32773,6 +33063,16 @@
           "path": "cdmw/services/mesh_physics_profiles.py",
           "line": 75,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Decoded solver with a procedural pose test and model bounds. Live game activation is not reproduced.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 517,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -34727,6 +35027,21 @@
       "manual": true
     },
     {
+      "key": "Disable jiggle",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 308,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 314,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Disable lighting",
       "origins": [
         {
@@ -36497,6 +36812,16 @@
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
           "line": 4593,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Duplicate jiggle part.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 721,
           "sink": "rust-presentation"
         }
       ]
@@ -38917,6 +39242,16 @@
       ]
     },
     {
+      "key": "Enable wind",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 502,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Enabled",
       "origins": [
         {
@@ -40427,12 +40762,32 @@
       ]
     },
     {
+      "key": "Experimental guide cloth with controlled motion and preview settings.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 572,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Experimental hard cutout: white removes surface pixels; black keeps them. Grays form a threshold field, not continuous transparency. Test fine holes, animation, shadows and LODs in game.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/transparency_painter.py",
           "line": 46,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Experimental jiggle for body and clothing PAC meshes. Cloth bindings are not required.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 212,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -45507,6 +45862,16 @@
       ]
     },
     {
+      "key": "Finish the current operation before previewing jiggle.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 675,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Finish the hair workflow before changing island output.",
       "origins": [
         {
@@ -46263,6 +46628,16 @@
           "path": "cdmw/ui/texture_editor_tab.py",
           "line": 1104,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Floor height (Y)",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 562,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -47337,6 +47712,11 @@
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
           "line": 1028,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 457,
           "sink": "rust-presentation"
         }
       ]
@@ -49013,6 +49393,11 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
           "line": 1163,
           "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 530,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -49402,6 +49787,26 @@
       ]
     },
     {
+      "key": "Guide rotation correction",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 539,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Guide rotation needs known orientation neighbors.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 542,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Guided Editor Model",
       "origins": [
         {
@@ -49413,6 +49818,26 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_workspace_part_01.py",
           "line": 630,
           "sink": "setData"
+        }
+      ]
+    },
+    {
+      "key": "Gust amount",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 511,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Gust cycle (seconds)",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 509,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -50892,6 +51317,16 @@
       ]
     },
     {
+      "key": "Head volumes",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 391,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Heal",
       "origins": [
         {
@@ -51392,6 +51827,16 @@
       ]
     },
     {
+      "key": "High weight",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 231,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "High-level tour of the app and its main surfaces.",
       "origins": [
         {
@@ -51722,6 +52167,16 @@
       ]
     },
     {
+      "key": "Horizontal wind direction. For example, 0 degrees blows along +X and 90 degrees along +Z in model coordinates.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 508,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Hover Current for exact values or selection ranges.",
       "origins": [
         {
@@ -51862,6 +52317,16 @@
       ]
     },
     {
+      "key": "How much the wind varies. For example, zero gives steadier wind; a higher value adds stronger gusts and small direction changes.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 512,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "How quickly the glow brightens and dims. Zero keeps it steady. Uses the shader's time scale, not cycles per second.",
       "origins": [
         {
@@ -51883,6 +52348,26 @@
           "path": "cdmw/ui/new_item/glow_animation_editor.py",
           "line": 54,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "How strongly a displaced bone is pulled back. For example, a higher value makes it catch up faster after an up/down shake.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 14,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "How strongly a rotated bone is pulled back. For example, a higher value makes it straighten faster after Turning. Use Turning to see angular settings clearly.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 18,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -55802,6 +56287,16 @@
       ]
     },
     {
+      "key": "Inter-part collisions and guide-cloth simulation are not included in this preview.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 657,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Interactive Edit / Sculpt",
       "origins": [
         {
@@ -55958,6 +56453,16 @@
           "path": "cdmw/services/mesh_rust_cloth.py",
           "line": 71,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Invalid cloth vertex byte.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 711,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -56152,6 +56657,16 @@
       ]
     },
     {
+      "key": "Invalid jiggle vertex byte.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 34,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Invalid legacy source hashes.",
       "origins": [
         {
@@ -56323,6 +56838,31 @@
           "path": "cdmw/services/mesh_rust_physics_profiles.py",
           "line": 239,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Invalid preview part.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 693,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Invalid preview vertex count.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 29,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 707,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -57912,6 +58452,16 @@
       ]
     },
     {
+      "key": "Jiggle editing is unavailable.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 243,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Jiggle editing requires an original PAC mesh.",
       "origins": [
         {
@@ -57943,6 +58493,21 @@
           "path": "cdmw/services/mesh_replacement_draft.py",
           "line": 142,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Jiggle vertex ownership changed.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 747,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 762,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -58068,6 +58633,16 @@
           "path": "cdmw/ui/new_item/body_visibility_editor.py",
           "line": 18,
           "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
+      "key": "Keep model centred",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 474,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -58273,6 +58848,16 @@
           "path": "cdmw/ui/new_item/effect_recipe_panel.py",
           "line": 37,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Keeps the body's position and facing steady while motion still drives physics. For example, an up/down shake shows the jiggle without bouncing the whole model. Uncheck to see the full motion.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 475,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -59827,6 +60412,46 @@
       ]
     },
     {
+      "key": "Linear damping",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 15,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Linear offset limit",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 17,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Linear response",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 14,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Linear speed limit",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 16,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Lines per request",
       "origins": [
         {
@@ -60508,6 +61133,16 @@
           "path": "tools/placement_studio/window_playback.py",
           "line": 55,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Load collision input",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 409,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -62337,6 +62972,16 @@
       ]
     },
     {
+      "key": "Low weight",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 230,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Low-level relationship graph edges, raw refs, and decoder observations.",
       "origins": [
         {
@@ -64108,6 +64753,46 @@
           "path": "cdmw/ui/archive_browser/binary_sidecar_actions.py",
           "line": 437,
           "sink": "getInt"
+        }
+      ]
+    },
+    {
+      "key": "Maximum angle a bone can lag behind. For example, 0.1 radians is about 6 degrees, while 0.7 is about 40 degrees. Zero prevents angular lag.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 21,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Maximum distance a bone can lag behind, relative to model size. For example, a smaller limit keeps it closer to the body; zero prevents positional lag.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 17,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Maximum movement speed, relative to model size. For example, a low limit makes a displaced bone catch up slowly. It has no effect until that speed is reached.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 16,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Maximum rotation speed in radians per second. For example, a low limit makes a bone turn back slowly. It has no effect until that speed is reached.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 20,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -68362,6 +69047,26 @@
       ]
     },
     {
+      "key": "Missing or incomplete cloth vertex bytes.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 709,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Missing or incomplete jiggle vertex bytes.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 31,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Missing or oversized hair dependency: {value_0}",
       "origins": [
         {
@@ -68462,6 +69167,16 @@
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs",
           "line": 609,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Mixed saved settings. Applying a change replaces them for these parts.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 279,
           "sink": "rust-presentation"
         }
       ]
@@ -70357,6 +71072,26 @@
       "manual": true
     },
     {
+      "key": "Motion preview",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 425,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Motion preview stopped: {value_0}",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 903,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Motor Record",
       "origins": [
         {
@@ -70755,6 +71490,16 @@
       "key": "Movement compatibility",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Movement speed kept each step. For example, 0.9 keeps 90%, so it settles more slowly than 0.5. Higher values mean less braking.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 15,
+          "sink": "rust-presentation"
+        }
+      ]
     },
     {
       "key": "Movement test",
@@ -72087,6 +72832,16 @@
       ]
     },
     {
+      "key": "Negative pulls down; positive lifts up.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 531,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Neither does the Local_Euler / ExposeTransform vocabulary inside these files — those are 3ds Max constructs.",
       "origins": [
         {
@@ -72932,6 +73687,16 @@
       ]
     },
     {
+      "key": "No active Mesh Editor session.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 770,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "No active edit session.",
       "origins": [
         {
@@ -73235,6 +74000,16 @@
       "key": "No attachment events address this part",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "No authored body volumes available.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 557,
+          "sink": "rust-presentation"
+        }
+      ]
     },
     {
       "key": "No authored hair section is included in the hairstyle.",
@@ -73782,6 +74557,16 @@
       ]
     },
     {
+      "key": "No editable mesh.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 680,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "No edited HKX values.",
       "origins": [
         {
@@ -74098,6 +74883,16 @@
           "path": "cdmw/ui/research/texture_group_state.py",
           "line": 40,
           "sink": "python-return:texture_group_no_available_status_text"
+        }
+      ]
+    },
+    {
+      "key": "No head override",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 391,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -78197,6 +78992,16 @@
       ]
     },
     {
+      "key": "Only below height",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 281,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Only decoded equipment-used BuffInfo definitions are editable. Parameter levels are raw game levels; no percentage conversion is assumed.",
       "origins": [
         {
@@ -81473,6 +82278,16 @@
           "path": "cdmw/ui/archive_browser/mesh_setup_helpers.py",
           "line": 203,
           "sink": "python-return:_build_archive_static_placement_context_html"
+        }
+      ]
+    },
+    {
+      "key": "Original flags",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 479,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -85667,6 +86482,16 @@
       ]
     },
     {
+      "key": "Pause preview",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 615,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Paused",
       "origins": [
         {
@@ -87627,12 +88452,32 @@
       ]
     },
     {
+      "key": "Play preview",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 619,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Play selected",
       "origins": [
         {
           "path": "tools/placement_studio/window_clips.py",
           "line": 145,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Play, then drag in the viewport to shake the preview. Release to let physics settle.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 471,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -89262,6 +90107,16 @@
       ]
     },
     {
+      "key": "Preparing decoded motion.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 589,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Preparing direct archive patch...",
       "origins": [
         {
@@ -89503,6 +90358,16 @@
           "path": "cdmw/services/archive_overlay_manager.py",
           "line": 692,
           "sink": "on_log"
+        }
+      ]
+    },
+    {
+      "key": "Preparing preview",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 613,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -91292,6 +92157,21 @@
       ]
     },
     {
+      "key": "Preview damping",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 536,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 575,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Preview dependencies could not be resolved: {value_0}",
       "origins": [
         {
@@ -91548,6 +92428,16 @@
           "path": "cdmw/ui/model_library/preview.py",
           "line": 283,
           "sink": "_set_inline_preview_status"
+        }
+      ]
+    },
+    {
+      "key": "Preview floor",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 560,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -92742,6 +93632,16 @@
       ]
     },
     {
+      "key": "Preview requires unchanged source vertex ownership.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 607,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Preview resources loaded; waiting for visible preview panel.",
       "origins": [
         {
@@ -92798,6 +93698,26 @@
           "path": "cdmw/ui/preview/dotnet_session.py",
           "line": 415,
           "sink": "_fail_pending_captures"
+        }
+      ]
+    },
+    {
+      "key": "Preview settings are not exported. Reset preview to edit the surface.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 659,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Preview softness",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 574,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -93153,6 +94073,16 @@
           "path": "cdmw/ui/archive_browser/material_sidecar_editor_helpers.py",
           "line": 144,
           "sink": "python-return:material_sidecar_preview_warning_text"
+        }
+      ]
+    },
+    {
+      "key": "Preview wind is supplied manually; game weather is not loaded.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 515,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -98407,6 +99337,16 @@
       ]
     },
     {
+      "key": "Reductions preserve the source gradient. Final motion still needs in-game verification.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 240,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Reference",
       "origins": [
         {
@@ -99228,6 +100168,16 @@
           "path": "cdmw/ui/mesh_editor/body_region_atlas_panel.py",
           "line": 69,
           "sink": "setHeaderLabels"
+        }
+      ]
+    },
+    {
+      "key": "Region tint",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 222,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -102232,6 +103182,26 @@
       ]
     },
     {
+      "key": "Reset bone settings",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 498,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Reset cloth preview settings",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 564,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Reset emitter",
       "origins": [
         {
@@ -102377,6 +103347,16 @@
       ]
     },
     {
+      "key": "Reset preview",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 638,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Reset rotation",
       "origins": [
         {
@@ -102432,6 +103412,16 @@
       ]
     },
     {
+      "key": "Reset topology edits before previewing jiggle.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 737,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Reset view",
       "origins": [
         {
@@ -102448,6 +103438,16 @@
           "path": "tools/placement_studio/window.py",
           "line": 405,
           "sink": "QAction"
+        }
+      ]
+    },
+    {
+      "key": "Reset wind",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 514,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -103967,6 +104967,21 @@
       ]
     },
     {
+      "key": "Restore original jiggle",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 317,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 321,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Restore physics profile",
       "origins": [
         {
@@ -104282,6 +105297,16 @@
       ]
     },
     {
+      "key": "Resume preview",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 617,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Resumed geometry draft: {value_0}",
       "origins": [
         {
@@ -104308,6 +105333,16 @@
           "path": "cdmw/services/modify_original_workspace_service.py",
           "line": 175,
           "sink": "emit"
+        }
+      ]
+    },
+    {
+      "key": "Retain original %",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 292,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -105402,6 +106437,16 @@
       ]
     },
     {
+      "key": "Rig defaults",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 391,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Rig files read: {value_0} constraint rigs, {value_1} pose-modifier descriptor.",
       "origins": [
         {
@@ -105508,6 +106553,16 @@
           "path": "tools/placement_studio/clip_names.py",
           "line": 409,
           "sink": "python-data:SOCKET_PLACES"
+        }
+      ]
+    },
+    {
+      "key": "Right mouse orbits; middle mouse pans. Reset clears the motion.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 472,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -106057,6 +107112,16 @@
       ]
     },
     {
+      "key": "Rotation speed kept each step. For example, 0.9 keeps more spin than 0.5, so wobbling lasts longer. Higher values mean less braking.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 19,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Rotation yaw, pitch, roll",
       "origins": [
         {
@@ -106193,6 +107258,16 @@
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
           "line": 265,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Rounded to available byte steps. 100% keeps the source; 0% removes the vertex contribution.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 293,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -106633,6 +107708,16 @@
           "path": "tools/placement_studio/rig_behaviour.py",
           "line": 131,
           "sink": "Section"
+        }
+      ]
+    },
+    {
+      "key": "Runtime profile activation and layer/world collisions are not simulated.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 655,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -111097,6 +112182,16 @@
       ]
     },
     {
+      "key": "Select a visible part with verified jiggle data.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 727,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Select a weapon to roll along its blade",
       "origins": [
         {
@@ -111622,6 +112717,16 @@
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs",
           "line": 569,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Select an included part with editable jiggle data.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 261,
           "sink": "rust-presentation"
         }
       ]
@@ -113172,6 +114277,16 @@
       ]
     },
     {
+      "key": "Selected parts",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 246,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Selected parts have different glow settings.",
       "origins": [
         {
@@ -114082,6 +115197,16 @@
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 3377,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Set jiggle contribution",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 305,
           "sink": "rust-presentation"
         }
       ]
@@ -115797,6 +116922,16 @@
       ]
     },
     {
+      "key": "Show jiggle regions",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 213,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Show loop and one-shot effects",
       "origins": [
         {
@@ -117122,6 +118257,16 @@
       ]
     },
     {
+      "key": "Single-edge rotation",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 541,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Single-file scope active: {value_0}",
       "origins": [
         {
@@ -117528,6 +118673,16 @@
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
           "line": 427,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Skeleton volumes",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 408,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -118812,6 +119967,16 @@
       ]
     },
     {
+      "key": "Solver iterations",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 537,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "SolverIterationCount",
       "origins": [
         {
@@ -119363,6 +120528,16 @@
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
           "line": 478,
           "sink": "QTreeWidgetItem"
+        }
+      ]
+    },
+    {
+      "key": "Source height range: {value_0} to {value_1}",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 287,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -120298,6 +121473,16 @@
           "path": "tools/translation_studio/ai_panel.py",
           "line": 433,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Start / stop",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 455,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -121862,6 +123047,26 @@
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
           "line": 4231,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Strength of the preview wind. For example, zero supplies no wind force; a higher value pushes affected regions more strongly.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 506,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Stretch response",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 534,
           "sink": "rust-presentation"
         }
       ]
@@ -127532,6 +128737,16 @@
       ]
     },
     {
+      "key": "The mesh changed while preparing decoded motion. Play again after the operation.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 924,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "The mesh session closed during replacement selection.",
       "origins": [
         {
@@ -130107,6 +131322,16 @@
       ]
     },
     {
+      "key": "This model's embedded volumes take precedence over appearance inputs.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 390,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "This modifies the installed game archive package files. Close the game and any mod manager before continuing.\n\nA backup of the touched PAPGT/PAMT/PAZ files will be created first and can be restored from Archive Patch Backups.\n\nTargets:\n{value_0}",
       "origins": [
         {
@@ -130587,6 +131812,16 @@
       ]
     },
     {
+      "key": "This source encoding supports Disable / Restore only.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 295,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "This table follows the current Original DDS root and workflow filter. Exact-path assignments append new last-match rules.",
       "origins": [
         {
@@ -130998,6 +132233,16 @@
           "path": "cdmw/ui/new_item/read_failure.py",
           "line": 62,
           "sink": "python-return:_report_text"
+        }
+      ]
+    },
+    {
+      "key": "Time between repeating gusts. For example, 1 second gives quick changes, while 5 seconds gives slower changes.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 510,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -132357,6 +133602,16 @@
       ]
     },
     {
+      "key": "Turning",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 456,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Turns the effect about the item's own axes, degrees; x, then y, then z.",
       "origins": [
         {
@@ -133448,6 +134703,11 @@
           "path": "cdmw/ui/research/classification_review_state.py",
           "line": 232,
           "sink": "python-return:unknown_group_classification_text"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 233,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -133663,6 +134923,16 @@
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
           "line": 138,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Unknown: no verified PAC LOD0 bytes for this geometry or comparison view.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 236,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -134337,6 +135607,21 @@
       ]
     },
     {
+      "key": "Unverified source vertex ownership.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 26,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 705,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Unverified: animation set is missing",
       "origins": [
         {
@@ -134407,6 +135692,16 @@
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 4170,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Up / down",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 454,
           "sink": "rust-presentation"
         }
       ]
@@ -135027,6 +136322,16 @@
       ]
     },
     {
+      "key": "Use Edit comparison for motion preview.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 602,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Use Existing Preview",
       "origins": [
         {
@@ -135428,6 +136733,16 @@
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
           "line": 351,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Use authored vertex alpha",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 538,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -136157,6 +137472,16 @@
       ]
     },
     {
+      "key": "Uses displayed model coordinates. Choose the waist height for this model.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 288,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Uses displayed model coordinates. Higher vertices stay fixed; lower vertices move.",
       "origins": [
         {
@@ -136207,6 +137532,26 @@
       "manual": true
     },
     {
+      "key": "Uses the explicitly selected body/head collision inputs.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 551,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Uses the matched rig's default volumes.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 553,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Uses the proven source-copy workflow; HKX table editing remains disabled.",
       "origins": [
         {
@@ -136228,6 +137573,16 @@
           "path": "cdmw/ui/archive_browser/attachment_plan.py",
           "line": 633,
           "sink": "add_row"
+        }
+      ]
+    },
+    {
+      "key": "Uses this model's authored collision volumes.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 549,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -138064,6 +139419,11 @@
     {
       "key": "Wait for the current operation.",
       "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 587,
+          "sink": "rust-presentation"
+        },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_vertex_inspector.rs",
           "line": 309,
@@ -139968,6 +141328,31 @@
           "path": "cdmw/ui/model_preview_settings_dialog.py",
           "line": 297,
           "sink": "_add_slider_row"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 507,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Wind preview",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 500,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Wind speed",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 505,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -142002,6 +143387,16 @@
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_emission.rs",
           "line": 55,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Zero weight",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 232,
           "sink": "rust-presentation"
         }
       ]
@@ -162742,6 +164137,26 @@
       ]
     },
     {
+      "key": "validated preview byte",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 715,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "validated preview bytes",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 714,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "value",
       "origins": [
         {
@@ -167113,6 +168528,11 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs",
           "line": 604,
           "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 277,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -167518,6 +168938,16 @@
           "path": "cdmw/ui/archive_browser/attachment_socket_editor.py",
           "line": 658,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} simulated vertices",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 649,
+          "sink": "rust-presentation"
         }
       ]
     },

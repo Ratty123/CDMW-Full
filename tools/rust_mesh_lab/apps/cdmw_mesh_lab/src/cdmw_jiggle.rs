@@ -10,6 +10,17 @@ const REGION_HIGH: [f32; 4] = [1.00, 0.55, 0.05, 0.88];
 const REGION_DISABLED: [f32; 4] = [0.32, 0.34, 0.38, 0.88];
 const REGION_UNKNOWN: [f32; 4] = [0.55, 0.12, 0.85, 0.88];
 
+const BONE_SETTINGS: [(&str, f32, &str); 8] = [
+    ("Linear response", 5000.0, "How strongly a displaced bone is pulled back. For example, a higher value makes it catch up faster after an up/down shake."),
+    ("Linear damping", 1.0, "Movement speed kept each step. For example, 0.9 keeps 90%, so it settles more slowly than 0.5. Higher values mean less braking."),
+    ("Linear speed limit", 20.0, "Maximum movement speed, relative to model size. For example, a low limit makes a displaced bone catch up slowly. It has no effect until that speed is reached."),
+    ("Linear offset limit", 1.0, "Maximum distance a bone can lag behind, relative to model size. For example, a smaller limit keeps it closer to the body; zero prevents positional lag."),
+    ("Angular response", 5000.0, "How strongly a rotated bone is pulled back. For example, a higher value makes it straighten faster after Turning. Use Turning to see angular settings clearly."),
+    ("Angular damping", 1.0, "Rotation speed kept each step. For example, 0.9 keeps more spin than 0.5, so wobbling lasts longer. Higher values mean less braking."),
+    ("Angular speed limit", 500.0, "Maximum rotation speed in radians per second. For example, a low limit makes a bone turn back slowly. It has no effect until that speed is reached."),
+    ("Angular offset limit (radians)", std::f32::consts::PI, "Maximum angle a bone can lag behind. For example, 0.1 radians is about 6 degrees, while 0.7 is about 40 degrees. Zero prevents angular lag."),
+];
+
 fn preview_weights(data: &Value, key: &str, limit: usize) -> Result<Vec<f32>> {
     if data["available"].as_bool() != Some(true) {
         bail!("Unverified source vertex ownership.");
@@ -83,6 +94,7 @@ pub(super) struct Preview {
     feedback: String,
     last_tick: Instant,
     pub manual_drag: Option<(Vec2, Vec3)>,
+    keep_centred: bool,
 }
 
 impl Default for Preview {
@@ -101,6 +113,7 @@ impl Default for Preview {
             feedback: String::new(),
             last_tick: Instant::now(),
             manual_drag: None,
+            keep_centred: true,
         }
     }
 }
@@ -128,6 +141,7 @@ pub(super) struct Scene {
     tick: u64,
     moving: usize,
     motion_scale: f32,
+    centred: bool,
 }
 
 fn motion_scale(rest: &DrawSnapshot) -> f32 {
@@ -172,6 +186,11 @@ impl Simulation {
     }
     fn rotation(&self, motion: jiggle::Motion) -> Quat {
         match self { Self::Approximate(s) => s.rotation(motion), Self::Decoded(s) => s.rotation, Self::Cloth(s) => s.rotation }
+    }
+
+    fn motion_transform(&self) -> glam::Mat4 {
+        match self { Self::Approximate(s) => s.motion_transform(),
+            Self::Decoded(s) => s.motion_transform, Self::Cloth(s) => s.motion_transform }
     }
 }
 
@@ -449,9 +468,11 @@ impl LabApplication {
             }
         });
         if matches!(preview.motion, jiggle::Motion::Freehand(_)) {
-            ui.small("Play, then drag in the viewport to move the model. Release to let physics settle.");
-            ui.small("Right mouse orbits; middle mouse pans. Reset returns the model to its starting position.");
+            ui.small("Play, then drag in the viewport to shake the preview. Release to let physics settle.");
+            ui.small("Right mouse orbits; middle mouse pans. Reset clears the motion.");
         }
+        ui.checkbox(&mut preview.keep_centred, "Keep model centred")
+            .on_hover_text("Keeps the body's position and facing steady while motion still drives physics. For example, an up/down shake shows the jiggle without bouncing the whole model. Uncheck to see the full motion.");
         ui.horizontal_wrapped(|ui| {
             for (comparison, label) in [
                 (Comparison::Current, "Current flags"),
@@ -470,24 +491,25 @@ impl LabApplication {
         });
         if preview.solver == Solver::Decoded {
             ui.collapsing("Bone solver settings", |ui| {
-                for (index, label, max) in [
-                    (0, "Linear response", 5000.0), (1, "Linear damping", 1.0),
-                    (2, "Linear speed limit", 20.0), (3, "Linear offset limit", 1.0),
-                    (4, "Angular response", 5000.0), (5, "Angular damping", 1.0),
-                    (6, "Angular speed limit", 500.0), (7, "Angular offset limit (radians)", std::f32::consts::PI),
-                ] {
-                    ui.add(crate::cdmw_ui::numeric::slider(&mut preview.native_settings.values[index], 0.0..=max).text(label));
+                for (index, (label, max, help)) in BONE_SETTINGS.into_iter().enumerate() {
+                    ui.add(crate::cdmw_ui::numeric::slider(&mut preview.native_settings.values[index], 0.0..=max).text(label))
+                        .on_hover_text(crate::localization::tr(help));
                 }
                 if ui.button("Reset bone settings").clicked() { preview.native_settings.values = native::Settings::default().values; }
             });
             ui.collapsing("Wind preview", |ui| {
                 let wind = &mut preview.native_settings.wind;
-                ui.checkbox(&mut wind.enabled, "Enable wind");
+                ui.checkbox(&mut wind.enabled, "Enable wind")
+                    .on_hover_text("Adds wind to the preview. For example, enable it while Freehand is still to see wind-driven movement on its own.");
                 ui.add_enabled_ui(wind.enabled, |ui| {
-                    ui.add(crate::cdmw_ui::numeric::slider(&mut wind.speed, 0.0..=20.0).text("Wind speed"));
-                    ui.add(crate::cdmw_ui::numeric::slider(&mut wind.direction, 0.0..=360.0).text("Wind direction").suffix("°"));
-                    ui.add(crate::cdmw_ui::numeric::slider(&mut wind.cycle, 0.05..=10.0).text("Gust cycle (seconds)"));
-                    ui.add(crate::cdmw_ui::numeric::slider(&mut wind.gusts, 0.0..=1.0).text("Gust amount"));
+                    ui.add(crate::cdmw_ui::numeric::slider(&mut wind.speed, 0.0..=20.0).text("Wind speed"))
+                        .on_hover_text("Strength of the preview wind. For example, zero supplies no wind force; a higher value pushes affected regions more strongly.");
+                    ui.add(crate::cdmw_ui::numeric::slider(&mut wind.direction, 0.0..=360.0).text("Wind direction").suffix("°"))
+                        .on_hover_text("Horizontal wind direction. For example, 0 degrees blows along +X and 90 degrees along +Z in model coordinates.");
+                    ui.add(crate::cdmw_ui::numeric::slider(&mut wind.cycle, 0.05..=10.0).text("Gust cycle (seconds)"))
+                        .on_hover_text("Time between repeating gusts. For example, 1 second gives quick changes, while 5 seconds gives slower changes.");
+                    ui.add(crate::cdmw_ui::numeric::slider(&mut wind.gusts, 0.0..=1.0).text("Gust amount"))
+                        .on_hover_text("How much the wind varies. For example, zero gives steadier wind; a higher value adds stronger gusts and small direction changes.");
                 });
                 if ui.button("Reset wind").clicked() { *wind = native::Wind::default(); }
                 ui.small("Preview wind is supplied manually; game weather is not loaded.");
@@ -766,6 +788,7 @@ impl LabApplication {
             *normal = normal.normalize_or_zero();
         }
         let scene = Scene {
+            centred: false,
             motion_scale: motion_scale(&rest),
             rest_surface_normals,
             frame: rest.clone(),
@@ -822,12 +845,21 @@ impl LabApplication {
                 .advance(seconds, preview.motion, preview.settings, preview.native_settings, preview.cloth_settings)?;
         }
         // Pausing/camera movement does not need a new geometry upload.
-        if scene.tick > 0 && scene.simulation.elapsed() == before {
+        if scene.tick > 0 && scene.simulation.elapsed() == before && scene.centred == preview.keep_centred {
             return Ok(());
         }
         scene.simulation.copy_positions(&mut scene.frame.positions);
+        if preview.keep_centred {
+            // Follow only the test's rigid motion, never the simulated vertices.
+            // Applying the inverse to the draw copy is equivalent to following
+            // the body with the camera, without changing orbit/pan or solver state.
+            let inverse = scene.simulation.motion_transform().inverse();
+            for position in &mut scene.frame.positions {
+                *position = inverse.transform_point3(Vec3::from(*position)).to_array();
+            }
+        }
         surface_normals(&scene.frame, &mut scene.normal_sums);
-        let rotation = scene.simulation.rotation(preview.motion);
+        let rotation = if preview.keep_centred { Quat::IDENTITY } else { scene.simulation.rotation(preview.motion) };
         for (i, normal) in scene.frame.normals.iter_mut().enumerate() {
             let authored = rotation * Vec3::from(scene.rest.normals[i]);
             let before = rotation * scene.rest_surface_normals[i];
@@ -839,6 +871,7 @@ impl LabApplication {
             };
         }
         scene.tick = scene.tick.wrapping_add(1);
+        scene.centred = preview.keep_centred;
         scene.frame.draw_revision = scene.rest.draw_revision.wrapping_add(scene.tick);
         Ok(())
     }
@@ -894,7 +927,7 @@ impl LabApplication {
                 let count = prepared.rest.positions.len();
                 self.cdmw_jiggle.preview.scene = Some(Scene { motion_scale: motion_scale(&prepared.rest), frame: prepared.rest.clone(), rest: prepared.rest,
                     simulation: prepared.simulation, normal_sums: vec![Vec3::ZERO; count],
-                    rest_surface_normals: prepared.rest_surface_normals, tick: 0, moving: prepared.moving });
+                    rest_surface_normals: prepared.rest_surface_normals, tick: 0, moving: prepared.moving, centred: false });
                 self.cdmw_jiggle.preview.playing = true;
                 self.cdmw_jiggle.preview.feedback.clear();
                 self.cdmw_jiggle.preview.last_tick = Instant::now();

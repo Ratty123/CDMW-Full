@@ -248,8 +248,13 @@ changes/reset cancel preparation, and failures preserve the previous usable fram
 Playback has no file or Python work. Eight preview-only solver parameters control
 linear/angular response, damping and limits, starting at decoded initialization
 values. A repeatable 60 Hz root-pose test supplies up/down, start/stop and turning
-motion; current/original/disabled comparisons change contribution, not authored
-geometry. The **Approximate vertices** choice retains `cdmw_mesh::jiggle::Simulation`.
+motion. The default **Keep model centred** view removes only the rigid test
+transform from draw positions and normals; the solver retains the full motion.
+Freehand and guide cloth use the same display option, including paused toggles.
+Bone and wind controls provide hover examples; decoded damping retains velocity,
+so higher values mean less braking. Current/original/disabled comparisons change
+contribution, not authored geometry. The **Approximate vertices** choice retains
+`cdmw_mesh::jiggle::Simulation`.
 `cargo test --locked -p cdmw_mesh_lab jiggle` exercises the native controls, loader,
 comparisons, cancellation, retained-frame failures and unchanged authored mesh.
 Runtime activation, live profiles, game weather and full guide-cloth collisions
@@ -403,6 +408,8 @@ renderer output, not in-game parity.
 Editable Mesh Editor numbers share direct entry, focused wheel/arrow adjustment,
 and a per-control **⋮** increment menu with presets and custom steps. Sliders
 and number dragging respect that step without rounding idle or typed values.
+Every slider track spans its panel below the number, menu and label, keeping
+alignment and theme styling consistent across material and physics controls.
 Integer counts retain whole steps. See the
 [Mesh Editor numeric controls](../../cdmw/ui/mesh_editor/README.md#precise-numeric-controls).
 

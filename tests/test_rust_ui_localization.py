@@ -20,8 +20,13 @@ def test_native_inventory_extracts_labels_and_formats_but_not_ids_comments_or_te
             fn fixture() { ui.label("Only in a test"); }
         }
     ''', encoding="utf-8")
+    (directory / "cdmw_jiggle.rs").write_text('''
+        const SETTINGS: [(&str, &str); 1] = [("Linear response", "For example, a stronger pull catches up faster.")];
+        fn controls() { ui.checkbox(&mut centred, "Keep model centred"); }
+    ''', encoding="utf-8")
     inventory = scan(tmp_path)
     assert set(inventory) == {
         "Apply changes", "LOD {value_0}: {value_1} vertices", 'Choose a "mesh"',
+        "Linear response", "For example, a stronger pull catches up faster.", "Keep model centred",
     }
     assert all(row["sink"] == "rust-presentation" for rows in inventory.values() for row in rows)

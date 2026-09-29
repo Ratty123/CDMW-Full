@@ -73,6 +73,7 @@ pub struct Simulation {
     pivot: Vec3,
     scale: f32,
     accumulator: f64,
+    motion_transform: glam::Mat4,
     pub elapsed: f64,
 }
 
@@ -153,6 +154,7 @@ impl Simulation {
             weights,
             edges,
             accumulator: 0.0,
+            motion_transform: glam::Mat4::IDENTITY,
             elapsed: 0.0,
         })
     }
@@ -165,6 +167,11 @@ impl Simulation {
 
     pub fn rotation(&self, motion: Motion) -> Quat {
         self.pose(motion).0
+    }
+
+    /// Rigid test motion only, excluding the simulated deformation.
+    pub fn motion_transform(&self) -> glam::Mat4 {
+        self.motion_transform
     }
 
     fn pose(&self, motion: Motion) -> (Quat, Vec3) {
@@ -224,6 +231,9 @@ impl Simulation {
     fn step(&mut self, motion: Motion, settings: Settings) {
         let dt = STEP as f32;
         let (rotation, translation) = self.pose(motion);
+        self.motion_transform = glam::Mat4::from_rotation_translation(
+            rotation, self.pivot + translation - rotation * self.pivot,
+        );
         let omega = (5.0 - 3.5 * settings.softness) * std::f32::consts::TAU;
         let damping = 0.15 + settings.damping * 1.35;
         let denominator = 1.0 + 2.0 * damping * omega * dt + omega * omega * dt * dt;

@@ -272,61 +272,65 @@ pub(crate) mod numeric {
             if self.clamping == SliderClamping::Always {
                 next = bounded(next, &self.range, self.integer);
             }
-            let response = ui.horizontal_wrapped(|ui| {
-                let value_id = ui.next_auto_id();
-                let cancel = ui.input(|input| input.key_pressed(egui::Key::Escape));
-                let ticks = arrows(ui, ui.next_auto_id());
-                if ticks != 0.0 {
-                    next = bounded(next + ticks * step, &self.range, self.integer);
-                    ui.data_mut(|data| data.remove::<String>(ui.next_auto_id()));
-                }
-                let mut drag = egui::DragValue::new(&mut next)
-                    .speed(step).suffix(&self.suffix)
-                    .min_decimals(self.min_decimals)
-                    .max_decimals(if self.integer { 0 } else { 9 })
-                    .custom_parser(parse).update_while_editing(false);
-                if self.clamping != SliderClamping::Never {
-                    drag = drag.range(self.range.clone()).clamp_existing_to_range(false);
-                }
-                let mut response = ui.add(drag).on_hover_text(crate::localization::tr(
-                    "Click to type. Scroll or use Up/Down while focused. Choose an increment with ⋮."
-                ));
-                if cancel {
-                    next = old;
-                    ui.data_mut(|data| data.remove::<String>(value_id));
-                }
-                if response.drag_started() {
-                    ui.data_mut(|data| data.insert_temp(id.with("drag-origin"), old));
-                }
-                if response.dragged() {
-                    let origin = ui.data_mut(|data| data.get_temp::<f64>(id.with("drag-origin"))).unwrap_or(old);
-                    next = origin + ((next - origin) / step).round() * step;
-                }
-                let ticks = wheel(ui, &response);
-                if ticks != 0.0 {
-                    next += ticks * step;
-                    // egui 0.36.1 caches its edit text under the value's ID.
-                    // Clear it after an external step so Enter cannot restore
-                    // the pre-scroll number and the display refreshes as well.
-                    ui.data_mut(|data| data.remove::<String>(response.id));
-                    ui.ctx().request_repaint();
-                }
-                increment(ui, id, &mut step, self.integer);
-                if !self.text.is_empty() { ui.label(self.text); }
+            let response = ui.vertical(|ui| {
+                let mut response = ui.horizontal_wrapped(|ui| {
+                    let value_id = ui.next_auto_id();
+                    let cancel = ui.input(|input| input.key_pressed(egui::Key::Escape));
+                    let ticks = arrows(ui, ui.next_auto_id());
+                    if ticks != 0.0 {
+                        next = bounded(next + ticks * step, &self.range, self.integer);
+                        ui.data_mut(|data| data.remove::<String>(ui.next_auto_id()));
+                    }
+                    let mut drag = egui::DragValue::new(&mut next)
+                        .speed(step).suffix(&self.suffix)
+                        .min_decimals(self.min_decimals)
+                        .max_decimals(if self.integer { 0 } else { 9 })
+                        .custom_parser(parse).update_while_editing(false);
+                    if self.clamping != SliderClamping::Never {
+                        drag = drag.range(self.range.clone()).clamp_existing_to_range(false);
+                    }
+                    let mut response = ui.add(drag).on_hover_text(crate::localization::tr(
+                        "Click to type. Scroll or use Up/Down while focused. Choose an increment with ⋮."
+                    ));
+                    if cancel {
+                        next = old;
+                        ui.data_mut(|data| data.remove::<String>(value_id));
+                    }
+                    if response.drag_started() {
+                        ui.data_mut(|data| data.insert_temp(id.with("drag-origin"), old));
+                    }
+                    if response.dragged() {
+                        let origin = ui.data_mut(|data| data.get_temp::<f64>(id.with("drag-origin"))).unwrap_or(old);
+                        next = origin + ((next - origin) / step).round() * step;
+                    }
+                    let ticks = wheel(ui, &response);
+                    if ticks != 0.0 {
+                        next += ticks * step;
+                        // egui 0.36.1 caches its edit text under the value's ID.
+                        // Clear it after an external step so Enter cannot restore
+                        // the pre-scroll number and the display refreshes as well.
+                        ui.data_mut(|data| data.remove::<String>(response.id));
+                        ui.ctx().request_repaint();
+                    }
+                    increment(ui, id, &mut step, self.integer);
+                    if !self.text.is_empty() { response |= ui.label(self.text); }
+                    response
+                }).inner;
                 if self.slider {
                     // The slider edits a copy so merely opening a panel or
                     // selecting a coarser step never quantizes authored values.
                     let mut position = next;
-                    let available = ui.available_width();
-                    ui.spacing_mut().slider_width = available.clamp(48.0, 100.0);
+                    // Keep every rail aligned to the panel, independently of
+                    // label length, precision, suffixes and increment menus.
+                    ui.spacing_mut().slider_width = ui.available_width();
                     let slider = ui.add(egui::Slider::new(&mut position, self.range.clone())
                         .show_value(false).clamping(SliderClamping::Edits)
-                        .step_by(step).smart_aim(false));
+                        .step_by(step).smart_aim(false).trailing_fill(false));
                     if slider.changed() { next = position; }
                     response |= slider;
                 }
                 response
-            }).response;
+            }).inner;
             if next != old && next.is_finite() {
                 if self.clamping != SliderClamping::Never {
                     next = bounded(next, &self.range, self.integer);
@@ -334,6 +338,9 @@ pub(crate) mod numeric {
                 (self.get_set)(Some(next));
             }
             let mut response = response;
+            // DragValue also reports edits to its uncommitted text buffer.
+            // Callers must only apply a material/profile after a value commits.
+            response.flags.remove(egui::response::Flags::CHANGED);
             if (self.get_set)(None) != old {
                 response.mark_changed();
             }
@@ -4924,11 +4931,13 @@ impl LabApplication {
                     let mut strength = (values[0] * values[1]).sqrt();
                     ui.horizontal(|ui| {
                         ui.label(crate::localization::tr("Clear glass"));
-                        if ui.add(crate::cdmw_ui::numeric::slider(&mut strength, 0.0..=1.0))
-                            .on_hover_text(crate::localization::tr("Adjusts thickness and extinction together. This is absorption strength, not an opacity percentage."))
-                            .changed() { values = [strength, strength]; }
-                        ui.label(crate::localization::tr("Dense"));
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            ui.label(crate::localization::tr("Dense"));
+                        });
                     });
+                    if ui.add(crate::cdmw_ui::numeric::slider(&mut strength, 0.0..=1.0))
+                        .on_hover_text(crate::localization::tr("Adjusts thickness and extinction together. This is absorption strength, not an opacity percentage."))
+                        .changed() { values = [strength, strength]; }
                     let surface_label = match surface {
                         [None, None] => "Source surface",
                         [Some(0.9), Some(0.0)] => "Low-shine translucent",
@@ -4943,7 +4952,7 @@ impl LabApplication {
                         }
                     });
                     for (index, label) in ["Roughness", "Metallic"].into_iter().enumerate() {
-                        ui.horizontal(|ui| {
+                        ui.vertical(|ui| {
                             let mut enabled = surface[index].is_some();
                             ui.checkbox(&mut enabled, crate::localization::tr(label))
                                 .on_hover_text(crate::localization::tr("Override this channel on selected parts. Uncheck to keep the source texture."));
@@ -4955,10 +4964,8 @@ impl LabApplication {
                     ui.small(crate::localization::tr("Higher roughness softens highlights; lower metallic reduces metallic reflections. Some game reflections may remain."));
                     crate::localization::collapsing("Advanced").id_salt("translucency_advanced").show(ui, |ui| {
                         for (name, value) in ["Thickness", "Extinction"].into_iter().zip(values.iter_mut()) {
-                            ui.horizontal(|ui| {
-                                ui.label(crate::localization::tr(name));
-                                ui.add(crate::cdmw_ui::numeric::slider(value, 0.0..=1.0).fixed_decimals(3));
-                            });
+                            ui.add(crate::cdmw_ui::numeric::slider(value, 0.0..=1.0)
+                                .text(crate::localization::tr(name)).fixed_decimals(3));
                         }
                     });
                     ui.horizontal_wrapped(|ui| {

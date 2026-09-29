@@ -53,7 +53,7 @@ impl LabApplication {
                     for field in family["fields"].as_array().into_iter().flatten() {
                         let Some(name) = field["name"].as_str() else { continue; };
                         let mut enabled = !value["values"][name].is_null();
-                        ui.horizontal_wrapped(|ui| {
+                        ui.vertical(|ui| {
                             ui.checkbox(&mut enabled, crate::localization::tr(field["label"].as_str().unwrap_or(name)));
                             let mut numbers = if value["values"][name].is_array() { value["values"][name].clone() } else { field["default"].clone() };
                             ui.add_enabled_ui(enabled, |ui| {

@@ -28,6 +28,7 @@ pub(crate) struct Simulation {
     accumulator: f64,
     pub elapsed: f64,
     pub rotation: Quat,
+    pub motion_transform: glam::Mat4,
 }
 
 impl Simulation {
@@ -71,6 +72,7 @@ impl Simulation {
             accumulator: 0.0,
             elapsed: 0.0,
             rotation: Quat::IDENTITY,
+            motion_transform: glam::Mat4::IDENTITY,
         })
     }
 
@@ -121,17 +123,18 @@ impl Simulation {
                     Vec3::ZERO,
                 ),
             };
-            let transform: Matrix = glam::Mat4::from_rotation_translation(
+            let motion_transform = glam::Mat4::from_rotation_translation(
                 rotation,
                 self.pivot + translation - rotation * self.pivot,
-            )
-            .to_cols_array_2d()
-            .map(|row| row.map(f64::from));
+            );
+            let transform: Matrix = motion_transform.to_cols_array_2d()
+                .map(|row| row.map(f64::from));
             self.core
                 .step(STEP, transform, settings)
                 .map_err(anyhow::Error::msg)?;
             self.elapsed = elapsed;
             self.rotation = rotation;
+            self.motion_transform = motion_transform;
             self.accumulator -= STEP;
         }
         Ok(())

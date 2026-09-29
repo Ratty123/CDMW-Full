@@ -645,6 +645,12 @@ fn advance(ui: &mut HeadlessUi) -> TestResult {
 }
 
 #[test]
+fn cloth_centred_motion_keeps_rigid_vertices_still_for_every_motion() -> TestResult {
+    let (_root, mut ui, _) = fixture()?;
+    check_centred_motion_preview(&mut ui)
+}
+
+#[test]
 fn comparisons_pause_settings_and_reset_preserve_authored_mesh_without_jiggle_flags() -> TestResult
 {
     let (_root, mut ui, _) = fixture()?;

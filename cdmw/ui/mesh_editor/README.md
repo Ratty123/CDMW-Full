@@ -23,6 +23,11 @@ remembers its increment for the editor session. Count fields use whole numbers
 and all existing limits still apply. Scrolling an unfocused control scrolls
 the panel without changing its value.
 
+Sliders use a full-width track below the number, increment menu and label.
+Tracks within a section have the same alignment, width and theme styling,
+independent of label length or numeric precision. Disabled controls retain
+their disabled appearance.
+
 This applies to Cloth preview and profile settings, transforms, brushes,
 topology, UVs, Morph & Refit, rigging, Hair Tools and material settings.
 Colour swatches also have **RGB** or **RGBA** channel menus for numeric editing.
@@ -690,9 +695,14 @@ the reporter's model.
 of the rendered mesh. **Up / down** is the default: it repeatedly raises and lowers
 the model along its displayed Y axis, making vertical lag and bounce easier to compare.
 **Start / stop** and **Turning** remain available. Choose a motion, then **Play preview**.
-**Freehand** lets you drag the whole model with the left mouse button in the
-viewport. The affected regions react to that motion; releasing holds the model
-in place while physics settles. Dragging follows the camera's screen plane and
+**Keep model centred** is enabled by default. It removes the test's whole-body
+translation and rotation from the displayed frame while the solver still receives
+the full motion. This keeps the body steady so small jiggles are easier to see.
+Uncheck it to see the full moving-model preview. It also works while paused and
+does not change camera orbit or pan.
+**Freehand** lets you shake the preview with the left mouse button in the
+viewport. The affected regions react to that motion; releasing lets physics
+settle. Dragging follows the camera's screen plane and
 is limited to one model extent from the starting position. Right mouse orbits,
 middle mouse pans, and Reset returns the model to its starting position. Freehand
 works with approximate jiggle, decoded bones and guide cloth. It changes only the
@@ -709,8 +719,12 @@ rest shape. Camera orbit and framing remain available during playback.
 It drives the recovered bone solver through the original hierarchy and retained
 PAC skinning records. **Bone solver settings** exposes linear/angular response,
 damping, speed limits and offset limits; Reset restores the decoded initialization
-values. These are preview-only parameters, separate from byte 38. Rig reading and
-vertex preparation run on the existing background loader; cancellation and source
+values. Hover a setting for an explanation and a simple example. Higher decoded
+damping values retain more velocity (less braking); speed and offset limits only
+affect motion that reaches the limit. Angular settings are easiest to compare with
+Turning. All eight settings take effect on the next simulation step, without
+reloading the rig. These are preview-only parameters, separate from byte 38.
+Rig reading and vertex preparation run on the existing background loader; cancellation and source
 changes reject late results, and a failed replacement keeps the previous frame paused.
 
 **Wind preview** is optional in Decoded bones. Enable it to adjust speed,

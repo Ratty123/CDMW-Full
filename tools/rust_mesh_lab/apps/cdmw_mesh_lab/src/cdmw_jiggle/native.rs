@@ -101,6 +101,28 @@ mod tests {
     }
 
     #[test]
+    fn decoded_jiggle_each_bone_setting_changes_the_simulated_result() {
+        for (index, value) in [30.0, 0.25, 0.01, 0.001, 30.0, 0.25, 0.01, 0.001].into_iter().enumerate() {
+            let motion = if index < 4 { jiggle::Motion::UpDown } else { jiggle::Motion::Turn };
+            let mut baseline = simulation(true, vec![255, 240, 240]);
+            let mut changed = simulation(true, vec![255, 240, 240]);
+            let mut settings = Settings::default();
+            settings.values[index] = value;
+            let mut peak_difference = 0.0_f32;
+            for _ in 0..180 {
+                baseline.advance(STEP, motion, Settings::default()).unwrap();
+                changed.advance(STEP, motion, settings).unwrap();
+                assert_eq!(baseline.positions[0], changed.positions[0], "disabled contribution for setting {index}");
+                for vertex in 1..3 {
+                    peak_difference = peak_difference.max(Vec3::from(baseline.positions[vertex])
+                        .distance(Vec3::from(changed.positions[vertex])));
+                }
+            }
+            assert!(peak_difference > 1e-4, "setting {index} did not affect deformation: {peak_difference}");
+        }
+    }
+
+    #[test]
     fn decoded_jiggle_motion_uses_packed_contribution_and_changes_only_the_draw_copy() {
         let mut original = simulation(true, vec![240; 3]);
         let mut current = simulation(true, vec![255, 247, 240]);
@@ -435,6 +457,7 @@ pub(crate) struct Simulation {
     wind_active: bool,
     pub positions: Vec<[f32; 3]>,
     pub rotation: Quat,
+    pub motion_transform: glam::Mat4,
 }
 
 fn put_floats(bytes: &mut [u8], offset: usize, values: &[f32]) {
@@ -515,6 +538,7 @@ impl Simulation {
             wind_active: false,
             positions: rest.to_vec(),
             rotation: Quat::IDENTITY,
+            motion_transform: glam::Mat4::IDENTITY,
         };
         result.step(jiggle::Motion::UpDown, Settings::default(), 0.0)?;
         Ok(result)
@@ -577,12 +601,12 @@ impl Simulation {
         };
         // Animate root local poses; this is a repeatable pose test, not inferred
         // game-world movement or animation sampling. Children follow animation.
-        let motion_matrix = glam::Mat4::from_rotation_translation(
+        let motion_transform = glam::Mat4::from_rotation_translation(
             rotation,
             self.pivot + translation - rotation * self.pivot,
-        )
-        .to_cols_array_2d()
-        .map(|row| row.map(f64::from));
+        );
+        let motion_matrix = motion_transform.to_cols_array_2d()
+            .map(|row| row.map(f64::from));
         let poses = self
             .roots
             .iter()
@@ -649,6 +673,7 @@ impl Simulation {
         self.positions = positions;
         self.frame = Some(frame);
         self.rotation = rotation;
+        self.motion_transform = motion_transform;
         Ok(())
     }
 }

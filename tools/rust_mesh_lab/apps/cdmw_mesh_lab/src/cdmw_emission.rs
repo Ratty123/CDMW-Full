@@ -59,9 +59,8 @@ impl LabApplication {
                 else { color.copy_from_slice(&values[..3]); }
                 for (i, (label, maximum)) in [("Strength", 20.0), ("Scroll U", 10.0), ("Scroll V", 10.0),
                     ("Pulse speed", 10.0), ("Pulse floor", 1.0)].into_iter().enumerate() {
-                    ui.horizontal(|ui| { ui.label(crate::localization::tr(label));
-                        ui.add(crate::cdmw_ui::numeric::slider(&mut values[3 + i], 0.0..=maximum).fixed_decimals(3));
-                    });
+                    ui.add(crate::cdmw_ui::numeric::slider(&mut values[3 + i], 0.0..=maximum)
+                        .text(crate::localization::tr(label)).fixed_decimals(3));
                 }
                 ui.small(crate::localization::tr("Zero speed is static. Scroll moves the glow map only; a solid map cannot show movement. Pulse floor is capped by each pixel's glow. Preview timing is approximate."));
                 ui.small(crate::localization::tr("Animated glow cannot share a part with translucency. Unsupported source shaders are reported when applying."));
@@ -70,7 +69,8 @@ impl LabApplication {
                 values[8] = if rgb { 1.0 } else { 0.0 };
                 if rgb {
                     for (index, label, minimum) in [(9, "RGB strength", 0.0), (10, "Reveal", 0.0), (11, "Reveal softness", 0.001)] {
-                        ui.horizontal(|ui| { ui.label(crate::localization::tr(label)); ui.add(crate::cdmw_ui::numeric::slider(&mut values[index], minimum..=1.0).fixed_decimals(3)); });
+                        ui.add(crate::cdmw_ui::numeric::slider(&mut values[index], minimum..=1.0)
+                            .text(crate::localization::tr(label)).fixed_decimals(3));
                     }
                     let mut inverse = values[12] > 0.5;
                     ui.checkbox(&mut inverse, crate::localization::tr("Invert reveal mask"));

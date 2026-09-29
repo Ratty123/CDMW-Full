@@ -20,6 +20,43 @@ mod precision_controls {
     use super::*;
     use crate::cdmw_ui::numeric;
 
+    #[test]
+    fn slider_rails_align_and_share_style_at_different_widths_and_scales() {
+        for width in [180.0, 280.0, 440.0] {
+            for scale in [1.0, 1.5, 2.0] {
+                let context = egui::Context::default();
+                for _ in 0..2 {
+                    let mut input = egui::RawInput {
+                        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, egui::vec2(width, 800.0))),
+                        ..Default::default()
+                    };
+                    input.viewports.get_mut(&egui::ViewportId::ROOT).unwrap().native_pixels_per_point = Some(scale);
+                    let mut output = context.run_ui(input, |root| {
+                        egui::CentralPanel::default().show(root, |ui| {
+                            for (label, mut value) in [("Strength", 4.0), ("Scroll V", 0.173205),
+                                ("Angular offset limit (radians)", 400.1234567)] {
+                                ui.add(numeric::slider(&mut value, 0.0..=5000.0).text(label));
+                            }
+                        });
+                    });
+                    output.textures_delta.clear();
+                    let rails = output.shapes.iter().filter_map(|shape| match &shape.shape {
+                        egui::Shape::Rect(shape) if shape.rect.width() > 30.0 && shape.rect.height() <= 8.0 => Some(shape),
+                        _ => None,
+                    }).collect::<Vec<_>>();
+                    assert_eq!(rails.len(), 3, "one full rail per control");
+                    for rail in &rails {
+                        assert_eq!(rail.rect.x_range(), rails[0].rect.x_range(), "width {width}, scale {scale}");
+                        assert_eq!(rail.fill, rails[0].fill);
+                        assert_eq!(rail.rect.height(), rails[0].rect.height());
+                        assert!(rail.rect.left() >= 0.0 && rail.rect.right() <= width,
+                            "width {width}, scale {scale}, rail {:?}", rail.rect);
+                    }
+                }
+            }
+        }
+    }
+
     struct Controls {
         context: egui::Context,
         output: FullOutput,
@@ -1426,12 +1463,14 @@ impl HeadlessUi {
     }
 
     fn type_number_in_row(&mut self, label: &str, old: f64, new: &str) -> TestResult {
+        let caption = label;
         let label = self.reveal(label)?;
-        let position = self.output.shapes.iter().find_map(|shape| match &shape.shape {
+        let position = self.output.shapes.iter().filter_map(|shape| match &shape.shape {
             egui::Shape::Text(text) if text.galley.job.text.replace('−', "-").parse::<f64>() == Ok(old)
-                && (text.visual_bounding_rect().center().y - label.center().y).abs() < 4.0 => Some(text.visual_bounding_rect().center()),
+                && (-20.0..40.0).contains(&(text.visual_bounding_rect().center().y - label.center().y)) => Some(text.visual_bounding_rect().center()),
             _ => None,
-        }).ok_or("editable number beside its label")?;
+        }).min_by(|a, b| (a.y - label.center().y).abs().total_cmp(&(b.y - label.center().y).abs()))
+            .ok_or_else(|| format!("editable number {old} beside or below {caption}"))?;
         self.click_at(position);
         self.frame(vec![Event::Text(new.into())]);
         self.frame(vec![key_event(egui::Key::Enter, true)]);
@@ -4536,8 +4575,7 @@ fn integrated_jiggle_regions_distinguish_disabled_and_unknown_without_edits() ->
     Ok(())
 }
 
-#[test]
-fn integrated_decoded_jiggle_prepares_compares_cancels_and_preserves_the_previous_scene() -> TestResult {
+fn decoded_jiggle_ui() -> Result<(tempfile::TempDir, HeadlessUi, Vec<u8>), Box<dyn std::error::Error>> {
     use sha2::{Digest, Sha256};
     let root = tempdir()?;
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
@@ -4562,8 +4600,10 @@ fn integrated_decoded_jiggle_prepares_compares_cancels_and_preserves_the_previou
         "parts": [{"index": 0, "id": "body:0", "included": true, "min_y": 0.0, "max_y": 1.0,
             "preview": {"available": true, "vertex_count": 3,
                 "original_bytes": [240, 240, 255], "current_bytes": [255, 240, 255]}}]});
-    let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
-    let wait = |ui: &mut HeadlessUi| -> TestResult {
+    Ok((root, ui, payload))
+}
+
+fn wait_for_jiggle(ui: &mut HeadlessUi) -> TestResult {
         let deadline = Instant::now() + std::time::Duration::from_secs(5);
         while ui.application.cdmw_jiggle.preview.pending.is_some() {
             assert!(Instant::now() < deadline, "decoded jiggle loader timed out");
@@ -4572,7 +4612,128 @@ fn integrated_decoded_jiggle_prepares_compares_cancels_and_preserves_the_previou
         }
         ui.frame(Vec::new());
         Ok(())
-    };
+}
+
+#[test]
+fn decoded_jiggle_controls_change_each_setting_live_and_show_examples() -> TestResult {
+    for (label, old, new, angular, example) in [
+        ("Linear response", 680.0, "30", false, "catch up faster"),
+        ("Linear damping", 0.82, "0.25", false, "90%"),
+        ("Linear speed limit", 3.0, "0.01", false, "catch up slowly"),
+        ("Linear offset limit", 0.055, "0.001", false, "closer to the body"),
+        ("Angular response", 400.0, "30", true, "straighten faster"),
+        ("Angular damping", 0.7, "0.25", true, "more spin"),
+        ("Angular speed limit", 200.0, "0.01", true, "turn back slowly"),
+        ("Angular offset limit (radians)", 0.7, "0.001", true, "6 degrees"),
+    ] {
+        let (_root, mut ui, _) = decoded_jiggle_ui()?;
+        let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
+        ui.application.egui_context.style_mut_of(ui.application.egui_context.theme(),
+            |style| style.interaction.tooltip_delay = 0.0);
+        ui.click_tool_button("Jiggle")?;
+        ui.click("Selected parts")?;
+        if angular { ui.click("Turning")?; }
+        ui.click("Play preview")?;
+        wait_for_jiggle(&mut ui)?;
+        for _ in 0..10 { ui.application.advance_jiggle_preview(1.0 / 60.0)?; }
+        ui.click("Pause preview")?;
+        ui.click("Bone solver settings")?;
+        ui.reveal(label)?;
+        ui.settle_layout();
+        // egui suppresses tooltips immediately after clicks/scrolling. Move
+        // onto the label after that grace period, as a new deliberate hover.
+        for _ in 0..12 { ui.frame(vec![Event::PointerGone]); }
+        let position = ui.label_rect(label).ok_or("solver label")?.center();
+        ui.frame(vec![Event::PointerMoved(position)]);
+        for _ in 0..3 { ui.frame(Vec::new()); }
+        assert!(ui.output.shapes.iter().any(|shape| matches!(&shape.shape,
+            egui::Shape::Text(text) if text.galley.job.text.contains("For example")
+                && text.galley.job.text.contains(example))), "missing example for {label}: {:?}",
+                    ui.output.shapes.iter().filter_map(|shape| match &shape.shape {
+                        egui::Shape::Text(text) if text.galley.job.text.contains("example") => Some(&text.galley.job.text),
+                        _ => None,
+                    }).collect::<Vec<_>>());
+        ui.type_number_in_row(label, old, new)?;
+        // Continue the existing simulation: settings must not require reloading.
+        ui.click("Resume preview")?;
+        for _ in 0..30 { ui.application.advance_jiggle_preview(1.0 / 60.0)?; }
+        let changed = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.positions.clone();
+        ui.click("Reset preview")?;
+        ui.click("Reset bone settings")?;
+        ui.click("Play preview")?;
+        wait_for_jiggle(&mut ui)?;
+        for _ in 0..40 { ui.application.advance_jiggle_preview(1.0 / 60.0)?; }
+        let baseline = &ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.positions;
+        assert!(Vec3::from(changed[1]).distance(Vec3::from(baseline[1])) > 1e-5, "{label} did not reach playback");
+        assert!(Vec3::from(changed[0]).distance(Vec3::from(authored.positions[0])) < 1e-5);
+        assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
+    }
+    Ok(())
+}
+
+fn check_centred_motion_preview(ui: &mut HeadlessUi) -> TestResult {
+    let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
+    for motion in ["Up / down", "Start / stop", "Turning", "Freehand"] {
+        ui.click(motion)?;
+        ui.click("All disabled")?;
+        ui.click("Reset preview")?;
+        ui.click("Play preview")?;
+        wait_for_jiggle(ui)?;
+        if motion == "Freehand" {
+            let centre = ui.application.viewport_rect.unwrap().center();
+            let centre = Vec2::new(centre.x, centre.y);
+            ui.drag(&[centre, centre + Vec2::new(35.0, -20.0)], PointerButton::Primary);
+            // A display frame can arrive before the next fixed physics step.
+            ui.application.advance_jiggle_preview(0.0)?;
+            let pending = &ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame;
+            for (actual, expected) in pending.positions.iter().zip(&authored.positions) {
+                assert!(Vec3::from(*actual).distance(Vec3::from(*expected)) < 1e-5,
+                    "unintegrated pointer motion moved the centred body");
+            }
+        }
+        for _ in 0..20 { ui.application.advance_jiggle_preview(1.0 / 60.0)?; }
+        ui.click("Pause preview")?;
+        let centred = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.clone();
+        for (actual, expected) in centred.positions.iter().zip(&authored.positions) {
+            assert!(Vec3::from(*actual).distance(Vec3::from(*expected)) < 1e-5, "{motion} moved the rigid body");
+        }
+        let camera_revision = ui.application.camera.revision();
+        ui.click("Keep model centred")?;
+        ui.application.advance_jiggle_preview(0.0)?;
+        let full_motion = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.clone();
+        assert!(full_motion.positions.iter().zip(&authored.positions)
+            .any(|(a, b)| Vec3::from(*a).distance(Vec3::from(*b)) > 1e-4), "{motion} lost its simulation motion");
+        ui.click("Keep model centred")?;
+        ui.application.advance_jiggle_preview(0.0)?;
+        let restored = &ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame;
+        assert_eq!(restored.positions, centred.positions);
+        assert_eq!(restored.normals, centred.normals);
+        assert_ne!(restored.draw_revision, full_motion.draw_revision);
+        assert_eq!(ui.application.camera.revision(), camera_revision);
+        ui.click("Reset preview")?;
+    }
+    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
+    Ok(())
+}
+
+#[test]
+fn jiggle_centred_motion_preserves_all_disabled_and_paused_views_for_both_solvers() -> TestResult {
+    for approximate in [false, true] {
+        let (_root, mut ui, _) = decoded_jiggle_ui()?;
+        ui.click_tool_button("Jiggle")?;
+        ui.click("Selected parts")?;
+        if approximate { ui.click("Approximate vertices")?; }
+        check_centred_motion_preview(&mut ui)?;
+    }
+    Ok(())
+}
+
+#[test]
+fn integrated_decoded_jiggle_prepares_compares_cancels_and_preserves_the_previous_scene() -> TestResult {
+    let (root, mut ui, payload) = decoded_jiggle_ui()?;
+    let path = root.path().join("jiggle-rig.json");
+    let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
+    let wait = wait_for_jiggle;
     ui.click_tool_button("Jiggle")?;
     ui.click("Selected parts")?;
     ui.click("Play preview")?;
@@ -4645,7 +4806,7 @@ fn integrated_decoded_jiggle_prepares_compares_cancels_and_preserves_the_previou
 }
 
 #[test]
-fn integrated_freehand_motion_drives_the_whole_model_without_mesh_edits() -> TestResult {
+fn integrated_freehand_motion_keeps_the_body_centred_without_mesh_edits() -> TestResult {
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
         overlapping_parts_application()?, egui::vec2(1440.0, 1400.0));
     ui.application.cdmw_state["jiggle"] = json!({"available": true, "lod_count": 1,
@@ -4663,16 +4824,15 @@ fn integrated_freehand_motion_drives_the_whole_model_without_mesh_edits() -> Tes
     let center = ui.application.viewport_rect.unwrap().center();
     let center = Vec2::new(center.x, center.y);
     let delta = Vec2::new(40.0, -30.0);
-    let offset = ui.application.camera.screen_delta_to_world(delta, ui.application.viewport_rect.unwrap());
     ui.drag(&[center, center + delta], PointerButton::Primary);
     ui.application.advance_jiggle_preview(1.0 / 60.0)?;
     assert!(ui.application.cdmw_jiggle.preview.manual_drag.is_none());
     let frame = &ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame;
     for index in [0, 2, 3, 4, 5] {
-        assert!(Vec3::from(frame.positions[index]).distance(Vec3::from(authored.positions[index]) + offset) < 1e-5,
-            "non-simulated vertex {index} did not follow the whole model");
+        assert!(Vec3::from(frame.positions[index]).distance(Vec3::from(authored.positions[index])) < 1e-5,
+            "non-simulated vertex {index} did not stay centred");
     }
-    let target = Vec3::from(authored.positions[1]) + offset;
+    let target = Vec3::from(authored.positions[1]);
     let lag = Vec3::from(frame.positions[1]).distance(target);
     assert!(lag > 1e-5);
     for _ in 0..180 { ui.application.advance_jiggle_preview(1.0 / 60.0)?; }
@@ -4726,7 +4886,7 @@ fn integrated_jiggle_preview_deforms_draw_frame_only_and_resets() -> TestResult 
     assert_ne!(moving.positions, authored.positions);
     assert_eq!(moving.positions[0][0], authored.positions[0][0]);
     assert_eq!(moving.positions[0][2], authored.positions[0][2]);
-    assert!(moving.positions[0][1] > authored.positions[0][1]);
+    assert!((moving.positions[0][1] - authored.positions[0][1]).abs() < 1e-5);
     assert_eq!(moving.indices, authored.indices);
     assert_eq!(moving.uvs, authored.uvs);
     assert!(moving.normals.iter().flatten().all(|n| n.is_finite()));
@@ -4765,7 +4925,7 @@ fn integrated_jiggle_preview_deforms_draw_frame_only_and_resets() -> TestResult 
     for _ in 0..40 { ui.application.advance_jiggle_preview(1.0 / 60.0)?; }
     let stopped = &ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.positions;
     assert_eq!(stopped[0][1], authored.positions[0][1]);
-    assert!(stopped[0][2] > authored.positions[0][2]);
+    assert!((stopped[0][2] - authored.positions[0][2]).abs() < 1e-5);
     ui.application.handle_actions(vec![UiAction::FrameAll]);
     assert!(ui.application.cdmw_jiggle.preview.playing);
     ui.click("Reset preview")?;

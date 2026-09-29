@@ -15,7 +15,7 @@ from pathlib import Path
 
 RUST_UI_DIRECTORY = Path("tools/rust_mesh_lab/apps/cdmw_mesh_lab/src")
 RUST_UI_FILES = (
-    "cdmw_ui.rs", "cdmw_hair.rs", "cdmw_rig.rs", "cdmw_cloth.rs",
+    "cdmw_ui.rs", "cdmw_hair.rs", "cdmw_rig.rs", "cdmw_cloth.rs", "cdmw_jiggle.rs",
     "cdmw_vertex_inspector.rs", "cdmw_islands.rs", "cdmw_emission.rs",
     "cdmw_shader_controls.rs", "viewport.rs", "camera.rs",
     "main.rs",
