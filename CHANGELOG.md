@@ -13,7 +13,7 @@ The format is intentionally simple:
 
 ### Added
 
-- Create New Item supports CDUMM and JMM folder exports again, alongside DMM. The DMM compatibility warning appears only when DMM is selected.
+- Create New Item supports CDUMM and JMM folder exports again.
 - Create New Item identifies existing custom items inherited from the loaded game tables and refuses to silently include them in a fresh separate mod. Explicit Add to existing mod exports remain supported.
 - Create New Item has independent Colour coverage and Surface response masks, atomic Linked fade painting, an opt-in calibrated coverage preset, per-channel restoration, and lossless PNG import/export, fill, invert and gradients. Existing raw settings keep their semantics. Patterned reveal adds experimental painted hard cutouts with private textures and coverage-aware mips; in-game validation remains pending.
 - Installed overlays can be disabled and enabled with dependency checks, or rebuilt directly against the current game while retaining individual ownership and recovery history. Rebuild preserves independent shared-table and texture-registry changes and refuses conflicting ownership.
@@ -21,6 +21,7 @@ The format is intentionally simple:
 
 ### Changed
 
+- Create New Item temporarily disables DMM export while compatibility issues are investigated. CDUMM is the default; CDUMM, JMM and CDMW game overlays remain available.
 - Textured 3D previews in Browse Archives, Create New Item and Mesh Editor prepare independent materials concurrently within shared memory budgets. Repeated Rust previews reuse finished material maps, and directly usable DDS textures avoid unnecessary full-image decoding while preserving texture quality and ownership.
 - Create New Item writes each new mod into its own named folder, offers a ZIP copy beside it, and remembers whether to open the finished folder. Add to existing mod uses clearer instructions and keeps the selected mod's existing items; new exports refuse to overwrite an existing destination.
 - Interface responsiveness improves during status bursts: Compact Activity batches visible history redraws and skips hidden history work, while the Rust interface reuses unchanged caption formatting and document text. Current controls, full-log Copy, Clear, paging and edit validation retain their existing behavior.

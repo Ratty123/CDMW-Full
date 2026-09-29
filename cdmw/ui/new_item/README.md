@@ -1240,24 +1240,23 @@ the previous geometry. The Mesh Editor session remains open so another revision 
 accepted without losing its history. New Item exposes the generated submesh name beside
 the source materials for per-part Glow. This is face separation, not a knife/cap tool.
 
-**Create New Item → Output → Mod folder** offers **DMM**, **CDUMM** and **JMM**.
+**Create New Item → Output → Mod folder** offers **CDUMM** and **JMM**.
 CDUMM writes a `files/` package with manager metadata; JMM writes game-relative
 files with its `mod.json` replacement map. Both retain the complete planned
-tables and added assets. New drafts default to DMM, and the controller rejects
-unknown manager choices before starting an export.
-Selecting DMM shows a **DMM compatibility warning**: not every item or mod
-has been tested, and some exports may fail to load or work correctly. After
-mounting, check the item in game. Successful package generation or mounting is
-not a guarantee of gameplay compatibility.
+tables and added assets. New drafts default to CDUMM. DMM export is temporarily
+disabled while compatibility issues are investigated; the folder controls explain
+this, and the controller rejects DMM and unknown choices before starting an export.
+A saved DMM selection changes to CDUMM when Output opens. CDMW's **Game overlay**
+option remains available.
 
 DMM 3.2.1 can reject freshly generated standalone archives because its foreign-table
 check treats expanded loot, multichange, dye and string tables as an incompatible
 game version. Adding new records legitimately grows these tables. The supplied working
 variant separates loose game-data tables/localization from an assets-only
 `0036` archive in two enabled mod folders. This is a DMM routing workaround for that
-case, not a requirement to combine an overlay with an unrelated mod. CDMW's normal
-DMM export remains a single archive group; a general single-folder solution has not
-been verified in DMM.
+case, not a requirement to combine an overlay with an unrelated mod. The existing
+DMM exporter produces a single archive group; a general single-folder solution has
+not been verified in DMM, so Create New Item no longer offers that exporter.
 
 The plan uses the currently mounted game data. A clean shipped archive underneath
 an active overlay does not make those source tables clean. Plan review names existing

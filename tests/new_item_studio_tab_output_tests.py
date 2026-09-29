@@ -232,7 +232,7 @@ class _TabOutputMixin:
         tab.close()
         tab.deleteLater()
 
-    def test_dmm_folder_picker_replans_with_the_loaded_snapshot_reader_and_keeps_both_items(self) -> None:
+    def test_loose_folder_picker_replans_with_the_loaded_snapshot_reader_and_keeps_both_items(self) -> None:
         from cdmw.core.iteminfo_row import parse_iteminfo_row
         from cdmw.core.structured_binary_editor import parse_pabgh_table
         from cdmw.services.new_item_mod_base import mod_folder_payloads
@@ -249,10 +249,10 @@ class _TabOutputMixin:
         output.build_button.click()
         initial_plan = tab.controller.plan
         self.assertIsNotNone(initial_plan, output.summary.toPlainText())
-        output.manager.setCurrentText("DMM")
-        self.assertIs(tab.controller.plan, initial_plan, "DMM is already selected")
+        output.manager.setCurrentText("CDUMM")
+        self.assertIs(tab.controller.plan, initial_plan, "CDUMM is already selected")
 
-        folder = self.root / "dmm_mod"
+        folder = self.root / "loose_mod"
         folder.mkdir()
         output.mod_name.setText("heahea")
         with patch("cdmw.ui.new_item.panels_output.QFileDialog.getExistingDirectory", return_value=str(folder)):
@@ -266,7 +266,7 @@ class _TabOutputMixin:
         folder = folder / "heahea"
         from cdmw.core.mod_export_history import mod_metadata_path
 
-        self.assertFalse((folder / "new-item.json").exists())
+        self.assertTrue((folder / "new-item.json").exists())
         self.assertTrue(mod_metadata_path(folder, "new-item.json").is_file(), output.log.toPlainText())
 
         tab.identity_panel.internal_name.setText("Second_Clone_OneHandSword")

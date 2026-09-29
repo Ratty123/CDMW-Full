@@ -757,6 +757,7 @@
   "Mesh load failed: {value_0}",
   "Mesh payload names must be simple JSON filenames",
   "Mesh state payload name is invalid",
+  "Mesh texture preparation was cancelled",
   "Meshes & selection",
   "Metallic",
   "Minimum outward space from the body, as a percentage of body size. Positive clearance also repairs vertices already inside the body.",

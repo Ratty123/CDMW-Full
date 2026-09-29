@@ -23,9 +23,9 @@ def test_rust_mod_name_reaches_export_metadata_without_replanning(studio, entere
     _send(bridge, tab.identity_panel.display_name, "text", "Frost")
     tab.show_step(6)
     panel = tab.output_panel
-    assert [panel.manager.itemText(i) for i in range(panel.manager.count())] == ["DMM", "CDUMM", "JMM"]
-    assert tab.controller.draft.manager == "DMM"
-    assert _send(bridge, panel.manager, "choose", panel.manager.findText("DMM"))["type"] == "ack"
+    assert [panel.manager.itemText(i) for i in range(panel.manager.count())] == ["CDUMM", "JMM"]
+    assert tab.controller.draft.manager == "CDUMM"
+    assert _send(bridge, panel.manager, "choose", panel.manager.findText("CDUMM"))["type"] == "ack"
     parent = fixture.root / "mods"
     parent.mkdir()
     (parent / "unrelated.txt").write_text("keep")
@@ -55,12 +55,8 @@ def test_rust_mod_name_reaches_export_metadata_without_replanning(studio, entere
     modinfo = json.loads((folder / "modinfo.json").read_text(encoding="utf-8"))
     assert manifest["name"] == manifest["title"] == modinfo["name"] == expected_name
     assert "Frost_Internal_Sword" in modinfo["description"]
-    assert modinfo["title"] == expected_name
-    assert (folder / "README.txt").read_text(encoding="utf-8").splitlines()[0] == expected_name
-    assert manifest["manager_targets"] == ["dmm"]
-    assert manifest["structure"] == "archive_group" and manifest["archive_group"] == "0036"
-    assert (folder / "0036/0.pamt").is_file() and (folder / "0036/0.paz").is_file()
-    assert not (folder / "meta/0.papgt").exists()
+    assert manifest["manager_targets"] == ["cdumm"]
+    assert (folder / "files/gamedata").is_dir()
     assert (parent / "unrelated.txt").read_text() == "keep"
     assert not (parent / "manifest.json").exists()
     expected_zip = folder.with_name(f"{folder.name}.zip")
@@ -77,9 +73,15 @@ def test_rust_mod_name_reaches_export_metadata_without_replanning(studio, entere
         fixture.opened_folders.assert_not_called()
 
 
-@pytest.mark.parametrize("manager", ["Unknown", ""])
+@pytest.mark.parametrize("manager", ["DMM", "Unknown", ""])
 def test_new_item_refuses_unavailable_managers_before_starting_export(studio, manager):
     fixture, tab, _bridge = studio
+    tab.show_step(1)
+    tab.identity_panel.internal_name.setText("Blocked_Export_Test")
+    tab.identity_panel.display_name.setText("Blocked export")
+    tab.show_step(6)
+    tab.output_panel.build_button.click()
+    assert tab.controller.has_current_plan
     folder = fixture.root / "unavailable_manager"
     with patch.object(tab.controller, "_run") as run:
         assert not tab.controller.start_export(folder, manager)
@@ -99,7 +101,7 @@ def test_rust_manager_selection_exports_the_complete_loose_package(studio, manag
     panel = tab.output_panel
     assert _send(bridge, panel.manager, "choose", panel.manager.findText(manager))["type"] == "ack"
     assert tab.controller.draft.manager == manager
-    assert not panel.dmm_warning.isVisibleTo(tab)
+    assert panel.dmm_warning.isVisibleTo(tab)
     _send(bridge, panel.export_root, "text", str(fixture.root / "mods"))
     _send(bridge, panel.mod_name, "text", "Manager test")
     _send(bridge, panel.open_folder_after_creation, "toggle", False)
@@ -118,24 +120,34 @@ def test_rust_manager_selection_exports_the_complete_loose_package(studio, manag
     else:
         assert (folder / "gamedata").is_dir()
         assert not (folder / "files").exists()
-    _send(bridge, panel.manager, "choose", panel.manager.findText("DMM"))
-    assert panel.dmm_warning.isVisibleTo(tab)
 
 
-def test_dmm_warning_is_readable_in_rust_and_scoped_to_mod_folder(studio):
+def test_dmm_disabled_notice_is_readable_in_rust_and_scoped_to_mod_folder(studio):
     _, tab, bridge = studio
     tab.show_step(6)
     panel = tab.output_panel
     warning = bridge.document.widget(panel.dmm_warning, force=True)
     assert panel.dmm_warning.isVisibleTo(tab)
-    assert "DMM compatibility warning:" in warning["props"]["text"]
-    assert "Some exports may not load or work correctly." in warning["props"]["text"]
+    assert warning["props"]["text"] == "DMM export is temporarily disabled. Use CDUMM or JMM."
     assert warning["props"]["wrap"]
-    assert any(span.get("bold") for span in warning["props"]["spans"])
     _send(bridge, panel.overlay_mode_button, "activate")
     assert not panel.dmm_warning.isVisibleTo(tab)
     _send(bridge, panel.folder_mode_button, "activate")
     assert panel.dmm_warning.isVisibleTo(tab)
+
+
+@pytest.mark.parametrize(("saved_manager", "expected_manager"), [("DMM", "CDUMM"), ("JMM", "JMM")])
+def test_output_reconciles_saved_manager_with_available_exports(studio, saved_manager, expected_manager):
+    from cdmw.ui.new_item.panels_output import OutputPanel
+
+    _, tab, _bridge = studio
+    tab.controller.draft.manager = saved_manager
+    panel = OutputPanel(tab.controller)
+    try:
+        assert panel.manager.currentText() == tab.controller.draft.manager == expected_manager
+        assert panel.manager.findText("DMM") == -1
+    finally:
+        panel.deleteLater()
 
 
 def test_mod_name_follows_item_name_until_overridden_and_survives_item_edits(studio):
