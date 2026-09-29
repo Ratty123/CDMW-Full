@@ -102,8 +102,7 @@ heuristics are not used for this blue-channel formula. Source preview uses the
 same recipe/mips losslessly; export encodes every mip as BC7 once.
 Sky/character backgrounds, animation, depth prepass, shadows and LOD changes
 still need controlled game checks. Existing atlas/layout and PAC part-creation
-guards remain in force. UV island tools and a shared Mesh Editor painter are
-tracked in the [authoring plan](../../../docs/plans/active/transparency-authoring-improvements-v1.md).
+guards remain in force.
 
 **Transparency limitation:** Overlapping transparent surfaces may show visible
 triangles or other visual glitches in game, even within the same model. Avoid

@@ -11,6 +11,15 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+## [0.11.0-alpha.22] - 2026-09-29
+
+Pre-release with expanded Mesh Editor and Create New Item authoring, material
+and physics controls, mod output improvements, and faster previews. This release
+also includes the changes from the unpublished alpha.21 local checkpoint below.
+Experimental rendering and physics features retain their documented in-game
+validation limits. Create New Item's DMM export is temporarily unavailable;
+CDUMM, JMM and CDMW game overlays remain available.
+
 ### Added
 
 - Mesh Editor Build Mod can optionally create a ZIP beside the mod folder and open the folder after successful creation.
