@@ -7,6 +7,12 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Fixed
+
+- Ready ZIP exports retain the complete mod folder name, including dots and manager suffixes, so separate exports cannot overwrite an unrelated shortened ZIP.
+- Repackage Mods selects available dotted filenames without looping indefinitely and can cancel during filename selection.
+- Model Library retains checked models when sorting or refreshing matching rows; removed rows no longer remain in batch selections.
+
 ## [0.11.0-alpha.22] - 2026-09-29
 
 Expanded Mesh Editor and Create New Item authoring, material and physics controls,

@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import threading
 import time
+import zipfile
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
@@ -289,3 +290,76 @@ def test_publication_failure_rolls_back_all_new_outputs(
     assert not (output_root / "Example_dmm").exists()
     assert not (output_root / "Example_dmm.zip").exists()
     assert not list(output_root.glob(".cdmw-retrofit-*"))
+
+
+@pytest.mark.parametrize("profile", ["dmm", "jmm"])
+def test_dotted_conversion_names_reserve_full_zip_names_and_keep_prior_outputs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    profile: str,
+) -> None:
+    source = tmp_path / "source"
+    payload = source / "character" / "model" / "example.pac"
+    payload.parent.mkdir(parents=True)
+    payload.write_bytes(b"PAC")
+    output = tmp_path / "output"
+    output.mkdir()
+    unrelated_zip = output / "Example.zip"
+    unrelated_zip.write_bytes(b"unrelated zip")
+    reserved_zip = output / f"Example.v1_{profile}.zip"
+    reserved_zip.write_bytes(b"reserved zip")
+    real_exists = Path.exists
+    truncated_probes = 0
+
+    def bounded_exists(path: Path) -> bool:
+        nonlocal truncated_probes
+        if path == unrelated_zip:
+            truncated_probes += 1
+            # Fail promptly if suffix selection regresses to the old endless loop.
+            assert truncated_probes < 10, "filename search repeatedly probes the same truncated ZIP"
+        return real_exists(path)
+
+    monkeypatch.setattr(Path, "exists", bounded_exists)
+    item = RetrofitConversionItem(_package(source, "Example.v1"), profile, ModPackageExportOptions(), _summary())
+    result = convert_retrofit_request(RetrofitConversionRequest(1, output, (item, item)))
+
+    assert result.failed == ()
+    assert [name for name, _root, _summary_result in result.processed] == [
+        f"Example.v1_1_{profile}", f"Example.v1_2_{profile}",
+    ]
+    for _name, package_root, _summary_result in result.processed:
+        with zipfile.ZipFile(output / (package_root.name + ".zip")) as archive:
+            pac_paths = [name for name in archive.namelist() if name.endswith(".pac")]
+            assert len(pac_paths) == 1 and archive.read(pac_paths[0]) == b"PAC"
+    assert payload.read_bytes() == b"PAC"
+    assert unrelated_zip.read_bytes() == b"unrelated zip"
+    assert reserved_zip.read_bytes() == b"reserved zip"
+    assert not list(output.glob(".cdmw-retrofit-*"))
+
+
+def test_conversion_can_cancel_during_filename_search_and_cleans_staging(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = tmp_path / "output"
+    stop_event = threading.Event()
+    real_exists = Path.exists
+
+    def occupied_target(path: Path) -> bool:
+        if path.parent == output and path.name == "Example.v1_dmm":
+            stop_event.set()
+            return True
+        if path.parent == output and path.name == "Example.v1_1_dmm":
+            pytest.fail("filename search continued after cancellation")
+        return real_exists(path)
+
+    monkeypatch.setattr(Path, "exists", occupied_target)
+    request = RetrofitConversionRequest(
+        1, output,
+        (RetrofitConversionItem(_package(tmp_path / "source", "Example.v1"), "dmm", ModPackageExportOptions(), _summary()),),
+    )
+
+    with pytest.raises(RunCancelled, match="Retrofit conversion cancelled"):
+        convert_retrofit_request(request, stop_event=stop_event)
+
+    assert list(output.iterdir()) == []

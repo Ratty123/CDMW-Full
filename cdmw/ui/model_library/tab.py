@@ -145,6 +145,7 @@ class ModelLibraryTab(
         self._pending_results_visible_count = 0
         self._pending_results_selected_payload: Optional[dict[str, object]] = None
         self._pending_results_selected_key = ("", "", "")
+        self._pending_results_checked_keys: set[tuple[str, str, str]] = set()
         self._populating_results = False
         self._result_items_by_payload_id: dict[int, QTreeWidgetItem] = {}
         self._checked_payloads_by_item: dict[int, dict[str, object]] = {}

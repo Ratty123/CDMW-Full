@@ -20,7 +20,7 @@ def test_replacement_profiles_and_zips_publish_together_or_preserve_prior_output
     texture.write_bytes(b"previous")
     output = tmp_path / "packages"
     options = dict(
-        output_parent=output, package_info=ModPackageInfo(title="Texture job"),
+        output_parent=output, package_info=ModPackageInfo(title="Texture job.v1"),
         export_options=mod_package_export_options_for_profiles(("dmm", "jmm"), create_zip=True),
         create_no_encrypt_file=False, overwrite=True, file_count=1,
     )
@@ -70,6 +70,39 @@ def test_replacement_profiles_and_zips_publish_together_or_preserve_prior_output
         with pytest.raises((RuntimeError, OSError, RunCancelled)):
             packaging.publish_replace_assistant_packages(source, stop_event=stop, **options)
         assert snapshot() == previous
+    assert not any(path.name.startswith(".") for path in output.iterdir())
+
+
+@pytest.mark.parametrize("profiles", [("dmm",), ("dmm", "jmm")])
+def test_dotted_replacement_title_keeps_full_zip_names_and_unrelated_zip(tmp_path, profiles):
+    import zipfile
+    from cdmw.core.replace_assistant_package import publish_replace_assistant_packages
+    from cdmw.domain.packages.export_policy import mod_package_export_options_for_profiles
+    from cdmw.models import ModPackageInfo
+
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "coat.dds").write_bytes(b"replacement")
+    output = tmp_path / "packages"
+    output.mkdir()
+    unrelated_zip = output / "Outfit v1.zip"
+    unrelated_zip.write_bytes(b"keep unrelated zip")
+
+    published = publish_replace_assistant_packages(
+        source, output_parent=output, package_info=ModPackageInfo(title="Outfit v1.2"),
+        export_options=mod_package_export_options_for_profiles(profiles, create_zip=True),
+        create_no_encrypt_file=False, overwrite=True, file_count=1,
+    )
+
+    assert len(published) == len(profiles)
+    for package_root, _payload_root in published:
+        assert package_root.name.startswith("Outfit v1.2")
+        zip_path = output / (package_root.name + ".zip")
+        with zipfile.ZipFile(zip_path) as archive:
+            textures = [name for name in archive.namelist() if name.endswith(".dds")]
+            assert len(textures) == 1 and archive.read(textures[0]) == b"replacement"
+        assert zip_path.name in (package_root / "README.txt").read_text(encoding="utf-8")
+    assert unrelated_zip.read_bytes() == b"keep unrelated zip"
     assert not any(path.name.startswith(".") for path in output.iterdir())
 
 

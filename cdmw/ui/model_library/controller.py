@@ -261,6 +261,9 @@ class ModelLibraryResultsMixin:
         self._pending_results_visible_count = len(visible_rows)
         self._pending_results_selected_payload = None
         self._pending_results_selected_key = self._results_selection_keys.pop(request_id, ("", "", ""))
+        self._pending_results_checked_keys.update(
+            self._payload_population_key(payload) for payload in self._checked_payloads()
+        )
         self._populating_results = True
         self.results_tree.setSortingEnabled(False)
         self.results_tree.blockSignals(True)
@@ -295,7 +298,12 @@ class ModelLibraryResultsMixin:
         )
         item = QTreeWidgetItem(list(columns))
         item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-        item.setCheckState(0, Qt.CheckState.Unchecked)
+        item.setCheckState(
+            0,
+            Qt.CheckState.Checked
+            if self._payload_population_key(payload) in self._pending_results_checked_keys
+            else Qt.CheckState.Unchecked,
+        )
         item.setData(0, Qt.ItemDataRole.UserRole, payload)
         item.setData(1, Qt.ItemDataRole.UserRole, payload)
         self._result_payloads_by_item[id(item)] = payload
@@ -334,6 +342,7 @@ class ModelLibraryResultsMixin:
         self._pending_results_rows = []
         self._pending_results_selected_payload = None
         self._pending_results_selected_key = ("", "", "")
+        self._pending_results_checked_keys.clear()
         # Keep the busy state truthful until both row application and the
         # owning worker/thread teardown have completed.  A stopped QThread can
         # still have its queued ``finished`` cleanup pending; allowing another
@@ -358,6 +367,7 @@ class ModelLibraryResultsMixin:
         del self._pending_results_rows[: self.RESULTS_POPULATION_BATCH_SIZE]
         items = [self._build_result_item(payload) for payload in batch]
         for item in items:
+            self._sync_checked_payload_cache_for_item(item)
             self._sync_no_texture_download_cache_for_item(item)
         self.results_tree.setUpdatesEnabled(False)
         self.results_tree.addTopLevelItems(items)
@@ -394,6 +404,7 @@ class ModelLibraryResultsMixin:
         if payload is not None and item.checkState(0) == Qt.CheckState.Checked:
             self._checked_payloads_by_item[item_id] = payload
             return
+        self._pending_results_checked_keys.discard(self._payload_population_key(payload))
         self._checked_payloads_by_item.pop(item_id, None)
 
     def _rebuild_checked_payload_cache(self) -> None:
@@ -453,6 +464,8 @@ class ModelLibraryResultsMixin:
         return self._checked_payloads()
 
     def _set_all_result_checks(self, checked: bool) -> None:
+        if not checked:
+            self._pending_results_checked_keys.clear()
         state = Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked
         self.results_tree.blockSignals(True)
         try:

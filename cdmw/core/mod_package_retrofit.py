@@ -232,7 +232,7 @@ def retrofit_mod_package(
             if metadata_path.exists() and metadata_path not in metadata_files:
                 metadata_files.append(metadata_path)
 
-    zip_path = package_root.with_suffix(".zip")
+    zip_path = package_root.with_name(package_root.name + ".zip")
     raise_if_cancelled(stop_event, "Retrofit conversion cancelled.")
     if not zip_path.is_file():
         warnings.append("Converted zip was not created.")
@@ -422,7 +422,7 @@ def merge_retrofittable_mod_packages(
         game_metadata=game_metadata,
     )
     _append_cdumm_merge_readme_note(package_root / "README.txt", selected_packages)
-    zip_path = package_root.with_suffix(".zip")
+    zip_path = package_root.with_name(package_root.name + ".zip")
     if resolved_options.create_zip:
         zip_path = _write_retrofit_package_zip(package_root)
 
@@ -1512,7 +1512,7 @@ def _write_retrofit_package_zip(
     *,
     stop_event: threading.Event | None = None,
 ) -> Path:
-    zip_path = root.with_suffix(".zip")
+    zip_path = root.with_name(root.name + ".zip")
     if zip_path.exists():
         zip_path.unlink()
     paths: list[Path] = []

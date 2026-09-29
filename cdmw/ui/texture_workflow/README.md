@@ -48,6 +48,8 @@ DDS encoding policy is unchanged. Edited sessions export their current flattened
 Workers receive immutable snapshots. Revisions, original DDS identity, exact target
 matches, and cancellation are checked before accepting results. Batch output is
 staged and transactionally published; a failed or cancelled job keeps prior output.
+Ready ZIP filenames append `.zip` to the complete mod folder name, preserving
+dots and manager suffixes so each manager output keeps its own ZIP.
 Sources may be loose DDS files, mod folders/ZIPs, or exact archive matches. Extraction
 and image processing run off the UI thread and never mutate PAMT/PAZ archives.
 

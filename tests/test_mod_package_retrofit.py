@@ -724,7 +724,7 @@ class ModPackageRetrofitTests(unittest.TestCase):
             result = merge_retrofittable_mod_packages(
                 (by_name["Gravey"], by_name["Hehe"]),
                 root / "converted",
-                package_info=ModPackageInfo(title="Gravey Hehe Combo", version="1.0", author="Tester"),
+                package_info=ModPackageInfo(title="Gravey Hehe Combo v1.2", version="1.0", author="Tester"),
                 export_options=ModPackageExportOptions(
                     manager_targets=("cdumm",),
                     structure="files_wrapper",
@@ -739,11 +739,13 @@ class ModPackageRetrofitTests(unittest.TestCase):
             self.assertTrue((result.package_root / "modinfo.json").is_file())
             self.assertTrue(result.zip_path.is_file())
 
+            self.assertEqual(result.package_root.name + ".zip", result.zip_path.name)
+
             manifest = json.loads((result.package_root / "manifest.json").read_text(encoding="utf-8"))
             modinfo = json.loads((result.package_root / "modinfo.json").read_text(encoding="utf-8"))
             self.assertEqual(["cdumm"], manifest["manager_targets"])
             self.assertEqual("files_wrapper", manifest["structure"])
-            self.assertEqual("Gravey Hehe Combo", modinfo["name"])
+            self.assertEqual("Gravey Hehe Combo v1.2", modinfo["name"])
             files = {item["path"]: item for item in manifest["files"]}
             self.assertEqual("0009", files[first_model]["package_group"])
             self.assertEqual("0009", files[second_model]["package_group"])

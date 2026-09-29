@@ -496,7 +496,7 @@ def _write_package_zip(
     stop_event: threading.Event | None = None,
 ) -> Path:
     raise_if_cancelled(stop_event, "Mod package ZIP creation cancelled.")
-    zip_path = Path(zip_path) if zip_path is not None else root.with_suffix(".zip")
+    zip_path = Path(zip_path) if zip_path is not None else root.with_name(root.name + ".zip")
     if zip_path.exists():
         zip_path.unlink()
     paths: list[Path] = []
@@ -978,7 +978,7 @@ def write_mod_package_manifest(
         created_utc=created_utc,
         stop_event=stop_event,
     )
-    ready_zip_path = root.with_suffix(".zip") if resolved_export_options.create_zip else None
+    ready_zip_path = root.with_name(root.name + ".zip") if resolved_export_options.create_zip else None
     metadata_files = [
         *([manifest_path] if manifest_path.exists() else []),
         *[path for path in finalized.metadata_files if path.name != "manifest.json"],
@@ -1152,7 +1152,7 @@ def write_mesh_loose_mod_package_metadata(
     raise_if_cancelled(stop_event, "Mod package metadata creation cancelled.")
     if resolved_export_options.create_manifest_json:
         manifest_path.write_text(json.dumps(manifest_payload, indent=2), encoding="utf-8")
-    ready_zip_path = root.with_suffix(".zip") if resolved_export_options.create_zip else None
+    ready_zip_path = root.with_name(root.name + ".zip") if resolved_export_options.create_zip else None
     metadata_files = [
         *([manifest_path] if manifest_path.exists() else []),
         *[path for path in finalized.metadata_files if path.name != "manifest.json"],

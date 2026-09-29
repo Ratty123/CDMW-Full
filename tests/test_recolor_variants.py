@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import json
 import struct
 import tempfile
@@ -161,14 +162,15 @@ class RecolorVariantTests(unittest.TestCase):
                     profile_id="dmm",
                     label="Definitive Mod Manager",
                     enabled=True,
-                    export_options=recolor_export_options_for_manager("dmm"),
+                    package_title_suffix="v1.2",
+                    export_options=dataclasses.replace(recolor_export_options_for_manager("dmm"), create_zip=True),
                 ),
                 RecolorVariantOutputProfile(
                     profile_id="jmm",
                     label="JMM JSON",
                     enabled=True,
-                    package_title_suffix="JMM",
-                    export_options=recolor_export_options_for_manager("jmm"),
+                    package_title_suffix="JMM v1.2",
+                    export_options=dataclasses.replace(recolor_export_options_for_manager("jmm"), create_zip=True),
                 ),
             )
 
@@ -193,6 +195,12 @@ class RecolorVariantTests(unittest.TestCase):
             self.assertNotEqual(b"RECOLORED", (dmm_root / "character" / "texture" / "blade_n.dds").read_bytes())
             self.assertTrue((jmm_root / "mod.json").exists())
             self.assertFalse((jmm_root / "manifest.json").exists())
+            for output_root in result.output_roots:
+                self.assertIn("v1.2", output_root.name)
+                with zipfile.ZipFile(output_root.with_name(output_root.name + ".zip")) as archive:
+                    textures = [name for name in archive.namelist() if name.endswith("blade_basecolor.dds")]
+                    self.assertEqual(1, len(textures))
+                    self.assertEqual(b"RECOLORED", archive.read(textures[0]))
 
     def test_overwrite_failure_and_cancellation_preserve_previous_output(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

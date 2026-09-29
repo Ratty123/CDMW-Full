@@ -78,8 +78,8 @@ def _write_bytes(path: Path, payload: bytes, stop_event: threading.Event | None)
 
 def _publish_fresh_package(staged_root: Path, package_root: Path) -> None:
     """Publish the directory and optional sibling ZIP with rollback."""
-    staged_zip = staged_root.with_suffix(".zip")
-    package_zip = package_root.with_suffix(".zip")
+    staged_zip = staged_root.with_name(staged_root.name + ".zip")
+    package_zip = package_root.with_name(package_root.name + ".zip")
     if package_zip.exists() and not package_zip.is_file():
         raise IsADirectoryError(package_zip)
     nonce = uuid4().hex

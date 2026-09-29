@@ -590,10 +590,13 @@ class MaterialSidecarEditorTests(unittest.TestCase):
     def test_successful_fresh_publish_removes_stale_package_files_and_zip(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            package_root = root / "Material Edit"
+            package_root = root / "Material Edit v1.2"
             package_root.mkdir()
             (package_root / "stale.txt").write_text("stale", encoding="utf-8")
-            package_root.with_suffix(".zip").write_bytes(b"stale zip")
+            package_zip = package_root.with_name(package_root.name + ".zip")
+            package_zip.write_bytes(b"stale zip")
+            unrelated_zip = root / "Material Edit v1.zip"
+            unrelated_zip.write_bytes(b"keep unrelated zip")
             sidecar = entry("character/modelproperty/test.pac_xml", root)
 
             result = export_material_sidecar_mod_package(
@@ -601,34 +604,39 @@ class MaterialSidecarEditorTests(unittest.TestCase):
                 edited_text="<edited />",
                 related_entries=(),
                 parent_root=root,
-                package_info=ModPackageInfo(title="Material Edit"),
+                package_info=ModPackageInfo(title="Material Edit v1.2"),
                 read_entry_bytes=lambda _entry: b"",
             )
 
             self.assertEqual(package_root, result.package_root)
             self.assertFalse((package_root / "stale.txt").exists())
-            self.assertFalse(package_root.with_suffix(".zip").exists())
+            self.assertFalse(package_zip.exists())
+            self.assertEqual(b"keep unrelated zip", unrelated_zip.read_bytes())
             self.assertTrue((package_root / "character" / "modelproperty" / "test.pac_xml").exists())
 
     def test_cancellable_zip_export_publishes_readable_zip(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             sidecar = entry("character/modelproperty/test.pac_xml", root)
+            unrelated_zip = root / "Material Edit v1.zip"
+            unrelated_zip.write_bytes(b"keep unrelated zip")
 
             result = export_material_sidecar_mod_package(
                 edited_entry=sidecar,
                 edited_text="<edited />",
                 related_entries=(),
                 parent_root=root,
-                package_info=ModPackageInfo(title="Material Edit"),
+                package_info=ModPackageInfo(title="Material Edit v1.2"),
                 export_options=ModPackageExportOptions(create_zip=True),
                 read_entry_bytes=lambda _entry: b"",
                 stop_event=threading.Event(),
             )
 
-            with zipfile.ZipFile(result.package_root.with_suffix(".zip")) as archive:
+            self.assertEqual("Material Edit v1.2", result.package_root.name)
+            with zipfile.ZipFile(result.package_root.with_name(result.package_root.name + ".zip")) as archive:
                 self.assertIn("character/modelproperty/test.pac_xml", archive.namelist())
                 self.assertEqual(b"<edited />", archive.read("character/modelproperty/test.pac_xml"))
+            self.assertEqual(b"keep unrelated zip", unrelated_zip.read_bytes())
 
 
 class MaterialSidecarEditorHelperTests(unittest.TestCase):

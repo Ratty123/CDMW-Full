@@ -82,6 +82,8 @@ Local scan normalization, bounded metadata reads, file/status probes, mirror
 download-state filtering, column filtering, and sorting produce one immutable
 prepared-row result in that same tracked task lane. The UI only rejects stale
 request IDs and adds already-prepared rows in batches.
+Checked models are restored by logical identity when sorting or refreshing rows.
+Only models still visible in the rebuilt results remain checked for batch actions.
 
 Compact Workspace rearranges these same widgets without creating a second
 Model Library implementation. Its controls lane is bounded to 256-300 px and

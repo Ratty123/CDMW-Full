@@ -675,10 +675,10 @@ def build_recolor_variant_outputs(
                 _write_jmm_mod_json(staged_root, package_info, analysis.payload_paths)
             publication_paths.append((staged_root, final_root))
             if export_options.create_zip:
-                staged_zip = staged_root.with_suffix(".zip")
+                staged_zip = staged_root.with_name(staged_root.name + ".zip")
                 if not staged_zip.is_file():
                     raise OSError(f"Recolor output ZIP was not staged: {staged_zip}")
-                publication_paths.append((staged_zip, final_root.with_suffix(".zip")))
+                publication_paths.append((staged_zip, final_root.with_name(final_root.name + ".zip")))
             completed_steps += 1
             if on_progress:
                 on_progress(min(completed_steps, total_steps), total_steps, f"{min(completed_steps, total_steps)} / {total_steps} steps")

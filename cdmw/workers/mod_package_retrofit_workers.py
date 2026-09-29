@@ -176,13 +176,16 @@ def next_available_retrofit_package_name(
     profile: str,
     output_root: Path,
     suffixes: dict[str, int],
+    *,
+    stop_event: threading.Event | None = None,
 ) -> str:
     base_key = f"{package_name}_{profile}"
     suffix = suffixes.get(base_key, 0)
     while True:
+        raise_if_cancelled(stop_event, "Retrofit conversion cancelled.")
         candidate = package_name if suffix == 0 else f"{package_name}_{suffix}"
         target_root = output_root / f"{candidate}_{profile}"
-        if not target_root.exists() and not target_root.with_suffix(".zip").exists():
+        if not target_root.exists() and not target_root.with_name(target_root.name + ".zip").exists():
             suffixes[base_key] = suffix + 1
             return candidate
         suffix += 1
@@ -267,6 +270,7 @@ def convert_retrofit_request(
                 item.manager_profile,
                 output_root,
                 suffixes,
+                stop_event=stop_event,
             )
             package = dataclasses.replace(item.package, name=safe_name)
             try:

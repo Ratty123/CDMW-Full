@@ -8,6 +8,8 @@ import time
 from pathlib import Path
 from unittest import mock
 
+import pytest
+
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QCoreApplication, QEvent, QEventLoop, QTimer, Qt
@@ -229,6 +231,89 @@ def test_cached_refilter_reuses_worker_frozen_source_snapshot() -> None:
             tab._populate_results(tab.local_models)
             assert (time.perf_counter() - before) * 1000.0 < 50.0
             assert _wait_for(app, lambda: tab._task_thread is None and not tab._populating_results)
+        _close_tab(app, tab)
+
+
+@pytest.mark.parametrize("view", ["local", "mirror"])
+def test_sort_preserves_checked_rows_and_repopulation_drops_removed_checks(tmp_path: Path, view: str) -> None:
+    app = _app()
+    settings = create_settings(settings_file_path=tmp_path / "settings.ini")
+    tab = ModelLibraryTab(settings=settings, base_dir=tmp_path)
+    tab.auto_preview_checkbox.setChecked(False)
+    tab._set_active_results_view(view, persist=False)
+    tab.RESULTS_POPULATION_BATCH_SIZE = 1
+    tab.PREPARED_ROWS_APPLY_BATCH_SIZE = 1
+    rows = [
+        {"kind": view, "uid": name.lower(), "name": name, "path": f"{name.lower()}.obj", "extension": ".obj"}
+        for name in ("Gamma", "Alpha", "Beta")
+    ]
+
+    def wait_until_ready() -> None:
+        assert _wait_for(app, lambda: tab._task_thread is None and not tab._populating_results)
+
+    def checked_names() -> set[str]:
+        return {str(payload["name"]) for payload in tab._batch_action_payloads()}
+
+    try:
+        tab._populate_results(rows)
+        wait_until_ready()
+        for index in range(tab.results_tree.topLevelItemCount()):
+            item = tab.results_tree.topLevelItem(index)
+            if item.text(1) in {"Alpha", "Gamma"}:
+                item.setCheckState(0, Qt.CheckState.Checked)
+        assert checked_names() == {"Alpha", "Gamma"}
+
+        tab.results_tree.header().sectionClicked.emit(1)
+        wait_until_ready()
+        assert checked_names() == {"Alpha", "Gamma"}
+        tab.results_tree.header().sectionClicked.emit(1)
+        wait_until_ready()
+        assert checked_names() == {"Alpha", "Gamma"}
+
+        # A second sort can interrupt batched row insertion before every
+        # previously checked model has been materialized again.
+        tab._results_population_timer.setInterval(20)
+        tab.results_tree.header().sectionClicked.emit(1)
+        assert _wait_for(
+            app,
+            lambda: tab._task_thread is None
+            and bool(tab._pending_results_rows)
+            and tab.results_tree.topLevelItemCount() == 1,
+        )
+        tab.results_tree.header().sectionClicked.emit(1)
+        wait_until_ready()
+        assert checked_names() == {"Alpha", "Gamma"}
+
+        tab.results_tree.header().sectionClicked.emit(1)
+        assert _wait_for(
+            app,
+            lambda: tab._task_thread is None
+            and bool(tab._pending_results_rows)
+            and tab.results_tree.topLevelItemCount() == 1,
+        )
+        tab._set_all_result_checks(False)
+        tab.results_tree.header().sectionClicked.emit(1)
+        wait_until_ready()
+        assert checked_names() == set()
+        for index in range(tab.results_tree.topLevelItemCount()):
+            item = tab.results_tree.topLevelItem(index)
+            if item.text(1) in {"Alpha", "Gamma"}:
+                item.setCheckState(0, Qt.CheckState.Checked)
+
+        tab._populate_results([row for row in rows if row["name"] != "Gamma"])
+        wait_until_ready()
+        assert checked_names() == {"Alpha"}
+        assert tab.results_tree.topLevelItemCount() == 2
+
+        tab._set_all_result_checks(False)
+        tab.results_tree.header().sectionClicked.emit(1)
+        wait_until_ready()
+        assert checked_names() == set()
+        assert all(
+            tab.results_tree.topLevelItem(index).checkState(0) == Qt.CheckState.Unchecked
+            for index in range(tab.results_tree.topLevelItemCount())
+        )
+    finally:
         _close_tab(app, tab)
 
 

@@ -50,3 +50,5 @@ compatibility wrappers.
 Retrofit/Repackage scans and conversions run through its tracked request-ID
 worker controller. A newer scan cancels and supersedes older results; conversion
 requests stage all selected packages before transactional publication.
+Available filenames are checked against both the folder and its complete name
+with `.zip` appended. Filename selection also honours cancellation.
