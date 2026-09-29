@@ -19,6 +19,7 @@ The format is intentionally simple:
 
 ### Changed
 
+- Textured 3D previews in Browse Archives, Create New Item and Mesh Editor prepare independent materials concurrently within shared memory budgets. Repeated Rust previews reuse finished material maps, and directly usable DDS textures avoid unnecessary full-image decoding while preserving texture quality and ownership.
 - Create New Item writes each new mod into its own named folder, offers a ZIP copy beside it, and remembers whether to open the finished folder. Add to existing mod uses clearer instructions and keeps the selected mod's existing items; new exports refuse to overwrite an existing destination.
 - Interface responsiveness improves during status bursts: Compact Activity batches visible history redraws and skips hidden history work, while the Rust interface reuses unchanged caption formatting and document text. Current controls, full-log Copy, Clear, paging and edit validation retain their existing behavior.
 - Repeated model/texture preparation, viewport loads, Apply placement and Build plan reuse validated native DDS outputs when source contents and every encoding setting match. BC7 also reuses identical blocks across chunks and mip levels without changing compression quality or output bytes. Compact tab switching and log updates avoid copying complete tool logs.

@@ -8,8 +8,775 @@ use cdmw_formats::MeshDocument;
 use cdmw_texture::{
     DecodedRgba8, TextureRole, decode_dds_rgba8, encode_rgba8_mipmapped_dds, inspect_dds,
 };
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
+
+mod work {
+    //! Bounded CPU preparation; resource ownership is published by the caller in graph order.
+    use super::*;
+    use cdmw_texture::DdsMetadata;
+    use sha2::{Digest, Sha256};
+    use std::cell::RefCell;
+    use std::collections::VecDeque;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    const MAX_WORKERS: usize = 4;
+    const COMPLETED_CACHE_BYTES: usize = 128 * 1024 * 1024;
+    const COMPLETED_CACHE_ENTRIES: usize = 256;
+
+    pub(super) struct ComposedMap {
+        pub role: TextureRole,
+        pub metadata: DdsMetadata,
+        pub bytes: Vec<u8>,
+    }
+
+    impl ComposedMap {
+        pub(super) fn encode(role: TextureRole, image: DecodedRgba8) -> Result<Self, SessionError> {
+            let bytes = encode_rgba8_mipmapped_dds(image.width, image.height, &image.pixels, role)
+                .map_err(|error| SessionError::InvalidPayload(error.to_string()))?;
+            let metadata = inspect_dds(&bytes, role)
+                .map_err(|error| SessionError::InvalidPayload(error.to_string()))?;
+            Ok(Self {
+                role,
+                metadata,
+                bytes,
+            })
+        }
+    }
+
+    type Completed = Arc<Vec<ComposedMap>>;
+
+    #[derive(Default)]
+    struct CompletedCache {
+        entries: VecDeque<([u8; 32], Completed)>,
+        bytes: usize,
+    }
+
+    impl CompletedCache {
+        fn get(&mut self, key: &[u8; 32]) -> Option<Completed> {
+            let index = self
+                .entries
+                .iter()
+                .position(|(candidate, _)| candidate == key)?;
+            let entry = self.entries.remove(index)?;
+            let result = Arc::clone(&entry.1);
+            self.entries.push_back(entry);
+            Some(result)
+        }
+
+        fn insert(&mut self, key: [u8; 32], maps: Completed, protected: &BTreeSet<[u8; 32]>) {
+            let bytes: usize = maps.iter().map(|map| map.bytes.len()).sum();
+            if bytes > COMPLETED_CACHE_BYTES || self.get(&key).is_some() {
+                return;
+            }
+            while self.bytes + bytes > COMPLETED_CACHE_BYTES
+                || self.entries.len() >= COMPLETED_CACHE_ENTRIES
+            {
+                let Some(index) = self
+                    .entries
+                    .iter()
+                    .position(|(key, _)| !protected.contains(key))
+                else {
+                    return;
+                };
+                let Some((_, old)) = self.entries.remove(index) else {
+                    return;
+                };
+                self.bytes -= old.iter().map(|map| map.bytes.len()).sum::<usize>();
+            }
+            self.bytes += bytes;
+            self.entries.push_back((key, maps));
+        }
+    }
+
+    // The resident loader owns this cache. Workers never borrow it, and a closed
+    // loader releases it. No mutable global cache or filesystem lifetime is shared.
+    thread_local! {
+        static COMPLETED: RefCell<CompletedCache> = RefCell::default();
+    }
+
+    struct Job {
+        material: PreviewCoreMaterial,
+        key: [u8; 32],
+    }
+
+    fn cache_key(
+        material: &PreviewCoreMaterial,
+        presentations: &[SessionMaterialPresentation],
+        resources: &[CdmwTextureResource],
+    ) -> [u8; 32] {
+        let presentation = presentations.iter().find(|row| {
+            row.lod_index == material.lod_index && row.material_index == material.material_index
+        });
+        // Process-local only: Debug covers every graph/presentation field without
+        // introducing a persisted schema. Owned inputs include painted channels.
+        let mut hash = Sha256::new();
+        hash.update(format!("{material:?}|{presentation:?}"));
+        for resource in resources {
+            if resource
+                .material_indices_by_lod
+                .get(material.lod_index as usize)
+                .is_some_and(|owners| owners.contains(&material.material_index))
+            {
+                hash.update(format!(
+                    "{:?}|{};",
+                    resource.role, resource.metadata.source_sha256
+                ));
+            }
+        }
+        hash.finalize().into()
+    }
+
+    fn maps() -> [(LayerMap, TextureRole); 4] {
+        [
+            (LayerMap::Diffuse, TextureRole::BaseColor),
+            (LayerMap::Material, TextureRole::Material),
+            (LayerMap::Normal, TextureRole::Normal),
+            (LayerMap::Height, TextureRole::Height),
+        ]
+    }
+
+    fn references_for_map(material: &PreviewCoreMaterial, map: LayerMap) -> Vec<&FileReference> {
+        material
+            .layers
+            .iter()
+            .flat_map(|layer| {
+                let reference = map.reference(layer);
+                let mask = if reference.is_some()
+                    || matches!(map, LayerMap::Diffuse) && layer.layer_role == "color_seed"
+                {
+                    layer.mask.as_ref()
+                } else {
+                    None
+                };
+                [reference, mask].into_iter().flatten()
+            })
+            .collect()
+    }
+
+    fn working_bytes(
+        material: &PreviewCoreMaterial,
+        resources: &[CdmwTextureResource],
+        cache: &ImageCache,
+    ) -> Result<u64, SessionError> {
+        let mut resized = BTreeMap::new();
+        let mut outputs = 0_u64;
+        let mut scratch = 0_u64;
+        for (map, role) in maps() {
+            if !map_needs_composition(material, resources, map) {
+                continue;
+            }
+            let Some((width, height)) = largest_target(material, cache, map)? else {
+                continue;
+            };
+            for reference in references_for_map(material, map) {
+                let image = cache.image(reference)?;
+                if (image.width, image.height) != (width, height) {
+                    resized.insert(
+                        (reference.sha256.clone(), width, height),
+                        u64::from(width) * u64::from(height) * 4,
+                    );
+                }
+            }
+            let mut output_width = width;
+            let mut output_height = height;
+            let painted = (role == TextureRole::BaseColor && material.authoring_channels & 1 != 0)
+                || (role == TextureRole::Material && material.authoring_channels & 2 != 0);
+            if painted {
+                for resource in resources.iter().filter(|resource| {
+                    resource.role == role
+                        && resource
+                            .material_indices_by_lod
+                            .get(material.lod_index as usize)
+                            .is_some_and(|owners| owners.contains(&material.material_index))
+                }) {
+                    output_width = output_width.max(resource.metadata.width);
+                    output_height = output_height.max(resource.metadata.height);
+                }
+            }
+            let pixels = u64::from(output_width) * u64::from(output_height) * 4;
+            // Exact mip storage, plus the peak encode/paint scratch. Counting thin
+            // textures explicitly keeps large square maps eligible for four workers.
+            outputs = outputs.saturating_add(148);
+            let (mut w, mut h) = (output_width, output_height);
+            loop {
+                outputs = outputs.saturating_add(u64::from(w) * u64::from(h) * 4);
+                if w == 1 && h == 1 {
+                    break;
+                }
+                (w, h) = ((w / 2).max(1), (h / 2).max(1));
+            }
+            scratch = scratch.max(pixels.saturating_mul(if painted { 4 } else { 2 }));
+        }
+        Ok(resized
+            .values()
+            .copied()
+            .sum::<u64>()
+            .saturating_add(outputs)
+            .saturating_add(scratch))
+    }
+
+    fn prepare(
+        material: &PreviewCoreMaterial,
+        presentations: &[SessionMaterialPresentation],
+        resources: &[CdmwTextureResource],
+        mut cache: ImageCache,
+        cancelled: &dyn Fn() -> bool,
+    ) -> Result<Completed, SessionError> {
+        cache.begin_material();
+        let mut result = Vec::new();
+        for (_, role) in maps() {
+            crate::cdmw_session::check_preview_cancelled(cancelled)?;
+            let image = match role {
+                TextureRole::BaseColor => compose_base_color(material, resources, &mut cache)?,
+                TextureRole::Material => {
+                    compose_material_response(material, presentations, &mut cache)?
+                }
+                TextureRole::Normal => compose_normal(material, resources, &mut cache)?,
+                TextureRole::Height => compose_height(material, resources, &mut cache)?,
+                _ => unreachable!(),
+            };
+            if let Some(mut image) = image {
+                if role == TextureRole::BaseColor && material.authoring_channels & 1 != 0 {
+                    apply_authored_channel(&mut image, resources, material, role, 3)?;
+                } else if role == TextureRole::Material && material.authoring_channels & 2 != 0 {
+                    apply_authored_channel(&mut image, resources, material, role, 0)?;
+                }
+                crate::cdmw_session::check_preview_cancelled(cancelled)?;
+                result.push(ComposedMap::encode(role, image)?);
+            }
+        }
+        Ok(Arc::new(result))
+    }
+
+    pub(super) fn compose<F>(
+        graph: &PreviewCoreMaterialGraph,
+        presentations: &[SessionMaterialPresentation],
+        document: &MeshDocument,
+        resources: &mut Vec<CdmwTextureResource>,
+        read_reference: &mut F,
+        cancelled: &dyn Fn() -> bool,
+    ) -> Result<PreviewCoreMaterialCompositionMetrics, SessionError>
+    where
+        F: FnMut(&FileReference) -> Result<Vec<u8>, SessionError>,
+    {
+        if graph.quality != "full" {
+            return Ok(PreviewCoreMaterialCompositionMetrics::default());
+        }
+        let jobs: Vec<_> = graph
+            .materials
+            .iter()
+            .map(|material| {
+                let mut composition = material.clone();
+                // Runtime skin detail must not be baked a second time.
+                if let Some(index) = runtime_skin_detail_layer(material, presentations, resources) {
+                    composition.layers.remove(index);
+                }
+                Job {
+                    key: cache_key(&composition, presentations, resources),
+                    material: composition,
+                }
+            })
+            .collect();
+        let mut required = BTreeSet::new();
+        for job in &jobs {
+            if COMPLETED.with(|cache| cache.borrow_mut().get(&job.key).is_some()) {
+                continue;
+            }
+            for (map, _) in maps() {
+                if map_needs_composition(&job.material, resources, map) {
+                    required.extend(
+                        references_for_map(&job.material, map)
+                            .iter()
+                            .map(|reference| reference.sha256.trim().to_ascii_uppercase()),
+                    );
+                }
+            }
+        }
+        // Even cache hits validate every source through the owning reader. A changed
+        // or corrupt package must never be hidden by reusable finished pixels.
+        let cache = ImageCache::preload(graph, &required, |reference| {
+            crate::cdmw_session::check_preview_cancelled(cancelled)?;
+            read_reference(reference)
+        })?;
+        let workers = std::thread::available_parallelism()
+            .map_or(1, |count| count.get())
+            .min(MAX_WORKERS);
+        let mut remaining: BTreeSet<_> = jobs.iter().map(|job| job.key).collect();
+        let mut first = 0;
+        while first < jobs.len() {
+            crate::cdmw_session::check_preview_cancelled(cancelled)?;
+            // Pin only this batch's cache hits. Pinning every hit would retain evicted
+            // entries and quietly defeat the cache's memory bound on large scenes.
+            let mut ready = Vec::new();
+            let mut bytes = 0_u64;
+            for job in jobs.iter().skip(first).take(workers) {
+                let hit = COMPLETED.with(|cache| cache.borrow_mut().get(&job.key));
+                let estimate = if hit.is_some() {
+                    0
+                } else {
+                    working_bytes(&job.material, resources, &cache)?
+                };
+                if !ready.is_empty() && bytes.saturating_add(estimate) > MAX_RESIZED_MATERIAL_BYTES {
+                    break;
+                }
+                bytes = bytes.saturating_add(estimate);
+                ready.push(hit);
+            }
+            let batch = &jobs[first..first + ready.len()];
+            let stop = AtomicBool::new(false);
+            let results = if batch.len() == 1 {
+                vec![match ready.pop().flatten() {
+                    Some(hit) => hit,
+                    None => prepare(
+                        &batch[0].material,
+                        presentations,
+                        resources,
+                        cache.clone(),
+                        cancelled,
+                    )?,
+                }]
+            } else {
+                std::thread::scope(|scope| -> Result<Vec<Completed>, SessionError> {
+                    let (sender, receiver) = mpsc::channel();
+                    let mut handles = Vec::new();
+                    for (index, (job, hit)) in batch.iter().zip(&ready).enumerate() {
+                        if hit.is_some() {
+                            continue;
+                        }
+                        let sender = sender.clone();
+                        let cache = cache.clone();
+                        let resources = &*resources;
+                        let stop = &stop;
+                        let handle = std::thread::Builder::new()
+                            .name("cdmw-material".into())
+                            .spawn_scoped(scope, move || {
+                                let result =
+                                    prepare(&job.material, presentations, resources, cache, &|| {
+                                        stop.load(Ordering::Relaxed)
+                                    });
+                                if result.is_err() {
+                                    stop.store(true, Ordering::Relaxed);
+                                }
+                                let _ = sender.send((index, result));
+                            })
+                            .map_err(|error| {
+                                stop.store(true, Ordering::Relaxed);
+                                SessionError::InvalidPayload(format!(
+                                    "Preview Core material worker could not start: {error}"
+                                ))
+                            })?;
+                        handles.push(handle);
+                    }
+                    drop(sender);
+                    let mut failure = None;
+                    let mut pending = handles.len();
+                    while pending > 0 {
+                        if cancelled() {
+                            stop.store(true, Ordering::Relaxed);
+                        }
+                        match receiver.recv_timeout(Duration::from_millis(10)) {
+                            Ok((index, result)) => {
+                                pending -= 1;
+                                match result {
+                                    Ok(maps) => ready[index] = Some(maps),
+                                    Err(error) => {
+                                        if failure.is_none()
+                                            || !matches!(&error, SessionError::InvalidPayload(message) if message == "Preview load cancelled")
+                                        {
+                                            failure = Some(error);
+                                        }
+                                    }
+                                }
+                            }
+                            Err(mpsc::RecvTimeoutError::Timeout) => {}
+                            Err(mpsc::RecvTimeoutError::Disconnected) => break,
+                        }
+                    }
+                    for handle in handles {
+                        if handle.join().is_err() {
+                            failure = Some(SessionError::InvalidPayload(
+                                "Preview Core material worker failed".to_owned(),
+                            ));
+                        }
+                    }
+                    crate::cdmw_session::check_preview_cancelled(cancelled)?;
+                    if let Some(error) = failure {
+                        return Err(error);
+                    }
+                    ready
+                        .into_iter()
+                        .map(|entry| {
+                            entry.ok_or_else(|| {
+                                SessionError::InvalidPayload(
+                                    "Preview Core material worker returned no result".to_owned(),
+                                )
+                            })
+                        })
+                        .collect()
+                })?
+            };
+            for (job, result) in batch.iter().zip(results) {
+                crate::cdmw_session::check_preview_cancelled(cancelled)?;
+                for map in result.iter() {
+                    publish_prepared_resource(
+                        resources,
+                        document,
+                        &job.material,
+                        map,
+                        MAX_TEXTURE_TOTAL_BYTES,
+                    )?;
+                }
+                remaining.remove(&job.key);
+                // Keep not-yet-consumed hits resident: those sources were validated
+                // without decoding. Skip insertion if every eviction is protected.
+                COMPLETED.with(|cache| cache.borrow_mut().insert(job.key, result, &remaining));
+            }
+            first += batch.len();
+        }
+        resources.retain(|resource| {
+            resource
+                .material_indices_by_lod
+                .iter()
+                .any(|owners| !owners.is_empty())
+        });
+        Ok(cache.metrics)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::super::tests::{document, layer, reference};
+        use super::*;
+        use cdmw_texture::encode_rgba8_dds;
+        use std::cell::Cell;
+
+        fn fixture() -> (PreviewCoreMaterialGraph, BTreeMap<String, Vec<u8>>) {
+            let mut files = BTreeMap::new();
+            let mut refs = Vec::new();
+            for seed in 0..5 {
+                let pixels: Vec<_> = (0..32 * 16 * 4)
+                    .map(|i| ((i * 37 + seed * 53) % 256) as u8)
+                    .collect();
+                let bytes = encode_rgba8_dds(32, 16, &pixels, TextureRole::Unknown).unwrap();
+                let reference = reference(seed, &bytes);
+                files.insert(reference.path.clone(), bytes);
+                refs.push(reference);
+            }
+            let mut base = layer("base", "r");
+            base.diffuse = Some(refs[0].clone());
+            base.material = Some(refs[1].clone());
+            base.normal = Some(refs[2].clone());
+            base.height = Some(refs[3].clone());
+            let mut detail = base.clone();
+            detail.layer_role = "detail".into();
+            detail.mask = Some(refs[4].clone());
+            let materials = (0..8)
+                .map(|index| {
+                    let mut detail = detail.clone();
+                    detail.weight = 0.1 + index as f32 * 0.1;
+                    PreviewCoreMaterial {
+                        lod_index: 0,
+                        material_index: index,
+                        material_slot_index: index,
+                        material_name: format!("material-{index}"),
+                        authoring_channels: 0,
+                        base_color: [0.5; 3],
+                        layers: vec![base.clone(), detail],
+                    }
+                })
+                .collect();
+            (
+                PreviewCoreMaterialGraph {
+                    schema_version: 1,
+                    graph_version: 4,
+                    semantics_version: 10,
+                    quality: "full".into(),
+                    resources_included: true,
+                    source_edge_count: 72,
+                    unique_resource_count: 5,
+                    copied_resource_count: 5,
+                    unique_resource_bytes: files.values().map(|bytes| bytes.len() as u64).sum(),
+                    materials,
+                },
+                files,
+            )
+        }
+
+        fn output(resources: &[CdmwTextureResource]) -> Vec<(u32, String, Vec<u8>)> {
+            let mut result = Vec::new();
+            for resource in resources {
+                assert!(resource.metadata.mip_count > 1);
+                for owner in &resource.material_indices_by_lod[0] {
+                    result.push((
+                        *owner,
+                        role_label(resource.role).into(),
+                        resource.bytes.clone(),
+                    ));
+                }
+            }
+            result.sort();
+            result
+        }
+
+        #[test]
+        fn parallel_and_cached_maps_match_serial_pixels_mips_and_owners() {
+            COMPLETED.with(|cache| *cache.borrow_mut() = CompletedCache::default());
+            let (graph, files) = fixture();
+            let required = graph
+                .materials
+                .iter()
+                .flat_map(|material| {
+                    maps()
+                        .into_iter()
+                        .flat_map(move |(map, _)| references_for_map(material, map))
+                })
+                .map(|reference| reference.sha256.clone())
+                .collect();
+            let cache = ImageCache::preload(&graph, &required, |reference| {
+                Ok(files[&reference.path].clone())
+            })
+            .unwrap();
+            let mut serial = Vec::new();
+            for material in &graph.materials {
+                let result = prepare(material, &[], &[], cache.clone(), &|| false).unwrap();
+                for map in result.iter() {
+                    publish_prepared_resource(
+                        &mut serial,
+                        &document(),
+                        material,
+                        map,
+                        MAX_TEXTURE_TOTAL_BYTES,
+                    )
+                    .unwrap();
+                }
+            }
+            let expected = output(&serial);
+            for expected_decodes in [5, 0] {
+                let mut resources = Vec::new();
+                let reads = Cell::new(0);
+                let metrics = compose(
+                    &graph,
+                    &[],
+                    &document(),
+                    &mut resources,
+                    &mut |reference| {
+                        reads.set(reads.get() + 1);
+                        Ok(files[&reference.path].clone())
+                    },
+                    &|| false,
+                )
+                .unwrap();
+                assert_eq!(reads.get(), 5, "cached results still validate every binary");
+                assert_eq!(metrics.source_dds_decode_count, expected_decodes);
+                assert_eq!(output(&resources), expected);
+            }
+            let mut changed = graph.clone();
+            changed.materials[0].layers[1].tint[0] = 0.2;
+            let mut resources = Vec::new();
+            let metrics = compose(
+                &changed,
+                &[],
+                &document(),
+                &mut resources,
+                &mut |reference| Ok(files[&reference.path].clone()),
+                &|| false,
+            )
+            .unwrap();
+            assert_eq!(metrics.source_dds_decode_count, 5);
+            assert_ne!(output(&resources), expected);
+            assert_eq!(
+                output(&resources)
+                    .into_iter()
+                    .filter(|row| row.0 != 0)
+                    .collect::<Vec<_>>(),
+                expected
+                    .into_iter()
+                    .filter(|row| row.0 != 0)
+                    .collect::<Vec<_>>()
+            );
+            let error = compose(
+                &graph,
+                &[],
+                &document(),
+                &mut Vec::new(),
+                &mut |_| Err(SessionError::InvalidPayload("source hash mismatch".into())),
+                &|| false,
+            )
+            .unwrap_err();
+            assert!(error.to_string().contains("source hash mismatch"));
+        }
+
+        #[test]
+        fn direct_maps_validate_without_decoding_and_same_size_pixels_are_shared() {
+            COMPLETED.with(|cache| *cache.borrow_mut() = CompletedCache::default());
+            let (mut graph, files) = fixture();
+            graph.materials.truncate(1);
+            graph.materials[0].layers.truncate(1);
+            graph.materials[0].layers[0].material = None;
+            let mut resources = Vec::new();
+            for (map, role) in maps() {
+                if let Some(reference) = map.reference(&graph.materials[0].layers[0]) {
+                    let bytes = files[&reference.path].clone();
+                    resources.push(CdmwTextureResource {
+                        label: reference.path.clone(),
+                        role,
+                        metadata: inspect_dds(&bytes, role).unwrap(),
+                        bytes,
+                        material_indices_by_lod: vec![vec![0]],
+                    });
+                }
+            }
+            let original: Vec<_> = resources
+                .iter()
+                .map(|resource| resource.bytes.clone())
+                .collect();
+            let metrics = compose(
+                &graph,
+                &[],
+                &document(),
+                &mut resources,
+                &mut |reference| Ok(files[&reference.path].clone()),
+                &|| false,
+            )
+            .unwrap();
+            assert_eq!(metrics.source_dds_decode_count, 0);
+            assert_eq!(metrics.unique_source_dds_count, 3);
+            assert_eq!(
+                original,
+                resources
+                    .iter()
+                    .map(|resource| resource.bytes.clone())
+                    .collect::<Vec<_>>()
+            );
+            let reference = graph.materials[0].layers[0].diffuse.as_ref().unwrap();
+            let mut cache = ImageCache::preload(
+                &graph,
+                &BTreeSet::from([reference.sha256.clone()]),
+                |reference| Ok(files[&reference.path].clone()),
+            )
+            .unwrap();
+            let pixels = cache.resized(reference, 32, 16).unwrap();
+            assert!(Arc::ptr_eq(&pixels.0, &cache.decoded[&reference.sha256]));
+            assert_eq!(cache.resized_bytes, 0);
+        }
+
+        #[test]
+        fn cached_material_invalidates_when_painted_input_changes() {
+            COMPLETED.with(|cache| *cache.borrow_mut() = CompletedCache::default());
+            let (mut graph, files) = fixture();
+            graph.materials.truncate(1);
+            graph.materials[0].authoring_channels = 1;
+            for (alpha, expected_decodes) in [(24, 5), (201, 5), (201, 0)] {
+                let bytes =
+                    encode_rgba8_dds(1, 1, &[51, 92, 133, alpha], TextureRole::BaseColor).unwrap();
+                let mut resources = vec![CdmwTextureResource {
+                    label: "painted.dds".into(),
+                    role: TextureRole::BaseColor,
+                    metadata: inspect_dds(&bytes, TextureRole::BaseColor).unwrap(),
+                    bytes,
+                    material_indices_by_lod: vec![vec![0]],
+                }];
+                let metrics = compose(
+                    &graph,
+                    &[],
+                    &document(),
+                    &mut resources,
+                    &mut |reference| Ok(files[&reference.path].clone()),
+                    &|| false,
+                )
+                .unwrap();
+                assert_eq!(metrics.source_dds_decode_count, expected_decodes);
+                let base = resources
+                    .iter()
+                    .find(|resource| resource.role == TextureRole::BaseColor)
+                    .unwrap();
+                let image = decode_dds_rgba8(&base.bytes, base.role).unwrap();
+                assert!(image.pixels.chunks_exact(4).all(|pixel| pixel[3] == alpha));
+            }
+        }
+
+        #[test]
+        fn cancellation_joins_workers_before_returning_without_publishing_a_batch() {
+            COMPLETED.with(|cache| *cache.borrow_mut() = CompletedCache::default());
+            let (graph, files) = fixture();
+            let polls = Cell::new(0);
+            let mut resources = Vec::new();
+            let error = compose(
+                &graph,
+                &[],
+                &document(),
+                &mut resources,
+                &mut |reference| Ok(files[&reference.path].clone()),
+                &|| {
+                    polls.set(polls.get() + 1);
+                    polls.get() > 6
+                },
+            )
+            .unwrap_err();
+            assert!(error.to_string().contains("cancelled"));
+            assert!(resources.is_empty());
+            COMPLETED.with(|cache| assert!(cache.borrow().entries.is_empty()));
+        }
+
+        #[test]
+        fn failed_material_joins_workers_and_does_not_publish_partial_maps() {
+            COMPLETED.with(|cache| *cache.borrow_mut() = CompletedCache::default());
+            let (mut graph, files) = fixture();
+            graph.materials[0].authoring_channels = 1;
+            let mut resources = Vec::new();
+            let error = compose(
+                &graph,
+                &[],
+                &document(),
+                &mut resources,
+                &mut |reference| Ok(files[&reference.path].clone()),
+                &|| false,
+            )
+            .unwrap_err();
+            assert!(
+                error
+                    .to_string()
+                    .contains("requires one owned source texture")
+            );
+            assert!(resources.is_empty());
+            COMPLETED.with(|cache| assert!(cache.borrow().entries.is_empty()));
+        }
+
+        #[test]
+        fn completed_cache_bounds_entries_bytes_and_preserves_pending_hits() {
+            let mut cache = CompletedCache::default();
+            let empty = Arc::new(Vec::new());
+            let mut protected = BTreeSet::new();
+            for index in 0..COMPLETED_CACHE_ENTRIES {
+                let mut key = [0; 32];
+                key[..8].copy_from_slice(&(index as u64).to_le_bytes());
+                cache.insert(key, Arc::clone(&empty), &protected);
+                protected.insert(key);
+            }
+            cache.insert([255; 32], Arc::clone(&empty), &protected);
+            assert_eq!(cache.entries.len(), COMPLETED_CACHE_ENTRIES);
+            assert!(cache.get(&[255; 32]).is_none());
+            cache.insert([255; 32], empty, &BTreeSet::new());
+            assert!(cache.get(&[0; 32]).is_none());
+            let mut large = ComposedMap::encode(
+                TextureRole::BaseColor,
+                DecodedRgba8 {
+                    width: 1,
+                    height: 1,
+                    pixels: vec![128; 4],
+                },
+            )
+            .unwrap();
+            large.bytes.resize(COMPLETED_CACHE_BYTES + 1, 0);
+            cache.insert([254; 32], Arc::new(vec![large]), &BTreeSet::new());
+            assert!(cache.get(&[254; 32]).is_none());
+            assert!(cache.bytes <= COMPLETED_CACHE_BYTES);
+        }
+    }
+}
+
 
 const MAX_DECODED_SOURCE_BYTES: u64 = 512 * 1024 * 1024;
 const MAX_RESIZED_MATERIAL_BYTES: u64 = 512 * 1024 * 1024;
@@ -58,10 +825,21 @@ impl LayerMap {
     }
 }
 
-#[derive(Default)]
+#[derive(Clone)]
+struct ImagePixels(Arc<DecodedRgba8>);
+
+impl std::ops::Deref for ImagePixels {
+    type Target = [u8];
+
+    fn deref(&self) -> &[u8] {
+        &self.0.pixels
+    }
+}
+
+#[derive(Default, Clone)]
 struct ImageCache {
-    decoded: BTreeMap<String, DecodedRgba8>,
-    resized: BTreeMap<(String, u32, u32), Arc<[u8]>>,
+    decoded: Arc<BTreeMap<String, Arc<DecodedRgba8>>>,
+    resized: BTreeMap<(String, u32, u32), ImagePixels>,
     resized_bytes: u64,
     metrics: PreviewCoreMaterialCompositionMetrics,
 }
@@ -69,6 +847,7 @@ struct ImageCache {
 impl ImageCache {
     fn preload<F>(
         graph: &PreviewCoreMaterialGraph,
+        required: &BTreeSet<String>,
         mut read_reference: F,
     ) -> Result<Self, SessionError>
     where
@@ -107,6 +886,18 @@ impl ImageCache {
         let mut decoded_bytes = 0_u64;
         for (sha256, reference) in references {
             let bytes = read_reference(reference)?;
+            let metadata = inspect_dds(&bytes, TextureRole::Unknown)
+                .map_err(|error| SessionError::InvalidPayload(error.to_string()))?;
+            if !required.contains(&sha256) {
+                continue;
+            }
+            // Check before allocating, including sources shared by several workers.
+            let image_bytes = u64::from(metadata.width) * u64::from(metadata.height) * 4;
+            if decoded_bytes.saturating_add(image_bytes) > MAX_DECODED_SOURCE_BYTES {
+                return Err(SessionError::InvalidPayload(
+                    "Preview Core decoded material sources exceed the 512 MiB limit".to_owned(),
+                ));
+            }
             let image = decode_dds_rgba8(&bytes, TextureRole::Unknown).map_err(|error| {
                 SessionError::InvalidPayload(format!(
                     "Preview Core material DDS {} could not be decoded: {error}",
@@ -151,10 +942,10 @@ impl ImageCache {
                 })?;
             metrics.decoded_rgba8_bytes = decoded_bytes;
             metrics.decoded_source_sha256.push(sha256.clone());
-            decoded.insert(sha256, image);
+            decoded.insert(sha256, Arc::new(image));
         }
         Ok(Self {
-            decoded,
+            decoded: Arc::new(decoded),
             resized: BTreeMap::new(),
             resized_bytes: 0,
             metrics,
@@ -169,6 +960,7 @@ impl ImageCache {
     fn image(&self, reference: &FileReference) -> Result<&DecodedRgba8, SessionError> {
         self.decoded
             .get(&reference.sha256.trim().to_ascii_uppercase())
+            .map(AsRef::as_ref)
             .ok_or_else(|| {
                 SessionError::InvalidPayload(format!(
                     "Preview Core material DDS {} was not decoded",
@@ -182,13 +974,26 @@ impl ImageCache {
         reference: &FileReference,
         width: u32,
         height: u32,
-    ) -> Result<Arc<[u8]>, SessionError> {
+    ) -> Result<ImagePixels, SessionError> {
         let key = (reference.sha256.trim().to_ascii_uppercase(), width, height);
         if let Some(pixels) = self.resized.get(&key) {
-            return Ok(Arc::clone(pixels));
+            return Ok(pixels.clone());
         }
         let image = self.image(reference)?;
-        let resized = Arc::<[u8]>::from(resize_rgba8(image, width, height)?);
+        if image.width == width && image.height == height {
+            return Ok(ImagePixels(Arc::clone(&self.decoded[&key.0])));
+        }
+        let resized_bytes = u64::from(width) * u64::from(height) * 4;
+        if self.resized_bytes.saturating_add(resized_bytes) > MAX_RESIZED_MATERIAL_BYTES {
+            return Err(SessionError::InvalidPayload(
+                "Preview Core resized material sources exceed the 512 MiB limit".to_owned(),
+            ));
+        }
+        let resized = ImagePixels(Arc::new(DecodedRgba8 {
+            width,
+            height,
+            pixels: resize_rgba8(image, width, height)?,
+        }));
         self.resized_bytes = self
             .resized_bytes
             .checked_add(u64::try_from(resized.len()).map_err(|_| {
@@ -206,7 +1011,7 @@ impl ImageCache {
                 "Preview Core resized material sources exceed the 512 MiB limit".to_owned(),
             ));
         }
-        self.resized.insert(key.clone(), Arc::clone(&resized));
+        self.resized.insert(key, resized.clone());
         Ok(resized)
     }
 }
@@ -243,79 +1048,9 @@ pub(crate) fn compose_preview_core_material_resources_cancellable<F>(
 where
     F: FnMut(&FileReference) -> Result<Vec<u8>, SessionError>,
 {
-    if graph.quality != "full" {
-        return Ok(PreviewCoreMaterialCompositionMetrics::default());
-    }
-    let mut cache = ImageCache::preload(graph, |reference| {
-        crate::cdmw_session::check_preview_cancelled(cancelled)?;
-        read_reference(reference)
-    })?;
-    for material in &graph.materials {
-        crate::cdmw_session::check_preview_cancelled(cancelled)?;
-        cache.begin_material();
-        // Skin support maps already have a shared runtime shader, including
-        // their authored UV repetition. Baking them at base UVs loses detail
-        // and applies them twice once runtime factors are present.
-        let runtime_skin = runtime_skin_detail_layer(material, presentations, resources);
-        let mut composition = material.clone();
-        if let Some(index) = runtime_skin {
-            composition.layers.remove(index);
-        }
-        let material = &composition;
-        if let Some(mut pixels) = compose_base_color(material, resources, &mut cache)? {
-            if material.authoring_channels & 1 != 0 {
-                apply_authored_channel(&mut pixels, resources, material, TextureRole::BaseColor, 3)?;
-            }
-            publish_composed_resource(
-                resources,
-                document,
-                material,
-                TextureRole::BaseColor,
-                pixels,
-                MAX_TEXTURE_TOTAL_BYTES,
-            )?;
-        }
-        if let Some(mut pixels) = compose_material_response(material, presentations, &mut cache)? {
-            if material.authoring_channels & 2 != 0 {
-                apply_authored_channel(&mut pixels, resources, material, TextureRole::Material, 0)?;
-            }
-            publish_composed_resource(
-                resources,
-                document,
-                material,
-                TextureRole::Material,
-                pixels,
-                MAX_TEXTURE_TOTAL_BYTES,
-            )?;
-        }
-        if let Some(pixels) = compose_normal(material, resources, &mut cache)? {
-            publish_composed_resource(
-                resources,
-                document,
-                material,
-                TextureRole::Normal,
-                pixels,
-                MAX_TEXTURE_TOTAL_BYTES,
-            )?;
-        }
-        if let Some(pixels) = compose_height(material, resources, &mut cache)? {
-            publish_composed_resource(
-                resources,
-                document,
-                material,
-                TextureRole::Height,
-                pixels,
-                MAX_TEXTURE_TOTAL_BYTES,
-            )?;
-        }
-    }
-    resources.retain(|resource| {
-        resource
-            .material_indices_by_lod
-            .iter()
-            .any(|owners| !owners.is_empty())
-    });
-    Ok(cache.metrics)
+    work::compose(
+        graph, presentations, document, resources, &mut read_reference, cancelled,
+    )
 }
 
 fn apply_authored_channel(
@@ -348,24 +1083,41 @@ fn apply_authored_channel(
     Ok(())
 }
 
+fn map_needs_composition(
+    material: &PreviewCoreMaterial,
+    resources: &[CdmwTextureResource],
+    map: LayerMap,
+) -> bool {
+    if !material.layers.iter().any(|layer| map.reference(layer).is_some()) {
+        return false;
+    }
+    match map {
+        LayerMap::Diffuse => {
+            material.layers.iter().skip(1)
+                .any(|layer| layer.layer_role == "color_seed" || layer.diffuse.is_some())
+                || !material.layers.first().and_then(|layer| layer.diffuse.as_ref())
+                    .is_some_and(|reference| {
+                        resource_matches(resources, TextureRole::BaseColor, material, reference)
+                    })
+        }
+        LayerMap::Material => true,
+        LayerMap::Normal | LayerMap::Height => {
+            let role = match map {
+                LayerMap::Normal => TextureRole::Normal,
+                _ => TextureRole::Height,
+            };
+            material.layers.iter().skip(1).any(|layer| map.reference(layer).is_some())
+                || !resource_owns(resources, role, material.lod_index, material.material_index)
+        }
+    }
+}
+
 fn compose_base_color(
     material: &PreviewCoreMaterial,
     resources: &[CdmwTextureResource],
     cache: &mut ImageCache,
 ) -> Result<Option<DecodedRgba8>, SessionError> {
-    if !material
-        .layers
-        .iter()
-        .skip(1)
-        .any(|layer| layer.layer_role == "color_seed" || layer.diffuse.is_some())
-        && material
-            .layers
-            .first()
-            .and_then(|layer| layer.diffuse.as_ref())
-            .is_some_and(|reference| {
-                resource_matches(resources, TextureRole::BaseColor, material, reference)
-            })
-    {
+    if !map_needs_composition(material, resources, LayerMap::Diffuse) {
         // Preserve authored compression, full resolution and mip filtering.
         return Ok(None);
     }
@@ -498,7 +1250,7 @@ fn apply_color_seed_layers(
     if seeds.iter().all(Option::is_none) {
         return Ok(false);
     }
-    let mut masks: [Option<Arc<[u8]>>; 3] = [None, None, None];
+    let mut masks: [Option<ImagePixels>; 3] = [None, None, None];
     let mut palette = [[0.0_f32; 3]; 3];
     let mut strengths = [0.0_f32; 3];
     for channel in 0..3 {
@@ -767,19 +1519,7 @@ fn compose_normal(
     resources: &[CdmwTextureResource],
     cache: &mut ImageCache,
 ) -> Result<Option<DecodedRgba8>, SessionError> {
-    let has_layer_normal = material
-        .layers
-        .iter()
-        .skip(1)
-        .any(|layer| layer.normal.is_some());
-    if !has_layer_normal
-        && resource_owns(
-            resources,
-            TextureRole::Normal,
-            material.lod_index,
-            material.material_index,
-        )
-    {
+    if !map_needs_composition(material, resources, LayerMap::Normal) {
         return Ok(None);
     }
     let Some((width, height)) = largest_target(material, cache, LayerMap::Normal)? else {
@@ -847,19 +1587,7 @@ fn compose_height(
     resources: &[CdmwTextureResource],
     cache: &mut ImageCache,
 ) -> Result<Option<DecodedRgba8>, SessionError> {
-    let has_layer_height = material
-        .layers
-        .iter()
-        .skip(1)
-        .any(|layer| layer.height.is_some());
-    if !has_layer_height
-        && resource_owns(
-            resources,
-            TextureRole::Height,
-            material.lod_index,
-            material.material_index,
-        )
-    {
+    if !map_needs_composition(material, resources, LayerMap::Height) {
         return Ok(None);
     }
     let Some((width, height)) = largest_target(material, cache, LayerMap::Height)? else {
@@ -1146,6 +1874,7 @@ fn resource_owns(
     })
 }
 
+#[cfg(test)]
 fn publish_composed_resource(
     resources: &mut Vec<CdmwTextureResource>,
     document: &MeshDocument,
@@ -1154,6 +1883,20 @@ fn publish_composed_resource(
     image: DecodedRgba8,
     max_bytes: u64,
 ) -> Result<(), SessionError> {
+    let prepared = work::ComposedMap::encode(role, image)?;
+    publish_prepared_resource(resources, document, material, &prepared, max_bytes)
+}
+
+fn publish_prepared_resource(
+    resources: &mut Vec<CdmwTextureResource>,
+    document: &MeshDocument,
+    material: &PreviewCoreMaterial,
+    prepared: &work::ComposedMap,
+    max_bytes: u64,
+) -> Result<(), SessionError> {
+    let role = prepared.role;
+    let bytes = &prepared.bytes;
+    let metadata = &prepared.metadata;
     let lod_index = usize::try_from(material.lod_index).map_err(|_| {
         SessionError::InvalidManifest("Preview Core material LOD exceeds this platform".to_owned())
     })?;
@@ -1162,14 +1905,10 @@ fn publish_composed_resource(
             "Preview Core composed texture ownership LOD is invalid".to_owned(),
         ));
     }
-    let bytes = encode_rgba8_mipmapped_dds(image.width, image.height, &image.pixels, role)
-        .map_err(|error| SessionError::InvalidPayload(error.to_string()))?;
-    let metadata = inspect_dds(&bytes, role)
-        .map_err(|error| SessionError::InvalidPayload(error.to_string()))?;
     let existing_index = resources.iter().position(|resource| {
         resource.role == role
             && resource.metadata.source_sha256 == metadata.source_sha256
-            && resource.bytes == bytes
+            && resource.bytes == *bytes
     });
     if let Some(index) = existing_index
         && resources[index]
@@ -1249,8 +1988,8 @@ fn publish_composed_resource(
                 role_label(role)
             ),
             role,
-            metadata,
-            bytes,
+            metadata: metadata.clone(),
+            bytes: bytes.clone(),
             material_indices_by_lod,
         });
     }
@@ -1281,7 +2020,7 @@ mod tests {
     use sha2::{Digest, Sha256};
     use std::cell::Cell;
 
-    fn reference(name_index: u32, bytes: &[u8]) -> FileReference {
+    pub(super) fn reference(name_index: u32, bytes: &[u8]) -> FileReference {
         let sha256 = format!("{:X}", Sha256::digest(bytes));
         FileReference {
             path: format!(
@@ -1296,7 +2035,7 @@ mod tests {
         }
     }
 
-    fn layer(role: &str, channel: &str) -> PreviewCoreMaterialLayer {
+    pub(super) fn layer(role: &str, channel: &str) -> PreviewCoreMaterialLayer {
         PreviewCoreMaterialLayer {
             owner_wrapper_item_id: "owner".to_owned(),
             material_wrapper_index: 0,
@@ -1332,7 +2071,7 @@ mod tests {
         }
     }
 
-    fn document() -> MeshDocument {
+    pub(super) fn document() -> MeshDocument {
         MeshDocument {
             format: MeshFormat::Pac,
             source_sha256: String::new(),

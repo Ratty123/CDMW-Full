@@ -21,6 +21,7 @@ import struct
 import tempfile
 import threading
 from collections.abc import Callable, Mapping, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager, nullcontext
 from ctypes import wintypes
 from dataclasses import dataclass, field, fields, is_dataclass, replace
@@ -347,6 +348,42 @@ class _RustMaterialSynthesisState:
         default_factory=list
     )
     dropped_luminance_guard_count: int = 0
+    encoding_order: tuple[_RustMaterialSynthesisBatch, int] | None = None
+
+
+class _RustMaterialSynthesisBatch:
+    """Parallel composition with one ordered, shared preview encoding budget."""
+
+    def __init__(self, state: _RustMaterialSynthesisState, stop_event: threading.Event | None):
+        self.state = state
+        self.stop_event = stop_event
+        self.aborted = threading.Event()
+        self.condition = threading.Condition()
+        self.next_index = 0
+        self.finished: set[int] = set()
+
+    def is_set(self) -> bool:
+        return self.aborted.is_set() or bool(self.stop_event and self.stop_event.is_set())
+
+    def wait_for_encoding(self, index: int) -> None:
+        with self.condition:
+            while index != self.next_index and not self.is_set():
+                self.condition.wait(timeout=0.025)
+            if self.is_set():
+                raise RunCancelled("Mesh texture preparation was cancelled")
+
+    def finish(self, index: int) -> None:
+        with self.condition:
+            self.finished.add(index)
+            while self.next_index in self.finished:
+                self.finished.remove(self.next_index)
+                self.next_index += 1
+            self.condition.notify_all()
+
+    def cancel(self) -> None:
+        self.aborted.set()
+        with self.condition:
+            self.condition.notify_all()
 
 
 def _encode_rust_preview_dds(
@@ -359,6 +396,14 @@ def _encode_rust_preview_dds(
     source_color_policy: str = "auto",
 ) -> dict[str, object]:
     """Encode a generated Rust preview map while bounding RGBA DDS expansion."""
+
+    if synthesis_state.encoding_order is not None:
+        batch, index = synthesis_state.encoding_order
+        batch.wait_for_encoding(index)
+        return _encode_rust_preview_dds(
+            source, target, channel, stop_event, batch.state,
+            source_color_policy=source_color_policy,
+        )
 
     remaining_budget = max(
         0,
@@ -4778,7 +4823,162 @@ def _validated_synthesized_material_row(row, lod_index, submesh_index, submeshes
     return resolved_channels, generated_channels, layered_normal_is_authoritative, source_submesh, runtime_skin_detail, skin_surface_contract
 
 
+_RUST_SYNTHESIS_WORKING_BYTES = 512 * 1024 * 1024
+
+
+def _material_synthesis_working_bytes(submesh: object) -> int:
+    """Conservative admission estimate, never a substitute for payload validation."""
+    paths = {
+        path for value in tuple(getattr(submesh, "preview_material_texture_inputs", ()) or ())
+        if (path := _material_input_dds_path(value)) is not None
+    }
+    if not paths:
+        return _RUST_SYNTHESIS_WORKING_BYTES
+    source_bytes = 0
+    largest_output = 0
+    for path in paths:
+        try:
+            with path.open("rb") as stream:
+                header = stream.read(20)
+            if len(header) != 20 or header[:4] != b"DDS ":
+                return _RUST_SYNTHESIS_WORKING_BYTES
+            height, width = struct.unpack_from("<II", header, 12)
+            if not width or not height:
+                return _RUST_SYNTHESIS_WORKING_BYTES
+        except (OSError, ValueError):
+            return _RUST_SYNTHESIS_WORKING_BYTES
+        source_bytes += width * height * 4
+        largest_output = max(largest_output, min(width, 2048) * min(height, 2048))
+    # Include RGBA/float source copies, composition intermediates and encode scratch.
+    return source_bytes * 4 + largest_output * 64
+
+
+def _merge_material_synthesis_state(
+    target: _RustMaterialSynthesisState,
+    source: _RustMaterialSynthesisState,
+    lod_index: int,
+    submesh_index: int,
+) -> None:
+    target.attempted |= source.attempted
+    target.generated_binding_count += source.generated_binding_count
+    target.luminance_guard_count += source.luminance_guard_count
+    for overrides in source.presentation_overrides.values():
+        target.presentation_overrides.setdefault((lod_index, submesh_index), {}).update(overrides)
+    for name, dropped in (
+        ("diagnostics", "dropped_diagnostic_count"),
+        ("luminance_guard_adjustments", "dropped_luminance_guard_count"),
+    ):
+        rows = getattr(target, name)
+        dropped_count = getattr(source, dropped)
+        for row in getattr(source, name):
+            if len(rows) >= _RUST_MATERIAL_SYNTHESIS_DIAGNOSTIC_LIMIT:
+                dropped_count += 1
+                continue
+            remapped = dict(row, lod_index=lod_index)
+            if "submesh_index" in row:
+                remapped["submesh_index"] = submesh_index
+            rows.append(remapped)
+        setattr(target, dropped, getattr(target, dropped) + dropped_count)
+
+
 def _mesh_synthesized_texture_overrides(
+    mesh: ParsedMesh,
+    synthesis_root: Path,
+    *,
+    expected_root_identity: tuple[int, int],
+    stop_event: threading.Event | None,
+    synthesis_state: _RustMaterialSynthesisState,
+    protected_keys: frozenset[tuple[int, int, str]] = frozenset(),
+) -> dict[tuple[int, int, str], Path]:
+    """Prepare independent materials in bounded batches, retaining owner order."""
+    lods = _mesh_lods(mesh)
+    jobs = [
+        (lod_index, submesh_index, submesh)
+        for lod_index, submeshes in enumerate(lods)
+        for submesh_index, submesh in enumerate(submeshes)
+        if _submesh_has_material_synthesis_inputs(submesh)
+    ]
+    # The canonical compiler reuses synthesis within a LOD for repeated material
+    # names. Keep those requests together instead of duplicating their work.
+    repeated_materials = any(
+        len(names := [str(getattr(part, "material", "") or getattr(part, "name", "") or "")
+                      for part in submeshes]) != len(set(names))
+        for submeshes in lods
+    )
+    if len(jobs) < 2 or repeated_materials:
+        return _mesh_synthesized_texture_overrides_serial(
+            mesh, synthesis_root, expected_root_identity=expected_root_identity,
+            stop_event=stop_event, synthesis_state=synthesis_state, protected_keys=protected_keys,
+        )
+    _raise_if_texture_copy_cancelled(stop_event)
+    _validate_rust_material_synthesis_tree(synthesis_root, expected_root_identity)
+    batch = _RustMaterialSynthesisBatch(synthesis_state, stop_event)
+    overrides: dict[tuple[int, int, str], Path] = {}
+
+    def prepare(index: int):
+        lod_index, submesh_index, submesh = jobs[index]
+        local_state = _RustMaterialSynthesisState(encoding_order=(batch, index))
+        try:
+            _raise_if_texture_copy_cancelled(batch)
+            # Geometry and immutable source bindings are read-only. Copy only the
+            # metadata whose local index the canonical compiler needs to change.
+            part = copy.copy(submesh)
+            part.submesh_index = 0
+            snapshot = copy.copy(mesh)
+            snapshot.submeshes = [part]
+            snapshot.lod_levels = []
+            root = synthesis_root / f"material-{index:04d}"
+            root.mkdir()
+            local = _mesh_synthesized_texture_overrides_serial(
+                snapshot, root, expected_root_identity=_session_root_identity(root),
+                stop_event=batch, synthesis_state=local_state,
+                protected_keys=frozenset((0, 0, role) for lod, owner, role in protected_keys
+                                         if (lod, owner) == (lod_index, submesh_index)),
+            )
+            return local, local_state
+        finally:
+            batch.finish(index)
+
+    # Keep a maximum of four jobs live, including completed results waiting for
+    # their turn. Large/unknown sources use the existing serial memory envelope.
+    try:
+        with ThreadPoolExecutor(max_workers=min(4, os.cpu_count() or 1),
+                                thread_name_prefix="cdmw-material") as executor:
+            try:
+                first = 0
+                while first < len(jobs):
+                    indices: list[int] = []
+                    working_bytes = 0
+                    for index in range(first, min(first + 4, len(jobs))):
+                        estimate = _material_synthesis_working_bytes(jobs[index][2])
+                        if indices and working_bytes + estimate > _RUST_SYNTHESIS_WORKING_BYTES:
+                            break
+                        working_bytes += estimate
+                        indices.append(index)
+                    futures = [executor.submit(prepare, index) for index in indices]
+                    for index, future in zip(indices, futures):
+                        local, local_state = future.result()
+                        _raise_if_texture_copy_cancelled(stop_event)
+                        lod_index, submesh_index, _ = jobs[index]
+                        _merge_material_synthesis_state(synthesis_state, local_state, lod_index, submesh_index)
+                        if any(row.get("code") in {"compiler_failed", "compiler_manifest_invalid"}
+                               for row in local_state.diagnostics):
+                            batch.cancel()
+                            _clear_rust_material_synthesis_results(synthesis_state)
+                            return {}
+                        overrides.update({(lod_index, submesh_index, role): path
+                                          for (_, _, role), path in local.items()})
+                    _validate_rust_material_synthesis_tree(synthesis_root, expected_root_identity)
+                    first += len(indices)
+            finally:
+                # Wake jobs waiting for budget ownership before the executor joins.
+                batch.cancel()
+    except RunCancelled as exc:
+        raise RustMeshCancellationError("Mesh texture preparation was cancelled") from exc
+    return overrides
+
+
+def _mesh_synthesized_texture_overrides_serial(
     mesh: ParsedMesh,
     synthesis_root: Path,
     *,
@@ -4872,6 +5072,8 @@ def _mesh_synthesized_texture_overrides(
             return {}
         for submesh_index, row in enumerate(rows):
             row_state = _validated_synthesized_material_row(row, lod_index, submesh_index, submeshes, synthesis_state, protected_keys, overrides)
+            if row_state == {}:
+                return {}
             if row_state is None:
                 continue
             resolved_channels, generated_channels, layered_normal_is_authoritative, source_submesh, runtime_skin_detail, skin_surface_contract = row_state

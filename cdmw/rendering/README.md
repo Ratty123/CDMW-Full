@@ -17,6 +17,23 @@ package owns the Python-side package, cache, material, and texture inputs rather
 than a second renderer. Historical `d3d11_*`, `dotnet_*`, and
 `native_preview_*` names are compatibility aliases only.
 
+Texture preparation composes independent materials on up to four CPU workers.
+The Rust compositor shares decoded source pixels, leaves directly usable DDS
+maps compressed, and admits batches within a shared 512 MiB working-buffer
+estimate. Its resident loader keeps at most 128 MiB / 256 entries of completed
+material maps; graph settings, presentation and owned texture hashes identify
+entries, and every source is still validated on a cache hit. Changing painted
+channels invalidates their material. Ordered publication retains texture owners,
+full mip chains, authored alpha/response channels and runtime skin detail.
+
+The Mesh Editor's Python material preparation also uses bounded batches. It
+keeps repeated materials together for the canonical compiler's existing reuse,
+preserves LOD/part ownership, and encodes in source order against one shared
+128 MiB fast-preview budget. Cancellation wakes budget waiters and joins the
+owned workers before temporary files can be removed. The current scene is
+replaced only through the existing completed-package handoff. These changes
+affect 3D material preparation; 2D DDS image previews retain their PNG cache.
+
 Preview cache maintenance never waits on another publisher's build lock. It
 reads atomically published metadata, defers busy access timestamps, and skips
 busy entries during eviction. Live/recent package leases still protect renderer
