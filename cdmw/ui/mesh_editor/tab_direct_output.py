@@ -10,6 +10,8 @@ from PySide6.QtWidgets import QProgressDialog
 
 from cdmw.services.archive_extraction_service import find_available_output_path
 from cdmw.services.new_item_service import game_is_running
+from cdmw.models import ModPackageInfo
+from cdmw.ui.mesh_editor.mod_export_dialog import MeshModExportDialog
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
 
 
@@ -33,8 +35,14 @@ class MeshEditorDirectOutputMixin:
             return
         if not self._standalone_export_validation_ok():
             self.status_message_requested.emit("Run validation successfully before building a mesh mod.", True)
+            _tab.QMessageBox.warning(self, "Build Mod", "Run validation successfully before building a mesh mod.")
             return
         controller = self.standalone_controller
+        if self._mesh_direct_output_busy() or self._standalone_action_worker_active():
+            self.status_message_requested.emit("Wait for the current Mesh Editor task to finish.", True)
+            return
+        session_id = controller.active_session_id
+        revision = self.standalone_export_validation_revision
         hair = controller.mesh_service._session(controller.active_session_id).hair_state
         if hair is not None:
             session_id = controller.active_session_id
@@ -59,76 +67,44 @@ class MeshEditorDirectOutputMixin:
                 output = find_available_output_path(Path(parent) / (hair.payload["template"]["target_stem"] + "-hair-mod"))
                 self._start_mesh_direct_output_worker("overlay_package", entry, output_path=output, manager_profile="dmm")
             return
-        choice = _tab.QMessageBox(self)
-        choice.setWindowTitle("Build Mod")
-        choice.setText("Choose the mesh-only mod package and manager.")
-        choice.setInformativeText(
-            "Loose packages use each manager's expected folder layout and metadata. "
-            "The DMM archive group is a prebuilt manager-mounted archive; neither choice changes shipped archives."
-        )
-        dmm_loose_button = choice.addButton("DMM Loose Mesh", _tab.QMessageBox.ActionRole)
-        jmm_button = choice.addButton("JMM Loose Mesh", _tab.QMessageBox.ActionRole)
-        cdumm_button = choice.addButton("CDUMM Loose Mesh", _tab.QMessageBox.ActionRole)
-        crimson_sharp_button = choice.addButton("Crimson Sharp Loose Mesh", _tab.QMessageBox.ActionRole)
-        overlay_button = choice.addButton("DMM Archive Group", _tab.QMessageBox.ActionRole)
-        choice.addButton(_tab.QMessageBox.Cancel)
-        choices = {
-            dmm_loose_button: ("loose_mod", "dmm", "dmm", "dmm_loose"),
-            jmm_button: ("loose_mod", "jmm", "jmm", "jmm_loose"),
-            cdumm_button: ("loose_mod", "cdumm", "cdumm", "cdumm_loose"),
-            crimson_sharp_button: (
-                "loose_mod",
-                "crimson_sharp",
-                "crimson-sharp",
-                "crimson_sharp_loose",
-            ),
-            overlay_button: ("overlay_package", "dmm", "dmm-archive", "dmm_archive"),
-        }
-        saved_choice = str(
-            self.settings.value("mesh_editor/last_mod_output_choice", "") or ""
-        ).strip()
-        saved_profile = str(
-            self.settings.value("mesh_editor/last_mod_manager_profile", "dmm") or "dmm"
-        ).strip()
-        default_button = next(
-            (
-                button
-                for button, (_kind, _profile, _suffix, choice_id) in choices.items()
-                if choice_id == saved_choice
-            ),
-            next(
-                (
-                    button
-                    for button, (_kind, profile, _suffix, _choice_id) in choices.items()
-                    if profile == saved_profile
-                ),
-                dmm_loose_button,
-            ),
-        )
-        choice.setDefaultButton(default_button)
-        choice.exec()
-        selected = choice.clickedButton()
-        selected_output = choices.get(selected)
-        if selected_output is None:
-            return
-        kind, manager_profile, output_suffix, output_choice = selected_output
-        parent = _tab.QFileDialog.getExistingDirectory(
+        stem = Path(str(entry.basename or "mesh")).stem or "mesh"
+        dialog = MeshModExportDialog(
             self,
-            "Choose Build Mod Output Folder",
-            str(self.settings.value("mesh_editor/last_mod_output_dir", "") or ""),
+            title=f"{stem} Mesh Mod",
+            description=f"Mesh Editor replacement for {entry.path}.",
+            output_parent=str(self.settings.value("mesh_editor/last_mod_output_dir", "") or ""),
+            output_choice=str(self.settings.value("mesh_editor/last_mod_output_choice", "") or ""),
+            manager_profile=str(self.settings.value("mesh_editor/last_mod_manager_profile", "dmm") or "dmm"),
         )
-        if not parent:
+        try:
+            if dialog.exec() != dialog.DialogCode.Accepted:
+                return
+            output_choice, kind, manager_profile, _suffix = dialog.manager.currentData()
+            package_info = dialog.package_info()
+            output_path = dialog.output_path()
+        finally:
+            dialog.deleteLater()
+        current_target = self._current_target_entry()
+        if (
+            self.standalone_controller is not controller
+            or controller.active_session_id != session_id
+            or current_target is None
+            or current_target.identity != entry.identity
+            or self.standalone_export_validation_revision != revision
+            or not self._standalone_export_validation_ok()
+        ):
+            self.status_message_requested.emit("Validation result ignored because the mesh changed; run validation again.", True)
             return
-        self.settings.setValue("mesh_editor/last_mod_output_dir", parent)
+        self.settings.setValue("mesh_editor/last_mod_output_dir", str(output_path.parent))
         self.settings.setValue("mesh_editor/last_mod_manager_profile", manager_profile)
         self.settings.setValue("mesh_editor/last_mod_output_choice", output_choice)
-        stem = Path(str(entry.basename or "mesh")).stem or "mesh"
-        output_root = find_available_output_path(Path(parent) / f"{stem}-mesh-mod-{output_suffix}")
+        output_root = find_available_output_path(output_path)
         self._start_mesh_direct_output_worker(
             kind,
             entry,
             output_path=output_root,
             manager_profile=manager_profile,
+            package_info=package_info,
         )
 
     def _start_mesh_overlay_prepare_requested(self) -> None:
@@ -160,6 +136,7 @@ class MeshEditorDirectOutputMixin:
         output_path: Path | None = None,
         mutation_service: object | None = None,
         manager_profile: str = "dmm",
+        package_info: ModPackageInfo | None = None,
     ) -> bool:
         controller = self.standalone_controller
         if controller is None or not controller.active_session_id:
@@ -177,6 +154,7 @@ class MeshEditorDirectOutputMixin:
             kind=kind,
             output_path=output_path,
             manager_profile=manager_profile,
+            package_info=package_info,
             expected_mesh_revision=self.standalone_export_validation_revision,
             texture_updates_waiter=self._wait_for_dotnet_export_updates,
         )

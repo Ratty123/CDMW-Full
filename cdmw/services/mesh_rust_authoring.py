@@ -37,7 +37,7 @@ from cdmw.core.common import (
 )
 from cdmw.domain.cancellation import RunCancelled
 from cdmw.domain.mesh import MeshEditCommand, MeshEditResult, MeshEditSelection
-from cdmw.domain.mesh.export_validation import describe_mesh_export_issue
+from cdmw.domain.mesh.export_validation import MeshExportValidationReport, describe_mesh_export_issue
 from cdmw.domain.mesh.morph import MeshMorphDefinition
 from cdmw.domain.mesh.authoring_capability import (
     MeshOutputPolicy,
@@ -7272,6 +7272,9 @@ class RustMeshAuthoringSession:
     _protocol_lock: object = field(default_factory=threading.RLock, repr=False)
     _commit_started: bool = field(default=False, repr=False)
     _finish_accepted: bool = field(default=False, repr=False)
+    accepted_export_validation: tuple[int, MeshExportValidationReport] | None = field(
+        default=None, init=False, repr=False,
+    )
     _profile_tree_tainted: bool = field(default=False, repr=False)
 
 
@@ -9705,7 +9708,12 @@ class RustMeshAuthoringSession:
                     f"{type(rollback_error).__name__}: {rollback_error}"
                 ) from commit_error
             raise
-        return self._complete_accepted_finish(cleanup_warnings, committed, validation_payload, shadow_morph_state, morph_publication, exact_output_validation, free_edit_output_validation)
+        result = self._complete_accepted_finish(cleanup_warnings, committed, validation_payload, shadow_morph_state, morph_publication, exact_output_validation, free_edit_output_validation)
+        # Keep the typed host report with the revision actually committed. The
+        # control payload may be staged on disk and describes a disposed shadow;
+        # neither the Rust reply nor an old UI report is export authority.
+        self.accepted_export_validation = (committed.revision, prepared.validation_report)
+        return result
 
     def cancel(self) -> None:
         if self.closed:

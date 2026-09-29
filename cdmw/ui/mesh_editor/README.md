@@ -1502,10 +1502,17 @@ cameras, and capture requests are owned by the shared preview services. They
 are distinct from the editor's `--cdmw-session` route. Read-only source textures
 stay with the model while geometry and UVs change.
 
-After **Finish Edit Mesh**, run **Run validation** for the authoritative revision.
+**Finish Edit Mesh** retains its successful validation for the accepted revision,
+so **Build Mod** opens immediately without requiring a second validation. Any
+later edit invalidates that report; **Run validation** checks the new revision.
 **Export Mesh File** publishes a separate rebuilt asset and report. **Build Mod**
-publishes either a loose mesh-only manager package or a **DMM Archive Group**
-package. Output stages in an owned sibling directory and publishes once; stale
+opens one form for the mod manager, mod name, output folder, version, author and
+description. It publishes **DMM**, **JMM**, **CDUMM** or **Crimson Sharp** loose
+mesh packages using their respective layouts and metadata, or a **DMM Archive
+Group** in `0036/`. DMM owns the mount list, so that package omits `meta/0.papgt`.
+The chosen mod name remains independent of the generated folder name. Cancelling
+the form writes nothing, and changing the mesh or target while it is open requires
+validation again. Output stages in an owned sibling directory and publishes once; stale
 revisions, cancellation, and failure cannot leave a partial final folder.
 
 **Install as Overlay** prepares the exact mount change, carry-forward files,

@@ -2254,6 +2254,7 @@ def test_loose_mesh_output_rejects_destination_claimed_during_staging(tmp_path: 
             assert not stop_event.is_set()
             assert expected_mesh_revision == 6
             return SimpleNamespace(
+                hair_state=None,
                 texture_resources=(),
                 material_generation=0,
                 mesh_asset_source_hash="a" * 64,
@@ -2500,6 +2501,7 @@ def test_dmm_output_failure_or_cancel_cleans_owned_staging_without_partial_final
         def capture_export_snapshot(self, _session_id, *, stop_event, expected_mesh_revision):
             assert expected_mesh_revision == 5
             return SimpleNamespace(
+                hair_state=None,
                 texture_resources=(),
                 material_generation=0,
                 mesh_asset_source_hash="a" * 64,

@@ -782,6 +782,17 @@ class MeshEditorRustProcessMixin:
             return
         try:
             view = controller.session_view()
+            session = self.standalone_rust_authoring_session
+            validation = getattr(session, "accepted_export_validation", None)
+            if (
+                validation is not None
+                and session.authoritative_service is controller.mesh_service
+                and session.authoritative_session_id == controller.active_session_id == view.session_id
+                and validation[0] == view.revision
+                and validation[1].ok
+            ):
+                self.standalone_export_validation_revision = validation[0]
+                self.standalone_last_export_validation_report = validation[1]
             self.update_editor_session_state(
                 view,
                 active_selection_mode=controller.active_selection_mode,

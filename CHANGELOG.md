@@ -82,6 +82,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Mesh Editor carries Finish Edit Mesh validation into the accepted revision, so Build Mod opens immediately. The export form includes the manager, mod name, folder and package details for DMM, JMM, CDUMM and Crimson Sharp; DMM archive groups omit the manager-owned mount list. Changed revisions and targets still require validation before output.
 - Mesh Editor slider tracks now align consistently across numeric, material and shader controls, regardless of label length or numeric precision. Jiggle and Cloth previews keep the model centred by default while motion still drives physics, with an option to show the full movement. Decoded bone and wind settings include simple hover examples, including the decoded damping direction and when limits take effect.
 - Create New Item applies experimental glass only to explicitly selected material parts. Untouched imported gems keep their normal Plain PBR conversion, colours, surface maps and emission, including when another part is edited. Model and Effects previews and material options follow the same rule; disabling Translucency restores the normal route.
 - Create New Item prepares effect metadata in the background as soon as its workspace is ready, avoiding the delayed start on first opening Perks & Effects. The page reuses cached or ongoing indexing and immediately shows metadata prepared before it was opened.

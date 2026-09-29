@@ -701,6 +701,7 @@ class MeshDirectOutputWorker(QObject):
         kind: str,
         output_path: Path | str | None = None,
         manager_profile: str = "dmm",
+        package_info: ModPackageInfo | None = None,
         expected_mesh_revision: int | None = None,
         texture_updates_waiter: Callable[[float], bool] | None = None,
     ) -> None:
@@ -718,6 +719,7 @@ class MeshDirectOutputWorker(QObject):
         if self.kind == "overlay_package" and normalized_profile != "dmm":
             raise ValueError("Mesh archive-group packages are supported only for the DMM manager profile")
         self.manager_profile = normalized_profile
+        self.package_info = replace(package_info) if package_info is not None else None
         self.expected_mesh_revision = expected_mesh_revision
         self.texture_updates_waiter = texture_updates_waiter
         self.stop_event = threading.Event()
@@ -862,6 +864,8 @@ class MeshDirectOutputWorker(QObject):
         return (json.dumps(payload, indent=2, default=str) + "\n").encode("utf-8")
 
     def _package_info(self, root: Path) -> ModPackageInfo:
+        if self.package_info is not None:
+            return self.package_info
         source_path = str(getattr(self.entry, "path", "") or "").replace("\\", "/").strip("/")
         return ModPackageInfo(
             title=root.name,
@@ -1002,8 +1006,9 @@ class MeshDirectOutputWorker(QObject):
                 if not (staging / relative).is_file():
                     raise RuntimeError(f"DMM archive-group package is missing {relative}")
             payload_paths = [*archive_files]
-            if bool(exported.mount_list_written) and (staging / "meta" / "0.papgt").is_file():
-                payload_paths.append("meta/0.papgt")
+            # DMM assigns the mounted group and rebuilds its own mount list.
+            # The shared writer's copy belongs only to this staging directory.
+            (staging / "meta" / "0.papgt").unlink(missing_ok=True)
             dmm_options = replace(
                 mod_package_export_options_for_manager("dmm"),
                 structure="game_relative",
