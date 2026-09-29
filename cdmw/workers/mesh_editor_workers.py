@@ -11,22 +11,19 @@ import tempfile
 import hashlib
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass, is_dataclass, replace
-from datetime import datetime, timezone
 from pathlib import Path
 
 from PySide6.QtCore import QObject, Signal, Slot
 
-from cdmw.core.atomic_file import atomic_copy_file, atomic_publish_files, atomic_write_bytes, atomic_write_text
+from cdmw.core.atomic_file import atomic_copy_file, atomic_publish_files, atomic_publish_paths, atomic_write_bytes, atomic_write_text
 from cdmw.core.mod_package import (
     MeshLooseModAsset,
     MeshLooseModFile,
     write_mesh_loose_mod_package_metadata,
     write_mod_package_manifest,
-    write_mod_package_readme,
 )
 from cdmw.domain.packages.export_policy import (
     MOD_PACKAGE_MANAGER_PROFILES,
-    effective_mod_package_export_options_for_kind,
     mod_package_export_options_for_manager,
     normalize_mod_package_manager_profile,
 )
@@ -680,6 +677,7 @@ class MeshDirectOutputResult:
     rebuild_report: object | None = None
     overlay_preparation: OverlayInstallPreparation | None = None
     install_result: object | None = None
+    zip_path: Path | None = None
 
 
 class MeshDirectOutputWorker(QObject):
@@ -702,6 +700,7 @@ class MeshDirectOutputWorker(QObject):
         output_path: Path | str | None = None,
         manager_profile: str = "dmm",
         package_info: ModPackageInfo | None = None,
+        create_zip: bool = False,
         expected_mesh_revision: int | None = None,
         texture_updates_waiter: Callable[[float], bool] | None = None,
     ) -> None:
@@ -720,6 +719,7 @@ class MeshDirectOutputWorker(QObject):
             raise ValueError("Mesh archive-group packages are supported only for the DMM manager profile")
         self.manager_profile = normalized_profile
         self.package_info = replace(package_info) if package_info is not None else None
+        self.create_zip = bool(create_zip)
         self.expected_mesh_revision = expected_mesh_revision
         self.texture_updates_waiter = texture_updates_waiter
         self.stop_event = threading.Event()
@@ -873,6 +873,35 @@ class MeshDirectOutputWorker(QObject):
             description=f"Mesh Editor replacement for {source_path}.",
         )
 
+    def _publish_mod_output(self, staging: Path, root: Path) -> Path | None:
+        from cdmw.core.mod_export_history import retain_mod_history
+        from cdmw.core.mod_package import _write_package_zip
+
+        # DMM reads the same name/version/author/description from manifest.json.
+        # Remove the duplicate before binding local history to the final files.
+        if self.manager_profile == "dmm":
+            (staging / "modinfo.json").unlink(missing_ok=True)
+        elif self.manager_profile == "cdumm":
+            # CDUMM detects modinfo.json + files/ and reads the mod details
+            # from modinfo.json. Its importer derives encryption from the game.
+            (staging / "manifest.json").unlink(missing_ok=True)
+            (staging / ".no_encrypt").unlink(missing_ok=True)
+        retain_mod_history(staging, stop_event=self.stop_event)
+        (staging / "README.txt").unlink(missing_ok=True)
+        zip_path = root.with_name(root.name + ".zip") if self.create_zip else None
+        staged_zip = staging.with_name(staging.name + ".zip") if self.create_zip else None
+        try:
+            outputs = [(staging, root)]
+            if staged_zip is not None:
+                _write_package_zip(staging, zip_path=staged_zip, stop_event=self.stop_event)
+                outputs.append((staged_zip, zip_path))
+            _raise_export_cancelled(self.stop_event)
+            atomic_publish_paths(outputs, replace_existing=False)
+            return zip_path
+        finally:
+            if staged_zip is not None:
+                staged_zip.unlink(missing_ok=True)
+
     def _write_loose_mod(
         self,
         requests: tuple[ArchivePatchRequest, ...],
@@ -931,7 +960,7 @@ class MeshDirectOutputWorker(QObject):
             from cdmw.core.mod_compatibility import capture_patch_compatibility
             compatibility = capture_patch_compatibility(requests, additions,
                 game_root=Path(self.entry.pamt_path).resolve().parent.parent, stop_event=self.stop_event)
-            metadata_files = write_mesh_loose_mod_package_metadata(
+            write_mesh_loose_mod_package_metadata(
                 staging,
                 self._package_info(root),
                 assets=tuple(assets),
@@ -942,29 +971,7 @@ class MeshDirectOutputWorker(QObject):
                 compatibility=compatibility,
                 stop_event=self.stop_event,
             )
-            effective_options = effective_mod_package_export_options_for_kind("mesh_loose_mod", options)
-            write_mod_package_readme(
-                staging,
-                self._package_info(root),
-                created_utc=datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                overview=(
-                    "This package contains a validated mesh replacement created in the "
-                    "Crimson Desert Mod Workbench Mesh Editor."
-                ),
-                loose_file_count=len(requests) + len(additions),
-                asset_count=len(requests) + len(additions),
-                include_paired_lod=False,
-                create_no_encrypt_file=bool(effective_options.create_no_encrypt_file),
-                manifest_label="Structured mesh package metadata",
-                metadata_files=metadata_files,
-                manager_targets=effective_options.manager_targets,
-                structure=effective_options.structure,
-                kind="mesh_loose_mod",
-            )
-            _raise_export_cancelled(self.stop_event)
-            if root.exists():
-                raise FileExistsError(f"Mesh mod output already exists: {root}")
-            os.replace(staging, root)
+            zip_path = self._publish_mod_output(staging, root)
         finally:
             if staging.exists():
                 shutil.rmtree(staging, ignore_errors=True)
@@ -973,6 +980,7 @@ class MeshDirectOutputWorker(QObject):
             output_path=root,
             manager_profile=self.manager_profile,
             rebuild_report=report,
+            zip_path=zip_path,
         )
 
     def _write_overlay_package(
@@ -1029,31 +1037,10 @@ class MeshDirectOutputWorker(QObject):
                 },
                 stop_event=self.stop_event,
             )
-            write_mod_package_readme(
-                staging,
-                self._package_info(root),
-                created_utc=datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                overview=(
-                    "This package contains a validated Mesh Editor replacement inside a "
-                    "DMM manager-mounted archive group. Shipped game archives are unchanged."
-                ),
-                loose_file_count=int(exported.file_count),
-                asset_count=len(requests),
-                include_paired_lod=False,
-                create_no_encrypt_file=False,
-                manifest_label="Structured DMM archive-group metadata",
-                metadata_files=(staging / "manifest.json", staging / "modinfo.json"),
-                manager_targets=("dmm",),
-                structure="archive_group",
-                kind="archive_override_mod",
-            )
             for relative in archive_files:
                 if not (staging / relative).is_file():
                     raise RuntimeError(f"DMM package metadata changed archive-group payload {relative}")
-            _raise_export_cancelled(self.stop_event)
-            if root.exists():
-                raise FileExistsError(f"Mesh mod output already exists: {root}")
-            os.replace(staging, root)
+            zip_path = self._publish_mod_output(staging, root)
         finally:
             if staging.exists():
                 shutil.rmtree(staging, ignore_errors=True)
@@ -1062,6 +1049,7 @@ class MeshDirectOutputWorker(QObject):
             output_path=root,
             manager_profile="dmm",
             rebuild_report=report,
+            zip_path=zip_path,
         )
 
 

@@ -13,6 +13,7 @@ The format is intentionally simple:
 
 ### Added
 
+- Mesh Editor Build Mod can optionally create a ZIP beside the mod folder and open the folder after successful creation.
 - Create New Item supports CDUMM and JMM folder exports again.
 - Create New Item identifies existing custom items inherited from the loaded game tables and refuses to silently include them in a fresh separate mod. Explicit Add to existing mod exports remain supported.
 - Create New Item has independent Colour coverage and Surface response masks, atomic Linked fade painting, an opt-in calibrated coverage preset, per-channel restoration, and lossless PNG import/export, fill, invert and gradients. Existing raw settings keep their semantics. Patterned reveal adds experimental painted hard cutouts with private textures and coverage-aware mips; in-game validation remains pending.
@@ -21,6 +22,7 @@ The format is intentionally simple:
 
 ### Changed
 
+- Mesh Editor manager exports contain only payloads and manager metadata/markers. CDMW baseline, compatibility and session records stay in local history, generated READMEs are omitted, DMM uses its manifest, and CDUMM uses modinfo.json with files/ without duplicate descriptors or an unused encryption marker.
 - Create New Item temporarily disables DMM export while compatibility issues are investigated. CDUMM is the default; CDUMM, JMM and CDMW game overlays remain available.
 - Textured 3D previews in Browse Archives, Create New Item and Mesh Editor prepare independent materials concurrently within shared memory budgets. Repeated Rust previews reuse finished material maps, and directly usable DDS textures avoid unnecessary full-image decoding while preserving texture quality and ownership.
 - Create New Item writes each new mod into its own named folder, offers a ZIP copy beside it, and remembers whether to open the finished folder. Add to existing mod uses clearer instructions and keeps the selected mod's existing items; new exports refuse to overwrite an existing destination.

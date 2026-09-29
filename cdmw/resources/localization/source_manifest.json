@@ -8781,7 +8781,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 534,
+          "line": 531,
           "sink": "emit"
         }
       ]
@@ -9631,7 +9631,7 @@
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 505,
+          "line": 502,
           "sink": "emit"
         }
       ]
@@ -10471,7 +10471,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 899,
+          "line": 928,
           "sink": "ValueError"
         }
       ]
@@ -10896,12 +10896,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 120,
+          "line": 128,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 378,
+          "line": 396,
           "sink": "emit"
         }
       ]
@@ -11586,7 +11586,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 897,
+          "line": 926,
           "sink": "ValueError"
         }
       ]
@@ -13761,7 +13761,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 72,
+          "line": 73,
           "sink": "addRow"
         },
         {
@@ -16936,7 +16936,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 62,
+          "line": 63,
           "sink": "QPushButton"
         },
         {
@@ -17216,12 +17216,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 37,
+          "line": 38,
           "sink": "setWindowTitle"
         },
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 80,
+          "line": 85,
           "sink": "setText"
         },
         {
@@ -19156,7 +19156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 52,
+          "line": 53,
           "sink": "addItem"
         }
       ]
@@ -20031,7 +20031,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 162,
+          "line": 173,
           "sink": "QProgressDialog"
         },
         {
@@ -20221,42 +20221,42 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 503,
+          "line": 500,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 532,
+          "line": 529,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 537,
+          "line": 534,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 542,
+          "line": 539,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 586,
+          "line": 583,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 601,
+          "line": 598,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 606,
+          "line": 603,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 611,
+          "line": 608,
           "sink": "emit"
         }
       ]
@@ -22761,7 +22761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 103,
+          "line": 108,
           "sink": "getExistingDirectory"
         }
       ]
@@ -24766,7 +24766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 40,
+          "line": 41,
           "sink": "QLabel"
         }
       ]
@@ -26326,7 +26326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 123,
+          "line": 131,
           "sink": "emit"
         }
       ]
@@ -30687,6 +30687,16 @@
       ]
     },
     {
+      "key": "Create ZIP beside the mod folder",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
+          "line": 76,
+          "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
       "key": "Create a selection first, then drag with Patch to choose the repair source.",
       "origins": [
         {
@@ -31276,7 +31286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 52,
+          "line": 53,
           "sink": "addItem"
         }
       ]
@@ -32666,7 +32676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 52,
+          "line": 53,
           "sink": "addItem"
         }
       ]
@@ -32676,7 +32686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 52,
+          "line": 53,
           "sink": "addItem"
         }
       ]
@@ -32686,7 +32696,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 987,
+          "line": 995,
           "sink": "ValueError"
         }
       ]
@@ -32696,7 +32706,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 1007,
+          "line": 1015,
           "sink": "RuntimeError"
         }
       ]
@@ -32721,7 +32731,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 1052,
+          "line": 1042,
           "sink": "RuntimeError"
         }
       ]
@@ -34046,7 +34056,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 73,
+          "line": 74,
           "sink": "addRow"
         },
         {
@@ -41686,7 +41696,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 640,
+          "line": 637,
           "sink": "RuntimeError"
         }
       ]
@@ -44291,7 +44301,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 887,
+          "line": 916,
           "sink": "ValueError"
         }
       ]
@@ -46011,7 +46021,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 603,
+          "line": 600,
           "sink": "emit"
         }
       ]
@@ -55986,7 +55996,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 224,
+          "line": 238,
           "sink": "question"
         },
         {
@@ -56076,7 +56086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 224,
+          "line": 238,
           "sink": "question"
         }
       ]
@@ -58341,7 +58351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 52,
+          "line": 53,
           "sink": "addItem"
         }
       ]
@@ -62746,7 +62756,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 885,
+          "line": 914,
           "sink": "ValueError"
         }
       ]
@@ -65466,7 +65476,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 163,
+          "line": 174,
           "sink": "setWindowTitle"
         },
         {
@@ -67021,7 +67031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 247,
+          "line": 261,
           "sink": "emit"
         }
       ]
@@ -67151,7 +67161,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 720,
+          "line": 719,
           "sink": "ValueError"
         }
       ]
@@ -67256,7 +67266,7 @@
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 91,
+          "line": 88,
           "sink": "RunCancelled"
         }
       ]
@@ -68051,7 +68061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 305,
+          "line": 323,
           "sink": "emit"
         }
       ]
@@ -68061,7 +68071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 216,
+          "line": 230,
           "sink": "_handle_mesh_direct_output_error"
         }
       ]
@@ -68071,7 +68081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 244,
+          "line": 258,
           "sink": "emit"
         }
       ]
@@ -68081,7 +68091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 291,
+          "line": 309,
           "sink": "emit"
         }
       ]
@@ -68091,7 +68101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 296,
+          "line": 314,
           "sink": "emit"
         }
       ]
@@ -69411,7 +69421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 68,
+          "line": 69,
           "sink": "addRow"
         },
         {
@@ -69451,7 +69461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 69,
+          "line": 70,
           "sink": "addRow"
         },
         {
@@ -72256,7 +72266,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 155,
+          "line": 152,
           "sink": "RuntimeError"
         }
       ]
@@ -72316,7 +72326,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 127,
+          "line": 124,
           "sink": "RuntimeError"
         }
       ]
@@ -73611,7 +73621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 373,
+          "line": 391,
           "sink": "emit"
         }
       ]
@@ -80160,6 +80170,11 @@
       "key": "Open folder after creation",
       "origins": [
         {
+          "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
+          "line": 77,
+          "sink": "QCheckBox"
+        },
+        {
           "path": "cdmw/ui/new_item/panels_output.py",
           "line": 279,
           "sink": "QCheckBox"
@@ -82611,7 +82626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 70,
+          "line": 71,
           "sink": "addRow"
         },
         {
@@ -83096,12 +83111,12 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 1115,
+          "line": 1103,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 1118,
+          "line": 1106,
           "sink": "emit"
         }
       ]
@@ -83376,7 +83391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 383,
+          "line": 401,
           "sink": "emit"
         }
       ]
@@ -90301,7 +90316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 162,
+          "line": 173,
           "sink": "QProgressDialog"
         }
       ]
@@ -101851,7 +101866,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 918,
+          "line": 947,
           "sink": "ValueError"
         }
       ]
@@ -104761,7 +104776,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 386,
+          "line": 404,
           "sink": "question"
         },
         {
@@ -104821,7 +104836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 386,
+          "line": 404,
           "sink": "question"
         }
       ]
@@ -107606,7 +107621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 115,
+          "line": 123,
           "sink": "emit"
         }
       ]
@@ -107701,7 +107716,7 @@
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 588,
+          "line": 585,
           "sink": "emit"
         }
       ]
@@ -131641,7 +131656,7 @@
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 634,
+          "line": 631,
           "sink": "RuntimeError"
         }
       ]
@@ -135431,7 +135446,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 718,
+          "line": 717,
           "sink": "ValueError"
         }
       ]
@@ -137936,7 +137951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 96,
+          "line": 98,
           "sink": "emit"
         },
         {
@@ -138401,7 +138416,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 71,
+          "line": 72,
           "sink": "addRow"
         },
         {
@@ -139346,7 +139361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 401,
+          "line": 419,
           "sink": "emit"
         }
       ]
@@ -139386,7 +139401,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
-          "line": 145,
+          "line": 155,
           "sink": "emit"
         },
         {
@@ -143410,6 +143425,11 @@
       "key": "ZIP written to {value_0}",
       "origins": [
         {
+          "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
+          "line": 266,
+          "sink": "emit"
+        },
+        {
           "path": "cdmw/ui/new_item/panels_output.py",
           "line": 550,
           "sink": "append_log"
@@ -146506,12 +146526,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 52,
+          "line": 53,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 52,
+          "line": 53,
           "sink": "addItem"
         },
         {
@@ -147821,7 +147841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 52,
+          "line": 53,
           "sink": "addItem"
         }
       ]
@@ -148266,17 +148286,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 52,
+          "line": 53,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 52,
+          "line": 53,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 52,
+          "line": 53,
           "sink": "addItem"
         },
         {
@@ -148301,7 +148321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 52,
+          "line": 53,
           "sink": "addItem"
         }
       ]
@@ -149671,7 +149691,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 276,
+          "line": 273,
           "sink": "RuntimeError"
         }
       ]
@@ -152261,12 +152281,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 52,
+          "line": 53,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 52,
+          "line": 53,
           "sink": "addItem"
         },
         {
@@ -153866,7 +153886,7 @@
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 638,
+          "line": 635,
           "sink": "RuntimeError"
         }
       ]
@@ -159246,7 +159266,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 179,
+          "line": 176,
           "sink": "RuntimeError"
         }
       ]
@@ -159416,7 +159436,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 125,
+          "line": 122,
           "sink": "ValueError"
         }
       ]
@@ -159426,7 +159446,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 122,
+          "line": 119,
           "sink": "ValueError"
         }
       ]
@@ -159511,7 +159531,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 106,
+          "line": 103,
           "sink": "RuntimeError"
         }
       ]
@@ -167981,7 +168001,7 @@
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 510,
+          "line": 507,
           "sink": "RuntimeError"
         }
       ]
@@ -171261,22 +171281,22 @@
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 422,
+          "line": 419,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 467,
+          "line": 464,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 540,
+          "line": 537,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 609,
+          "line": 606,
           "sink": "emit"
         },
         {
@@ -171286,17 +171306,17 @@
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 1120,
+          "line": 1108,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 1147,
+          "line": 1135,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 1206,
+          "line": 1194,
           "sink": "emit"
         },
         {

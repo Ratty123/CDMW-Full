@@ -82,6 +82,8 @@ class MeshEditorDirectOutputMixin:
             output_choice, kind, manager_profile, _suffix = dialog.manager.currentData()
             package_info = dialog.package_info()
             output_path = dialog.output_path()
+            create_zip = dialog.create_zip.isChecked()
+            open_folder = dialog.open_folder.isChecked()
         finally:
             dialog.deleteLater()
         current_target = self._current_target_entry()
@@ -99,12 +101,18 @@ class MeshEditorDirectOutputMixin:
         self.settings.setValue("mesh_editor/last_mod_manager_profile", manager_profile)
         self.settings.setValue("mesh_editor/last_mod_output_choice", output_choice)
         output_root = find_available_output_path(output_path)
+        reserved = set()
+        while create_zip and output_root.with_name(output_root.name + ".zip").exists():
+            reserved.add(str(output_root).lower())
+            output_root = find_available_output_path(output_path, reserved)
         self._start_mesh_direct_output_worker(
             kind,
             entry,
             output_path=output_root,
             manager_profile=manager_profile,
             package_info=package_info,
+            create_zip=create_zip,
+            open_folder=open_folder,
         )
 
     def _start_mesh_overlay_prepare_requested(self) -> None:
@@ -137,6 +145,8 @@ class MeshEditorDirectOutputMixin:
         mutation_service: object | None = None,
         manager_profile: str = "dmm",
         package_info: ModPackageInfo | None = None,
+        create_zip: bool = False,
+        open_folder: bool = False,
     ) -> bool:
         controller = self.standalone_controller
         if controller is None or not controller.active_session_id:
@@ -155,6 +165,7 @@ class MeshEditorDirectOutputMixin:
             output_path=output_path,
             manager_profile=manager_profile,
             package_info=package_info,
+            create_zip=create_zip,
             expected_mesh_revision=self.standalone_export_validation_revision,
             texture_updates_waiter=self._wait_for_dotnet_export_updates,
         )
@@ -170,10 +181,12 @@ class MeshEditorDirectOutputMixin:
         thread.started.connect(worker.run)
         worker.progress_changed.connect(self._handle_mesh_direct_output_progress)
         worker.completed.connect(
-            lambda target_id, result, service=mutation_service: self._handle_mesh_direct_output_completed(
-                target_id,
-                result,
-                mutation_service=service,
+            lambda target_id, result, service=mutation_service, reveal=open_folder: QTimer.singleShot(
+                0,
+                self,
+                lambda: self._handle_mesh_direct_output_completed(
+                    target_id, result, mutation_service=service, open_folder=reveal,
+                ),
             )
         )
         worker.cancelled.connect(self._handle_mesh_direct_output_cancelled)
@@ -209,6 +222,7 @@ class MeshEditorDirectOutputMixin:
         result: object,
         *,
         mutation_service: object | None = None,
+        open_folder: bool = False,
     ) -> None:
         if int(request_id) != int(self.standalone_output_request_id):
             return
@@ -239,7 +253,7 @@ class MeshEditorDirectOutputMixin:
                 _tab.QMessageBox.No,
             )
             if confirmation == _tab.QMessageBox.Yes and mutation_service is not None:
-                self.standalone_pending_overlay_apply = (preparation, mutation_service)
+                self._start_mesh_overlay_apply(preparation, mutation_service)
             else:
                 self.status_message_requested.emit("Mesh overlay install was not applied.", False)
             return
@@ -248,6 +262,10 @@ class MeshEditorDirectOutputMixin:
             f"Mesh Editor {result.kind.replace('_', ' ')} output ready: {output}",
             False,
         )
+        if result.zip_path is not None:
+            self.status_message_requested.emit(f"ZIP written to {result.zip_path}", False)
+        if open_folder and result.output_path is not None:
+            _tab.QDesktopServices.openUrl(_tab.QUrl.fromLocalFile(str(result.output_path)))
 
     def _start_mesh_overlay_apply(self, preparation: object, mutation_service: object) -> None:
         if self._mesh_direct_output_busy():

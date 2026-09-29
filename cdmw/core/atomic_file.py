@@ -149,6 +149,7 @@ def atomic_publish_paths(
     paths: Sequence[tuple[Path, Path]],
     *,
     check_cancelled: Callable[[], None] | None = None,
+    replace_existing: bool = True,
 ) -> None:
     """Publish files and directories together, restoring prior output on failure."""
     pairs = [(Path(staged), Path(target)) for staged, target in paths]
@@ -157,6 +158,8 @@ def atomic_publish_paths(
     for staged, target in pairs:
         if not staged.exists():
             raise FileNotFoundError(staged)
+        if not replace_existing and (target.exists() or target.is_symlink()):
+            raise FileExistsError(f"Destination already exists: {target}")
         if target.exists() and not target.is_symlink() and staged.is_dir() != target.is_dir():
             raise ValueError(f"atomic publication cannot change the target type: {target}")
 
@@ -172,11 +175,16 @@ def atomic_publish_paths(
             if check_cancelled is not None:
                 check_cancelled()
             target.parent.mkdir(parents=True, exist_ok=True)
-            backup = target.with_name(f".{target.name}.{uuid4().hex}.bak") if target.exists() or target.is_symlink() else None
+            if not replace_existing and (target.exists() or target.is_symlink()):
+                raise FileExistsError(f"Destination already exists: {target}")
+            backup = target.with_name(f".{target.name}.{uuid4().hex}.bak") if replace_existing and (target.exists() or target.is_symlink()) else None
             if backup is not None:
                 target.replace(backup)
             try:
-                staged.replace(target)
+                if replace_existing:
+                    staged.replace(target)
+                else:
+                    staged.rename(target)
             except BaseException:
                 if backup is not None:
                     backup.replace(target)

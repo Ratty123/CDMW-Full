@@ -1510,10 +1510,27 @@ opens one form for the mod manager, mod name, output folder, version, author and
 description. It publishes **DMM**, **JMM**, **CDUMM** or **Crimson Sharp** loose
 mesh packages using their respective layouts and metadata, or a **DMM Archive
 Group** in `0036/`. DMM owns the mount list, so that package omits `meta/0.papgt`.
+Packages contain the replacement payloads and manager descriptors/markers only.
+The generated README and CDMW baseline, compatibility and session records stay
+out of the mod; authoring records are saved in CDMW's local `mod_export_history`
+store and remain discoverable for the exact exported bytes. DMM uses only
+`manifest.json` for its metadata, without a duplicate `modinfo.json`.
+CDUMM uses `modinfo.json` with its default `files/` directory, without a duplicate
+manifest or unused encryption marker. Its detector accepts this layout and its
+importer reads mod details from `modinfo.json`:
+[CDUMM detector](https://github.com/faisalkindi/CrimsonDesert-UltimateModsManager/blob/master/src/cdumm/engine/crimson_browser_handler.py),
+[CDUMM importer](https://github.com/faisalkindi/CrimsonDesert-UltimateModsManager/blob/master/src/cdumm/engine/import_handler.py).
+[DMM's changelog](https://www.nexusmods.com/crimsondesert/mods/633?tab=logs)
+documents metadata lookup from `manifest.json` when `modinfo.json` is absent.
+**Create ZIP beside the mod folder** adds an archive containing exactly the same
+files, with no enclosing staging folder. **Open folder after creation** opens
+the completed mod folder only after successful publication. Both options are
+independent and off by default. Existing folders and ZIPs are never overwritten;
+folder names containing dots keep their full name in the sibling ZIP.
 The chosen mod name remains independent of the generated folder name. Cancelling
 the form writes nothing, and changing the mesh or target while it is open requires
 validation again. Output stages in an owned sibling directory and publishes once; stale
-revisions, cancellation, and failure cannot leave a partial final folder.
+revisions, cancellation, and failure cannot leave a partial final folder or ZIP.
 
 **Install as Overlay** prepares the exact mount change, carry-forward files,
 ownership, and recovery targets for review before confirmation. The service

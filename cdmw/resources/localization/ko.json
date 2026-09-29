@@ -2655,6 +2655,7 @@
     "Create Part requires Faces selection mode.": "파트 생성을 위해서는 면 선택 모드가 필요합니다.",
     "Create Part requires selected faces and Free Edit output": "파트를 생성하려면 선택된 면과 Free Edit 출력이 필요합니다",
     "Create Workspace": "작업 공간 만들기",
+    "Create ZIP beside the mod folder": "모드 폴더 옆에 ZIP 파일 만들기",
     "Create a selection first, then drag with Patch to choose the repair source.": "먼저 선택 항목을 만든 다음 패치로 드래그하여 복구 소스를 선택하세요.",
     "Create a selection first, then use Copy To New Layer.": "먼저 선택 항목을 생성한 다음 새 레이어에 복사를 사용하세요.",
     "Create a selection first, then use Cut.": "먼저 선택 항목을 생성한 다음 잘라내기를 사용하세요.",

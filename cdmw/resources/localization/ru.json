@@ -2655,6 +2655,7 @@
     "Create Part requires Faces selection mode.": "Для создания части требуется режим выбора граней.",
     "Create Part requires selected faces and Free Edit output": "Для создания детали требуются выбранные грани и выходные данные свободного редактирования.",
     "Create Workspace": "Создать рабочую область",
+    "Create ZIP beside the mod folder": "Создать ZIP рядом с папкой мода",
     "Create a selection first, then drag with Patch to choose the repair source.": "Сначала создайте выделение, затем перетащите его с помощью Patch, чтобы выбрать источник восстановления.",
     "Create a selection first, then use Copy To New Layer.": "Сначала создайте выделение, затем используйте «Копировать на новый слой».",
     "Create a selection first, then use Cut.": "Сначала создайте выделение, затем используйте «Вырезать».",

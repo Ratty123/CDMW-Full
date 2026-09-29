@@ -2655,6 +2655,7 @@
     "Create Part requires Faces selection mode.": "创建部件需要使用“面”选择模式。",
     "Create Part requires selected faces and Free Edit output": "创建零件需要选中的面和自由编辑输出",
     "Create Workspace": "创建工作空间",
+    "Create ZIP beside the mod folder": "在模组文件夹旁创建 ZIP",
     "Create a selection first, then drag with Patch to choose the repair source.": "先创建一个选区，然后用 Patch 拖动以选择修复源。",
     "Create a selection first, then use Copy To New Layer.": "先创建选区，然后使用复制到新图层。",
     "Create a selection first, then use Cut.": "先创建选区，然后使用剪切。",

@@ -1,4 +1,4 @@
-"""Keep CDMW authoring records outside distributable DMM packages.
+"""Keep CDMW authoring records outside distributable mod packages.
 
 History is bound to the package's payload bytes, so renaming or copying a mod
 on this computer retains its history while edited payloads cannot reuse it.
@@ -18,7 +18,8 @@ from cdmw.domain.cancellation import raise_if_cancelled
 
 
 HISTORY_FILES = ("new-item.json", "cdmw-compatibility.json", "cdmw-baseline.zip")
-_PACKAGE_METADATA = {*HISTORY_FILES, "README.txt", "meta/0.papgt"}
+_AUTHORING_FILES = (*HISTORY_FILES, "mesh-editor-session.json")
+_PACKAGE_METADATA = {*_AUTHORING_FILES, "README.txt", "meta/0.papgt"}
 
 
 def _history_root() -> Path:
@@ -49,7 +50,7 @@ def _package_history_directory(root: Path, *, stop_event=None) -> Path | None:
 
 def mod_metadata_path(root: Path, name: str, *, stop_event=None) -> Path:
     """Prefer legacy inline records, otherwise find history for these exact bytes."""
-    if name not in HISTORY_FILES:
+    if name not in _AUTHORING_FILES:
         raise ValueError(f"Not a CDMW history file: {name}")
     inline = Path(root) / name
     if inline.exists() or inline.is_symlink() or not _history_root().is_dir():
@@ -58,10 +59,10 @@ def mod_metadata_path(root: Path, name: str, *, stop_event=None) -> Path:
     return directory / name if directory is not None and (directory / name).is_file() else inline
 
 
-def retain_dmm_history(root: Path, *, stop_event=None) -> tuple[str, ...]:
-    """Save records atomically before removing non-DMM files from a staged mod."""
+def retain_mod_history(root: Path, *, stop_event=None) -> tuple[str, ...]:
+    """Save authoring records before removing them and the manager-owned mount list."""
     root = Path(root).resolve()
-    sources = [root / name for name in HISTORY_FILES if (root / name).exists()]
+    sources = [root / name for name in _AUTHORING_FILES if (root / name).exists()]
     if sources:
         destination = _package_history_directory(root, stop_event=stop_event)
         if destination is None:
@@ -87,7 +88,7 @@ def retain_dmm_history(root: Path, *, stop_event=None) -> tuple[str, ...]:
                 shutil.rmtree(staging)
     raise_if_cancelled(stop_event, "Mod history save cancelled.")
     removed = []
-    for name in (*HISTORY_FILES, "meta/0.papgt"):
+    for name in (*_AUTHORING_FILES, "meta/0.papgt"):
         path = root / name
         if path.exists():
             if path.is_symlink() or not path.resolve().is_relative_to(root):
@@ -98,3 +99,8 @@ def retain_dmm_history(root: Path, *, stop_event=None) -> tuple[str, ...]:
     if meta.is_dir() and not any(meta.iterdir()):
         meta.rmdir()
     return tuple(removed)
+
+
+def retain_dmm_history(root: Path, *, stop_event=None) -> tuple[str, ...]:
+    """Compatibility entry point for the existing DMM export workflow."""
+    return retain_mod_history(root, stop_event=stop_event)

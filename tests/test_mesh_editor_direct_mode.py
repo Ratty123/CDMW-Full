@@ -18,6 +18,7 @@ from PySide6.QtCore import QEventLoop, QObject, QSettings, QThread, QTimer, Qt, 
 from PySide6.QtWidgets import QApplication, QMessageBox, QPushButton, QToolButton
 
 from cdmw.domain.mesh import MeshEditSelection, MeshExportValidationReport, MeshObjectTransformState
+from cdmw.core.mod_export_history import mod_metadata_path
 from cdmw.domain.mesh.authoring_capability import MeshOutputPolicy
 from cdmw.modding.mesh_deformer import clone_mesh_for_editing
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
@@ -2048,6 +2049,7 @@ def test_loose_output_captures_after_pending_work_and_never_writes_source_archiv
             assert expected_mesh_revision is None
             assert not stop_event.is_set()
             return SimpleNamespace(
+                hair_state=None,
                 texture_resources=(),
                 material_generation=0,
                 mesh_asset_source_hash="a" * 64,
@@ -2074,20 +2076,15 @@ def test_loose_output_captures_after_pending_work_and_never_writes_source_archiv
 
     assert len(completed) == 1
     assert (output_root / entry.path).read_bytes() == b"rebuilt mesh"
-    metadata = (output_root / "mesh-editor-session.json").read_text(encoding="utf-8")
+    metadata = mod_metadata_path(output_root, "mesh-editor-session.json").read_text(encoding="utf-8")
     assert '"materials": "inherited_unchanged"' in metadata
     assert '"textures": "inherited_unchanged"' in metadata
     assert '"manager_profile": "dmm"' in metadata
     assert sorted(path.relative_to(output_root).as_posix() for path in output_root.rglob("*") if path.is_file()) == [
-        "README.txt",
-        "cdmw-baseline.zip",
-        "cdmw-compatibility.json",
         "character/model/test.pac",
         "manifest.json",
-        "mesh-editor-session.json",
-        "modinfo.json",
     ]
-    compatibility = json.loads((output_root / "cdmw-compatibility.json").read_text(encoding="utf-8"))
+    compatibility = json.loads(mod_metadata_path(output_root, "cdmw-compatibility.json").read_text(encoding="utf-8"))
     baseline_hash = hashlib.sha256(source_payload).hexdigest()
     assert compatibility["format"] == "cdmw_mod_compatibility_v1"
     assert compatibility["files"] == [{
@@ -2097,7 +2094,7 @@ def test_loose_output_captures_after_pending_work_and_never_writes_source_archiv
         "baseline_sha256": baseline_hash,
     }]
     assert compatibility["baseline_archive"] == "cdmw-baseline.zip"
-    baseline_archive = output_root / "cdmw-baseline.zip"
+    baseline_archive = mod_metadata_path(output_root, "cdmw-baseline.zip")
     assert compatibility["baseline_archive_sha256"] == hashlib.sha256(baseline_archive.read_bytes()).hexdigest()
     with zipfile.ZipFile(baseline_archive) as archive:
         assert archive.namelist() == [baseline_hash]
@@ -2108,9 +2105,9 @@ def test_loose_output_captures_after_pending_work_and_never_writes_source_archiv
 @pytest.mark.parametrize(
     ("manager_profile", "payload_path", "metadata_names"),
     (
-        ("dmm", "character/model/test.pac", {"manifest.json", "modinfo.json"}),
+        ("dmm", "character/model/test.pac", {"manifest.json"}),
         ("jmm", "character/model/test.pac", {"mod.json"}),
-        ("cdumm", "files/character/model/test.pac", {"manifest.json", "modinfo.json", ".no_encrypt"}),
+        ("cdumm", "files/character/model/test.pac", {"modinfo.json"}),
         ("crimson_sharp", "files/character/model/test.pac", {"manifest.json", "mod.json", ".no_encrypt"}),
     ),
 )
@@ -2143,6 +2140,7 @@ def test_loose_mesh_output_uses_manager_layout_and_metadata_without_touching_sou
             assert not stop_event.is_set()
             assert expected_mesh_revision == 18
             return SimpleNamespace(
+                hair_state=None,
                 texture_resources=(),
                 material_generation=0,
                 mesh_asset_source_hash="a" * 64,
@@ -2171,9 +2169,9 @@ def test_loose_mesh_output_uses_manager_layout_and_metadata_without_touching_sou
     assert len(completed) == 1
     assert completed[0].manager_profile == manager_profile
     assert (output_root / payload_path).read_bytes() == b"rebuilt mesh"
-    assert (output_root / "README.txt").is_file()
-    for name in metadata_names:
-        assert (output_root / name).is_file()
+    assert {p.relative_to(output_root).as_posix() for p in output_root.rglob("*") if p.is_file()} == {
+        payload_path, *metadata_names,
+    }
     if (output_root / "manifest.json").is_file():
         manifest = json.loads((output_root / "manifest.json").read_text(encoding="utf-8"))
         assert manifest["kind"] == "mesh_loose_mod"
@@ -2183,10 +2181,8 @@ def test_loose_mesh_output_uses_manager_layout_and_metadata_without_touching_sou
         mod_json = json.loads((output_root / "mod.json").read_text(encoding="utf-8"))
         assert mod_json["target"] == entry.path
         assert mod_json["files"] == [entry.path]
-    session = json.loads((output_root / "mesh-editor-session.json").read_text(encoding="utf-8"))
+    session = json.loads(mod_metadata_path(output_root, "mesh-editor-session.json").read_text(encoding="utf-8"))
     assert session["manager_profile"] == manager_profile
-    readme_words = " ".join((output_root / "README.txt").read_text(encoding="utf-8").split())
-    assert "created in the Crimson Desert Mod Workbench Mesh Editor" in readme_words
     assert (pamt.read_bytes(), paz.read_bytes()) == before
 
 
@@ -2267,10 +2263,10 @@ def test_loose_mesh_output_rejects_destination_claimed_during_staging(tmp_path: 
 
     output_root = tmp_path / "claimed-loose-mesh-mod"
     competitor_marker = output_root / "competitor.txt"
-    write_readme = worker_module.write_mod_package_readme
+    write_metadata = worker_module.write_mesh_loose_mod_package_metadata
 
     def claim_destination_after_staging(*args, **kwargs):
-        result = write_readme(*args, **kwargs)
+        result = write_metadata(*args, **kwargs)
         output_root.mkdir()
         competitor_marker.write_bytes(b"competitor owns this destination")
         return result
@@ -2292,14 +2288,14 @@ def test_loose_mesh_output_rejects_destination_claimed_during_staging(tmp_path: 
 
     with patch.object(
         worker_module,
-        "write_mod_package_readme",
+        "write_mesh_loose_mod_package_metadata",
         side_effect=claim_destination_after_staging,
     ):
         worker.run()
 
     assert not completed
     assert len(errors) == 1
-    assert "Mesh mod output already exists" in errors[0]
+    assert "already exists" in errors[0]
     assert competitor_marker.read_bytes() == b"competitor owns this destination"
     assert sorted(path.name for path in output_root.iterdir()) == ["competitor.txt"]
     assert not list(output_root.parent.glob(f".{output_root.name}.staging-*"))
@@ -2417,6 +2413,7 @@ def test_dmm_output_publishes_one_complete_staged_directory(tmp_path: Path) -> N
             assert not stop_event.is_set()
             assert expected_mesh_revision == 12
             return SimpleNamespace(
+                hair_state=None,
                 texture_resources=(),
                 material_generation=0,
                 mesh_asset_source_hash="a" * 64,
@@ -2468,15 +2465,16 @@ def test_dmm_output_publishes_one_complete_staged_directory(tmp_path: Path) -> N
     assert completed[0].output_path == output_root
     assert (output_root / "0036" / "0.pamt").read_bytes() == b"rebuilt index"
     assert (output_root / "0036" / "0.paz").read_bytes() == b"rebuilt payload"
-    assert (output_root / "mesh-editor-session.json").is_file()
+    assert mod_metadata_path(output_root, "mesh-editor-session.json").is_file()
+    assert not (output_root / "mesh-editor-session.json").exists()
     manifest = json.loads((output_root / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["kind"] == "archive_override_mod"
     assert manifest["structure"] == "archive_group"
     assert manifest["archive_group"] == "0036"
     assert manifest["manager_targets"] == ["dmm"]
     assert manifest["overrides"] == [entry.path]
-    assert (output_root / "modinfo.json").is_file()
-    assert (output_root / "README.txt").is_file()
+    assert not (output_root / "modinfo.json").exists()
+    assert not (output_root / "README.txt").exists()
     assert not list(output_root.parent.glob(f".{output_root.name}.staging-*"))
     assert (pamt.read_bytes(), paz.read_bytes()) == before
 

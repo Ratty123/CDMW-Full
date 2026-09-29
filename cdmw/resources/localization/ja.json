@@ -2655,6 +2655,7 @@
     "Create Part requires Faces selection mode.": "パーツの作成には、面選択モードが必要です。",
     "Create Part requires selected faces and Free Edit output": "パーツの作成には選択された面とフリーエディット出力が必要です",
     "Create Workspace": "ワークスペースの作成",
+    "Create ZIP beside the mod folder": "Modフォルダーと同じ場所にZIPを作成",
     "Create a selection first, then drag with Patch to choose the repair source.": "最初に選択範囲を作成し、次にパッチでドラッグして修復ソースを選択します。",
     "Create a selection first, then use Copy To New Layer.": "最初に選択範囲を作成し、次に新しいレイヤーにコピーを使用します。",
     "Create a selection first, then use Cut.": "最初に選択範囲を作成し、次にカットを使用します。",

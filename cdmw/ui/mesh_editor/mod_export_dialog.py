@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -72,6 +73,10 @@ class MeshModExportDialog(QDialog):
         form.addRow("Author", self.author)
         form.addRow("Description", self.description)
         layout.addLayout(form)
+        self.create_zip = QCheckBox("Create ZIP beside the mod folder", self)
+        self.open_folder = QCheckBox("Open folder after creation", self)
+        layout.addWidget(self.create_zip)
+        layout.addWidget(self.open_folder)
         self.destination = QLabel(self)
         self.destination.setWordWrap(True)
         layout.addWidget(self.destination)
