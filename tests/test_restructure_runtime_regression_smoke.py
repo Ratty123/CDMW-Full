@@ -89,7 +89,7 @@ class RestructureRuntimeRegressionSmokeTests(unittest.TestCase):
         )
         expected_tools = {
             "archive_browser", "model_library", "item_icons", "new_item_studio",
-            "mesh_editor", "placement_studio", "textures", "mod_package_retrofit",
+            "mesh_editor", "placement_studio", "textures", "mod_management", "mod_package_retrofit",
             "format_explorer", "translation_studio", "research", "text_search", "settings",
         }
         self.assertEqual(expected_tools, set(self.window.tab_registry.widgets))

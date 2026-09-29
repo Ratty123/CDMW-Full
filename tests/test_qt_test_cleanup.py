@@ -28,6 +28,8 @@ def test_pytest_drains_deferred_deletes_and_shuts_down_qt_before_python(tmp_path
             sys.executable,
             "-X", "faulthandler",
             "-c",
+            # The copied suite fixtures import CDMW from this checkout.
+            f"import sys; sys.path.insert(0, {str(Path(__file__).resolve().parents[1])!r}); "
             "import pytest; "
             "status = pytest.main(['-q', '-p', 'no:cacheprovider', 'test_session.py']); "
             "from PySide6.QtWidgets import QApplication; "
