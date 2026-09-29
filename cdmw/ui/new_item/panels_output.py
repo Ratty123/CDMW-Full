@@ -5,8 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import QElapsedTimer, QEvent, QTimer, Qt, Signal
-from PySide6.QtGui import QIntValidator
+from PySide6.QtCore import QElapsedTimer, QEvent, QSettings, QTimer, Qt, QUrl, Signal
+from PySide6.QtGui import QDesktopServices, QIntValidator
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -31,14 +31,18 @@ from PySide6.QtWidgets import (
 )
 
 from cdmw.services.new_item_planning import NewItemPlan
+from cdmw.domain.packages.layout import sanitize_mod_package_folder_name
+from cdmw.services.settings_service import resolve_settings_file_path
 from cdmw.services.archive_overlay_install import OVERLAY_DIRECTORY_FIRST, OverlayInstallResult
 from cdmw.ui.new_item.controller import NewItemStudioController
 from cdmw.ui.new_item.state import MANAGERS
 from cdmw.ui.new_item.review_model import FileChangeModel, ReviewTextWriter
 from cdmw.ui.new_item.ui_kit import BLOCK, EDIT, OK, WARN, DetailsToggle, NoteLabel
+from cdmw.ui.widgets import request_settings_sync
 
 # Both review tabs scroll locally inside the remaining workspace height.
 _COMPACT_SUMMARY_HEIGHT = 120
+_OPEN_FOLDER_SETTING = "ui/new_item_open_folder_after_creation"
 
 CHECKLIST = (
     "In game: the item shows in the shop you chose (or in the inventory when given by other means).",
@@ -163,9 +167,12 @@ class OutputPanel(QGroupBox):
         content.addWidget(self.review_tabs, 1)
 
 
-    def __init__(self, controller: NewItemStudioController, parent=None) -> None:
+    def __init__(self, controller: NewItemStudioController, parent=None, *, settings=None) -> None:
         super().__init__("7. Output", parent)
         self._controller = controller
+        self._settings = settings if settings is not None else QSettings(
+            str(resolve_settings_file_path()), QSettings.Format.IniFormat)
+        self._open_export_folder = False
         self._review_lookup = controller.create_lookup_lane()
         self._review_lookup.completed.connect(self._review_ready)
         self._review_lookup.failed.connect(self._review_failed)
@@ -249,19 +256,32 @@ class OutputPanel(QGroupBox):
         export.addWidget(QLabel("Mod name"))
         self.mod_name = QLineEdit(controller.draft.mod_name)
         self.mod_name.setPlaceholderText(controller.draft.display_names.get("eng", "") or self.tr("Mod name"))
-        self.mod_name.setToolTip("Mod name, as the mod manager will list it.")
+        self.mod_name.setToolTip("The name of the new mod folder and the title shown in the mod manager. Leave blank to use the item's name.")
         self.mod_name.textChanged.connect(lambda text: setattr(self._controller.draft, "mod_name", str(text)))
         export.addWidget(self.mod_name)
-        export.addWidget(QLabel("Output folder"))
+        self.export_root_label = QLabel("Output folder")
+        export.addWidget(self.export_root_label)
         self.export_root = QLineEdit()
-        self.export_root.setPlaceholderText("Folder the mod is written into")
+        self.export_root.setPlaceholderText("Choose where to create the mod folder")
         self.export_root.textChanged.connect(lambda text: setattr(self._controller.draft, "export_root", str(text)))
         export.addWidget(self.export_root)
         self.browse_button = QPushButton("Browse...")
         self.browse_button.clicked.connect(self._pick_root)
         export.addWidget(self.browse_button)
+        self.destination_note = QLabel("")
+        self.destination_note.setWordWrap(True)
+        export.addWidget(self.destination_note)
+        self.create_zip = QCheckBox("Also create a ZIP file")
+        self.create_zip.setToolTip("Save a ZIP copy beside the mod folder, ready to share.")
+        export.addWidget(self.create_zip)
+        self.open_folder_after_creation = QCheckBox("Open folder after creation")
+        self.open_folder_after_creation.setToolTip("Open the finished mod folder. CDMW remembers this choice until you change it.")
+        stored = self._settings.value(_OPEN_FOLDER_SETTING, True)
+        self.open_folder_after_creation.setChecked(str(stored).lower() in {"true", "1", "yes", "on"})
+        self.open_folder_after_creation.toggled.connect(self._remember_open_folder)
+        export.addWidget(self.open_folder_after_creation)
         self.export_button = QPushButton("Write mod folder")
-        self.export_button.setToolTip("Write the plan as a loose mod folder for the manager chosen on the left; the game is not touched.")
+        self.export_button.setToolTip("Create the mod folder shown above, with an optional ZIP copy.")
         self.export_button.clicked.connect(self._export)
         self.export_button.setProperty("newItemPrimary", True)
         write_layout.addWidget(self.folder_controls)
@@ -270,12 +290,9 @@ class OutputPanel(QGroupBox):
         # on the folder's own tables instead, the next item joins the ones already there.
         self.add_to_mod = QCheckBox("Add to existing mod")
         self.add_to_mod.setToolTip(
-            "A mod folder carries whole tables, so a second mod replaces the first one's rather than adding to it, and only "
-            "one of the items survives. On, the next item is planned on the tables in this folder, so the folder ends up "
-            "holding both. Off, it is planned on the game's own tables and the folder is overwritten."
+            "Select an existing mod folder to add this item while keeping its current items. "
+            "Leave unticked to create a separate mod in a new folder."
         )
-        self.add_to_mod.setChecked(True)
-        self.add_to_mod.setVisible(False)
         self.add_to_mod.toggled.connect(lambda _checked: self._mod_base_changed())
         write_layout.addWidget(self.add_to_mod)
         self.mod_base_note = QLabel("")
@@ -283,6 +300,7 @@ class OutputPanel(QGroupBox):
         self.mod_base_note.setVisible(False)
         write_layout.addWidget(self.mod_base_note)
         self.export_root.textChanged.connect(lambda _text: self._mod_base_changed())
+        self.mod_name.textChanged.connect(lambda _text: self._update_destination())
         self.overlay_controls = QWidget()
         install = QVBoxLayout(self.overlay_controls)
         install.setContentsMargins(0, 0, 0, 0)
@@ -402,39 +420,55 @@ class OutputPanel(QGroupBox):
             return
 
     def _mod_base_changed(self) -> None:
-        """Follow the folder box: say what is already there, and plan on it when asked."""
-
-        text = self.export_root.text().strip()
-        folder = Path(text) if self.output_mode.currentData() == "folder" and text and Path(text).is_dir() else None
-        self.add_to_mod.setVisible(folder is not None)
-        self.mod_base_note.setVisible(folder is not None)
+        """Only use the selected folder as a base when the user asks to extend it."""
+        folder_mode = self.output_mode.currentData() == "folder"
+        self.add_to_mod.setVisible(folder_mode)
+        self.mod_base_note.setVisible(folder_mode)
         self._controller.invalidate_plan()
-        if folder is None:
-            self.mod_base_note.setText("")
-            self._controller.set_mod_base(None)
-            return
-        found = folder.name
-        if self.add_to_mod.isChecked():
-            self.mod_base_note.setText(f"{found} The next item is planned on its tables, so the folder will hold both.")
-            self._controller.set_mod_base(folder)
+        self._controller.set_mod_base(self._package_root() if folder_mode and self.add_to_mod.isChecked() else None)
+        self._update_destination()
+
+    def _package_root(self) -> Optional[Path]:
+        text = self.export_root.text().strip()
+        if not text:
+            return None
+        parent = Path(text).expanduser()
+        return parent if self.add_to_mod.isChecked() else parent / sanitize_mod_package_folder_name(self._controller.export_title)
+
+    def _update_destination(self) -> None:
+        adding = self.add_to_mod.isChecked()
+        self.export_root_label.setText(self.tr("Existing mod folder") if adding else self.tr("Output folder"))
+        if adding:
+            self.mod_base_note.setText("Adds this item to the selected mod folder and keeps its existing items. Select the mod folder itself, then rebuild the plan.")
         else:
-            self.mod_base_note.setText(f"{found} Writing here will replace it, and only the new item will be in the tables.")
-            self._controller.set_mod_base(None)
+            self.mod_base_note.setText("Creates a new folder named after your mod inside the output folder. To add this item to a mod you already made, tick Add to existing mod.")
+        root = self._package_root()
+        self.destination_note.setText(f"Mod folder: {root}" if root is not None else "")
+
+    def _remember_open_folder(self, checked: bool) -> None:
+        self._settings.setValue(_OPEN_FOLDER_SETTING, checked)
+        request_settings_sync(self._settings)
 
     def _pick_root(self) -> None:
-        path = QFileDialog.getExistingDirectory(self, "Choose the loose mod output folder", self.export_root.text() or "")
+        title = self.tr("Choose the existing mod folder") if self.add_to_mod.isChecked() else self.tr("Choose where to create the mod folder")
+        path = QFileDialog.getExistingDirectory(self, title, self.export_root.text() or "")
         if path:
             self.export_root.setText(path)
 
     def _export(self) -> None:
-        root = self.export_root.text().strip()
-        if not root:
-            QMessageBox.information(self, "Write loose mod", "Choose the folder the package is written into.")
+        root = self._package_root()
+        if root is None:
+            QMessageBox.information(self, "Write loose mod", "Choose an output folder first.")
+            return
+        if self.add_to_mod.isChecked() and not root.is_dir():
+            QMessageBox.information(self, "Write loose mod", "Choose the existing mod folder you want to add this item to.")
             return
         if self._controller.plan is None:
             QMessageBox.information(self, "Write loose mod", "Build the plan first.")
             return
-        self._controller.start_export(Path(root), self.manager.currentText())
+        self._open_export_folder = self.open_folder_after_creation.isChecked()
+        self._controller.start_export(root, self.manager.currentText(), create_zip=self.create_zip.isChecked(),
+                                      replace_existing=self.add_to_mod.isChecked())
 
     # ------------------------------------------------------------------ results
 
@@ -448,6 +482,7 @@ class OutputPanel(QGroupBox):
 
     def _show_plan(self, plan: Optional[NewItemPlan] = None) -> None:
         self.mod_name.setPlaceholderText(self._controller.draft.display_names.get("eng", "") or self.tr("Mod name"))
+        self._update_destination()
         self._install_error = ""
         if not self._controller.busy:
             self.busy_state.set_note("", None)
@@ -506,7 +541,15 @@ class OutputPanel(QGroupBox):
         count = len(getattr(result, "payload_paths", ()) or ())
         new = len(getattr(result, "new_paths", ()) or ())
         self.append_log(f"Loose mod written to {root}: {count} file(s), {new} new.")
-        QMessageBox.information(self, "Write loose mod", f"Written to {root}\n\n{count} file(s), {new} of them new.")
+        message = f"Written to {root}\n\n{count} file(s), {new} of them new."
+        zip_path = getattr(result, "zip_path", None)
+        if zip_path is not None:
+            message += f"\n\nZIP: {zip_path}"
+            self.append_log(f"ZIP written to {zip_path}")
+        if self._open_export_folder and root:
+            if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(root))):
+                self.append_log(f"The mod was created, but its folder could not be opened: {root}")
+        QMessageBox.information(self, "Write loose mod", message)
 
     def _install_finished(self, result: object) -> None:
         self._install_error = ""

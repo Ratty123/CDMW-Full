@@ -65,6 +65,7 @@ class NewItemExportResult:
     payload_paths: Tuple[str, ...]
     new_paths: Tuple[str, ...]
     metadata_files: Tuple[str, ...]
+    zip_path: Optional[Path] = None
 
 
 def game_is_running(image_name: str = GAME_EXECUTABLE) -> bool:
@@ -339,6 +340,8 @@ class NewItemService:
         manager: str = "CDUMM",
         package_info: Optional[ModPackageInfo] = None,
         options: Optional[ModPackageExportOptions] = None,
+        create_zip: bool = False,
+        replace_existing: bool = True,
         created_utc: Optional[str] = None,
         stop_event: Optional[threading.Event] = None,
     ) -> NewItemExportResult:
@@ -420,6 +423,7 @@ class NewItemService:
 
         return _publish_package_atomically(
             root, write, stop_event=stop_event,
+            create_zip=create_zip, replace_existing=replace_existing,
             before_publish=(lambda: plan.source_revision.validate(stop_event)) if plan.source_revision is not None else None,
         )
 
@@ -580,10 +584,12 @@ def _publish_package_atomically(
     *,
     stop_event: Optional[threading.Event] = None,
     before_publish: Optional[Callable[[], None]] = None,
+    create_zip: bool = False,
+    replace_existing: bool = True,
 ) -> NewItemExportResult:
     """Build beside the destination, then publish with a rollback rename."""
 
-    from cdmw.core.atomic_file import atomic_publish_directory
+    from cdmw.core.atomic_file import atomic_publish_directory, atomic_publish_paths
 
     root = Path(package_root).expanduser().resolve()
     parent = root.parent
@@ -591,9 +597,17 @@ def _publish_package_atomically(
         raise ValueError(f"Loose root does not exist or is not a folder: {root}")
     if root.exists() and not root.is_dir():
         raise ValueError(f"Loose root does not exist or is not a folder: {root}")
+    zip_path = root.with_name(f"{root.name}.zip") if create_zip else None
+
+    def check_destination() -> None:
+        if not replace_existing and (root.exists() or (zip_path is not None and zip_path.exists())):
+            raise FileExistsError(f"A mod folder or ZIP already exists for {root.name}. Choose another mod name or add to the existing mod.")
+
+    check_destination()
     parent.mkdir(parents=True, exist_ok=True)
     raise_if_cancelled(stop_event, "New item export cancelled.")
     staging = Path(tempfile.mkdtemp(prefix=f".{root.name}.cdmw-stage-", dir=parent))
+    staged_zip = staging.with_name(f"{staging.name}.zip") if create_zip else None
     try:
         if root.is_dir():
             shutil.copytree(root, staging, dirs_exist_ok=True)
@@ -607,13 +621,24 @@ def _publish_package_atomically(
             result = replace(result, metadata_files=tuple(
                 name for name in result.metadata_files if name not in removed))
             raise_if_cancelled(stop_event, "New item export cancelled.")
+        if staged_zip is not None:
+            from cdmw.core.mod_package import _write_package_zip
+
+            _write_package_zip(staging, zip_path=staged_zip, stop_event=stop_event)
         if before_publish is not None:
             before_publish()
-        atomic_publish_directory(staging, root)
-        return replace(result, package_root=root)
+        raise_if_cancelled(stop_event, "New item export cancelled.")
+        check_destination()
+        if staged_zip is not None:
+            atomic_publish_paths(((staging, root), (staged_zip, zip_path)))
+        else:
+            atomic_publish_directory(staging, root, replace_existing=replace_existing)
+        return replace(result, package_root=root, zip_path=zip_path)
     finally:
         if staging.exists():
             shutil.rmtree(staging, ignore_errors=True)
+        if staged_zip is not None:
+            staged_zip.unlink(missing_ok=True)
 
 
 def _existing_archive_group(root: Path) -> str:

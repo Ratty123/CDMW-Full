@@ -491,11 +491,12 @@ _OPTIONAL_AUTHORITY_REPORT_FILENAMES = {
 def _write_package_zip(
     root: Path,
     *,
+    zip_path: Path | None = None,
     include_material_authority_reports: bool = False,
     stop_event: threading.Event | None = None,
 ) -> Path:
     raise_if_cancelled(stop_event, "Mod package ZIP creation cancelled.")
-    zip_path = root.with_suffix(".zip")
+    zip_path = Path(zip_path) if zip_path is not None else root.with_suffix(".zip")
     if zip_path.exists():
         zip_path.unlink()
     paths: list[Path] = []

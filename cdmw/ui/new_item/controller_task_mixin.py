@@ -289,7 +289,13 @@ class NewItemTaskControllerMixin:
 
         return self._run("plan", run, done, failed, task_accepts_progress=True, source_owners=source_owners)
 
-    def start_export(self, package_root: Path, manager: str) -> bool:
+    @property
+    def export_title(self) -> str:
+        return (self.draft.mod_name.strip() or self.draft.display_names.get("eng", "").strip()
+                or f"New item {self.draft.internal_name}")
+
+    def start_export(self, package_root: Path, manager: str, *, create_zip: bool = False,
+                     replace_existing: bool = True) -> bool:
         if manager not in MANAGERS:
             self.status_message.emit("Choose DMM for new item exports.", True)
             return False
@@ -298,10 +304,11 @@ class NewItemTaskControllerMixin:
             return False
         spec = self.plan.spec
         package_info = ModPackageInfo(
-            title=self.draft.mod_name.strip() or spec.display_names.get("eng", "").strip() or f"New item {spec.internal_name}",
+            title=self.export_title,
             description=f"Adds {spec.internal_name} (item {spec.item_key}) cloned from item {spec.template_key}.",
         )
-        task = export_task(self.plan, Path(package_root), service=self.service, manager=manager, package_info=package_info)
+        task = export_task(self.plan, Path(package_root), service=self.service, manager=manager,
+                           package_info=package_info, create_zip=create_zip, replace_existing=replace_existing)
         return self._run("export", task, self.export_finished.emit, lambda message: self.status_message.emit(message, True))
 
     def start_install(self, mutation_service) -> bool:

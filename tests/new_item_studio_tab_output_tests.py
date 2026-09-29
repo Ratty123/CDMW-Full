@@ -215,7 +215,11 @@ class _TabOutputMixin:
         tab.output_panel.build_button.click()
         with patch("cdmw.ui.new_item.panels_output.QMessageBox.information", return_value=None):
             tab.output_panel.export_button.click()
-        self.assertTrue((out / "files" / "gamedata" / "binary__" / "client" / "bin" / "iteminfo.pabgb").is_file())
+        from cdmw.services.new_item_mod_base import mod_folder_payloads
+        from cdmw.domain.packages.layout import sanitize_mod_package_folder_name
+
+        written = out / sanitize_mod_package_folder_name(tab.controller.export_title)
+        self.assertIn("gamedata/binary__/client/bin/iteminfo.pabgb", mod_folder_payloads(written))
         # a stat cell that is not a number falls back to the grid
         stats.table.item(0, 0).setText("abc")
         self.assertEqual(stats.table.item(0, 0).text(), "20000")
@@ -246,10 +250,11 @@ class _TabOutputMixin:
         initial_plan = tab.controller.plan
         self.assertIsNotNone(initial_plan, output.summary.toPlainText())
         output.manager.setCurrentText("DMM")
-        self.assertIsNone(tab.controller.plan, "a changed output layout requires a fresh plan")
+        self.assertIs(tab.controller.plan, initial_plan, "DMM is already selected")
 
         folder = self.root / "dmm_mod"
         folder.mkdir()
+        output.mod_name.setText("heahea")
         with patch("cdmw.ui.new_item.panels_output.QFileDialog.getExistingDirectory", return_value=str(folder)):
             output.browse_button.click()
         self.assertIs(tab.controller.snapshot, snapshot, "choosing a destination keeps the loaded archives")
@@ -258,6 +263,7 @@ class _TabOutputMixin:
         self.assertIsNotNone(first, output.summary.toPlainText())
         with patch("cdmw.ui.new_item.panels_output.QMessageBox.information", return_value=None):
             output.export_button.click()
+        folder = folder / "heahea"
         from cdmw.core.mod_export_history import mod_metadata_path
 
         self.assertFalse((folder / "new-item.json").exists())
@@ -265,6 +271,9 @@ class _TabOutputMixin:
 
         tab.identity_panel.internal_name.setText("Second_Clone_OneHandSword")
         tab.identity_panel.display_name.setText("Second")
+        output.add_to_mod.setChecked(True)
+        with patch("cdmw.ui.new_item.panels_output.QFileDialog.getExistingDirectory", return_value=str(folder)):
+            output.browse_button.click()
         output.build_button.click()
         second = tab.controller.plan
         self.assertIsNotNone(second, output.summary.toPlainText())

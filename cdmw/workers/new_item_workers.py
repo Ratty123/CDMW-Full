@@ -245,11 +245,14 @@ def export_task(
     manager: str = "CDUMM",
     package_info: Optional[ModPackageInfo] = None,
     options: Optional[ModPackageExportOptions] = None,
+    create_zip: bool = False,
+    replace_existing: bool = True,
 ) -> Callable[[LogSink, threading.Event], NewItemExportResult]:
     def run(log: LogSink, stop_event: threading.Event) -> NewItemExportResult:
         log(f"Writing {plan.spec.internal_name} as a {manager} loose mod under {package_root}...")
         result = service.export_loose(
-            plan, Path(package_root), manager=manager, package_info=package_info, options=options, stop_event=stop_event
+            plan, Path(package_root), manager=manager, package_info=package_info, options=options,
+            create_zip=create_zip, replace_existing=replace_existing, stop_event=stop_event,
         )
         log(f"Wrote {len(result.payload_paths)} file(s), {len(result.new_paths)} of them new.")
         return result

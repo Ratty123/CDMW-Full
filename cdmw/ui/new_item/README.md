@@ -1250,12 +1250,26 @@ has been tested, and some exports may fail to load or work correctly. After
 mounting, check the item in game. Successful package generation or mounting is
 not a guarantee of gameplay compatibility.
 
+For a new mod, **Output folder** is the parent folder. With mod name `heahea`
+and output `Desktop/mods`, **Write mod folder** creates `Desktop/mods/heahea`.
+Leaving **Mod name** blank uses the item's English display name; characters that
+cannot be used in a folder name are replaced. The destination is shown before writing.
+**Also create a ZIP file** writes `heahea.zip` beside the completed mod folder.
+The folder and optional ZIP are prepared in the background and published together;
+cancellation or a failed write preserves the previous output. A new export refuses
+an existing destination instead of replacing it.
+**Open folder after creation** starts checked and opens the completed mod folder.
+The choice is saved in CDMW's CFG (`ui/new_item_open_folder_after_creation`)
+and stays as selected across exports, new items and restarts until changed manually.
+
 UI code here never touches the archives: reading is the service's snapshot,
 installation is `ArchiveMutationService` through the service's `install_overlay`, and the
 loose export is built in a sibling staging directory and published only when
 complete. DMM archive groups are readable as mod bases, so repeated exports
-carry earlier items forward. Select the same mod folder with **Add to the mod already in this folder**
-enabled, then rebuild the plan for each additional item. Choosing that folder
+carry earlier items forward. Tick **Add to existing mod**, select the mod folder
+itself (for example `Desktop/mods/heahea`), then rebuild the plan for each additional
+item. This keeps its existing items and adds the new one to the same mod. Leaving
+the option unticked creates a separate named folder. Choosing the existing folder
 invalidates the previous plan and reuses the loaded archive reader when rebuilding.
 Separate New Item mod folders can replace the same shared tables, so enabling both
 in DMM can hide items from the earlier mod even when their item keys differ.

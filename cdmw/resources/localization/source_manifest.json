@@ -77,6 +77,16 @@
       ]
     },
     {
+      "key": "\n\nZIP: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 552,
+          "sink": "information"
+        }
+      ]
+    },
+    {
       "key": "\nEmbedded face",
       "origins": [
         {
@@ -3652,16 +3662,6 @@
       ]
     },
     {
-      "key": "A mod folder carries whole tables, so a second mod replaces the first one's rather than adding to it, and only one of the items survives. On, the next item is planned on the tables in this folder, so the folder ends up holding both. Off, it is planned on the game's own tables and the folder is overwritten.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 272,
-          "sink": "setToolTip"
-        }
-      ]
-    },
-    {
       "key": "A model library task is already running.",
       "origins": [
         {
@@ -5802,6 +5802,16 @@
       ]
     },
     {
+      "key": "Adds this item to the selected mod folder and keeps its existing items. Select the mod folder itself, then rebuild the plan.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 442,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Adjust Bone Weight",
       "origins": [
         {
@@ -7408,6 +7418,16 @@
           "path": "cdmw/ui/archive_browser/prefab_inspector_review.py",
           "line": 66,
           "sink": "setHeaderLabels"
+        }
+      ]
+    },
+    {
+      "key": "Also create a ZIP file",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 274,
+          "sink": "QCheckBox"
         }
       ]
     },
@@ -23947,6 +23967,16 @@
       ]
     },
     {
+      "key": "Choose an output folder first.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 461,
+          "sink": "information"
+        }
+      ]
+    },
+    {
       "key": "Choose an output folder separate from the game and all selected mods.",
       "origins": [
         {
@@ -24482,11 +24512,21 @@
       "manual": true
     },
     {
-      "key": "Choose the folder the package is written into.",
+      "key": "Choose the existing mod folder",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 432,
+          "line": 453,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Choose the existing mod folder you want to add this item to.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 464,
           "sink": "information"
         }
       ]
@@ -24518,16 +24558,6 @@
           "path": "cdmw/ui/new_item/panels_placement.py",
           "line": 108,
           "sink": "QCheckBox"
-        }
-      ]
-    },
-    {
-      "key": "Choose the loose mod output folder",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 425,
-          "sink": "getExistingDirectory"
         }
       ]
     },
@@ -24653,6 +24683,21 @@
           "path": "cdmw/ui/archive_browser/mesh_swap_scope_dialog.py",
           "line": 187,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Choose where to create the mod folder",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 265,
+          "sink": "setPlaceholderText"
+        },
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 453,
+          "sink": "tr"
         }
       ]
     },
@@ -30582,6 +30627,16 @@
       ]
     },
     {
+      "key": "Create the mod folder shown above, with an optional ZIP copy.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 284,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Created folder: {value_0}",
       "origins": [
         {
@@ -30628,6 +30683,16 @@
           "path": "tools/placement_studio/window_editing.py",
           "line": 336,
           "sink": "showMessage"
+        }
+      ]
+    },
+    {
+      "key": "Creates a new folder named after your mod inside the output folder. To add this item to a mod you already made, tick Add to existing mod.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 444,
+          "sink": "setText"
         }
       ]
     },
@@ -40162,6 +40227,16 @@
       ]
     },
     {
+      "key": "Existing mod folder",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 440,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Existing modded target model, textures, icon, prefab, and physics are kept.",
       "origins": [
         {
@@ -46365,16 +46440,6 @@
       "key": "Folder structure",
       "origins": [],
       "manual": true
-    },
-    {
-      "key": "Folder the mod is written into",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 257,
-          "sink": "setPlaceholderText"
-        }
-      ]
     },
     {
       "key": "Folder where extracted archive files should be written",
@@ -68587,6 +68652,16 @@
       ]
     },
     {
+      "key": "Mod folder: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 446,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Mod manager",
       "origins": [
         {
@@ -68659,11 +68734,6 @@
     {
       "key": "Mod name, as the mod manager will list it.",
       "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 252,
-          "sink": "setToolTip"
-        },
         {
           "path": "tools/placement_studio/window_constraints.py",
           "line": 275,
@@ -72221,37 +72291,42 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 381,
+          "line": 384,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 457,
+          "line": 461,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 595,
+          "line": 608,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 600,
+          "line": 614,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 602,
+          "line": 616,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 609,
+          "line": 623,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 667,
+          "line": 630,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/new_item_service.py",
+          "line": 692,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -79247,6 +79322,16 @@
       ]
     },
     {
+      "key": "Open folder after creation",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 277,
+          "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
       "key": "Open format",
       "origins": [
         {
@@ -79688,6 +79773,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 506,
           "sink": "python-return:_build_utility_sections"
+        }
+      ]
+    },
+    {
+      "key": "Open the finished mod folder. CDMW remembers this choice until you change it.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 278,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -81671,8 +81766,13 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 255,
+          "line": 262,
           "sink": "QLabel"
+        },
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 440,
+          "sink": "tr"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
@@ -107032,6 +107132,16 @@
       ]
     },
     {
+      "key": "Save a ZIP copy beside the mod folder, ready to share.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 275,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Save and build",
       "origins": [
         {
@@ -111408,6 +111518,16 @@
           "path": "cdmw/ui/new_item/controller_variant_mixin.py",
           "line": 92,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Select an existing mod folder to add this item while keeping its current items. Leave unticked to create a separate mod in a new folder.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 292,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -127467,6 +127587,16 @@
       ]
     },
     {
+      "key": "The mod was created, but its folder could not be opened: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 551,
+          "sink": "append_log"
+        }
+      ]
+    },
+    {
       "key": "The model could not be read: {value_0}",
       "origins": [
         {
@@ -127638,6 +127768,16 @@
           "path": "tools/placement_studio/window_carry.py",
           "line": 557,
           "sink": "warning"
+        }
+      ]
+    },
+    {
+      "key": "The name of the new mod folder and the title shown in the mod manager. Leave blank to use the item's name.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 259,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -140626,17 +140766,22 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 432,
+          "line": 461,
           "sink": "information"
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 435,
+          "line": 464,
           "sink": "information"
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 509,
+          "line": 467,
+          "sink": "information"
+        },
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 552,
           "sink": "information"
         }
       ]
@@ -140723,16 +140868,6 @@
           "path": "tools/placement_studio/window_editing.py",
           "line": 1276,
           "sink": "setText"
-        }
-      ]
-    },
-    {
-      "key": "Write the plan as a loose mod folder for the manager chosen on the left; the game is not touched.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 264,
-          "sink": "setToolTip"
         }
       ]
     },
@@ -141828,6 +141963,16 @@
           "path": "cdmw/ui/model_library/texture_status.py",
           "line": 18,
           "sink": "python-return:_local_payload_status"
+        }
+      ]
+    },
+    {
+      "key": "ZIP written to {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 548,
+          "sink": "append_log"
         }
       ]
     },
@@ -165107,16 +165252,6 @@
       ]
     },
     {
-      "key": "{value_0} The next item is planned on its tables, so the folder will hold both.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 418,
-          "sink": "setText"
-        }
-      ]
-    },
-    {
       "key": "{value_0} UV island(s) on {value_1}",
       "origins": [
         {
@@ -165142,16 +165277,6 @@
         {
           "path": "cdmw/ui/mesh_editor/hair_setup_dialog.py",
           "line": 206,
-          "sink": "setText"
-        }
-      ]
-    },
-    {
-      "key": "{value_0} Writing here will replace it, and only the new item will be in the tables.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 421,
           "sink": "setText"
         }
       ]

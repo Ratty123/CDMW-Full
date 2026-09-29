@@ -101,6 +101,10 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         # startup. Tests of the resident host can override this with their fake.
         self._preview_package_patch = patch("cdmw.ui.new_item.item_preview.ItemPreviewFrame._start_package", lambda *_args, **_kwargs: None)
         self._preview_package_patch.start()
+        self._output_settings_patch = patch("cdmw.ui.new_item.panels_output.resolve_settings_file_path", lambda: self.root / "CDMW.cfg")
+        self._output_settings_patch.start()
+        self._open_folder_patch = patch("cdmw.ui.new_item.panels_output.QDesktopServices.openUrl", return_value=True)
+        self.opened_folders = self._open_folder_patch.start()
 
     def tearDown(self) -> None:
         from PySide6.QtCore import QCoreApplication, QEvent
@@ -123,6 +127,8 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         QApplication.processEvents()
         self._tabs.clear()
         self._preview_package_patch.stop()
+        self._open_folder_patch.stop()
+        self._output_settings_patch.stop()
         self._backup_patch.stop()
         self._temp.cleanup()
 

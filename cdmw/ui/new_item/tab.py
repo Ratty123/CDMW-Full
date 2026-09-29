@@ -521,7 +521,7 @@ class NewItemStudioTab(QWidget):
         self.model_panel.preview.status_changed.connect(self._log_preview_status)
         self.template_panel.mount_preview(self.model_panel.preview)
         yield
-        self.output_panel = OutputPanel(controller, self)
+        self.output_panel = OutputPanel(controller, self, settings=getattr(getattr(self._window, "shell", None), "settings", None))
         self.output_panel.hide()
         controller.log_message.disconnect(self.output_panel.append_log)
         self.output_panel.log.setDocument(self.log.document())

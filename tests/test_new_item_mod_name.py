@@ -1,18 +1,22 @@
 """The Rust Output field reaches the package metadata a mod manager displays."""
 
 import json
+from pathlib import Path
 from unittest.mock import patch
+import zipfile
 
 import pytest
 
 from tests.test_new_item_rust_ui import _send, studio
+from cdmw.domain.packages.layout import sanitize_mod_package_folder_name
 
 
 @pytest.mark.parametrize(
     ("entered_name", "expected_name"),
     [("  Frost – Épée 冰  ", "Frost – Épée 冰"), ("", "Frost"), ("   ", "Frost")],
 )
-def test_rust_mod_name_reaches_export_metadata_without_replanning(studio, entered_name, expected_name):
+@pytest.mark.parametrize(("create_zip", "open_folder"), [(False, True), (True, False)])
+def test_rust_mod_name_reaches_export_metadata_without_replanning(studio, entered_name, expected_name, create_zip, open_folder):
     fixture, tab, bridge = studio
     tab.show_step(1)
     tab.identity_panel.internal_name.setText("Frost_Internal_Sword")
@@ -22,8 +26,12 @@ def test_rust_mod_name_reaches_export_metadata_without_replanning(studio, entere
     assert [panel.manager.itemText(i) for i in range(panel.manager.count())] == ["DMM"]
     assert tab.controller.draft.manager == "DMM"
     assert _send(bridge, panel.manager, "choose", panel.manager.findText("DMM"))["type"] == "ack"
-    folder = fixture.root / "named_mod"
-    assert _send(bridge, panel.export_root, "text", str(folder))["type"] == "ack"
+    parent = fixture.root / "mods"
+    parent.mkdir()
+    (parent / "unrelated.txt").write_text("keep")
+    assert _send(bridge, panel.export_root, "text", str(parent))["type"] == "ack"
+    assert not panel.add_to_mod.isChecked()
+    assert tab.controller.mod_base_folder is None
     assert _send(bridge, panel.build_button, "activate")["type"] == "ack"
     plan = tab.controller.plan
     assert plan is not None, panel.summary.toPlainText()
@@ -35,6 +43,11 @@ def test_rust_mod_name_reaches_export_metadata_without_replanning(studio, entere
     assert panel.export_button.isEnabled()
     assert plan.spec.internal_name == "Frost_Internal_Sword"
     assert plan.spec.display_names["eng"] == "Frost"
+    folder = parent / sanitize_mod_package_folder_name(expected_name)
+    assert str(folder) in panel.destination_note.text()
+    assert _send(bridge, panel.create_zip, "toggle", create_zip)["type"] == "ack"
+    assert _send(bridge, panel.open_folder_after_creation, "toggle", open_folder)["type"] == "ack"
+    assert tab.controller.plan is plan
     with patch("cdmw.ui.new_item.panels_output.QMessageBox.information"):
         assert _send(bridge, panel.export_button, "activate")["type"] == "ack"
 
@@ -48,6 +61,20 @@ def test_rust_mod_name_reaches_export_metadata_without_replanning(studio, entere
     assert manifest["structure"] == "archive_group" and manifest["archive_group"] == "0036"
     assert (folder / "0036/0.pamt").is_file() and (folder / "0036/0.paz").is_file()
     assert not (folder / "meta/0.papgt").exists()
+    assert (parent / "unrelated.txt").read_text() == "keep"
+    assert not (parent / "manifest.json").exists()
+    expected_zip = folder.with_name(f"{folder.name}.zip")
+    assert expected_zip.exists() == create_zip
+    if create_zip:
+        with zipfile.ZipFile(expected_zip) as archive:
+            files = {p.relative_to(folder).as_posix(): p.read_bytes() for p in folder.rglob("*") if p.is_file()}
+            assert {name: archive.read(name) for name in archive.namelist()} == files
+    assert panel.open_folder_after_creation.isChecked() is open_folder
+    if open_folder:
+        fixture.opened_folders.assert_called_once()
+        assert Path(fixture.opened_folders.call_args.args[0].toLocalFile()) == folder.resolve()
+    else:
+        fixture.opened_folders.assert_not_called()
 
 
 @pytest.mark.parametrize("manager", ["CDUMM", "JMM"])
@@ -92,3 +119,55 @@ def test_mod_name_follows_item_name_until_overridden_and_survives_item_edits(stu
     _send(bridge, panel.mod_name, "text", "")
     assert panel.mod_name.placeholderText() == "Ice"
     assert tab.controller.draft.mod_name == ""
+
+
+def test_open_folder_choice_is_saved_in_cfg_and_only_changes_when_toggled(studio):
+    from PySide6.QtCore import QSettings
+    from cdmw.ui.new_item.panels_output import OutputPanel, _OPEN_FOLDER_SETTING
+
+    fixture, tab, bridge = studio
+    tab.show_step(6)
+    panel = tab.output_panel
+    assert panel.open_folder_after_creation.isChecked()
+    for checked in (False, True):
+        assert _send(bridge, panel.open_folder_after_creation, "toggle", checked)["type"] == "ack"
+        panel._settings.sync()
+        settings = QSettings(str(fixture.root / "CDMW.cfg"), QSettings.Format.IniFormat)
+        assert settings.value(_OPEN_FOLDER_SETTING, type=bool) is checked
+        reopened = OutputPanel(tab.controller, tab, settings=settings)
+        try:
+            assert reopened.open_folder_after_creation.isChecked() is checked
+            tab.controller.set_template(tab.controller.draft.template_key)
+            _send(bridge, panel.overlay_mode_button, "activate")
+            _send(bridge, panel.folder_mode_button, "activate")
+            assert panel.open_folder_after_creation.isChecked() is checked
+        finally:
+            reopened.close()
+            reopened.deleteLater()
+
+
+def test_existing_mod_is_explicit_and_new_export_does_not_overwrite_it(studio):
+    fixture, tab, bridge = studio
+    tab.show_step(1)
+    _send(bridge, tab.identity_panel.display_name, "text", "heahea")
+    tab.show_step(6)
+    panel = tab.output_panel
+    parent = fixture.root / "mods"
+    folder = parent / "heahea"
+    folder.mkdir(parents=True)
+    (folder / "keep.txt").write_text("original")
+    _send(bridge, panel.export_root, "text", str(parent))
+    _send(bridge, panel.open_folder_after_creation, "toggle", False)
+    _send(bridge, panel.build_button, "activate")
+    _send(bridge, panel.export_button, "activate")
+    assert (folder / "keep.txt").read_text() == "original"
+    assert not (folder / "manifest.json").exists()
+    assert "already exists" in panel.log.toPlainText()
+    fixture.opened_folders.assert_not_called()
+    _send(bridge, panel.add_to_mod, "toggle", True)
+    _send(bridge, panel.export_root, "text", str(folder))
+    assert tab.controller.mod_base_folder == folder
+    assert "keeps its existing items" in panel.mod_base_note.text()
+    assert panel._package_root() == folder
+    _send(bridge, panel.add_to_mod, "toggle", False)
+    assert tab.controller.mod_base_folder is None
