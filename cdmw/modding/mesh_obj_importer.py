@@ -85,10 +85,15 @@ def _load_obj_roundtrip_sidecar(
         _validate_obj_sidecar_source_index_maps(payload)
         from .mesh_interchange_materials import resolve_companion_material_paths
         resolve_companion_material_paths(payload, candidate.parent)
-        if payload.get("interchange_coordinate_space") == "world":
+        # A returned OBJ has no object transforms: Blender writes static
+        # geometry in world space even when the original export was FBX/GLB.
+        if Path(obj_path).suffix.lower() == ".obj" or payload.get("interchange_coordinate_space") == "world":
             for entry in (*_obj_sidecar_lod_submesh_entries(payload), *payload.get("submeshes", ())):
-                if isinstance(entry, dict) and not (entry.get("interchange_skin") and entry.get("interchange_bone_indices")):
-                    entry["interchange_geometry_world_baked"] = True
+                if isinstance(entry, dict):
+                    # LOD metadata is authoritative when a legacy summary
+                    # omits skin fields; explicitly override its world flag.
+                    entry["interchange_geometry_world_baked"] = not bool(
+                        entry.get("interchange_skin") and entry.get("interchange_bone_indices"))
         logger.info("Loaded OBJ round-trip sidecar: %s", candidate)
         return payload
     return None
@@ -260,9 +265,11 @@ def _attach_obj_sidecar_unknown_fields(submesh: SubMesh, sidecar_submesh_entry: 
     if presence.get("tangents") is False:
         submesh.tangents = []
     # Channels OBJ cannot carry are retained in the companion, never fabricated.
-    import copy
-    if not submesh.interchange_material:
-        submesh.interchange_material = copy.deepcopy(sidecar_submesh_entry.get("interchange_material", {}))
+    from .mesh_interchange_materials import restore_companion_material, restore_companion_texture_inputs
+    incoming_material = submesh.interchange_material
+    submesh.interchange_material = restore_companion_material(
+        incoming_material, sidecar_submesh_entry.get("interchange_material", {}))
+    restore_companion_texture_inputs(submesh, incoming_material)
     if vertex_ids is not None:
         submesh.interchange_vertex_ids = list(vertex_ids)
     source_map = list(getattr(submesh, "interchange_vertex_ids", ()) or submesh.source_vertex_map or ())
@@ -284,12 +291,11 @@ def _attach_obj_sidecar_unknown_fields(submesh: SubMesh, sidecar_submesh_entry: 
     for attr in ("interchange_node_index", "interchange_transform"):
         if not hasattr(submesh, attr) and attr in sidecar_submesh_entry:
             setattr(submesh, attr, copy.deepcopy(sidecar_submesh_entry[attr]))
-    if not submesh.uv_sets:
-        for index, rows in sidecar_submesh_entry.get("interchange_uv_sets", {}).items():
-            if source_map and all(0 <= i < len(rows) for i in source_map):
-                submesh.uv_sets[int(index)] = [tuple(rows[i]) for i in source_map]
-        if submesh.uvs:
-            submesh.uv_sets[0] = list(submesh.uvs)
+    if submesh.uvs:
+        submesh.uv_sets[0] = list(submesh.uvs)
+    for index, rows in sidecar_submesh_entry.get("interchange_uv_sets", {}).items():
+        if int(index) not in submesh.uv_sets and source_map and all(0 <= i < len(rows) for i in source_map):
+            submesh.uv_sets[int(index)] = [tuple(rows[i]) for i in source_map]
 
 
 def _attach_obj_sidecar_lod_identity(mesh: ParsedMesh, sidecar_payload: dict[str, object] | None) -> None:
@@ -768,8 +774,18 @@ def _match_obj_roundtrip_sidecar_submeshes(
         by_name_matches: list[Optional[dict[str, object]]] = []
         for sm_data in submesh_list:
             submesh_name = str(sm_data.get("name", "") or "").strip()
-            by_name_matches.append(by_name.get(submesh_name) if submesh_name else None)
-        if all(entry is not None for entry in by_name_matches):
+            entry = by_name.get(submesh_name) if submesh_name else None
+            if entry is None:
+                base, dot, suffix = submesh_name.rpartition(".")
+                # Blender adds a numeric suffix when a mesh and graph node
+                # share a name. Only accept a unique source name/alias.
+                if dot and len(suffix) >= 3 and suffix.isdigit():
+                    candidates = [item for item in sidecar_submeshes
+                                  if str(item.get("name", "") or "").strip().replace(" ", "_") == base]
+                    if len(candidates) == 1:
+                        entry = candidates[0]
+            by_name_matches.append(entry)
+        if all(entry is not None for entry in by_name_matches) and len({id(entry) for entry in by_name_matches}) == len(submesh_list):
             return [entry for entry in by_name_matches if entry is not None]
         return [entry for entry in sidecar_submeshes]
 
@@ -784,21 +800,26 @@ def _match_obj_roundtrip_sidecar_submeshes(
 #  OBJ IMPORTER
 # ═══════════════════════════════════════════════════════════════════════
 
+def _restore_companion_submesh_order(submeshes, matched_entries):
+    """Restore source draw order after a DCC reorders identified objects."""
+    if len(matched_entries) != len(submeshes):
+        return
+    indices = [_entry_int(entry, "submesh_index", "index") if isinstance(entry, dict) else -1
+               for entry in matched_entries]
+    if sorted(indices) == list(range(len(submeshes))):
+        order = sorted(range(len(submeshes)), key=indices.__getitem__)
+        submeshes[:] = [submeshes[index] for index in order]
+        matched_entries[:] = [matched_entries[index] for index in order]
+
+
 def _build_obj_import_result(
     source_path, source_format, submeshes, sidecar_payload, matched_sidecar_entries, material_texture_map,
     obj_path,
 ):
     # Blender can change object order without changing any mesh. Restore the
     # sidecar's draw-part order before recording positional edit operations.
-    if sidecar_payload and len(matched_sidecar_entries) == len(submeshes):
-        indices = [
-            _entry_int(entry, "submesh_index", "index") if isinstance(entry, dict) else -1
-            for entry in matched_sidecar_entries
-        ]
-        if sorted(indices) == list(range(len(submeshes))):
-            order = sorted(range(len(submeshes)), key=indices.__getitem__)
-            submeshes[:] = [submeshes[index] for index in order]
-            matched_sidecar_entries[:] = [matched_sidecar_entries[index] for index in order]
+    if sidecar_payload:
+        _restore_companion_submesh_order(submeshes, matched_sidecar_entries)
     for submesh, entry in zip(submeshes, matched_sidecar_entries):
         if isinstance(entry, dict):
             source_name = str(entry.get("name", "") or "")

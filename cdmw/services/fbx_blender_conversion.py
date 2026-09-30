@@ -123,9 +123,11 @@ bpy.ops.export_scene.gltf(
     export_yup=True,
     use_selection=False,
     export_skins=True,
+    export_all_influences=True,
     export_morph=True,
     export_animations=True,
     export_attributes=True,
+    export_vertex_color="ACTIVE",
 )
 images = sorted({i.name for i in bpy.data.images if i.users and i.has_data})
 print("CDMW_FBX_RESULT " + json.dumps({

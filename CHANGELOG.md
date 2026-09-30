@@ -17,6 +17,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- FBX imports retain all bone influences and active vertex colors with the correct color space. The Python FBX writer accepts mixed integer/decimal vertex attributes.
+- Cross-format mesh returns recover missing UV sets and texture bindings, restore local coordinates and bounds, and keep parts and material bindings aligned after Blender renames or reorders objects. Recovered maps reach the import and preview paths. Split OBJ companions retain source, rig, scene and existing clip metadata.
 - Mesh exchange retains authored PBR maps and values, extra UV sets, vertex colors, resolved rigs and morph targets. GLB embeds textures and retains existing animation clips; OBJ/FBX carry portable texture copies and explicit format-limit reports. Editable companions preserve game metadata and reject ambiguous vertex or joint identities. FBX import uses the selected Blender with cancellation and atomic conversion, and no-UV source meshes round-trip without requiring an unwrap.
 - Item Finder keeps category names, item captions and detail actions readable at narrow widths and larger fonts. Long details wrap without changing copied text, the grid uses its available width, and the empty details view shows a compact selection prompt.
 - Selecting an archive extension closes the picker, including on double-click. The picker becomes available when archive rows appear and receives extension counts ahead of background catalogue warmups.

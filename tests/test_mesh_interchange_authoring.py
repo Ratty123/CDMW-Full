@@ -325,3 +325,172 @@ def test_separate_scalar_and_opacity_maps_are_packed_for_glb(tmp_path):
     assert {"baseColorTexture", "metallicRoughnessTexture"} <= material["textures"].keys()
     with Image.open(material["textures"]["baseColorTexture"]["path"]) as image:
         assert image.getpixel((0, 0))[3] == 180 * 180 // 255
+
+
+def test_companion_recovers_only_missing_uv_sets_in_vertex_identity_order(tmp_path):
+    mesh = authored_mesh(tmp_path / "source")
+    path = export_glb(mesh, tmp_path / "out")[0]
+    incoming = import_gltf(path, preserve_authoring=True).mesh
+    part = incoming.submeshes[0]
+    order = [2, 0, 1]
+    part.vertices = [part.vertices[index] for index in order]
+    part.interchange_vertex_ids = order
+    edited_uvs = [(0.35, 0.45)] * 3
+    part.uvs, part.uv_sets = edited_uvs, {0: edited_uvs}
+    _attach_glb_sidecar(incoming, _load_glb_roundtrip_sidecar(Path(path)), "edited.glb")
+    assert part.uvs == part.uv_sets[0] == edited_uvs
+    assert part.uv_sets[1] == [mesh.submeshes[0].uv_sets[1][index] for index in order]
+
+
+def test_companion_recovers_omitted_material_channels_without_overwriting_edits(tmp_path):
+    mesh = authored_mesh(tmp_path / "source")
+    path = export_glb(mesh, tmp_path / "out")[0]
+    incoming = import_gltf(path, preserve_authoring=True).mesh
+    part = incoming.submeshes[0]
+    material = part.interchange_material
+    material["textures"].pop("baseColorTexture")
+    material["textures"]["normalTexture"] = {"path": "edited-normal.png", "texCoord": 1, "scale": 0.3}
+    material["pbrMetallicRoughness"]["roughnessFactor"] = 0.4
+    material.pop("extensions")
+    _attach_glb_sidecar(incoming, _load_glb_roundtrip_sidecar(Path(path)), "edited.glb")
+    restored = part.interchange_material
+    with Image.open(restored["textures"]["baseColorTexture"]["path"]) as image:
+        assert image.getpixel((0, 0)) == (200, 120, 60, 180)
+    assert restored["textures"]["normalTexture"] == {"path": "edited-normal.png", "texCoord": 1, "scale": 0.3}
+    assert restored["pbrMetallicRoughness"]["roughnessFactor"] == 0.4
+    assert restored["extensions"] == mesh.submeshes[0].interchange_material["extensions"]
+    assert part.preview_texture_path == restored["textures"]["baseColorTexture"]["path"]
+
+
+@pytest.mark.parametrize("source_format", ["fbx", "glb"])
+def test_obj_return_restores_static_coordinates_from_other_format_companion(tmp_path, source_format):
+    mesh = authored_mesh(tmp_path / "source")
+    part = mesh.submeshes[0]
+    part.bone_indices, part.bone_weights, part.interchange_skin = [], [], {}
+    part.interchange_transform = (1.5, 0, 0, 2, 0, 2, 0, 3, 0, 0, 0.75, 4, 0, 0, 0, 1)
+    exported = {"fbx": export_fbx, "glb": export_glb}[source_format](mesh, str(tmp_path / "out"), "source")
+    original = Path(exported if isinstance(exported, str) else exported[0])
+    returned = Path(export_obj(mesh, str(original.parent), "returned")[0])
+    Path(f"{returned}.meta.json").write_bytes(Path(f"{original}.meta.json").read_bytes())
+    restored = import_obj(str(returned)).submeshes[0]
+    for actual, expected in zip(restored.vertices, part.vertices, strict=True):
+        assert actual == pytest.approx(expected)
+    assert restored.interchange_transform == part.interchange_transform
+
+
+def test_split_obj_keeps_scene_clips_source_and_selected_part_metadata(tmp_path):
+    mesh = authored_mesh(tmp_path / "source")
+    second = copy.deepcopy(mesh.submeshes[0])
+    second.name, second.material = "Trim", "TrimMat"
+    mesh.submeshes.append(second)
+    mesh.lod_levels = [list(mesh.submeshes)]
+    mesh._cdmw_original_data = b"owned original mesh bytes"
+    mesh._cdmw_mesh_asset_lods = [{"name": "OriginalLOD", "metadata": {"protected": True}, "submeshes": [
+        {"stable_id": "original-body", "material_slot_index": 3},
+        {"stable_id": "original-trim", "material_slot_index": 7}]}]
+    files = export_obj(mesh, str(tmp_path / "out"), "parts", split_submeshes=True,
+                       extra_payload={"export_context": "selected parts"})
+    for index, path in enumerate(Path(file) for file in files if Path(file).suffix == ".obj"):
+        payload = json.loads(Path(f"{path}.meta.json").read_text())
+        entry = payload["lods"][0]["submeshes"][0]
+        assert len(payload["lods"]) == len(payload["lods"][0]["submeshes"]) == 1
+        assert entry["stable_id"] == ("original-body", "original-trim")[index]
+        assert entry["material_slot_index"] == (3, 7)[index]
+        assert payload["source_asset_size"] == len(mesh._cdmw_original_data)
+        assert payload["export_context"] == "selected parts"
+        restored = import_obj(str(path))
+        assert len(restored.submeshes) == 1
+        assert restored.interchange_nodes == mesh.interchange_nodes
+        assert json.dumps(restored.interchange_animations, sort_keys=True) == json.dumps(mesh.interchange_animations, sort_keys=True)
+        assert restored.submeshes[0].interchange_skin == mesh.submeshes[index].interchange_skin
+    assert len(mesh.submeshes) == len(mesh.lod_levels[0]) == 2
+
+
+def test_obj_companion_matching_retains_identity_after_blender_name_suffix_and_reordering(tmp_path):
+    from cdmw.modding.mesh_obj_importer import _match_obj_roundtrip_sidecar_submeshes
+    mesh = authored_mesh(tmp_path / "source")
+    trim = copy.deepcopy(mesh.submeshes[0])
+    trim.name, trim.material = "Trim", "TrimMat"
+    mesh.submeshes.append(trim)
+    path = export_glb(mesh, tmp_path / "out")[0]
+    payload = _load_glb_roundtrip_sidecar(Path(path))
+    entries = _match_obj_roundtrip_sidecar_submeshes(payload, [
+        {"name": "Trim", "material": "TrimMat"}, {"name": "Body.001", "material": "BodyMat"}],
+        source_path="", source_format="")
+    assert [entry["name"] for entry in entries] == ["Trim", "Body"]
+    assert [entry["submesh_index"] for entry in entries] == [1, 0]
+
+
+def test_obj_companion_summary_without_skin_does_not_override_authoritative_bind_coordinates(tmp_path):
+    mesh = authored_mesh(tmp_path / "source")
+    part = mesh.submeshes[0]
+    part.interchange_transform = (2, 0, 0, 3, 0, 3, 0, 4, 0, 0, 1, 5, 0, 0, 0, 1)
+    path = export_obj(mesh, str(tmp_path / "out"))[0]
+    manifest = Path(f"{path}.meta.json")
+    payload = json.loads(manifest.read_text())
+    for entry in payload["submeshes"]:
+        entry.pop("interchange_skin", None)
+        entry.pop("interchange_bone_indices", None)
+    manifest.write_text(json.dumps(payload))
+    restored = import_obj(path).submeshes[0]
+    assert restored.vertices == part.vertices
+    assert tuple(restored.interchange_transform) == part.interchange_transform
+
+
+def test_glb_companion_restores_part_order_and_metadata_after_blender_renames(tmp_path):
+    mesh = authored_mesh(tmp_path / "source")
+    trim = copy.deepcopy(mesh.submeshes[0])
+    trim.name, trim.material = "Trim", "TrimMat"
+    trim.morph_targets, trim.morph_weights = {}, {}
+    mesh.submeshes.append(trim)
+    path = export_glb(mesh, tmp_path / "out")[0]
+    incoming = import_gltf(path, preserve_authoring=True).mesh
+    incoming.submeshes.reverse()
+    incoming.submeshes[1].name = "Body.001"
+    incoming.submeshes[1].morph_targets = {}
+    _attach_glb_sidecar(incoming, _load_glb_roundtrip_sidecar(Path(path)), "returned.glb")
+    assert [part.material for part in incoming.submeshes] == ["BodyMat", "TrimMat"]
+    assert incoming.submeshes[0].morph_targets == mesh.submeshes[0].morph_targets
+    assert incoming.submeshes[1].morph_targets == {}
+
+
+def test_scene_companion_recovery_updates_preview_files_and_material_binding_indices(tmp_path, monkeypatch):
+    from dataclasses import replace
+    from cdmw.modding.scene_importer import import_scene_mesh_with_report
+    mesh = authored_mesh(tmp_path / "source")
+    trim = copy.deepcopy(mesh.submeshes[0])
+    trim.name, trim.material = "Trim", "TrimMat"
+    mesh.submeshes.append(trim)
+    path = export_glb(mesh, tmp_path / "out")[0]
+    incoming = import_gltf(path, preserve_authoring=True)
+    incoming.mesh.submeshes.reverse()
+    incoming.material_bindings = tuple(replace(binding, submesh_index=index, texture_slots=())
+                                      for index, binding in enumerate(reversed(incoming.material_bindings)))
+    for part in incoming.mesh.submeshes:
+        part.interchange_material["textures"].pop("baseColorTexture")
+        del part.preview_texture_path
+    monkeypatch.setattr("cdmw.modding.scene_importer.import_gltf", lambda *a, **k: incoming)
+    result = import_scene_mesh_with_report(path, preserve_authoring=True)
+    assert [binding.material_name for binding in result.material_bindings] == ["BodyMat", "TrimMat"]
+    for binding in result.material_bindings:
+        part = result.mesh.submeshes[binding.submesh_index]
+        assert binding.material_name == part.material
+        base = dict(binding.texture_slots)["base"]
+        assert str(base) == part.preview_texture_path
+        assert base.is_file() and base in result.discovered_texture_files
+
+
+def test_glb_companion_restores_bounds_with_local_coordinates(tmp_path):
+    from cdmw.modding.scene_geometry_utils import _bake_interchange_coordinates
+    mesh = authored_mesh(tmp_path / "source")
+    part = mesh.submeshes[0]
+    part.bone_indices, part.bone_weights, part.interchange_skin = [], [], {}
+    part.interchange_transform = (1, 0, 0, 3, 0, 1, 0, 4, 0, 0, 1, 5, 0, 0, 0, 1)
+    mesh.interchange_nodes[2]["translation"] = [3, 4, 5]
+    path = export_glb(mesh, tmp_path / "out")[0]
+    incoming = import_gltf(path, preserve_authoring=True).mesh
+    _bake_interchange_coordinates(incoming.submeshes[0])
+    incoming.bbox_min, incoming.bbox_max = (3, 4, 5), (4, 5, 5)
+    _attach_glb_sidecar(incoming, _load_glb_roundtrip_sidecar(Path(path)), "returned.glb")
+    assert incoming.bbox_min == pytest.approx((0, 0, 0))
+    assert incoming.bbox_max == pytest.approx((1, 1, 0))

@@ -371,7 +371,13 @@ fbx_node(
                 [](std::vector<char>& out) { fbx_node(out, "Name", {fbx_string("Color")}); },
                 [](std::vector<char>& out) { fbx_node(out, "MappingInformationType", {fbx_string("ByVertice")}); },
                 [](std::vector<char>& out) { fbx_node(out, "ReferenceInformationType", {fbx_string("Direct")}); },
-                [&submesh](std::vector<char>& out) { fbx_node(out, "Colors", {fbx_f64_array(submesh.vertex_colors)}); },
+                [&submesh](std::vector<char>& out) {
+                    auto colors = submesh.vertex_colors;
+                    // FBX RGB is sRGB for Blender; alpha remains linear.
+                    for (std::size_t i = 0; i < colors.size(); ++i) if (i % 4 != 3)
+                        colors[i] = colors[i] <= 0.0031308 ? 12.92 * colors[i] : 1.055 * std::pow(colors[i], 1.0 / 2.4) - 0.055;
+                    fbx_node(out, "Colors", {fbx_f64_array(colors)});
+                },
             });
         },
         [&submesh](std::vector<char>& geom_out) {

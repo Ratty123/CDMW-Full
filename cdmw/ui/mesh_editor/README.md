@@ -30,6 +30,14 @@ in Blender's glTF export options to keep `_CDMW_VERTEX_ID` when returning GLB,
 or keep the `CDMW_VERTEX_ID` UV layer when returning FBX.
 Unproven identity, changed topology and unsupported game channels are rejected.
 
+For GLB or separate-file glTF returns, set **Use Vertex Color > Active** and
+enable **Include All Bone Influences**. Select the model meshes and armature,
+then export selected objects only; exclude the rig's bone-display shapes. Disable
+modifiers that change topology. Keep the matching companion when switching
+formats: it recovers omitted UV sets, texture bindings and protected channels,
+and restores static OBJ geometry to the original local coordinates. Imported
+UVs, existing texture bindings and material values retain their edits.
+
 FBX import uses the Blender executable selected on Create New Item's Model step.
 Conversion runs in the background, supports cancellation and publishes only a
 completed result. OBJ/FBX texture copies include material factors that Blender's
@@ -37,6 +45,8 @@ legacy readers otherwise ignore; original images remain in the package.
 Companion reports list missing inputs and format limitations. OBJ retains rigs,
 morphs and extra UV/color data in the companion. Exact material extensions,
 samplers and animation clips require GLB for exchange.
+Split OBJ exports retain each part's source identity, rig, scene graph and existing
+clips in its companion. A single split part cannot rebuild an entire game mesh.
 
 Tools, Inspector and pinned tool panel widths, plus floating tool positions,
 are saved in CDMW's user `.cfg` and restored for new editor sessions. The helper

@@ -506,7 +506,7 @@ def export_obj(mesh: ParsedMesh, output_dir: str, name: str = "",
     base = name or Path(mesh.path).stem
 
     if split_submeshes:
-        return _export_obj_split(mesh, output_dir, base, scale)
+        return _export_obj_split(mesh, output_dir, base, scale, extra_payload=extra_payload)
 
     obj_path = os.path.join(output_dir, f"{base}.obj")
     mtl_path = os.path.join(output_dir, f"{base}.mtl")
@@ -603,19 +603,30 @@ def export_obj(mesh: ParsedMesh, output_dir: str, name: str = "",
     return list(dict.fromkeys([obj_path, mtl_path, str(sidecar_path), *companions]))
 
 
-def _export_obj_split(mesh, output_dir, base, scale):
+def _export_obj_split(mesh, output_dir, base, scale, *, extra_payload=None):
     """Export each submesh as a separate OBJ file."""
     results = []
     for i, sm in enumerate(mesh.submeshes):
         sub_name = f"{base}_mesh{i:02d}"
-        sub_mesh = ParsedMesh(
-            path=mesh.path, format=mesh.format,
-            bbox_min=mesh.bbox_min, bbox_max=mesh.bbox_max,
-            submeshes=[sm],
-            total_vertices=len(sm.vertices), total_faces=len(sm.faces),
-            has_uvs=bool(sm.uvs),
-        )
-        results.extend(export_obj(sub_mesh, output_dir, sub_name, scale=scale))
+        sub_mesh = copy.copy(mesh)
+        sub_mesh.submeshes, sub_mesh.lod_levels = [sm], []
+        sub_mesh.total_vertices, sub_mesh.total_faces = len(sm.vertices), len(sm.faces)
+        sub_mesh.has_uvs, sub_mesh.has_bones = bool(sm.uvs), bool(sm.bone_indices)
+        sub_mesh._cdmw_mesh_asset_lods = []
+        asset_lods = getattr(mesh, "_cdmw_mesh_asset_lods", ()) or ()
+        for lod_index, parts in enumerate(mesh.lod_levels or [mesh.submeshes]):
+            if lod_index >= len(asset_lods) or not any(part is sm for part in parts):
+                continue
+            asset_lod = asset_lods[lod_index]
+            asset_parts = _metadata_value(asset_lod, "submeshes", ()) or ()
+            part_index = next(index for index, part in enumerate(parts) if part is sm)
+            if part_index < len(asset_parts):
+                selected = {key: _metadata_value(asset_lod, key) for key in
+                            ("name", "bounds", "metadata", "original_section_offset", "original_section_size")}
+                selected["submeshes"] = [asset_parts[part_index]]
+                sub_mesh._cdmw_mesh_asset_lods = [selected]
+            break
+        results.extend(export_obj(sub_mesh, output_dir, sub_name, scale=scale, extra_payload=extra_payload))
     return results
 
 
@@ -921,7 +932,7 @@ def _fbx_extra_geometry(buf, part):
             for key, value in (("Version", 101), ("Name", "CDMW_VERTEX_ID" if index == identity_index else f"UVMap{index}"),
                                ("MappingInformationType", "ByVertice"), ("ReferenceInformationType", "Direct")):
                 _fbx_node(out, key, [value])
-            _fbx_node(out, "UV", [[v for u, t in rows for v in (u, 1.0 - t)]])
+            _fbx_node(out, "UV", [[float(v) for u, t in rows for v in (u, 1.0 - t)]])
         _fbx_node(buf, "LayerElementUV", [index], children=[layer])
         def reference(out, index=index):
             _fbx_node(out, "Version", [100])
@@ -937,7 +948,10 @@ def _fbx_extra_geometry(buf, part):
             for key, value in (("Version", 101), ("Name", "Color"), ("MappingInformationType", "ByVertice"),
                                ("ReferenceInformationType", "Direct")):
                 _fbx_node(out, key, [value])
-            _fbx_node(out, "Colors", [[v for row in part.vertex_colors for v in row]])
+            # Blender's FBX reader expects sRGB RGB values; alpha stays linear.
+            _fbx_node(out, "Colors", [[float(v) if axis == 3 else
+                      12.92 * float(v) if v <= 0.0031308 else 1.055 * float(v) ** (1.0 / 2.4) - 0.055
+                      for row in part.vertex_colors for axis, v in enumerate(row)]])
         _fbx_node(buf, "LayerElementColor", [0], children=[colors])
 
 
@@ -1072,7 +1086,7 @@ def _write_python_fbx_geometry(buf, sm, native_item, scale):
     else:
         verts_flat = []
         for x, y, z in sm.vertices:
-            verts_flat.extend([x * scale, y * scale, z * scale])
+            verts_flat.extend([float(x * scale), float(y * scale), float(z * scale)])
 
         indices_flat = []
         for a, b_idx, c in sm.faces:
@@ -1080,12 +1094,12 @@ def _write_python_fbx_geometry(buf, sm, native_item, scale):
 
         normals_flat = []
         for nx, ny, nz in sm.normals:
-            normals_flat.extend([nx, ny, nz])
+            normals_flat.extend([float(nx), float(ny), float(nz)])
 
         uvs_flat = []
         uv_indices = []
         for i_v, (u, v) in enumerate(sm.uvs):
-            uvs_flat.extend([u, 1.0 - v])
+            uvs_flat.extend([float(u), 1.0 - float(v)])
             uv_indices.append(i_v)
 
     def geom_node(b2, vf=verts_flat, iff=indices_flat, nf=normals_flat,

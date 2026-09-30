@@ -14,7 +14,7 @@ import tempfile
 import threading
 import xml.etree.ElementTree as ET
 from collections import OrderedDict, defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path, PurePosixPath
 from typing import Any, Mapping, Optional, Sequence
 from urllib.parse import unquote, urlparse
@@ -392,7 +392,7 @@ def _import_zip_result(source_path, *, selected_member, include_external_audit, 
 
 
 def _import_gltf_result(source_path, *, preserve_authoring, include_external_audit, tolerate_missing_texture_files, stop_event):
-    from .mesh_glb_interchange import _attach_glb_sidecar, _load_glb_roundtrip_sidecar
+    from .mesh_glb_interchange import _load_glb_roundtrip_sidecar
     sidecar = _load_glb_roundtrip_sidecar(source_path) if (
         Path(f"{source_path}.meta.json").is_file() or (source_path.parent / "mesh.cdmeta.json").is_file()) else None
     result = import_gltf(
@@ -404,17 +404,39 @@ def _import_gltf_result(source_path, *, preserve_authoring, include_external_aud
     )
     raise_if_cancelled(stop_event, "Scene import cancelled.")
     if sidecar is not None:
-        _attach_glb_sidecar(result.mesh, sidecar, source_path.name)
+        _attach_scene_roundtrip_companion(result, sidecar, source_path.name)
     if preserve_authoring:
         return result
     return ensure_external_scene_uvs(result, source_path, stop_event=stop_event)
+
+
+def _attach_scene_roundtrip_companion(result, sidecar, source_name):
+    from .mesh_glb_interchange import _attach_glb_sidecar
+    from .mesh_interchange_materials import companion_material_slots
+    original_parts = tuple(result.mesh.submeshes)
+    _attach_glb_sidecar(result.mesh, sidecar, source_name)
+    indices = {id(part): index for index, part in enumerate(result.mesh.submeshes)}
+    bindings, paths = [], list(result.discovered_texture_files)
+    for binding in result.material_bindings:
+        if not 0 <= binding.submesh_index < len(original_parts):
+            bindings.append(binding)
+            continue
+        part = original_parts[binding.submesh_index]
+        slots = dict(binding.texture_slots)
+        for slot in companion_material_slots(part.interchange_material):
+            slots.setdefault(slot.slot_kind, Path(slot.path))
+        paths.extend(slots.values())
+        bindings.append(replace(binding, submesh_index=indices[id(part)], submesh_name=part.name,
+                                texture_slots=tuple(slots.items())))
+    result.material_bindings = tuple(sorted(bindings, key=lambda binding: binding.submesh_index))
+    result.discovered_texture_files = tuple(_dedupe_paths(paths))
 
 
 def _import_fbx_result(source_path, *, blender_path, preserve_authoring, include_external_audit, tolerate_missing_texture_files, stop_event):
     import hashlib
     import tempfile
     from cdmw.services.fbx_blender_conversion import configured_blender, convert_fbx_to_glb
-    from .mesh_glb_interchange import _attach_glb_sidecar, _load_glb_roundtrip_sidecar
+    from .mesh_glb_interchange import _load_glb_roundtrip_sidecar
     sidecar = _load_glb_roundtrip_sidecar(source_path) if (
         Path(f"{source_path}.meta.json").is_file() or (source_path.parent / "mesh.cdmeta.json").is_file()) else None
     cache = Path(tempfile.gettempdir()) / "cdmw_fbx_import" / hashlib.sha256(source_path.read_bytes()).hexdigest()
@@ -427,7 +449,7 @@ def _import_fbx_result(source_path, *, blender_path, preserve_authoring, include
     result.diagnostics = (conversion.summary(source_path),) + tuple(result.diagnostics)
     # An FBX returned from Blender may retain its CDMW companion.
     if sidecar is not None:
-        _attach_glb_sidecar(result.mesh, sidecar, source_path.name)
+        _attach_scene_roundtrip_companion(result, sidecar, source_path.name)
     return result if preserve_authoring else ensure_external_scene_uvs(result, source_path, stop_event=stop_event)
 
 

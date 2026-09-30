@@ -181,6 +181,59 @@ def resolve_companion_material_paths(payload, folder):
                 info["path"] = str(path)
 
 
+def restore_companion_material(incoming, protected):
+    """Recover omitted channels while keeping imported material edits authoritative."""
+    result = copy.deepcopy(incoming)
+    for key, value in protected.items():
+        if key not in result:
+            result[key] = copy.deepcopy(value)
+        elif isinstance(value, dict) and isinstance(result[key], dict):
+            if key == "textures":
+                # A present binding may be an intentional texture/UV edit.
+                for slot, binding in value.items():
+                    result[key].setdefault(slot, copy.deepcopy(binding))
+            else:
+                result[key] = restore_companion_material(result[key], value)
+    return result
+
+
+def companion_material_slots(material):
+    """Use recovered authored maps in the existing preview/import material path."""
+    from cdmw.models import PreviewMaterialParameterInput
+    from .scene_material_audit import SceneMaterialTextureSlot
+    kinds = {"baseColorTexture": ("base", "base"), "normalTexture": ("normal", "normal"),
+             "metallicRoughnessTexture": ("material", "metallic_roughness"),
+             "emissiveTexture": ("emissive", "emissive"), "occlusionTexture": ("occlusion", "ao"),
+             "roughnessTexture": ("roughness", "roughness"), "metallicTexture": ("metalness", "metallic"),
+             "specularTexture": ("specular", "specular"), "opacityTexture": ("opacity", "opacity")}
+    slots = []
+    for key, info in material.get("textures", {}).items():
+        if key not in kinds or not info.get("path") or info.get("missing") or not Path(info["path"]).is_file():
+            continue
+        kind, subtype = kinds[key]
+        uv = info.get("extensions", {}).get("KHR_texture_transform", {})
+        transform = (*uv.get("offset", (0, 0)), *uv.get("scale", (1, 1)), uv.get("rotation", 0)) if uv else ()
+        parameters = ()
+        if key == "normalTexture":
+            scale = float(info.get("scale", 1))
+            parameters = (PreviewMaterialParameterInput(parameter_kind="float", parameter_name="_gltfTextureScale",
+                                                        value=str(scale), numeric_value=scale),)
+        slots.append(SceneMaterialTextureSlot(slot_kind=kind, path=str(info["path"]), parameter_name="_" + key,
+                     semantic_type=kind, semantic_subtype=subtype, texcoord=int(uv.get("texCoord", info.get("texCoord", 0))),
+                     transform=transform, packed_channels=("occlusion", "roughness", "metallic") if kind == "material" else (),
+                     srgb_mode="srgb" if kind in {"base", "emissive"} else "linear", parameters=parameters,
+                     source="cdmw_companion"))
+    return slots
+
+
+def restore_companion_texture_inputs(submesh, incoming_material):
+    from .scene_material_audit import _apply_scene_material_slots_to_submesh
+    existing = incoming_material.get("textures", {})
+    missing = {key: info for key, info in submesh.interchange_material.get("textures", {}).items() if key not in existing}
+    slots = companion_material_slots({"textures": missing})
+    _apply_scene_material_slots_to_submesh(submesh, slots, confidence="cdmw_companion")
+
+
 def _pack_standard_textures(material: dict, output_dir: Path) -> list[str]:
     """Represent separate scalar maps in glTF's packed channels without loss."""
     from PIL import Image

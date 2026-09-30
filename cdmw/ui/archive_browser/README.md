@@ -405,8 +405,10 @@ separate hard-edge normals need topology replacement.
 
 In Blender, return an OBJ, FBX or GLB and keep the matching manifest beside it as
 `<returned>.<format>.meta.json`. GLB carries the richest material, rig and morph
-data. For GLB, enable **Data > Mesh > Attributes** in Blender's glTF export
-options to retain `_CDMW_VERTEX_ID`. FBX import uses the selected Blender executable; retain the reserved
+data. For GLB or separate-file glTF, enable **Data > Mesh > Attributes** to retain
+`_CDMW_VERTEX_ID`, set **Use Vertex Color > Active**, and enable **Include All
+Bone Influences**. Export only the selected model meshes and armature, excluding
+bone-display shapes. FBX import uses the selected Blender executable; retain the reserved
 `CDMW_VERTEX_ID` UV layer so edited vertex identities survive conversion. OBJ
 returns carry positions, normals and UV edits, with protected rig and other
 unsupported data retained in the companion. Export reports list missing textures
@@ -414,6 +416,11 @@ and format limitations. Existing animation clips are retained; animation editing
 is unavailable. Disable modifiers that change topology for a same-count return.
 The importer recovers unchanged coordinates, UVs and normal directions within
 serialization and Blender custom-normal rounding precision.
+When changing return format, the companion recovers omitted extra UV sets and
+texture bindings while retaining imported channel edits. Static OBJ returns
+recover the original local coordinate frame. Split OBJ companions also retain
+the scene graph and existing clips; importing one split part does not reconstruct
+the other parts of a game mesh.
 
 Larger Blender normal changes remain edits, so an untouched Blender session is not
 always a byte-identical return. Normal writes preserve the shared tangent and handedness

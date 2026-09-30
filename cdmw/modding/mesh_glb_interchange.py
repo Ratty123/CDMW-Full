@@ -29,12 +29,13 @@ from .mesh_obj_importer import (
     _obj_sidecar_original_index_count,
     _obj_sidecar_original_vertex_stride,
     _obj_sidecar_source_vertex_offsets,
+    _restore_companion_submesh_order,
     _validate_obj_sidecar_skinning_metadata,
     _validate_obj_sidecar_source_index_maps,
     _validate_obj_sidecar_stable_ids,
 )
 from .mesh_parser import ParsedMesh, SubMesh
-from .scene_geometry_utils import _restore_interchange_coordinates
+from .scene_geometry_utils import _bbox, _restore_interchange_coordinates
 
 
 def export_glb(
@@ -119,6 +120,7 @@ def _attach_glb_sidecar(mesh: ParsedMesh, sidecar: dict[str, object], source_nam
         source_path=str(sidecar.get("source_path", "") or ""),
         source_format=str(sidecar.get("source_format", "") or ""),
     )
+    _restore_companion_submesh_order(mesh.submeshes, matched_entries)
     _attach_obj_sidecar_source_identity(mesh, sidecar)
     _attach_obj_sidecar_lod_identity(mesh, sidecar)
     _attach_obj_sidecar_warnings(mesh, matched_entries, {})
@@ -145,6 +147,7 @@ def _attach_glb_sidecar(mesh: ParsedMesh, sidecar: dict[str, object], source_nam
     # must follow the same frame. Animation editing is intentionally excluded.
     mesh.interchange_nodes = copy.deepcopy(sidecar.get("interchange_nodes", []))
     mesh.interchange_animations = copy.deepcopy(sidecar.get("interchange_animations", []))
+    mesh.bbox_min, mesh.bbox_max = _bbox([vertex for part in mesh.submeshes for vertex in part.vertices])
     _attach_obj_sidecar_edit_operations(mesh, matched_entries, sidecar, source_name)
 
 

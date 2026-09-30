@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import os
 import struct
@@ -28,9 +29,11 @@ elif source.suffix == ".obj":
     bpy.ops.wm.obj_import(filepath=str(source))
 else:
     bpy.ops.import_scene.gltf(filepath=str(source))
+helper_shapes = {bone.custom_shape for obj in bpy.data.objects if obj.type == "ARMATURE"
+                 for bone in obj.pose.bones if bone.custom_shape}
 facts = []
 for obj in bpy.data.objects:
-    if obj.type != "MESH":
+    if obj.type != "MESH" or obj in helper_shapes:
         continue
     part = {"name": obj.name, "vertices": [list(v.co) for v in obj.data.vertices],
             "uv_names": [layer.name for layer in obj.data.uv_layers],
@@ -50,8 +53,35 @@ for obj in bpy.data.objects:
                                   "linked": [i.name for i in shader.inputs if i.is_linked]})
     facts.append(part)
 report.write_text(json.dumps(facts, indent=2))
-bpy.ops.export_scene.gltf(filepath=str(target), export_format="GLB", export_attributes=True,
-                          export_skins=True, export_morph=True, export_animations=True)
+bpy.ops.object.select_all(action="DESELECT")
+for obj in bpy.data.objects:
+    if obj not in helper_shapes and obj.type in {"MESH", "ARMATURE", "EMPTY"}:
+        obj.select_set(True)
+if target.suffix == ".obj":
+    bpy.ops.wm.obj_export(filepath=str(target), apply_modifiers=False, export_triangulated_mesh=True,
+                          export_selected_objects=True)
+elif target.suffix == ".fbx":
+    bpy.ops.export_scene.fbx(filepath=str(target), add_leaf_bones=False, bake_anim=False,
+                             use_mesh_modifiers=False, use_selection=True)
+else:
+    for obj in bpy.data.objects:
+        if obj.type != "MESH" or obj in helper_shapes:
+            continue
+        uv = obj.data.uv_layers.get("CDMW_VERTEX_ID")
+        if uv is None:
+            continue
+        attribute = obj.data.attributes.get("_CDMW_VERTEX_ID") or obj.data.attributes.new("_CDMW_VERTEX_ID", "FLOAT", "POINT")
+        seen = {}
+        for loop in obj.data.loops:
+            value = uv.data[loop.index].uv.x
+            if loop.vertex_index in seen and abs(seen[loop.vertex_index] - value) > 0.001:
+                raise RuntimeError("Vertex identity disagrees between corners")
+            seen[loop.vertex_index] = value
+            attribute.data[loop.vertex_index].value = value
+        obj.data.uv_layers.remove(uv)
+    bpy.ops.export_scene.gltf(filepath=str(target), export_format="GLTF_SEPARATE" if target.suffix == ".gltf" else "GLB",
+                              export_attributes=True, export_skins=True, export_all_influences=True,
+                              export_vertex_color="ACTIVE", export_morph=True, export_animations=True, use_selection=True)
 '''
 
 
@@ -69,10 +99,115 @@ def _run_blender(root, source, returned):
     report = root / "blender.json"
     run = subprocess.run([blender_executable(), "--background", "--factory-startup", "--python-exit-code", "31",
                           "--python", str(script), "--", str(source), str(returned), str(report)],
-                         capture_output=True, text=True, timeout=60)
-    (root / "blender.log").write_text(run.stdout + run.stderr)
+                         capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60)
+    (root / "blender.log").write_text(run.stdout + run.stderr, encoding="utf-8")
     assert run.returncode == 0, (run.stdout + run.stderr)[-3000:]
     return json.loads(report.read_text())
+
+
+@pytest.mark.parametrize("source_format", ["obj", "fbx", "glb"])
+@pytest.mark.parametrize("return_format", ["obj", "fbx", "glb", "gltf"])
+def test_blender_mixed_format_return_retains_static_and_skinned_channels(tmp_path, source_format, return_format):
+    from cdmw.modding.scene_importer import import_scene_mesh_with_report
+    blender = blender_executable()
+    mesh = authored_mesh(tmp_path / "source")
+    trim = copy.deepcopy(mesh.submeshes[0])
+    trim.name, trim.material = "Trim", "TrimMat"
+    trim.bone_indices, trim.bone_weights, trim.interchange_skin = [], [], {}
+    trim.morph_targets, trim.morph_weights = {}, {}
+    trim.interchange_node_index = 3
+    trim.interchange_transform = (1.5, 0, 0, 2, 0, 2, 0, 3, 0, 0, 0.75, 4, 0, 0, 0, 1)
+    mesh.interchange_nodes.append({"name": "Trim", "translation": [2, 3, 4], "scale": [1.5, 2, 0.75]})
+    mesh.submeshes.append(trim)
+    mesh.total_vertices, mesh.total_faces = 6, 2
+    files = {"obj": export_obj, "fbx": export_fbx, "glb": export_glb}[source_format](mesh, str(tmp_path / "out"), "source")
+    source = Path(files if isinstance(files, str) else files[0])
+    returned = source.with_name(f"returned.{return_format}")
+    _run_blender(tmp_path, source, returned)
+    Path(f"{returned}.meta.json").write_bytes(Path(f"{source}.meta.json").read_bytes())
+    result = import_scene_mesh_with_report(returned, preserve_authoring=True, blender_path=blender)
+    restored = result.mesh
+    for binding in result.material_bindings:
+        assert binding.material_name == restored.submeshes[binding.submesh_index].material
+        assert Path(dict(binding.texture_slots)["base"]).is_file()
+    assert len(restored.submeshes) == 2
+    for part, expected in zip(restored.submeshes, mesh.submeshes, strict=True):
+        ids = part.interchange_vertex_ids
+        assert set(ids) == {0, 1, 2}
+        assert len(part.faces) == len(expected.faces)
+        assert set(part.uv_sets) == set(expected.uv_sets)
+        for attr, tolerance in (("vertices", 2e-5), ("normals", 2e-5), ("vertex_colors", 0.004)):
+            for index, row in enumerate(getattr(part, attr)):
+                assert row == pytest.approx(getattr(expected, attr)[ids[index]], abs=tolerance)
+            assert len(getattr(part, attr)) == 3
+        for uv_index, rows in expected.uv_sets.items():
+            for index, row in enumerate(part.uv_sets[uv_index]):
+                assert row == pytest.approx(rows[ids[index]], abs=2e-5)
+        assert set(part.morph_targets) == set(expected.morph_targets)
+        for name, rows in expected.morph_targets.items():
+            for index, row in enumerate(part.morph_targets[name]):
+                assert row == pytest.approx(rows[ids[index]], abs=2e-5)
+        if expected.bone_indices:
+            for index, (joints, weights) in enumerate(zip(part.bone_indices, part.bone_weights, strict=True)):
+                actual = {joint: weight for joint, weight in zip(joints, weights) if weight > 1e-6}
+                wanted = {joint: weight for joint, weight in zip(expected.bone_indices[ids[index]], expected.bone_weights[ids[index]]) if weight > 1e-6}
+                assert actual == pytest.approx(wanted, abs=0.004)
+        assert expected.interchange_material["textures"].keys() <= part.interchange_material["textures"].keys()
+        assert all(Path(info["path"]).is_file() for info in part.interchange_material["textures"].values())
+        assert Path(part.preview_texture_path).is_file()
+    assert restored.interchange_nodes == mesh.interchange_nodes
+    assert json.dumps(restored.interchange_animations, sort_keys=True) == json.dumps(mesh.interchange_animations, sort_keys=True)
+    vertices = [vertex for part in restored.submeshes for vertex in part.vertices]
+    assert restored.bbox_min == pytest.approx(tuple(min(vertex[axis] for vertex in vertices) for axis in range(3)))
+    assert restored.bbox_max == pytest.approx(tuple(max(vertex[axis] for vertex in vertices) for axis in range(3)))
+
+
+@pytest.mark.parametrize("format_name", ["glb", "fbx"])
+def test_blender_and_direct_import_retain_all_six_influences(tmp_path, format_name):
+    from cdmw.modding.scene_importer import import_scene_mesh_with_report
+    from cdmw.modding.scene_geometry_utils import _identity_matrix
+    blender = blender_executable()
+    mesh = authored_mesh(tmp_path / "source")
+    part = mesh.submeshes[0]
+    skin = part.interchange_skin
+    for index in range(4):
+        node_index = len(skin["nodes"])
+        skin["nodes"].append({"name": f"Extra{index}"})
+        skin["nodes"][0]["children"].append(node_index)
+        skin["joints"].append(node_index)
+        skin["inverse_bind_matrices"].append(list(_identity_matrix()))
+    part.bone_indices, part.bone_weights = [(0, 1, 2, 3, 4, 5)] * 3, [(0.1, 0.15, 0.2, 0.25, 0.1, 0.2)] * 3
+    files = {"glb": export_glb, "fbx": export_fbx}[format_name](mesh, str(tmp_path / "out"), "mesh")
+    source = Path(files if isinstance(files, str) else files[0])
+    returned = source.with_name("returned.glb")
+    _run_blender(tmp_path, source, returned)
+    Path(f"{returned}.meta.json").write_bytes(Path(f"{source}.meta.json").read_bytes())
+    for path in (source, returned):
+        restored = import_scene_mesh_with_report(path, preserve_authoring=True, blender_path=blender).mesh.submeshes[0]
+        for joints, weights in zip(restored.bone_indices, restored.bone_weights, strict=True):
+            actual = {joint: weight for joint, weight in zip(joints, weights) if weight > 1e-6}
+            assert actual == pytest.approx(dict(zip(part.bone_indices[0], part.bone_weights[0])), abs=1e-5)
+
+
+def test_blender_python_fbx_fallback_retains_mixed_numeric_attributes(tmp_path, monkeypatch):
+    from cdmw.modding.scene_importer import import_scene_mesh_with_report
+    blender = blender_executable()
+    mesh = authored_mesh(tmp_path / "source")
+    part = mesh.submeshes[0]
+    part.bone_indices, part.bone_weights, part.interchange_skin = [], [], {}
+    part.morph_targets, part.morph_weights = {}, {}
+    mesh.interchange_animations = []
+    monkeypatch.setattr("cdmw.modding.mesh_exporter._export_fbx_native", lambda *a, **k: False)
+    monkeypatch.setattr("cdmw.modding.mesh_exporter._fbx_geometry_native", lambda *a, **k: None)
+    monkeypatch.setattr("cdmw.modding.mesh_exporter._allow_python_export_fallback", lambda *a, **k: True)
+    source = Path(export_fbx(mesh, str(tmp_path / "out"), "mesh", scale=1))
+    restored = import_scene_mesh_with_report(source, preserve_authoring=True, blender_path=blender).mesh.submeshes[0]
+    for attr, tolerance in (("vertices", 2e-5), ("normals", 2e-5), ("vertex_colors", 0.004)):
+        for actual, expected in zip(getattr(restored, attr), getattr(part, attr), strict=True):
+            assert actual == pytest.approx(expected, abs=tolerance)
+    for index, rows in part.uv_sets.items():
+        for actual, expected in zip(restored.uv_sets[index], rows, strict=True):
+            assert actual == pytest.approx(expected, abs=2e-5)
 
 
 @pytest.mark.parametrize("format_name", ["glb", "fbx", "obj"])
@@ -108,6 +243,8 @@ def test_blender_import_and_export_rich_channels(tmp_path, format_name):
         assert imported.submeshes[0].source_vertex_map == [0, 1, 2]
         assert imported.submeshes[0].bone_weights == mesh.submeshes[0].bone_weights
         assert set(imported.submeshes[0].uv_sets) == {0, 1}
+        for actual, expected in zip(imported.submeshes[0].vertex_colors, mesh.submeshes[0].vertex_colors, strict=True):
+            assert actual == pytest.approx(expected, abs=0.004)
     if format_name in {"obj", "fbx"}:
         from PIL import Image
         material = import_gltf(returned, preserve_authoring=True).mesh.submeshes[0].interchange_material

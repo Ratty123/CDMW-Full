@@ -66,6 +66,25 @@ def _export_mesh() -> ParsedMesh:
 
 
 class FbxExporterTests(unittest.TestCase):
+    def test_python_fallback_accepts_mixed_numeric_vertex_attributes(self) -> None:
+        mesh = _export_mesh()
+        part = mesh.submeshes[0]
+        part.vertices = [(0, 0.25, 0), (1, 0, 0), (0, 1, 0)]
+        part.normals = [(0, 0.25, 1)] * 3
+        part.uvs = [(0, 0.25), (1, 0), (0, 1)]
+        part.uv_sets = {0: part.uvs, 1: [(0, 0.25)] * 3}
+        part.vertex_colors = [(1, 0.2, 0.3, 0.8)] * 3
+        with (
+            tempfile.TemporaryDirectory() as temp_dir,
+            mock.patch("cdmw.modding.mesh_exporter._export_fbx_native", return_value=False),
+            mock.patch("cdmw.modding.mesh_exporter._fbx_geometry_native", return_value=None),
+            mock.patch("cdmw.modding.mesh_exporter._allow_python_export_fallback", return_value=True),
+        ):
+            payload = Path(export_fbx(mesh, temp_dir, name="mixed_numeric", scale=1)).read_bytes()
+        self.assertTrue(payload.startswith(b"Kaydara FBX Binary"))
+        for channel in (b"Vertices", b"Normals", b"UV", b"Colors"):
+            self.assertIn(channel + b"d", payload, "vertex channels must use double arrays")
+
     def test_missing_native_writer_does_not_silently_drop_skin_binding(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir, mock.patch(
             "cdmw.modding.mesh_exporter._export_fbx_native", return_value=False
