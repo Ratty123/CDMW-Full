@@ -67,7 +67,7 @@ _BASE_TEXTURE_CHANNELS = frozenset({"base", "base_color", "albedo", "diffuse"})
 
 def _editable_package_mesh_path(path: Path) -> Path:
     if path.is_dir():
-        for name in ("mesh.glb", "edited_mesh.glb", "edited.glb", "mesh.obj", "edited_mesh.obj", "edited.obj"):
+        for name in ("mesh.glb", "edited_mesh.glb", "edited.glb", "mesh.obj", "edited_mesh.obj", "edited.obj", "mesh.fbx", "edited_mesh.fbx", "edited.fbx"):
             candidate = path / name
             if candidate.is_file():
                 return candidate
@@ -232,6 +232,16 @@ def _apply_export_texture_bindings(
                 ),
             )
             relative_path = paths[(resource.resource_id, resource.channel)]
+            from cdmw.modding.mesh_interchange_materials import interchange_material
+            submesh.interchange_material = interchange_material(submesh)
+            slots = submesh.interchange_material.setdefault("textures", {})
+            key = {"base": "baseColorTexture", "normal": "normalTexture", "material": "metallicRoughnessTexture",
+                   "emissive": "emissiveTexture", "roughness": "roughnessTexture", "metallic": "metallicTexture",
+                   "occlusion": "occlusionTexture"}.get(semantic)
+            if key:
+                info = dict(slots.get(key, {}), path=relative_path)
+                info.pop("missing", None)
+                slots[key] = info
             if semantic == "base":
                 submesh.texture = relative_path
             bindings.append(
@@ -269,14 +279,24 @@ def _package_reparse_report(
     for binding in texture_bindings:
         relative_path = str(binding.get("path") or "")
         channel = str(binding.get("channel") or "").strip().lower()
-        if relative_path not in sidecar_text or (channel in _BASE_TEXTURE_CHANNELS and relative_path not in mtl_text):
+        if relative_path not in sidecar_text:
             raise RuntimeError(f"exported texture binding did not resolve in its sidecar/MTL contract: {relative_path}")
+        if channel in _BASE_TEXTURE_CHANNELS and relative_path not in mtl_text:
+            # Portable PNG/material-factor copies replace the DDS map in MTL.
+            # Its authored source must still match the staged binding, and its
+            # actual published diffuse image must be readable.
+            from cdmw.modding.mesh_obj_importer import _load_obj_material_texture_map
+            references = _load_obj_material_texture_map(str(staging_dir / f"{name}.obj"))
+            if not references or not all((staging_dir / reference).is_file() for reference in references.values()):
+                raise RuntimeError(f"portable OBJ diffuse texture is missing: {relative_path}")
     return {
         "status": "passed",
         "glb_submesh_count": len(tuple(glb_mesh.submeshes or ())),
         "obj_submesh_count": len(tuple(obj_mesh.submeshes or ())),
         "dds_readback": [dict(row.get("readback") or {}) for row in texture_rows],
         "texture_bindings": [dict(binding) for binding in texture_bindings],
+        "interchange_reports": [json.loads(path.read_text(encoding="utf-8")).get("interchange_report", {})
+                                for path in staging_dir.glob("*.meta.json")],
         **metadata_readback,
     }
 
@@ -295,6 +315,7 @@ def _package_artifact_rows(
         role = {
             ".glb": "mesh_glb",
             ".obj": "mesh_obj",
+            ".fbx": "mesh_fbx",
             ".mtl": "mesh_material",
         }.get(suffix, "mesh_metadata" if suffix in {".json", ".txt"} else "mesh_artifact")
         rows.append(_artifact_row(path, staging_dir, role))
@@ -363,6 +384,9 @@ class MeshEditablePackageExportWorker(QObject):
                     self.name,
                     extra_payload=sidecar_payload,
                 )
+                from cdmw.modding.mesh_exporter import export_fbx
+                _raise_export_cancelled(self.stop_event)
+                export_fbx(snapshot.mesh, str(staging_dir), self.name)
                 staged_glb_path = staging_dir / f"{self.name}.glb"
                 staged_sidecar_path = Path(f"{staged_glb_path}.meta.json")
                 if staged_sidecar_path.is_file():
@@ -404,6 +428,7 @@ class MeshEditablePackageExportWorker(QObject):
                 "package_dir": self.output_dir,
                 "mesh_path": glb_path,
                 "obj_path": obj_path,
+                "fbx_path": self.output_dir / f"{self.name}.fbx",
                 "metadata_path": cdmeta_path,
                 "original_asset_hash_path": original_hash_path,
                 "files": exported_paths,
@@ -438,6 +463,8 @@ class MeshEditablePackageImportWorker(QObject):
         self.service = service
         self.session_id = str(session_id or "")
         self.package_path = Path(package_path)
+        from cdmw.services.fbx_blender_conversion import configured_blender
+        self.blender_path = configured_blender()
         self.stop_event = threading.Event()
 
     def stop(self) -> None:
@@ -451,7 +478,17 @@ class MeshEditablePackageImportWorker(QObject):
             started = time.perf_counter()
             mesh_path = _editable_package_mesh_path(self.package_path)
             _ensure_editable_package_sidecar_alias(mesh_path)
-            mesh = import_glb_with_sidecar(mesh_path) if mesh_path.suffix.lower() == ".glb" else import_obj(str(mesh_path))
+            if mesh_path.suffix.lower() == ".glb":
+                mesh = import_glb_with_sidecar(mesh_path)
+            elif mesh_path.suffix.lower() == ".fbx":
+                from cdmw.modding.scene_importer import import_fbx
+                if not Path(f"{mesh_path}.meta.json").is_file():
+                    raise ValueError("FBX sidecar is required for editable mesh package import.")
+                mesh = import_fbx(mesh_path, blender_path=self.blender_path, stop_event=self.stop_event)
+            elif mesh_path.suffix.lower() == ".obj":
+                mesh = import_obj(str(mesh_path))
+            else:
+                raise ValueError("Choose an edited GLB, FBX, or OBJ mesh.")
             if self.stop_event.is_set():
                 return
             view = self.service.replace_working_mesh(self.session_id, mesh)

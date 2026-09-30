@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import hashlib
 import os
 import shutil
@@ -399,6 +400,11 @@ class MeshRebuildServiceMixin:
                 ]
                 _service_call("refresh_mesh_totals", mesh)
             _raise_if_cancelled(stop_event)
+            if session.skeleton is not None:
+                mesh.interchange_skeleton = copy.deepcopy(session.skeleton)
+                if str(mesh.format).casefold() == "pac":
+                    from cdmw.modding.mesh_parser import resolve_pac_bone_palette
+                    mesh.interchange_bone_palette = resolve_pac_bone_palette(session.original_data, session.skeleton)
             texture_resources = self._capture_texture_resources(session, mesh)
             base_mesh = session.base_mesh if session.base_mesh_is_original_parse else None
             texture_revisions = tuple(

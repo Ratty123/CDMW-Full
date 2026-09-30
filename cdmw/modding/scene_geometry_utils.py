@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import copy
+
 import math
 from pathlib import Path
 from urllib.parse import unquote, urlparse
@@ -185,12 +187,23 @@ def _copy_submesh_with_transform(
         faces=faces,
         vertex_count=len(vertices),
         face_count=len(faces),
+        uv_sets=copy.deepcopy(submesh.uv_sets),
+        vertex_colors=list(submesh.vertex_colors),
+        morph_targets={name: [_transform_point(v, matrix) for v in rows] for name, rows in submesh.morph_targets.items()},
+        morph_normals={name: [_transform_normal(v, matrix) for v in rows] for name, rows in submesh.morph_normals.items()},
+        morph_tangents={name: [_normalize_vec(_transform_vector(v, matrix)) for v in rows] for name, rows in submesh.morph_tangents.items()},
+        morph_weights=dict(submesh.morph_weights),
+        interchange_material=copy.deepcopy(submesh.interchange_material),
+        interchange_skin=copy.deepcopy(submesh.interchange_skin),
+        bone_indices=list(submesh.bone_indices),
+        bone_weights=list(submesh.bone_weights),
     )
     tangent_signs = list(getattr(submesh, "tangent_signs", ()) or ())
     if len(tangent_signs) == len(vertices):
         sign_scale = -1.0 if mirrored else 1.0
         setattr(copied, "tangent_signs", [float(value) * sign_scale for value in tangent_signs])
     for attr_name in (
+        "interchange_vertex_ids",
         "texture_slots",
         "preview_color",
         "preview_texture_path",
@@ -222,6 +235,86 @@ def _copy_submesh_with_transform(
         if hasattr(submesh, attr_name):
             setattr(copied, attr_name, getattr(submesh, attr_name))
     return copied
+
+
+def _transform_authoring_coordinates(part, matrix):
+    """Change a coordinate frame without inventing absent vertex channels."""
+    part.vertices = [_transform_point(v, matrix) for v in part.vertices]
+    part.normals = [_transform_normal(v, matrix) for v in part.normals]
+    part.tangents = [_normalize_vec(_transform_vector(v, matrix)) for v in part.tangents]
+    part.morph_targets = {name: [_transform_point(v, matrix) for v in rows] for name, rows in part.morph_targets.items()}
+    part.morph_normals = {name: [_transform_normal(v, matrix) for v in rows] for name, rows in part.morph_normals.items()}
+    part.morph_tangents = {name: [_normalize_vec(_transform_vector(v, matrix)) for v in rows] for name, rows in part.morph_tangents.items()}
+    if _linear_determinant(matrix) < 0:
+        part.faces = [(a, c, b) for a, b, c in part.faces]
+        if hasattr(part, "tangent_signs"):
+            part.tangent_signs = [-float(v) for v in part.tangent_signs]
+
+
+def _bake_interchange_coordinates(part):
+    matrix = tuple(getattr(part, "interchange_transform", ())) or _identity_matrix()
+    if len(matrix) != 16 or not all(math.isfinite(v) for v in matrix) or _invert_affine_matrix(matrix) is None:
+        raise ValueError("Mesh transform is invalid or singular; cannot export editable coordinates.")
+    if matrix != _identity_matrix():
+        _transform_authoring_coordinates(part, matrix)
+    part.interchange_transform = _identity_matrix()
+
+
+def _skin_bind_frames(skin):
+    from .scene_gltf_import import _gltf_node_matrix
+    nodes = skin["nodes"]
+    parents = {int(child): index for index, node in enumerate(nodes) for child in node.get("children", ())}
+    world, visiting = {}, set()
+    def matrix(index):
+        if index in visiting:
+            raise ValueError("Skin hierarchy contains a parent cycle.")
+        if index not in world:
+            visiting.add(index)
+            local = _gltf_node_matrix(nodes[index])
+            world[index] = _multiply_matrix(matrix(parents[index]), local) if index in parents else local
+            visiting.remove(index)
+        return world[index]
+    result = {}
+    inverses = skin.get("inverse_bind_matrices", ())
+    for slot, joint in enumerate(skin["joints"]):
+        name = str(nodes[joint].get("name", ""))
+        if name in result:
+            raise ValueError("Skin has duplicate joint names; cannot prove its coordinate frame.")
+        inverse = tuple(inverses[slot][column * 4 + row] for row in range(4) for column in range(4)) if inverses else _identity_matrix()
+        result[name] = _multiply_matrix(matrix(joint), inverse)
+    return result
+
+
+def _restore_interchange_coordinates(part, entry, source_skin=None, *, legacy_bind_coordinates=False):
+    original = tuple(entry.get("interchange_transform", ())) or _identity_matrix()
+    incoming = tuple(getattr(part, "interchange_transform", ())) or _identity_matrix()
+    if len(original) != 16 or len(incoming) != 16 or not all(math.isfinite(v) for v in (*original, *incoming)):
+        raise ValueError("Mesh coordinate transform is invalid.")
+    inverse = _invert_affine_matrix(original)
+    if inverse is None:
+        raise ValueError("Source mesh transform is singular; cannot restore editable coordinates.")
+    relative = _multiply_matrix(inverse, incoming)
+    source_skin = source_skin or entry.get("interchange_skin")
+    if legacy_bind_coordinates and source_skin and entry.get("interchange_bone_indices") and not part.interchange_skin:
+        relative = incoming  # OBJ represents the rig's bind-space vertices.
+    if source_skin and part.interchange_skin and part.bone_indices:
+        # A skinned glTF mesh's node transform cancels in the joint matrix.
+        # Comparing joint bind frames recovers DCC axis conversion without
+        # applying the armature/object transform a second time.
+        source_frames, incoming_frames = _skin_bind_frames(source_skin), _skin_bind_frames(part.interchange_skin)
+        frames = []
+        for name in source_frames.keys() & incoming_frames.keys():
+            source_inverse = _invert_affine_matrix(source_frames[name])
+            if source_inverse is None:
+                raise ValueError("Source skin bind frame is singular.")
+            frames.append(_multiply_matrix(source_inverse, incoming_frames[name]))
+        if not frames or any(abs(a - b) > 2e-5 * max(1.0, abs(a), abs(b)) for frame in frames[1:] for a, b in zip(frame, frames[0])):
+            raise ValueError("Edited joint bind frames disagree; cannot prove mesh coordinate reconstruction.")
+        relative = frames[0]
+    if any(abs(a - b) > 1e-6 for a, b in zip(relative, _identity_matrix())):
+        _transform_authoring_coordinates(part, relative)
+    part.interchange_transform = original
+    part._cdmw_coordinates_restored = True
 
 def _dedupe_paths(values: list[Path]) -> list[Path]:
     seen: set[str] = set()

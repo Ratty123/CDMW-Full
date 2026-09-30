@@ -10,6 +10,7 @@ No external libraries required — pure Python binary FBX writer.
 from __future__ import annotations
 
 import io
+import copy
 import json
 import os
 import struct
@@ -27,6 +28,8 @@ from cdmw.core.atomic_file import atomic_write_bytes, atomic_write_text
 from .mesh_asset import mesh_skinning_contract
 from .mesh_export_source_identity import mesh_export_original_data, mesh_export_source_identity
 from .mesh_parser import ParsedMesh, SubMesh
+from .mesh_interchange_materials import interchange_report, material_fbx_payload, prepare_interchange_material, prepare_legacy_material
+from .scene_geometry_utils import _bake_interchange_coordinates, _identity_matrix
 from .logging import get_logger
 
 logger = get_logger("core.mesh_exporter")
@@ -298,6 +301,8 @@ def _sidecar_submesh_contract(
         "bounds": _metadata_json_safe(_metadata_value(asset_submesh, "bounds")) if asset_submesh is not None else _submesh_bounds(submesh),
         "bone_layout": _submesh_bone_layout(submesh),
     }
+    from .mesh_interchange_materials import interchange_metadata_payload
+    payload.update(interchange_metadata_payload(submesh))
     payload.update(_submesh_raw_vertex_records_payload(submesh, original_data))
     payload.update(_submesh_unknown_fields_payload(submesh))
     return payload
@@ -370,6 +375,9 @@ def _roundtrip_contract_payload(mesh: ParsedMesh) -> dict[str, object]:
 
 def _roundtrip_manifest_extra_payload(mesh: ParsedMesh, extra_payload: Optional[dict]) -> dict[str, object]:
     payload = _roundtrip_contract_payload(mesh)
+    for attr in ("interchange_nodes", "interchange_animations"):
+        if getattr(mesh, attr, None):
+            payload[attr] = copy.deepcopy(getattr(mesh, attr))
     if extra_payload:
         payload.update(extra_payload)
     return payload
@@ -382,6 +390,7 @@ def _build_roundtrip_manifest_payload(
     companion_path: str = "",
     extra_payload: Optional[dict] = None,
 ) -> dict:
+    from .mesh_interchange_materials import interchange_metadata_payload
     original_data = mesh_export_original_data(mesh)
     payload = {
         "format": _OBJ_ROUNDTRIP_SIDECAR_FORMAT,
@@ -405,6 +414,7 @@ def _build_roundtrip_manifest_payload(
                 "face_count": len(submesh.faces),
                 "original_vertex_stride": int(getattr(submesh, "source_vertex_stride", 0) or 0),
                 "source_vertex_map": _coerce_submesh_source_vertex_map(submesh),
+                **interchange_metadata_payload(submesh),
                 **_submesh_raw_vertex_records_payload(submesh, original_data),
                 **_submesh_unknown_fields_payload(submesh),
             }
@@ -500,19 +510,31 @@ def export_obj(mesh: ParsedMesh, output_dir: str, name: str = "",
 
     obj_path = os.path.join(output_dir, f"{base}.obj")
     mtl_path = os.path.join(output_dir, f"{base}.mtl")
+    source_mesh = mesh
+    if any(tuple(getattr(part, "interchange_transform", ())) not in ((), _identity_matrix())
+           and not (part.bone_indices and part.interchange_skin) for part in mesh.submeshes):
+        mesh = copy.deepcopy(mesh)
+        for part in mesh.submeshes:
+            if not (part.bone_indices and part.interchange_skin):
+                _bake_interchange_coordinates(part)
+        extra_payload = dict(extra_payload or {}, interchange_coordinate_space="world")
 
     # Write MTL
-    _write_mtl(mtl_path, mesh.submeshes)
+    portable_sources = {}
+    companions, missing = _write_mtl(mtl_path, mesh.submeshes, source_dir=Path(mesh.path).parent if mesh.path else None, portable_sources=portable_sources)
+    from .mesh_interchange_materials import interchange_report
+    extra_payload = dict(extra_payload or {}, interchange_report=interchange_report(mesh, "obj", missing=missing))
+    extra_payload["interchange_texture_sources"] = portable_sources
 
     sidecar_path = _obj_roundtrip_sidecar_path(obj_path)
     native_kwargs = {} if extra_payload is None else {"extra_payload": extra_payload}
     native_exported = _export_obj_native(mesh, obj_path, mtl_path, base, scale, manifest_path=sidecar_path, **native_kwargs)
     if native_exported:
-        if not sidecar_path.is_file():
-            sidecar_path = write_roundtrip_manifest(mesh, obj_path, companion_path=mtl_path, extra_payload=extra_payload)
+        if not sidecar_path.is_file() or mesh is not source_mesh:
+            sidecar_path = write_roundtrip_manifest(source_mesh, obj_path, companion_path=mtl_path, extra_payload=extra_payload)
         logger.info("Exported OBJ: %s (%d verts, %d faces)", obj_path,
                     mesh.total_vertices, mesh.total_faces)
-        return [obj_path, mtl_path, str(sidecar_path)]
+        return list(dict.fromkeys([obj_path, mtl_path, str(sidecar_path), *companions]))
     if not _allow_python_export_fallback(mesh, "export.obj"):
         raise RuntimeError("native OBJ export failed and Python export fallback was blocked")
 
@@ -574,11 +596,11 @@ def export_obj(mesh: ParsedMesh, output_dir: str, name: str = "",
 
     atomic_write_text(obj_path, "\n".join(lines))
 
-    sidecar_path = write_roundtrip_manifest(mesh, obj_path, companion_path=mtl_path, extra_payload=extra_payload)
+    sidecar_path = write_roundtrip_manifest(source_mesh, obj_path, companion_path=mtl_path, extra_payload=extra_payload)
 
     logger.info("Exported OBJ: %s (%d verts, %d faces)", obj_path,
                 mesh.total_vertices, mesh.total_faces)
-    return [obj_path, mtl_path, str(sidecar_path)]
+    return list(dict.fromkeys([obj_path, mtl_path, str(sidecar_path), *companions]))
 
 
 def _export_obj_split(mesh, output_dir, base, scale):
@@ -607,31 +629,54 @@ def _format_mtl_texture_reference(texture_name: str) -> str:
     return f"{normalized}.dds"
 
 
-def _write_mtl(path, submeshes):
+def _write_mtl(path, submeshes, *, source_dir=None, portable_sources=None):
     """Write a Wavefront MTL material file."""
+    from .mesh_interchange_materials import prepare_interchange_material
     seen = set()
+    companions, missing = [], []
     lines = ["# Crimson Desert Materials", ""]
     for sm in submeshes:
         n = sm.material or sm.name
         if n in seen:
             continue
         seen.add(n)
+        material, files, absent = prepare_interchange_material(sm, Path(path).parent, source_dir)
+        if portable_sources is not None:
+            from .mesh_interchange_materials import portable_texture_sources
+            portable_sources.update(portable_texture_sources(material))
+        material, derived_files = prepare_legacy_material(material, Path(path).parent)
+        files.extend(derived_files)
+        companions.extend(files)
+        missing.extend(absent)
+        pbr = material.get("pbrMetallicRoughness", {})
+        rgba = list(pbr.get("baseColorFactor", (0.8, 0.8, 0.8, 1.0)))
+        roughness = max(0.0, min(1.0, float(pbr.get("roughnessFactor", 0.5))))
+        metallic = max(0.0, min(1.0, float(pbr.get("metallicFactor", 0.0))))
+        strength = float(material.get("extensions", {}).get("KHR_materials_emissive_strength", {}).get("emissiveStrength", 1.0))
+        emission = [float(v) * strength for v in material.get("emissiveFactor", (0.0, 0.0, 0.0))]
         lines.extend([
             f"newmtl {n}",
             "Ka 1.000 1.000 1.000",
-            "Kd 0.800 0.800 0.800",
+            "Kd " + " ".join(f"{float(v):.9g}" for v in rgba[:3]),
             "Ks 0.100 0.100 0.100",
-            "Ns 50.000",
-            "d 1.000",
+            f"Ns {min(1000.0, max(0.0, 2.0 / max(roughness * roughness, 0.002) - 2.0)):.9g}",
+            f"Pr {roughness:.9g}",
+            f"Pm {metallic:.9g}",
+            "Ke " + " ".join(f"{v:.9g}" for v in emission),
+            f"d {float(rgba[3] if len(rgba) > 3 else 1.0):.9g}",
             "illum 2",
         ])
-        if sm.texture:
-            texture_reference = _format_mtl_texture_reference(sm.texture)
-            if texture_reference:
-                lines.append(f"map_Kd {texture_reference}")
+        for key, command in (("baseColorTexture", "map_Kd"), ("normalTexture", "map_Bump"), ("emissiveTexture", "map_Ke"),
+                             ("roughnessTexture", "map_Pr"), ("metallicTexture", "map_Pm"), ("opacityTexture", "map_d")):
+            info = material.get("textures", {}).get(key, {})
+            reference = _format_mtl_texture_reference(info.get("path", ""))
+            if reference and not info.get("missing"):
+                option = f"-bm {float(info.get('scale', 1.0)):.9g} " if key == "normalTexture" else ""
+                lines.append(f"{command} {option}{reference}")
         lines.append("")
 
     atomic_write_text(path, "\n".join(lines))
+    return companions, missing
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -794,11 +839,12 @@ def _fbx_node(buf: io.BytesIO, name: str, props=None, children=None):
     buf.seek(end_offset)  # restore position
 
 
-def _fbx_texture_objects(buf, submesh, texture_id, video_id):
+def _fbx_texture_objects(buf, submesh, texture_id, video_id, info=None):
     if not texture_id:
         return
-    path = str(submesh.texture).replace("\\", "/")
-    name = submesh.material or submesh.name
+    info = info or {"path": submesh.texture}
+    path = str(info["path"]).replace("\\", "/")
+    name = f"{submesh.material or submesh.name}_{info.get('semantic', 'base')}"
 
     def video(out):
         _fbx_node(out, "Type", ["Clip"])
@@ -816,9 +862,101 @@ def _fbx_texture_objects(buf, submesh, texture_id, video_id):
         _fbx_node(out, "ModelUVScaling", [1.0, 1.0])
         _fbx_node(out, "Texture_Alpha_Source", ["None"])
         _fbx_node(out, "Cropping", [0, 0, 0, 0])
+        _fbx_node(out, "Properties70", children=[lambda out: _fbx_node(
+            out, "P", ["UVSet", "KString", "", "", "UVMap" + (str(info.get("texCoord")) if info.get("texCoord", 0) else "")])])
 
     _fbx_node(buf, "Video", [video_id, f"{name}\x00\x01Video", "Clip"], children=[video])
     _fbx_node(buf, "Texture", [texture_id, f"{name}\x00\x01Texture", ""], children=[texture])
+
+
+_FBX_TEXTURE_LINKS = {"baseColorTexture": "DiffuseColor", "normalTexture": "NormalMap",
+                      "metallicTexture": "ReflectionFactor", "roughnessTexture": "ShininessExponent",
+                      "emissiveTexture": "EmissiveColor", "opacityTexture": "TransparencyFactor"}
+
+
+def _prepare_fbx_mesh(mesh, output_dir):
+    prepared = copy.deepcopy(mesh)
+    prepared._cdmw_interchange_texture_sources = {}
+    missing = []
+    for part in prepared.submeshes:
+        if not part.bone_indices:
+            _bake_interchange_coordinates(part)
+        part.interchange_material, _, absent = prepare_interchange_material(
+            part, Path(output_dir), Path(mesh.path).parent if mesh.path else None)
+        from .mesh_interchange_materials import portable_texture_sources
+        prepared._cdmw_interchange_texture_sources.update(portable_texture_sources(part.interchange_material))
+        part.interchange_material, _ = prepare_legacy_material(part.interchange_material, Path(output_dir))
+        missing.extend(absent)
+        part.texture = part.interchange_material.get("textures", {}).get("baseColorTexture", {}).get("path", "")
+        if part.uvs:
+            part.uv_sets[0] = list(part.uvs)
+    return prepared, missing
+
+
+def _fbx_texture_ids(mesh, uid):
+    return [[(info, uid(), uid()) for info in material_fbx_payload(part.interchange_material)["textures"]
+             if info["semantic"] in _FBX_TEXTURE_LINKS] for part in mesh.submeshes]
+
+
+def _fbx_material_properties(buf, part):
+    values = material_fbx_payload(part.interchange_material)
+    for key, value in (("DiffuseColor", values["diffuse_color"]), ("EmissiveColor", values["emissive_color"])):
+        _fbx_node(buf, "P", [key, "Color", "", "A", *value])
+    for key, value in (("Opacity", values["opacity"]), ("TransparencyFactor", 1.0 - values["opacity"]),
+                       ("ReflectionFactor", values["metallic"]), ("Shininess", 100.0 * (1.0 - values["roughness"]) ** 2),
+                       ("EmissiveFactor", values["emissive_factor"]), ("BumpFactor", values["normal_strength"])):
+        _fbx_node(buf, "P", [key, "double", "Number", "A", float(value)])
+
+
+def _fbx_extra_geometry(buf, part):
+    uv_sets = dict(part.uv_sets)
+    identity_index = max(uv_sets, default=0) + 1
+    uv_sets[identity_index] = [(float(i), 1.0) for i in range(len(part.vertices))]
+    for index, rows in sorted(uv_sets.items()):
+        if index == 0:
+            continue
+        if len(rows) != len(part.vertices):
+            raise ValueError("FBX additional UV count differs from vertex count.")
+        def layer(out, rows=rows, index=index):
+            for key, value in (("Version", 101), ("Name", "CDMW_VERTEX_ID" if index == identity_index else f"UVMap{index}"),
+                               ("MappingInformationType", "ByVertice"), ("ReferenceInformationType", "Direct")):
+                _fbx_node(out, key, [value])
+            _fbx_node(out, "UV", [[v for u, t in rows for v in (u, 1.0 - t)]])
+        _fbx_node(buf, "LayerElementUV", [index], children=[layer])
+        def reference(out, index=index):
+            _fbx_node(out, "Version", [100])
+            def element(out):
+                _fbx_node(out, "Type", ["LayerElementUV"])
+                _fbx_node(out, "TypedIndex", [index])
+            _fbx_node(out, "LayerElement", children=[element])
+        _fbx_node(buf, "Layer", [index], children=[reference])
+    if part.vertex_colors:
+        if len(part.vertex_colors) != len(part.vertices):
+            raise ValueError("FBX color count differs from vertex count.")
+        def colors(out):
+            for key, value in (("Version", 101), ("Name", "Color"), ("MappingInformationType", "ByVertice"),
+                               ("ReferenceInformationType", "Direct")):
+                _fbx_node(out, key, [value])
+            _fbx_node(out, "Colors", [[v for row in part.vertex_colors for v in row]])
+        _fbx_node(buf, "LayerElementColor", [0], children=[colors])
+
+
+def _write_fbx_manifest(source_mesh, fbx_path, missing, skeleton=None, bone_palette=None, *, prepared_mesh=None):
+    from .mesh_glb_interchange import _joint_slots, _source_slot_skins
+    payload = {"interchange_report": interchange_report(source_mesh, "fbx", missing=missing, resolved_skeleton=bool(skeleton)),
+               "interchange_joint_slots": _joint_slots(source_mesh, skeleton, bone_palette)}
+    payload["interchange_texture_sources"] = getattr(prepared_mesh, "_cdmw_interchange_texture_sources", {})
+    payload["interchange_source_skins"] = _source_slot_skins(source_mesh, skeleton, bone_palette)
+    for skin in payload["interchange_source_skins"]:
+        matrices = skin.get("inverse_bind_matrices", [])
+        if any(any(abs(sum(matrix[axis * 4 + k] ** 2 for k in range(3)) - 1.0) > 1e-4
+                   for axis in range(3)) for matrix in matrices):
+            payload["interchange_report"]["omitted_from_interchange"].append(
+                "bone bind scale/shear normalized for Blender rest bones (exact matrices retained in the CDMW companion)")
+            break
+    if any(payload["interchange_joint_slots"]):
+        payload["allowed_edit_operations"] = [*_OBJ_ROUNDTRIP_ALLOWED_EDIT_OPERATIONS, "replace_skin_weights_same_count"]
+    write_roundtrip_manifest(source_mesh, fbx_path, extra_payload=payload)
 
 
 def _fbx_bone_visual_sizes(skeleton, scale: float = 1.0) -> dict[int, float]:
@@ -923,6 +1061,81 @@ def _mesh_count_hint(mesh: ParsedMesh, attr: str) -> int:
     return value if value >= 0 else 0
 
 
+def _write_python_fbx_geometry(buf, sm, native_item, scale):
+    W = _fbx_node
+    if native_item is not None:
+        verts_flat = native_item["vertices"]
+        indices_flat = native_item["indices"]
+        normals_flat = native_item["normals"]
+        uvs_flat = native_item["uvs"]
+        uv_indices = []
+    else:
+        verts_flat = []
+        for x, y, z in sm.vertices:
+            verts_flat.extend([x * scale, y * scale, z * scale])
+
+        indices_flat = []
+        for a, b_idx, c in sm.faces:
+            indices_flat.extend([a, b_idx, c ^ -1])  # FBX: last index XOR -1
+
+        normals_flat = []
+        for nx, ny, nz in sm.normals:
+            normals_flat.extend([nx, ny, nz])
+
+        uvs_flat = []
+        uv_indices = []
+        for i_v, (u, v) in enumerate(sm.uvs):
+            uvs_flat.extend([u, 1.0 - v])
+            uv_indices.append(i_v)
+
+    def geom_node(b2, vf=verts_flat, iff=indices_flat, nf=normals_flat,
+                  uf=uvs_flat, ui=uv_indices, sm_ref=sm):
+        def layer_elem_normal(b3, nf_=nf):
+            W(b3, "Version", [101])
+            W(b3, "Name", [""])
+            W(b3, "MappingInformationType", ["ByVertice"])
+            W(b3, "ReferenceInformationType", ["Direct"])
+            W(b3, "Normals", [nf_])
+
+        def layer_elem_uv(b3, uf_=uf, ui_=ui):
+            W(b3, "Version", [101])
+            W(b3, "Name", ["UVMap"])
+            W(b3, "MappingInformationType", ["ByVertice"])
+            W(b3, "ReferenceInformationType", ["Direct"])
+            W(b3, "UV", [uf_])
+
+        def layer0(b3):
+            W(b3, "Version", [100])
+            if sm_ref.vertex_colors:
+                def le_color(b4):
+                    W(b4, "Type", ["LayerElementColor"])
+                    W(b4, "TypedIndex", [0])
+                W(b3, "LayerElement", children=[le_color])
+
+            def le_normal(b4):
+                W(b4, "Type", ["LayerElementNormal"])
+                W(b4, "TypedIndex", [0])
+            W(b3, "LayerElement", children=[le_normal])
+
+            if uf:
+                def le_uv(b4):
+                    W(b4, "Type", ["LayerElementUV"])
+                    W(b4, "TypedIndex", [0])
+                W(b3, "LayerElement", children=[le_uv])
+
+        W(b2, "Vertices", [vf])
+        W(b2, "PolygonVertexIndex", [iff])
+
+        if nf:
+            W(b2, "LayerElementNormal", [0], children=[layer_elem_normal])
+        if uf:
+            W(b2, "LayerElementUV", [0], children=[layer_elem_uv])
+        W(b2, "Layer", [0], children=[layer0])
+        _fbx_extra_geometry(b2, sm_ref)
+
+    geom_node(buf)
+
+
 def export_fbx(mesh: ParsedMesh, output_dir: str, name: str = "",
                scale: float = 1.0) -> str:
     """Export mesh to binary FBX 7.4 file.
@@ -930,10 +1143,21 @@ def export_fbx(mesh: ParsedMesh, output_dir: str, name: str = "",
     Compatible with Blender 2.8+, Maya, 3ds Max, Unity 5+, Unreal Engine 4+.
     """
     os.makedirs(output_dir, exist_ok=True)
+    skeleton = getattr(mesh, "interchange_skeleton", None)
+    palette = getattr(mesh, "interchange_bone_palette", None)
+    if skeleton is None:
+        from .mesh_glb_assets import authored_fbx_skeleton
+        skeleton, palette = authored_fbx_skeleton(mesh)
+    if skeleton is not None:
+        return export_fbx_with_skeleton(mesh, skeleton, output_dir, name, scale,
+                                        bone_palette=palette)
     base = name or Path(mesh.path).stem
     fbx_path = os.path.join(output_dir, f"{base}.fbx")
+    source_mesh = mesh
+    mesh, missing = _prepare_fbx_mesh(mesh, output_dir)
 
     if _export_fbx_native(mesh, fbx_path, base, scale):
+        _write_fbx_manifest(source_mesh, fbx_path, missing, prepared_mesh=mesh)
         logger.info("Exported FBX: %s (%d verts, %d faces)", fbx_path,
                     mesh.total_vertices, mesh.total_faces)
         return fbx_path
@@ -987,13 +1211,11 @@ def export_fbx(mesh: ParsedMesh, output_dir: str, name: str = "",
     mesh_ids = []
     model_ids = []
     mat_ids = []
-    texture_ids, video_ids = [], []
     for sm in mesh.submeshes:
         mesh_ids.append(uid())
         model_ids.append(uid())
         mat_ids.append(uid())
-        texture_ids.append(uid() if sm.texture else None)
-        video_ids.append(uid() if sm.texture else None)
+    texture_ids = _fbx_texture_ids(mesh, uid)
 
     root_id = uid()
     # Objects
@@ -1005,69 +1227,8 @@ def export_fbx(mesh: ParsedMesh, output_dir: str, name: str = "",
 
             # Geometry node
             native_item = native_geometry.item(idx) if native_geometry is not None else None
-            if native_item is not None:
-                verts_flat = native_item["vertices"]
-                indices_flat = native_item["indices"]
-                normals_flat = native_item["normals"]
-                uvs_flat = native_item["uvs"]
-                uv_indices = []
-            else:
-                verts_flat = []
-                for x, y, z in sm.vertices:
-                    verts_flat.extend([x * scale, y * scale, z * scale])
-
-                indices_flat = []
-                for a, b_idx, c in sm.faces:
-                    indices_flat.extend([a, b_idx, c ^ -1])  # FBX: last index XOR -1
-
-                normals_flat = []
-                for nx, ny, nz in sm.normals:
-                    normals_flat.extend([nx, ny, nz])
-
-                uvs_flat = []
-                uv_indices = []
-                for i_v, (u, v) in enumerate(sm.uvs):
-                    uvs_flat.extend([u, 1.0 - v])
-                    uv_indices.append(i_v)
-
-            def geom_node(b2, vf=verts_flat, iff=indices_flat, nf=normals_flat,
-                          uf=uvs_flat, ui=uv_indices, sm_ref=sm, m=mid):
-                def layer_elem_normal(b3, nf_=nf):
-                    W(b3, "Version", [101])
-                    W(b3, "Name", [""])
-                    W(b3, "MappingInformationType", ["ByVertice"])
-                    W(b3, "ReferenceInformationType", ["Direct"])
-                    W(b3, "Normals", [nf_])
-
-                def layer_elem_uv(b3, uf_=uf, ui_=ui):
-                    W(b3, "Version", [101])
-                    W(b3, "Name", ["UVMap"])
-                    W(b3, "MappingInformationType", ["ByVertice"])
-                    W(b3, "ReferenceInformationType", ["Direct"])
-                    W(b3, "UV", [uf_])
-
-                def layer0(b3):
-                    W(b3, "Version", [100])
-
-                    def le_normal(b4):
-                        W(b4, "Type", ["LayerElementNormal"])
-                        W(b4, "TypedIndex", [0])
-                    W(b3, "LayerElement", children=[le_normal])
-
-                    if uf:
-                        def le_uv(b4):
-                            W(b4, "Type", ["LayerElementUV"])
-                            W(b4, "TypedIndex", [0])
-                        W(b3, "LayerElement", children=[le_uv])
-
-                W(b2, "Vertices", [vf])
-                W(b2, "PolygonVertexIndex", [iff])
-
-                if nf:
-                    W(b2, "LayerElementNormal", [0], children=[layer_elem_normal])
-                if uf:
-                    W(b2, "LayerElementUV", [0], children=[layer_elem_uv])
-                W(b2, "Layer", [0], children=[layer0])
+            def geom_node(out, part=sm, item=native_item):
+                _write_python_fbx_geometry(out, part, item, scale)
 
             W(b, "Geometry", [mid, f"{sm.name}\x00\x01Geometry", "Mesh"],
               children=[geom_node])
@@ -1091,12 +1252,13 @@ def export_fbx(mesh: ParsedMesh, output_dir: str, name: str = "",
                 W(b2, "ShadingModel", ["phong"])
 
                 def mat_props(b3):
-                    W(b3, "P", ["DiffuseColor", "Color", "", "A", 0.8, 0.8, 0.8])
+                    _fbx_material_properties(b3, sm)
                 W(b2, "Properties70", children=[mat_props])
 
             W(b, "Material", [ma_id, f"{sm.material or sm.name}\x00\x01Material", ""],
               children=[mat_node])
-            _fbx_texture_objects(b, sm, texture_ids[idx], video_ids[idx])
+            for info, texture_id, video_id in texture_ids[idx]:
+                _fbx_texture_objects(b, sm, texture_id, video_id, info)
 
     try:
         W(buf, "Objects", children=[objects])
@@ -1113,9 +1275,9 @@ def export_fbx(mesh: ParsedMesh, output_dir: str, name: str = "",
             W(b, "C", ["OO", mesh_ids[idx], model_ids[idx]])
             # Material → Model
             W(b, "C", ["OO", mat_ids[idx], model_ids[idx]])
-            if texture_ids[idx]:
-                W(b, "C", ["OP", texture_ids[idx], mat_ids[idx], "DiffuseColor"])
-                W(b, "C", ["OO", video_ids[idx], texture_ids[idx]])
+            for info, texture_id, video_id in texture_ids[idx]:
+                W(b, "C", ["OP", texture_id, mat_ids[idx], _FBX_TEXTURE_LINKS[info["semantic"]]])
+                W(b, "C", ["OO", video_id, texture_id])
 
     W(buf, "Connections", children=[connections])
 
@@ -1133,6 +1295,7 @@ def export_fbx(mesh: ParsedMesh, output_dir: str, name: str = "",
     ]))
 
     atomic_write_bytes(fbx_path, buf.getvalue())
+    _write_fbx_manifest(source_mesh, fbx_path, missing, prepared_mesh=mesh)
 
     logger.info("Exported FBX: %s (%d verts, %d faces)", fbx_path,
                 mesh.total_vertices, mesh.total_faces)
@@ -1165,8 +1328,11 @@ def export_fbx_with_skeleton(mesh: ParsedMesh, skeleton, output_dir: str,
     os.makedirs(output_dir, exist_ok=True)
     base = name or Path(mesh.path).stem
     fbx_path = os.path.join(output_dir, f"{base}.fbx")
+    source_mesh = mesh
+    mesh, missing = _prepare_fbx_mesh(mesh, output_dir)
 
     if _export_fbx_native(mesh, fbx_path, base, scale, skeleton=skeleton, bone_palette=bone_palette):
+        _write_fbx_manifest(source_mesh, fbx_path, missing, skeleton, bone_palette, prepared_mesh=mesh)
         bone_count = len(skeleton.bones) if skeleton else 0
         logger.info("Exported FBX+Skeleton: %s (%d verts, %d faces, %d bones)",
                     fbx_path, mesh.total_vertices, mesh.total_faces, bone_count)
@@ -1218,13 +1384,11 @@ def export_fbx_with_skeleton(mesh: ParsedMesh, skeleton, output_dir: str,
 
     # Build IDs
     mesh_ids, model_ids, mat_ids = [], [], []
-    texture_ids, video_ids = [], []
     for sm in mesh.submeshes:
         mesh_ids.append(uid())
         model_ids.append(uid())
         mat_ids.append(uid())
-        texture_ids.append(uid() if sm.texture else None)
-        video_ids.append(uid() if sm.texture else None)
+    texture_ids = _fbx_texture_ids(mesh, uid)
 
     bone_model_ids = {}
     bone_attr_ids = {}
@@ -1245,63 +1409,8 @@ def export_fbx_with_skeleton(mesh: ParsedMesh, skeleton, output_dir: str,
             ma_id = mat_ids[idx]
 
             native_item = native_geometry.item(idx) if native_geometry is not None else None
-            if native_item is not None:
-                verts_flat = native_item["vertices"]
-                indices_flat = native_item["indices"]
-                normals_flat = native_item["normals"]
-                uvs_flat = native_item["uvs"]
-            else:
-                verts_flat = []
-                for x, y, z in sm.vertices:
-                    verts_flat.extend([x * scale, y * scale, z * scale])
-
-                indices_flat = []
-                for a, b_idx, c in sm.faces:
-                    indices_flat.extend([a, b_idx, c ^ -1])
-
-                normals_flat = []
-                for nx, ny, nz in sm.normals:
-                    normals_flat.extend([nx, ny, nz])
-
-                uvs_flat = []
-                if len(sm.uvs) == len(sm.vertices):
-                    for u, v in sm.uvs:
-                        uvs_flat.extend([u, 1.0 - v])
-
-            def geom_node(b2, vf=verts_flat, iff=indices_flat, nf=normals_flat, uf=uvs_flat):
-                def layer_elem_normal(b3, nf_=nf):
-                    W(b3, "Version", [101])
-                    W(b3, "Name", [""])
-                    W(b3, "MappingInformationType", ["ByVertice"])
-                    W(b3, "ReferenceInformationType", ["Direct"])
-                    W(b3, "Normals", [nf_])
-
-                def layer_elem_uv(b3, uf_=uf):
-                    W(b3, "Version", [101])
-                    W(b3, "Name", ["UVMap"])
-                    W(b3, "MappingInformationType", ["ByVertice"])
-                    W(b3, "ReferenceInformationType", ["Direct"])
-                    W(b3, "UV", [uf_])
-
-                def layer0(b3):
-                    W(b3, "Version", [100])
-                    def le_normal(b4):
-                        W(b4, "Type", ["LayerElementNormal"])
-                        W(b4, "TypedIndex", [0])
-                    W(b3, "LayerElement", children=[le_normal])
-                    if uf:
-                        def le_uv(b4):
-                            W(b4, "Type", ["LayerElementUV"])
-                            W(b4, "TypedIndex", [0])
-                        W(b3, "LayerElement", children=[le_uv])
-
-                W(b2, "Vertices", [vf])
-                W(b2, "PolygonVertexIndex", [iff])
-                if nf:
-                    W(b2, "LayerElementNormal", [0], children=[layer_elem_normal])
-                if uf:
-                    W(b2, "LayerElementUV", [0], children=[layer_elem_uv])
-                W(b2, "Layer", [0], children=[layer0])
+            def geom_node(out, part=sm, item=native_item):
+                _write_python_fbx_geometry(out, part, item, scale)
 
             W(b, "Geometry", [mid, f"{sm.name}\x00\x01Geometry", "Mesh"],
               children=[geom_node])
@@ -1314,9 +1423,11 @@ def export_fbx_with_skeleton(mesh: ParsedMesh, skeleton, output_dir: str,
             def mat_node(b2):
                 W(b2, "Version", [102])
                 W(b2, "ShadingModel", ["phong"])
+                W(b2, "Properties70", children=[lambda b3: _fbx_material_properties(b3, sm)])
             W(b, "Material", [ma_id, f"{sm.material or sm.name}\x00\x01Material", ""],
               children=[mat_node])
-            _fbx_texture_objects(b, sm, texture_ids[idx], video_ids[idx])
+            for info, texture_id, video_id in texture_ids[idx]:
+                _fbx_texture_objects(b, sm, texture_id, video_id, info)
 
         # Bone nodes
         if skeleton and skeleton.bones:
@@ -1358,9 +1469,9 @@ def export_fbx_with_skeleton(mesh: ParsedMesh, skeleton, output_dir: str,
             W(b, "C", ["OO", mesh_ids[idx], model_ids[idx]])
             W(b, "C", ["OO", mat_ids[idx], model_ids[idx]])
 
-            if texture_ids[idx]:
-                W(b, "C", ["OP", texture_ids[idx], mat_ids[idx], "DiffuseColor"])
-                W(b, "C", ["OO", video_ids[idx], texture_ids[idx]])
+            for info, texture_id, video_id in texture_ids[idx]:
+                W(b, "C", ["OP", texture_id, mat_ids[idx], _FBX_TEXTURE_LINKS[info["semantic"]]])
+                W(b, "C", ["OO", video_id, texture_id])
 
         # Bone connections
         if skeleton and skeleton.bones:
@@ -1388,6 +1499,7 @@ def export_fbx_with_skeleton(mesh: ParsedMesh, skeleton, output_dir: str,
     ]))
 
     atomic_write_bytes(fbx_path, buf.getvalue())
+    _write_fbx_manifest(source_mesh, fbx_path, missing, skeleton, bone_palette, prepared_mesh=mesh)
 
     bone_count = len(skeleton.bones) if skeleton else 0
     logger.info("Exported FBX+Skeleton: %s (%d verts, %d faces, %d bones)",

@@ -37,6 +37,7 @@ void write_native_fbx_shape_objects(
                 [](std::vector<char>& shape_out) { fbx_node(shape_out, "Version", {fbx_i32(100)}); },
                 [&shape](std::vector<char>& shape_out) { fbx_node(shape_out, "Indexes", {fbx_i32_array(shape.vertex_indices)}); },
                 [&shape](std::vector<char>& shape_out) { fbx_node(shape_out, "Vertices", {fbx_f64_array(shape.vertex_deltas_flat)}); },
+                [&shape](std::vector<char>& shape_out) { if (!shape.normal_deltas_flat.empty()) fbx_node(shape_out, "Normals", {fbx_f64_array(shape.normal_deltas_flat)}); },
             }
         );
         fbx_node(
@@ -49,7 +50,7 @@ void write_native_fbx_shape_objects(
             },
             {
                 [](std::vector<char>& channel_out) { fbx_node(channel_out, "Version", {fbx_i32(100)}); },
-                [](std::vector<char>& channel_out) { fbx_node(channel_out, "DeformPercent", {fbx_f64(0.0)}); },
+                [&shape](std::vector<char>& channel_out) { fbx_node(channel_out, "DeformPercent", {fbx_f64(shape.weight * 100.0)}); },
                 [](std::vector<char>& channel_out) { fbx_node(channel_out, "FullWeights", {fbx_f64_array({100.0})}); },
             }
         );

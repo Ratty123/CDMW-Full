@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import struct
 from typing import Any, Sequence
 
@@ -36,6 +37,10 @@ def _gltf_triangle_faces(
     vertex_count: int,
 ) -> list[tuple[int, int, int]]:
     candidates: list[tuple[int, int, int]] = []
+    if any(index < 0 or index >= vertex_count for index in raw_indices):
+        raise ValueError("glTF face references a missing vertex.")
+    if mode == 4 and len(raw_indices) % 3:
+        raise ValueError("glTF triangle index count is incomplete.")
     if mode == 4:
         candidates = [
             (raw_indices[index], raw_indices[index + 1], raw_indices[index + 2])
@@ -97,13 +102,20 @@ def _parse_gltf_primitive(
             if len(texcoord_transform) >= 5
             else [(float(uv[0]), float(uv[1])) for uv in uvs]
         )
-        normalized_uvs = [(u, 1.0 - v) for u, v in gltf_uvs]
+        normalized_uvs = (gltf_uvs if getattr(payload, "preserve_authoring", False)
+                          else [(u, 1.0 - v) for u, v in gltf_uvs])
     else:
         normalized_uvs = []
     if len(normals) != len(positions):
-        normals = _compute_smooth_normals(positions, faces)
+        if getattr(payload, "preserve_authoring", False):
+            if "NORMAL" in attributes:
+                raise ValueError(f"glTF normal count mismatch in {name}.")
+            normals = []
+        else:
+            normals = _compute_smooth_normals(positions, faces)
     authored_tangents = (
-        [_normalize_vec((float(row[0]), float(row[1]), float(row[2]))) for row in tangents]
+        [(float(row[0]), float(row[1]), float(row[2])) if getattr(payload, "preserve_authoring", False)
+         else _normalize_vec((float(row[0]), float(row[1]), float(row[2]))) for row in tangents]
         if len(tangents) == len(positions)
         else []
     )
@@ -119,10 +131,64 @@ def _parse_gltf_primitive(
         vertex_count=len(positions),
         face_count=len(faces),
     )
+    if "_CDMW_VERTEX_ID" in attributes:
+        ids = _read_gltf_accessor(payload, int(attributes["_CDMW_VERTEX_ID"]), expected_components=1)
+        if len(ids) != len(positions) or any(v[0] < 0 or int(v[0]) != v[0] for v in ids):
+            raise ValueError("Invalid CDMW vertex identity attribute.")
+        submesh.interchange_vertex_ids = [int(row[0]) for row in ids]
     if authored_tangents:
         setattr(submesh, "tangent_signs", [float(row[3]) for row in tangents])
     if len(vertex_colors) == len(positions):
+        submesh.vertex_colors = list(vertex_colors)
         _attach_gltf_vertex_color_summary(submesh, vertex_colors)
+    for key, accessor in attributes.items():
+        if key.startswith("TEXCOORD_"):
+            rows = _read_gltf_accessor(payload, int(accessor), expected_components=2)
+            if len(rows) != len(positions):
+                if getattr(payload, "preserve_authoring", False):
+                    raise ValueError(f"glTF {key} vertex count mismatch in {name}.")
+                continue
+            submesh.uv_sets[int(key.split("_")[-1])] = [
+                (float(u), float(v) if getattr(payload, "preserve_authoring", False) else 1.0 - float(v))
+                for u, v in rows
+            ]
+    joint_sets = sorted(int(key.split("_")[-1]) for key in attributes if key.startswith("JOINTS_"))
+    if joint_sets:
+        indices = [[] for _ in positions]
+        weights = [[] for _ in positions]
+        for slot in joint_sets:
+            joints = _read_gltf_accessor(payload, int(attributes[f"JOINTS_{slot}"]), expected_components=4)
+            values = _read_gltf_accessor(payload, _safe_int(attributes.get(f"WEIGHTS_{slot}"), -1), expected_components=4)
+            if len(joints) != len(positions) or len(values) != len(positions):
+                raise ValueError(f"glTF skin attribute count mismatch in {name}.")
+            for i, (joint_row, weight_row) in enumerate(zip(joints, values)):
+                for joint, weight in zip(joint_row, weight_row):
+                    if not math.isfinite(weight) or weight < 0 or joint < 0 or int(joint) != joint:
+                        raise ValueError(f"Invalid glTF skin influence in {name}.")
+                    if weight > 0:
+                        indices[i].append(int(joint))
+                        weights[i].append(float(weight))
+        submesh.bone_indices = [tuple(row) for row in indices]
+        submesh.bone_weights = [tuple(row) for row in weights]
+    target_names = primitive.get("_cdmw_target_names", ())
+    for index, target in enumerate(primitive.get("targets", ()) or ()):
+        target_name = str(target_names[index]) if index < len(target_names) else f"target_{index}"
+        deltas = _read_gltf_accessor(payload, _safe_int(target.get("POSITION"), -1), expected_components=3)
+        if not deltas:
+            deltas = [(0.0, 0.0, 0.0)] * len(positions)
+        if len(deltas) != len(positions):
+            raise ValueError(f"glTF morph target count mismatch in {name}.")
+        submesh.morph_targets[target_name] = [tuple(float(p[a] + d[a]) for a in range(3)) for p, d in zip(positions, deltas)]
+        normal_deltas = _read_gltf_accessor(payload, _safe_int(target.get("NORMAL"), -1), expected_components=3)
+        if normal_deltas:
+            if len(normal_deltas) != len(positions):
+                raise ValueError(f"glTF morph normal count mismatch in {name}.")
+            submesh.morph_normals[target_name] = [tuple(float(n[a] + d[a]) for a in range(3)) for n, d in zip(normals, normal_deltas)]
+        tangent_deltas = _read_gltf_accessor(payload, _safe_int(target.get("TANGENT"), -1), expected_components=3)
+        if tangent_deltas:
+            if len(tangent_deltas) != len(positions) or len(authored_tangents) != len(positions):
+                raise ValueError(f"glTF morph tangent count mismatch in {name}.")
+            submesh.morph_tangents[target_name] = [tuple(float(t[a] + d[a]) for a in range(3)) for t, d in zip(authored_tangents, tangent_deltas)]
     return submesh
 
 
@@ -168,37 +234,55 @@ def _read_gltf_accessor(payload: Any, accessor_index: int, *, expected_component
     if accessor_index >= len(accessors) or not isinstance(accessors[accessor_index], dict):
         raise ValueError(f"glTF accessor index is invalid: {accessor_index}")
     accessor = accessors[accessor_index]
-    if accessor.get("sparse"):
-        payload.diagnostics.append("glTF sparse accessors are not expanded; affected attributes may import incompletely.")
     component_type = int(accessor.get("componentType", 0) or 0)
     component_count = _GLTF_TYPE_COUNTS.get(str(accessor.get("type", "SCALAR") or "SCALAR"), 1)
     if expected_components > component_count:
         return []
     count = int(accessor.get("count", 0) or 0)
-    buffer_view_index = _safe_int(accessor.get("bufferView"), -1)
-    if buffer_view_index < 0:
-        return [(0.0,) * expected_components for _index in range(count)]
-    view = _gltf_buffer_view(payload, buffer_view_index)
+    if count < 0 or count > 10_000_000:
+        raise ValueError("glTF accessor count is outside supported bounds.")
     fmt, component_size, _signed = _GLTF_COMPONENT_FORMATS.get(component_type, ("", 0, False))
-    if not fmt or component_size <= 0:
+    if not fmt:
         raise ValueError(f"Unsupported glTF accessor component type: {component_type}")
-    buffer_index = _safe_int(view.get("buffer"), -1)
-    if buffer_index < 0 or buffer_index >= len(payload.buffers):
-        raise ValueError(f"glTF accessor references missing buffer {buffer_index}.")
-    buffer_data = payload.buffers[buffer_index]
-    byte_stride = int(view.get("byteStride", 0) or 0) or component_size * component_count
-    start = int(view.get("byteOffset", 0) or 0) + int(accessor.get("byteOffset", 0) or 0)
+    buffer_view_index = _safe_int(accessor.get("bufferView"), -1)
     normalized = bool(accessor.get("normalized", False))
-    rows: list[tuple[float, ...]] = []
-    unpack = struct.Struct("<" + fmt)
-    for row_index in range(count):
-        row_start = start + row_index * byte_stride
-        values: list[float] = []
-        for component_index in range(component_count):
-            offset = row_start + component_index * component_size
-            value = unpack.unpack_from(buffer_data, offset)[0] if offset + component_size <= len(buffer_data) else 0.0
-            values.append(float(_normalize_gltf_component(value, component_type)) if normalized else float(value))
-        rows.append(tuple(values[:expected_components]))
+    def read_rows(view_index, offset, nrows, code, size, width, normalize=False):
+        view = _gltf_buffer_view(payload, view_index)
+        data = _read_gltf_buffer_view_bytes(payload, view_index)
+        stride = int(view.get("byteStride", 0) or 0) or size * width
+        if offset < 0 or stride < size * width or (nrows and offset + (nrows - 1) * stride + size * width > len(data)):
+            raise ValueError("glTF accessor exceeds its bufferView or has an invalid stride.")
+        unpack = struct.Struct("<" + code * width)
+        result = []
+        for i in range(nrows):
+            values = unpack.unpack_from(data, offset + i * stride)
+            result.append(tuple(float(_normalize_gltf_component(v, component_type)) if normalize else float(v) for v in values))
+        return result
+    rows = (read_rows(buffer_view_index, int(accessor.get("byteOffset", 0) or 0), count, fmt, component_size,
+                      component_count, normalized) if buffer_view_index >= 0
+            else [(0.0,) * component_count for _ in range(count)])
+    sparse = accessor.get("sparse")
+    if sparse:
+        sparse_count = int(sparse.get("count", 0))
+        if not 0 <= sparse_count <= count:
+            raise ValueError("glTF sparse accessor count exceeds its accessor.")
+        indices = sparse["indices"]
+        index_type = int(indices.get("componentType", 0))
+        if index_type not in {5121, 5123, 5125}:
+            raise ValueError("Invalid glTF sparse index component type.")
+        index_code, index_size, _ = _GLTF_COMPONENT_FORMATS[index_type]
+        index_rows = read_rows(int(indices["bufferView"]), int(indices.get("byteOffset", 0)), sparse_count, index_code, index_size, 1)
+        values = sparse["values"]
+        value_rows = read_rows(int(values["bufferView"]), int(values.get("byteOffset", 0)), sparse_count, fmt, component_size,
+                              component_count, normalized)
+        previous = -1
+        for (index,), row in zip(index_rows, value_rows):
+            index = int(index)
+            if index <= previous or index >= count:
+                raise ValueError("glTF sparse indices must be increasing and within the accessor.")
+            rows[index] = row
+            previous = index
+    rows = [row[:expected_components] for row in rows]
     return rows
 
 
@@ -216,6 +300,8 @@ def _read_gltf_buffer_view_bytes(payload: Any, view_index: int) -> bytes:
         raise ValueError(f"glTF image references missing buffer {buffer_index}.")
     offset = int(view.get("byteOffset", 0) or 0)
     length = int(view.get("byteLength", 0) or 0)
+    if offset < 0 or length < 0 or offset + length > len(payload.buffers[buffer_index]):
+        raise ValueError("glTF bufferView exceeds its buffer.")
     return payload.buffers[buffer_index][offset : offset + length]
 
 

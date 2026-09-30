@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import math
 import os
 from dataclasses import dataclass
@@ -43,6 +44,8 @@ class MeshPartSplitResult:
 
 
 _EXTRA_SUBMESH_ATTRS = (
+    "uv_sets", "vertex_colors", "morph_targets", "morph_normals", "morph_tangents", "morph_weights",
+    "interchange_material", "interchange_skin", "interchange_transform", "interchange_node_index", "interchange_vertex_ids",
     "_cdmw_replacement_part_id",
     "texture_slots",
     "preview_color",
@@ -156,7 +159,9 @@ def copy_extra_submesh_attrs(source: SubMesh, target: SubMesh) -> None:
     for attr_name in _EXTRA_SUBMESH_ATTRS:
         if hasattr(source, attr_name):
             value = getattr(source, attr_name)
-            if isinstance(value, dict):
+            if attr_name in {"uv_sets", "vertex_colors", "morph_targets", "morph_normals", "morph_tangents", "morph_weights", "interchange_material", "interchange_skin"}:
+                value = copy.deepcopy(value)
+            elif isinstance(value, dict):
                 value = dict(value)
             elif isinstance(value, list):
                 value = list(value)
@@ -259,7 +264,7 @@ def clone_mesh_for_editing(mesh: ParsedMesh) -> ParsedMesh:
         copy_extra_submesh_attrs(submesh, cloned)
         return cloned
 
-    return ParsedMesh(
+    cloned_mesh = ParsedMesh(
         path=str(mesh.path or ""),
         format=str(mesh.format or ""),
         bbox_min=tuple(mesh.bbox_min or (0.0, 0.0, 0.0)),
@@ -274,6 +279,10 @@ def clone_mesh_for_editing(mesh: ParsedMesh) -> ParsedMesh:
         has_uvs=bool(mesh.has_uvs),
         has_bones=bool(mesh.has_bones),
     )
+    for attr in ("interchange_skeleton", "interchange_bone_palette", "interchange_animations", "interchange_nodes", "_cdmw_roundtrip_sidecar_validated"):
+        if hasattr(mesh, attr):
+            setattr(cloned_mesh, attr, copy.deepcopy(getattr(mesh, attr)))
+    return cloned_mesh
 
 
 def recompute_submesh_normals(submesh: SubMesh) -> None:
@@ -292,6 +301,37 @@ def _remap_vertex_aligned_list(values: Sequence[object], index_map: Mapping[int,
     for old_index, new_index in index_map.items():
         remapped[new_index] = values[old_index]
     return remapped
+
+
+def _remap_interchange_vertex_channels(submesh, index_map, old_vertex_count, *, include_uvs=True):
+    if include_uvs:
+        submesh.uvs = _remap_vertex_aligned_list(submesh.uvs, index_map, old_vertex_count)
+    submesh.vertex_colors = _remap_vertex_aligned_list(submesh.vertex_colors, index_map, old_vertex_count)
+    for attr in ("uv_sets", "morph_targets", "morph_normals", "morph_tangents"):
+        setattr(submesh, attr, {name: _remap_vertex_aligned_list(rows, index_map, old_vertex_count)
+                               for name, rows in getattr(submesh, attr).items()})
+    if hasattr(submesh, "interchange_vertex_ids"):
+        submesh.interchange_vertex_ids = _remap_vertex_aligned_list(submesh.interchange_vertex_ids, index_map, old_vertex_count)
+
+
+def _subdivide_interchange_vertex_channels(submesh, edge_midpoints, old_vertex_count, vertices):
+    def interpolate(rows):
+        if len(rows) != old_vertex_count:
+            return list(rows)
+        result = list(rows)
+        for (a, b), index in sorted(edge_midpoints.items(), key=lambda item: item[1]):
+            if index != len(result):
+                raise ValueError("Subdivision interchange vertex ordering changed.")
+            result.append(tuple((x + y) * 0.5 for x, y in zip(rows[a], rows[b])))
+        return result
+    submesh.vertex_colors = interpolate(submesh.vertex_colors)
+    for attr in ("uv_sets", "morph_targets", "morph_normals", "morph_tangents"):
+        setattr(submesh, attr, {name: interpolate(rows) for name, rows in getattr(submesh, attr).items()})
+    # Added vertices receive fresh identifiers on export, with topology proof
+    # owned by the existing editor provenance contract.
+    if hasattr(submesh, "interchange_vertex_ids"):
+        delattr(submesh, "interchange_vertex_ids")
+    submesh.vertices = vertices
 
 
 def _valid_vertex_index_set(vertex_indices: Iterable[int], vertex_count: int) -> set[int]:
@@ -388,7 +428,7 @@ def _delete_faces_touching_submesh_vertices(
         used_vertex_indices = sorted({index for face in kept_faces for index in face})
         index_map = {old_index: new_index for new_index, old_index in enumerate(used_vertex_indices)}
         submesh.vertices = [submesh.vertices[old_index] for old_index in used_vertex_indices]
-        submesh.uvs = _remap_vertex_aligned_list(submesh.uvs, index_map, old_vertex_count)  # type: ignore[assignment]
+        _remap_interchange_vertex_channels(submesh, index_map, old_vertex_count)
         submesh.shader_masks = _remap_vertex_aligned_list(submesh.shader_masks, index_map, old_vertex_count)
         submesh.normals = _remap_vertex_aligned_list(submesh.normals, index_map, old_vertex_count)  # type: ignore[assignment]
         submesh.bone_indices = _remap_vertex_aligned_list(submesh.bone_indices, index_map, old_vertex_count)  # type: ignore[assignment]
@@ -452,7 +492,7 @@ def _delete_submesh_faces_by_indices(
         used_vertex_indices = sorted({index for face in kept_faces for index in face})
         index_map = {old_index: new_index for new_index, old_index in enumerate(used_vertex_indices)}
         submesh.vertices = [submesh.vertices[old_index] for old_index in used_vertex_indices]
-        submesh.uvs = _remap_vertex_aligned_list(submesh.uvs, index_map, old_vertex_count)  # type: ignore[assignment]
+        _remap_interchange_vertex_channels(submesh, index_map, old_vertex_count)
         submesh.shader_masks = _remap_vertex_aligned_list(submesh.shader_masks, index_map, old_vertex_count)
         submesh.normals = _remap_vertex_aligned_list(submesh.normals, index_map, old_vertex_count)  # type: ignore[assignment]
         submesh.bone_indices = _remap_vertex_aligned_list(submesh.bone_indices, index_map, old_vertex_count)  # type: ignore[assignment]
@@ -500,7 +540,7 @@ def _compact_orphan_vertices_for_submesh(
     index_map = {old_index: new_index for new_index, old_index in enumerate(used_vertex_indices)}
     if len(index_map) != old_vertex_count or len(valid_faces) != len(submesh.faces):
         submesh.vertices = [submesh.vertices[old_index] for old_index in used_vertex_indices]
-        submesh.uvs = _remap_vertex_aligned_list(submesh.uvs, index_map, old_vertex_count)  # type: ignore[assignment]
+        _remap_interchange_vertex_channels(submesh, index_map, old_vertex_count)
         submesh.shader_masks = _remap_vertex_aligned_list(submesh.shader_masks, index_map, old_vertex_count)
         submesh.normals = _remap_vertex_aligned_list(submesh.normals, index_map, old_vertex_count)  # type: ignore[assignment]
         submesh.bone_indices = _remap_vertex_aligned_list(submesh.bone_indices, index_map, old_vertex_count)  # type: ignore[assignment]
@@ -743,7 +783,7 @@ def _compact_submesh_faces(submesh: SubMesh, kept_faces: Sequence[tuple[int, int
     used_vertex_indices = sorted({index for face in kept_faces for index in face})
     index_map = {old_index: new_index for new_index, old_index in enumerate(used_vertex_indices)}
     submesh.vertices = [submesh.vertices[old_index] for old_index in used_vertex_indices]
-    submesh.uvs = _remap_vertex_aligned_list(submesh.uvs, index_map, old_vertex_count)  # type: ignore[assignment]
+    _remap_interchange_vertex_channels(submesh, index_map, old_vertex_count)
     submesh.shader_masks = _remap_vertex_aligned_list(submesh.shader_masks, index_map, old_vertex_count)
     submesh.normals = _remap_vertex_aligned_list(submesh.normals, index_map, old_vertex_count)  # type: ignore[assignment]
     submesh.bone_indices = _remap_vertex_aligned_list(submesh.bone_indices, index_map, old_vertex_count)  # type: ignore[assignment]
@@ -844,6 +884,7 @@ def split_faces_to_submesh(
     new_submesh.vertex_count = len(new_submesh.vertices)
     new_submesh.face_count = len(new_submesh.faces)
     copy_extra_submesh_attrs(source, new_submesh)
+    _remap_interchange_vertex_channels(new_submesh, moved_index_map, old_vertex_count, include_uvs=False)
     new_submesh.cdmw_mesh_edit_material_source_submesh_index = source_submesh_index
     new_submesh.cdmw_mesh_edit_topology_source_submesh_index = source_submesh_index
     removed_vertices = _compact_submesh_faces(source, kept_faces)
@@ -1008,7 +1049,7 @@ def subdivide_faces_touching_vertices(
             )
             added_face_count += 3
 
-        submesh.vertices = vertices
+        _subdivide_interchange_vertex_channels(submesh, edge_midpoints, old_vertex_count, vertices)
         if len(submesh.shader_masks) == old_vertex_count:
             submesh.shader_masks = [*submesh.shader_masks, *([(1., 1., 0.)] * (len(vertices) - old_vertex_count))]
         if len(uvs) == len(vertices):

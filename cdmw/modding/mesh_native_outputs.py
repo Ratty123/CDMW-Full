@@ -639,6 +639,14 @@ def export_native_fbx(
                 "material": str(getattr(submesh, "material", "") or getattr(submesh, "name", "") or f"part_{submesh_index}"),
                 "diffuse_texture": str(getattr(submesh, "texture", "") or "").replace("\\", "/"),
             }
+            from .mesh_interchange_materials import interchange_material, material_fbx_payload
+            item["material_properties"] = material_fbx_payload(interchange_material(submesh))
+            if submesh.vertex_colors:
+                item["vertex_colors"] = [list(row) for row in submesh.vertex_colors]
+            if submesh.uv_sets:
+                item["uv_sets"] = {str(key): [list(row) for row in rows] for key, rows in submesh.uv_sets.items()}
+                if submesh.uvs:
+                    item["uv_sets"]["0"] = [list(row) for row in submesh.uvs]
             # The skin lives beside the geometry rather than inside the session, because a
             # session stores raw palette slots and the writer needs skeleton bone indices.
             skin_rows = _fbx_skin_rows(submesh, bone_palette) if bone_payloads else None
@@ -664,9 +672,16 @@ def export_native_fbx(
                     morph_targets.append(
                         {
                             "name": name,
+                            "weight": float(submesh.morph_weights.get(name, 0.0)),
                             "vertices_binary": _write_vec3_binary_payload(target_path, vertices),
                         }
                     )
+                    if name in submesh.morph_normals:
+                        rows = submesh.morph_normals[name]
+                        if len(rows) != source_vertex_count:
+                            raise ValueError("FBX morph normal count differs from vertex count")
+                        morph_targets[-1]["normals_binary"] = _write_vec3_binary_payload(
+                            prefix.with_name(prefix.name + f"_morph_normals_{morph_index}.bin"), rows)
                 item["morph_targets"] = morph_targets
             session_id = _ensure_native_mesh_session_submesh(
                 binary,

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-import shutil
+from cdmw.core.atomic_file import atomic_write_text
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -23,7 +23,7 @@ def export_model_preview_to_obj(model_preview: ModelPreviewData, output_obj_path
         "# Exported by Crimson Desert Mod Workbench",
         f"mtllib {mtl_path.name}",
     ]
-    mtl_lines: List[str] = ["# Exported by Crimson Desert Mod Workbench"]
+    exported_parts = []
 
     vertex_offset = 1
     texcoord_offset = 1
@@ -84,13 +84,14 @@ def export_model_preview_to_obj(model_preview: ModelPreviewData, output_obj_path
             )
 
         exported_texture_name = _export_mesh_texture(mesh, texture_dir, exported_textures)
-        mtl_lines.extend(
-            _build_material_block(
-                material_name,
-                mesh,
-                exported_texture_name,
-            )
-        )
+        from cdmw.modding.mesh_parser import SubMesh
+        from cdmw.modding.mesh_deformer import copy_extra_submesh_attrs
+        part = SubMesh(name=object_name, material=material_name, vertices=positions)
+        copy_extra_submesh_attrs(mesh, part)
+        if exported_texture_name:
+            part.preview_texture_path = str(resolved_output.parent / exported_texture_name)
+            part.texture = part.preview_texture_path
+        exported_parts.append(part)
 
         vertex_offset += len(positions)
         if has_texcoords:
@@ -98,8 +99,9 @@ def export_model_preview_to_obj(model_preview: ModelPreviewData, output_obj_path
         if has_normals:
             normal_offset += len(positions)
 
-    resolved_output.write_text("\n".join(obj_lines) + "\n", encoding="utf-8")
-    mtl_path.write_text("\n".join(mtl_lines) + "\n", encoding="utf-8")
+    from cdmw.modding.mesh_exporter import _write_mtl
+    _write_mtl(mtl_path, exported_parts)
+    atomic_write_text(resolved_output, "\n".join(obj_lines) + "\n")
     return resolved_output
 
 
@@ -190,7 +192,9 @@ def _export_mesh_texture(
     if texture_source_path:
         source_path = Path(texture_source_path)
         if source_path.is_file():
-            shutil.copy2(source_path, output_path)
+            from PIL import Image
+            with Image.open(source_path) as image:
+                image.convert("RGBA").save(output_path, format="PNG")
             exported_textures[cache_key] = f"{texture_dir.name}/{output_name}"
             return exported_textures[cache_key]
 

@@ -30,6 +30,12 @@ class MeshImportUiFlowTests(unittest.TestCase):
         self.assertTrue(availability.static_enabled)
         self.assertEqual(availability.default_mode, "roundtrip")
 
+    def test_fbx_glb_and_gltf_with_companion_default_to_roundtrip(self) -> None:
+        for name in ("model.fbx", "model.glb", "model.gltf"):
+            availability = mesh_import_mode_availability(Path(name), has_roundtrip_sidecar=True)
+            self.assertTrue(availability.roundtrip_enabled)
+            self.assertEqual(availability.default_mode, "roundtrip")
+
     def test_obj_without_sidecar_defaults_to_replacement(self) -> None:
         availability = mesh_import_mode_availability(Path("model.obj"), has_roundtrip_sidecar=False, static_supported=True)
 

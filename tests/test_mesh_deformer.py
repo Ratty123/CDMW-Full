@@ -410,7 +410,8 @@ class MeshDeformerTests(unittest.TestCase):
 
             self.assertTrue(obj_path.is_file())
             self.assertTrue(mtl_path.is_file())
-            self.assertIn("map_Kd textures/cloth.png", mtl_path.read_text(encoding="utf-8"))
+            sidecar = json.loads(Path(f"{obj_path}.meta.json").read_text(encoding="utf-8"))
+            self.assertIn("textures/cloth.png", sidecar["interchange_report"]["missing_textures"][0])
 
             imported = import_obj(str(obj_path))
 

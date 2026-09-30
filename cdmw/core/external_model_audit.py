@@ -158,9 +158,9 @@ def _audit_external_model_file(
         warnings = list(
             (
                 (
-                    "FBX binary material inventory inferred from embedded texture filename strings; geometry import still requires OBJ, DAE, GLB, or glTF."
+                    "FBX binary material inventory inferred from embedded texture filename strings; geometry import requires a selected Blender executable."
                     if fbx_metadata_source == "fbx_binary"
-                    else "FBX ASCII material inventory inferred from embedded Material/Texture/Connection records; geometry import still requires OBJ, DAE, GLB, or glTF."
+                    else "FBX ASCII material inventory inferred from embedded Material/Texture/Connection records; geometry import requires a selected Blender executable."
                 ),
                 "FBX material audit is metadata-only; verify material assignments after converting/importing the model.",
             )

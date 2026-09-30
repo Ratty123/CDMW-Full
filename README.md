@@ -63,7 +63,7 @@ Compact is the default layout. Classic is available in
 | **Create New Item** | Assets > Create New Item | Create equipment from a template, with model, appearance, stats and distribution choices. |
 | **Model Library** | Assets > Model Library | Find and preview local or catalogue models, then send them to Create New Item. |
 | **Icon Creator** | Assets > Item Icons | Prepare item icons and build compatible replacement packages. |
-| **Mesh Editor** | Authoring > Mesh Editor | Edit supported meshes and materials; OBJ/FBX export, OBJ/DAE/glTF/GLB import. |
+| **Mesh Editor** | Authoring > Mesh Editor | Edit supported meshes and materials; OBJ/FBX/GLB export, OBJ/FBX/DAE/glTF/GLB import. FBX import uses your selected Blender. |
 | **Placement & Animations** | Authoring > Placement & Animations | Adjust equipment attachments and review animation changes before packaging. |
 | **Textures** | Authoring > Textures | Edit layered textures, replace files in bulk, recolour, upscale and export. |
 | **Mod Management** | Utilities > Mod Management | Preview and manage installed overlays, merge mods and check game-update compatibility. |

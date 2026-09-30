@@ -113,23 +113,23 @@ def mesh_import_mode_availability(
     suffix = scene_path.suffix.lower()
     is_obj = suffix == ".obj"
     static_enabled = bool(static_supported)
-    roundtrip_enabled = is_obj
-    if suffix in {".gltf", ".glb"}:
+    roundtrip_enabled = is_obj or (suffix in {".gltf", ".glb", ".fbx"} and has_roundtrip_sidecar)
+    if roundtrip_enabled and has_roundtrip_sidecar:
+        guidance = "A CDMW companion was found, so Round-trip edit is selected by default. Keep it beside the edited file."
+    elif suffix in {".gltf", ".glb", ".fbx"}:
         guidance = (
-            "GLB/glTF imports are static Mesh Replacement sources. Skins, bones, animations, and PBR material graphs are not converted into game material data."
+            "Without a CDMW companion, these imports are static Mesh Replacement sources. Game rig and material bindings use the selected target's layout."
         )
     elif suffix == ".dae":
-        guidance = "DAE imports use Mesh Replacement. Round-trip edit remains OBJ-only."
+        guidance = "DAE imports use Mesh Replacement. Use a CDMW OBJ, FBX or GLB package for Round-trip edit."
     elif suffix in {".pac", ".pam", ".pamlod"}:
         guidance = (
             "Local PAC/PAM/PAMLOD imports use Mesh Replacement. Geometry is parsed directly, and matching loose sidecars/DDS files are included when discovered."
         )
         roundtrip_enabled = False
-    elif has_roundtrip_sidecar:
-        guidance = "An OBJ round-trip sidecar was found, so Round-trip edit is selected by default."
     else:
         guidance = "No OBJ round-trip sidecar was found. Mesh Replacement is selected by default."
-    if is_obj and (has_roundtrip_sidecar or not static_enabled):
+    if roundtrip_enabled and (has_roundtrip_sidecar or not static_enabled):
         default_mode = "roundtrip"
     elif static_enabled:
         default_mode = "static_replacement"

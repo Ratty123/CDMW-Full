@@ -44,6 +44,10 @@ def ensure_external_scene_uvs(
                     f"{source_path.suffix.upper().lstrip('.')} source has non-finite or out-of-range "
                     f"{channel} in part {submesh.name}. Fix the source model and import again."
                 )
+    # A validated sidecar describes an existing game vertex layout. Missing UVs
+    # are legitimate there; xatlas can change both its channels and topology.
+    if getattr(mesh, "_cdmw_roundtrip_sidecar_validated", False):
+        return result
     target_indices = {
         index
         for index, submesh in enumerate(mesh.submeshes)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import Counter
 import json
+import copy
 import hashlib
 import shlex
 from pathlib import Path
@@ -82,6 +83,12 @@ def _load_obj_roundtrip_sidecar(
         _validate_obj_sidecar_stable_ids(payload)
         _validate_obj_sidecar_skinning_metadata(payload)
         _validate_obj_sidecar_source_index_maps(payload)
+        from .mesh_interchange_materials import resolve_companion_material_paths
+        resolve_companion_material_paths(payload, candidate.parent)
+        if payload.get("interchange_coordinate_space") == "world":
+            for entry in (*_obj_sidecar_lod_submesh_entries(payload), *payload.get("submeshes", ())):
+                if isinstance(entry, dict) and not (entry.get("interchange_skin") and entry.get("interchange_bone_indices")):
+                    entry["interchange_geometry_world_baked"] = True
         logger.info("Loaded OBJ round-trip sidecar: %s", candidate)
         return payload
     return None
@@ -236,17 +243,62 @@ def _obj_sidecar_exported_index_count(sidecar_submesh_entry: object) -> int:
     return face_count * 3 if face_count >= 0 else -1
 
 
-def _attach_obj_sidecar_unknown_fields(submesh: SubMesh, sidecar_submesh_entry: object) -> None:
+def _attach_obj_sidecar_unknown_fields(submesh: SubMesh, sidecar_submesh_entry: object, *, vertex_ids=None) -> None:
     if not isinstance(sidecar_submesh_entry, dict):
         return
+    if sidecar_submesh_entry.get("interchange_geometry_world_baked") and not getattr(submesh, "_cdmw_coordinates_restored", False):
+        from .scene_geometry_utils import _restore_interchange_coordinates
+        _restore_interchange_coordinates(submesh, sidecar_submesh_entry)
     raw_fields = sidecar_submesh_entry.get("unknown_fields")
     if isinstance(raw_fields, dict):
         setattr(submesh, "unknown_fields", dict(raw_fields))
+    presence = sidecar_submesh_entry.get("channel_presence", {})
+    if presence.get("uv0") is False:
+        submesh.uvs = []
+    if presence.get("normals") is False:
+        submesh.normals = []
+    if presence.get("tangents") is False:
+        submesh.tangents = []
+    # Channels OBJ cannot carry are retained in the companion, never fabricated.
+    import copy
+    if not submesh.interchange_material:
+        submesh.interchange_material = copy.deepcopy(sidecar_submesh_entry.get("interchange_material", {}))
+    if vertex_ids is not None:
+        submesh.interchange_vertex_ids = list(vertex_ids)
+    source_map = list(getattr(submesh, "interchange_vertex_ids", ()) or submesh.source_vertex_map or ())
+    for key, attr in (("interchange_vertex_colors", "vertex_colors"),
+                      ("interchange_bone_indices", "bone_indices"), ("interchange_bone_weights", "bone_weights")):
+        rows = sidecar_submesh_entry.get(key, [])
+        if not getattr(submesh, attr) and rows and source_map and all(0 <= i < len(rows) for i in source_map):
+            setattr(submesh, attr, [tuple(rows[i]) for i in source_map])
+    for key, attr in (("interchange_morph_targets", "morph_targets"), ("interchange_morph_normals", "morph_normals"),
+                      ("interchange_morph_tangents", "morph_tangents")):
+        if not getattr(submesh, attr):
+            for name, rows in sidecar_submesh_entry.get(key, {}).items():
+                if source_map and all(0 <= i < len(rows) for i in source_map):
+                    getattr(submesh, attr)[name] = [tuple(rows[i]) for i in source_map]
+    if not submesh.interchange_skin:
+        submesh.interchange_skin = copy.deepcopy(sidecar_submesh_entry.get("interchange_skin", {}))
+    if not submesh.morph_weights:
+        submesh.morph_weights = dict(sidecar_submesh_entry.get("interchange_morph_weights", {}))
+    for attr in ("interchange_node_index", "interchange_transform"):
+        if not hasattr(submesh, attr) and attr in sidecar_submesh_entry:
+            setattr(submesh, attr, copy.deepcopy(sidecar_submesh_entry[attr]))
+    if not submesh.uv_sets:
+        for index, rows in sidecar_submesh_entry.get("interchange_uv_sets", {}).items():
+            if source_map and all(0 <= i < len(rows) for i in source_map):
+                submesh.uv_sets[int(index)] = [tuple(rows[i]) for i in source_map]
+        if submesh.uvs:
+            submesh.uv_sets[0] = list(submesh.uvs)
 
 
 def _attach_obj_sidecar_lod_identity(mesh: ParsedMesh, sidecar_payload: dict[str, object] | None) -> None:
     if not isinstance(sidecar_payload, dict):
         return
+    mesh._cdmw_roundtrip_sidecar_validated = True
+    for attr in ("interchange_nodes", "interchange_animations"):
+        if not getattr(mesh, attr, None) and attr in sidecar_payload:
+            setattr(mesh, attr, copy.deepcopy(sidecar_payload[attr]))
     raw_lods = sidecar_payload.get("lods")
     if isinstance(raw_lods, list):
         setattr(mesh, "_cdmw_mesh_asset_lods", tuple(dict(lod) for lod in raw_lods if isinstance(lod, dict)))
@@ -477,6 +529,10 @@ def _attach_obj_sidecar_edit_operations(
                     source=source_name,
                 )
             )
+        if getattr(submesh, "_cdmw_verified_skin_mapping", False) and getattr(submesh, "_cdmw_skin_weights_changed", False):
+            operations.append(MeshEditOperation("replace_skin_weights_same_count", lod_index=0,
+                                                submesh_index=submesh_index, vertex_count=actual_vertices, source=source_name,
+                                                metadata={"palette_size": int(submesh._cdmw_source_palette_size)}))
     if not operations:
         return
     allowed_operations: object | None = None
@@ -933,6 +989,7 @@ def import_obj(
         local_source_vertex_map: list[int] = []
         sidecar_source_map = _normalize_obj_sidecar_source_vertex_map(sidecar_entry)
         referenced_vertices = sorted({vi for face in sm_data["faces_global"] for vi, _ti, _ni in face})
+        metadata_index_by_global = {vi: index for index, vi in enumerate(referenced_vertices)}
         source_index_by_global = (
             dict(zip(referenced_vertices, sidecar_source_map))
             if len(referenced_vertices) == len(sidecar_source_map) else {}
@@ -979,7 +1036,7 @@ def import_obj(
             vertex_count=len(local_verts),
             face_count=len(local_faces),
         )
-        _attach_obj_sidecar_unknown_fields(submesh, sidecar_entry)
+        _attach_obj_sidecar_unknown_fields(submesh, sidecar_entry, vertex_ids=[metadata_index_by_global[key[0]] for key in vertex_key_to_local])
         return submesh
 
     # Now build each submesh using the FULL vertex range (not just face-referenced).
@@ -1022,6 +1079,7 @@ def import_obj(
         local_verts = list(base_verts)
         local_uvs = list(base_uvs)
         local_normals = list(base_normals)
+        local_vertex_ids = list(range(nv))
         local_source_vertex_map = _normalize_obj_sidecar_source_vertex_map(
             matched_sidecar_entry,
             expected_count=nv,
@@ -1072,6 +1130,7 @@ def import_obj(
             local_verts.append(base_verts[local_vi])
             local_uvs.append(uv_value)
             local_normals.append(normal_value)
+            local_vertex_ids.append(local_vi)
             if local_source_vertex_map and local_vi < len(local_source_vertex_map):
                 local_source_vertex_map.append(local_source_vertex_map[local_vi])
             split_vertex_map[key] = clone_idx
@@ -1104,7 +1163,7 @@ def import_obj(
             vertex_count=len(local_verts),
             face_count=len(local_faces),
         )
-        _attach_obj_sidecar_unknown_fields(sm, matched_sidecar_entry)
+        _attach_obj_sidecar_unknown_fields(sm, matched_sidecar_entry, vertex_ids=local_vertex_ids)
         submeshes.append(sm)
 
     for sm_data, submesh in zip(submesh_list, submeshes, strict=True):

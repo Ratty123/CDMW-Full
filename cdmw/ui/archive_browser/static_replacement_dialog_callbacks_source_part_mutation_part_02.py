@@ -16,9 +16,6 @@ def _source_part_mutation_step_018(_state):
                 return
             source_path = _state.Path(selected_path).expanduser()
             append_file_route = _state._source_part_append_file_route_state_helper(source_path, allowed_extensions=_state.SCENE_IMPORT_EXTENSIONS)
-            if append_file_route.route == 'fbx_deferred':
-                _state.QMessageBox.information(_state.dialog, source_part_append_mesh_file_dialog_text['fbx_title'], source_part_append_mesh_file_dialog_text['fbx_message'])
-                return
             if append_file_route.route == 'unsupported':
                 _state.QMessageBox.warning(_state.dialog, source_part_append_mesh_file_dialog_text['unsupported_title'], _state._source_part_unsupported_mesh_part_message_helper(source_path.name))
                 return

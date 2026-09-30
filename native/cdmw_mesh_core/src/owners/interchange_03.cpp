@@ -1,3 +1,178 @@
+void write_escaped(std::ostream& out, const std::string& text) {
+    out << '"';
+    for (const char ch : text) {
+        switch (ch) {
+        case '"':
+            out << "\\\"";
+            break;
+        case '\\':
+            out << "\\\\";
+            break;
+        case '\n':
+            out << "\\n";
+            break;
+        case '\r':
+            out << "\\r";
+            break;
+        case '\t':
+            out << "\\t";
+            break;
+        default:
+            out << ch;
+            break;
+        }
+    }
+    out << '"';
+}
+
+void write_vec3(std::ostream& out, const Vec3& value) {
+    out << '[' << std::setprecision(17) << value[0] << ',' << value[1] << ',' << value[2] << ']';
+}
+
+void write_vec2(std::ostream& out, const Vec2& value) {
+    out << '[' << std::setprecision(17) << value[0] << ',' << value[1] << ']';
+}
+
+void write_int_vector(std::ostream& out, const std::vector<int>& values) {
+    out << '[';
+    for (std::size_t index = 0; index < values.size(); ++index) {
+        if (index > 0) {
+            out << ',';
+        }
+        out << values[index];
+    }
+    out << ']';
+}
+
+void write_json_value(std::ostream& out, const JsonValue& value) {
+    switch (value.type) {
+    case JsonValue::Type::Null:
+        out << "null";
+        break;
+    case JsonValue::Type::Bool:
+        out << (value.bool_value ? "true" : "false");
+        break;
+    case JsonValue::Type::Number:
+        if (std::isfinite(value.number_value)) {
+            out << std::setprecision(17) << value.number_value;
+        } else {
+            out << "null";
+        }
+        break;
+    case JsonValue::Type::String:
+        write_escaped(out, value.string_value);
+        break;
+    case JsonValue::Type::Array:
+        out << '[';
+        for (std::size_t index = 0; index < value.array_value.size(); ++index) {
+            if (index > 0) {
+                out << ',';
+            }
+            write_json_value(out, value.array_value[index]);
+        }
+        out << ']';
+        break;
+    case JsonValue::Type::Object:
+        out << '{';
+        for (auto iter = value.object_value.begin(); iter != value.object_value.end(); ++iter) {
+            if (iter != value.object_value.begin()) {
+                out << ',';
+            }
+            write_escaped(out, iter->first);
+            out << ':';
+            write_json_value(out, iter->second);
+        }
+        out << '}';
+        break;
+    }
+}
+
+void write_obj_roundtrip_manifest(
+    const std::string& manifest_path,
+    const std::string& source_path,
+    const std::string& source_format,
+    const std::string& export_path,
+    const std::string& companion_path,
+    const std::vector<ObjRoundtripManifestSubmesh>& submeshes,
+    const JsonValue* extra_payload
+) {
+    std::ofstream out(manifest_path, std::ios::binary | std::ios::trunc);
+    if (!out) {
+        throw std::runtime_error("cannot open OBJ round-trip manifest: " + manifest_path);
+    }
+    std::set<std::string> emitted;
+    bool first = true;
+    auto field = [&](const std::string& key) {
+        if (!first) {
+            out << ',';
+        }
+        first = false;
+        emitted.insert(key);
+        write_escaped(out, key);
+        out << ':';
+    };
+    auto string_field = [&](const std::string& key, const std::string& value) {
+        field(key);
+        write_escaped(out, value);
+    };
+
+    out << "{\n";
+    string_field("format", "mesh_roundtrip_manifest_v2");
+    string_field("source_path", source_path);
+    string_field("source_format", source_format);
+    string_field("export_path", filename_from_path(export_path));
+    string_field("companion_filename", filename_from_path(companion_path));
+    string_field("exported_utc", utc_timestamp_seconds());
+    field("roundtrip_policy");
+    out << "{\"primary_workflow\":\"obj_first\",\"default_import_policy\":\"auto-fix safe, warn risky\"}";
+    field("submeshes");
+    out << '[';
+    for (std::size_t index = 0; index < submeshes.size(); ++index) {
+        if (index > 0) {
+            out << ',';
+        }
+        const ObjRoundtripManifestSubmesh& submesh = submeshes[index];
+        out << "{\"index\":" << submesh.index
+            << ",\"name\":";
+        write_escaped(out, submesh.name);
+        out << ",\"material\":";
+        write_escaped(out, submesh.material);
+        out << ",\"texture\":";
+        write_escaped(out, submesh.texture);
+        out << ",\"vertex_count\":" << submesh.vertex_count
+            << ",\"face_count\":" << submesh.face_count
+            << ",\"source_vertex_map\":";
+        write_int_vector(out, submesh.source_vertex_map);
+        out << '}';
+    }
+    out << ']';
+    if (extra_payload != nullptr && extra_payload->type == JsonValue::Type::Object) {
+        for (const auto& entry : extra_payload->object_value) {
+            if (emitted.find(entry.first) != emitted.end()) {
+                continue;
+            }
+            field(entry.first);
+            write_json_value(out, entry.second);
+        }
+    }
+    out << "\n}";
+    if (!out) {
+        throw std::runtime_error("cannot write OBJ round-trip manifest: " + manifest_path);
+    }
+}
+
+void write_vec3_binary_descriptor(std::ostream& out, const std::string& path, std::size_t count) {
+    out << "{\"path\":";
+    write_escaped(out, path);
+    out << ",\"count\":" << count << ",\"components\":3,\"type\":\"f64\",\"finite_checked\":true}";
+}
+
+void write_vec2_binary_descriptor(std::ostream& out, const std::string& path, std::size_t count) {
+    out << "{\"path\":";
+    write_escaped(out, path);
+    out << ",\"count\":" << count << ",\"components\":2,\"type\":\"f64\",\"finite_checked\":true}";
+}
+
 void write_f64_binary_descriptor(std::ostream& out, const std::string& path, std::size_t count) {
     out << "{\"path\":";
     write_escaped(out, path);

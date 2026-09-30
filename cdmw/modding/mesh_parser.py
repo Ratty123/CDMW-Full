@@ -226,6 +226,15 @@ class SubMesh:
     # Decoded CharacterVertex colour R/G plus an authority flag. Empty means
     # unavailable; it is not interchangeable with display tint or cloth weights.
     shader_masks: list[tuple[float, float, float]] = field(default_factory=list)
+    # Authored interchange channels; packed game shader masks remain separate.
+    uv_sets: dict[int, list[tuple[float, float]]] = field(default_factory=dict)
+    vertex_colors: list[tuple[float, float, float, float]] = field(default_factory=list)
+    morph_targets: dict[str, list[tuple[float, float, float]]] = field(default_factory=dict)
+    morph_normals: dict[str, list[tuple[float, float, float]]] = field(default_factory=dict)
+    morph_tangents: dict[str, list[tuple[float, float, float]]] = field(default_factory=dict)
+    morph_weights: dict[str, float] = field(default_factory=dict)
+    interchange_material: dict = field(default_factory=dict)
+    interchange_skin: dict = field(default_factory=dict)
 
 @dataclass
 class ParsedMesh:

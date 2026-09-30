@@ -1782,7 +1782,7 @@ def test_source_part_assignment_primary_highlight_and_route_state() -> None:
 
 def test_source_part_append_route_and_texture_control_state() -> None:
     assert source_part_append_file_route_state("", allowed_extensions=(".glb",)).route == "cancel"
-    assert source_part_append_file_route_state("asset.FBX", allowed_extensions=(".glb",)).route == "fbx_deferred"
+    assert source_part_append_file_route_state("asset.FBX", allowed_extensions=(".glb", ".fbx")).route == "import"
     assert source_part_append_file_route_state("asset.txt", allowed_extensions=(".glb",)).route == "unsupported"
     assert source_part_append_file_route_state("asset.GLB", allowed_extensions=(".glb",)).route == "import"
 
@@ -2016,13 +2016,11 @@ def test_source_part_append_mesh_file_dialog_text_preserves_copy() -> None:
     text = source_part_append_mesh_file_dialog_text()
 
     assert text["title"] == "Add Mesh Part"
-    assert text["mesh_filter"] == "Mesh Sources (*.obj *.dae *.gltf *.glb *.pac *.pam *.pamlod);;All Files (*.*)"
-    assert text["fbx_title"] == "FBX Import Deferred"
-    assert "FBX import is not supported inside Geometry yet" in text["fbx_message"]
+    assert text["mesh_filter"] == "Mesh Sources (*.obj *.fbx *.dae *.gltf *.glb *.pac *.pam *.pamlod);;All Files (*.*)"
     assert text["unsupported_title"] == "Unsupported Mesh Part"
-    assert "Geometry can append OBJ, DAE, glTF/GLB, PAC, PAM, or PAMLOD files." in text["unsupported_message_prefix"]
+    assert "Geometry can append OBJ, FBX, DAE, glTF/GLB, PAC, PAM, or PAMLOD files." in text["unsupported_message_prefix"]
     assert source_part_unsupported_mesh_part_message("part.fbx") == (
-        "Geometry can append OBJ, DAE, glTF/GLB, PAC, PAM, or PAMLOD files.\n\nSelected: part.fbx"
+        "Geometry can append OBJ, FBX, DAE, glTF/GLB, PAC, PAM, or PAMLOD files.\n\nSelected: part.fbx"
     )
     assert source_part_add_mesh_part_failed_title() == "Add Mesh Part Failed"
     assert source_part_added_mesh_part_status("part.obj") == "Added part.obj as a Geometry source part."

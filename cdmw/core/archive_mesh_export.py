@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import json
 import copy
 import re
 from pathlib import Path, PurePosixPath
@@ -187,6 +188,19 @@ def _fbx_export_texture_mesh(mesh: ParsedMesh, references: Sequence[ArchiveModel
         clone = copy.copy(part)
         texture = overrides.get(str(part.material or part.name or "").strip(), part.texture)
         clone.texture = _export_mtl_local_texture_reference(output_dir, texture)
+        clone.texture_slots = list(getattr(part, "texture_slots", ()) or ())
+        aliases = {_normalize_export_texture_alias(value) for value in (part.name, part.material, part.texture) if value}
+        for reference in references:
+            if not aliases.intersection({_normalize_export_texture_alias(str(value or "")) for value in (
+                reference.material_name, reference.part_name, reference.linked_mesh_path)}):
+                continue
+            text = " ".join(str(value or "").casefold() for value in (
+                reference.semantic_label, reference.semantic_hint, reference.sidecar_parameter_name))
+            kind = next((kind for token, kind in (("normal", "normal"), ("rough", "roughness"),
+                                                 ("metal", "metallic"), ("emiss", "emission"), ("material", "material"),
+                                                 ("occlusion", "occlusion"), ("opacity", "opacity")) if token in text), "")
+            if kind:
+                clone.texture_slots.append((kind, _export_mtl_local_texture_reference(output_dir, _resolved_export_texture_path(reference))))
         result.submeshes.append(clone)
     return result
 
@@ -423,6 +437,25 @@ def _archive_export_companion_metadata(
     return selected_companion_files, sidecar_hashes
 
 
+def _merge_interchange_export_metadata(manifest_target_path, extra_payload):
+    exporter_sidecar = Path(f"{manifest_target_path}.meta.json")
+    if exporter_sidecar.is_file():
+        exporter_metadata = json.loads(exporter_sidecar.read_text(encoding="utf-8"))
+        for key in ("interchange_report", "interchange_joint_slots", "interchange_texture_sources", "interchange_source_skins", "allowed_edit_operations",
+                    "interchange_nodes", "interchange_animations"):
+            if key in exporter_metadata:
+                extra_payload[key] = exporter_metadata[key]
+
+
+def _append_interchange_export_companions(output_dir, output_paths, extra_payload, on_log):
+    texture_dir = output_dir / "textures"
+    if texture_dir.is_dir():
+        output_paths.extend(path for path in sorted(texture_dir.iterdir()) if path.is_file() and path not in output_paths)
+    report = extra_payload.get("interchange_report", {})
+    for message in (*report.get("missing_textures", []), *report.get("omitted_from_interchange", [])):
+        _safe_log(on_log, f"Interchange warning: {message}")
+
+
 def _write_archive_export_manifest(
     entry: ArchiveEntry, parsed_mesh: ParsedMesh, manifest_mesh: ParsedMesh,
     output_dir: Path, output_paths: List[Path], skeleton: Optional[Skeleton],
@@ -478,7 +511,7 @@ def _write_archive_export_manifest(
                 companion_candidate = manifest_target_path.with_suffix(".mtl")
                 if companion_candidate.is_file():
                     companion_path = str(companion_candidate)
-                    rewritten_mtl_rows = _rewrite_export_mtl_map_kd(
+                    rewritten_mtl_rows = 0 if Path(f"{manifest_target_path}.meta.json").is_file() else _rewrite_export_mtl_map_kd(
                         companion_candidate,
                         _build_export_mtl_texture_overrides(parsed_mesh, manifest_texture_references),
                         output_dir,
@@ -536,6 +569,7 @@ def _write_archive_export_manifest(
                 "exported_material_textures": exported_material_textures,
                 "sidecar_hashes": sidecar_hashes,
             }
+            _merge_interchange_export_metadata(manifest_target_path, extra_payload)
             if family_graph_payload:
                 extra_payload["family_graph"] = family_graph_payload
             if paired_lod_target:
@@ -564,6 +598,7 @@ def _write_archive_export_manifest(
             )
             if manifest_path not in output_paths:
                 output_paths.append(manifest_path)
+            _append_interchange_export_companions(output_dir, output_paths, extra_payload, on_log)
         except RunCancelled:
             raise
         except Exception as exc:
@@ -681,7 +716,7 @@ def _export_archive_mesh_staged(
                 appearance_notes = ("OBJ retains source coordinates because the PAC bone palette is unresolved; neutral appearance is unavailable.",)
             obj_appearance_baked = export_mesh is not parsed_mesh
         manifest_mesh = export_mesh
-        output_paths.extend(Path(path) for path in export_obj(export_mesh, str(output_dir), basename))
+        output_paths.extend(Path(path) for path in export_obj(_fbx_export_texture_mesh(export_mesh, model_texture_references or (), output_dir), str(output_dir), basename))
     else:
         if entry.extension == ".pac":
             if skeleton_entry is not None:

@@ -61,6 +61,17 @@ def test_parallel_preparation_preserves_bytes_lod_owners_protection_and_source(t
     assert (1, 1, "base_color") not in parallel
 
 
+def test_parallel_preparation_retains_binding_owner_without_explicit_material_slot(tmp_path):
+    mesh = _mesh(tmp_path, 2)
+    for part in mesh.submeshes:
+        del part.material_slot_index
+    serial, serial_state = _run(owner._mesh_synthesized_texture_overrides_serial, mesh, tmp_path / "serial")
+    parallel, parallel_state = _run(owner._mesh_synthesized_texture_overrides, mesh, tmp_path / "parallel")
+    assert parallel == serial
+    assert not serial_state.diagnostics
+    assert parallel_state == serial_state
+
+
 def test_parallel_work_keeps_one_ordered_preview_budget(tmp_path, monkeypatch):
     mesh = _mesh(tmp_path)
     order = []

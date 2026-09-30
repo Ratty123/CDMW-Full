@@ -55,7 +55,7 @@ class ConversionTests(unittest.TestCase):
         def run(command):
             self.commands.append(list(command))
             if write:
-                (self.folder / "MagicSword.glb").write_bytes(b"glTF" + bytes(64))
+                Path(command[-1]).write_bytes(b"glTF" + bytes(64))
             return _Finished(code, stdout, stderr)
 
         self.commands: list = []
@@ -82,11 +82,35 @@ class ConversionTests(unittest.TestCase):
                 convert_fbx_to_glb(self.fbx, self.blender, stop_event=stop)
         run.assert_not_called()
 
+    def test_failed_conversion_preserves_existing_output(self) -> None:
+        target = self.folder / "MagicSword.glb"
+        target.write_bytes(b"last good export")
+        with self.assertRaises(RuntimeError):
+            convert_fbx_to_glb(self.fbx, self.blender, output_dir=self.folder, run=self._run(code=1))
+        self.assertEqual(target.read_bytes(), b"last good export")
+        self.assertFalse(list(self.folder.glob(".cdmw_fbx_*")))
+
+    def test_cancellation_before_publication_preserves_existing_output(self) -> None:
+        from cdmw.models import RunCancelled
+        target = self.folder / "MagicSword.glb"
+        target.write_bytes(b"last good export")
+        stop = threading.Event()
+        def run(command):
+            Path(command[-1]).write_bytes(b"new export")
+            stop.set()
+            return _Finished()
+        with self.assertRaises(RunCancelled):
+            convert_fbx_to_glb(self.fbx, self.blender, output_dir=self.folder, stop_event=stop, run=run)
+        self.assertEqual(target.read_bytes(), b"last good export")
+        self.assertFalse(list(self.folder.glob(".cdmw_fbx_*")))
+
     def test_owned_process_runner_preserves_success_output(self) -> None:
-        (self.folder / "MagicSword.glb").write_bytes(b"glTF" + bytes(64))
         output = 'CDMW_FBX_RESULT {"objects": 1, "vertices": 42, "materials": ["Steel"], "images": []}'
+        def run(command, **kwargs):
+            Path(command[-1]).write_bytes(b"glTF" + bytes(64))
+            return 0, output, ""
         with patch("cdmw.services.fbx_blender_conversion.run_process_with_cancellation",
-                   return_value=(0, output, "")):
+                   side_effect=run):
             result = convert_fbx_to_glb(self.fbx, self.blender, output_dir=self.folder)
         self.assertEqual(result.vertices, 42)
         self.assertEqual(result.materials, ("Steel",))
@@ -142,7 +166,10 @@ class ConversionTests(unittest.TestCase):
         self.assertEqual(command[0], str(self.blender))
         for flag in ("--background", "--factory-startup", "--python"):
             self.assertIn(flag, command)
-        self.assertEqual(command[-2:], [str(self.fbx), str(self.folder / "MagicSword.glb")])
+        self.assertEqual(command[-2], str(self.fbx))
+        self.assertEqual(Path(command[-1]).name, "MagicSword.glb")
+        self.assertEqual(Path(command[-1]).parent.parent, self.folder)
+        self.assertFalse(Path(command[-1]).exists(), "Owned staging file is removed after publication")
 
     def test_blender_script_relinks_only_loaded_package_images(self) -> None:
         scripts: list[str] = []
@@ -150,7 +177,7 @@ class ConversionTests(unittest.TestCase):
         def run(command):
             script_path = Path(command[command.index("--python") + 1])
             scripts.append(script_path.read_text(encoding="utf-8"))
-            (self.folder / "MagicSword.glb").write_bytes(b"glTF" + bytes(64))
+            Path(command[-1]).write_bytes(b"glTF" + bytes(64))
             return _Finished()
 
         convert_fbx_to_glb(self.fbx, self.blender, output_dir=self.folder, run=run)

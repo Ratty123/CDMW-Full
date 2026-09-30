@@ -44,6 +44,15 @@ __all__ = [
 ]
 
 FBX_EXTENSION = ".fbx"
+BLENDER_SETTING = "new_item/blender_executable"
+
+
+def configured_blender() -> str:
+    """Reuse the explicit Blender selection already saved by the Model step."""
+    from PySide6.QtCore import QSettings
+    scope = "CrimsonDesertModWorkbench"
+    stored = str(QSettings(scope, scope).value(BLENDER_SETTING, "") or "")
+    return stored if is_blender_executable(stored) else ""
 
 #: How long a conversion may take before it is abandoned. Blender starts in a second or
 #: two and writes a weapon in a few more; a minute is a hang, not a big file.
@@ -90,6 +99,19 @@ for image in bpy.data.images:
             if image.has_data:
                 break
 meshes = [o for o in bpy.data.objects if o.type == "MESH"]
+for obj in meshes:
+    identity_uv = obj.data.uv_layers.get("CDMW_VERTEX_ID")
+    if identity_uv is not None:
+        values = {}
+        for loop in obj.data.loops:
+            value = identity_uv.data[loop.index].uv.x
+            if loop.vertex_index in values and abs(values[loop.vertex_index] - value) > 0.001:
+                raise RuntimeError("CDMW vertex identifiers disagree across split corners")
+            values[loop.vertex_index] = value
+        attribute = obj.data.attributes.get("_CDMW_VERTEX_ID") or obj.data.attributes.new("_CDMW_VERTEX_ID", "FLOAT", "POINT")
+        for index, value in values.items():
+            attribute.data[index].value = value
+        obj.data.uv_layers.remove(identity_uv)
 vertices = sum(len(o.data.vertices) for o in meshes)
 materials = sorted({s.material.name for o in meshes for s in o.material_slots if s.material})
 bpy.ops.export_scene.gltf(
@@ -100,6 +122,10 @@ bpy.ops.export_scene.gltf(
     export_materials="EXPORT",
     export_yup=True,
     use_selection=False,
+    export_skins=True,
+    export_morph=True,
+    export_animations=True,
+    export_attributes=True,
 )
 images = sorted({i.name for i in bpy.data.images if i.users and i.has_data})
 print("CDMW_FBX_RESULT " + json.dumps({
@@ -312,12 +338,13 @@ def convert_fbx_to_glb(
     target_dir = Path(output_dir) if output_dir is not None else path.parent
     target_dir.mkdir(parents=True, exist_ok=True)
     target = target_dir / f"{path.stem}.glb"
-    with tempfile.TemporaryDirectory(prefix="cdmw_fbx_") as temp:
+    with tempfile.TemporaryDirectory(prefix=".cdmw_fbx_", dir=target_dir) as temp:
         script = Path(temp) / "convert.py"
+        staged_target = Path(temp) / target.name
         script.write_text(_SCRIPT, encoding="utf-8")
         command = [
             str(executable), "--background", "--factory-startup",
-            "--python-exit-code", "31", "--python", str(script), "--", str(path), str(target),
+            "--python-exit-code", "31", "--python", str(script), "--", str(path), str(staged_target),
         ]
         if on_log:
             on_log(f"Converting {path.name} with {executable.name}...")
@@ -337,9 +364,11 @@ def convert_fbx_to_glb(
         code = int(getattr(finished, "returncode", 1) or 0)
         out = str(getattr(finished, "stdout", "") or "")
         err = str(getattr(finished, "stderr", "") or "")
-    if code != 0 or not target.is_file() or target.stat().st_size == 0:
-        tail = (err.strip() or out.strip() or "it said nothing").splitlines()
-        raise RuntimeError(f"Blender could not convert {path.name} (exit {code}): {tail[-1][:300] if tail else ''}")
+        if code != 0 or not staged_target.is_file() or staged_target.stat().st_size == 0:
+            tail = (err.strip() or out.strip() or "it said nothing").splitlines()
+            raise RuntimeError(f"Blender could not convert {path.name} (exit {code}): {tail[-1][:300] if tail else ''}")
+        raise_if_cancelled(stop_event)
+        os.replace(staged_target, target)
 
     facts = {}
     for line in out.splitlines():

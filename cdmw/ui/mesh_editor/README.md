@@ -16,6 +16,28 @@
 
 ## Layout and shared controls
 
+### Editable mesh exchange
+
+Editable packages include GLB, FBX and OBJ versions, portable texture files and
+CDMW companions. Use GLB when keeping PBR materials, multiple UV sets, vertex
+colors, a resolved rig or morph targets. It embeds textures and retains existing
+animation clips; animation editing is not supported.
+
+Keep the companion beside the edited mesh. It retains source hashes, LODs,
+unknown game data and protected channels. Re-import checks vertex and joint
+identity before rebuilding the original mesh. Enable **Data > Mesh > Attributes**
+in Blender's glTF export options to keep `_CDMW_VERTEX_ID` when returning GLB,
+or keep the `CDMW_VERTEX_ID` UV layer when returning FBX.
+Unproven identity, changed topology and unsupported game channels are rejected.
+
+FBX import uses the Blender executable selected on Create New Item's Model step.
+Conversion runs in the background, supports cancellation and publishes only a
+completed result. OBJ/FBX texture copies include material factors that Blender's
+legacy readers otherwise ignore; original images remain in the package.
+Companion reports list missing inputs and format limitations. OBJ retains rigs,
+morphs and extra UV/color data in the companion. Exact material extensions,
+samplers and animation clips require GLB for exchange.
+
 Tools, Inspector and pinned tool panel widths, plus floating tool positions,
 are saved in CDMW's user `.cfg` and restored for new editor sessions. The helper
 receives them in the initial theme's `layout` field and publishes bounded,

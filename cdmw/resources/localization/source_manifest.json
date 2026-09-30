@@ -1066,7 +1066,7 @@
       "origins": [
         {
           "path": "cdmw/services/fbx_blender_conversion.py",
-          "line": 212,
+          "line": 238,
           "sink": "python-return:summary"
         }
       ]
@@ -5561,7 +5561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_callbacks_source_part_mutation_part_02.py",
-          "line": 54,
+          "line": 51,
           "sink": "_push_geometry_undo_snapshot"
         }
       ]
@@ -6701,7 +6701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 295,
+          "line": 347,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -6786,7 +6786,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 337,
+          "line": 301,
           "sink": "QPushButton"
         },
         {
@@ -6946,12 +6946,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 295,
+          "line": 347,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 400,
+          "line": 428,
           "sink": "_add_combo_choice"
         },
         {
@@ -7086,7 +7086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filter_controls.py",
-          "line": 167,
+          "line": 162,
           "sink": "_add_combo_choice"
         }
       ]
@@ -7106,7 +7106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filter_controls.py",
-          "line": 165,
+          "line": 160,
           "sink": "_add_combo_choice"
         }
       ]
@@ -8066,17 +8066,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 320,
+          "line": 362,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 320,
+          "line": 362,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 325,
+          "line": 368,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -8746,7 +8746,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 531,
+          "line": 568,
           "sink": "emit"
         }
       ]
@@ -8911,7 +8911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filter_controls.py",
-          "line": 213,
+          "line": 208,
           "sink": "setText"
         }
       ]
@@ -8921,7 +8921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filter_controls.py",
-          "line": 213,
+          "line": 208,
           "sink": "setText"
         }
       ]
@@ -9566,7 +9566,7 @@
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 502,
+          "line": 539,
           "sink": "emit"
         }
       ]
@@ -9741,7 +9741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filter_controls.py",
-          "line": 109,
+          "line": 104,
           "sink": "append_archive_log"
         }
       ]
@@ -10311,7 +10311,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 928,
+          "line": 965,
           "sink": "ValueError"
         }
       ]
@@ -10321,7 +10321,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 764,
+          "line": 801,
           "sink": "RuntimeError"
         }
       ]
@@ -10451,7 +10451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 417,
+          "line": 418,
           "sink": "_protocol_failure"
         }
       ]
@@ -10461,7 +10461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 515,
+          "line": 516,
           "sink": "_protocol_failure"
         }
       ]
@@ -10471,7 +10471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 321,
+          "line": 322,
           "sink": "_protocol_failure"
         }
       ]
@@ -10481,7 +10481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 348,
+          "line": 349,
           "sink": "_protocol_failure"
         }
       ]
@@ -10491,7 +10491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 300,
+          "line": 301,
           "sink": "_protocol_failure"
         }
       ]
@@ -10501,7 +10501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 405,
+          "line": 406,
           "sink": "_protocol_failure"
         }
       ]
@@ -10511,7 +10511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 410,
+          "line": 411,
           "sink": "_protocol_failure"
         }
       ]
@@ -10521,7 +10521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 159,
+          "line": 160,
           "sink": "RuntimeError"
         }
       ]
@@ -10531,7 +10531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 530,
+          "line": 531,
           "sink": "_fail_all"
         }
       ]
@@ -10541,7 +10541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 351,
+          "line": 352,
           "sink": "_protocol_failure"
         }
       ]
@@ -10551,7 +10551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 482,
+          "line": 483,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -10561,7 +10561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 397,
+          "line": 398,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -10571,7 +10571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 223,
+          "line": 224,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -10581,7 +10581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 476,
+          "line": 477,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -10591,7 +10591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 376,
+          "line": 377,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -10601,7 +10601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 207,
+          "line": 208,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -10631,7 +10631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 484,
+          "line": 485,
           "sink": "_protocol_failure"
         }
       ]
@@ -10641,7 +10641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 316,
+          "line": 317,
           "sink": "_protocol_failure"
         }
       ]
@@ -10651,7 +10651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 566,
+          "line": 567,
           "sink": "_fail_all"
         }
       ]
@@ -10801,7 +10801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_controller.py",
-          "line": 320,
+          "line": 324,
           "sink": "emit"
         },
         {
@@ -10841,7 +10841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_controller.py",
-          "line": 672,
+          "line": 674,
           "sink": "emit"
         }
       ]
@@ -11131,7 +11131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_controller.py",
-          "line": 729,
+          "line": 731,
           "sink": "python-return:_staged_payload_error"
         }
       ]
@@ -11236,7 +11236,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 926,
+          "line": 963,
           "sink": "ValueError"
         }
       ]
@@ -11746,7 +11746,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_controller.py",
-          "line": 702,
+          "line": 704,
           "sink": "python-return:_staged_payload_error"
         }
       ]
@@ -11766,7 +11766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_controller.py",
-          "line": 704,
+          "line": 706,
           "sink": "python-return:_staged_payload_error"
         }
       ]
@@ -11996,7 +11996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_controller.py",
-          "line": 511,
+          "line": 513,
           "sink": "TypeError"
         }
       ]
@@ -13166,17 +13166,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 320,
+          "line": 362,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 320,
+          "line": 362,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 325,
+          "line": 368,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -15366,7 +15366,7 @@
       "origins": [
         {
           "path": "cdmw/services/fbx_blender_conversion.py",
-          "line": 335,
+          "line": 362,
           "sink": "RuntimeError"
         }
       ]
@@ -15376,7 +15376,7 @@
       "origins": [
         {
           "path": "cdmw/services/fbx_blender_conversion.py",
-          "line": 342,
+          "line": 369,
           "sink": "RuntimeError"
         }
       ]
@@ -15386,7 +15386,7 @@
       "origins": [
         {
           "path": "cdmw/services/fbx_blender_conversion.py",
-          "line": 333,
+          "line": 360,
           "sink": "RuntimeError"
         }
       ]
@@ -19326,7 +19326,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 339,
+          "line": 303,
           "sink": "QPushButton"
         },
         {
@@ -19646,42 +19646,42 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 500,
+          "line": 537,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 529,
+          "line": 566,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 534,
+          "line": 571,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 539,
+          "line": 576,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 583,
+          "line": 620,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 598,
+          "line": 635,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 603,
+          "line": 640,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 608,
+          "line": 645,
           "sink": "emit"
         }
       ]
@@ -20066,7 +20066,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 736,
+          "line": 773,
           "sink": "emit"
         }
       ]
@@ -21886,7 +21886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
-          "line": 337,
+          "line": 339,
           "sink": "_run_utility_task_when_idle"
         }
       ]
@@ -21996,7 +21996,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7444,
+          "line": 7447,
           "sink": "report"
         }
       ]
@@ -23413,6 +23413,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
           "line": 5082,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Choose an edited GLB, FBX, or OBJ mesh.",
+      "origins": [
+        {
+          "path": "cdmw/workers/mesh_editor_workers.py",
+          "line": 491,
+          "sink": "ValueError"
         }
       ]
     },
@@ -28446,7 +28456,7 @@
       "origins": [
         {
           "path": "cdmw/services/fbx_blender_conversion.py",
-          "line": 323,
+          "line": 350,
           "sink": "on_log"
         }
       ]
@@ -31991,7 +32001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 410,
+          "line": 438,
           "sink": "_add_combo_choice"
         }
       ]
@@ -32091,7 +32101,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 995,
+          "line": 1032,
           "sink": "ValueError"
         }
       ]
@@ -32101,7 +32111,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 1015,
+          "line": 1052,
           "sink": "RuntimeError"
         }
       ]
@@ -32126,7 +32136,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 1042,
+          "line": 1079,
           "sink": "RuntimeError"
         }
       ]
@@ -33356,7 +33366,7 @@
       "origins": [
         {
           "path": "cdmw/services/effect_catalogue_dependencies.py",
-          "line": 65,
+          "line": 67,
           "sink": "add"
         }
       ]
@@ -36846,7 +36856,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 9706,
+          "line": 9711,
           "sink": "RuntimeError"
         }
       ]
@@ -37876,17 +37886,17 @@
       "origins": [
         {
           "path": "cdmw/services/effect_catalogue.py",
-          "line": 166,
+          "line": 170,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/effect_catalogue.py",
-          "line": 189,
+          "line": 195,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/effect_catalogue.py",
-          "line": 193,
+          "line": 199,
           "sink": "RuntimeError"
         },
         {
@@ -37921,7 +37931,7 @@
       "origins": [
         {
           "path": "cdmw/services/effect_catalogue_process.py",
-          "line": 104,
+          "line": 106,
           "sink": "RuntimeError"
         }
       ]
@@ -37931,7 +37941,7 @@
       "origins": [
         {
           "path": "cdmw/services/effect_catalogue_process.py",
-          "line": 101,
+          "line": 103,
           "sink": "RuntimeError"
         }
       ]
@@ -39106,7 +39116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 285,
+          "line": 288,
           "sink": "setHeaderLabels"
         }
       ]
@@ -39796,12 +39806,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filter_controls.py",
-          "line": 272,
+          "line": 269,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/archive_browser/filter_controls.py",
-          "line": 286,
+          "line": 283,
           "sink": "setText"
         },
         {
@@ -41096,7 +41106,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 637,
+          "line": 674,
           "sink": "RuntimeError"
         }
       ]
@@ -42521,7 +42531,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 285,
+          "line": 288,
           "sink": "setHeaderLabels"
         },
         {
@@ -43152,6 +43162,16 @@
       ]
     },
     {
+      "key": "FBX sidecar is required for editable mesh package import.",
+      "origins": [
+        {
+          "path": "cdmw/workers/mesh_editor_workers.py",
+          "line": 486,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "FBX support: on, converted with {value_0}",
       "origins": [
         {
@@ -43701,7 +43721,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 916,
+          "line": 953,
           "sink": "ValueError"
         }
       ]
@@ -44361,7 +44381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 280,
+          "line": 278,
           "sink": "setPlaceholderText"
         }
       ]
@@ -45376,7 +45396,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 600,
+          "line": 637,
           "sink": "emit"
         }
       ]
@@ -45446,7 +45466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_controller.py",
-          "line": 727,
+          "line": 729,
           "sink": "python-return:_staged_payload_error"
         }
       ]
@@ -45456,7 +45476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_controller.py",
-          "line": 717,
+          "line": 719,
           "sink": "python-return:_staged_payload_error"
         }
       ]
@@ -46166,12 +46186,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filter_controls.py",
-          "line": 145,
+          "line": 140,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/archive_browser/filter_controls.py",
-          "line": 145,
+          "line": 140,
           "sink": "QLabel"
         }
       ]
@@ -46181,7 +46201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filter_controls.py",
-          "line": 145,
+          "line": 140,
           "sink": "QLabel"
         }
       ]
@@ -48896,7 +48916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 285,
+          "line": 288,
           "sink": "setHeaderLabels"
         },
         {
@@ -50386,17 +50406,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
-          "line": 322,
-          "sink": "raise_if_cancelled"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
-          "line": 333,
+          "line": 324,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
           "line": 335,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
+          "line": 337,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -50426,7 +50446,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 745,
+          "line": 782,
           "sink": "ValueError"
         }
       ]
@@ -53616,7 +53636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_callbacks_source_part_mutation_part_02.py",
-          "line": 31,
+          "line": 28,
           "sink": "start"
         }
       ]
@@ -54131,12 +54151,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/filter_controls.py",
-          "line": 260,
+          "line": 257,
           "sink": "setPlaceholderText"
         },
         {
           "path": "cdmw/ui/archive_browser/filter_controls.py",
-          "line": 284,
+          "line": 281,
           "sink": "setPlaceholderText"
         },
         {
@@ -54431,12 +54451,12 @@
       "origins": [
         {
           "path": "cdmw/services/effect_catalogue.py",
-          "line": 212,
+          "line": 218,
           "sink": "on_log"
         },
         {
           "path": "cdmw/services/effect_catalogue_process.py",
-          "line": 106,
+          "line": 108,
           "sink": "on_log"
         }
       ]
@@ -61876,7 +61896,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 914,
+          "line": 951,
           "sink": "ValueError"
         }
       ]
@@ -63056,17 +63076,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 320,
+          "line": 362,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 320,
+          "line": 362,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 325,
+          "line": 368,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -66281,7 +66301,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 719,
+          "line": 756,
           "sink": "ValueError"
         }
       ]
@@ -66381,7 +66401,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 36,
+          "line": 37,
           "sink": "RunCancelled"
         },
         {
@@ -67151,12 +67171,12 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 735,
+          "line": 772,
           "sink": "RunCancelled"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 802,
+          "line": 839,
           "sink": "RunCancelled"
         }
       ]
@@ -67166,12 +67186,12 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 835,
+          "line": 872,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 838,
+          "line": 875,
           "sink": "emit"
         }
       ]
@@ -67231,7 +67251,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 1971,
+          "line": 1974,
           "sink": "ValueError"
         }
       ]
@@ -67386,7 +67406,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 2012,
+          "line": 2015,
           "sink": "ValueError"
         }
       ]
@@ -67416,7 +67436,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 832,
+          "line": 869,
           "sink": "emit"
         }
       ]
@@ -67426,7 +67446,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 755,
+          "line": 792,
           "sink": "RuntimeError"
         }
       ]
@@ -68891,17 +68911,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 320,
+          "line": 362,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 320,
+          "line": 362,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 325,
+          "line": 368,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -70051,7 +70071,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 9037,
+          "line": 9042,
           "sink": "RuntimeError"
         }
       ]
@@ -70131,7 +70151,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8967,
+          "line": 8972,
           "sink": "RuntimeError"
         }
       ]
@@ -70141,7 +70161,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8963,
+          "line": 8968,
           "sink": "RuntimeError"
         }
       ]
@@ -70151,7 +70171,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8938,
+          "line": 8943,
           "sink": "RuntimeError"
         }
       ]
@@ -72311,17 +72331,12 @@
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 438,
+          "line": 447,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 485,
-          "sink": "raise_if_cancelled"
-        },
-        {
-          "path": "cdmw/services/new_item_snapshot.py",
-          "line": 499,
+          "line": 494,
           "sink": "raise_if_cancelled"
         },
         {
@@ -72331,12 +72346,17 @@
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 527,
+          "line": 517,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 564,
+          "line": 536,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/new_item_snapshot.py",
+          "line": 573,
           "sink": "raise_if_cancelled"
         },
         {
@@ -73021,7 +73041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filter_controls.py",
-          "line": 145,
+          "line": 140,
           "sink": "QLabel"
         }
       ]
@@ -73401,7 +73421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
-          "line": 301,
+          "line": 303,
           "sink": "emit"
         }
       ]
@@ -81596,17 +81616,17 @@
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 320,
+          "line": 362,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 320,
+          "line": 362,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 325,
+          "line": 368,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -82196,12 +82216,12 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 1103,
+          "line": 1140,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 1106,
+          "line": 1143,
           "sink": "emit"
         }
       ]
@@ -86206,7 +86226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 274,
+          "line": 272,
           "sink": "QLabel"
         }
       ]
@@ -88746,7 +88766,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7442,
+          "line": 7445,
           "sink": "report"
         }
       ]
@@ -88971,7 +88991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
-          "line": 282,
+          "line": 286,
           "sink": "setText"
         }
       ]
@@ -89146,7 +89166,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7997,
+          "line": 8000,
           "sink": "progress"
         }
       ]
@@ -89156,7 +89176,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7308,
+          "line": 7311,
           "sink": "report"
         }
       ]
@@ -89166,7 +89186,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7332,
+          "line": 7335,
           "sink": "report"
         }
       ]
@@ -95566,7 +95586,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 486,
+          "line": 495,
           "sink": "_log_progress"
         }
       ]
@@ -95576,7 +95596,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 509,
+          "line": 518,
           "sink": "_log_progress"
         }
       ]
@@ -95586,7 +95606,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 500,
+          "line": 509,
           "sink": "_log_progress"
         }
       ]
@@ -95901,7 +95921,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 528,
+          "line": 537,
           "sink": "_log_progress"
         }
       ]
@@ -96021,7 +96041,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 575,
+          "line": 584,
           "sink": "_log_progress"
         }
       ]
@@ -97691,7 +97711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_controller.py",
-          "line": 491,
+          "line": 493,
           "sink": "RuntimeError"
         }
       ]
@@ -97711,17 +97731,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_controller.py",
-          "line": 441,
+          "line": 443,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_controller.py",
-          "line": 451,
+          "line": 453,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_controller.py",
-          "line": 467,
+          "line": 469,
           "sink": "RuntimeError"
         }
       ]
@@ -97976,7 +97996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_controller.py",
-          "line": 523,
+          "line": 525,
           "sink": "RuntimeError"
         }
       ]
@@ -100636,7 +100656,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 947,
+          "line": 984,
           "sink": "ValueError"
         }
       ]
@@ -100646,7 +100666,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 793,
+          "line": 830,
           "sink": "ValueError"
         }
       ]
@@ -100976,7 +100996,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 777,
+          "line": 814,
           "sink": "RuntimeError"
         }
       ]
@@ -104481,7 +104501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_controller.py",
-          "line": 625,
+          "line": 627,
           "sink": "emit"
         },
         {
@@ -106102,7 +106122,7 @@
       ]
     },
     {
-      "key": "Round-trip edit is OBJ-only and requires a local OBJ source.",
+      "key": "Round-trip edit supports CDMW OBJ, FBX, GLB or glTF packages. Keep the matching companion beside the edited file.",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
@@ -106516,7 +106536,7 @@
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 585,
+          "line": 622,
           "sink": "emit"
         }
       ]
@@ -107901,12 +107921,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filter_controls.py",
-          "line": 145,
+          "line": 140,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/archive_browser/filter_controls.py",
-          "line": 145,
+          "line": 140,
           "sink": "QLabel"
         }
       ]
@@ -108261,7 +108281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_callbacks_source_part_mutation_part_02.py",
-          "line": 28,
+          "line": 25,
           "sink": "warning"
         },
         {
@@ -108301,7 +108321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filter_controls.py",
-          "line": 246,
+          "line": 243,
           "sink": "setText"
         },
         {
@@ -108476,7 +108496,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/filter_controls.py",
-          "line": 214,
+          "line": 209,
           "sink": "setText"
         },
         {
@@ -108966,7 +108986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filter_controls.py",
-          "line": 214,
+          "line": 209,
           "sink": "setText"
         }
       ]
@@ -109306,7 +109326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 268,
+          "line": 266,
           "sink": "setWindowTitle"
         }
       ]
@@ -118071,7 +118091,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 625,
+          "line": 634,
           "sink": "_log_progress"
         }
       ]
@@ -119831,7 +119851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 84,
+          "line": 85,
           "sink": "ValueError"
         }
       ]
@@ -120021,12 +120041,12 @@
       "origins": [
         {
           "path": "cdmw/services/effect_catalogue_process.py",
-          "line": 129,
+          "line": 131,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/effect_catalogue_process.py",
-          "line": 133,
+          "line": 135,
           "sink": "ValueError"
         }
       ]
@@ -121466,7 +121486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_controller.py",
-          "line": 631,
+          "line": 633,
           "sink": "emit"
         }
       ]
@@ -124301,17 +124321,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 320,
+          "line": 362,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 320,
+          "line": 362,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 325,
+          "line": 368,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -125996,7 +126016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
-          "line": 444,
+          "line": 449,
           "sink": "_error"
         }
       ]
@@ -127111,7 +127131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
-          "line": 327,
+          "line": 329,
           "sink": "ValueError"
         }
       ]
@@ -128286,7 +128306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
-          "line": 330,
+          "line": 332,
           "sink": "ValueError"
         }
       ]
@@ -129196,7 +129216,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 579,
+          "line": 588,
           "sink": "_log_progress"
         }
       ]
@@ -129816,7 +129836,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
-          "line": 380,
+          "line": 384,
           "sink": "_preparation_failed"
         }
       ]
@@ -129961,7 +129981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
-          "line": 324,
+          "line": 326,
           "sink": "ValueError"
         }
       ]
@@ -130401,7 +130421,7 @@
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 631,
+          "line": 668,
           "sink": "RuntimeError"
         }
       ]
@@ -130411,7 +130431,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 709,
+          "line": 715,
           "sink": "RuntimeError"
         }
       ]
@@ -132651,17 +132671,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 320,
+          "line": 362,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 320,
+          "line": 362,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 325,
+          "line": 368,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -133371,7 +133391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_controller.py",
-          "line": 544,
+          "line": 546,
           "sink": "TypeError"
         }
       ]
@@ -133871,7 +133891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 597,
+          "line": 598,
           "sink": "_fail_all"
         }
       ]
@@ -133991,7 +134011,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 831,
+          "line": 868,
           "sink": "ValueError"
         }
       ]
@@ -134191,7 +134211,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 717,
+          "line": 754,
           "sink": "ValueError"
         }
       ]
@@ -135096,7 +135116,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 744,
+          "line": 750,
           "sink": "RuntimeError"
         }
       ]
@@ -137901,7 +137921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filter_controls.py",
-          "line": 116,
+          "line": 111,
           "sink": "append_archive_log"
         }
       ]
@@ -145911,12 +145931,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 288,
+          "line": 289,
           "sink": "FileNotFoundError"
         },
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 501,
+          "line": 507,
           "sink": "FileNotFoundError"
         }
       ]
@@ -147031,7 +147051,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_export_readback.py",
-          "line": 60,
+          "line": 61,
           "sink": "_require_contract"
         }
       ]
@@ -147206,7 +147226,7 @@
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7590,
+          "line": 7593,
           "sink": "open_edit_session"
         },
         {
@@ -147511,7 +147531,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_export_readback.py",
-          "line": 68,
+          "line": 69,
           "sink": "RuntimeError"
         }
       ]
@@ -147521,7 +147541,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_export_readback.py",
-          "line": 66,
+          "line": 67,
           "sink": "RuntimeError"
         }
       ]
@@ -147621,12 +147641,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3348,
+          "line": 3351,
           "sink": "python-return:_material_input_texture_role"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3364,
+          "line": 3367,
           "sink": "python-return:_material_input_texture_role"
         },
         {
@@ -148071,7 +148091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 565,
+          "line": 566,
           "sink": "emit"
         }
       ]
@@ -148326,7 +148346,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 273,
+          "line": 283,
           "sink": "RuntimeError"
         }
       ]
@@ -148396,7 +148416,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_controller.py",
-          "line": 335,
+          "line": 337,
           "sink": "emit"
         }
       ]
@@ -149141,7 +149161,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3370,
+          "line": 3373,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -149551,7 +149571,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3362,
+          "line": 3365,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -149736,7 +149756,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 4086,
+          "line": 4089,
           "sink": "ValueError"
         }
       ]
@@ -149976,12 +149996,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3335,
+          "line": 3338,
           "sink": "python-return:_material_input_texture_role"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3368,
+          "line": 3371,
           "sink": "python-return:_material_input_texture_role"
         },
         {
@@ -151366,7 +151386,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_export_readback.py",
-          "line": 60,
+          "line": 61,
           "sink": "_require_contract"
         }
       ]
@@ -151646,12 +151666,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3346,
+          "line": 3349,
           "sink": "python-return:_material_input_texture_role"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3374,
+          "line": 3377,
           "sink": "python-return:_material_input_texture_role"
         },
         {
@@ -151801,7 +151821,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3727,
+          "line": 3730,
           "sink": "ValueError"
         }
       ]
@@ -151811,7 +151831,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3716,
+          "line": 3719,
           "sink": "ValueError"
         }
       ]
@@ -151821,7 +151841,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3699,
+          "line": 3702,
           "sink": "ValueError"
         }
       ]
@@ -152396,7 +152416,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 341,
+          "line": 342,
           "sink": "RuntimeError"
         }
       ]
@@ -152406,7 +152426,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 383,
+          "line": 384,
           "sink": "RuntimeError"
         }
       ]
@@ -152416,7 +152436,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 392,
+          "line": 393,
           "sink": "RuntimeError"
         }
       ]
@@ -152471,7 +152491,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 761,
+          "line": 767,
           "sink": "RuntimeError"
         }
       ]
@@ -152481,12 +152501,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 698,
+          "line": 704,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 635,
+          "line": 672,
           "sink": "RuntimeError"
         }
       ]
@@ -152496,7 +152516,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 694,
+          "line": 700,
           "sink": "RuntimeError"
         }
       ]
@@ -152506,7 +152526,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 746,
+          "line": 752,
           "sink": "RuntimeError"
         }
       ]
@@ -152891,7 +152911,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3356,
+          "line": 3359,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -153316,12 +153336,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 6901,
+          "line": 6904,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 6999,
+          "line": 7002,
           "sink": "RuntimeError"
         }
       ]
@@ -153681,7 +153701,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 355,
+          "line": 356,
           "sink": "RuntimeError"
         }
       ]
@@ -153756,7 +153776,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 374,
+          "line": 375,
           "sink": "RuntimeError"
         }
       ]
@@ -153771,7 +153791,7 @@
         },
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 553,
+          "line": 559,
           "sink": "RuntimeError"
         }
       ]
@@ -153936,7 +153956,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 358,
+          "line": 359,
           "sink": "RuntimeError"
         }
       ]
@@ -154406,12 +154426,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3333,
+          "line": 3336,
           "sink": "python-return:_material_input_texture_role"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3352,
+          "line": 3355,
           "sink": "python-return:_material_input_texture_role"
         },
         {
@@ -154786,7 +154806,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3358,
+          "line": 3361,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -155006,7 +155026,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3366,
+          "line": 3369,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -156018,6 +156038,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_collision_part_01.py",
           "line": 134,
           "sink": "_add_collision_value_item"
+        }
+      ]
+    },
+    {
+      "key": "portable OBJ diffuse texture is missing: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/workers/mesh_editor_workers.py",
+          "line": 291,
+          "sink": "RuntimeError"
         }
       ]
     },
@@ -157511,7 +157541,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_export_readback.py",
-          "line": 63,
+          "line": 64,
           "sink": "_require_contract"
         }
       ]
@@ -157901,7 +157931,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 68,
+          "line": 69,
           "sink": "ValueError"
         }
       ]
@@ -157931,7 +157961,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 72,
+          "line": 73,
           "sink": "ValueError"
         }
       ]
@@ -157941,7 +157971,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 236,
+          "line": 237,
           "sink": "ValueError"
         }
       ]
@@ -157951,7 +157981,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 78,
+          "line": 79,
           "sink": "ValueError"
         }
       ]
@@ -157961,7 +157991,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 90,
+          "line": 91,
           "sink": "ValueError"
         }
       ]
@@ -157971,7 +158001,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 88,
+          "line": 89,
           "sink": "TypeError"
         }
       ]
@@ -157981,7 +158011,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 233,
+          "line": 234,
           "sink": "ValueError"
         }
       ]
@@ -157991,7 +158021,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 231,
+          "line": 232,
           "sink": "ValueError"
         }
       ]
@@ -158001,7 +158031,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 229,
+          "line": 230,
           "sink": "ValueError"
         }
       ]
@@ -158016,7 +158046,7 @@
         },
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 48,
+          "line": 49,
           "sink": "ValueError"
         }
       ]
@@ -158026,7 +158056,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 75,
+          "line": 76,
           "sink": "ValueError"
         }
       ]
@@ -158141,7 +158171,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 70,
+          "line": 71,
           "sink": "ValueError"
         }
       ]
@@ -158151,7 +158181,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 240,
+          "line": 241,
           "sink": "FileNotFoundError"
         }
       ]
@@ -158161,7 +158191,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 247,
+          "line": 248,
           "sink": "ValueError"
         }
       ]
@@ -158171,7 +158201,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 483,
+          "line": 489,
           "sink": "ValueError"
         }
       ]
@@ -158481,7 +158511,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3354,
+          "line": 3357,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -160211,12 +160241,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3345,
+          "line": 3348,
           "sink": "python-return:_material_input_texture_role"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3360,
+          "line": 3363,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -160346,7 +160376,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 222,
+          "line": 223,
           "sink": "RuntimeError"
         }
       ]
@@ -164576,7 +164606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 414,
+          "line": 442,
           "sink": "_add_combo_choice"
         }
       ]
@@ -164721,7 +164751,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 404,
+          "line": 432,
           "sink": "_add_combo_choice"
         },
         {
@@ -166006,7 +166036,7 @@
       "origins": [
         {
           "path": "cdmw/services/fbx_blender_conversion.py",
-          "line": 212,
+          "line": 238,
           "sink": "python-return:summary"
         }
       ]
@@ -166576,7 +166606,7 @@
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 507,
+          "line": 544,
           "sink": "RuntimeError"
         }
       ]
@@ -166666,7 +166696,7 @@
       "origins": [
         {
           "path": "cdmw/services/fbx_blender_conversion.py",
-          "line": 310,
+          "line": 336,
           "sink": "RuntimeError"
         }
       ]
@@ -168706,7 +168736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
-          "line": 354,
+          "line": 356,
           "sink": "setText"
         }
       ]
@@ -169066,7 +169096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filter_controls.py",
-          "line": 83,
+          "line": 78,
           "sink": "python-return:_format_archive_structure_combo_label"
         }
       ]
@@ -169646,7 +169676,7 @@
       "origins": [
         {
           "path": "cdmw/services/effect_catalogue_dependencies.py",
-          "line": 83,
+          "line": 85,
           "sink": "add"
         },
         {
@@ -169846,42 +169876,42 @@
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 419,
+          "line": 444,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 464,
+          "line": 501,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 537,
+          "line": 574,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 606,
+          "line": 643,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 840,
+          "line": 877,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 1108,
+          "line": 1145,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 1135,
+          "line": 1172,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 1194,
+          "line": 1231,
           "sink": "emit"
         },
         {

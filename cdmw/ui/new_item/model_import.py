@@ -1122,7 +1122,8 @@ def fbx_needing_blender(chosen: object) -> str:
 
         with zipfile.ZipFile(path) as archive:
             for name in archive.namelist():
-                if not name.endswith("/") and Path(name).suffix.casefold() in IMPORTABLE_MODEL_EXTENSIONS:
+                if (not name.endswith("/") and Path(name).suffix.casefold() in IMPORTABLE_MODEL_EXTENSIONS
+                        and Path(name).suffix.casefold() != FBX_EXTENSION):
                     return ""
     except Exception:  # noqa: BLE001 - a zip that will not open is the reader's next problem
         pass
@@ -1244,6 +1245,9 @@ def load_model_import_source(
     converted_fbx = False
     try:
         model_path = ModelLibraryService().resolve_importable_model(chosen, extract_root=extraction, stop_event=stop_event)
+        if model_path is not None and Path(model_path).suffix.casefold() == FBX_EXTENSION:
+            model_path = _fbx_converted_to_glb(Path(model_path), extraction, blender_path, on_log, stop_event)
+            converted_fbx = model_path is not None
         if model_path is None:
             # An FBX is read by asking Blender for it as glTF first, and only with the Blender
             # the reader pointed at: a conversion nobody asked for is one nobody can account

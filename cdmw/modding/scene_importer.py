@@ -1,8 +1,4 @@
-"""Scene-file import helpers for static mesh replacement.
-
-OBJ remains the strict round-trip format.  This module accepts broader scene
-formats only for static replacement and normalizes them into ParsedMesh.
-"""
+"""Scene import for replacement and editable OBJ/FBX/glTF packages."""
 
 from __future__ import annotations
 
@@ -194,7 +190,7 @@ from .scene_texture_discovery import (
     discover_scene_texture_files,
 )
 
-SCENE_IMPORT_EXTENSIONS = {".obj", ".dae", ".gltf", ".glb", ".zip"} | LOCAL_ARCHIVE_MESH_IMPORT_EXTENSIONS
+SCENE_IMPORT_EXTENSIONS = {".obj", ".fbx", ".dae", ".gltf", ".glb", ".zip"} | LOCAL_ARCHIVE_MESH_IMPORT_EXTENSIONS
 
 
 from .scene_import_result_ops import (
@@ -212,8 +208,8 @@ from .scene_import_result_ops import (
 from .scene_import_uv import ensure_external_scene_uvs
 
 
-def import_scene_mesh(path: str | Path, *, selected_member: str = "") -> ParsedMesh:
-    return import_scene_mesh_with_report(path, selected_member=selected_member).mesh
+def import_scene_mesh(path: str | Path, *, selected_member: str = "", preserve_authoring: bool = False, blender_path: str = "") -> ParsedMesh:
+    return import_scene_mesh_with_report(path, selected_member=selected_member, preserve_authoring=preserve_authoring, blender_path=blender_path).mesh
 
 
 def _attach_loose_character_presentation(
@@ -242,35 +238,17 @@ def import_scene_mesh_with_report(
     tolerate_missing_texture_files: bool = False,
     selected_member: str = "",
     stop_event: Optional[threading.Event] = None,
+    preserve_authoring: bool = False,
+    blender_path: str = "",
 ) -> SceneImportResult:
     raise_if_cancelled(stop_event, "Scene import cancelled.")
     source_path = Path(path).expanduser().resolve()
     suffix = source_path.suffix.lower()
     if suffix == ".zip":
-        from cdmw.core.model_catalogue import resolve_importable_model_path, zip_importable_member_refs
-
-        members = zip_importable_member_refs(source_path, stop_event=stop_event)
-        resolved_path = resolve_importable_model_path(
-            source_path,
-            selected_member=selected_member,
-            stop_event=stop_event,
-        )
-        if resolved_path is None:
-            raise ValueError(
-                f"ZIP file does not contain an importable model: {source_path}. "
-                "Expected OBJ, DAE, glTF, GLB, PAC, PAM, or PAMLOD."
-            )
-        result = import_scene_mesh_with_report(
-            resolved_path,
-            include_external_audit=include_external_audit,
-            tolerate_missing_texture_files=tolerate_missing_texture_files,
-            stop_event=stop_event,
-        )
-        member_label = str(selected_member or (members[0] if members else resolved_path.name)).replace("\\", "/")
-        result.diagnostics = (
-            f"Resolved ZIP archive {source_path.name} to {member_label}.",
-        ) + tuple(result.diagnostics or ())
-        return result
+        return _import_zip_result(source_path, selected_member=selected_member,
+                                  include_external_audit=include_external_audit,
+                                  tolerate_missing_texture_files=tolerate_missing_texture_files,
+                                  stop_event=stop_event, preserve_authoring=preserve_authoring, blender_path=blender_path)
     if suffix == ".obj":
         mesh = import_obj(str(source_path))
         raise_if_cancelled(stop_event, "Scene import cancelled.")
@@ -327,14 +305,12 @@ def import_scene_mesh_with_report(
             stop_event=stop_event,
         )
     if suffix in {".gltf", ".glb"}:
-        result = import_gltf(
-            source_path,
-            include_external_audit=include_external_audit,
-            tolerate_missing_texture_files=tolerate_missing_texture_files,
-            stop_event=stop_event,
-        )
-        raise_if_cancelled(stop_event, "Scene import cancelled.")
-        return ensure_external_scene_uvs(result, source_path, stop_event=stop_event)
+        return _import_gltf_result(source_path, preserve_authoring=preserve_authoring,
+                                   include_external_audit=include_external_audit,
+                                   tolerate_missing_texture_files=tolerate_missing_texture_files, stop_event=stop_event)
+    if suffix == ".fbx":
+        return _import_fbx_result(source_path, blender_path=blender_path, preserve_authoring=preserve_authoring,
+                                  include_external_audit=include_external_audit, tolerate_missing_texture_files=tolerate_missing_texture_files, stop_event=stop_event)
     if suffix in LOCAL_ARCHIVE_MESH_IMPORT_EXTENSIONS:
         source_data = source_path.read_bytes()
         mesh = parse_mesh(source_data, source_path.as_posix())
@@ -378,7 +354,7 @@ def import_scene_mesh_with_report(
             ),
             enabled=include_external_audit,
         )
-    if suffix in {".fbx", ".blend", ".usd", ".usda", ".usdc", ".usdz"}:
+    if suffix in {".blend", ".usd", ".usda", ".usdc", ".usdz"}:
         raise ValueError(
             f"{source_path.suffix.upper().lstrip('.')} files are browsable but not preview-importable in this build. "
             "Export OBJ, DAE, GLB, or glTF to keep material/texture preview support without external converter dependencies."
@@ -386,9 +362,74 @@ def import_scene_mesh_with_report(
     raise ValueError(f"Unsupported mesh import format: {source_path.suffix or source_path.name}")
 
 
-def import_fbx(path: str | Path) -> ParsedMesh:
-    fbx_path = Path(path).expanduser().resolve()
-    raise ValueError(
-        f"FBX import is disabled in this build because it required launching Blender: {fbx_path}. "
-        "Export the model as OBJ or DAE first."
+def _import_zip_result(source_path, *, selected_member, include_external_audit, tolerate_missing_texture_files, stop_event, preserve_authoring, blender_path):
+    from cdmw.core.model_catalogue import resolve_importable_model_path, zip_importable_member_refs
+
+    members = zip_importable_member_refs(source_path, stop_event=stop_event)
+    resolved_path = resolve_importable_model_path(
+        source_path,
+        selected_member=selected_member,
+        stop_event=stop_event,
     )
+    if resolved_path is None:
+        raise ValueError(
+            f"ZIP file does not contain an importable model: {source_path}. "
+            "Expected OBJ, FBX, DAE, glTF, GLB, PAC, PAM, or PAMLOD."
+        )
+    result = import_scene_mesh_with_report(
+        resolved_path,
+        include_external_audit=include_external_audit,
+        tolerate_missing_texture_files=tolerate_missing_texture_files,
+        stop_event=stop_event,
+        preserve_authoring=preserve_authoring,
+        blender_path=blender_path,
+    )
+    member_label = str(selected_member or (members[0] if members else resolved_path.name)).replace("\\", "/")
+    result.diagnostics = (
+        f"Resolved ZIP archive {source_path.name} to {member_label}.",
+    ) + tuple(result.diagnostics or ())
+    return result
+
+
+def _import_gltf_result(source_path, *, preserve_authoring, include_external_audit, tolerate_missing_texture_files, stop_event):
+    from .mesh_glb_interchange import _attach_glb_sidecar, _load_glb_roundtrip_sidecar
+    sidecar = _load_glb_roundtrip_sidecar(source_path) if (
+        Path(f"{source_path}.meta.json").is_file() or (source_path.parent / "mesh.cdmeta.json").is_file()) else None
+    result = import_gltf(
+        source_path,
+        include_external_audit=include_external_audit,
+        tolerate_missing_texture_files=tolerate_missing_texture_files,
+        stop_event=stop_event,
+        preserve_authoring=preserve_authoring or sidecar is not None,
+    )
+    raise_if_cancelled(stop_event, "Scene import cancelled.")
+    if sidecar is not None:
+        _attach_glb_sidecar(result.mesh, sidecar, source_path.name)
+    if preserve_authoring:
+        return result
+    return ensure_external_scene_uvs(result, source_path, stop_event=stop_event)
+
+
+def _import_fbx_result(source_path, *, blender_path, preserve_authoring, include_external_audit, tolerate_missing_texture_files, stop_event):
+    import hashlib
+    import tempfile
+    from cdmw.services.fbx_blender_conversion import configured_blender, convert_fbx_to_glb
+    from .mesh_glb_interchange import _attach_glb_sidecar, _load_glb_roundtrip_sidecar
+    sidecar = _load_glb_roundtrip_sidecar(source_path) if (
+        Path(f"{source_path}.meta.json").is_file() or (source_path.parent / "mesh.cdmeta.json").is_file()) else None
+    cache = Path(tempfile.gettempdir()) / "cdmw_fbx_import" / hashlib.sha256(source_path.read_bytes()).hexdigest()
+    conversion = convert_fbx_to_glb(source_path, blender_path or configured_blender(), output_dir=cache, stop_event=stop_event)
+    result = import_gltf(conversion.glb, include_external_audit=include_external_audit,
+                         tolerate_missing_texture_files=tolerate_missing_texture_files, stop_event=stop_event,
+                         preserve_authoring=preserve_authoring or sidecar is not None)
+    result.mesh.path = str(source_path)
+    result.mesh.format = "fbx"
+    result.diagnostics = (conversion.summary(source_path),) + tuple(result.diagnostics)
+    # An FBX returned from Blender may retain its CDMW companion.
+    if sidecar is not None:
+        _attach_glb_sidecar(result.mesh, sidecar, source_path.name)
+    return result if preserve_authoring else ensure_external_scene_uvs(result, source_path, stop_event=stop_event)
+
+
+def import_fbx(path: str | Path, *, blender_path: str = "", stop_event: Optional[threading.Event] = None) -> ParsedMesh:
+    return import_scene_mesh_with_report(path, preserve_authoring=True, blender_path=blender_path, stop_event=stop_event).mesh

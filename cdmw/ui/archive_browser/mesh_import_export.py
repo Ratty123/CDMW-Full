@@ -111,8 +111,8 @@ class ArchiveMeshImportExportMixin:
         source_display_label = source_label.strip() or str(scene_path)
         scene_import_result = prepared_preflight.scene_import_result
         suffix = scene_path.suffix.lower()
-        is_obj = suffix == ".obj" and not force_static_replacement
-        has_roundtrip_sidecar = bool(prepared_preflight.has_roundtrip_sidecar) if is_obj else False
+        editable = suffix in {".obj", ".fbx", ".glb", ".gltf"} and not force_static_replacement
+        has_roundtrip_sidecar = bool(prepared_preflight.has_roundtrip_sidecar) if editable else False
         profile = prepared_preflight.profile
         original_mesh_for_setup = prepared_preflight.original_mesh
         preflight, setup_control_text = prepared_preflight.preflight, _mesh_import_setup_control_text()
@@ -262,7 +262,7 @@ class ArchiveMeshImportExportMixin:
         if not availability.roundtrip_enabled:
             roundtrip_radio.setEnabled(False)
             roundtrip_radio.hide()
-            roundtrip_radio.setToolTip("Round-trip edit is OBJ-only and requires a local OBJ source.")
+            roundtrip_radio.setToolTip("Round-trip edit supports CDMW OBJ, FBX, GLB or glTF packages. Keep the matching companion beside the edited file.")
         if not availability.static_enabled:
             static_radio.setEnabled(False)
             static_radio.setToolTip("\n".join(profile.errors) or "Mesh replacement is not enabled for this target asset.")

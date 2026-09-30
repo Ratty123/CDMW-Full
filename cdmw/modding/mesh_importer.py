@@ -295,10 +295,14 @@ def _restore_obj_source_channels(mesh: ParsedMesh, original: ParsedMesh) -> Pars
         # Preserve the PAC's vertex slots if the importer supplied a permutation.
         if source_map != list(range(count)):
             order = sorted(range(count), key=source_map.__getitem__)
-            for attr in ("vertices", "normals", "uvs", "tangents", "bone_indices", "bone_weights"):
+            for attr in ("vertices", "normals", "uvs", "tangents", "bone_indices", "bone_weights", "vertex_colors"):
                 values = getattr(part, attr, ()) or ()
                 if len(values) == count:
                     setattr(part, attr, [values[index] for index in order])
+            for attr in ("uv_sets", "morph_targets", "morph_normals", "morph_tangents"):
+                for key, values in getattr(part, attr).items():
+                    if len(values) == count:
+                        getattr(part, attr)[key] = [values[index] for index in order]
             part.faces = [tuple(source_map[index] for index in face) for face in part.faces]
             part.source_vertex_map = list(range(count))
             part.source_vertex_offsets = list(donor.source_vertex_offsets)
@@ -380,6 +384,8 @@ def _collapse_obj_normal_splits(part, donor, reference) -> bool:
         values = getattr(part, attr, ()) or ()
         if len(values) == actual:
             setattr(part, attr, [values[index] for index in order])
+    from .mesh_deformer import _remap_interchange_vertex_channels
+    _remap_interchange_vertex_channels(part, {old: new for new, old in enumerate(order)}, actual, include_uvs=False)
     part.faces = [tuple(source_map[index] for index in face) for face in part.faces]
     part.source_vertex_map = list(range(count))
     part.vertex_count = count
@@ -476,7 +482,7 @@ def _restore_obj_rounded_channels(mesh: ParsedMesh, reference: ParsedMesh) -> No
     """Recover source values within OBJ/f32 and Blender custom-normal precision."""
     for part, donor in zip(mesh.submeshes, reference.submeshes):
         if (len(part.vertices) != len(donor.vertices)
-                or list(part.source_vertex_map) != list(donor.source_vertex_map)):
+                or list(part.source_vertex_map) != (list(donor.source_vertex_map) or list(range(len(donor.vertices))))):
             continue
         for attr in ("vertices", "uvs", "normals"):
             values, baseline = getattr(part, attr), getattr(donor, attr)
@@ -497,7 +503,8 @@ def _restore_obj_rounded_channels(mesh: ParsedMesh, reference: ParsedMesh) -> No
                     # float32 rounding by the whole point, including values
                     # near an axis plane, before the six-decimal OBJ output.
                     tolerance = 6e-7 + max(map(abs, expected), default=0.) * 2**-22
-                    same = all(abs(a - b) <= tolerance for a, b in zip(actual, expected))
+                    restored.append(tuple(b if abs(a - b) <= tolerance else a for a, b in zip(actual, expected)))
+                    continue
                 else:
                     same = all(abs(a - b) <= 6e-7 + abs(b) * 2**-23 for a, b in zip(actual, expected))
                 restored.append(expected if same else actual)

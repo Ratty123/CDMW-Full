@@ -12,7 +12,7 @@ from urllib.parse import unquote, urljoin, urlparse, urlunparse
 
 
 DEFAULT_MODEL_MIRROR_URL = "https://mirror.traines.eu/sketchfab-backup/"
-IMPORTABLE_MODEL_EXTENSIONS = {".obj", ".dae", ".gltf", ".glb", ".pac", ".pam", ".pamlod"}
+IMPORTABLE_MODEL_EXTENSIONS = {".obj", ".fbx", ".dae", ".gltf", ".glb", ".pac", ".pam", ".pamlod"}
 ZIP_IMPORTABLE_MODEL_EXTENSIONS = set(IMPORTABLE_MODEL_EXTENSIONS)
 ZIP_NESTED_IMPORTABLE_ARCHIVE_EXTENSIONS = {".zip"}
 ZIP_NESTED_IMPORTABLE_ARCHIVE_MAX_BYTES = 128 * 1024 * 1024

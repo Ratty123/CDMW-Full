@@ -138,7 +138,8 @@ def _wait(thread: threading.Thread) -> None:
     assert not thread.is_alive()
 
 
-def test_mesh_import_setup_dialog_constructs_with_shared_control_text(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+@pytest.mark.parametrize("suffix, companion", [("gltf", False), ("glb", True), ("fbx", True)])
+def test_mesh_import_setup_dialog_constructs_with_shared_control_text(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, suffix: str, companion: bool) -> None:
     app = QApplication.instance() or QApplication([])
     owner = _ImportDialogOwner()
     captured: dict[str, object] = {}
@@ -152,10 +153,12 @@ def test_mesh_import_setup_dialog_constructs_with_shared_control_text(monkeypatc
         assert all(section.body_frame.isHidden() for section in sections)
         assert dialog.height() <= 400 and dialog.width() <= 760
         labels = {label.text(): label.toolTip() for label in dialog.findChildren(QLabel) if label.objectName() == "CompactPathValue"}
-        assert Path(labels["source.gltf"]).as_posix() == "models/imports/source.gltf"
+        assert Path(labels[f"source.{suffix}"]).as_posix() == f"models/imports/source.{suffix}"
         assert labels["target.pac"] == "character/model/target.pac"
         roundtrip = next(button for button in dialog.findChildren(QRadioButton) if button.text() == "Round-trip edit")
-        assert roundtrip.isHidden()
+        assert roundtrip.isHidden() == (not companion)
+        if companion:
+            assert roundtrip.isEnabled() and roundtrip.isChecked()
         files = dialog.findChild(CollapsibleSection, "MeshImportFiles")
         assert files.toggle_button.text() == "Files (1 included)"
         files.toggle_button.click()
@@ -182,7 +185,7 @@ def test_mesh_import_setup_dialog_constructs_with_shared_control_text(monkeypatc
     monkeypatch.setattr(QDialog, "exec", reject)
     result = owner._prompt_archive_mesh_import_setup(
         _entry("character/model/target.pac", 1),
-        Path("models/imports/source.gltf"),
+        Path(f"models/imports/source.{suffix}"),
         title="Mesh Import Setup",
         prepared_preflight=MeshImportSetupPreflightResult(
             request_id=1,
@@ -190,7 +193,7 @@ def test_mesh_import_setup_dialog_constructs_with_shared_control_text(monkeypatc
             original_mesh=None,
             profile=None,
             preflight=MeshImportPreflight("ready", detail_lines=("Owned diagnostic",)),
-            has_roundtrip_sidecar=False,
+            has_roundtrip_sidecar=companion,
         ),
     )
 

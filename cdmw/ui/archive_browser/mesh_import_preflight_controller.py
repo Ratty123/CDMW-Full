@@ -74,8 +74,8 @@ def _prepare_mesh_import_setup_preflight(
         except ModelArchiveSelectionRequired as exc:
             return MeshImportMemberSelectionResult(request.request_id, exc.members)
     raise_if_cancelled(stop_event, "Mesh import setup cancelled.")
-    is_obj = request.scene_path.suffix.lower() == ".obj" and not request.force_static_replacement
-    has_roundtrip_sidecar = bool(getattr(owner.archive, "_has_valid_obj_roundtrip_sidecar")(request.scene_path)) if is_obj else False
+    editable = request.scene_path.suffix.lower() in {".obj", ".fbx", ".glb", ".gltf"} and not request.force_static_replacement
+    has_roundtrip_sidecar = bool(getattr(owner.archive, "_has_valid_obj_roundtrip_sidecar")(request.scene_path)) if editable else False
     progress(1, 4, "Reading original archive mesh...")
     loaded_original = request.original_mesh
     profile: Optional[ReplacementAssetProfile] = None

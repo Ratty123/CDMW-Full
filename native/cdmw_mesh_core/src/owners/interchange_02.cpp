@@ -7,14 +7,29 @@ struct NativeFbxCluster {
 
 struct NativeFbxShape {
     std::string name;
+    double weight = 0.0;
     std::vector<int> vertex_indices;
     std::vector<double> vertex_deltas_flat;
+    std::vector<double> normal_deltas_flat;
+};
+
+struct NativeFbxTexture {
+    std::string path;
+    std::string semantic;
+    int texcoord = 0;
 };
 
 struct NativeFbxSubmesh {
     std::string name;
     std::string material;
     std::string diffuse_texture;
+    Vec3 diffuse_color{0.8, 0.8, 0.8};
+    Vec3 emissive_color{0.0, 0.0, 0.0};
+    double opacity = 1.0, metallic = 0.0, roughness = 0.5, emissive_factor = 1.0, normal_strength = 1.0;
+    std::vector<NativeFbxTexture> textures;
+    std::map<int, std::vector<double>> uv_sets;
+    int identity_uv_index = 1;
+    std::vector<double> vertex_colors;
     std::vector<double> vertices_flat;
     std::vector<int> indices_flat;
     std::vector<double> normals_flat;
@@ -122,6 +137,26 @@ std::vector<NativeFbxSubmesh> native_fbx_submeshes_from_json(const JsonValue& ro
         }
         submesh.material = string_or(item.get("material"), submesh.name);
         submesh.diffuse_texture = string_or(item.get("diffuse_texture"), "");
+        const JsonValue* props = item.get("material_properties");
+        if (props != nullptr) {
+            submesh.diffuse_color = vec3_or(props->get("diffuse_color"), submesh.diffuse_color);
+            submesh.emissive_color = vec3_or(props->get("emissive_color"), submesh.emissive_color);
+            submesh.opacity = number_or(props->get("opacity"), 1.0);
+            submesh.metallic = number_or(props->get("metallic"), 0.0);
+            submesh.roughness = number_or(props->get("roughness"), 0.5);
+            submesh.emissive_factor = number_or(props->get("emissive_factor"), 1.0);
+            submesh.normal_strength = number_or(props->get("normal_strength"), 1.0);
+            const JsonValue* textures = props->get("textures");
+            if (textures && textures->type == JsonValue::Type::Array) {
+                for (const JsonValue& texture : textures->array_value) {
+                    const std::string semantic = string_or(texture.get("semantic"), "");
+                    if (semantic == "metallicRoughnessTexture" || semantic == "occlusionTexture") continue;
+                    submesh.textures.push_back({string_or(texture.get("path"), ""), semantic, int_or(texture.get("texCoord"), 0)});
+                }
+            }
+        }
+        if (submesh.textures.empty() && !submesh.diffuse_texture.empty())
+            submesh.textures.push_back({submesh.diffuse_texture, "baseColorTexture", 0});
         if (submesh.material.empty()) {
             submesh.material = submesh.name;
         }
@@ -133,6 +168,37 @@ std::vector<NativeFbxSubmesh> native_fbx_submeshes_from_json(const JsonValue& ro
         submesh.indices_flat = flatten_fbx_polygon_indices(faces);
         submesh.normals_flat = flatten_fbx_normals(normals);
         submesh.uvs_flat = flatten_fbx_uvs(uvs);
+        const JsonValue* uv_sets = item.get("uv_sets");
+        if (uv_sets && uv_sets->type == JsonValue::Type::Object) {
+            for (const auto& entry : uv_sets->object_value) {
+                std::vector<double> rows;
+                if (entry.second.type != JsonValue::Type::Array || entry.second.array_value.size() != vertices.size())
+                    throw std::runtime_error("FBX UV-set count mismatch");
+                for (const JsonValue& row : entry.second.array_value) {
+                    if (row.type != JsonValue::Type::Array || row.array_value.size() != 2)
+                        throw std::runtime_error("Invalid FBX UV row");
+                    rows.push_back(number_or(&row.array_value[0], 0));
+                    rows.push_back(1.0 - number_or(&row.array_value[1], 0));
+                }
+                submesh.uv_sets[std::stoi(entry.first)] = std::move(rows);
+            }
+        }
+        if (!submesh.uvs_flat.empty() && !submesh.uv_sets.count(0)) submesh.uv_sets[0] = submesh.uvs_flat;
+        if (submesh.uv_sets.count(0)) submesh.uvs_flat = submesh.uv_sets[0];
+        submesh.identity_uv_index = submesh.uv_sets.empty() ? 1 : submesh.uv_sets.rbegin()->first + 1;
+        auto& identity_uv = submesh.uv_sets[submesh.identity_uv_index];
+        for (std::size_t index = 0; index < vertices.size(); ++index) {
+            identity_uv.push_back(static_cast<double>(index));
+            identity_uv.push_back(0.0);
+        }
+        const JsonValue* colors = item.get("vertex_colors");
+        if (colors && colors->type == JsonValue::Type::Array) {
+            if (colors->array_value.size() != vertices.size()) throw std::runtime_error("FBX colour count mismatch");
+            for (const JsonValue& row : colors->array_value) {
+                if (row.type != JsonValue::Type::Array || row.array_value.size() != 4) throw std::runtime_error("Invalid FBX colour row");
+                for (const JsonValue& value : row.array_value) submesh.vertex_colors.push_back(number_or(&value, 0));
+            }
+        }
         // Read the skin only from the explicit payload, never from a stored session:
         // a session holds raw palette slots, and a cluster needs skeleton bone indices.
         submesh.clusters = native_fbx_clusters_from_bones(bone_assignments_from_binary(item), vertices.size());
@@ -145,12 +211,17 @@ std::vector<NativeFbxSubmesh> native_fbx_submeshes_from_json(const JsonValue& ro
                 }
                 NativeFbxShape shape;
                 shape.name = string_or(target.get("name"), "");
+                shape.weight = number_or(target.get("weight"), 0.0);
                 if (shape.name.empty() || !seen_shape_names.insert(shape.name).second) {
                     throw std::runtime_error("FBX morph target name is empty or duplicated");
                 }
                 const std::vector<Vec3> target_vertices = mesh_vertices_from_item(target);
+                const std::vector<Vec3> target_normals = mesh_normals_from_item(target);
                 if (target_vertices.size() != vertices.size()) {
                     throw std::runtime_error("FBX morph target vertex count mismatch");
+                }
+                if (!target_normals.empty() && (target_normals.size() != vertices.size() || normals.size() != vertices.size())) {
+                    throw std::runtime_error("FBX morph target normal count mismatch");
                 }
                 for (std::size_t vertex_index = 0; vertex_index < vertices.size(); ++vertex_index) {
                     const Vec3 delta{
@@ -158,11 +229,20 @@ std::vector<NativeFbxSubmesh> native_fbx_submeshes_from_json(const JsonValue& ro
                         (target_vertices[vertex_index][1] - vertices[vertex_index][1]) * scale,
                         (target_vertices[vertex_index][2] - vertices[vertex_index][2]) * scale,
                     };
-                    if (std::abs(delta[0]) <= 1e-12 && std::abs(delta[1]) <= 1e-12 && std::abs(delta[2]) <= 1e-12) {
+                    Vec3 normal_delta{0.0, 0.0, 0.0};
+                    if (!target_normals.empty()) for (int axis = 0; axis < 3; ++axis) normal_delta[axis] = target_normals[vertex_index][axis] - normals[vertex_index][axis];
+                    if (std::abs(delta[0]) <= 1e-12 && std::abs(delta[1]) <= 1e-12 && std::abs(delta[2]) <= 1e-12 &&
+                        std::abs(normal_delta[0]) <= 1e-12 && std::abs(normal_delta[1]) <= 1e-12 && std::abs(normal_delta[2]) <= 1e-12) {
                         continue;
                     }
                     shape.vertex_indices.push_back(static_cast<int>(vertex_index));
                     shape.vertex_deltas_flat.insert(shape.vertex_deltas_flat.end(), delta.begin(), delta.end());
+                    if (!target_normals.empty()) shape.normal_deltas_flat.insert(shape.normal_deltas_flat.end(), normal_delta.begin(), normal_delta.end());
+                }
+                if (shape.vertex_indices.empty() && !vertices.empty()) {
+                    shape.vertex_indices.push_back(0);
+                    shape.vertex_deltas_flat = {0.0, 0.0, 0.0};
+                    if (!target_normals.empty()) shape.normal_deltas_flat = {0.0, 0.0, 0.0};
                 }
                 if (!shape.vertex_indices.empty()) {
                     submesh.shapes.push_back(std::move(shape));
@@ -269,6 +349,32 @@ fbx_node(
         [&submesh](std::vector<char>& geom_out) { fbx_node(geom_out, "Vertices", {fbx_f64_array(submesh.vertices_flat)}); },
         [&submesh](std::vector<char>& geom_out) { fbx_node(geom_out, "PolygonVertexIndex", {fbx_i32_array(submesh.indices_flat)}); },
         [&submesh](std::vector<char>& geom_out) {
+            for (const auto& entry : submesh.uv_sets) {
+                fbx_node(geom_out, "LayerElementUV", {fbx_i32(entry.first)}, {
+                    [](std::vector<char>& out) { fbx_node(out, "Version", {fbx_i32(101)}); },
+                    [&entry, &submesh](std::vector<char>& out) { fbx_node(out, "Name", {fbx_string(
+                        entry.first == submesh.identity_uv_index ? "CDMW_VERTEX_ID" : entry.first == 0 ? "UVMap" : "UVMap" + std::to_string(entry.first))}); },
+                    [](std::vector<char>& out) { fbx_node(out, "MappingInformationType", {fbx_string("ByVertice")}); },
+                    [](std::vector<char>& out) { fbx_node(out, "ReferenceInformationType", {fbx_string("Direct")}); },
+                    [&entry](std::vector<char>& out) { fbx_node(out, "UV", {fbx_f64_array(entry.second)}); },
+                });
+                fbx_node(geom_out, "Layer", {fbx_i32(entry.first)}, {
+                    [](std::vector<char>& out) { fbx_node(out, "Version", {fbx_i32(100)}); },
+                    [&entry](std::vector<char>& out) { fbx_node(out, "LayerElement", {}, {
+                        [](std::vector<char>& out) { fbx_node(out, "Type", {fbx_string("LayerElementUV")}); },
+                        [&entry](std::vector<char>& out) { fbx_node(out, "TypedIndex", {fbx_i32(entry.first)}); },
+                    }); },
+                });
+            }
+            if (!submesh.vertex_colors.empty()) fbx_node(geom_out, "LayerElementColor", {fbx_i32(0)}, {
+                [](std::vector<char>& out) { fbx_node(out, "Version", {fbx_i32(101)}); },
+                [](std::vector<char>& out) { fbx_node(out, "Name", {fbx_string("Color")}); },
+                [](std::vector<char>& out) { fbx_node(out, "MappingInformationType", {fbx_string("ByVertice")}); },
+                [](std::vector<char>& out) { fbx_node(out, "ReferenceInformationType", {fbx_string("Direct")}); },
+                [&submesh](std::vector<char>& out) { fbx_node(out, "Colors", {fbx_f64_array(submesh.vertex_colors)}); },
+            });
+        },
+        [&submesh](std::vector<char>& geom_out) {
             if (!submesh.normals_flat.empty()) {
                 fbx_node(
                     geom_out,
@@ -280,22 +386,6 @@ fbx_node(
                         [](std::vector<char>& layer_out) { fbx_node(layer_out, "MappingInformationType", {fbx_string("ByVertice")}); },
                         [](std::vector<char>& layer_out) { fbx_node(layer_out, "ReferenceInformationType", {fbx_string("Direct")}); },
                         [&submesh](std::vector<char>& layer_out) { fbx_node(layer_out, "Normals", {fbx_f64_array(submesh.normals_flat)}); },
-                    }
-                );
-            }
-        },
-        [&submesh](std::vector<char>& geom_out) {
-            if (!submesh.uvs_flat.empty()) {
-                fbx_node(
-                    geom_out,
-                    "LayerElementUV",
-                    {fbx_i32(0)},
-                    {
-                        [](std::vector<char>& layer_out) { fbx_node(layer_out, "Version", {fbx_i32(101)}); },
-                        [](std::vector<char>& layer_out) { fbx_node(layer_out, "Name", {fbx_string("UVMap")}); },
-                        [](std::vector<char>& layer_out) { fbx_node(layer_out, "MappingInformationType", {fbx_string("ByVertice")}); },
-                        [](std::vector<char>& layer_out) { fbx_node(layer_out, "ReferenceInformationType", {fbx_string("Direct")}); },
-                        [&submesh](std::vector<char>& layer_out) { fbx_node(layer_out, "UV", {fbx_f64_array(submesh.uvs_flat)}); },
                     }
                 );
             }
@@ -331,6 +421,12 @@ fbx_node(
                             );
                         }
                     },
+                    [&submesh](std::vector<char>& layer_out) {
+                        if (!submesh.vertex_colors.empty()) fbx_node(layer_out, "LayerElement", {}, {
+                            [](std::vector<char>& out) { fbx_node(out, "Type", {fbx_string("LayerElementColor")}); },
+                            [](std::vector<char>& out) { fbx_node(out, "TypedIndex", {fbx_i32(0)}); },
+                        });
+                    },
                 }
             );
         },
@@ -365,13 +461,25 @@ fbx_node(
     {
         [](std::vector<char>& mat_out) { fbx_node(mat_out, "Version", {fbx_i32(102)}); },
         [](std::vector<char>& mat_out) { fbx_node(mat_out, "ShadingModel", {fbx_string("phong")}); },
-        [](std::vector<char>& mat_out) {
+        [&submesh](std::vector<char>& mat_out) {
             fbx_node(
                 mat_out,
                 "Properties70",
                 {},
                 {
-                    [](std::vector<char>& props_out) { fbx_node(props_out, "P", {fbx_string("DiffuseColor"), fbx_string("Color"), fbx_string(""), fbx_string("A"), fbx_f64(0.8), fbx_f64(0.8), fbx_f64(0.8)}); },
+                    [&submesh](std::vector<char>& props_out) {
+                        const auto scalar = [&props_out](const std::string& name, double value) {
+                            fbx_node(props_out, "P", {fbx_string(name), fbx_string("Number"), fbx_string(""), fbx_string("A"), fbx_f64(value)});
+                        };
+                        fbx_node(props_out, "P", {fbx_string("DiffuseColor"), fbx_string("Color"), fbx_string(""), fbx_string("A"), fbx_f64(submesh.diffuse_color[0]), fbx_f64(submesh.diffuse_color[1]), fbx_f64(submesh.diffuse_color[2])});
+                        fbx_node(props_out, "P", {fbx_string("EmissiveColor"), fbx_string("Color"), fbx_string(""), fbx_string("A"), fbx_f64(submesh.emissive_color[0]), fbx_f64(submesh.emissive_color[1]), fbx_f64(submesh.emissive_color[2])});
+                        scalar("Opacity", submesh.opacity);
+                        scalar("TransparencyFactor", 1.0 - submesh.opacity);
+                        scalar("ReflectionFactor", submesh.metallic);
+                        scalar("Shininess", 100.0 * (1.0 - submesh.roughness) * (1.0 - submesh.roughness));
+                        scalar("EmissiveFactor", submesh.emissive_factor);
+                        scalar("BumpFactor", submesh.normal_strength);
+                    },
                 }
             );
         },
@@ -381,21 +489,22 @@ fbx_node(
 
 void write_native_fbx_texture_objects(
     std::vector<char>& out, const NativeFbxSubmesh& submesh,
-    long long texture_id, long long video_id
+    long long texture_id, long long video_id, const NativeFbxTexture& texture
 ) {
     if (texture_id == 0) return;
     fbx_node(out, "Video", {fbx_i64(video_id), fbx_string(fbx_object_name(submesh.material, "Video")), fbx_string("Clip")}, {
         [](std::vector<char>& node) { fbx_node(node, "Type", {fbx_string("Clip")}); },
-        [&submesh](std::vector<char>& node) { fbx_node(node, "Filename", {fbx_string(submesh.diffuse_texture)}); },
-        [&submesh](std::vector<char>& node) { fbx_node(node, "RelativeFilename", {fbx_string(submesh.diffuse_texture)}); },
+        [&texture](std::vector<char>& node) { fbx_node(node, "Filename", {fbx_string(texture.path)}); },
+        [&texture](std::vector<char>& node) { fbx_node(node, "RelativeFilename", {fbx_string(texture.path)}); },
     });
     fbx_node(out, "Texture", {fbx_i64(texture_id), fbx_string(fbx_object_name(submesh.material, "Texture")), fbx_string("")}, {
         [](std::vector<char>& node) { fbx_node(node, "Type", {fbx_string("TextureVideoClip")}); },
         [](std::vector<char>& node) { fbx_node(node, "Version", {fbx_i32(202)}); },
         [&submesh](std::vector<char>& node) { fbx_node(node, "TextureName", {fbx_string(fbx_object_name(submesh.material, "Texture"))}); },
         [&submesh](std::vector<char>& node) { fbx_node(node, "Media", {fbx_string(fbx_object_name(submesh.material, "Video"))}); },
-        [&submesh](std::vector<char>& node) { fbx_node(node, "FileName", {fbx_string(submesh.diffuse_texture)}); },
-        [&submesh](std::vector<char>& node) { fbx_node(node, "RelativeFilename", {fbx_string(submesh.diffuse_texture)}); },
+        [&texture](std::vector<char>& node) { fbx_node(node, "FileName", {fbx_string(texture.path)}); },
+        [&texture](std::vector<char>& node) { fbx_node(node, "RelativeFilename", {fbx_string(texture.path)}); },
+        [&texture](std::vector<char>& node) { fbx_node(node, "UVSet", {fbx_string(texture.texcoord == 0 ? "UVMap" : "UVMap" + std::to_string(texture.texcoord))}); },
         [](std::vector<char>& node) { fbx_node(node, "ModelUVTranslation", {fbx_f64(0), fbx_f64(0)}); },
         [](std::vector<char>& node) { fbx_node(node, "ModelUVScaling", {fbx_f64(1), fbx_f64(1)}); },
         [](std::vector<char>& node) { fbx_node(node, "Texture_Alpha_Source", {fbx_string("None")}); },
@@ -554,6 +663,7 @@ struct NativeFbxIds {
     std::vector<long long> mat_ids;
     std::vector<long long> texture_ids;
     std::vector<long long> video_ids;
+    std::vector<std::vector<std::pair<long long, long long>>> texture_slots;
     std::map<int, long long> bone_model_ids;
     std::map<int, long long> bone_attr_ids;
     std::map<int, std::vector<double>> bone_binds;
@@ -580,8 +690,14 @@ NativeFbxIds assign_native_fbx_ids(
         ids.mesh_ids.push_back(uid());
         ids.model_ids.push_back(uid());
         ids.mat_ids.push_back(uid());
-        ids.texture_ids.push_back(submeshes[index].diffuse_texture.empty() ? 0 : uid());
-        ids.video_ids.push_back(submeshes[index].diffuse_texture.empty() ? 0 : uid());
+        std::vector<std::pair<long long, long long>> slots;
+        for (const auto& texture : submeshes[index].textures) {
+            (void)texture;
+            slots.push_back({uid(), uid()});
+        }
+        ids.texture_ids.push_back(slots.empty() ? 0 : slots.front().first);
+        ids.video_ids.push_back(slots.empty() ? 0 : slots.front().second);
+        ids.texture_slots.push_back(std::move(slots));
     }
     for (const NativeFbxBone& bone : bones) {
         ids.bone_model_ids[bone.index] = uid();
@@ -708,9 +824,18 @@ void write_native_fbx_connection_rows(
         fbx_node(connections_out, "C", {fbx_string("OO"), fbx_i64(ids.model_ids[index]), fbx_i64(0)});
         fbx_node(connections_out, "C", {fbx_string("OO"), fbx_i64(ids.mesh_ids[index]), fbx_i64(ids.model_ids[index])});
         fbx_node(connections_out, "C", {fbx_string("OO"), fbx_i64(ids.mat_ids[index]), fbx_i64(ids.model_ids[index])});
-        if (ids.texture_ids[index] != 0) {
-            fbx_node(connections_out, "C", {fbx_string("OP"), fbx_i64(ids.texture_ids[index]), fbx_i64(ids.mat_ids[index]), fbx_string("DiffuseColor")});
-            fbx_node(connections_out, "C", {fbx_string("OO"), fbx_i64(ids.video_ids[index]), fbx_i64(ids.texture_ids[index])});
+        for (std::size_t slot = 0; slot < submeshes[index].textures.size(); ++slot) {
+            const auto& texture = submeshes[index].textures[slot];
+            const std::map<std::string, std::string> links{
+                {"baseColorTexture", "DiffuseColor"}, {"normalTexture", "NormalMap"},
+                {"emissiveTexture", "EmissiveColor"}, {"roughnessTexture", "ShininessExponent"},
+                {"metallicTexture", "ReflectionFactor"}, {"opacityTexture", "TransparencyFactor"},
+                {"specularTexture", "SpecularFactor"}};
+            const auto found = links.find(texture.semantic);
+            if (found == links.end()) continue;
+            const auto& slot_ids = ids.texture_slots[index][slot];
+            fbx_node(connections_out, "C", {fbx_string("OP"), fbx_i64(slot_ids.first), fbx_i64(ids.mat_ids[index]), fbx_string(found->second)});
+            fbx_node(connections_out, "C", {fbx_string("OO"), fbx_i64(slot_ids.second), fbx_i64(slot_ids.first)});
         }
         if (ids.blend_shape_ids[index] != 0) {
             fbx_node(
@@ -789,7 +914,10 @@ FbxExportResult run_fbx_export(const JsonValue& root) {
                     write_native_fbx_submesh_object(
                         objects_out, submeshes[index], ids.mesh_ids[index], ids.model_ids[index], ids.mat_ids[index]
                     );
-                    write_native_fbx_texture_objects(objects_out, submeshes[index], ids.texture_ids[index], ids.video_ids[index]);
+                    for (std::size_t slot = 0; slot < submeshes[index].textures.size(); ++slot) {
+                        const auto& slot_ids = ids.texture_slots[index][slot];
+                        write_native_fbx_texture_objects(objects_out, submeshes[index], slot_ids.first, slot_ids.second, submeshes[index].textures[slot]);
+                    }
                 }
                 for (const NativeFbxBone& bone : bones) {
                     write_native_fbx_bone_object(objects_out, bone, ids.bone_model_ids, ids.bone_attr_ids);
@@ -834,179 +962,4 @@ FbxExportResult run_fbx_export(const JsonValue& root) {
         result.morph_target_count += static_cast<int>(submesh.shapes.size());
     }
     return result;
-}
-
-void write_escaped(std::ostream& out, const std::string& text) {
-    out << '"';
-    for (const char ch : text) {
-        switch (ch) {
-        case '"':
-            out << "\\\"";
-            break;
-        case '\\':
-            out << "\\\\";
-            break;
-        case '\n':
-            out << "\\n";
-            break;
-        case '\r':
-            out << "\\r";
-            break;
-        case '\t':
-            out << "\\t";
-            break;
-        default:
-            out << ch;
-            break;
-        }
-    }
-    out << '"';
-}
-
-void write_vec3(std::ostream& out, const Vec3& value) {
-    out << '[' << std::setprecision(17) << value[0] << ',' << value[1] << ',' << value[2] << ']';
-}
-
-void write_vec2(std::ostream& out, const Vec2& value) {
-    out << '[' << std::setprecision(17) << value[0] << ',' << value[1] << ']';
-}
-
-void write_int_vector(std::ostream& out, const std::vector<int>& values) {
-    out << '[';
-    for (std::size_t index = 0; index < values.size(); ++index) {
-        if (index > 0) {
-            out << ',';
-        }
-        out << values[index];
-    }
-    out << ']';
-}
-
-void write_json_value(std::ostream& out, const JsonValue& value) {
-    switch (value.type) {
-    case JsonValue::Type::Null:
-        out << "null";
-        break;
-    case JsonValue::Type::Bool:
-        out << (value.bool_value ? "true" : "false");
-        break;
-    case JsonValue::Type::Number:
-        if (std::isfinite(value.number_value)) {
-            out << std::setprecision(17) << value.number_value;
-        } else {
-            out << "null";
-        }
-        break;
-    case JsonValue::Type::String:
-        write_escaped(out, value.string_value);
-        break;
-    case JsonValue::Type::Array:
-        out << '[';
-        for (std::size_t index = 0; index < value.array_value.size(); ++index) {
-            if (index > 0) {
-                out << ',';
-            }
-            write_json_value(out, value.array_value[index]);
-        }
-        out << ']';
-        break;
-    case JsonValue::Type::Object:
-        out << '{';
-        for (auto iter = value.object_value.begin(); iter != value.object_value.end(); ++iter) {
-            if (iter != value.object_value.begin()) {
-                out << ',';
-            }
-            write_escaped(out, iter->first);
-            out << ':';
-            write_json_value(out, iter->second);
-        }
-        out << '}';
-        break;
-    }
-}
-
-void write_obj_roundtrip_manifest(
-    const std::string& manifest_path,
-    const std::string& source_path,
-    const std::string& source_format,
-    const std::string& export_path,
-    const std::string& companion_path,
-    const std::vector<ObjRoundtripManifestSubmesh>& submeshes,
-    const JsonValue* extra_payload
-) {
-    std::ofstream out(manifest_path, std::ios::binary | std::ios::trunc);
-    if (!out) {
-        throw std::runtime_error("cannot open OBJ round-trip manifest: " + manifest_path);
-    }
-    std::set<std::string> emitted;
-    bool first = true;
-    auto field = [&](const std::string& key) {
-        if (!first) {
-            out << ',';
-        }
-        first = false;
-        emitted.insert(key);
-        write_escaped(out, key);
-        out << ':';
-    };
-    auto string_field = [&](const std::string& key, const std::string& value) {
-        field(key);
-        write_escaped(out, value);
-    };
-
-    out << "{\n";
-    string_field("format", "mesh_roundtrip_manifest_v2");
-    string_field("source_path", source_path);
-    string_field("source_format", source_format);
-    string_field("export_path", filename_from_path(export_path));
-    string_field("companion_filename", filename_from_path(companion_path));
-    string_field("exported_utc", utc_timestamp_seconds());
-    field("roundtrip_policy");
-    out << "{\"primary_workflow\":\"obj_first\",\"default_import_policy\":\"auto-fix safe, warn risky\"}";
-    field("submeshes");
-    out << '[';
-    for (std::size_t index = 0; index < submeshes.size(); ++index) {
-        if (index > 0) {
-            out << ',';
-        }
-        const ObjRoundtripManifestSubmesh& submesh = submeshes[index];
-        out << "{\"index\":" << submesh.index
-            << ",\"name\":";
-        write_escaped(out, submesh.name);
-        out << ",\"material\":";
-        write_escaped(out, submesh.material);
-        out << ",\"texture\":";
-        write_escaped(out, submesh.texture);
-        out << ",\"vertex_count\":" << submesh.vertex_count
-            << ",\"face_count\":" << submesh.face_count
-            << ",\"source_vertex_map\":";
-        write_int_vector(out, submesh.source_vertex_map);
-        out << '}';
-    }
-    out << ']';
-    if (extra_payload != nullptr && extra_payload->type == JsonValue::Type::Object) {
-        for (const auto& entry : extra_payload->object_value) {
-            if (emitted.find(entry.first) != emitted.end()) {
-                continue;
-            }
-            field(entry.first);
-            write_json_value(out, entry.second);
-        }
-    }
-    out << "\n}";
-    if (!out) {
-        throw std::runtime_error("cannot write OBJ round-trip manifest: " + manifest_path);
-    }
-}
-
-void write_vec3_binary_descriptor(std::ostream& out, const std::string& path, std::size_t count) {
-    out << "{\"path\":";
-    write_escaped(out, path);
-    out << ",\"count\":" << count << ",\"components\":3,\"type\":\"f64\",\"finite_checked\":true}";
-}
-
-void write_vec2_binary_descriptor(std::ostream& out, const std::string& path, std::size_t count) {
-    out << "{\"path\":";
-    write_escaped(out, path);
-    out << ",\"count\":" << count << ",\"components\":2,\"type\":\"f64\",\"finite_checked\":true}";
 }

@@ -17,6 +17,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- Mesh exchange retains authored PBR maps and values, extra UV sets, vertex colors, resolved rigs and morph targets. GLB embeds textures and retains existing animation clips; OBJ/FBX carry portable texture copies and explicit format-limit reports. Editable companions preserve game metadata and reject ambiguous vertex or joint identities. FBX import uses the selected Blender with cancellation and atomic conversion, and no-UV source meshes round-trip without requiring an unwrap.
 - Item Finder keeps category names, item captions and detail actions readable at narrow widths and larger fonts. Long details wrap without changing copied text, the grid uses its available width, and the empty details view shows a compact selection prompt.
 - Selecting an archive extension closes the picker, including on double-click. The picker becomes available when archive rows appear and receives extension counts ahead of background catalogue warmups.
 - Unavailable hairstyles can be selected to inspect their preview and compatibility reason without enabling Start or losing the selection when other checks finish. Hairstyles using separate base and tail meshes remain unsupported by Hair Tools.

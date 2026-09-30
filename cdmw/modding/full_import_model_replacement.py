@@ -52,7 +52,7 @@ def apply_full_import_model_replacement_preset(
 
 def full_import_model_replacement_external_file_filter() -> str:
     return (
-        "External Model Files (*.obj *.dae *.gltf *.glb *.zip);;"
+        "External Model Files (*.obj *.fbx *.dae *.gltf *.glb *.zip);;"
         "Wavefront OBJ (*.obj);;"
         "Collada DAE (*.dae);;"
         "glTF / GLB (*.gltf *.glb);;"

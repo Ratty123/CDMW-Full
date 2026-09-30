@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import copy
 import json
 import re
 import struct
@@ -111,6 +112,7 @@ class _GltfPayload:
     discovered_texture_files: list[Path]
     material_uv_plans: dict[int, GltfMaterialUvPlan]
     tolerate_missing_texture_files: bool = False
+    preserve_authoring: bool = False
 
 
 @dataclass(slots=True, frozen=True)
@@ -155,6 +157,7 @@ def _collect_gltf_geometry(
         for primitive_index, primitive in enumerate(mesh_entry.get("primitives", []) or []):
             if not isinstance(primitive, dict):
                 continue
+            primitive = dict(primitive, _cdmw_target_names=mesh_entry.get("extras", {}).get("targetNames", ()))
             primitive_label = f"{mesh_name or instance.mesh_index}:{primitive_index}"
             mode = _safe_int(primitive.get("mode"), 4)
             attributes = primitive.get("attributes", {})
@@ -166,7 +169,7 @@ def _collect_gltf_geometry(
                 continue
             material_index = _safe_int(primitive.get("material"), -1)
             material_name = (material_names.get(material_index, "") or f"material_{material_index}") if material_index >= 0 else ""
-            uv_plan = payload.material_uv_plans.get(material_index)
+            uv_plan = None if payload.preserve_authoring else payload.material_uv_plans.get(material_index)
             uv_inputs = (
                 read_gltf_primitive_uv_inputs(
                     payload.document,
@@ -187,7 +190,7 @@ def _collect_gltf_geometry(
                 texcoord_index=(
                     uv_plan.source_texcoord
                     if uv_plan is not None and uv_plan.slots
-                    else _gltf_material_texcoord_index(material_texture_slots, material_index)
+                    else (0 if payload.preserve_authoring else _gltf_material_texcoord_index(material_texture_slots, material_index))
                 ),
                 texcoord_transform=(uv_plan.transform if uv_plan is not None and uv_plan.bakes_transform else ()),
                 texcoord_rows=(
@@ -204,13 +207,30 @@ def _collect_gltf_geometry(
                         payload, node_index=instance.node_index, skin_index=instance.skin_index
                     )
                 skin_matrices = skin_matrix_cache[cache_key]
-            if skin_matrices and _bake_gltf_skin_primitive(payload, primitive, submesh, skin_matrices):
+            if not payload.preserve_authoring and skin_matrices and _bake_gltf_skin_primitive(payload, primitive, submesh, skin_matrices):
                 baked_skin_count += 1
             if not submesh.faces:
                 payload.diagnostics.append(f"Skipped glTF primitive {primitive_label} because it produced no triangle faces.")
                 continue
-            copied = _copy_submesh_with_transform(submesh, instance.transform)
-            if uv_plan is not None and uv_inputs is not None and not uv_plan.requires_raster_bake and any(
+            from .scene_gltf_authoring import authored_material, authored_skin
+            submesh.interchange_material = authored_material(payload, material_index)
+            if payload.preserve_authoring:
+                if instance.skin_index >= 0:
+                    submesh.interchange_skin = authored_skin(payload, instance.skin_index)
+                    if any(j >= len(submesh.interchange_skin["joints"]) for row in submesh.bone_indices for j in row):
+                        raise ValueError(f"glTF joint index exceeds the skin in {submesh.name}.")
+                else:
+                    submesh.bone_indices, submesh.bone_weights = [], []
+                copied = copy.deepcopy(submesh)
+                copied.interchange_node_index = instance.node_index
+                copied.interchange_transform = instance.transform
+                weights = payload.document.get("nodes", [])[instance.node_index].get("weights", mesh_entry.get("weights", ())) if instance.node_index >= 0 else mesh_entry.get("weights", ())
+                copied.morph_weights = {name: float(weights[i]) if i < len(weights) else 0.0 for i, name in enumerate(copied.morph_targets)}
+            else:
+                copied = _copy_submesh_with_transform(submesh, instance.transform)
+                copied.bone_indices, copied.bone_weights = [], []
+                copied.morph_targets, copied.morph_normals, copied.morph_tangents = {}, {}, {}
+            if not payload.preserve_authoring and uv_plan is not None and uv_inputs is not None and not uv_plan.requires_raster_bake and any(
                 "normal" in slot.slot_kind.lower() for slot in uv_plan.slots
             ):
                 ensure_gltf_source_tangents(copied, uv_inputs.rows(uv_plan.source_texcoord), uv_plan.source_texcoord, stop_event=stop_event)
@@ -305,6 +325,7 @@ def import_gltf(
     include_external_audit: bool = True,
     tolerate_missing_texture_files: bool = False,
     stop_event: threading.Event | None = None,
+    preserve_authoring: bool = False,
 ) -> SceneImportResult:
     from .scene_importer import SceneImportResult
 
@@ -314,6 +335,7 @@ def import_gltf(
         source_path,
         tolerate_missing_texture_files=tolerate_missing_texture_files,
     )
+    payload.preserve_authoring = bool(preserve_authoring)
     _validate_gltf_static_payload(payload)
     (
         material_names,
@@ -349,8 +371,12 @@ def import_gltf(
         total_vertices=sum(len(submesh.vertices) for submesh in submeshes),
         total_faces=sum(len(submesh.faces) for submesh in submeshes),
         has_uvs=any(submesh.uvs for submesh in submeshes),
-        has_bones=False,
+        has_bones=any(bool(s.bone_indices) for s in submeshes),
     )
+    if preserve_authoring:
+        from .scene_gltf_authoring import authored_animations
+        mesh.interchange_animations = authored_animations(payload)
+        mesh.interchange_nodes = payload.document.get("nodes", [])
     general_bake = _apply_general_gltf_bake(
         mesh,
         payload,
@@ -359,7 +385,7 @@ def import_gltf(
         material_bindings,
         source_path,
         stop_event,
-    )
+    ) if not preserve_authoring else GltfGeneralUvBakeOutcome((), {})
     if payload.extracted_embedded_files:
         payload.diagnostics.append(
             f"Extracted {len(payload.extracted_embedded_files):,} embedded glTF texture file(s) for supplemental import."
@@ -477,6 +503,10 @@ def _validate_gltf_static_payload(payload: _GltfPayload) -> None:
             "This glTF/GLB uses compressed mesh data "
             f"({', '.join(compressed)}). Export an uncompressed GLB/glTF before importing."
         )
+    if payload.preserve_authoring:
+        if doc.get("animations"):
+            payload.diagnostics.append("Existing glTF animation clips are retained for export; animation editing is unavailable.")
+        return
     if doc.get("skins"):
         payload.diagnostics.append("glTF skins/bones are baked into static geometry when possible; Mesh Replacement remains static.")
     if doc.get("animations"):

@@ -49,11 +49,12 @@ def readback_editable_package_metadata(
     name: str,
     mesh: ParsedMesh,
 ) -> dict[str, object]:
-    """Validate both editable sidecars against the mesh contract just exported."""
+    """Validate editable sidecars against the mesh contract just exported."""
 
     sidecars = tuple(
         _load_sidecar(staging_dir / f"{name}{suffix}.meta.json")
-        for suffix in (".glb", ".obj")
+        for suffix in (".glb", ".obj", ".fbx")
+        if suffix != ".fbx" or (staging_dir / f"{name}{suffix}.meta.json").is_file()
     )
     expected = _roundtrip_manifest_extra_payload(mesh, None)
 

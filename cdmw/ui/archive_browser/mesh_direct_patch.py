@@ -397,8 +397,9 @@ class ArchiveMeshDirectPatchMixin:
     @staticmethod
     def _archive_mesh_import_file_filter() -> str:
         return (
-            "Mesh Files (*.obj *.dae *.gltf *.glb *.zip *.pac *.pam *.pamlod);;"
+            "Mesh Files (*.obj *.fbx *.dae *.gltf *.glb *.zip *.pac *.pam *.pamlod);;"
             "Wavefront OBJ (*.obj);;"
+            "Autodesk FBX (*.fbx);;"
             "Collada DAE (*.dae);;"
             "glTF / GLB (*.gltf *.glb);;"
             "Model Archives (*.zip);;"
@@ -407,6 +408,13 @@ class ArchiveMeshDirectPatchMixin:
 
     @staticmethod
     def _has_valid_obj_roundtrip_sidecar(scene_path: Path) -> bool:
+        if scene_path.suffix.lower() in {".fbx", ".glb", ".gltf"}:
+            from cdmw.services.mesh_workflow_service import _load_glb_roundtrip_sidecar
+            try:
+                _load_glb_roundtrip_sidecar(scene_path)
+                return True
+            except (ValueError, TypeError, OSError):
+                return False
         candidate = Path(f"{scene_path}.meta.json")
         if not candidate.is_file():
             return False

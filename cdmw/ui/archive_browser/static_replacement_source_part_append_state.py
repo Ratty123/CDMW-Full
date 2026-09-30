@@ -158,14 +158,9 @@ def source_part_append_presentations(
 def source_part_append_mesh_file_dialog_text() -> dict[str, str]:
     return {
         "title": "Add Mesh Part",
-        "mesh_filter": "Mesh Sources (*.obj *.dae *.gltf *.glb *.pac *.pam *.pamlod);;All Files (*.*)",
-        "fbx_title": "FBX Import Deferred",
-        "fbx_message": (
-            "FBX import is not supported inside Geometry yet. Export the part as OBJ, DAE, glTF/GLB, PAC, PAM, "
-            "or PAMLOD first."
-        ),
+        "mesh_filter": "Mesh Sources (*.obj *.fbx *.dae *.gltf *.glb *.pac *.pam *.pamlod);;All Files (*.*)",
         "unsupported_title": "Unsupported Mesh Part",
-        "unsupported_message_prefix": "Geometry can append OBJ, DAE, glTF/GLB, PAC, PAM, or PAMLOD files.",
+        "unsupported_message_prefix": "Geometry can append OBJ, FBX, DAE, glTF/GLB, PAC, PAM, or PAMLOD files.",
     }
 
 
@@ -181,8 +176,6 @@ def source_part_append_file_route_state(
     if "." in path_text:
         suffix = "." + path_text.rsplit(".", 1)[-1].lower()
     allowed = {str(extension).lower() for extension in tuple(allowed_extensions or ())}
-    if suffix == ".fbx":
-        return SourcePartAppendFileRouteState("fbx_deferred", suffix)
     if suffix not in allowed:
         return SourcePartAppendFileRouteState("unsupported", suffix)
     return SourcePartAppendFileRouteState("import", suffix)

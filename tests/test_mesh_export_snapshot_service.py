@@ -565,14 +565,17 @@ def test_editable_package_export_waits_for_texture_ack_and_reports_coherent_arti
     worker.completed.connect(lambda _request_id, result, _elapsed: completed.append(result))
     worker.error.connect(lambda _request_id, message: errors.append(message))
 
-    def write_fake_dds(_resource: object, target: Path, _stop: object) -> None:
+    encoded_dds = {}
+    def write_fixture_dds(resource: object, target: Path, _stop: object) -> None:
+        from PIL import Image
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(b"DDS export")
+        Image.frombytes("RGBA", (resource.width, resource.height), resource.bgra_data, "raw", "BGRA").save(target, format="DDS")
+        encoded_dds[target.name] = target.read_bytes()
 
     with (
         patch(
             "cdmw.workers.mesh_editor_workers._encode_bgra_snapshot_dds",
-            side_effect=write_fake_dds,
+            side_effect=write_fixture_dds,
         ),
         patch(
             "cdmw.core.dds_native.inspect_dds_native_path",
@@ -602,8 +605,8 @@ def test_editable_package_export_waits_for_texture_ack_and_reports_coherent_arti
     assert {row["channel"] for row in texture_rows} == {"base", "material"}
     texture_row = next(row for row in texture_rows if row["channel"] == "base")
     texture_path = output_dir / texture_row["path"]
-    assert texture_path.read_bytes() == b"DDS export"
-    assert texture_row["sha256"] == hashlib.sha256(b"DDS export").hexdigest()
+    assert texture_path.read_bytes() == encoded_dds[texture_path.name]
+    assert texture_row["sha256"] == hashlib.sha256(encoded_dds[texture_path.name]).hexdigest()
     assert texture_row["readback"] == {
         "status": "passed",
         "format": "BGRA8",
@@ -613,7 +616,11 @@ def test_editable_package_export_waits_for_texture_ack_and_reports_coherent_arti
         "reason": "",
     }
     assert report["output_reparse"]["texture_bindings"][0]["path"] == texture_row["path"]
-    assert texture_row["path"] in (output_dir / "mesh.mtl").read_text(encoding="utf-8")
+    from PIL import Image
+    diffuse = next(line.split()[-1] for line in (output_dir / "mesh.mtl").read_text().splitlines() if line.startswith("map_Kd "))
+    with Image.open(output_dir / diffuse) as image:
+        assert image.format == "PNG"
+        assert image.size == (1, 1)
     material_row = next(row for row in texture_rows if row["channel"] == "material")
     bindings = report["resolved_texture_bindings"]
     assert {row["channel"] for row in bindings} == {"base", "material"}

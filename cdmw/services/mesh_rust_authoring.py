@@ -698,6 +698,9 @@ _EDITABLE_PACKAGE_MESH_NAMES = (
     "mesh.obj",
     "edited_mesh.obj",
     "edited.obj",
+    "mesh.fbx",
+    "edited_mesh.fbx",
+    "edited.fbx",
 )
 
 
@@ -1491,7 +1494,7 @@ def _editable_package_mesh_path(path: Path) -> Path:
             if candidate.is_file():
                 return candidate
         raise RustMeshValidationError(
-            "The selected editable package does not contain mesh.glb or mesh.obj."
+            "The selected editable package does not contain a GLB, FBX, or OBJ mesh."
         )
     if not path.is_file():
         raise RustMeshValidationError("The selected editable package does not exist.")
@@ -4923,6 +4926,8 @@ def _mesh_synthesized_texture_overrides(
             # Geometry and immutable source bindings are read-only. Copy only the
             # metadata whose local index the canonical compiler needs to change.
             part = copy.copy(submesh)
+            from cdmw.services.mesh_dotnet_material_bindings import _dotnet_pac_material_owner_slot_index
+            part.preview_pac_material_owner_slot_index = _dotnet_pac_material_owner_slot_index(submesh, submesh_index)
             part.submesh_index = 0
             snapshot = copy.copy(mesh)
             snapshot.submeshes = [part]
@@ -8581,19 +8586,21 @@ class RustMeshAuthoringSession:
             raise RustMeshProtocolError("Editable package path is required")
         package_path = Path(raw_package_path).expanduser()
         mesh_path = _editable_package_mesh_path(package_path)
-        if mesh_path.suffix.lower() not in {".glb", ".obj"}:
+        if mesh_path.suffix.lower() not in {".glb", ".fbx", ".obj"}:
             raise RustMeshValidationError(
-                "Edit Mesh can import editable GLB or OBJ packages only."
+                "Edit Mesh can import editable GLB, FBX, or OBJ packages."
             )
         self._raise_if_cancelled(stop_event)
-        imported_mesh = (
-            import_glb_with_sidecar(mesh_path)
-            if mesh_path.suffix.lower() == ".glb"
-            else import_obj(
+        if mesh_path.suffix.lower() == ".fbx":
+            from cdmw.modding.scene_importer import import_fbx
+            if _editable_package_sidecar_path(mesh_path) is None:
+                raise RustMeshValidationError("FBX sidecar is required for editable mesh package import.")
+            imported_mesh = import_fbx(mesh_path, stop_event=stop_event)
+        else:
+            imported_mesh = import_glb_with_sidecar(mesh_path) if mesh_path.suffix.lower() == ".glb" else import_obj(
                 str(mesh_path),
                 sidecar_path=_editable_package_sidecar_path(mesh_path),
             )
-        )
         self._raise_if_cancelled(stop_event)
         imported_prepared = self.shadow_service.prepare_working_mesh_replacement(
             self.shadow_session_id,

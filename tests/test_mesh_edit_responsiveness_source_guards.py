@@ -933,11 +933,13 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn('_allow_python_export_fallback(mesh, "export.fbx")', export_body)
         self.assertLess(export_body.index("native_geometry = _fbx_geometry_native(mesh, scale=scale)"), export_body.index("buf = io.BytesIO()"))
         self.assertLess(export_body.index('_allow_python_export_fallback(mesh, "export.fbx")'), export_body.index("buf = io.BytesIO()"))
-        self.assertLess(export_body.index("native_geometry = _fbx_geometry_native(mesh, scale=scale)"), export_body.index("verts_flat = []"))
-        self.assertIn('verts_flat = native_item["vertices"]', export_body)
-        self.assertIn('indices_flat = native_item["indices"]', export_body)
-        self.assertIn('normals_flat = native_item["normals"]', export_body)
-        self.assertIn('uvs_flat = native_item["uvs"]', export_body)
+        geometry_start = exporter_source.index("def _write_python_fbx_geometry(")
+        geometry_body = exporter_source[geometry_start:export_start]
+        geometry_call = "_write_python_fbx_geometry(out, part, item, scale)"
+        self.assertLess(export_body.index("native_geometry = _fbx_geometry_native(mesh, scale=scale)"), export_body.index(geometry_call))
+        for field in ("vertices", "indices", "normals", "uvs"):
+            self.assertIn(f'native_item["{field}"]', geometry_body)
+        self.assertLess(geometry_body.index('verts_flat = native_item["vertices"]'), geometry_body.index("verts_flat = []"))
         self.assertIn("def _export_fbx_native(", exporter_source)
         self.assertIn("export_native_fbx(", exporter_source)
 
@@ -964,7 +966,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         )
         self.assertLess(
             skeleton_body.index("native_geometry = _fbx_geometry_native(mesh, scale=scale, require_vertex_aligned_uvs=True)"),
-            skeleton_body.index("verts_flat = []"),
+            skeleton_body.index(geometry_call),
         )
 
         self.assertIn("class _FbxBinaryArray", exporter_source)

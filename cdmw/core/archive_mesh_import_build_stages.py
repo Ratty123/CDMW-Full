@@ -31,6 +31,8 @@ def load_mesh_import_sources(state: MeshImportBuildState) -> None:
         if state.obj_path.suffix.lower() == ".obj" and state.obj_path.expanduser().is_file()
         else None
     )
+    if state.manifest_payload is None:
+        state.manifest_payload = getattr(state.imported_mesh, "_cdmw_obj_sidecar_payload", None)
     state.original_baseline = api.read_archive_entry_baseline_data(
         state.entry,
         read_entry_data=lambda entry: read_archive_entry_data(entry, stop_event=state.stop_event),
@@ -86,10 +88,12 @@ def rebuild_mesh_import(state: MeshImportBuildState) -> None:
         )
         state.normalized_import_mode = "static_replacement"
     else:
-        if state.obj_path.suffix.lower() != ".obj":
+        if state.obj_path.suffix.lower() not in {".obj", ".glb", ".gltf", ".fbx"}:
             raise ValueError(
-                "Round-trip edit import only supports OBJ. Use Mesh Replacement for DAE, GLB, or glTF imports."
+                "Round-trip edit supports OBJ, GLB, glTF, or FBX with a CDMW companion."
             )
+        if state.obj_path.suffix.lower() != ".obj" and not state.manifest_payload:
+            raise ValueError("A CDMW companion is required for round-trip edit import.")
         state.rebuilt_data = api.build_mesh(state.imported_mesh, state.original_data)
         state.static_report = None
         state.normalized_import_mode = "roundtrip"

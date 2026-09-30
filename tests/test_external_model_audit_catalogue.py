@@ -1144,8 +1144,8 @@ Connections:  {
         self.assertFalse((root / ".cdmw_extracted").exists())
         indexed_row = indexed["models"][0]
         self.assertEqual("archive_indexed", indexed_row["audit_status"])
-        self.assertFalse(indexed_row["import_supported"])
-        self.assertEqual((), tuple(indexed_row["zip_importable_members"]))
+        self.assertTrue(indexed_row["import_supported"])
+        self.assertEqual(("source/copper_wire.fbx",), tuple(indexed_row["zip_importable_members"]))
         self.assertEqual(("source/copper_wire.fbx",), tuple(indexed_row["zip_audit_members"]))
 
         row = audited["models"][0]

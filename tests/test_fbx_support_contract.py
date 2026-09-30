@@ -1,18 +1,4 @@
-"""What FBX is and is not supported for, pinned in one place.
-
-The audit that prompted this test read FBX-handling code in several modules
-beside import filters that omit `.fbx`, and could not tell whether FBX was
-intentionally unsupported or merely hidden. It is intentional, and the code
-already agrees with itself:
-
-* geometry **import** is not supported, and the Geometry append path says so;
-* mesh **export** to FBX is supported, with or without an armature;
-* the external-model **audit** reads FBX material metadata only, and says that
-  geometry import still needs another format;
-
-The risk is drift: a filter gaining `.fbx` without a parser. This pins the
-supported surfaces together so any half-move fails here.
-"""
+"""FBX filters, selected-Blender import and metadata audit remain consistent."""
 
 from __future__ import annotations
 
@@ -38,27 +24,25 @@ def _import_filters() -> dict[str, str]:
 
 
 @pytest.mark.parametrize("name", sorted(_import_filters()))
-def test_no_geometry_import_filter_offers_fbx(name: str) -> None:
-    """Offering it without a parser is the failure this pins against."""
-    assert "fbx" not in _import_filters()[name].lower(), name
+def test_geometry_import_filters_offer_blender_backed_fbx(name: str) -> None:
+    assert "*.fbx" in _import_filters()[name].lower(), name
 
 
 @pytest.mark.parametrize("name", sorted(_import_filters()))
 def test_every_geometry_import_filter_offers_the_supported_formats(name: str) -> None:
     body = _import_filters()[name].lower()
-    for extension in ("obj", "dae", "gltf", "glb"):
+    for extension in ("obj", "fbx", "dae", "gltf", "glb"):
         assert extension in body, (name, extension)
 
 
-def test_the_geometry_append_path_explains_the_refusal_rather_than_hiding_it() -> None:
-    text = source_part_append_mesh_file_dialog_text()
-
-    assert text["fbx_title"] == "FBX Import Deferred"
-    message = text["fbx_message"]
-    assert "not supported" in message
-    # A refusal has to name the way forward, not only the refusal.
-    for alternative in ("OBJ", "DAE", "glTF/GLB", "PAC", "PAM", "PAMLOD"):
-        assert alternative in message, alternative
+def test_fbx_import_requires_a_selected_blender(tmp_path, monkeypatch) -> None:
+    from cdmw.modding.scene_importer import import_fbx
+    from cdmw.services.fbx_blender_conversion import BlenderNotConfigured
+    monkeypatch.setattr("cdmw.services.fbx_blender_conversion.configured_blender", lambda: "")
+    source = tmp_path / "mesh.fbx"
+    source.write_bytes(b"FBX")
+    with pytest.raises(BlenderNotConfigured, match="needs Blender"):
+        import_fbx(source)
 
 
 def test_the_audit_accepts_fbx_because_it_reads_metadata_not_geometry() -> None:
@@ -69,14 +53,14 @@ def test_the_audit_accepts_fbx_because_it_reads_metadata_not_geometry() -> None:
         assert extension in EXTERNAL_MODEL_AUDIT_EXTENSIONS
 
 
-def test_the_audit_says_geometry_import_still_needs_another_format() -> None:
+def test_the_audit_explains_the_blender_requirement() -> None:
     from cdmw.core import external_model_audit
 
     source = external_model_audit.__file__
     body = open(source, encoding="utf-8").read()
     # Both the ASCII and the binary inventory paths carry the caveat, so an FBX
     # that audits cleanly cannot be mistaken for one that will import.
-    assert body.count("geometry import still requires OBJ, DAE, GLB, or glTF.") == 2
+    assert body.count("geometry import requires a selected Blender executable.") == 2
     assert "FBX material audit is metadata-only" in body
 
 
@@ -87,15 +71,12 @@ def test_fbx_export_is_supported_with_and_without_a_skeleton() -> None:
     assert callable(export_fbx_with_skeleton)
 
 
-def test_the_readme_advertises_fbx_for_export_and_not_for_import() -> None:
+def test_the_readme_advertises_all_supported_mesh_formats() -> None:
     from pathlib import Path
 
     readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(encoding="utf-8")
     mesh_editor_rows = [line for line in readme.splitlines() if "**Mesh Editor**" in line]
     assert mesh_editor_rows, "README no longer describes the Mesh Editor"
     row = mesh_editor_rows[0]
-    assert "OBJ/FBX export" in row
-    # The import list is the one that must not gain FBX.
-    assert "OBJ/DAE/glTF/GLB import" in row
-    import_clause = row.split("import", 1)[0].rsplit("export,", 1)[-1]
-    assert "FBX" not in import_clause
+    assert "OBJ/FBX/GLB export" in row
+    assert "OBJ/FBX/DAE/glTF/GLB import" in row

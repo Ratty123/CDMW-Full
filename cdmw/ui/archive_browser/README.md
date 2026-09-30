@@ -21,11 +21,12 @@ feature coordination in focused modules as they are extracted from the shell.
 menus, and its retained action button stays disabled as selection and busy state
 change. The builder implementation remains available for development.
 
-The retained workflow takes a PAC/PAM/PAMLOD target and an OBJ, DAE, GLB or glTF
+The retained workflow takes a PAC/PAM/PAMLOD target and an OBJ, FBX, DAE, GLB or glTF
 source. **Mesh Replacement** in the setup dialog opens alignment/mapping review
 in Mesh Replacement Builder to build a mod-ready loose package.
-**Round-trip edit** is for an OBJ exported by
-CDMW whose original mesh structure is preserved. Unsupported target formats
+**Round-trip edit** supports OBJ, FBX, GLB and glTF exported by CDMW with their
+matching metadata companion and original mesh structure. FBX import uses the
+Blender executable selected on the Model step. Unsupported target formats
 remain blocked by preflight. Replacement opens its own window and preserves
 any active Mesh Editor session.
 
@@ -402,13 +403,17 @@ separate hard-edge normals need topology replacement.
 
 ### Blender return workflow
 
-In Blender, return an OBJ with modifiers disabled and keep the matching manifest beside
-it as `<returned>.obj.meta.json`. This also supports a mesh first exported as FBX:
-retain and rename its `.fbx.meta.json` for the returned OBJ. Direct FBX input remains a
-separate Blender conversion/replacement workflow. OBJ returns carry positions, normals
-and UV edits; they retain the PAC's original rig data. The importer recovers unchanged
-coordinates, UVs and normal directions within OBJ/f32 and Blender custom-normal rounding
-precision.
+In Blender, return an OBJ, FBX or GLB and keep the matching manifest beside it as
+`<returned>.<format>.meta.json`. GLB carries the richest material, rig and morph
+data. For GLB, enable **Data > Mesh > Attributes** in Blender's glTF export
+options to retain `_CDMW_VERTEX_ID`. FBX import uses the selected Blender executable; retain the reserved
+`CDMW_VERTEX_ID` UV layer so edited vertex identities survive conversion. OBJ
+returns carry positions, normals and UV edits, with protected rig and other
+unsupported data retained in the companion. Export reports list missing textures
+and format limitations. Existing animation clips are retained; animation editing
+is unavailable. Disable modifiers that change topology for a same-count return.
+The importer recovers unchanged coordinates, UVs and normal directions within
+serialization and Blender custom-normal rounding precision.
 
 Larger Blender normal changes remain edits, so an untouched Blender session is not
 always a byte-identical return. Normal writes preserve the shared tangent and handedness

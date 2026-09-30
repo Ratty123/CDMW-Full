@@ -145,6 +145,7 @@ MESH_WORKFLOW_EXPORTS.update(
             "check_material_authority_report",
         ),
         "export_model_preview_to_obj": ("cdmw.core.model_export", "export_model_preview_to_obj"),
+        "_load_glb_roundtrip_sidecar": ("cdmw.modding.mesh_glb_interchange", "_load_glb_roundtrip_sidecar"),
         "read_archive_entry_baseline_data": (
             "cdmw.core.mesh_baseline",
             "read_archive_entry_baseline_data",
