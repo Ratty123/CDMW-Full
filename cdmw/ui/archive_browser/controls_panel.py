@@ -340,6 +340,7 @@ class ArchiveControlsPanelMixin:
         archive_paths_layout.setHorizontalSpacing(8)
         archive_paths_layout.setVerticalSpacing(6)
         self.archive_package_root_edit = QLineEdit()
+        self.archive_package_root_edit.textChanged.connect(self._archive_package_root_changed)
         self.archive_extract_root_edit = QLineEdit()
         self.archive_package_root_edit.setPlaceholderText("Crimson Desert folder or package root containing game files")
         self.archive_extract_root_edit.setPlaceholderText("Folder where extracted archive files should be written")

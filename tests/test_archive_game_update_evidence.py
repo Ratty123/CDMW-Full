@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from cdmw.ui.shell.startup_controller import StartupPromptMixin
-from cdmw.workers.archive_scan_workers import ArchiveScanWorker
+from cdmw.services.game_executable_fingerprints import check_game_executable_fingerprints
 
 
 FEATURE = "new_item_archive_snapshot"
@@ -48,24 +48,14 @@ def test_archive_scan_records_a_real_hash_transition_and_preserves_feature_proof
     executable.write_bytes(b"new executable")
     executable_key = str(executable).lower()
     previous_hash = "a" * 64
-    worker = ArchiveScanWorker(
-        tmp_path,
-        tmp_path / "cache",
-        game_executable_fingerprints={
-            executable_key: {
-                **_record(executable, previous_hash),
-                "mtime_ns": executable.stat().st_mtime_ns - 1,
-                "compatible_features": {FEATURE: previous_hash},
-            }
-        },
-    )
-    logs: list[str] = []
-    worker.log_message.connect(logs.append)
-
-    with patch("cdmw.workers.archive_scan_workers.invalidate_archive_browser_cache", return_value=[]):
-        worker._check_game_update_and_invalidate_archive_cache()
-
-    records = worker.updated_game_executable_fingerprints
+    records, logs, changed = check_game_executable_fingerprints(tmp_path, {
+        executable_key: {
+            **_record(executable, previous_hash),
+            "mtime_ns": executable.stat().st_mtime_ns - 1,
+            "compatible_features": {FEATURE: previous_hash},
+        }
+    })
+    assert changed
     assert records is not None
     current = records[executable_key]
     assert current["sha256"] == hashlib.sha256(executable.read_bytes()).hexdigest()
@@ -78,11 +68,8 @@ def test_archive_scan_records_a_real_hash_transition_and_preserves_feature_proof
 def test_first_hash_baseline_is_not_recorded_as_an_update(tmp_path: Path) -> None:
     executable = tmp_path / "CrimsonDesert.exe"
     executable.write_bytes(b"first executable")
-    worker = ArchiveScanWorker(tmp_path, tmp_path / "cache")
-
-    worker._check_game_update_and_invalidate_archive_cache()
-
-    records = worker.updated_game_executable_fingerprints
+    records, _logs, changed = check_game_executable_fingerprints(tmp_path, {})
+    assert not changed
     assert records is not None
     current = records[str(executable).lower()]
     assert "previous_sha256" not in current

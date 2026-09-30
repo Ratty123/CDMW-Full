@@ -182,7 +182,7 @@ def test_qprocess_client_rejects_inflight_stale_generation(tmp_path: Path) -> No
     _shutdown(client)
 
 
-def test_qprocess_client_restarts_once_and_retries_only_safe_request(tmp_path: Path) -> None:
+def test_qprocess_client_reports_crashes_without_replaying_operations(tmp_path: Path) -> None:
     client = _client(tmp_path)
     crashes: list[str] = []
     results: list[tuple[str, object]] = []
@@ -197,10 +197,11 @@ def test_qprocess_client_restarts_once_and_retries_only_safe_request(tmp_path: P
         ui_generation=3,
     )
     assert _wait_until(lambda: any(row[0] == request_id for row in results or failures))
-    assert not failures
+    assert next(error for target, error in failures if target == request_id).code == "worker_crashed"
+    assert not results
     assert len(crashes) == 1
     operations = (tmp_path / "stub-operations.log").read_text(encoding="utf-8").splitlines()
-    assert operations.count("cache_health") == 2
+    assert operations.count("cache_health") == 1
 
     export_id = client.submit(
         ArchiveBackendOperation.EXPORT,
@@ -216,9 +217,69 @@ def test_qprocess_client_restarts_once_and_retries_only_safe_request(tmp_path: P
     assert _wait_until(lambda: any(row[0] == export_id for row in failures))
     export_error = next(row[1] for row in failures if row[0] == export_id)
     assert export_error.code == "worker_crashed"
-    assert _wait_until(lambda: client.state is ArchiveBackendClientState.READY)
+    assert client.state is ArchiveBackendClientState.FAILED
     time.sleep(0.05)
     _app().processEvents()
     operations = (tmp_path / "stub-operations.log").read_text(encoding="utf-8").splitlines()
     assert operations.count("export") == 1
     _shutdown(client)
+
+
+def test_catalogue_owner_retries_an_actual_worker_exit_once(tmp_path: Path) -> None:
+    from cdmw.services.archive_catalogue_service import ArchiveCatalogueService
+    client = _client(tmp_path)
+    service = ArchiveCatalogueService(client)
+    results, failures = [], []
+    service.result_ready.connect(lambda *row: results.append(row))
+    service.request_failed.connect(lambda *row: failures.append(row))
+    request_id = service.cache_health(CacheHealthRequest("crash_once"), ui_generation=1)
+    try:
+        assert _wait_until(lambda: bool(results or failures), timeout_ms=5_000)
+        assert not failures and results[0][0] == request_id
+        operations = (tmp_path / "stub-operations.log").read_text(encoding="utf-8").splitlines()
+        assert operations.count("cache_health") == 2
+    finally:
+        service.request_shutdown()
+        assert _wait_until(lambda: client.process_id == 0)
+
+
+def test_forced_stop_preserves_queued_recovery_until_old_process_exits(tmp_path: Path, monkeypatch) -> None:
+    client = _client(tmp_path)
+    results, failures = [], []
+    client.request_succeeded.connect(lambda *row: results.append(row))
+    client.request_failed.connect(lambda *row: failures.append(row))
+    client.submit(ArchiveBackendOperation.CACHE_HEALTH, CacheHealthRequest("warm"), ui_generation=0)
+    assert _wait_until(lambda: bool(results))
+    old_process = client._process
+    terminate = client._terminate_after_shutdown_grace
+    monkeypatch.setattr(client, "_terminate_after_shutdown_grace", lambda: None)
+    try:
+        client.abort_unresponsive()
+        recovery = client.submit(ArchiveBackendOperation.CACHE_HEALTH, CacheHealthRequest("warm"), ui_generation=1)
+        assert client._restart_requested
+        old_process.kill()
+        assert _wait_until(lambda: any(row[0] == recovery for row in results) or any(row[0] == recovery for row in failures))
+        assert not failures and client.is_ready
+    finally:
+        monkeypatch.setattr(client, "_terminate_after_shutdown_grace", terminate)
+        _shutdown(client)
+
+
+@pytest.mark.parametrize("delete_owner", [False, True])
+def test_late_process_callbacks_after_native_deletion_cannot_publish_errors(delete_owner, tmp_path):
+    from PySide6.QtCore import QObject, QProcess
+
+    _app()
+    owner = QObject()
+    client = _own_client(ArchiveBackendClient(cache_root=tmp_path, parent=owner))
+    process = QProcess(client)
+    client._process = process
+    client._process_generation = 1
+    failures = []
+    client.request_failed.connect(lambda *failure: failures.append(failure))
+    shiboken6.delete(owner if delete_owner else process)
+    client._handle_process_error(process, 1, QProcess.Crashed)
+    client._handle_process_finished(process, 1, 1, QProcess.CrashExit)
+    assert not failures
+    if not delete_owner:
+        shiboken6.delete(owner)

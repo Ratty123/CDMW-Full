@@ -1,4 +1,4 @@
-"""Window-facing integration for v2 and shadow archive catalogue modes."""
+"""Window-facing integration for the standalone archive catalogue."""
 
 from __future__ import annotations
 
@@ -33,7 +33,6 @@ from cdmw.ui.archive_browser.remote_query import archive_query_from_browser_stat
 from cdmw.ui.archive_browser.remote_window_identity import (
     base_index_identity_key as _base_index_identity_key,
     dto_identity_key as _dto_identity_key,
-    legacy_identity as _legacy_identity,
     legacy_identity_key as _legacy_identity_key,
     normalize_archive_remote_path,
     structure_sort_key as _structure_sort_key,
@@ -60,22 +59,6 @@ _SESSION_RECOVERY_FAILURES = frozenset(
 )
 
 
-@dataclass(frozen=True, slots=True)
-class ArchiveShadowComparison:
-    legacy_entry_count: int
-    v2_entry_count: int
-    legacy_match_count: int
-    v2_match_count: int
-    compared_rows: int
-    identity_mismatches: tuple[tuple[int, tuple[object, ...], tuple[object, ...]], ...]
-
-    @property
-    def matches(self) -> bool:
-        return (
-            self.legacy_entry_count == self.v2_entry_count
-            and self.legacy_match_count == self.v2_match_count
-            and not self.identity_mismatches
-        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,20 +81,17 @@ class ArchiveRemoteWindowBridge(QObject):
 
     previewDependenciesReady = Signal(int, object)
     previewDependenciesFailed = Signal(int, str)
-    backendFailed = Signal(str, str)
+    backendFailed = Signal(str, object)
 
-    def __init__(self, window: object, *, display_v2: bool, shadow: bool) -> None:
+    def __init__(self, window: object) -> None:
         super().__init__(window)  # type: ignore[arg-type]
         self._window = window
-        self._display_v2 = bool(display_v2)
-        self._shadow = bool(shadow)
         self._active = True
         self._activate_tab_on_publish = False
         self._last_open_root = ""
         self._last_force_refresh = False
+        self._failed_operation_kind = ""
         self._superseded_session_id: str | None = None
-        self._shadow_schedule_generation = 0
-        self._shadow_reason = ""
         self._structure_rows: dict[str, list[tuple[str, int]]] = {}
         self._structure_loaded: set[str] = set()
         self._structure_requests_enabled = False
@@ -126,11 +106,7 @@ class ArchiveRemoteWindowBridge(QObject):
             self._model,
             parent=self,
         )
-        self._preview_dependencies = (
-            ArchiveRemotePreviewDependencyProvider(window.archive.archive_catalogue_service, parent=self)
-            if self._display_v2
-            else None
-        )
+        self._preview_dependencies = ArchiveRemotePreviewDependencyProvider(window.archive.archive_catalogue_service, parent=self)
         if self._preview_dependencies is not None:
             self._preview_dependencies.ready.connect(self.previewDependenciesReady.emit)
             self._preview_dependencies.failed.connect(self.previewDependenciesFailed.emit)
@@ -143,8 +119,7 @@ class ArchiveRemoteWindowBridge(QObject):
         self._controller.selectionUnavailable.connect(self._selection_unavailable)
         self._controller.requestFailed.connect(self._handle_failure)
         self._controller.actionsSafeChanged.connect(self._handle_actions_safe)
-        if self._display_v2:
-            window.archive.archive_tree.use_remote_model(self._model)
+        window.archive.archive_tree.use_remote_model(self._model)
 
     @property
     def model(self) -> RemoteArchiveBrowserModel:
@@ -160,15 +135,12 @@ class ArchiveRemoteWindowBridge(QObject):
 
     @property
     def displays_v2(self) -> bool:
-        return self._display_v2
+        return True
 
-    @property
-    def shadows_legacy(self) -> bool:
-        return self._shadow
 
     @property
     def structure_requests_ready(self) -> bool:
-        return self._display_v2 and self._structure_requests_enabled
+        return self._structure_requests_enabled
 
     @property
     def export_selection_error(self) -> str:
@@ -212,16 +184,16 @@ class ArchiveRemoteWindowBridge(QObject):
         self.cancel_preview_dependencies(clear_snapshot=True)
         self._item_scope_preferred_prefab_stems = ()
         self._item_scope_entry_ids = ()
+        self._window.archive._clear_archive_failure_display()
         self._last_open_root = str(Path(package_root))
         self._last_force_refresh = bool(force_refresh)
         self._activate_tab_on_publish = bool(activate_tab)
-        if self._display_v2:
-            self._structure_requests_enabled = False
-            self._structure_rows.clear()
-            self._structure_loaded.clear()
-            self._window.archive_structure_filter_children = {}
-            self._window.archive_structure_filter_state = "warming"
-            self._window._rebuild_archive_structure_filter_controls(defer_missing_children=True)
+        self._structure_requests_enabled = False
+        self._structure_rows.clear()
+        self._structure_loaded.clear()
+        self._window.archive_structure_filter_children = {}
+        self._window.archive_structure_filter_state = "warming"
+        self._window._rebuild_archive_structure_filter_controls(defer_missing_children=True)
         state = self._window._capture_archive_filter_state()
         query = archive_query_from_browser_state("", state)
         self._begin_pending(
@@ -235,18 +207,19 @@ class ArchiveRemoteWindowBridge(QObject):
             selection_identity=self.current_selection_identity(),
         )
 
-    def retry_last_open(self) -> bool:
-        if not self._active or not self._last_open_root:
+
+    def retry_failed_operation(self) -> bool:
+        if not self._active:
             return False
-        self.open_archive(
-            self._last_open_root,
-            force_refresh=self._last_force_refresh,
-            activate_tab=self._activate_tab_on_publish,
-        )
-        return True
+        kind = self._failed_operation_kind
+        if kind in {"open", "open_archive", "query", "create_query", "publish"} or kind.startswith("stage_"):
+            self._begin_pending("Retrying archive operation...", operation="retry")
+        else:
+            self._window.shell.set_status_message("Retrying archive operation...")
+        return self._controller.retry_failed_operation()
 
     def cancel_pending_update(self) -> bool:
-        if self._shadow or not bool(getattr(self._window, "archive_remote_query_pending", False)):
+        if not bool(getattr(self._window, "archive_remote_query_pending", False)):
             return False
         self._controller.cancel_pending()
         self._clear_pending_progress()
@@ -275,72 +248,9 @@ class ArchiveRemoteWindowBridge(QObject):
         window.shell.append_archive_log(message)
         return True
 
-    def deactivate(self) -> None:
-        """Stop requests before an explicit session-only legacy handoff."""
 
-        if not self._active:
-            return
-        self._active = False
-        self._clear_pending_progress()
-        self._progress_operation = ""
-        self.cancel_preview_dependencies(clear_snapshot=True)
-        self._controller.cancel_pending()
 
-    def start_shadow(self, package_root: Path | str) -> None:
-        if not self._shadow:
-            return
-        self._last_open_root = str(Path(package_root))
-        state = self._window._capture_archive_filter_state()
-        query = replace(
-            archive_query_from_browser_state("", state),
-            view_mode=ArchiveViewMode.FLAT,
-        )
-        self._window.append_archive_log("Archive backend shadow comparison started.", verbose=True)
-        self._controller.open_archive(package_root, query=query, force_refresh=False)
 
-    def schedule_shadow_comparison(self, reason: str, *, delay_ms: int = 0) -> None:
-        if not self._shadow:
-            return
-        self._shadow_schedule_generation += 1
-        generation = self._shadow_schedule_generation
-        self._shadow_reason = str(reason or "legacy_update")
-        QTimer.singleShot(
-            max(0, int(delay_ms)),
-            lambda generation=generation: self._run_scheduled_shadow_comparison(generation, 0),
-        )
-
-    def _run_scheduled_shadow_comparison(self, generation: int, attempt: int) -> None:
-        if generation != self._shadow_schedule_generation or not self._shadow:
-            return
-        window = self._window
-        waiting = bool(
-            getattr(window.shell, "_shutting_down", False)
-            or getattr(window.shell, "worker_thread", None) is not None
-            or getattr(window.archive, "archive_scan_finalize_pending", False)
-            or getattr(window.archive, "archive_filters_dirty", False)
-            or getattr(window.archive, "archive_startup_saved_filter_apply_pending", False)
-        )
-        if waiting:
-            if getattr(window.shell, "_shutting_down", False):
-                return
-            if attempt < 100:
-                QTimer.singleShot(
-                    100,
-                    lambda generation=generation, attempt=attempt + 1: self._run_scheduled_shadow_comparison(
-                        generation,
-                        attempt,
-                    ),
-                )
-            else:
-                window.shell.append_archive_log(
-                    f"Archive backend shadow comparison skipped after waiting for {self._shadow_reason} to settle.",
-                    verbose=True,
-                )
-            return
-        package_root = str(window.archive.archive_package_root_edit.text() or "").strip()
-        if not package_root or not window.archive.archive_entries:
-            return
-        self.start_shadow(package_root)
 
     def apply_current_query(self) -> None:
         self.cancel_preview_dependencies(clear_snapshot=True)
@@ -401,17 +311,14 @@ class ArchiveRemoteWindowBridge(QObject):
         return True
 
     def current_selection_identity(self) -> ArchiveDurableIdentity | None:
-        if self._display_v2:
-            dto = self._model.entry_for_index(self._window.archive_tree.currentIndex())
-            return None if dto is None else dto.identity
-        entry = self._window._current_archive_entry()
-        return _legacy_identity(entry)
+        dto = self._model.entry_for_index(self._window.archive_tree.currentIndex())
+        return None if dto is None else dto.identity
 
     def current_compatibility_entry(self) -> ArchiveEntry | None:
         index = self._window.archive_tree.currentIndex()
         entry = self._controller.compatibility_entry_for_index(index)
         if entry is None:
-            if self._display_v2 and index.isValid():
+            if index.isValid():
                 self._model.request_visible_rows(index.row(), index.row())
             return None
         dependencies = self.prepared_dependencies_for(entry)
@@ -484,8 +391,6 @@ class ArchiveRemoteWindowBridge(QObject):
 
     def selected_export_selection(self) -> ArchiveRemoteExportSelection | None:
         self._export_selection_error = ""
-        if not self._display_v2:
-            return None
         selection_model = self._window.archive_tree.selectionModel()
         if selection_model is None:
             return None
@@ -530,7 +435,7 @@ class ArchiveRemoteWindowBridge(QObject):
     def filtered_export_selection(self) -> ArchiveRemoteExportSelection | None:
         handle = self._model.query_handle
         query = self._controller.current_query
-        if not self._display_v2 or handle is None or query is None:
+        if handle is None or query is None:
             return None
         normalized_extensions = {
             value if value.startswith(".") else f".{value}"
@@ -546,8 +451,6 @@ class ArchiveRemoteWindowBridge(QObject):
         )
 
     def current_family_export_selection(self) -> ArchiveRemoteExportSelection | None:
-        if not self._display_v2:
-            return None
         entry = self._model.entry_for_index(self._window.archive_tree.currentIndex())
         if entry is None:
             return None
@@ -560,8 +463,6 @@ class ArchiveRemoteWindowBridge(QObject):
         )
 
     def current_entry_export_selection(self) -> ArchiveRemoteExportSelection | None:
-        if not self._display_v2:
-            return None
         entry = self._model.entry_for_index(self._window.archive_tree.currentIndex())
         if entry is None:
             return None
@@ -584,8 +485,7 @@ class ArchiveRemoteWindowBridge(QObject):
         self._controller.request_structure_children(parent)
 
     def _begin_pending(self, text: str, *, operation: str) -> None:
-        if self._shadow:
-            return
+        self._window.archive._clear_archive_failure_display()
         window = self._window
         self._clear_pending_progress()
         reset_progress = getattr(window.archive, "_reset_archive_load_progress", None)
@@ -645,14 +545,9 @@ class ArchiveRemoteWindowBridge(QObject):
                 pass
 
     def _handle_status(self, message: str) -> None:
-        if self._shadow:
-            self._window.append_archive_log(f"Archive v2 shadow: {message}", verbose=True)
-        else:
-            self._window.shell.set_status_message(message)
+        self._window.shell.set_status_message(message)
 
     def _handle_progress(self, kind: str, update: object) -> None:
-        if self._shadow:
-            return
         current = int(getattr(update, "completed", 0) or 0)
         total = int(getattr(update, "total", 0) or 0)
         phase = str(getattr(update, "phase", kind) or kind).strip()
@@ -665,12 +560,11 @@ class ArchiveRemoteWindowBridge(QObject):
         self._window._handle_archive_scan_progress(current, total, detail)
 
     def _handle_query_published(self, handle: ArchiveQueryHandle) -> None:
-        if self._shadow:
-            self._record_shadow_comparison(handle)
-            return
         self._clear_pending_progress()
         self._progress_operation = ""
         window = self._window
+        window.archive._clear_archive_failure_display()
+        window.archive._publish_archive_game_update_fingerprints()
         publish_consumers = getattr(window.shell, "_publish_archive_catalogue_session_to_consumers", None)
         if callable(publish_consumers) and self._controller.current_session is not None:
             publish_consumers(self._controller.current_session, handle)
@@ -750,8 +644,6 @@ class ArchiveRemoteWindowBridge(QObject):
         )
 
     def _handle_facets(self, facets: ArchiveFacetsResult) -> None:
-        if self._shadow:
-            return
         window = self._window
         window.archive.archive_extension_counts = Counter(
             {facet.key: int(facet.count) for facet in facets.extensions if facet.key}
@@ -764,8 +656,6 @@ class ArchiveRemoteWindowBridge(QObject):
         window.archive._update_archive_filter_button_state()
 
     def _handle_structure_children(self, parent_path: str, result: ArchiveChildrenResult) -> None:
-        if not self._display_v2:
-            return
         parent = normalize_archive_remote_path(parent_path)
         rows = self._structure_rows.setdefault(parent, [])
         if result.offset == 0:
@@ -795,7 +685,7 @@ class ArchiveRemoteWindowBridge(QObject):
         )
 
     def _restore_selection(self, index: QModelIndex) -> None:
-        if self._shadow or not index.isValid():
+        if not index.isValid():
             return
         selection_model = self._window.archive_tree.selectionModel()
         if selection_model is None:
@@ -843,21 +733,15 @@ class ArchiveRemoteWindowBridge(QObject):
     def _handle_failure(self, kind: str, error: object) -> None:
         if not self._active:
             return
-        detail = str(error)
+        self._failed_operation_kind = kind
+        detail = getattr(error, "message", str(error))
         if kind.startswith("structure_"):
-            if self._display_v2:
-                self._window.archive_structure_filter_state = "failed"
-                self._window.append_archive_log(
-                    f"Warning: archive folder filters could not be loaded from the worker: {detail}"
-                )
-                self._window._rebuild_archive_structure_filter_controls(defer_missing_children=True)
-            return
-        if self._shadow:
+            self._window.archive_structure_filter_state = "failed"
             self._window.append_archive_log(
-                f"Archive v2 shadow comparison failed ({kind}): {detail}",
-                verbose=True,
+                f"Warning: archive folder filters could not be loaded from the worker: {detail}"
             )
-            self._record_runtime("archive_backend_shadow_failed", operation=kind, error=detail)
+            self._window._rebuild_archive_structure_filter_controls(defer_missing_children=True)
+            self.backendFailed.emit(kind, error)
             return
         self._clear_pending_progress()
         self._progress_operation = ""
@@ -884,51 +768,12 @@ class ArchiveRemoteWindowBridge(QObject):
         window.shell.set_status_message(message)
         window.shell.append_archive_log(message)
         self._record_runtime("archive_backend_v2_failed", operation=kind, error=detail)
-        if kind in _SESSION_RECOVERY_FAILURES:
-            self.backendFailed.emit(kind, detail)
+        self.backendFailed.emit(kind, error)
 
     def _handle_actions_safe(self, safe: bool) -> None:
-        if not self._shadow:
-            self._window.archive_remote_actions_safe = bool(safe)
+        self._window.archive_remote_actions_safe = bool(safe)
         self._record_runtime("archive_backend_actions_safe", safe=bool(safe))
 
-    def _record_shadow_comparison(self, handle: ArchiveQueryHandle) -> None:
-        session = self._controller.current_session
-        if session is None:
-            return
-        legacy_filtered_entries = self._window.archive_filtered_entries
-        if not archive_browser_sort_is_active(self._window.archive_tree_sort_column):
-            legacy_filtered_entries = sorted(
-                legacy_filtered_entries,
-                key=_base_index_identity_key,
-            )
-        comparison = compare_archive_shadow_page(
-            self._window.archive_entries,
-            legacy_filtered_entries,
-            self._model,
-            session,
-            handle,
-        )
-        status = "match" if comparison.matches else "mismatch"
-        self._window.append_archive_log(
-            "Archive backend shadow comparison "
-            f"{status}: entries legacy={comparison.legacy_entry_count:,} v2={comparison.v2_entry_count:,}; "
-            f"matches legacy={comparison.legacy_match_count:,} v2={comparison.v2_match_count:,}; "
-            f"page mismatches={len(comparison.identity_mismatches):,}.",
-            verbose=True,
-        )
-        self._record_runtime(
-            "archive_backend_shadow_comparison",
-            reason=self._shadow_reason,
-            matches=comparison.matches,
-            legacy_entry_count=comparison.legacy_entry_count,
-            v2_entry_count=comparison.v2_entry_count,
-            legacy_match_count=comparison.legacy_match_count,
-            v2_match_count=comparison.v2_match_count,
-            compared_rows=comparison.compared_rows,
-            identity_mismatch_count=len(comparison.identity_mismatches),
-            identity_mismatches=comparison.identity_mismatches,
-        )
 
     def _record_runtime(self, event: str, **fields: object) -> None:
         recorder = getattr(self._window, "_record_runtime_event", None)
@@ -936,47 +781,9 @@ class ArchiveRemoteWindowBridge(QObject):
             recorder(event, **fields)
 
 
-def compare_archive_shadow_page(
-    legacy_entries: Iterable[ArchiveEntry],
-    legacy_filtered_entries: Iterable[ArchiveEntry],
-    model: RemoteArchiveBrowserModel,
-    session: ArchiveSessionHandle,
-    handle: ArchiveQueryHandle,
-    *,
-    row_limit: int = 256,
-) -> ArchiveShadowComparison:
-    legacy_all = legacy_entries if isinstance(legacy_entries, list) else list(legacy_entries)
-    legacy_filtered = (
-        legacy_filtered_entries
-        if isinstance(legacy_filtered_entries, list)
-        else list(legacy_filtered_entries)
-    )
-    compared = min(max(0, int(row_limit)), len(legacy_filtered), handle.total_matches)
-    mismatches: list[tuple[int, tuple[object, ...], tuple[object, ...]]] = []
-    for row in range(compared):
-        dto = model.entry_for_index(model.index(row, 0))
-        if dto is None:
-            mismatches.append((row, _legacy_identity_key(legacy_filtered[row]), ("missing",)))
-            continue
-        legacy_key = _legacy_identity_key(legacy_filtered[row])
-        remote_key = _dto_identity_key(dto)
-        if legacy_key != remote_key:
-            mismatches.append((row, legacy_key, remote_key))
-            if len(mismatches) >= 16:
-                break
-    return ArchiveShadowComparison(
-        len(legacy_all),
-        session.entry_count,
-        len(legacy_filtered),
-        handle.total_matches,
-        compared,
-        tuple(mismatches),
-    )
 
 
 __all__ = [
     "ArchiveRemoteExportSelection",
     "ArchiveRemoteWindowBridge",
-    "ArchiveShadowComparison",
-    "compare_archive_shadow_page",
 ]

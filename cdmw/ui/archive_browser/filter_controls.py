@@ -110,14 +110,14 @@ class ArchiveFilterControlsMixin:
                         "Archive Browser activation timing | cause=structure_filter | start=deferred",
                         verbose=True,
                     )
-                QTimer.singleShot(0, self._start_archive_structure_filter_worker)
+                QTimer.singleShot(0, self._request_archive_structure_children)
             else:
                 if len(self.archive_entries) >= 500_000:
                     self.shell.append_archive_log(
                         "WARNING: Archive structure filter map would build on the UI thread for a large archive; deferring to background worker.",
                         verbose=True,
                     )
-                    QTimer.singleShot(0, self._start_archive_structure_filter_worker)
+                    QTimer.singleShot(0, self._request_archive_structure_children)
                 else:
                     self.archive_structure_filter_children = build_archive_structure_children_map(self.archive_entries)
                     self.archive_structure_filter_state = "ready"

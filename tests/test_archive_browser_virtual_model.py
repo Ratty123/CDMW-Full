@@ -17,7 +17,6 @@ from cdmw.ui.archive_browser.controller import ArchiveBrowserRowPayloadMixin
 from cdmw.ui.archive_browser_model import ArchiveBrowserModel, ArchiveBrowserRowPayload, ArchiveBrowserTreeView
 from cdmw.ui.settings_tab import SettingsTab
 from cdmw.ui.wrapping_layout import WrappingLayout
-from cdmw.workers.archive_filter_workers import ArchiveFilterWorker
 from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import QApplication, QFrame, QGridLayout, QGroupBox, QLabel, QWidget
 
@@ -49,48 +48,7 @@ class ArchiveBrowserVirtualModelTests(unittest.TestCase):
 
         self.assertFalse(ArchiveMeshSwapSupportMixin()._same_archive_entry(first, second))
 
-    def test_archive_filter_worker_candidate_entries_intersect_basic_indexes(self) -> None:
-        dds_texture = _entry("ui/texture/a.dds", 1)
-        dds_mesh = _entry("ui/model/b.dds", 2)
-        txt_texture = _entry("ui/texture/c.txt", 3)
-        worker = ArchiveFilterWorker(
-            [dds_texture, dds_mesh, txt_texture],
-            entries_by_extension={".dds": [dds_texture, dds_mesh]},
-            entries_by_role={"texture": [dds_texture, txt_texture]},
-            extension_filter=".dds",
-            role_filter="texture",
-        )
 
-        candidates, label = worker._candidate_entries_for_filter()
-
-        self.assertEqual(list(candidates), [dds_texture])
-        self.assertEqual(label, "extension:.dds+role:texture")
-
-    def test_archive_filter_worker_retains_item_name_mappings_without_iterating(self) -> None:
-        class NonIterableMapping(Mapping[str, str]):
-            def __getitem__(self, key: str) -> str:
-                return "value"
-
-            def __iter__(self) -> Iterator[str]:
-                raise AssertionError("mapping was copied on the caller thread")
-
-            def __len__(self) -> int:
-                return 1
-
-        mapping = NonIterableMapping()
-
-        worker = ArchiveFilterWorker(
-            [],
-            item_search_aliases=mapping,
-            item_display_names=mapping,
-            item_exact_display_names=mapping,
-            item_related_display_names=mapping,
-        )
-
-        self.assertIs(worker.item_search_aliases, mapping)
-        self.assertIs(worker.item_display_names, mapping)
-        self.assertIs(worker.item_exact_display_names, mapping)
-        self.assertIs(worker.item_related_display_names, mapping)
 
     def test_flat_model_is_virtual_and_maps_selection_to_entry_index(self) -> None:
         entries = [_entry(f"ui/texture/file_{index}.dds", index) for index in range(10_000)]
@@ -414,12 +372,10 @@ class ArchiveBrowserVirtualModelSourceGuards(unittest.TestCase):
                 Path("cdmw/ui/shell/responsiveness_controller.py").read_text(encoding="utf-8"),
             )
         )
-        scan_worker = Path("cdmw/workers/archive_scan_workers.py").read_text(encoding="utf-8")
         self.assertIn("self.archive_tree = ArchiveBrowserTreeView(", source)
-        self.assertIn("self.archive_tree.set_archive_state(", source)
+        self.assertIn("self.archive_tree.use_remote_model(", source)
         self.assertIn("self.archive_tree.compact_hidden_columns()", source)
         self.assertIn("def _schedule_archive_files_pane_fit_to_columns", source)
-        self.assertIn("prepare_archive_browser_state_accelerated", scan_worker)
         model_source = Path("cdmw/ui/archive_browser/model.py").read_text(encoding="utf-8")
         self.assertIn("self._flat_loaded_count", model_source)
         self.assertIn("return self.createIndex(row, column)", model_source)
@@ -428,111 +384,17 @@ class ArchiveBrowserVirtualModelSourceGuards(unittest.TestCase):
         self.assertIn("def invalidate_archive_rows", model_source)
         self.assertIn("def invalidate_rows", model_source)
 
-    def test_initial_archive_refresh_defers_active_sort_until_after_first_paint(self) -> None:
-        source = "\n".join(
-            (
-                Path("cdmw/ui/shell/app_window.py").read_text(encoding="utf-8"),
-                Path("cdmw/ui/archive_browser/scan_lifecycle.py").read_text(encoding="utf-8"),
-                Path("cdmw/ui/archive_browser/render_lifecycle.py").read_text(encoding="utf-8"),
-            )
-        )
-        self.assertIn("initial_sort_column = self.archive_tree_sort_column", source)
-        self.assertIn("initial_worker_sort_column = -1 if initial_sort_deferred else initial_sort_column", source)
-        self.assertIn("self.archive_initial_sort_apply_pending = initial_sort_deferred", source)
-        self.assertIn("sort_column=initial_worker_sort_column", source)
-        self.assertIn("def _apply_archive_initial_sort_after_first_paint", source)
-        self.assertIn("column == 1 and self._archive_enhanced_index_missing_for_search()", source)
 
-    def test_enhanced_index_completion_invalidates_name_columns_without_post_ready_filter_refresh(self) -> None:
-        source = Path("cdmw/ui/archive_browser/index_workers.py").read_text(encoding="utf-8")
-        enhanced_start = source.index("    def _handle_archive_enhanced_index_complete")
-        enhanced_end = source.index("    def _handle_archive_enhanced_index_error", enhanced_start)
-        enhanced_body = source[enhanced_start:enhanced_end]
-        self.assertIn("self._invalidate_archive_browser_name_columns()", enhanced_body)
-        self.assertIn("self._schedule_archive_initial_sort_after_first_paint(150)", enhanced_body)
-        self.assertNotIn("self.archive_enhanced_filter_refresh_pending = True", enhanced_body)
-        self.assertIn("if self.archive_enhanced_filter_refresh_pending:", enhanced_body)
-        self.assertIn("self._schedule_archive_pending_enhanced_filter_refresh(150)", enhanced_body)
-        self.assertIn("self._try_apply_startup_saved_filters()", enhanced_body)
 
-    def test_scan_worker_builds_missing_rebuild_indexes_before_ready(self) -> None:
-        scan_body = Path("cdmw/workers/archive_scan_workers.py").read_text(encoding="utf-8")
-        run_start = scan_body.index("    @Slot()\n    def run")
-        run_body = scan_body[run_start:]
-        self.assertIn("Item-name search cache is missing or stale; archive list will open and search will build on demand.", run_body)
-        self.assertIn("build_enhanced_indexes_before_ready = bool(", run_body)
-        self.assertIn("or source != \"cache\"", run_body)
-        self.assertIn("self._build_enhanced_archive_indexes_inline(", run_body)
-        self.assertIn("shard_entry_signatures=scan_shard_entry_signatures", run_body)
-        self.assertIn("shard_entry_counts=scan_shard_entry_counts", run_body)
-        self.assertIn("Preparing archive search cache as part of archive cache build.", run_body)
-        self.assertIn("Path lookup cache is deferred until filters", run_body)
-        self.assertIn("load_or_update_archive_basic_index_shards(", run_body)
-        self.assertIn("save_archive_basic_index_cache(", run_body)
-        self.assertIn('"basic_index_needs_build": bool(', run_body)
-        self.assertIn("role_index", run_body)
-        self.assertIn('"enhanced_index_needs_build": enhanced_index_needs_build', run_body)
-        self.assertIn("save_archive_derived_index_cache(", scan_body)
 
-    def test_filter_worker_prefilters_candidates_from_basic_indexes(self) -> None:
-        filter_body = Path("cdmw/workers/archive_filter_workers.py").read_text(encoding="utf-8")
 
-        self.assertIn("entries_by_role", filter_body)
-        self.assertIn("def _candidate_entries_for_filter", filter_body)
-        self.assertIn("extension:{normalized_extension}", filter_body)
-        self.assertIn("role:{normalized_role}", filter_body)
-        self.assertIn("min(candidates, key=lambda item: len(item[1]))", filter_body)
-        self.assertIn("Archive filter candidate set |", filter_body)
-        self.assertIn("fallback_reason", filter_body)
 
-    def test_no_filter_flat_initial_state_reuses_raw_entries(self) -> None:
-        scan_body = Path("cdmw/workers/archive_scan_workers.py").read_text(encoding="utf-8")
-        self.assertIn('"backend": "raw_flat"', scan_body)
-        self.assertIn('"filtered_entries": entries', scan_body)
-        self.assertIn('dds_count = int(extension_counts.get(".dds", 0) or 0)', scan_body)
-        self.assertIn("Archive Browser state mode: raw_flat", scan_body)
-        self.assertIn("Opening archive list from loaded entries...", scan_body)
-        self.assertNotIn("Preparing first archive browser state from loaded entries...", scan_body)
+    def test_structure_filters_use_the_resident_backend(self) -> None:
+        source = Path("cdmw/ui/archive_browser/filter_workers.py").read_text(encoding="utf-8")
+        self.assertIn("bridge.request_structure_children(", source)
+        self.assertNotIn("build_archive_structure_children_map", source)
+        self.assertNotIn("QThread", source)
 
-    def test_archive_activation_defers_structure_filter_build_off_ui_thread(self) -> None:
-        source = (
-            Path("cdmw/ui/shell/app_window.py").read_text(encoding="utf-8")
-            + "\n"
-            + Path("cdmw/ui/archive_browser/filter_workers.py").read_text(encoding="utf-8")
-            + "\n"
-            + Path("cdmw/ui/archive_browser/filter_controls.py").read_text(encoding="utf-8")
-            + "\n"
-            + Path("cdmw/ui/archive_browser/render_lifecycle.py").read_text(encoding="utf-8")
-        )
-        worker_source = Path("cdmw/workers/archive_workers.py").read_text(encoding="utf-8")
-        self.assertIn("class ArchiveStructureFilterWorker", worker_source)
-        self.assertIn("self.archive_structure_filter_state = \"idle\"", source)
-        controls_start = source.index("    def _refresh_archive_browser_view_stage_controls")
-        controls_end = source.index("    def _refresh_archive_browser_view_stage_populate", controls_start)
-        controls_body = source[controls_start:controls_end]
-        self.assertIn("self._rebuild_archive_structure_filter_controls(defer_missing_children=True)", controls_body)
-        self.assertNotIn("build_archive_structure_children_map(self.archive_entries)", controls_body)
-        structure_start = source.index("def _rebuild_archive_structure_filter_controls")
-        structure_end = source.index("def _handle_archive_structure_combo_changed", structure_start)
-        structure_body = source[structure_start:structure_end]
-        self.assertIn("Folder filters warming...", structure_body)
-        self.assertIn("self._start_archive_structure_filter_worker", source)
-
-    def test_pending_enhanced_filter_refresh_waits_for_visible_browser_without_render_deadlock(self) -> None:
-        source = (
-            Path("cdmw/ui/shell/app_window.py").read_text(encoding="utf-8")
-            + "\n"
-            + Path("cdmw/ui/archive_browser/filter_controls.py").read_text(encoding="utf-8")
-            + "\n"
-            + Path("cdmw/ui/archive_browser/render_lifecycle.py").read_text(encoding="utf-8")
-        )
-        refresh_start = source.index("    def _apply_pending_archive_enhanced_filter_refresh")
-        refresh_end = source.index("    def _archive_browser_render_is_ready", refresh_start)
-        refresh_body = source[refresh_start:refresh_end]
-        self.assertIn('not self.shell._is_tool_visible_or_current(self.shell.archive_browser_tab)', refresh_body)
-        self.assertNotIn("self.archive_browser_preload_state != \"ready\"", refresh_body)
-        self.assertNotIn("not self.archive_browser_first_visible_paint_done", refresh_body)
-        self.assertIn("cause=item_search_filter_refresh | state=applied", refresh_body)
 
     def test_archive_preview_loading_state_is_debounced(self) -> None:
         source = Path("cdmw/ui/archive_browser/workers.py").read_text(encoding="utf-8")

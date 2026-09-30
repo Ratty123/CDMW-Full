@@ -132,6 +132,10 @@ class _FakeCatalogueService(QObject):
     def fail(self, request_id: str, error: object) -> None:
         self.request_failed.emit(request_id, error)
 
+    def retry_failed(self, request_id: str) -> str:
+        _identifier, kind, payload, generation = next(call for call in self.calls if call[0] == request_id)
+        return self._request(kind, payload, generation)
+
     def batch(self, request_id: str, result: object) -> None:
         kind = next(call[1] for call in self.calls if call[0] == request_id)
         self.batch_ready.emit(request_id, kind, result)
@@ -422,7 +426,7 @@ def test_invalid_first_page_fails_closed_without_replacing_previous_view() -> No
     assert model.data(model.index(0, 0)) == "file_0.pac"
 
 
-def test_recovered_page_session_recreates_query_before_publishing_more_rows() -> None:
+def test_recovered_page_adopts_query_and_preserves_previous_rows() -> None:
     _app()
     service = _FakeCatalogueService()
     model = RemoteArchiveBrowserModel(page_size=4)
@@ -438,6 +442,7 @@ def test_recovered_page_session_recreates_query_before_publishing_more_rows() ->
     assert model.data(model.index(6, 0)) == "Loading..."
     _drain_events()
     page_id, page_request, _ = service.latest("fetch_page")
+    query_requests = sum(call[1] == "create_query" for call in service.calls)
     recovered = _session("session-recovered", "same-fingerprint")
     service._sessions[recovered.session_id] = recovered
     service.current_session = recovered
@@ -453,24 +458,74 @@ def test_recovered_page_session_recreates_query_before_publishing_more_rows() ->
         ),
     )
 
-    restart_query_id, restart_query, restart_generation = service.latest("create_query")
-    assert restart_query.session_id == recovered.session_id
-    service.complete(
-        restart_query_id,
-        ArchiveQueryHandle(recovered.session_id, "query-restarted", restart_generation, 8),
-    )
-    first_page_id, first_page_request, _ = service.latest("fetch_page")
-    service.complete(
-        first_page_id,
-        ArchivePage(
-            recovered.session_id,
-            "query-restarted",
-            restart_generation,
-            8,
-            first_page_request.page_start,
-            tuple(_entry(index, session=recovered.session_id) for index in range(4)),
-        ),
-    )
-
     assert controller.current_session == recovered
-    assert model.query_handle is not None and model.query_handle.query_id == "query-restarted"
+    assert model.query_handle is not None and model.query_handle.query_id == "query-recovered-internally"
+    assert sum(call[1] == "create_query" for call in service.calls) == query_requests
+    assert model.data(model.index(0, 0)) == "file_0.pac"
+    assert model.data(model.index(6, 0)) == "file_6.pac"
+    assert model.entry_for_index(model.index(0, 0)).session_id == recovered.session_id
+
+
+def test_page_failure_waits_for_targeted_manual_retry_instead_of_redraw_replay() -> None:
+    _app()
+    service = _FakeCatalogueService()
+    model = RemoteArchiveBrowserModel(page_size=4)
+    controller = ArchiveRemoteCatalogueController(service, model)
+    _open_flat(service, controller, rows=tuple(_entry(index) for index in range(4)), total=8)
+    model.data(model.index(6, 0))
+    _drain_events()
+    page_id, payload, _ = service.latest("fetch_page")
+    service.fail(page_id, RuntimeError("terminal page error"))
+    calls = len(service.calls)
+    for _ in range(5):
+        model.data(model.index(6, 0))
+        _drain_events()
+    assert len(service.calls) == calls
+    assert model.data(model.index(0, 0)) == "file_0.pac"
+    assert controller.retry_failed_operation()
+    retry_id, retry_payload, generation = service.latest("fetch_page")
+    assert retry_payload == payload and retry_id != page_id
+    handle = model.query_handle
+    service.complete(retry_id, ArchivePage(handle.session_id, handle.query_id, generation, 8, 4,
+        tuple(_entry(index) for index in range(4, 8))))
+    assert model.data(model.index(6, 0)) == "file_6.pac"
+
+
+def test_cancelled_refresh_preserves_uncached_paging_in_the_previous_view() -> None:
+    _app()
+    service = _FakeCatalogueService()
+    model = RemoteArchiveBrowserModel(page_size=4)
+    controller = ArchiveRemoteCatalogueController(service, model)
+    _open_flat(service, controller, rows=tuple(_entry(index) for index in range(4)), total=8)
+    controller.open_archive("C:/different-root", force_refresh=True)
+    controller.cancel_pending()
+    assert model.data(model.index(0, 0)) == "file_0.pac"
+    model.data(model.index(6, 0))
+    _drain_events()
+    page_id, request, generation = service.latest("fetch_page")
+    assert request.query_id == "query-a"
+    service.complete(page_id, ArchivePage("session-a", request.query_id, generation, 8, 4,
+        tuple(_entry(index) for index in range(4, 8))))
+    assert model.data(model.index(6, 0)) == "file_6.pac"
+
+
+def test_manual_structure_retry_leaves_uncached_archive_paging_available() -> None:
+    _app()
+    service = _FakeCatalogueService()
+    model = RemoteArchiveBrowserModel(page_size=4)
+    controller = ArchiveRemoteCatalogueController(service, model)
+    _open_flat(service, controller, rows=tuple(_entry(index) for index in range(4)), total=8)
+    controller.request_structure_children("")
+    children_id, payload, _ = service.latest("fetch_structure_children")
+    service.fail(children_id, RuntimeError("terminal folder error"))
+    assert controller.retry_failed_operation()
+    retry_id, retry_payload, _ = service.latest("fetch_structure_children")
+    assert retry_payload == payload
+    calls = len(service.calls)
+    controller.request_structure_children("")
+    assert len(service.calls) == calls
+    service.complete(retry_id, ArchiveChildrenResult("session-a", "", (), False, total_children=0))
+    assert model.data(model.index(6, 0)) == "Loading..."
+    _drain_events()
+    _, page, _ = service.latest("fetch_page")
+    assert page.page_start == 4 and page.query_id == "query-a"

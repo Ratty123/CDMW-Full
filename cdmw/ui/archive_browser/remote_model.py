@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import OrderedDict
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import PurePosixPath
 from typing import Optional
 
@@ -179,6 +179,31 @@ class RemoteArchiveBrowserModel(QAbstractItemModel):
     @property
     def inflight_page_starts(self) -> tuple[int, ...]:
         return tuple(sorted(self._inflight_pages))
+
+    def recover_query(self, handle: ArchiveQueryHandle) -> bool:
+        """Adopt reconstructed tokens after the caller verifies the fingerprint."""
+        previous = self._handle
+        if previous is None or (previous.generation, previous.total_matches) != (handle.generation, handle.total_matches):
+            return False
+        self._handle = handle
+        self._pages = OrderedDict((start, tuple(replace(row, session_id=handle.session_id) for row in rows))
+                                  for start, rows in self._pages.items())
+        for node in self._nodes_by_key.values():
+            if node.entry is not None:
+                node.entry = replace(node.entry, session_id=handle.session_id)
+        self._queued_pages.clear()
+        self._inflight_pages.clear()
+        self._row_cache.clear()
+        return True
+
+    def retain_view(self, generation: int) -> None:
+        """Keep displayed rows usable when a staged replacement is cancelled."""
+        if self._handle is not None:
+            self._handle = replace(self._handle, generation=generation)
+        self._queued_pages.clear()
+        self._inflight_pages.clear()
+        for node in self._nodes_by_key.values():
+            node.loading = False
 
     def publish_query(
         self,

@@ -236,7 +236,7 @@ class ArchiveMeshSwapSupportMixin:
             extension_index = getattr(self, "archive_entries_by_extension", {}) or {}
             if not extension_index and getattr(self, "archive_entries", ()):
                 if stop_event is None:
-                    self._ensure_archive_basic_index_worker_started()
+                    self._archive_catalogue_lookup_pending()
                 return ()
             candidate_groups = tuple(extension_index.get(extension, ()) for extension in (".app_xml", ".xml"))
         for candidates in candidate_groups:

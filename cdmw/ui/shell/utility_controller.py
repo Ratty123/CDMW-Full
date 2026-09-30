@@ -178,7 +178,7 @@ class UtilityControllerMixin:
         if is_expected_cancellation_message(message):
             self.set_status_message(message, error=True)
             self.append_log(message)
-            if self.archive.archive_scan_worker is not None or self.archive.archive_filter_worker is not None or self._utility_updates_archive_progress:
+            if self._utility_updates_archive_progress:
                 self.append_archive_log(message)
                 self.archive._set_archive_load_progress(message, phase="Stopping", percent=0, allow_decrease=True)
                 self._write_heartbeat("running")
@@ -192,9 +192,9 @@ class UtilityControllerMixin:
         )
         self.set_status_message(message, error=True)
         self.append_log(f"ERROR: {message}")
-        if self.archive.archive_scan_worker is not None or self.archive.archive_filter_worker is not None or self._utility_updates_archive_progress:
+        if self._utility_updates_archive_progress:
             self.append_archive_log(f"ERROR: {message}")
-            if self.archive.archive_scan_worker is not None:
+            if self.archive.archive_remote_query_pending:
                 self._set_archive_cache_health(
                     "unhealthy",
                     f"Cache Status: Unhealthy. Archive cache build failed: {message}",
@@ -211,20 +211,16 @@ class UtilityControllerMixin:
     def _cleanup_worker_refs(self, owner_thread: object | None = None) -> None:
         if owner_thread is not None and self.worker_thread is not owner_thread:
             return
-        rerun_archive_filter = bool(self.archive.archive_filter_apply_pending and not self._shutting_down and self.archive.archive_entries)
-        archive_finalize_pending = bool(self.archive.archive_scan_finalize_pending)
         utility_updates_archive_progress = bool(self._utility_updates_archive_progress)
         refresh_archive_browser = bool(
             self.archive.archive_browser_refresh_pending
-            and not rerun_archive_filter
             and not self._shutting_down
-            and self.archive.archive_entries
+            and self.archive.archive_remote_bridge is not None
+            and self.archive.archive_remote_bridge.current_session is not None
             and self._is_tool_visible_or_current(self.archive_browser_tab)
         )
         self.worker_thread = None
         self.textures.scan_worker = None
-        self.archive.archive_scan_worker = None
-        self.archive.archive_filter_worker = None
         if self.textures.build_worker is not None or self.textures.dds_to_png_worker is not None:
             self.textures.finish_texture_operation()
         self.textures.build_worker = None
@@ -233,9 +229,7 @@ class UtilityControllerMixin:
         self._utility_completion_handler = None
         self._utility_error_handler = None
         self._utility_updates_archive_progress = False
-        self.archive.archive_filter_apply_pending = False
-        if not archive_finalize_pending:
-            self.set_busy(False, build_mode=False)
+        self.set_busy(False, build_mode=False)
         if (
             self.archive.archive_sidecar_pending_start
             and self.archive.archive_sidecar_thread is None
@@ -243,12 +237,10 @@ class UtilityControllerMixin:
             and self._current_archive_performance_settings().enable_sidecar_indexing
         ):
             QTimer.singleShot(0, self.archive._start_archive_sidecar_index_worker)
-        if utility_updates_archive_progress and self.archive.archive_scan_worker is None and self.archive.archive_filter_worker is None:
+        if utility_updates_archive_progress:
             detail = str(getattr(self.archive, "_archive_load_progress_detail", "") or "Archive task complete.")
             self.archive._set_archive_load_progress(detail, phase="Ready", percent=100)
-        if rerun_archive_filter:
-            QTimer.singleShot(0, self.archive._apply_archive_filter)
-        elif refresh_archive_browser:
+        if refresh_archive_browser:
             QTimer.singleShot(0, self.archive._refresh_archive_browser_view)
         else:
             QTimer.singleShot(0, self.archive._maybe_release_startup_after_archive_ready)

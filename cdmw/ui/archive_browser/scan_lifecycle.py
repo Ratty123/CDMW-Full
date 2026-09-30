@@ -1,911 +1,135 @@
-"""Archive scan lifecycle orchestration."""
-
+"""Opening orchestration for the sole standalone archive backend."""
 from __future__ import annotations
 
-from collections import Counter
-from collections.abc import Mapping
 from pathlib import Path
-from typing import Dict, Optional
+import threading
 
-from PySide6.QtCore import QObject, QThread, QTimer, QUrl, Qt, Slot
-from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import QMessageBox
+from PySide6.QtCore import QThreadPool, Qt, Slot
 
-from cdmw.constants import ARCHIVE_BROWSER_VIEW_MODE
-from cdmw.domain.archives.backend_mode import (
-    ArchiveBackendMode,
-    ArchiveBackendSelection,
-)
-from cdmw.services.archive_workflow_service import ArchiveNameSearchIndex
-from cdmw.domain.archives.filters import archive_browser_sort_is_active
-from cdmw.services.diagnostics_service import timing_value as _timing_value
-from cdmw.services.archive_environment_service import find_suspicious_archive_tree_roots
-from cdmw.ui.shell.lazy_tool_tab import created_tool_widget
-from cdmw.workers.archive_scan_workers import ArchiveScanWorker
-
-
-class _ArchiveScanUiReceiver(QObject):
-    """Deliver archive worker results on the window's Qt thread."""
-
-    def __init__(self, window: object, owner_thread: QThread) -> None:
-        super().__init__(window)  # type: ignore[arg-type]
-        self._window = window
-        self._owner_thread: QThread | None = owner_thread
-
-    @Slot(str)
-    def handle_log(self, message: str) -> None:
-        self._window.append_log(message)
-        self._window.append_archive_log(message)
-
-    @Slot(int, int, str)
-    def handle_progress(self, current: int, total: int, detail: str) -> None:
-        self._window._handle_archive_scan_progress(current, total, detail)
-
-    @Slot(object)
-    def handle_completed(self, result: object) -> None:
-        self._window._handle_archive_scan_complete(result)
-
-    @Slot(str)
-    def handle_error(self, message: str) -> None:
-        self._window._handle_worker_error(message)
-
-    @Slot()
-    def handle_thread_finished(self) -> None:
-        owner_thread = self._owner_thread
-        if owner_thread is not None:
-            try:
-                if not owner_thread.wait(0):
-                    QTimer.singleShot(1, self.handle_thread_finished)
-                    return
-            except RuntimeError:
-                pass
-        self._owner_thread = None
-        self._window._cleanup_worker_refs(owner_thread)
-        if getattr(self._window, "archive_scan_ui_receiver", None) is self:
-            self._window.archive_scan_ui_receiver = None
-        if owner_thread is not None:
-            try:
-                owner_thread.deleteLater()
-            except RuntimeError:
-                pass
-        self.deleteLater()
+from cdmw.domain.archives.catalogue_operations import ArchiveBackendError
+from cdmw.ui.archive_browser.failure_report import ArchiveFailureDialog
+from cdmw.workers.game_executable_fingerprint import GameExecutableFingerprintTask
 
 
 class ArchiveScanLifecycleMixin:
-    """Archive scan start, result intake, and scan finalization."""
-
-    def _handle_archive_backend_v2_failure(self, kind: str, detail: str) -> None:
-        """Offer retry or an explicit, non-persistent legacy recovery."""
-
-        bridge = getattr(self, "archive_remote_bridge", None)
-        if (
-            bridge is None
-            or not bridge.displays_v2
-            or getattr(self, "archive_backend_mode", None) is not ArchiveBackendMode.V2
-            or bool(getattr(self, "archive_backend_failure_dialog_open", False))
-        ):
-            return
-
-        self.archive_backend_failure_dialog_open = True
-        box = QMessageBox(self)
-        box.setIcon(QMessageBox.Critical)
-        box.setWindowTitle("Archive Backend Failed")
-        box.setText(
-            "The standalone archive backend could not finish the requested operation."
-        )
-        box.setInformativeText(
-            f"Operation: {kind}\n\n{detail}\n\n"
-            "Retry v2, or explicitly use the legacy archive scanner for this app session only. "
-            "CDMW will not change your saved settings."
-        )
-        retry_button = box.addButton("Retry v2", QMessageBox.AcceptRole)
-        legacy_button = box.addButton("Use Legacy This Session", QMessageBox.ActionRole)
-        box.addButton("Cancel", QMessageBox.RejectRole)
-        box.setDefaultButton(retry_button)
-        try:
-            box.exec()
-            clicked = box.clickedButton()
-        finally:
-            self.archive_backend_failure_dialog_open = False
-
-        if clicked is retry_button:
-            bridge.retry_last_open()
-            return
-        if clicked is not legacy_button:
-            return
-
-        force_refresh = bool(bridge.last_force_refresh)
-        activate_tab = bool(bridge.last_activate_tab)
-        bridge.deactivate()
-        self.archive_remote_bridge = None
-        self.archive_backend_selection = ArchiveBackendSelection(
-            ArchiveBackendMode.LEGACY,
-            "session_failure_recovery",
-            True,
-        )
-        self.archive_backend_mode = ArchiveBackendMode.LEGACY
-        self.archive_remote_actions_safe = True
+    def _archive_package_root_changed(self, _text: str) -> None:
+        self.archive_game_fingerprint_stop.set()
+        self.archive_open_generation += 1
+        self.archive_open_game_fingerprints = None
+        self._clear_archive_failure_display()
+        bridge = self.archive_remote_bridge
+        if bridge is not None:
+            if not bridge.cancel_pending_update():
+                bridge.controller.cancel_pending()
+            bridge.cancel_preview_dependencies(clear_snapshot=True)
+            self.archive_catalogue_service.invalidate_before(bridge.controller.generation)
+        warmup = self.archive_item_finder_warmup_controller
+        if warmup is not None:
+            warmup.invalidate()
+        character_warmup = self.archive_character_finder_warmup_controller
+        if character_warmup is not None:
+            character_warmup.invalidate()
+        panel = getattr(self, "archive_item_names_failure_panel", None)
+        if panel is not None:
+            panel.clear()
         self.archive_remote_query_pending = False
-        self.archive_remote_total_matches = 0
-        self.archive_tree.use_legacy_model()
-        self.archive_tree.setRootIsDecorated(True)
-        self.archive_tree.setEnabled(True)
-        self.archive_catalogue_service.request_shutdown()
-        self.shell.append_archive_log(
-            "Archive backend v2 was disabled for this app session by explicit user choice; "
-            "starting the retained legacy archive scanner."
-        )
-        recorder = getattr(self.shell, "_record_runtime_event", None)
-        if callable(recorder):
-            recorder(
-                "archive_backend_session_legacy_selected",
-                failed_operation=str(kind),
-                error=str(detail),
-            )
-        QTimer.singleShot(
-            0,
-            lambda: self.scan_archives(
-                force_refresh=force_refresh,
-                activate_archive_tab=activate_tab,
-            ),
-        )
 
-    def _confirm_suspicious_archive_tree_scan(self, package_root: Path) -> bool:
-        try:
-            suspicious_roots = find_suspicious_archive_tree_roots(package_root)
-        except (OSError, ValueError) as exc:
-            self.shell.append_log(f"Archive root preflight could not inspect the selected folder: {exc}")
-            return True
-        if not suspicious_roots:
-            return True
-        shown = suspicious_roots[:8]
-        locations = "\n".join(f"- {path}" for path in shown)
-        if len(suspicious_roots) > len(shown):
-            locations += f"\n- ...and {len(suspicious_roots) - len(shown)} more"
-        box = QMessageBox(self)
-        box.setIcon(QMessageBox.Warning)
-        box.setWindowTitle("Possible Duplicate Game Archives")
-        box.setText(
-            "CDMW found archive indexes outside the normal game archive layout. "
-            "Backup or copied archives can create duplicate results and inflated file counts."
-        )
-        box.setInformativeText(
-            f"Suspicious locations:\n{locations}\n\n"
-            "Verify or repair the game installation and move archive backups outside the game folder."
-        )
-        scan_button = box.addButton("Scan Anyway", QMessageBox.AcceptRole)
-        open_button = box.addButton("Open Folder", QMessageBox.ActionRole)
-        box.addButton("Cancel Scan", QMessageBox.RejectRole)
-        box.exec()
-        clicked = box.clickedButton()
-        if clicked is open_button:
-            QDesktopServices.openUrl(QUrl.fromLocalFile(str(suspicious_roots[0])))
-        if clicked is scan_button:
-            return True
-        self.shell.set_status_message("Archive scan cancelled: possible duplicate game archives found.")
-        return False
+    def _clear_archive_failure_display(self) -> None:
+        dialog = getattr(self, "archive_backend_failure_dialog", None)
+        if dialog is not None:
+            dialog.close()
+        self.archive_backend_failure_dialog = None
+
+    def _handle_archive_backend_failure(self, kind: str, error: object) -> None:
+        if self.shell._shutting_down:
+            return
+        self._clear_archive_failure_display()
+        self.shell._release_startup_splash()
+        dialog = ArchiveFailureDialog(self)
+        self.archive_backend_failure_dialog = dialog
+        generation = self.archive_open_generation
+        bridge = self.archive_remote_bridge
+        def retry():
+            if self.shell._shutting_down or generation != self.archive_open_generation:
+                dialog.close()
+                return
+            dialog.close()
+            self.archive_backend_failure_dialog = None
+            if bridge is not None:
+                bridge.retry_failed_operation()
+            else:
+                self.scan_archives(activate_archive_tab=False)
+        dialog.retryRequested.connect(retry)
+        dialog.finished.connect(lambda _: setattr(self, "archive_backend_failure_dialog", None) if self.archive_backend_failure_dialog is dialog else None)
+        dialog.panel.show_failure("The archive operation could not finish.", error, operation=kind,
+                                  package_root=self.archive_package_root_edit.text().strip())
+        dialog.open()
+
+    def _handle_archive_item_names_failure(self, error: object) -> None:
+        if not self.shell._shutting_down:
+            self.archive_item_names_failure_panel.show_failure("Item names unavailable", error, operation="build_name_index",
+                package_root=self.archive_package_root_edit.text().strip())
+
+    def _publish_archive_game_update_fingerprints(self) -> None:
+        if self.archive_open_game_fingerprints is not None:
+            self.shell._save_game_executable_fingerprints(self.archive_open_game_fingerprints)
+            self.archive_open_game_fingerprints = None
 
     def scan_archives(self, force_refresh: bool = False, *, activate_archive_tab: bool = True) -> None:
-        remote_bridge = getattr(self, "archive_remote_bridge", None)
-        if (
-            force_refresh
-            and remote_bridge is not None
-            and remote_bridge.displays_v2
-            and bool(getattr(self, "archive_remote_query_pending", False))
-        ):
-            remote_bridge.cancel_pending_update()
+        bridge = self.archive_remote_bridge
+        if self.shell._shutting_down:
             return
-        backend_selection = getattr(self, "archive_backend_selection", None)
-        if (
-            backend_selection is not None
-            and not backend_selection.valid
-            and not self.archive_backend_mode_warning_logged
-        ):
-            self.archive_backend_mode_warning_logged = True
-            self.shell.append_archive_log(
-                "Unsupported CDMW_ARCHIVE_BACKEND value "
-                f"{backend_selection.configured_value!r}; using the default v2 archive backend."
-            )
-        self._archive_scan_progress_timer.stop()
-        self._archive_scan_progress_pending = None
-        self._mark_archive_browser_render_stale()
-        self.archive_browser_first_visible_paint_done = False
-        self.archive_deferred_basic_index_start_pending = self.archive_deferred_enhanced_index_start_pending = False
-        self.archive_deferred_derived_cache_write_pending = self.archive_deferred_sidecar_start_pending = False
-        self.archive_item_icon_preload_pending_after_ready = False
-        self.archive_enhanced_filter_refresh_pending = False
-        self.archive_basic_index_state = "idle"
-        self.archive_enhanced_index_activity = "idle"
-        self.archive_entry_metadata_signature = ""
-        self.archive_entry_metadata_sources = ()
-        self.archive_scan_shard_entry_signatures = {}
-        self.archive_scan_shard_entry_counts = {}
-        self.archive_result_filter_signature = ()
-        self.archive_structure_filter_state = "idle"
-        self.archive_structure_filter_children = {}
-        if not bool(getattr(self, "archive_startup_hold_until_ready", False)):
-            self.archive_startup_index_warmup_required = False
+        if force_refresh and self.archive_remote_query_pending:
+            self.archive_game_fingerprint_stop.set()
+            self.archive_open_generation += 1
+            if bridge is not None:
+                bridge.cancel_pending_update()
+            return
         if self.shell._background_task_active(block_on_archive_index=False):
             return
-        package_root_text = self.archive_package_root_edit.text().strip()
-        if not package_root_text:
-            if not self.shell._prompt_for_archive_package_root_if_missing(
-                reason="refresh" if force_refresh else "scan",
-                after_autodetect=lambda: self.scan_archives(
-                    force_refresh=force_refresh,
-                    activate_archive_tab=activate_archive_tab,
-                ),
-            ):
+        root_text = self.archive_package_root_edit.text().strip()
+        if not root_text:
+            if not self.shell._prompt_for_archive_package_root_if_missing(reason="refresh" if force_refresh else "scan",
+                after_autodetect=lambda: self.scan_archives(force_refresh, activate_archive_tab=activate_archive_tab)):
                 return
-            package_root_text = self.archive_package_root_edit.text().strip()
-            if not package_root_text:
+            root_text = self.archive_package_root_edit.text().strip()
+            if not root_text:
                 return
-        self._stop_archive_sidecar_worker()
-        self._stop_archive_derived_cache_worker()
-        self._stop_archive_basic_index_worker()
-        self.archive_sidecar_request_id += 1
-        self.archive_sidecar_pending_start = False
-
-        package_root = Path(package_root_text).expanduser()
-        if remote_bridge is not None and remote_bridge.displays_v2:
-            self._activate_archive_browser_on_scan_complete = activate_archive_tab
-            self.shell.clear_archive_scan_log()
-            self.shell._set_archive_cache_health(
-                "building",
-                "Cache Status: Building. Standalone archive catalogue is preparing a generation.",
-                package_root=package_root_text,
-            )
-            self.shell._set_last_active_operation(
-                "archive_catalogue_v2_refresh" if force_refresh else "archive_catalogue_v2_open",
-                package_root=str(package_root),
-                force_refresh=force_refresh,
-            )
-            remote_bridge.open_archive(
-                package_root,
-                force_refresh=force_refresh,
-                activate_tab=activate_archive_tab,
-            )
+        if bridge is None:
+            self._handle_archive_backend_failure("open_archive", ArchiveBackendError("backend_unavailable", "The standalone archive backend is unavailable."))
             return
-        if not self._confirm_suspicious_archive_tree_scan(package_root):
-            return
-        self._activate_archive_browser_on_scan_complete = activate_archive_tab
-        if activate_archive_tab:
-            self.shell._activate_tool_widget(self.shell.archive_browser_tab)
-        self.shell._set_archive_cache_health(
-            "building",
-            "Cache Status: Building. Archive scan/cache build is running.",
-            package_root=package_root_text,
-        )
-        self._reset_archive_load_progress()
-        preparing_text = "Preparing archive refresh..." if force_refresh else "Preparing archive scan / cache load..."
-        self._set_archive_load_progress(preparing_text)
-        self.shell._update_startup_splash(f"{preparing_text} (1%)", 1, 100)
-        self.shell._write_heartbeat("archive_refresh" if force_refresh else "archive_load")
-        self._set_archive_warmup_overlay(
-            True,
-            "Preparing Archive Browser",
-            (
-                "Loading the archive index first. Texture sidecar bindings can continue warming in the background "
-                "after the browser opens."
-            ),
-        )
-        self.shell.set_status_message("Refreshing archives..." if force_refresh else "Loading archives...")
-        self.shell.append_log("Refreshing archives..." if force_refresh else "Loading archives...")
+        self._clear_archive_failure_display()
+        self.archive_item_names_failure_panel.clear()
+        self.archive_game_fingerprint_stop.set()
+        self.archive_game_fingerprint_stop = threading.Event()
+        self.archive_open_generation += 1
+        generation = self.archive_open_generation
+        self.archive_open_game_fingerprints = None
+        self._archive_open_options = (Path(root_text).expanduser(), force_refresh, activate_archive_tab)
+        self.archive_remote_query_pending = True
         self.shell.clear_archive_scan_log()
-        self.shell.append_archive_log(
-            "Starting archive refresh." if force_refresh else "Starting archive scan (cache-aware)."
-        )
-        self.shell._set_last_active_operation(
-            "archive_scan",
-            package_root=str(package_root),
-            force_refresh=force_refresh,
-        )
+        if self.archive_obsolete_backend_override is not None and not self.archive_obsolete_override_logged:
+            self.archive_obsolete_override_logged = True
+            self.shell.append_archive_log("CDMW_ARCHIVE_BACKEND is obsolete and ignored; using the standalone archive backend.")
+        self.shell._set_archive_cache_health("building", "Cache Status: Building. Standalone archive catalogue is preparing a generation.", package_root=root_text)
+        self._set_archive_load_progress("Checking game version...", phase="Preparing")
+        task = GameExecutableFingerprintTask(generation, self._archive_open_options[0], self.shell._load_game_executable_fingerprints(), self.archive_game_fingerprint_stop)
+        task.signals.completed.connect(self._archive_game_fingerprint_checked, Qt.QueuedConnection)
+        self.archive_game_fingerprint_task = task
+        QThreadPool.globalInstance().start(task)
 
-        browser_view_will_render_now = bool(
-            activate_archive_tab or self.shell._is_tool_visible_or_current(self.shell.archive_browser_tab)
-        )
-        startup_deferred_archive_load = bool(
-            getattr(self, "archive_startup_autoload_defer_preview", False)
-            and not activate_archive_tab
-        )
-        if not startup_deferred_archive_load:
-            queued_filter_state = self._capture_archive_filter_state()
-            queued_filter_signature = self._archive_filter_state_signature(queued_filter_state)
-            queue_filters_after_first_list = bool(
-                queued_filter_signature != self._neutral_archive_filter_signature()
-            )
-            if queue_filters_after_first_list:
-                self.archive_startup_saved_filter_state = dict(queued_filter_state)
-                self.archive_startup_saved_filter_apply_pending = True
-                self.archive_startup_saved_filter_wait_logged = False
-                self.shell.append_archive_log("Current filters will apply when search is ready.")
-                self.shell.set_status_message("Current filters will apply when search is ready.")
-                self._apply_archive_filter_state(
-                    {
-                        "filter_text": "",
-                        "exclude_filter_text": "",
-                        "extension_filter": "*",
-                        "package_filter_text": "",
-                        "structure_filter": "",
-                        "role_filter": "all",
-                        "exclude_common_technical_suffixes": False,
-                        "min_size_kb": 0,
-                        "previewable_only": False,
-                        "view_mode": ARCHIVE_BROWSER_VIEW_MODE,
-                        "sort_column": -1,
-                        "sort_order": "asc",
-                    }
-                )
-            else:
-                self.archive_startup_saved_filter_apply_pending = False
-                self.archive_startup_saved_filter_state = {}
-                self.archive_startup_saved_filter_wait_logged = False
-        browser_view_will_warm_for_startup = bool(browser_view_will_render_now or startup_deferred_archive_load)
-        build_browser_tree_index = bool(
-            not startup_deferred_archive_load
-            and
-            self._archive_folder_tree_enabled()
-            and browser_view_will_warm_for_startup
-        )
-        build_browser_category_index = bool(
-            not startup_deferred_archive_load
-            and
-            self._archive_category_view_enabled()
-            and browser_view_will_warm_for_startup
-        )
-        initial_sort_column = self.archive_tree_sort_column
-        initial_sort_deferred = bool(
-            not startup_deferred_archive_load
-            and
-            browser_view_will_warm_for_startup
-            and archive_browser_sort_is_active(initial_sort_column)
-        )
-        initial_worker_sort_column = -1 if initial_sort_deferred else initial_sort_column
-        worker_filter_text = self.archive_filter_edit.text().strip()
-        worker_exclude_filter_text = self.archive_exclude_filter_edit.text().strip()
-        worker_extension_filter = self.textures._combo_value(self.archive_extension_filter_combo)
-        worker_package_filter_text = self.archive_package_filter_edit.text().strip()
-        worker_structure_filter = self._current_archive_structure_filter_value()
-        worker_role_filter = self.textures._combo_value(self.archive_role_filter_combo)
-        worker_exclude_common_technical_suffixes = self.archive_exclude_common_technical_checkbox.isChecked()
-        worker_min_size_kb = self.archive_min_size_spin.value()
-        worker_previewable_only = self.archive_previewable_only_checkbox.isChecked()
-        worker_view_mode = self._archive_browser_view_mode()
-        if startup_deferred_archive_load:
-            worker_filter_text = ""
-            worker_exclude_filter_text = ""
-            worker_extension_filter = "*"
-            worker_package_filter_text = ""
-            worker_structure_filter = ""
-            worker_role_filter = "all"
-            worker_exclude_common_technical_suffixes = False
-            worker_min_size_kb = 0
-            worker_previewable_only = False
-            worker_view_mode = ARCHIVE_BROWSER_VIEW_MODE
-            initial_worker_sort_column = -1
-        result_filter_signature = self._archive_filter_signature_from_values(
-            filter_text=worker_filter_text,
-            exclude_filter_text=worker_exclude_filter_text,
-            extension_filter=worker_extension_filter,
-            package_filter_text=worker_package_filter_text,
-            structure_filter=worker_structure_filter,
-            role_filter=worker_role_filter,
-            exclude_common_technical_suffixes=worker_exclude_common_technical_suffixes,
-            min_size_kb=worker_min_size_kb,
-            previewable_only=worker_previewable_only,
-            view_mode=worker_view_mode,
-            sort_column=initial_worker_sort_column,
-            sort_order=self.archive_tree_sort_order,
-        )
-        self.archive_initial_sort_apply_pending = initial_sort_deferred
-        if initial_sort_deferred:
-            self.shell.append_archive_log(
-                "Archive Browser first render is skipping active column sort; sort will apply after the first paint.",
-                verbose=True,
-            )
-        performance_settings = self.shell._current_archive_performance_settings()
-        startup_index_warmup = bool(
-            getattr(self, "archive_startup_hold_until_ready", False)
-            and getattr(self, "archive_startup_index_warmup_required", False)
-        )
-        worker = ArchiveScanWorker(
-            package_root,
-            self.archive_cache_root,
-            force_refresh=force_refresh,
-            build_structure_children=False,
-            build_tree_index=build_browser_tree_index,
-            filter_text=worker_filter_text,
-            exclude_filter_text=worker_exclude_filter_text,
-            extension_filter=worker_extension_filter,
-            package_filter_text=worker_package_filter_text,
-            structure_filter=worker_structure_filter,
-            role_filter=worker_role_filter,
-            exclude_common_technical_suffixes=worker_exclude_common_technical_suffixes,
-            min_size_kb=worker_min_size_kb,
-            previewable_only=worker_previewable_only,
-            build_category_index=build_browser_category_index,
-            sort_column=initial_worker_sort_column,
-            sort_order=self.archive_tree_sort_order,
-            result_filter_signature=result_filter_signature,
-            load_basic_index_cache=bool(
-                startup_index_warmup
-                or self.archive_startup_saved_filter_apply_pending
-                and self._archive_filter_state_needs_basic_lookup(
-                    getattr(self, "archive_startup_saved_filter_state", {}) or {}
-                )
-            ),
-            load_name_search_index_cache=startup_index_warmup,
-            defer_enhanced_index_build=bool(startup_deferred_archive_load and not startup_index_warmup),
-            native_archive_acceleration=performance_settings.native_archive_acceleration,
-            resource_profile=performance_settings.resource_profile,
-            game_executable_fingerprints=self.shell._load_game_executable_fingerprints(),
-            crash_reports_dir=self.shell.crash_reports_dir,
-        )
-        thread = QThread(self)
-        thread.setObjectName("archive_scan")
-        worker.moveToThread(thread)
-        receiver = _ArchiveScanUiReceiver(self, thread)
-        thread.started.connect(worker.run)
-        worker.log_message.connect(receiver.handle_log, Qt.ConnectionType.QueuedConnection)
-        worker.progress_changed.connect(receiver.handle_progress, Qt.ConnectionType.QueuedConnection)
-        worker.completed.connect(receiver.handle_completed, Qt.ConnectionType.QueuedConnection)
-        worker.error.connect(receiver.handle_error, Qt.ConnectionType.QueuedConnection)
-        worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
-        thread.finished.connect(receiver.handle_thread_finished, Qt.ConnectionType.QueuedConnection)
-
-        self.archive_scan_ui_receiver = receiver
-        self.archive_scan_worker = worker
-        self.shell.worker_thread = thread
-        self.shell.set_busy(True, build_mode=False)
-        thread.start()
-
-    def _ensure_archive_extension_index_ready(self) -> None:
-        if self.archive_entries_by_extension or not self.archive_entries:
+    @Slot(int, object)
+    def _archive_game_fingerprint_checked(self, generation: int, result: object) -> None:
+        if self.shell._shutting_down or generation != self.archive_open_generation or self.archive_game_fingerprint_stop.is_set():
             return
-        self._ensure_archive_basic_index_worker_started()
-
-    def _handle_archive_scan_complete(self, result: object) -> None:
-        self._flush_archive_scan_progress()
-        payload = result if isinstance(result, dict) else {}
-        updated_fingerprints = payload.get("game_executable_fingerprints")
-        if isinstance(updated_fingerprints, Mapping):
-            self.shell._save_game_executable_fingerprints(updated_fingerprints)
-        self._clear_archive_preview_cache()
-        self._clear_archive_asset_family_cache()
-        self.archive_entries = payload.get("entries", []) if isinstance(payload.get("entries"), list) else []
-        self.archive_entries_by_normalized_path = (
-            payload.get("path_index", {})
-            if isinstance(payload.get("path_index"), Mapping)
-            else {}
-        )
-        self.archive_entries_by_basename = (
-            payload.get("basename_index", {})
-            if isinstance(payload.get("basename_index"), Mapping)
-            else {}
-        )
-        self.archive_entries_by_extension = (
-            payload.get("extension_index", {})
-            if isinstance(payload.get("extension_index"), Mapping)
-            else {}
-        )
-        self.archive_mesh_entries_by_normalized_path = (
-            payload.get("mesh_path_index", {})
-            if isinstance(payload.get("mesh_path_index"), Mapping)
-            else {}
-        )
-        self.archive_mesh_companion_by_identity = (
-            payload.get("mesh_companion_index", {})
-            if isinstance(payload.get("mesh_companion_index"), Mapping)
-            else {}
-        )
-        self.archive_entries_by_role = (
-            payload.get("role_index", {})
-            if isinstance(payload.get("role_index"), Mapping)
-            else {}
-        )
-        extension_counts_payload = payload.get("extension_counts", {})
-        self.archive_extension_counts = Counter(
-            {
-                str(extension): int(count)
-                for extension, count in (extension_counts_payload.items() if isinstance(extension_counts_payload, Mapping) else ())
-                if extension
-            }
-        )
-        if self.archive_entries_by_extension and not self.archive_extension_counts:
-            self.archive_extension_counts = Counter(
-                {
-                    str(extension): len(items)
-                    for extension, items in self.archive_entries_by_extension.items()
-                    if extension
-                }
-            )
-        self._ensure_archive_extension_index_ready()
-        self.archive_character_appearance_swap_cache = {}
-        self.archive_entry_metadata_signature = str(payload.get("entry_metadata_signature", "") or "").strip()
-        self.archive_entry_metadata_sources = tuple(
-            tuple(row)
-            for row in (payload.get("entry_metadata_sources", ()) or ())
-            if isinstance(row, (list, tuple)) and len(row) == 3
-        )
-        scan_metadata_payload = payload.get("scan_metadata", {}) if isinstance(payload.get("scan_metadata"), Mapping) else {}
-        raw_shard_signatures = scan_metadata_payload.get("scan_shard_entry_signatures")
-        self.archive_scan_shard_entry_signatures = {
-            str(key): str(value)
-            for key, value in (raw_shard_signatures.items() if isinstance(raw_shard_signatures, Mapping) else ())
-            if str(key)
-        }
-        raw_shard_counts = scan_metadata_payload.get("scan_shard_entry_counts")
-        self.archive_scan_shard_entry_counts = {}
-        if isinstance(raw_shard_counts, Mapping):
-            for key, value in raw_shard_counts.items():
-                try:
-                    self.archive_scan_shard_entry_counts[str(key)] = int(value)
-                except (TypeError, ValueError):
-                    continue
-        self.archive_result_filter_signature = tuple(payload.get("result_filter_signature") or self._current_archive_filter_signature())
-        performance_settings = self.shell._current_archive_performance_settings()
-        saved_filter_state = getattr(self, "archive_startup_saved_filter_state", {}) or {}
-        if not isinstance(saved_filter_state, Mapping):
-            saved_filter_state = {}
-        saved_filter_needs_basic = bool(
-            self.archive_startup_saved_filter_apply_pending
-            and self._archive_filter_state_needs_basic_lookup(saved_filter_state)
-        )
-        saved_filter_requires_item_search = bool(
-            self.archive_startup_saved_filter_apply_pending
-            and self._archive_filter_state_explicitly_requires_item_search(saved_filter_state)
-        )
-        current_filter_state = self._capture_archive_filter_state()
-        current_filter_needs_basic = self._archive_filter_state_needs_basic_lookup(current_filter_state)
-        current_filter_requires_item_search = self._archive_filter_state_explicitly_requires_item_search(current_filter_state)
-        priority_prewarm_indexes = bool(
-            performance_settings.maximum_indexing_priority
-            or performance_settings.resource_profile == "maximum_throughput"
-        )
-        basic_indexes_ready = bool(
-            self.archive_entries_by_normalized_path
-            and self.archive_entries_by_basename
-            and self.archive_entries_by_extension
-            and self.archive_entries_by_role
-        )
-        basic_index_needs_build = bool(payload.get("basic_index_needs_build") and self.archive_entries)
-        prewarm_basic_index = bool(
-            basic_index_needs_build
-            and (
-                priority_prewarm_indexes
-                or saved_filter_needs_basic
-                or current_filter_needs_basic
-            )
-        )
-        self.archive_basic_index_state = (
-            "ready"
-            if basic_indexes_ready
-            else "warming"
-            if prewarm_basic_index
-            else "idle"
-        )
-        name_search_index = payload.get("name_search_index")
-        self.archive_name_search_index = (
-            name_search_index
-            if isinstance(name_search_index, ArchiveNameSearchIndex)
-            else None
-        )
-        self.archive_item_search_aliases = (
-            payload.get("item_search_aliases", {})
-            if isinstance(payload.get("item_search_aliases"), dict)
-            else {}
-        )
-        self.archive_item_display_names = (
-            payload.get("item_display_names", {})
-            if isinstance(payload.get("item_display_names"), dict)
-            else {}
-        )
-        self.archive_item_exact_display_names = (
-            payload.get("item_exact_display_names", {})
-            if isinstance(payload.get("item_exact_display_names"), dict)
-            else {}
-        )
-        self.archive_item_related_display_names = (
-            payload.get("item_related_display_names", {})
-            if isinstance(payload.get("item_related_display_names"), dict)
-            else {}
-        )
-        self.archive_item_asset_catalog = [
-            dict(row)
-            for row in (payload.get("item_asset_catalog", []) or [])
-            if isinstance(row, Mapping)
-        ]
-        self._clear_archive_asset_catalog_icon_cache()
-        self.archive_item_icon_preload_pending_after_ready = bool(self.archive_item_asset_catalog)
-        self._schedule_archive_asset_catalog_icon_preload()
-        self.archive_active_asset_catalog_scope = ""
-        self.archive_clear_asset_scope_button.setVisible(False)
-        self.archive_clear_asset_scope_button.setEnabled(False)
-        self.archive_filter_edit.setPlaceholderText("Include path/item-name filter or glob, e.g. Vow of the Dead King or */texture/*")
-        self.archive_asset_catalog_button.setEnabled(bool(self.archive_item_asset_catalog))
-        self.archive_derived_cache_write_pending = bool(
-            payload.get("derived_cache_needs_write")
-            and self.archive_entries
-            and self.archive_name_search_index is not None
-        )
-        enhanced_index_needs_build = bool(payload.get("enhanced_index_needs_build") and self.archive_entries)
-        prewarm_enhanced_index = bool(
-            enhanced_index_needs_build
-            and (
-                priority_prewarm_indexes
-                or saved_filter_requires_item_search
-                or current_filter_requires_item_search
-            )
-        )
-        self.archive_enhanced_index_auto_prewarm_pending = False
-        self.archive_deferred_basic_index_start_pending = bool(prewarm_basic_index)
-        self.archive_enhanced_index_state = (
-            "ready"
-            if self.archive_name_search_index is not None or not enhanced_index_needs_build
-            else "warming"
-            if prewarm_enhanced_index
-            else "idle"
-        )
-        self.archive_enhanced_index_activity = "loading" if prewarm_enhanced_index else "idle"
-        self.archive_deferred_enhanced_index_start_pending = bool(prewarm_enhanced_index)
-        if basic_index_needs_build and not prewarm_basic_index:
-            self.shell.append_archive_log(
-                "Path lookup cache deferred; it will build when filters, related-file lookup, preview, or priority indexing need it."
-            )
-        if enhanced_index_needs_build and not prewarm_enhanced_index:
-            self.shell.append_archive_log(
-                "Item-name search cache deferred; explicit name: searches, Item Finder, or priority indexing can start it."
-            )
-        self.archive_native_derived_cache_ready = bool(payload.get("archive_native_derived_cache_ready"))
-        self.archive_sidecar_entries_by_texture_path = (
-            payload.get("sidecar_entries_by_texture_path", {})
-            if isinstance(payload.get("sidecar_entries_by_texture_path"), Mapping)
-            else {}
-        )
-        self.archive_sidecar_entries_by_texture_basename = (
-            payload.get("sidecar_entries_by_texture_basename", {})
-            if isinstance(payload.get("sidecar_entries_by_texture_basename"), Mapping)
-            else {}
-        )
-        self.archive_sidecar_generation += 1
-        self.archive_sidecar_pending_start = bool(
-            self.archive_entries
-            and performance_settings.enable_sidecar_indexing
-            and priority_prewarm_indexes
-        )
-        if (
-            self.archive_entries
-            and performance_settings.enable_sidecar_indexing
-            and not priority_prewarm_indexes
-        ):
-            self.shell.append_archive_log(
-                "Global texture-sidecar indexing deferred; direct model preview resolves its own material dependencies."
-            )
-        if not performance_settings.enable_sidecar_indexing:
-            self.archive_sidecar_entries_by_texture_path = {}
-            self.archive_sidecar_entries_by_texture_basename = {}
-        package_root_text = self.archive_package_root_edit.text().strip()
-        def update_text_search_entries() -> None:
-            text_search_tab = created_tool_widget(getattr(self.shell, "text_search_tab", None))
-            if text_search_tab is not None:
-                text_search_tab.set_archive_entries(self.archive_entries, package_root_text)
-
-        QTimer.singleShot(0, update_text_search_entries)
-        browser_state = payload.get("browser_state") if isinstance(payload.get("browser_state"), dict) else {}
-        self.archive_structure_filter_children = (
-            browser_state.get("structure_children", {})
-            if isinstance(browser_state.get("structure_children"), dict)
-            else {}
-        )
-        self.archive_structure_filter_state = "ready" if self.archive_structure_filter_children else "idle"
-        self.archive_filtered_entries = (
-            browser_state.get("filtered_entries", [])
-            if isinstance(browser_state.get("filtered_entries"), list)
-            else []
-        )
-        self.archive_tree_child_folders = (
-            browser_state.get("tree_child_folders", {})
-            if isinstance(browser_state.get("tree_child_folders"), dict)
-            else {}
-        )
-        self.archive_tree_direct_files = (
-            browser_state.get("tree_direct_files", {})
-            if isinstance(browser_state.get("tree_direct_files"), dict)
-            else {}
-        )
-        self.archive_tree_folder_entry_indexes = (
-            browser_state.get("tree_folder_entry_indexes", {})
-            if isinstance(browser_state.get("tree_folder_entry_indexes"), dict)
-            else {}
-        )
-        self.archive_tree_folder_preview_stats = (
-            browser_state.get("tree_folder_preview_stats", {})
-            if isinstance(browser_state.get("tree_folder_preview_stats"), dict)
-            else {}
-        )
-        self.archive_tree_category_entry_indexes = (
-            browser_state.get("category_entry_indexes", {})
-            if isinstance(browser_state.get("category_entry_indexes"), dict)
-            else {}
-        )
-        self.archive_tree_index_ready = bool(browser_state.get("tree_index_ready", True))
-        self._rebuild_archive_extension_filter_choices()
-        self.archive_filtered_dds_count = int(browser_state.get("dds_count", 0))
-        self.archive_filters_dirty = False
-        self._update_archive_filter_button_state()
-        def update_replace_assistant_entries() -> None:
-            replace_assistant_tab = created_tool_widget(getattr(self.shell, "replace_assistant_tab", None))
-            if replace_assistant_tab is not None:
-                replace_assistant_tab.set_archive_entries(self.archive_entries, package_root_text)
-
-        QTimer.singleShot(0, update_replace_assistant_entries)
-        source = str(payload.get("source", "scan"))
-        cache_path_text = str(payload.get("cache_path", "")).strip()
-        timings = payload.get("timings", {}) if isinstance(payload.get("timings"), dict) else {}
-        timing_summary = str(payload.get("timing_summary", "")).strip()
-        scan_metadata = payload.get("scan_metadata", {}) if isinstance(payload.get("scan_metadata"), Mapping) else {}
-        raw_shard_signatures = scan_metadata.get("scan_shard_entry_signatures")
-        self.archive_scan_shard_entry_signatures = {
-            str(key): str(value)
-            for key, value in (raw_shard_signatures.items() if isinstance(raw_shard_signatures, Mapping) else ())
-            if str(key)
-        }
-        raw_shard_counts = scan_metadata.get("scan_shard_entry_counts")
-        shard_entry_counts: Dict[str, int] = {}
-        if isinstance(raw_shard_counts, Mapping):
-            for key, value in raw_shard_counts.items():
-                try:
-                    shard_entry_counts[str(key)] = int(value)
-                except (TypeError, ValueError):
-                    continue
-        self.archive_scan_shard_entry_counts = shard_entry_counts
-        stale_count = int(scan_metadata.get("scan_shard_stale_count", 0) or 0)
-        rebuilt_count = int(scan_metadata.get("scan_shard_rebuilt_count", 0) or 0)
-        if self.archive_entries:
-            if source == "cache" and stale_count <= 0 and rebuilt_count <= 0:
-                self.shell._set_archive_cache_health(
-                    "healthy",
-                    f"Cache Status: Healthy. {len(self.archive_entries):,} archive entries loaded from current cache.",
-                    package_root=package_root_text,
-                )
-            else:
-                rebuild_note = (
-                    f" Rebuilt {rebuilt_count:,} stale shard(s)." if rebuilt_count > 0 else ""
-                )
-                self.shell._set_archive_cache_health(
-                    "healthy",
-                    f"Cache Status: Healthy. Archive cache matches current game files.{rebuild_note}",
-                    package_root=package_root_text,
-                )
-        rendering_archive_view = (
-            self._activate_archive_browser_on_scan_complete
-            or self.shell._is_tool_visible_or_current(self.shell.archive_browser_tab)
-        )
-        self.shell._write_heartbeat("archive_finalize")
-        finalize_text = "Rendering archive browser view..." if rendering_archive_view else "Finalizing archive load..."
-        self._set_archive_load_progress(finalize_text, percent=90 if rendering_archive_view else 96)
-        self.shell._update_startup_splash(f"{finalize_text} ({self._archive_load_progress_percent}%)", self._archive_load_progress_percent, 100)
-        self.shell.set_status_message(finalize_text)
-        self.shell.append_archive_log(finalize_text)
-        self.archive_scan_finalize_pending = True
-        QTimer.singleShot(
-            0,
-            lambda source=source, cache_path_text=cache_path_text, timings=timings, timing_summary=timing_summary: self._finalize_archive_scan_complete(
-                source,
-                cache_path_text,
-                timings,
-                timing_summary,
-            ),
-        )
-
-    def _finalize_archive_scan_complete(
-        self,
-        source: str,
-        cache_path_text: str,
-        timings: Optional[Dict[str, float]] = None,
-        timing_summary: str = "",
-    ) -> None:
-        start_sidecar_after_finalize = False
-        try:
-            completion_text = (
-                f"Loaded {len(self.archive_entries):,} archive entries from cache."
-                if source == "cache"
-                else f"Archive scan complete. Found {len(self.archive_entries):,} entries."
-            )
-            self.shell._record_runtime_event(
-                "archive_scan_complete",
-                source=source,
-                entry_count=len(self.archive_entries),
-                cache_path=cache_path_text,
-                timing_summary=timing_summary,
-            )
-            if cache_path_text and source == "scan":
-                self.shell.append_archive_log(f"Archive cache ready: {cache_path_text}")
-            if timing_summary:
-                self.shell.append_archive_log(timing_summary, verbose=True)
-            if source == "cache" and _timing_value(timings, "total_s") > 2.0:
-                self.shell.append_archive_log(
-                    f"WARNING: Archive cache hit is slower than expected: total={_timing_value(timings, 'total_s'):.2f}s.",
-                    verbose=True,
-                )
-            performance_settings = self.shell._current_archive_performance_settings()
-            if (
-                self.archive_sidecar_pending_start
-                and self.archive_entries
-                and performance_settings.enable_sidecar_indexing
-            ):
-                start_sidecar_after_finalize = True
-                self.archive_browser_warmup_pending = False
-                self.archive_browser_warmup_completion_text = completion_text
-                warmup_text = "Loading texture sidecar cache in the background..."
-                self.archive_tree.setEnabled(True)
-                self._set_archive_load_progress(
-                    "Archive entries loaded. Texture sidecar cache is tracked in the compact status indicator.",
-                    phase="Sidecar",
-                    percent=96,
-                )
-                self._set_archive_sidecar_status(warmup_text)
-                self.shell.set_status_message(warmup_text)
-                self.shell.append_archive_log(warmup_text)
-            else:
-                self.archive_sidecar_pending_start = False
-            release_startup_now = bool(
-                getattr(self.shell, "_startup_splash_window", None) is not None
-                and not bool(getattr(self, "archive_startup_hold_until_ready", False))
-            )
-            if release_startup_now:
-                self.shell._update_startup_splash(completion_text, 1, 1)
-                self.shell._write_heartbeat("running")
-                self.shell._release_startup_splash()
-            self._refresh_or_defer_archive_browser_view(
-                activate_tab=self._activate_archive_browser_on_scan_complete,
-                on_complete=None,
-                force_render=False,
-            )
-            self._activate_archive_browser_on_scan_complete = False
-            self._refresh_or_defer_research_archive_picker()
-            self._set_archive_list_status(completion_text)
-            self.shell.append_archive_log(completion_text)
-            self._record_archive_memory_audit("archive_scan_complete", log_if_high=True)
-            self._set_archive_warmup_overlay(False)
-            self.shell._finish_startup_benchmark_after_archive_ready(
-                reason="archive_scan_complete",
-                source=source,
-                timings=timings,
-                timing_summary=timing_summary,
-            )
-            if (
-                not release_startup_now
-                and not bool(getattr(self, "archive_startup_hold_until_ready", False))
-            ):
-                self.shell._write_heartbeat("running")
-                self.shell._release_startup_splash()
-            remote_bridge = getattr(self, "archive_remote_bridge", None)
-            if remote_bridge is not None and remote_bridge.shadows_legacy:
-                remote_bridge.schedule_shadow_comparison("scan_complete")
-        finally:
-            self.archive_scan_finalize_pending = False
-            if self.archive_derived_cache_write_pending:
-                self.archive_deferred_derived_cache_write_pending = True
-            if start_sidecar_after_finalize:
-                self.archive_deferred_sidecar_start_pending = True
-            if self.shell._startup_benchmark_enabled():
-                self.archive_deferred_background_start_pending = False
-                self.archive_deferred_basic_index_start_pending = False
-                self.archive_deferred_enhanced_index_start_pending = False
-                self.archive_deferred_derived_cache_write_pending = False
-                self.archive_startup_hold_until_ready = False
-                if not release_startup_now:
-                    self.shell._write_heartbeat("running")
-                    self.shell._release_startup_splash()
-            elif bool(getattr(self, "archive_startup_hold_until_ready", False)):
-                self.archive_deferred_background_start_pending = False
-                QTimer.singleShot(0, self._maybe_release_startup_after_archive_ready)
-            else:
-                self._schedule_archive_post_ready_background_work()
-            if self.shell.worker_thread is None:
-                self.shell.set_busy(False, build_mode=False)
-
-
-__all__ = ["ArchiveScanLifecycleMixin"]
+        self.archive_game_fingerprint_task = None
+        root, force_refresh, activate_tab = self._archive_open_options
+        if str(root) != str(Path(self.archive_package_root_edit.text().strip()).expanduser()):
+            self.archive_remote_query_pending = False
+            return
+        records, logs, changed = result
+        self.archive_open_game_fingerprints = records
+        for message in logs:
+            self.shell.append_archive_log(message)
+        self.shell._set_last_active_operation("archive_catalogue_refresh" if force_refresh or changed else "archive_catalogue_open", package_root=str(root), force_refresh=force_refresh or changed)
+        self.archive_remote_bridge.open_archive(root, force_refresh=force_refresh or changed, activate_tab=activate_tab)

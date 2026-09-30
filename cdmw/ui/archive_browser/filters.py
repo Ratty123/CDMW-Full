@@ -127,7 +127,6 @@ class ArchiveFilterStateMixin:
             bool(self.archive_tree_index_ready),
             bool(self._archive_category_index_ready()) if self.archive_filtered_entries else False,
             bool(self.archive_active_asset_catalog_scope),
-            bool(self.archive_initial_sort_apply_pending),
         )
 
     def _capture_archive_filter_state(self) -> Dict[str, object]:
@@ -441,36 +440,9 @@ class ArchiveFilterStateMixin:
     def _current_archive_filter_needs_basic_lookup(self) -> bool:
         return self._archive_filter_state_needs_basic_lookup(self._capture_archive_filter_state())
 
-    def _archive_basic_index_missing_for_lookup(self) -> bool:
-        return bool(
-            self.archive_entries
-            and not (
-                self.archive_entries_by_normalized_path
-                and self.archive_entries_by_basename
-                and self.archive_entries_by_extension
-                and self.archive_entries_by_role
-            )
-            and str(getattr(self, "archive_basic_index_state", "idle") or "idle") in {"idle", "warming"}
-        )
-
-    def _archive_enhanced_index_missing_for_search(self) -> bool:
-        return bool(
-            self.archive_entries
-            and self.archive_name_search_index is None
-            and str(getattr(self, "archive_enhanced_index_state", "idle") or "idle") in {"idle", "warming"}
-        )
-
-    def _archive_filter_waits_for_item_search(self) -> bool:
-        state = self._capture_archive_filter_state()
-        return self._archive_filter_state_waits_for_item_search(state)
-
-    def _archive_filter_state_waits_for_item_search(self, state: Mapping[str, object]) -> bool:
-        return (
-            self._archive_enhanced_index_missing_for_search()
-            and self._archive_saved_filter_needs_item_search(state)
-            and self._archive_filter_state_explicitly_requires_item_search(state)
-            and not self._archive_filter_can_use_loaded_item_aliases(state)
-        )
+    def _archive_catalogue_lookup_pending(self) -> bool:
+        bridge = getattr(self, "archive_remote_bridge", None)
+        return bridge is None or bridge.current_session is None
 
     def _archive_filter_can_use_loaded_item_aliases(self, state: Mapping[str, object]) -> bool:
         if not self.archive_item_search_aliases:

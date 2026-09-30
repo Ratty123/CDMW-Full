@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 import os
 import time
 
@@ -123,6 +124,32 @@ def test_legacy_full_category_filters_migrate_without_hiding_the_new_taxonomy() 
     assert migrate_legacy_item_catalogue_filter("Other", "Other") == ("Item", "Unclassified")
     assert migrate_legacy_item_catalogue_filter("Equipment", "Weapon") == (None, None)
     assert migrate_legacy_item_catalogue_filter("Weapon", "Sword") == ("Weapon", "Sword")
+
+
+def test_regular_refresh_restarts_warmup_but_recovery_retains_the_owned_operation() -> None:
+    _app()
+    service = _Service()
+    controller = RemoteItemFinderWarmupController(service, _Settings())
+    original = _session()
+    controller.start(original, ui_generation=1)
+    _drain()
+    service.request_failed.emit("build-1", RuntimeError("permanent name-index error"))
+    controller.start(original, ui_generation=2)
+    _drain()
+    assert service.builds == [(original.session_id, 1)]
+    refreshed = replace(original, session_id="regular-refresh")
+    controller.start(refreshed, ui_generation=2)
+    _drain()
+    assert service.builds == [(original.session_id, 1), (refreshed.session_id, 2)]
+    assert "build-1" in service.cancelled
+    service.request_failed.emit("build-2", RuntimeError("name-index error after refresh"))
+    recovered = replace(refreshed, session_id="recovered")
+    service.session = lambda _identifier: recovered
+    controller.start(recovered, ui_generation=2)
+    _drain()
+    assert len(service.builds) == 2 and controller.session_id == recovered.session_id
+    assert service.cancelled.count("build-1") == 1 and "build-2" not in service.cancelled
+    controller.request_shutdown()
 
 
 def test_startup_builds_catalogue_and_caches_the_restored_first_page() -> None:

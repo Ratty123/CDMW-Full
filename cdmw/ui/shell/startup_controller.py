@@ -11,11 +11,7 @@ from typing import Callable, Dict, Mapping, Optional
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication, QDialog, QFileDialog, QMessageBox
 
-from cdmw.services.archive_environment_service import (
-    invalidate_archive_browser_cache,
-    resolve_crimson_desert_executable,
-    sha256_file,
-)
+from cdmw.services.archive_environment_service import resolve_crimson_desert_executable
 from cdmw.services.diagnostics_service import timing_value as _timing_value
 from cdmw.ui.shell.startup_splash import (
     ExternalStartupSplashAdapter,
@@ -143,16 +139,7 @@ class StartupPromptMixin:
         return text
 
     def _archive_startup_progress_work_active(self) -> bool:
-        return bool(
-            self.worker_thread is not None
-            or self.archive.archive_basic_index_thread is not None
-            or self.archive.archive_enhanced_index_thread is not None
-            or self.archive.archive_derived_cache_thread is not None
-            or self.archive.archive_deferred_basic_index_start_pending
-            or self.archive.archive_deferred_enhanced_index_start_pending
-            or self.archive.archive_deferred_derived_cache_write_pending
-            or self.archive.archive_derived_cache_write_pending
-        )
+        return self.worker_thread is not None or bool(self.archive.archive_remote_query_pending)
 
     def _show_main_window_after_startup_splash(self) -> None:
         if getattr(self, "_shutting_down", False):
@@ -278,7 +265,7 @@ class StartupPromptMixin:
         splash = getattr(self, "_startup_splash_window", None)
         self._startup_splash_released = True
         self._startup_splash_release_pending = False
-        if self.archive.archive_scan_worker is None and self.worker_thread is None:
+        if not self.archive.archive_remote_query_pending and self.worker_thread is None:
             self.archive.archive_startup_index_warmup_required = False
         self._record_startup_prompt_event("splash_released")
         if (
@@ -333,30 +320,13 @@ class StartupPromptMixin:
         self._startup_archive_autoload_dispatched = True
 
         self.append_archive_log("Startup Archive Browser preload is enabled.")
-        remote_bridge = getattr(self.archive, "archive_remote_bridge", None)
-        use_remote_backend = bool(remote_bridge is not None and remote_bridge.displays_v2)
-        if not use_remote_backend:
-            health_report = self._check_archive_cache_health(package_root_text)
-            self._warn_if_archive_cache_stale(health_report, package_root_text)
         if bool(getattr(self, "_startup_archive_path_prompt_accepted", False)):
-            if use_remote_backend:
-                self.append_archive_log(
-                    "Archive catalogue loading will continue in the background after CDMW opens."
-                )
-            else:
-                self.append_archive_log(
-                    "Building the first archive cache now. Keep CDMW open until the cache status reaches ready."
-                )
-                self._update_startup_splash(
-                    "Building archive cache. First load can take a while; let it finish.",
-                    1,
-                    100,
-                )
+            self.append_archive_log("Archive catalogue loading will continue in the background after CDMW opens.")
         else:
             self._update_startup_splash("Loading Archive Browser...")
         self.archive.archive_startup_autoload_defer_preview = True
-        self.archive.archive_startup_hold_until_ready = not use_remote_backend
-        self.archive.archive_startup_index_warmup_required = not use_remote_backend
+        self.archive.archive_startup_hold_until_ready = False
+        self.archive.archive_startup_index_warmup_required = False
         self.archive.archive_startup_saved_filter_state = {}
         self.archive.archive_startup_saved_filter_apply_pending = False
         self.archive.archive_startup_saved_filter_wait_logged = False
@@ -365,19 +335,9 @@ class StartupPromptMixin:
         self.archive._update_archive_filter_button_state()
         self._record_runtime_event("startup_autoload_begin", package_root=str(package_root))
         force_refresh = not self._preference_bool("prefer_archive_cache_on_startup", True)
-        if use_remote_backend:
-            self._write_heartbeat("running")
-            self._release_startup_splash()
-            QTimer.singleShot(
-                0,
-                lambda: self.archive.scan_archives(
-                    force_refresh=force_refresh,
-                    activate_archive_tab=False,
-                ),
-            )
-            return
-        self._write_heartbeat("archive_autoload")
-        self.archive.scan_archives(force_refresh=force_refresh, activate_archive_tab=False)
+        self._write_heartbeat("running")
+        self._release_startup_splash()
+        QTimer.singleShot(0, lambda: self.archive.scan_archives(force_refresh=force_refresh, activate_archive_tab=False))
 
     def _load_game_executable_fingerprints(self) -> Dict[str, Dict[str, object]]:
         raw_value = self.settings.value("archive/game_executable_fingerprints", "{}")
@@ -482,81 +442,6 @@ class StartupPromptMixin:
             and compatible_hash == previous_hash
         )
 
-    def _check_game_update_and_invalidate_archive_cache(self, package_root: Path) -> bool:
-        executable_path = resolve_crimson_desert_executable(package_root)
-        if executable_path is None:
-            return False
-
-        try:
-            stat_result = executable_path.stat()
-        except OSError as exc:
-            self.append_archive_log(f"Game update check skipped: could not read {executable_path}: {exc}")
-            return False
-
-        executable_key = str(executable_path).strip().lower()
-        current_size = int(stat_result.st_size)
-        current_mtime_ns = int(getattr(stat_result, "st_mtime_ns", int(stat_result.st_mtime * 1_000_000_000)))
-        records = self._load_game_executable_fingerprints()
-        previous_record = records.get(executable_key, {})
-        previous_hash = str(previous_record.get("sha256", "") or "").strip()
-        previous_size = int(previous_record.get("size", -1) or -1)
-        previous_mtime_ns = int(previous_record.get("mtime_ns", -1) or -1)
-
-        if (
-            previous_hash
-            and previous_size == current_size
-            and previous_mtime_ns == current_mtime_ns
-        ):
-            return False
-
-        try:
-            current_hash = sha256_file(executable_path)
-        except OSError as exc:
-            self.append_archive_log(f"Game update check skipped: could not hash {executable_path}: {exc}")
-            return False
-
-        checked_at = time.time()
-        updated_record = dict(previous_record)
-        updated_record.update({
-            "path": str(executable_path),
-            "sha256": current_hash,
-            "size": current_size,
-            "mtime_ns": current_mtime_ns,
-            "checked_at": checked_at,
-        })
-        if previous_hash and previous_hash != current_hash:
-            updated_record["previous_sha256"] = previous_hash
-            updated_record["update_detected_at"] = checked_at
-        records[executable_key] = updated_record
-        self._save_game_executable_fingerprints(records)
-
-        if not previous_hash:
-            self.append_archive_log(f"Recorded CrimsonDesert.exe hash baseline: {executable_path}")
-            return False
-        if previous_hash == current_hash:
-            return False
-
-        self.append_log("The game build changed. Use New Item > Tools > Check mods for game updates to review older mods and overlays.")
-
-        deleted_paths = invalidate_archive_browser_cache(
-            package_root,
-            self.archive.archive_cache_root,
-            on_log=self.append_archive_log,
-        )
-        if deleted_paths:
-            self.append_archive_log(
-                "Game update detected via CrimsonDesert.exe hash. "
-                f"Archive Browser cache invalidated ({len(deleted_paths):,} file(s))."
-            )
-            self.append_log("Game update detected via CrimsonDesert.exe hash. Archive Browser cache invalidated.")
-            self.set_status_message("Game update detected. Archive Browser cache invalidated.")
-        else:
-            self.append_archive_log(
-                "Game update detected via CrimsonDesert.exe hash. No existing Archive Browser cache file needed deletion."
-            )
-            self.append_log("Game update detected via CrimsonDesert.exe hash.")
-            self.set_status_message("Game update detected.")
-        return True
 
     def _startup_archive_autoload_expected(self) -> bool:
         if self._startup_benchmark_enabled():

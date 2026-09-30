@@ -27,7 +27,7 @@ from cdmw.services.archive_catalogue_service import ArchiveCatalogueService
 from cdmw.ui.archive_browser.model import ArchiveBrowserTreeView
 from cdmw.ui.archive_browser.remote_model import RemoteArchiveBrowserModel, RemoteChildrenFetch
 from cdmw.ui.archive_browser.remote_preview_dependencies import ArchivePreviewDependencySet
-from cdmw.ui.archive_browser.remote_window_bridge import ArchiveRemoteWindowBridge, compare_archive_shadow_page
+from cdmw.ui.archive_browser.remote_window_bridge import ArchiveRemoteWindowBridge
 from cdmw.ui.archive_browser.remote_window_identity import normalize_archive_remote_path
 
 
@@ -63,6 +63,8 @@ class _ShadowWindow(QObject):
         self.archive = self
         self.textures = self
         self.archive_catalogue_service = _ShadowService(self)
+        self._clear_archive_failure_display = lambda: None
+        self._publish_archive_game_update_fingerprints = lambda: None
         self.archive_package_root_edit = QLineEdit("C:/Game", parent=None)
         self.archive_entries = [_legacy(0)]
         self.archive_filtered_entries = list(self.archive_entries)
@@ -139,7 +141,7 @@ def test_catalogue_status_reaches_shell_from_the_real_archive_workspace() -> Non
     messages: list[str] = []
     shell.set_status_message = messages.append
     try:
-        bridge = ArchiveRemoteWindowBridge(workspace, display_v2=True, shadow=False)
+        bridge = ArchiveRemoteWindowBridge(workspace)
         bridge.controller.statusChanged.emit("Loading archive catalogue...")
         assert messages == ["Loading archive catalogue..."]
     finally:
@@ -147,77 +149,12 @@ def test_catalogue_status_reaches_shell_from_the_real_archive_workspace() -> Non
         _drain_events()
 
 
-def test_shadow_comparison_matches_counts_order_and_normalized_identities() -> None:
-    _app()
-    legacy = [_legacy(index) for index in range(3)]
-    model = RemoteArchiveBrowserModel(page_size=4)
-    handle = ArchiveQueryHandle("session-a", "query-a", 1, 3)
-    model.publish_query(handle, view_mode=ArchiveViewMode.FLAT, prime=False)
-    assert model.accept_page(
-        ArchivePage("session-a", "query-a", 1, 3, 0, tuple(_remote(index) for index in range(3)))
-    )
-
-    comparison = compare_archive_shadow_page(
-        legacy,
-        legacy,
-        model,
-        ArchiveSessionHandle("session-a", "C:/Game", "fingerprint", 3, 2, True),
-        handle,
-    )
-
-    assert comparison.matches
-    assert comparison.compared_rows == 3
-    assert comparison.identity_mismatches == ()
 
 
-def test_shadow_comparison_reports_bounded_identity_and_count_differences() -> None:
-    _app()
-    legacy = [_legacy(index) for index in range(20)]
-    model = RemoteArchiveBrowserModel(page_size=32)
-    handle = ArchiveQueryHandle("session-a", "query-a", 1, 20)
-    model.publish_query(handle, view_mode=ArchiveViewMode.FLAT, prime=False)
-    remote = tuple(_remote(index, path=f"wrong/file_{index}.pac") for index in range(20))
-    assert model.accept_page(ArchivePage("session-a", "query-a", 1, 20, 0, remote))
-
-    comparison = compare_archive_shadow_page(
-        legacy,
-        legacy,
-        model,
-        ArchiveSessionHandle("session-a", "C:/Game", "fingerprint", 21, 2, True),
-        handle,
-        row_limit=20,
-    )
-
-    assert not comparison.matches
-    assert comparison.v2_entry_count == 21
-    assert len(comparison.identity_mismatches) == 16
 
 
-def test_shadow_scheduler_waits_for_legacy_work_and_latest_state() -> None:
-    _app()
-    window = _ShadowWindow()
-    bridge = ArchiveRemoteWindowBridge(window, display_v2=False, shadow=True)
-    opened: list[str] = []
-    bridge.start_shadow = lambda root: opened.append(str(root))  # type: ignore[method-assign]
-
-    window.worker_thread = object()
-    bridge.schedule_shadow_comparison("filter_complete")
-    _drain_events()
-    assert opened == []
-
-    window.worker_thread = None
-    bridge._run_scheduled_shadow_comparison(bridge._shadow_schedule_generation, 1)
-    assert opened == ["C:/Game"]
 
 
-def test_shadow_safety_diagnostics_do_not_disable_legacy_actions() -> None:
-    _app()
-    window = _ShadowWindow()
-    bridge = ArchiveRemoteWindowBridge(window, display_v2=False, shadow=True)
-
-    bridge._handle_actions_safe(False)
-
-    assert window.archive_remote_actions_safe
 
 
 def test_v2_bridge_only_offers_session_recovery_for_catalogue_failures() -> None:
@@ -229,14 +166,15 @@ def test_v2_bridge_only_offers_session_recovery_for_catalogue_failures() -> None
     window.set_busy = lambda _busy, **_kwargs: None
     window.set_status_message = lambda _message: None
     window._record_runtime_event = lambda _event, **_fields: None
-    bridge = ArchiveRemoteWindowBridge(window, display_v2=True, shadow=False)
+    bridge = ArchiveRemoteWindowBridge(window)
     failures: list[tuple[str, str]] = []
     bridge.backendFailed.connect(lambda kind, detail: failures.append((kind, detail)))
 
     bridge._handle_failure("selection_lookup", RuntimeError("selection lookup failed"))
     bridge._handle_failure("open", RuntimeError("worker unavailable"))
 
-    assert failures == [("open", "worker unavailable")]
+    assert [kind for kind, error in failures] == ["selection_lookup", "open"]
+    assert str(failures[-1][1]) == "worker unavailable"
     assert len(window.cache_health) == 1
     assert window.cache_health[0][0] == "unhealthy"
 
@@ -246,7 +184,7 @@ def test_v2_bridge_maps_real_progress_contract_fields() -> None:
     window = _RemoteExportWindow()
     updates: list[tuple[int, int, str]] = []
     window._handle_archive_scan_progress = lambda current, total, detail: updates.append((current, total, detail))
-    bridge = ArchiveRemoteWindowBridge(window, display_v2=True, shadow=False)
+    bridge = ArchiveRemoteWindowBridge(window)
 
     bridge._handle_progress(
         "open",
@@ -269,7 +207,7 @@ def test_structure_paths_share_normalization_across_requests_and_paged_results()
             (selected, defer_missing_children)
         )
     )
-    bridge = ArchiveRemoteWindowBridge(window, display_v2=True, shadow=False)
+    bridge = ArchiveRemoteWindowBridge(window)
     bridge._controller._current_session = ArchiveSessionHandle(
         "session-a",
         "C:/Game",
@@ -342,7 +280,7 @@ def test_v2_bridge_resets_each_operation_and_scales_query_progress_separately() 
     window._set_archive_warmup_overlay = lambda *_args, **_kwargs: None
     window.set_status_message = lambda _message: None
     window._handle_archive_scan_progress = lambda current, total, detail: updates.append((current, total, detail))
-    bridge = ArchiveRemoteWindowBridge(window, display_v2=True, shadow=False)
+    bridge = ArchiveRemoteWindowBridge(window)
 
     bridge._begin_pending("Applying archive filters...", operation="query")
     bridge._handle_progress("query", ProgressUpdate(25, 100, "query_scan"))
@@ -357,6 +295,26 @@ def test_v2_bridge_resets_each_operation_and_scales_query_progress_separately() 
     assert updates == [(25, 100, "Filter query scan")]
 
 
+def test_targeted_page_or_folder_retry_does_not_leave_the_browser_in_publication_mode() -> None:
+    _app()
+    window = _RemoteExportWindow()
+    window.archive_remote_query_pending = False
+    messages = []
+    window.set_status_message = messages.append
+    bridge = ArchiveRemoteWindowBridge(window)
+    publications = []
+    bridge._begin_pending = lambda *args, **kwargs: publications.append(args)
+    bridge.controller.retry_failed_operation = lambda: True
+    for kind in ("page", "children", "structure_children", "selection"):
+        bridge._failed_operation_kind = kind
+        assert bridge.retry_failed_operation()
+        assert not window.archive_remote_query_pending and not publications
+    assert messages == ["Retrying archive operation..."] * 4
+    bridge._failed_operation_kind = "stage_page"
+    assert bridge.retry_failed_operation()
+    assert len(publications) == 1
+
+
 def test_v2_bridge_scopes_busy_state_and_cancel_keeps_existing_view() -> None:
     _app()
     window = _RemoteExportWindow()
@@ -369,7 +327,7 @@ def test_v2_bridge_scopes_busy_state_and_cancel_keeps_existing_view() -> None:
         (text, str(kwargs.get("phase", "")), int(kwargs.get("percent", 0)))
     )
     window.set_status_message = lambda _message: None
-    bridge = ArchiveRemoteWindowBridge(window, display_v2=True, shadow=False)
+    bridge = ArchiveRemoteWindowBridge(window)
     window.archive_remote_query_pending = True
 
     bridge._set_remote_operation_busy(True)
@@ -386,7 +344,7 @@ def test_v2_bridge_scopes_busy_state_and_cancel_keeps_existing_view() -> None:
 def test_remote_export_selection_uses_session_ids_without_materializing_global_entries() -> None:
     _app()
     window = _RemoteExportWindow()
-    bridge = ArchiveRemoteWindowBridge(window, display_v2=True, shadow=False)
+    bridge = ArchiveRemoteWindowBridge(window)
     handle = ArchiveQueryHandle("session-a", "query-a", 5, 2)
     bridge.model.publish_query(handle, view_mode=ArchiveViewMode.FLAT, prime=False)
     rows = (
@@ -427,7 +385,7 @@ def test_remote_export_selection_uses_session_ids_without_materializing_global_e
 def test_remote_current_entry_reuses_worker_prepared_dependency_snapshot() -> None:
     _app()
     window = _RemoteExportWindow()
-    bridge = ArchiveRemoteWindowBridge(window, display_v2=True, shadow=False)
+    bridge = ArchiveRemoteWindowBridge(window)
     row = _remote(7, "character/model/hero.pac")
     bridge.model.publish_query(
         ArchiveQueryHandle("session-a", "query-a", 1, 1),
@@ -462,7 +420,7 @@ def test_remote_current_entry_reuses_worker_prepared_dependency_snapshot() -> No
 def test_stale_preview_dependency_request_does_not_publish_a_terminal_failure() -> None:
     _app()
     window = _RemoteExportWindow()
-    bridge = ArchiveRemoteWindowBridge(window, display_v2=True, shadow=False)
+    bridge = ArchiveRemoteWindowBridge(window)
     first = _remote(7, "character/model/first.pac")
     current = _remote(8, "character/model/current.pac")
     bridge.model.publish_query(
@@ -487,7 +445,7 @@ def test_stale_preview_dependency_request_does_not_publish_a_terminal_failure() 
 def test_catalogue_publication_does_not_select_or_preview_the_first_row() -> None:
     _app()
     window = _RemoteExportWindow()
-    bridge = ArchiveRemoteWindowBridge(window, display_v2=True, shadow=False)
+    bridge = ArchiveRemoteWindowBridge(window)
     handle = ArchiveQueryHandle("session-a", "query-startup", 9, 2)
     bridge.model.publish_query(handle, view_mode=ArchiveViewMode.FLAT, prime=False)
     rows = (
@@ -512,7 +470,7 @@ def test_catalogue_publication_does_not_select_or_preview_the_first_row() -> Non
 def test_item_scope_selection_prefers_a_model_for_preview() -> None:
     _app()
     window = _RemoteExportWindow()
-    bridge = ArchiveRemoteWindowBridge(window, display_v2=True, shadow=False)
+    bridge = ArchiveRemoteWindowBridge(window)
     handle = ArchiveQueryHandle("session-a", "query-item", 9, 3)
     bridge.model.publish_query(handle, view_mode=ArchiveViewMode.FLAT, prime=False)
     rows = (
@@ -533,7 +491,7 @@ def test_item_scope_selection_prefers_a_model_for_preview() -> None:
 def test_remote_export_selection_represents_folder_and_filtered_query_server_side() -> None:
     _app()
     window = _RemoteExportWindow()
-    bridge = ArchiveRemoteWindowBridge(window, display_v2=True, shadow=False)
+    bridge = ArchiveRemoteWindowBridge(window)
     handle = ArchiveQueryHandle("session-a", "query-folder", 6, 43)
     bridge.model.publish_query(handle, view_mode=ArchiveViewMode.FOLDERS, prime=False)
     fetch = RemoteChildrenFetch("session-a", "query-folder", 6, "root", None, None, 0, 512)
@@ -581,7 +539,7 @@ def test_remote_export_selection_represents_folder_and_filtered_query_server_sid
 def test_remote_export_rejects_an_explicit_selection_larger_than_the_protocol_bound() -> None:
     _app()
     window = _RemoteExportWindow()
-    bridge = ArchiveRemoteWindowBridge(window, display_v2=True, shadow=False)
+    bridge = ArchiveRemoteWindowBridge(window)
     bridge.model.publish_query(
         ArchiveQueryHandle("session-a", "query-large", 7, 5_000),
         view_mode=ArchiveViewMode.FLAT,
@@ -619,7 +577,7 @@ def test_a_plain_rescan_records_the_previous_session_for_closure() -> None:
     window._rebuild_archive_structure_filter_controls = lambda **_kwargs: None
     window._capture_archive_filter_state = lambda: {}
     window._set_archive_load_progress = lambda *_args, **_kwargs: None
-    bridge = ArchiveRemoteWindowBridge(window, display_v2=True, shadow=False)
+    bridge = ArchiveRemoteWindowBridge(window)
     bridge._controller.open_archive = lambda *_args, **_kwargs: None
 
     handle = ArchiveSessionHandle("session-old", "C:/Game", "fingerprint", 3, 2, True)

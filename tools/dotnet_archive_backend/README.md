@@ -18,7 +18,7 @@ reference Archive Lite projects, assemblies, settings, processes, or caches.
 
 Directory scans skip the archive root's `backups/` and `Cdmods/` directories,
 case-insensitively, before descending into them. Native discovery, source
-fingerprints and the retained Python scanner use the same exclusions. Live
+fingerprints and shared archive readers use the same exclusions. Live
 archive groups and overlays remain discoverable, including groups under
 `game_files/`. A cached catalogue fingerprinted with backup sources becomes stale
 and rebuilds automatically on the next archive open. An explicitly selected
@@ -189,13 +189,27 @@ current index version all match.
 
 ## Application integration and release
 
-`v2` is the application default for the stable transition release.
-`CDMW_ARCHIVE_BACKEND=legacy|v2|shadow` remains a developer override, not a
-saved setting. A startup or catalogue-publication failure is shown explicitly.
-The dialog can retry v2, cancel, or switch to the retained legacy scanner for
-the current process only; CDMW never changes the environment or silently
-reconstructs the legacy catalogue. Legacy code and caches remain intact for
-this release and are scheduled for removal in the following release.
+The standalone backend is the application's only scanner. The old scanner and
+shadow comparisons are removed. Existing `CDMW_ARCHIVE_BACKEND` values are ignored
+with one log notice; there is no replacement selector or fallback action. Existing
+cache compatibility and archive readers remain available.
+
+The catalogue service coordinates one retry for temporary sharing failures,
+unexpected worker exits and timeouts, across transport restart, session/query
+reconstruction and publication. Transport never replays requests independently.
+Permanent errors retain the existing wire fields `code`, `message` and `detail`.
+The worker classifies demonstrable exception causes; unknown errors keep their
+exact exception details. See [scanner recovery and report limits](../../cdmw/ui/archive_browser/README.md#scanner-failures-and-recovery).
+
+Narrow managed recovery fixtures (including worker compilation):
+
+```powershell
+dotnet run --project tools/dotnet_archive_backend/tests/Cdmw.FullArchive.Tests -c Release -- --scanner-recovery
+.\.venv\Scripts\python.exe -m pytest tests/test_archive_operation_recovery.py tests/test_archive_backend_client.py tests/test_archive_single_backend_workspace.py --basetemp="$env:TEMP\cdmw-scanner-recovery"
+```
+
+These checks use simulated timers, headless Qt and owned synthetic archives.
+They do not establish visible UI, packaged executable or real-game behavior.
 
 Release builds publish the self-contained worker and
 `cdmw-full-archive-core.dll` to
@@ -229,8 +243,7 @@ A complete snapshot is the native preview core's in-memory archive index; it doe
 trigger a second full-PAMT parse. The two-entry in-game mesh-swap flow merges the
 already prepared target and source snapshots into one immutable request context capped
 at 8,192 entries; both cancellable preflight phases consume that context instead of
-reading the global catalogue or its path/basename maps. Legacy mode keeps passing its
-existing catalogue references without copying the full list on the UI thread.
+reading the global catalogue or its path/basename maps.
 
 A standalone-v2 Research tab likewise consumes a bounded, paged prefix of the current
 query, a query-wide bounded image/reference lookup, and a session-wide
@@ -240,8 +253,8 @@ never reconstructs the full Python catalogue. The three bounded sets retain fewe
 10,000 compatibility entries. Truncation and preparation limits are shown in Research
 status text.
 
-A workflow fails closed until its selected entry has a complete prepared snapshot;
-legacy mode keeps the existing catalogue behavior. Prepared files are content-addressed
+A workflow fails closed until its selected entry has a complete prepared snapshot.
+Prepared files are content-addressed
 with the current raw PAZ entry hash, so same-size, same-timestamp source changes cannot
 reuse stale decoded bytes. Native model preview keys also include the complete prepared
 dependency snapshot.

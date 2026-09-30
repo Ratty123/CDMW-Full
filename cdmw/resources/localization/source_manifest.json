@@ -1076,7 +1076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 561,
+          "line": 563,
           "sink": "setText"
         }
       ]
@@ -1312,26 +1312,6 @@
       ]
     },
     {
-      "key": " | fallback={value_0}",
-      "origins": [
-        {
-          "path": "cdmw/workers/archive_filter_workers.py",
-          "line": 199,
-          "sink": "emit"
-        }
-      ]
-    },
-    {
-      "key": " | name_search=bounded_python_scan",
-      "origins": [
-        {
-          "path": "cdmw/workers/archive_filter_workers.py",
-          "line": 199,
-          "sink": "emit"
-        }
-      ]
-    },
-    {
       "key": " | native scan unavailable",
       "origins": [
         {
@@ -1531,7 +1511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/log_controller.py",
-          "line": 242,
+          "line": 239,
           "sink": "setFormat"
         },
         {
@@ -3521,7 +3501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 59,
+          "line": 60,
           "sink": "RuntimeError"
         }
       ]
@@ -3701,7 +3681,7 @@
         },
         {
           "path": "cdmw/ui/model_library/tab.py",
-          "line": 265,
+          "line": 266,
           "sink": "_set_status"
         },
         {
@@ -6721,7 +6701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 296,
+          "line": 295,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -6741,17 +6721,17 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 137,
+          "line": 136,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 137,
+          "line": 136,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 174,
+          "line": 173,
           "sink": "setText"
         },
         {
@@ -6806,7 +6786,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 338,
+          "line": 337,
           "sink": "QPushButton"
         },
         {
@@ -6886,12 +6866,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 129,
+          "line": 131,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 649,
+          "line": 693,
           "sink": "addItem"
         }
       ]
@@ -6966,12 +6946,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 296,
+          "line": 295,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 401,
+          "line": 400,
           "sink": "_add_combo_choice"
         },
         {
@@ -7696,7 +7676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_controller.py",
-          "line": 150,
+          "line": 153,
           "sink": "RuntimeError"
         }
       ]
@@ -8086,17 +8066,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 321,
+          "line": 320,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 321,
+          "line": 320,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 326,
+          "line": 325,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -8762,21 +8742,6 @@
       ]
     },
     {
-      "key": "Applied archive filters. Showing {value_0} entries.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/filter_workers.py",
-          "line": 381,
-          "sink": "_set_archive_list_status"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/filter_workers.py",
-          "line": 383,
-          "sink": "append_archive_log"
-        }
-      ]
-    },
-    {
       "key": "Applied {value_0}.",
       "origins": [
         {
@@ -8896,7 +8861,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 704,
+          "line": 721,
           "sink": "setText"
         },
         {
@@ -9500,29 +9465,9 @@
       "key": "Applying archive filters...",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/filter_workers.py",
-          "line": 223,
-          "sink": "set_status_message"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/filter_workers.py",
-          "line": 224,
-          "sink": "append_archive_log"
-        },
-        {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 357,
+          "line": 267,
           "sink": "_begin_pending"
-        }
-      ]
-    },
-    {
-      "key": "Applying deferred archive column sort after first paint.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/render_lifecycle.py",
-          "line": 217,
-          "sink": "append_archive_log"
         }
       ]
     },
@@ -9543,16 +9488,6 @@
           "path": "cdmw/ui/model_library/controller.py",
           "line": 236,
           "sink": "setText"
-        }
-      ]
-    },
-    {
-      "key": "Applying queued filters after archive list opened.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/render_lifecycle.py",
-          "line": 188,
-          "sink": "append_archive_log"
         }
       ]
     },
@@ -9601,7 +9536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 396,
+          "line": 306,
           "sink": "_begin_pending"
         }
       ]
@@ -9661,7 +9596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 238,
+          "line": 240,
           "sink": "setText"
         }
       ]
@@ -9713,16 +9648,6 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
           "line": 3760,
           "sink": "rust-presentation"
-        }
-      ]
-    },
-    {
-      "key": "Archive Backend Failed",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 92,
-          "sink": "setWindowTitle"
         }
       ]
     },
@@ -9786,42 +9711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/render_lifecycle.py",
-          "line": 559,
-          "sink": "append_archive_log"
-        }
-      ]
-    },
-    {
-      "key": "Archive Browser activation timing | cause=icon_warmup | start=deferred",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/render_lifecycle.py",
-          "line": 546,
-          "sink": "append_archive_log"
-        }
-      ]
-    },
-    {
-      "key": "Archive Browser activation timing | cause=item_search_filter_refresh | state=applied",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/render_lifecycle.py",
-          "line": 275,
-          "sink": "append_archive_log"
-        }
-      ]
-    },
-    {
-      "key": "Archive Browser activation timing | cause=item_search_filter_refresh | state=deferred",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/render_lifecycle.py",
-          "line": 246,
-          "sink": "append_archive_log"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/render_lifecycle.py",
-          "line": 266,
+          "line": 312,
           "sink": "append_archive_log"
         }
       ]
@@ -9841,37 +9731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 181,
-          "sink": "append_archive_log"
-        }
-      ]
-    },
-    {
-      "key": "Archive Browser activation timing | cause=sidecar_index | start=deferred",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/render_lifecycle.py",
-          "line": 535,
-          "sink": "append_archive_log"
-        }
-      ]
-    },
-    {
-      "key": "Archive Browser activation timing | cause=structure_filter | ready={value_0}",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/filter_workers.py",
-          "line": 70,
-          "sink": "append_archive_log"
-        }
-      ]
-    },
-    {
-      "key": "Archive Browser activation timing | cause=structure_filter | start=background",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/filter_workers.py",
-          "line": 41,
+          "line": 139,
           "sink": "append_archive_log"
         }
       ]
@@ -9891,7 +9751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/render_lifecycle.py",
-          "line": 404,
+          "line": 203,
           "sink": "append_archive_log"
         }
       ]
@@ -9901,12 +9761,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/render_lifecycle.py",
-          "line": 296,
+          "line": 95,
           "sink": "append_archive_log"
         },
         {
           "path": "cdmw/ui/archive_browser/render_lifecycle.py",
-          "line": 399,
+          "line": 198,
           "sink": "append_archive_log"
         }
       ]
@@ -9916,7 +9776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/render_lifecycle.py",
-          "line": 320,
+          "line": 119,
           "sink": "append_archive_log"
         }
       ]
@@ -9926,17 +9786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/render_lifecycle.py",
-          "line": 451,
-          "sink": "append_archive_log"
-        }
-      ]
-    },
-    {
-      "key": "Archive Browser first render is skipping active column sort; sort will apply after the first paint.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 402,
+          "line": 250,
           "sink": "append_archive_log"
         }
       ]
@@ -10008,16 +9858,6 @@
           "path": "cdmw/ui/settings_tab.py",
           "line": 267,
           "sink": "QLabel"
-        }
-      ]
-    },
-    {
-      "key": "Archive Browser state mode: raw_flat (no active filters/sort/tree/category; reusing loaded entries).",
-      "origins": [
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 639,
-          "sink": "emit"
         }
       ]
     },
@@ -10611,7 +10451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 427,
+          "line": 417,
           "sink": "_protocol_failure"
         }
       ]
@@ -10621,7 +10461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 521,
+          "line": 515,
           "sink": "_protocol_failure"
         }
       ]
@@ -10631,7 +10471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 330,
+          "line": 321,
           "sink": "_protocol_failure"
         }
       ]
@@ -10641,7 +10481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 357,
+          "line": 348,
           "sink": "_protocol_failure"
         }
       ]
@@ -10651,7 +10491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 309,
+          "line": 300,
           "sink": "_protocol_failure"
         }
       ]
@@ -10661,7 +10501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 415,
+          "line": 405,
           "sink": "_protocol_failure"
         }
       ]
@@ -10671,7 +10511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 420,
+          "line": 410,
           "sink": "_protocol_failure"
         }
       ]
@@ -10681,7 +10521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 167,
+          "line": 159,
           "sink": "RuntimeError"
         }
       ]
@@ -10691,7 +10531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 534,
+          "line": 530,
           "sink": "_fail_all"
         }
       ]
@@ -10701,7 +10541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 360,
+          "line": 351,
           "sink": "_protocol_failure"
         }
       ]
@@ -10711,7 +10551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 488,
+          "line": 482,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -10721,7 +10561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 407,
+          "line": 397,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -10731,7 +10571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 232,
+          "line": 223,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -10741,7 +10581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 482,
+          "line": 476,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -10751,7 +10591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 385,
+          "line": 376,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -10761,7 +10601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 217,
+          "line": 207,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -10771,7 +10611,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 506,
+          "line": 766,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -10781,38 +10621,8 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 790,
+          "line": 1105,
           "sink": "ArchiveBackendError"
-        }
-      ]
-    },
-    {
-      "key": "Archive backend shadow comparison skipped after waiting for {value_0} to settle.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 335,
-          "sink": "append_archive_log"
-        }
-      ]
-    },
-    {
-      "key": "Archive backend shadow comparison started.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 298,
-          "sink": "append_archive_log"
-        }
-      ]
-    },
-    {
-      "key": "Archive backend shadow comparison {value_0}: entries legacy={value_1} v2={value_2}; matches legacy={value_3} v2={value_4}; page mismatches={value_5}.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 913,
-          "sink": "append_archive_log"
         }
       ]
     },
@@ -10821,7 +10631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 490,
+          "line": 484,
           "sink": "_protocol_failure"
         }
       ]
@@ -10831,18 +10641,18 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 325,
+          "line": 316,
           "sink": "_protocol_failure"
         }
       ]
     },
     {
-      "key": "Archive backend stopped unexpectedly; this operation was not automatically retried.",
+      "key": "Archive backend stopped unexpectedly.",
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 579,
-          "sink": "ArchiveBackendError"
+          "line": 566,
+          "sink": "_fail_all"
         }
       ]
     },
@@ -10851,22 +10661,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 884,
+          "line": 768,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 885,
-          "sink": "append_archive_log"
-        }
-      ]
-    },
-    {
-      "key": "Archive backend v2 was disabled for this app session by explicit user choice; starting the retained legacy archive scanner.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 134,
+          "line": 769,
           "sink": "append_archive_log"
         }
       ]
@@ -10937,12 +10737,12 @@
       "manual": true
     },
     {
-      "key": "Archive cache ready: {value_0}",
+      "key": "Archive catalogue is shutting down.",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 824,
-          "sink": "append_archive_log"
+          "path": "cdmw/services/archive_catalogue_service.py",
+          "line": 612,
+          "sink": "RuntimeError"
         }
       ]
     },
@@ -10961,17 +10761,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 273,
+          "line": 246,
           "sink": "_set_archive_load_progress"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 274,
+          "line": 247,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 275,
+          "line": 248,
           "sink": "append_archive_log"
         }
       ]
@@ -10981,7 +10781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 343,
+          "line": 324,
           "sink": "append_archive_log"
         }
       ]
@@ -11001,27 +10801,27 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_controller.py",
-          "line": 297,
+          "line": 320,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 717,
+          "line": 611,
           "sink": "_set_archive_list_status"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 719,
+          "line": 613,
           "sink": "_set_archive_load_progress"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 720,
+          "line": 614,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 721,
+          "line": 615,
           "sink": "append_archive_log"
         }
       ]
@@ -11041,38 +10841,8 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_controller.py",
-          "line": 603,
+          "line": 672,
           "sink": "emit"
-        }
-      ]
-    },
-    {
-      "key": "Archive column sort is waiting for item-name search before applying name evidence order.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/render_lifecycle.py",
-          "line": 208,
-          "sink": "append_archive_log"
-        }
-      ]
-    },
-    {
-      "key": "Archive column sort will apply after the current task finishes.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/controller.py",
-          "line": 462,
-          "sink": "set_status_message"
-        }
-      ]
-    },
-    {
-      "key": "Archive companion indexing cancelled.",
-      "origins": [
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 100,
-          "sink": "RunCancelled"
         }
       ]
     },
@@ -11158,16 +10928,6 @@
           "path": "cdmw/services/archive_overlay_install.py",
           "line": 141,
           "sink": "ValueError"
-        }
-      ]
-    },
-    {
-      "key": "Archive entries loaded. Texture sidecar cache is tracked in the compact status indicator.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 843,
-          "sink": "_set_archive_load_progress"
         }
       ]
     },
@@ -11371,7 +11131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_controller.py",
-          "line": 666,
+          "line": 729,
           "sink": "python-return:_staged_payload_error"
         }
       ]
@@ -11383,31 +11143,6 @@
           "path": "cdmw/ui/text_search/tab.py",
           "line": 159,
           "sink": "addItem"
-        }
-      ]
-    },
-    {
-      "key": "Archive filter candidate set | source={value_0} | candidates={value_1} / {value_2} | native_used={value_3}",
-      "origins": [
-        {
-          "path": "cdmw/workers/archive_filter_workers.py",
-          "line": 199,
-          "sink": "emit"
-        }
-      ]
-    },
-    {
-      "key": "Archive filter inputs changed while results were still loading. Press Apply Filters to refresh.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/filter_workers.py",
-          "line": 321,
-          "sink": "_set_archive_load_progress"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/filter_workers.py",
-          "line": 322,
-          "sink": "set_status_message"
         }
       ]
     },
@@ -11435,39 +11170,9 @@
       "key": "Archive list available",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/index_workers.py",
-          "line": 221,
-          "sink": "_set_archive_list_status"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/index_workers.py",
-          "line": 264,
-          "sink": "_set_archive_list_status"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/index_workers.py",
-          "line": 380,
-          "sink": "_set_archive_list_status"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/index_workers.py",
-          "line": 397,
-          "sink": "_set_archive_list_status"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/index_workers.py",
-          "line": 467,
-          "sink": "_set_archive_list_status"
-        },
-        {
           "path": "cdmw/ui/archive_browser/render_lifecycle.py",
-          "line": 163,
-          "sink": "_set_archive_list_status"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/render_lifecycle.py",
-          "line": 178,
-          "sink": "_set_archive_list_status"
+          "line": 59,
+          "sink": "_update_startup_splash"
         }
       ]
     },
@@ -11492,66 +11197,11 @@
       ]
     },
     {
-      "key": "Archive lookup indexes are loading. This search will run automatically when lookup is ready.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/filter_workers.py",
-          "line": 176,
-          "sink": "_set_archive_load_progress"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/filter_workers.py",
-          "line": 177,
-          "sink": "set_status_message"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/filter_workers.py",
-          "line": 178,
-          "sink": "append_archive_log"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/filter_workers.py",
-          "line": 190,
-          "sink": "_set_archive_load_progress"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/filter_workers.py",
-          "line": 191,
-          "sink": "set_status_message"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/filter_workers.py",
-          "line": 192,
-          "sink": "append_archive_log"
-        }
-      ]
-    },
-    {
-      "key": "Archive lookup indexes are still warming. Wait for them to finish before refreshing archives.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/log_controller.py",
-          "line": 26,
-          "sink": "set_status_message"
-        }
-      ]
-    },
-    {
-      "key": "Archive lookup indexing cancelled.",
-      "origins": [
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 85,
-          "sink": "RunCancelled"
-        }
-      ]
-    },
-    {
       "key": "Archive lookup query does not belong to the requested session.",
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 234,
+          "line": 381,
           "sink": "ValueError"
         }
       ]
@@ -11662,22 +11312,32 @@
       ]
     },
     {
-      "key": "Archive name-column sort will apply after item-name search is ready.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/controller.py",
-          "line": 446,
-          "sink": "append_archive_log"
-        }
-      ]
-    },
-    {
       "key": "Archive open failed: {value_0}",
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
           "line": 3317,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Archive operation failed",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/failure_report.py",
+          "line": 68,
+          "sink": "setWindowTitle"
+        }
+      ]
+    },
+    {
+      "key": "Archive operation stopped making progress for five minutes.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_catalogue_service.py",
+          "line": 203,
+          "sink": "ArchiveBackendError"
         }
       ]
     },
@@ -11696,7 +11356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 916,
+          "line": 801,
           "sink": "set_status_message"
         }
       ]
@@ -11706,7 +11366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 909,
+          "line": 794,
           "sink": "set_status_message"
         }
       ]
@@ -11716,7 +11376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 907,
+          "line": 792,
           "sink": "set_status_message"
         }
       ]
@@ -11897,21 +11557,6 @@
       ]
     },
     {
-      "key": "Archive path lookup shard cache could not be used: {value_0}",
-      "origins": [
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 543,
-          "sink": "emit"
-        },
-        {
-          "path": "cdmw/workers/archive_workers.py",
-          "line": 191,
-          "sink": "emit"
-        }
-      ]
-    },
-    {
       "key": "Archive path to resolve, e.g. object/texture/example_diffuse.dds",
       "origins": [
         {
@@ -11946,7 +11591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 893,
+          "line": 834,
           "sink": "_write_crash_report"
         }
       ]
@@ -12006,7 +11651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 935,
+          "line": 876,
           "sink": "_write_crash_report"
         }
       ]
@@ -12031,12 +11676,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 664,
+          "line": 605,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 903,
+          "line": 844,
           "sink": "set_status_message"
         }
       ]
@@ -12086,7 +11731,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 677,
+          "line": 981,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -12096,12 +11741,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_controller.py",
-          "line": 216,
+          "line": 235,
           "sink": "TypeError"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_controller.py",
-          "line": 639,
+          "line": 702,
           "sink": "python-return:_staged_payload_error"
         }
       ]
@@ -12111,7 +11756,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 670,
+          "line": 974,
           "sink": "RuntimeError"
         }
       ]
@@ -12121,7 +11766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_controller.py",
-          "line": 641,
+          "line": 704,
           "sink": "python-return:_staged_payload_error"
         }
       ]
@@ -12141,12 +11786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/render_lifecycle.py",
-          "line": 92,
-          "sink": "python-return:_archive_status_text"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/render_lifecycle.py",
-          "line": 142,
+          "line": 64,
           "sink": "_update_startup_splash"
         }
       ]
@@ -12176,17 +11816,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 273,
+          "line": 246,
           "sink": "_set_archive_load_progress"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 274,
+          "line": 247,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 275,
+          "line": 248,
           "sink": "append_archive_log"
         }
       ]
@@ -12202,29 +11842,9 @@
       ]
     },
     {
-      "key": "Archive root preflight could not inspect the selected folder: {value_0}",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 157,
-          "sink": "append_log"
-        }
-      ]
-    },
-    {
       "key": "Archive scan",
       "origins": [],
       "manual": true
-    },
-    {
-      "key": "Archive scan cancelled: possible duplicate game archives found.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 185,
-          "sink": "set_status_message"
-        }
-      ]
     },
     {
       "key": "Archive scan complete. Found",
@@ -12234,21 +11854,6 @@
     {
       "key": "Archive scan complete. Found {value_0} entries.",
       "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 858,
-          "sink": "_update_startup_splash"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 868,
-          "sink": "_set_archive_list_status"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 869,
-          "sink": "append_archive_log"
-        },
         {
           "path": "cdmw/ui/archive_browser/sidecar_index.py",
           "line": 205,
@@ -12302,41 +11907,6 @@
       ]
     },
     {
-      "key": "Archive search cache loaded.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/index_workers.py",
-          "line": 376,
-          "sink": "append_archive_log"
-        }
-      ]
-    },
-    {
-      "key": "Archive search cache ready.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/index_workers.py",
-          "line": 378,
-          "sink": "append_archive_log"
-        }
-      ]
-    },
-    {
-      "key": "Archive search cache saved in {value_0}s.",
-      "origins": [
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 721,
-          "sink": "emit"
-        },
-        {
-          "path": "cdmw/workers/archive_workers.py",
-          "line": 126,
-          "sink": "emit"
-        }
-      ]
-    },
-    {
       "key": "Archive selection cancelled; loaded meshes are unchanged",
       "origins": [
         {
@@ -12351,7 +11921,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 562,
+          "line": 856,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -12361,7 +11931,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 807,
+          "line": 1117,
           "sink": "RuntimeError"
         }
       ]
@@ -12371,7 +11941,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 591,
+          "line": 887,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -12416,7 +11986,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 616,
+          "line": 903,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -12426,7 +11996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_controller.py",
-          "line": 479,
+          "line": 511,
           "sink": "TypeError"
         }
       ]
@@ -12447,52 +12017,12 @@
       "manual": true
     },
     {
-      "key": "Archive v2 shadow comparison failed ({value_0}): {value_1}",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 856,
-          "sink": "append_archive_log"
-        }
-      ]
-    },
-    {
-      "key": "Archive v2 shadow: {value_0}",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 649,
-          "sink": "append_archive_log"
-        }
-      ]
-    },
-    {
       "key": "Archive virtual asset path. Texture references normally end in .dds.",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/pac_xml_editor_parameters.py",
           "line": 195,
           "sink": "QLabel"
-        }
-      ]
-    },
-    {
-      "key": "Archive worker recovery could not preserve the current source fingerprint.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/remote_controller.py",
-          "line": 629,
-          "sink": "RuntimeError"
-        }
-      ]
-    },
-    {
-      "key": "Archive worker restarted; restoring the current archive query...",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/remote_controller.py",
-          "line": 633,
-          "sink": "emit"
         }
       ]
     },
@@ -13636,17 +13166,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 321,
+          "line": 320,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 321,
+          "line": 320,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 326,
+          "line": 325,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -13966,7 +13496,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 301,
+          "line": 300,
           "sink": "addItem"
         },
         {
@@ -14161,12 +13691,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/controls_panel.py",
-          "line": 351,
+          "line": 352,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 887,
+          "line": 772,
           "sink": "addButton"
         },
         {
@@ -16116,7 +15646,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 335,
+          "line": 482,
           "sink": "ValueError"
         },
         {
@@ -16711,12 +16241,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/controls_panel.py",
-          "line": 348,
+          "line": 349,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/archive_browser/controls_panel.py",
-          "line": 360,
+          "line": 361,
           "sink": "QPushButton"
         },
         {
@@ -16856,7 +16386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 120,
+          "line": 119,
           "sink": "setText"
         }
       ]
@@ -16876,7 +16406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 118,
+          "line": 120,
           "sink": "QLabel"
         }
       ]
@@ -16946,7 +16476,7 @@
         },
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 888,
+          "line": 773,
           "sink": "addButton"
         },
         {
@@ -17921,33 +17451,13 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 68,
+          "line": 64,
           "sink": "set_detail"
         },
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 350,
+          "line": 702,
           "sink": "_update_startup_splash"
-        },
-        {
-          "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 817,
-          "sink": "_update_startup_splash"
-        }
-      ]
-    },
-    {
-      "key": "Building archive category index...",
-      "origins": [
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 690,
-          "sink": "emit"
-        },
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 691,
-          "sink": "emit"
         }
       ]
     },
@@ -18127,36 +17637,6 @@
       ]
     },
     {
-      "key": "Building path lookup in background...",
-      "origins": [
-        {
-          "path": "cdmw/workers/archive_workers.py",
-          "line": 219,
-          "sink": "emit"
-        },
-        {
-          "path": "cdmw/workers/archive_workers.py",
-          "line": 220,
-          "sink": "emit"
-        }
-      ]
-    },
-    {
-      "key": "Building path lookup...",
-      "origins": [
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 567,
-          "sink": "emit"
-        },
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 568,
-          "sink": "emit"
-        }
-      ]
-    },
-    {
       "key": "Building per-texture policy preview...",
       "origins": [
         {
@@ -18263,16 +17743,6 @@
           "path": "cdmw/ui/texture_workflow/workers.py",
           "line": 102,
           "sink": "_run_utility_task"
-        }
-      ]
-    },
-    {
-      "key": "Building the first archive cache now. Keep CDMW open until the cache status reaches ready.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 347,
-          "sink": "append_archive_log"
         }
       ]
     },
@@ -18465,16 +17935,6 @@
       "key": "Built for: {value_0}",
       "origins": [],
       "manual": true
-    },
-    {
-      "key": "Built path lookup with C++ helper.",
-      "origins": [
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 579,
-          "sink": "emit"
-        }
-      ]
     },
     {
       "key": "Built {value_0} package(s) in {value_1}",
@@ -18937,16 +18397,6 @@
       ]
     },
     {
-      "key": "CDMW found archive indexes outside the normal game archive layout. Backup or copied archives can create duplicate results and inflated file counts.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 168,
-          "sink": "setText"
-        }
-      ]
-    },
-    {
       "key": "CDMW handshake failed: {value_0}",
       "origins": [
         {
@@ -19103,6 +18553,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
           "line": 6853,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "CDMW_ARCHIVE_BACKEND is obsolete and ignored; using the standalone archive backend.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
+          "line": 113,
+          "sink": "append_archive_log"
         }
       ]
     },
@@ -19322,21 +18782,11 @@
       ]
     },
     {
-      "key": "Cache Status: Building. Archive scan/cache build is running.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 274,
-          "sink": "_set_archive_cache_health"
-        }
-      ]
-    },
-    {
       "key": "Cache Status: Building. Standalone archive catalogue is preparing a generation.",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 253,
+          "line": 114,
           "sink": "_set_archive_cache_health"
         }
       ]
@@ -19352,21 +18802,11 @@
       ]
     },
     {
-      "key": "Cache Status: Healthy. Archive cache matches current game files.{value_0}",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 776,
-          "sink": "_set_archive_cache_health"
-        }
-      ]
-    },
-    {
       "key": "Cache Status: Healthy. Built the standalone archive catalogue.",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 712,
+          "line": 606,
           "sink": "_set_archive_cache_health"
         },
         {
@@ -19406,7 +18846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 712,
+          "line": 606,
           "sink": "_set_archive_cache_health"
         },
         {
@@ -19446,22 +18886,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 268,
+          "line": 241,
           "sink": "_set_archive_cache_health"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 873,
-          "sink": "_set_archive_cache_health"
-        }
-      ]
-    },
-    {
-      "key": "Cache Status: Healthy. {value_0} archive entries loaded from current cache.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 767,
+          "line": 757,
           "sink": "_set_archive_cache_health"
         }
       ]
@@ -19531,7 +18961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 879,
+          "line": 763,
           "sink": "_set_archive_cache_health"
         }
       ]
@@ -19551,7 +18981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 261,
+          "line": 234,
           "sink": "_set_archive_cache_health"
         }
       ]
@@ -19631,7 +19061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 543,
+          "line": 484,
           "sink": "set_status_message"
         }
       ]
@@ -19896,7 +19326,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 340,
+          "line": 339,
           "sink": "QPushButton"
         },
         {
@@ -19961,13 +19391,8 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 637,
+          "line": 537,
           "sink": "setText"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 103,
-          "sink": "addButton"
         },
         {
           "path": "cdmw/ui/archive_browser/source_mix_actions.py",
@@ -20116,18 +19541,8 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 149,
+          "line": 154,
           "sink": "QPushButton"
-        }
-      ]
-    },
-    {
-      "key": "Cancel Scan",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 178,
-          "sink": "addButton"
         }
       ]
     },
@@ -20166,7 +19581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 638,
+          "line": 538,
           "sink": "setToolTip"
         }
       ]
@@ -20178,6 +19593,16 @@
           "path": "cdmw/ui/texture_workflow/editor_floating_state.py",
           "line": 510,
           "sink": "python-return:texture_editor_floating_cancel_status_text"
+        }
+      ]
+    },
+    {
+      "key": "Cancellation was requested. Retry the operation; inspect the last stage and diagnostic tail if it stalls again.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_catalogue_service.py",
+          "line": 203,
+          "sink": "ArchiveBackendError"
         }
       ]
     },
@@ -20771,8 +20196,18 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 498,
+          "line": 542,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Catalogue operation failed",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
+          "line": 532,
+          "sink": "show_failure"
         }
       ]
     },
@@ -20781,7 +20216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 437,
+          "line": 464,
           "sink": "setText"
         }
       ]
@@ -20886,7 +20321,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 623,
+          "line": 667,
           "sink": "setText"
         }
       ]
@@ -21381,7 +20816,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 300,
+          "line": 299,
           "sink": "setAccessibleName"
         },
         {
@@ -22302,51 +21737,6 @@
       ]
     },
     {
-      "key": "Checking archive path lookup cache in background...",
-      "origins": [
-        {
-          "path": "cdmw/workers/archive_workers.py",
-          "line": 177,
-          "sink": "emit"
-        },
-        {
-          "path": "cdmw/workers/archive_workers.py",
-          "line": 178,
-          "sink": "emit"
-        }
-      ]
-    },
-    {
-      "key": "Checking archive path lookup cache...",
-      "origins": [
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 527,
-          "sink": "emit"
-        },
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 528,
-          "sink": "emit"
-        }
-      ]
-    },
-    {
-      "key": "Checking archive search cache...",
-      "origins": [
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 443,
-          "sink": "emit"
-        },
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 444,
-          "sink": "emit"
-        }
-      ]
-    },
-    {
       "key": "Checking archives before building the plan...",
       "origins": [
         {
@@ -22401,7 +21791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 650,
+          "line": 649,
           "sink": "setText"
         },
         {
@@ -22468,6 +21858,16 @@
           "path": "cdmw/ui/texture_workflow/workers.py",
           "line": 404,
           "sink": "_run_utility_task"
+        }
+      ]
+    },
+    {
+      "key": "Checking game version...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
+          "line": 115,
+          "sink": "_set_archive_load_progress"
         }
       ]
     },
@@ -22811,7 +22211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 835,
+          "line": 720,
           "sink": "_update_startup_splash"
         }
       ]
@@ -23036,7 +22436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/tab.py",
-          "line": 201,
+          "line": 202,
           "sink": "_set_status"
         }
       ]
@@ -23061,7 +22461,7 @@
         },
         {
           "path": "cdmw/ui/model_library/tab.py",
-          "line": 315,
+          "line": 316,
           "sink": "getItem"
         }
       ]
@@ -23886,7 +23286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 650,
+          "line": 649,
           "sink": "setText"
         }
       ]
@@ -23896,12 +23296,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 222,
+          "line": 221,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 745,
+          "line": 744,
           "sink": "setText"
         }
       ]
@@ -25196,7 +24596,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 131,
+          "line": 133,
           "sink": "QPushButton"
         },
         {
@@ -26116,7 +25516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 270,
+          "line": 275,
           "sink": "QPushButton"
         }
       ]
@@ -26195,6 +25595,11 @@
           "sink": "QPushButton"
         },
         {
+          "path": "cdmw/ui/archive_browser/failure_report.py",
+          "line": 28,
+          "sink": "QPushButton"
+        },
+        {
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_wiring_part_01.py",
           "line": 204,
           "sink": "QPushButton"
@@ -26216,7 +25621,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 150,
+          "line": 155,
           "sink": "QPushButton"
         },
         {
@@ -26361,7 +25766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/close_controller.py",
-          "line": 489,
+          "line": 491,
           "sink": "set_status_message"
         }
       ]
@@ -26371,7 +25776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/close_controller.py",
-          "line": 404,
+          "line": 406,
           "sink": "set_status_message"
         }
       ]
@@ -27736,7 +27141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 659,
+          "line": 658,
           "sink": "setText"
         }
       ]
@@ -27746,7 +27151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 661,
+          "line": 660,
           "sink": "setText"
         }
       ]
@@ -28546,7 +27951,7 @@
       "origins": [
         {
           "path": "cdmw/services/material_authority_resource_service.py",
-          "line": 179,
+          "line": 181,
           "sink": "ValueError"
         }
       ]
@@ -29390,6 +28795,11 @@
       "key": "Copy error report",
       "origins": [
         {
+          "path": "cdmw/ui/archive_browser/failure_report.py",
+          "line": 25,
+          "sink": "QPushButton"
+        },
+        {
           "path": "cdmw/ui/new_item/read_failure.py",
           "line": 78,
           "sink": "QPushButton"
@@ -29713,16 +29123,6 @@
           "path": "cdmw/ui/archive_browser/source_picker_dialog.py",
           "line": 301,
           "sink": "_set_source_preview_message"
-        }
-      ]
-    },
-    {
-      "key": "Could not build the archive scope: {value_0}",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 485,
-          "sink": "_show_error"
         }
       ]
     },
@@ -31151,7 +30551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 880,
+          "line": 765,
           "sink": "setWindowTitle"
         }
       ]
@@ -31181,7 +30581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/controls_panel.py",
-          "line": 344,
+          "line": 345,
           "sink": "setPlaceholderText"
         }
       ]
@@ -31191,7 +30591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 881,
+          "line": 766,
           "sink": "setText"
         }
       ]
@@ -31231,7 +30631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 809,
+          "line": 694,
           "sink": "set_status_message"
         }
       ]
@@ -31241,7 +30641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 799,
+          "line": 684,
           "sink": "set_status_message"
         }
       ]
@@ -31588,21 +30988,6 @@
           "path": "cdmw/ui/texture_workflow/progress_panel.py",
           "line": 38,
           "sink": "QLabel"
-        }
-      ]
-    },
-    {
-      "key": "Current filters will apply when search is ready.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 321,
-          "sink": "append_archive_log"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 322,
-          "sink": "set_status_message"
         }
       ]
     },
@@ -32596,7 +31981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 411,
+          "line": 410,
           "sink": "_add_combo_choice"
         }
       ]
@@ -32776,7 +32161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 303,
+          "line": 302,
           "sink": "addItem"
         },
         {
@@ -33331,7 +32716,7 @@
         },
         {
           "path": "cdmw/ui/model_library/controller.py",
-          "line": 545,
+          "line": 558,
           "sink": "addButton"
         },
         {
@@ -33386,7 +32771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/controller.py",
-          "line": 566,
+          "line": 579,
           "sink": "addButton"
         }
       ]
@@ -33461,7 +32846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/controller.py",
-          "line": 534,
+          "line": 547,
           "sink": "setWindowTitle"
         }
       ]
@@ -33501,7 +32886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/controller.py",
-          "line": 555,
+          "line": 568,
           "sink": "setWindowTitle"
         },
         {
@@ -33781,7 +33166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/controller.py",
-          "line": 557,
+          "line": 570,
           "sink": "setText"
         }
       ]
@@ -33791,7 +33176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/controller.py",
-          "line": 536,
+          "line": 549,
           "sink": "setText"
         }
       ]
@@ -34051,7 +33436,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 256,
+          "line": 261,
           "sink": "_add_detail_section"
         },
         {
@@ -34344,6 +33729,11 @@
     {
       "key": "Details",
       "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/failure_report.py",
+          "line": 26,
+          "sink": "QPushButton"
+        },
         {
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_shell_part_01.py",
           "line": 256,
@@ -36101,7 +35491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/controller.py",
-          "line": 540,
+          "line": 553,
           "sink": "setInformativeText"
         }
       ]
@@ -36246,7 +35636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/files_panel.py",
-          "line": 143,
+          "line": 135,
           "sink": "setToolTip"
         }
       ]
@@ -38401,7 +37791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 161,
+          "line": 160,
           "sink": "QLabel"
         }
       ]
@@ -38411,7 +37801,7 @@
       "origins": [
         {
           "path": "cdmw/workers/new_item_cleanup_worker.py",
-          "line": 66,
+          "line": 83,
           "sink": "ValueError"
         }
       ]
@@ -38551,7 +37941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 679,
+          "line": 678,
           "sink": "setText"
         }
       ]
@@ -38726,7 +38116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 462,
+          "line": 461,
           "sink": "setText"
         }
       ]
@@ -39706,7 +39096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 286,
+          "line": 285,
           "sink": "setHeaderLabels"
         }
       ]
@@ -39756,7 +39146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 632,
+          "line": 676,
           "sink": "setText"
         }
       ]
@@ -40121,7 +39511,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 250,
+          "line": 255,
           "sink": "_section_label"
         }
       ]
@@ -40321,7 +39711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 213,
+          "line": 212,
           "sink": "setToolTip"
         }
       ]
@@ -40406,7 +39796,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/filter_workers.py",
-          "line": 121,
+          "line": 38,
           "sink": "setText"
         }
       ]
@@ -43121,7 +42511,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 286,
+          "line": 285,
           "sink": "setHeaderLabels"
         },
         {
@@ -43186,7 +42576,7 @@
       "origins": [
         {
           "path": "cdmw/services/material_authority_resource_service.py",
-          "line": 326,
+          "line": 328,
           "sink": "ValueError"
         }
       ]
@@ -43256,7 +42646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/controls_panel.py",
-          "line": 358,
+          "line": 359,
           "sink": "QLabel"
         }
       ]
@@ -44101,7 +43491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 888,
+          "line": 829,
           "sink": "set_status_message"
         }
       ]
@@ -44961,7 +44351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 281,
+          "line": 280,
           "sink": "setPlaceholderText"
         }
       ]
@@ -45250,11 +44640,6 @@
       "key": "Filtering",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/filter_workers.py",
-          "line": 222,
-          "sink": "_set_archive_load_progress"
-        },
-        {
           "path": "cdmw/ui/archive_browser/progress.py",
           "line": 45,
           "sink": "python-return:_archive_progress_phase_for_detail"
@@ -45266,7 +44651,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 597,
+          "line": 497,
           "sink": "_set_archive_load_progress"
         }
       ]
@@ -45308,26 +44693,6 @@
           "path": "cdmw/ui/archive_browser/controls_panel.py",
           "line": 182,
           "sink": "QGroupBox"
-        }
-      ]
-    },
-    {
-      "key": "Filters will apply when archive lookup indexes are ready.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/render_lifecycle.py",
-          "line": 177,
-          "sink": "append_archive_log"
-        }
-      ]
-    },
-    {
-      "key": "Filters will apply when item-name search is ready.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/render_lifecycle.py",
-          "line": 162,
-          "sink": "append_archive_log"
         }
       ]
     },
@@ -45503,26 +44868,6 @@
           "path": "cdmw/ui/item_icons/workers.py",
           "line": 593,
           "sink": "setText"
-        }
-      ]
-    },
-    {
-      "key": "Finalizing archive load...",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 787,
-          "sink": "_set_archive_load_progress"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 789,
-          "sink": "set_status_message"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 790,
-          "sink": "append_archive_log"
         }
       ]
     },
@@ -46041,7 +45386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/close_controller.py",
-          "line": 371,
+          "line": 373,
           "sink": "set_status_message"
         }
       ]
@@ -46091,7 +45436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_controller.py",
-          "line": 664,
+          "line": 727,
           "sink": "python-return:_staged_payload_error"
         }
       ]
@@ -46101,7 +45446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_controller.py",
-          "line": 654,
+          "line": 717,
           "sink": "python-return:_staged_payload_error"
         }
       ]
@@ -46861,7 +46206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/controls_panel.py",
-          "line": 345,
+          "line": 346,
           "sink": "setPlaceholderText"
         }
       ]
@@ -48001,7 +47346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 947,
+          "line": 888,
           "sink": "set_status_message"
         }
       ]
@@ -48196,7 +47541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/controls_panel.py",
-          "line": 346,
+          "line": 347,
           "sink": "QLabel"
         },
         {
@@ -48327,6 +47672,16 @@
       ]
     },
     {
+      "key": "Game executable check cancelled.",
+      "origins": [
+        {
+          "path": "cdmw/services/game_executable_fingerprints.py",
+          "line": 33,
+          "sink": "RunCancelled"
+        }
+      ]
+    },
+    {
       "key": "Game overlay",
       "origins": [
         {
@@ -48357,31 +47712,31 @@
       ]
     },
     {
-      "key": "Game update check skipped: could not hash {value_0}: {value_1}",
+      "key": "Game update check skipped: could not read {value_0}: {value_1}",
       "origins": [
         {
-          "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 515,
-          "sink": "append_archive_log"
-        },
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 328,
-          "sink": "emit"
+          "path": "cdmw/services/game_executable_fingerprints.py",
+          "line": 40,
+          "sink": "python-return:check_game_executable_fingerprints"
         }
       ]
     },
     {
-      "key": "Game update check skipped: could not read {value_0}: {value_1}",
+      "key": "Game update check skipped: the executable changed while hashing.",
       "origins": [
         {
-          "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 493,
-          "sink": "append_archive_log"
-        },
+          "path": "cdmw/services/game_executable_fingerprints.py",
+          "line": 37,
+          "sink": "python-return:check_game_executable_fingerprints"
+        }
+      ]
+    },
+    {
+      "key": "Game update check skipped: {value_0}",
+      "origins": [
         {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 306,
+          "path": "cdmw/workers/game_executable_fingerprint.py",
+          "line": 29,
           "sink": "emit"
         }
       ]
@@ -48393,71 +47748,16 @@
           "path": "cdmw/ui/new_item/tab.py",
           "line": 339,
           "sink": "tr"
-        },
-        {
-          "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 557,
-          "sink": "append_log"
         }
       ]
     },
     {
-      "key": "Game update detected via CrimsonDesert.exe hash. Archive Browser cache invalidated ({value_0} file(s)).",
+      "key": "Game update detected via CrimsonDesert.exe hash. Refreshing the standalone archive catalogue.",
       "origins": [
         {
-          "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 547,
-          "sink": "append_archive_log"
-        },
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 360,
-          "sink": "emit"
-        }
-      ]
-    },
-    {
-      "key": "Game update detected via CrimsonDesert.exe hash. Archive Browser cache invalidated.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 551,
-          "sink": "append_log"
-        }
-      ]
-    },
-    {
-      "key": "Game update detected via CrimsonDesert.exe hash. No existing Archive Browser cache file needed deletion.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 554,
-          "sink": "append_archive_log"
-        },
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 365,
-          "sink": "emit"
-        }
-      ]
-    },
-    {
-      "key": "Game update detected.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 558,
-          "sink": "set_status_message"
-        }
-      ]
-    },
-    {
-      "key": "Game update detected. Archive Browser cache invalidated.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 552,
-          "sink": "set_status_message"
+          "path": "cdmw/services/game_executable_fingerprints.py",
+          "line": 58,
+          "sink": "python-return:check_game_executable_fingerprints"
         }
       ]
     },
@@ -48706,7 +48006,7 @@
       "origins": [
         {
           "path": "cdmw/services/material_authority_resource_service.py",
-          "line": 202,
+          "line": 204,
           "sink": "ValueError"
         }
       ]
@@ -48716,7 +48016,7 @@
       "origins": [
         {
           "path": "cdmw/services/material_authority_resource_service.py",
-          "line": 220,
+          "line": 222,
           "sink": "ValueError"
         }
       ]
@@ -48726,7 +48026,7 @@
       "origins": [
         {
           "path": "cdmw/services/material_authority_resource_service.py",
-          "line": 211,
+          "line": 213,
           "sink": "ValueError"
         }
       ]
@@ -49150,16 +48450,6 @@
       "key": "Global sidecar indexing is optional. Leave it off for faster startup and browsing; enable it when you need DDS reverse references across the archive. Worker count range: 1-16. Preview cache range: 12-256 entries.",
       "origins": [],
       "manual": true
-    },
-    {
-      "key": "Global texture-sidecar indexing deferred; direct model preview resolves its own material dependencies.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 682,
-          "sink": "append_archive_log"
-        }
-      ]
     },
     {
       "key": "Glow",
@@ -49596,7 +48886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 286,
+          "line": 285,
           "sink": "setHeaderLabels"
         },
         {
@@ -52746,7 +52036,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 259,
+          "line": 264,
           "sink": "_add_detail_section"
         }
       ]
@@ -52811,12 +52101,12 @@
         },
         {
           "path": "cdmw/ui/shell/log_controller.py",
-          "line": 232,
+          "line": 229,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/shell/log_controller.py",
-          "line": 236,
+          "line": 233,
           "sink": "setText"
         },
         {
@@ -53001,7 +52291,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 638,
+          "line": 538,
           "sink": "setToolTip"
         }
       ]
@@ -54841,12 +54131,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/filter_workers.py",
-          "line": 120,
-          "sink": "setPlaceholderText"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 625,
+          "line": 37,
           "sink": "setPlaceholderText"
         },
         {
@@ -55160,21 +54445,6 @@
       "key": "Indexing",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/filter_workers.py",
-          "line": 176,
-          "sink": "_set_archive_load_progress"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/filter_workers.py",
-          "line": 190,
-          "sink": "_set_archive_load_progress"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/index_workers.py",
-          "line": 291,
-          "sink": "_set_archive_load_progress"
-        },
-        {
           "path": "cdmw/ui/archive_browser/progress.py",
           "line": 51,
           "sink": "python-return:_archive_progress_phase_for_detail"
@@ -55196,7 +54466,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/render_lifecycle.py",
-          "line": 102,
+          "line": 25,
           "sink": "_set_archive_load_progress"
         }
       ]
@@ -55276,7 +54546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 670,
+          "line": 669,
           "sink": "setText"
         }
       ]
@@ -57566,7 +56836,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 111,
+          "line": 113,
           "sink": "setWindowTitle"
         },
         {
@@ -58062,6 +57332,16 @@
       ]
     },
     {
+      "key": "Item names unavailable",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
+          "line": 70,
+          "sink": "show_failure"
+        }
+      ]
+    },
+    {
       "key": "Item presentation",
       "origins": [
         {
@@ -58086,7 +57366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 615,
+          "line": 659,
           "sink": "setText"
         }
       ]
@@ -58112,107 +57392,27 @@
       ]
     },
     {
-      "key": "Item-name search cache deferred until needed...",
+      "key": "Item-name indexing did not produce an available catalogue.",
       "origins": [
         {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 519,
+          "path": "cdmw/services/archive_catalogue_service.py",
+          "line": 752,
+          "sink": "ArchiveBackendError"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/remote_finder_warmup.py",
+          "line": 430,
+          "sink": "ArchiveBackendError"
+        }
+      ]
+    },
+    {
+      "key": "Item-name indexing: {value_0}. Elapsed: {value_1} seconds.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/remote_finder_warmup.py",
+          "line": 622,
           "sink": "emit"
-        }
-      ]
-    },
-    {
-      "key": "Item-name search cache deferred; explicit name: searches, Item Finder, or priority indexing can start it.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 657,
-          "sink": "append_archive_log"
-        }
-      ]
-    },
-    {
-      "key": "Item-name search cache is missing or stale; archive list will open and search will build on demand.",
-      "origins": [
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 518,
-          "sink": "emit"
-        }
-      ]
-    },
-    {
-      "key": "Item-name search cache warming after archive list opened.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/render_lifecycle.py",
-          "line": 58,
-          "sink": "append_archive_log"
-        }
-      ]
-    },
-    {
-      "key": "Item-name search cache will load on demand after the archive list opens.",
-      "origins": [
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 518,
-          "sink": "emit"
-        }
-      ]
-    },
-    {
-      "key": "Item-name search deferred until needed...",
-      "origins": [
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 519,
-          "sink": "emit"
-        }
-      ]
-    },
-    {
-      "key": "Item-name search failed; path browsing remains available.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/index_workers.py",
-          "line": 396,
-          "sink": "set_status_message"
-        }
-      ]
-    },
-    {
-      "key": "Item-name search is loading. Path searches are available; item-name search will run automatically when ready.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/filter_workers.py",
-          "line": 176,
-          "sink": "_set_archive_load_progress"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/filter_workers.py",
-          "line": 177,
-          "sink": "set_status_message"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/filter_workers.py",
-          "line": 178,
-          "sink": "append_archive_log"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/filter_workers.py",
-          "line": 190,
-          "sink": "_set_archive_load_progress"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/filter_workers.py",
-          "line": 191,
-          "sink": "set_status_message"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/filter_workers.py",
-          "line": 192,
-          "sink": "append_archive_log"
         }
       ]
     },
@@ -59056,7 +58256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 302,
+          "line": 301,
           "sink": "addItem"
         },
         {
@@ -61462,16 +60662,6 @@
       ]
     },
     {
-      "key": "Loaded archive name search index from derived cache.",
-      "origins": [
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 612,
-          "sink": "emit"
-        }
-      ]
-    },
-    {
       "key": "Loaded as: {value_0}",
       "origins": [
         {
@@ -61522,26 +60712,6 @@
       ]
     },
     {
-      "key": "Loaded {value_0} archive entries from cache.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 858,
-          "sink": "_update_startup_splash"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 868,
-          "sink": "_set_archive_list_status"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 869,
-          "sink": "append_archive_log"
-        }
-      ]
-    },
-    {
       "key": "Loaded {value_0} effects from the metadata cache.",
       "origins": [
         {
@@ -61576,12 +60746,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 75,
+          "line": 71,
           "sink": "set_detail"
         },
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 356,
+          "line": 326,
           "sink": "_update_startup_splash"
         }
       ]
@@ -61721,7 +60891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 227,
+          "line": 199,
           "sink": "_begin_pending"
         }
       ]
@@ -61753,56 +60923,6 @@
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
           "line": 354,
           "sink": "setText"
-        }
-      ]
-    },
-    {
-      "key": "Loading archive packages under {value_0}",
-      "origins": [
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 380,
-          "sink": "emit"
-        }
-      ]
-    },
-    {
-      "key": "Loading archive search cache...",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/index_workers.py",
-          "line": 291,
-          "sink": "_set_archive_load_progress"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/index_workers.py",
-          "line": 292,
-          "sink": "set_status_message"
-        },
-        {
-          "path": "cdmw/workers/archive_workers.py",
-          "line": 310,
-          "sink": "emit"
-        },
-        {
-          "path": "cdmw/workers/archive_workers.py",
-          "line": 311,
-          "sink": "emit"
-        }
-      ]
-    },
-    {
-      "key": "Loading archives...",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 292,
-          "sink": "set_status_message"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 293,
-          "sink": "append_log"
         }
       ]
     },
@@ -61861,12 +60981,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 141,
+          "line": 146,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 417,
+          "line": 444,
           "sink": "setText"
         }
       ]
@@ -61906,7 +61026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 447,
+          "line": 446,
           "sink": "setText"
         }
       ]
@@ -62092,21 +61212,6 @@
       ]
     },
     {
-      "key": "Loading texture sidecar cache in the background...",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 849,
-          "sink": "set_status_message"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 850,
-          "sink": "append_archive_log"
-        }
-      ]
-    },
-    {
       "key": "Loading texture sidecar cache...",
       "origins": [
         {
@@ -62138,16 +61243,6 @@
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
           "line": 389,
           "sink": "setText"
-        }
-      ]
-    },
-    {
-      "key": "Loading the archive index first. Texture sidecar bindings can continue warming in the background after the browser opens.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 284,
-          "sink": "_set_archive_warmup_overlay"
         }
       ]
     },
@@ -62226,7 +61321,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_model.py",
-          "line": 419,
+          "line": 444,
           "sink": "python-return:data"
         },
         {
@@ -62476,7 +61571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 257,
+          "line": 262,
           "sink": "_add_detail_section"
         }
       ]
@@ -62691,7 +61786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 177,
+          "line": 176,
           "sink": "setText"
         }
       ]
@@ -63936,17 +63031,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 321,
+          "line": 320,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 321,
+          "line": 320,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 326,
+          "line": 325,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -64016,32 +63111,32 @@
       "origins": [
         {
           "path": "cdmw/services/material_authority_resource_service.py",
-          "line": 252,
+          "line": 254,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/material_authority_resource_service.py",
-          "line": 284,
+          "line": 286,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/material_authority_resource_service.py",
-          "line": 322,
+          "line": 324,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/material_authority_resource_service.py",
-          "line": 354,
+          "line": 356,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/material_authority_resource_service.py",
-          "line": 408,
+          "line": 410,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/material_authority_resource_service.py",
-          "line": 505,
+          "line": 507,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -64416,22 +63511,22 @@
       "origins": [
         {
           "path": "cdmw/services/material_authority_resource_service.py",
-          "line": 66,
+          "line": 68,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/material_authority_resource_service.py",
-          "line": 69,
+          "line": 71,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/material_authority_resource_service.py",
-          "line": 532,
+          "line": 534,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/material_authority_resource_service.py",
-          "line": 542,
+          "line": 544,
           "sink": "raise_if_cancelled"
         },
         {
@@ -64931,7 +64026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_memory.py",
-          "line": 252,
+          "line": 248,
           "sink": "append_archive_log"
         }
       ]
@@ -69771,17 +68866,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 321,
+          "line": 320,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 321,
+          "line": 320,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 326,
+          "line": 325,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -70276,7 +69371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/tab.py",
-          "line": 302,
+          "line": 303,
           "sink": "_set_status"
         }
       ]
@@ -70431,7 +69526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 258,
+          "line": 263,
           "sink": "_add_detail_section"
         }
       ]
@@ -72296,7 +71391,7 @@
       "origins": [
         {
           "path": "cdmw/services/material_authority_resource_service.py",
-          "line": 487,
+          "line": 489,
           "sink": "RuntimeError"
         }
       ]
@@ -72306,17 +71401,17 @@
       "origins": [
         {
           "path": "cdmw/services/material_authority_resource_service.py",
-          "line": 287,
+          "line": 289,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/material_authority_resource_service.py",
-          "line": 407,
+          "line": 409,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/material_authority_resource_service.py",
-          "line": 504,
+          "line": 506,
           "sink": "RuntimeError"
         }
       ]
@@ -73291,7 +72386,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 146,
+          "line": 151,
           "sink": "QPushButton"
         },
         {
@@ -73851,7 +72946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/controller.py",
-          "line": 621,
+          "line": 528,
           "sink": "_clear_archive_preview"
         }
       ]
@@ -74126,7 +73221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 538,
+          "line": 582,
           "sink": "setText"
         }
       ]
@@ -74631,12 +73726,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 140,
+          "line": 139,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 550,
+          "line": 549,
           "sink": "tr"
         }
       ]
@@ -74686,7 +73781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 632,
+          "line": 676,
           "sink": "setText"
         }
       ]
@@ -75421,7 +74516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 200,
+          "line": 199,
           "sink": "QLabel"
         }
       ]
@@ -77091,7 +76186,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 639,
+          "line": 638,
           "sink": "setText"
         }
       ]
@@ -77441,32 +76536,32 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 313,
+          "line": 318,
           "sink": "_detail_label"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 605,
+          "line": 649,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 633,
+          "line": 677,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 634,
+          "line": 678,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 636,
+          "line": 680,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 637,
+          "line": 681,
           "sink": "setText"
         },
         {
@@ -79006,7 +78101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 180,
+          "line": 179,
           "sink": "setText"
         }
       ]
@@ -79156,7 +78251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/controller.py",
-          "line": 561,
+          "line": 574,
           "sink": "setInformativeText"
         }
       ]
@@ -79301,7 +78396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 889,
+          "line": 774,
           "sink": "addButton"
         }
       ]
@@ -79399,11 +78494,6 @@
     {
       "key": "Open Folder",
       "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 177,
-          "sink": "addButton"
-        },
         {
           "path": "cdmw/ui/item_icons/tab.py",
           "line": 301,
@@ -80911,7 +80001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 274,
+          "line": 279,
           "sink": "setToolTip"
         }
       ]
@@ -81271,7 +80361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 237,
+          "line": 224,
           "sink": "_update_startup_splash"
         }
       ]
@@ -81301,22 +80391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_controller.py",
-          "line": 139,
-          "sink": "emit"
-        }
-      ]
-    },
-    {
-      "key": "Opening archive list from loaded entries...",
-      "origins": [
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 616,
-          "sink": "emit"
-        },
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 617,
+          "line": 142,
           "sink": "emit"
         }
       ]
@@ -81426,7 +80501,7 @@
         },
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 250,
+          "line": 237,
           "sink": "_update_startup_splash"
         }
       ]
@@ -81668,16 +80743,6 @@
           "path": "cdmw/ui/new_item/read_failure.py",
           "line": 62,
           "sink": "python-return:_report_text"
-        }
-      ]
-    },
-    {
-      "key": "Operation: {value_0}\n\n{value_1}\n\nRetry v2, or explicitly use the legacy archive scanner for this app session only. CDMW will not change your saved settings.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 96,
-          "sink": "setInformativeText"
         }
       ]
     },
@@ -82511,17 +81576,17 @@
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 321,
+          "line": 320,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 321,
+          "line": 320,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 326,
+          "line": 325,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -82531,12 +81596,12 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 137,
+          "line": 136,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 137,
+          "line": 136,
           "sink": "addItem"
         },
         {
@@ -85386,12 +84451,12 @@
       "origins": [
         {
           "path": "cdmw/services/shader_controls_preview.py",
-          "line": 68,
+          "line": 69,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/shader_controls_preview.py",
-          "line": 148,
+          "line": 149,
           "sink": "ValueError"
         }
       ]
@@ -86317,86 +85382,6 @@
       ]
     },
     {
-      "key": "Path lookup cache deferred; it will build when filters, related-file lookup, preview, or priority indexing need it.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 653,
-          "sink": "append_archive_log"
-        }
-      ]
-    },
-    {
-      "key": "Path lookup cache is deferred until filters, search, preview, or priority indexing need it.",
-      "origins": [
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 604,
-          "sink": "emit"
-        }
-      ]
-    },
-    {
-      "key": "Path lookup cache ready after rebuilding {value_0} shard(s).",
-      "origins": [
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 600,
-          "sink": "emit"
-        }
-      ]
-    },
-    {
-      "key": "Path lookup deferred until needed...",
-      "origins": [
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 605,
-          "sink": "emit"
-        }
-      ]
-    },
-    {
-      "key": "Path lookup failed; direct archive browsing remains available.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/index_workers.py",
-          "line": 263,
-          "sink": "set_status_message"
-        }
-      ]
-    },
-    {
-      "key": "Path lookup loaded from cache in {value_0}s.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/index_workers.py",
-          "line": 217,
-          "sink": "append_archive_log"
-        }
-      ]
-    },
-    {
-      "key": "Path lookup loaded from cache.",
-      "origins": [
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 602,
-          "sink": "emit"
-        }
-      ]
-    },
-    {
-      "key": "Path lookup ready in {value_0}s.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/index_workers.py",
-          "line": 219,
-          "sink": "append_archive_log"
-        }
-      ]
-    },
-    {
       "key": "Path: {value_0}",
       "origins": [
         {
@@ -86496,7 +85481,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 291,
+          "line": 293,
           "sink": "setText"
         },
         {
@@ -86546,7 +85531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 291,
+          "line": 293,
           "sink": "setText"
         }
       ]
@@ -87201,7 +86186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 275,
+          "line": 274,
           "sink": "QLabel"
         }
       ]
@@ -87446,7 +86431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 694,
+          "line": 711,
           "sink": "setWindowTitle"
         }
       ]
@@ -88061,7 +87046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 408,
+          "line": 407,
           "sink": "warning"
         }
       ]
@@ -88666,7 +87651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/controller.py",
-          "line": 277,
+          "line": 280,
           "sink": "setText"
         },
         {
@@ -88681,7 +87666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/controller.py",
-          "line": 366,
+          "line": 376,
           "sink": "setText"
         },
         {
@@ -88828,16 +87813,6 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 2426,
           "sink": "rust-presentation"
-        }
-      ]
-    },
-    {
-      "key": "Possible Duplicate Game Archives",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 167,
-          "sink": "setWindowTitle"
         }
       ]
     },
@@ -89671,7 +88646,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 597,
+          "line": 497,
+          "sink": "_set_archive_load_progress"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
+          "line": 115,
           "sink": "_set_archive_load_progress"
         }
       ]
@@ -89686,22 +88666,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 603,
-          "sink": "_set_archive_warmup_overlay"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 284,
-          "sink": "_set_archive_warmup_overlay"
-        }
-      ]
-    },
-    {
-      "key": "Preparing Archive Browser View",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/filter_workers.py",
-          "line": 360,
+          "line": 503,
           "sink": "_set_archive_warmup_overlay"
         }
       ]
@@ -89891,7 +88856,7 @@
         },
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 115,
+          "line": 111,
           "sink": "_update_startup_splash"
         },
         {
@@ -89912,37 +88877,12 @@
       ]
     },
     {
-      "key": "Preparing archive filter...",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/filter_workers.py",
-          "line": 222,
-          "sink": "_set_archive_load_progress"
-        }
-      ]
-    },
-    {
       "key": "Preparing archive index and matching skeleton: {value_0}",
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
           "line": 289,
           "sink": "setText"
-        }
-      ]
-    },
-    {
-      "key": "Preparing archive list from filters and view mode...",
-      "origins": [
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 643,
-          "sink": "emit"
-        },
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 644,
-          "sink": "emit"
         }
       ]
     },
@@ -89971,107 +88911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_controller.py",
-          "line": 211,
-          "sink": "emit"
-        }
-      ]
-    },
-    {
-      "key": "Preparing archive refresh...",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 281,
-          "sink": "_set_archive_load_progress"
-        }
-      ]
-    },
-    {
-      "key": "Preparing archive scan / cache load...",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 281,
-          "sink": "_set_archive_load_progress"
-        }
-      ]
-    },
-    {
-      "key": "Preparing archive search cache (1/3): item links...",
-      "origins": [
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 234,
-          "sink": "emit"
-        },
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 235,
-          "sink": "emit"
-        },
-        {
-          "path": "cdmw/workers/archive_workers.py",
-          "line": 345,
-          "sink": "emit"
-        },
-        {
-          "path": "cdmw/workers/archive_workers.py",
-          "line": 346,
-          "sink": "emit"
-        }
-      ]
-    },
-    {
-      "key": "Preparing archive search cache (2/3): path/name index...",
-      "origins": [
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 251,
-          "sink": "emit"
-        },
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 252,
-          "sink": "emit"
-        },
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 266,
-          "sink": "emit"
-        },
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 267,
-          "sink": "emit"
-        },
-        {
-          "path": "cdmw/workers/archive_workers.py",
-          "line": 362,
-          "sink": "emit"
-        }
-      ]
-    },
-    {
-      "key": "Preparing archive search cache (3/3): saving...",
-      "origins": [
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 703,
-          "sink": "emit"
-        },
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 704,
-          "sink": "emit"
-        }
-      ]
-    },
-    {
-      "key": "Preparing archive search cache as part of archive cache build.",
-      "origins": [
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 493,
+          "line": 230,
           "sink": "emit"
         }
       ]
@@ -92101,7 +90941,7 @@
       "origins": [
         {
           "path": "cdmw/workers/new_item_cleanup_worker.py",
-          "line": 64,
+          "line": 81,
           "sink": "ValueError"
         }
       ]
@@ -92226,7 +91066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 663,
+          "line": 604,
           "sink": "_clear_archive_preview"
         }
       ]
@@ -92446,12 +91286,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 902,
+          "line": 843,
           "sink": "_clear_archive_preview"
         },
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 952,
+          "line": 893,
           "sink": "_clear_archive_preview"
         },
         {
@@ -92623,16 +91463,6 @@
           "path": "cdmw/ui/preview/dotnet_session.py",
           "line": 1527,
           "sink": "_set_state"
-        }
-      ]
-    },
-    {
-      "key": "Preview is loading; archive material and texture lookup is still building.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 437,
-          "sink": "set_status_message"
         }
       ]
     },
@@ -94446,7 +93276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 145,
+          "line": 150,
           "sink": "QPushButton"
         },
         {
@@ -94691,7 +93521,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mod_package_retrofit_workers.py",
-          "line": 264,
+          "line": 267,
           "sink": "progress"
         }
       ]
@@ -95661,7 +94491,7 @@
       "origins": [
         {
           "path": "cdmw/services/material_authority_resource_service.py",
-          "line": 184,
+          "line": 186,
           "sink": "ValueError"
         }
       ]
@@ -95791,7 +94621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 481,
+          "line": 483,
           "sink": "setToolTip"
         }
       ]
@@ -95996,7 +94826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 885,
+          "line": 826,
           "sink": "set_status_message"
         }
       ]
@@ -96366,7 +95196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 561,
+          "line": 563,
           "sink": "setText"
         }
       ]
@@ -97261,17 +96091,17 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 273,
+          "line": 246,
           "sink": "_set_archive_load_progress"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 719,
+          "line": 613,
           "sink": "_set_archive_load_progress"
         },
         {
           "path": "cdmw/ui/archive_browser/render_lifecycle.py",
-          "line": 100,
+          "line": 23,
           "sink": "_set_archive_load_progress"
         },
         {
@@ -97331,7 +96161,7 @@
         },
         {
           "path": "cdmw/ui/shell/utility_controller.py",
-          "line": 248,
+          "line": 242,
           "sink": "_set_archive_load_progress"
         },
         {
@@ -98001,7 +96831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 534,
+          "line": 475,
           "sink": "_set_archive_preview_health_message"
         }
       ]
@@ -98013,21 +96843,6 @@
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
           "line": 365,
           "sink": "show_loading"
-        }
-      ]
-    },
-    {
-      "key": "Rebuilding archive path lookup shard cache...",
-      "origins": [
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 524,
-          "sink": "emit"
-        },
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 525,
-          "sink": "emit"
         }
       ]
     },
@@ -98061,7 +96876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 533,
+          "line": 474,
           "sink": "setText"
         }
       ]
@@ -98825,14 +97640,9 @@
       "key": "Recorded CrimsonDesert.exe hash baseline: {value_0}",
       "origins": [
         {
-          "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 534,
-          "sink": "append_archive_log"
-        },
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 347,
-          "sink": "emit"
+          "path": "cdmw/services/game_executable_fingerprints.py",
+          "line": 58,
+          "sink": "python-return:check_game_executable_fingerprints"
         }
       ]
     },
@@ -98857,6 +97667,16 @@
       ]
     },
     {
+      "key": "Recovered archive page did not match the current query.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/remote_controller.py",
+          "line": 491,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
       "key": "Recovered archive role for the selected file.",
       "origins": [
         {
@@ -98871,17 +97691,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_controller.py",
-          "line": 418,
+          "line": 441,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_controller.py",
-          "line": 428,
+          "line": 451,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_controller.py",
-          "line": 444,
+          "line": 467,
           "sink": "RuntimeError"
         }
       ]
@@ -98926,7 +97746,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_workers.py",
-          "line": 620,
+          "line": 215,
           "sink": "_emit_missing"
         }
       ]
@@ -98936,12 +97756,12 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_workers.py",
-          "line": 615,
+          "line": 210,
           "sink": "_emit_prepared"
         },
         {
           "path": "cdmw/workers/archive_workers.py",
-          "line": 620,
+          "line": 215,
           "sink": "_emit_missing"
         }
       ]
@@ -98966,17 +97786,17 @@
         },
         {
           "path": "cdmw/workers/archive_workers.py",
-          "line": 615,
+          "line": 210,
           "sink": "_emit_prepared"
         },
         {
           "path": "cdmw/workers/archive_workers.py",
-          "line": 620,
+          "line": 215,
           "sink": "_emit_missing"
         },
         {
           "path": "cdmw/workers/archive_workers.py",
-          "line": 697,
+          "line": 292,
           "sink": "_emit_prepared"
         }
       ]
@@ -98986,12 +97806,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 239,
+          "line": 244,
           "sink": "_detail_label"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 593,
+          "line": 637,
           "sink": "setText"
         }
       ]
@@ -99011,7 +97831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 622,
+          "line": 666,
           "sink": "setText"
         }
       ]
@@ -99036,7 +97856,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 687,
+          "line": 991,
           "sink": "RuntimeError"
         }
       ]
@@ -99066,7 +97886,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 738,
+          "line": 1048,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -99076,7 +97896,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 727,
+          "line": 1037,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -99137,6 +97957,16 @@
       ]
     },
     {
+      "key": "Recovered structure did not match the current source fingerprint.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/remote_controller.py",
+          "line": 523,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
       "key": "Recovery",
       "origins": [
         {
@@ -99161,7 +97991,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 491,
+          "line": 727,
           "sink": "TypeError"
         }
       ]
@@ -99171,7 +98001,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 496,
+          "line": 732,
           "sink": "TypeError"
         }
       ]
@@ -99796,7 +98626,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 637,
+          "line": 537,
           "sink": "setText"
         },
         {
@@ -100051,38 +98881,13 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_controller.py",
-          "line": 139,
+          "line": 142,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 227,
+          "line": 199,
           "sink": "_begin_pending"
-        }
-      ]
-    },
-    {
-      "key": "Refreshing archive packages under {value_0}",
-      "origins": [
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 378,
-          "sink": "emit"
-        }
-      ]
-    },
-    {
-      "key": "Refreshing archives...",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 292,
-          "sink": "set_status_message"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 293,
-          "sink": "append_log"
         }
       ]
     },
@@ -101200,11 +100005,6 @@
       "key": "Rendering",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/filter_workers.py",
-          "line": 359,
-          "sink": "_set_archive_load_progress"
-        },
-        {
           "path": "cdmw/ui/archive_browser/progress.py",
           "line": 73,
           "sink": "python-return:_archive_progress_phase_for_detail"
@@ -101215,34 +100015,9 @@
       "key": "Rendering archive browser view...",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/filter_workers.py",
-          "line": 359,
-          "sink": "_set_archive_load_progress"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/filter_workers.py",
-          "line": 369,
-          "sink": "set_status_message"
-        },
-        {
           "path": "cdmw/ui/archive_browser/render_lifecycle.py",
-          "line": 135,
+          "line": 57,
           "sink": "_update_startup_splash"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 787,
-          "sink": "_set_archive_load_progress"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 789,
-          "sink": "set_status_message"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 790,
-          "sink": "append_archive_log"
         }
       ]
     },
@@ -101251,7 +100026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/controller.py",
-          "line": 619,
+          "line": 526,
           "sink": "_clear_archive_preview"
         }
       ]
@@ -101267,29 +100042,9 @@
       ]
     },
     {
-      "key": "Rendering the browser from the prepared cache. Large views stream through the virtual model; use filters or Folders view for narrower browsing.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/filter_workers.py",
-          "line": 360,
-          "sink": "_set_archive_warmup_overlay"
-        }
-      ]
-    },
-    {
       "key": "Rendering thumbnail…",
       "origins": [],
       "manual": true
-    },
-    {
-      "key": "Rendering...",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/filter_workers.py",
-          "line": 360,
-          "sink": "_set_archive_warmup_overlay"
-        }
-      ]
     },
     {
       "key": "Reopen Edit",
@@ -103276,7 +102031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 205,
+          "line": 204,
           "sink": "setText"
         }
       ]
@@ -104461,7 +103216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 706,
+          "line": 751,
           "sink": "setText"
         }
       ]
@@ -104491,7 +103246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 353,
+          "line": 311,
           "sink": "set_status_message"
         }
       ]
@@ -105506,22 +104261,27 @@
       "origins": [
         {
           "path": "cdmw/workers/mod_package_retrofit_workers.py",
-          "line": 216,
+          "line": 185,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/workers/mod_package_retrofit_workers.py",
-          "line": 220,
+          "line": 219,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/workers/mod_package_retrofit_workers.py",
-          "line": 262,
+          "line": 223,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/workers/mod_package_retrofit_workers.py",
-          "line": 285,
+          "line": 265,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/workers/mod_package_retrofit_workers.py",
+          "line": 289,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -105531,7 +104291,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mod_package_retrofit_workers.py",
-          "line": 202,
+          "line": 205,
           "sink": "ValueError"
         }
       ]
@@ -105605,8 +104365,13 @@
       "key": "Retry",
       "origins": [
         {
+          "path": "cdmw/ui/archive_browser/failure_report.py",
+          "line": 24,
+          "sink": "QPushButton"
+        },
+        {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 147,
+          "line": 152,
           "sink": "QPushButton"
         },
         {
@@ -105643,16 +104408,6 @@
           "path": "cdmw/ui/preview/dotnet_host.py",
           "line": 169,
           "sink": "QPushButton"
-        }
-      ]
-    },
-    {
-      "key": "Retry v2",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 101,
-          "sink": "addButton"
         }
       ]
     },
@@ -105703,6 +104458,36 @@
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
           "line": 262,
           "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
+      "key": "Retrying archive operation...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/remote_controller.py",
+          "line": 625,
+          "sink": "emit"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
+          "line": 216,
+          "sink": "_begin_pending"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
+          "line": 218,
+          "sink": "set_status_message"
+        }
+      ]
+    },
+    {
+      "key": "Retrying catalogue operation...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
+          "line": 387,
+          "sink": "setText"
         }
       ]
     },
@@ -108627,16 +107412,6 @@
       ]
     },
     {
-      "key": "Saving archive search cache...",
-      "origins": [
-        {
-          "path": "cdmw/workers/archive_workers.py",
-          "line": 108,
-          "sink": "emit"
-        }
-      ]
-    },
-    {
       "key": "Saving completed actions in order…",
       "origins": [
         {
@@ -108998,16 +107773,6 @@
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
           "line": 121,
           "sink": "QPushButton"
-        }
-      ]
-    },
-    {
-      "key": "Scan Anyway",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 176,
-          "sink": "addButton"
         }
       ]
     },
@@ -109526,7 +108291,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 387,
+          "line": 297,
           "sink": "setText"
         }
       ]
@@ -109561,7 +108326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 731,
+          "line": 776,
           "sink": "setText"
         }
       ]
@@ -109701,7 +108466,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 130,
+          "line": 132,
           "sink": "QPushButton"
         },
         {
@@ -109916,7 +108681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 130,
+          "line": 129,
           "sink": "setPlaceholderText"
         }
       ]
@@ -109966,7 +108731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 127,
+          "line": 129,
           "sink": "setPlaceholderText"
         }
       ]
@@ -110236,7 +109001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 417,
+          "line": 444,
           "sink": "setText"
         }
       ]
@@ -110256,7 +109021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 496,
+          "line": 495,
           "sink": "setText"
         }
       ]
@@ -110386,7 +109151,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 339,
+          "line": 338,
           "sink": "QPushButton"
         },
         {
@@ -110536,7 +109301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 269,
+          "line": 268,
           "sink": "setWindowTitle"
         }
       ]
@@ -110561,7 +109326,7 @@
         },
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 899,
+          "line": 784,
           "sink": "getExistingDirectory"
         }
       ]
@@ -112486,7 +111251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/controller.py",
-          "line": 763,
+          "line": 657,
           "sink": "set_status_message"
         }
       ]
@@ -112546,7 +111311,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 380,
+          "line": 338,
           "sink": "_clear_archive_preview"
         },
         {
@@ -112801,12 +111566,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 238,
+          "line": 243,
           "sink": "_detail_label"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 592,
+          "line": 636,
           "sink": "setText"
         },
         {
@@ -112841,12 +111606,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 251,
+          "line": 256,
           "sink": "_detail_label"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 596,
+          "line": 640,
           "sink": "setText"
         }
       ]
@@ -112971,7 +111736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 688,
+          "line": 732,
           "sink": "information"
         }
       ]
@@ -115376,7 +114141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 913,
+          "line": 798,
           "sink": "set_status_message"
         }
       ]
@@ -115386,7 +114151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 883,
+          "line": 768,
           "sink": "setInformativeText"
         }
       ]
@@ -115416,7 +114181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/controls_panel.py",
-          "line": 367,
+          "line": 368,
           "sink": "QLabel"
         }
       ]
@@ -116386,7 +115151,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 264,
+          "line": 269,
           "sink": "QPushButton"
         }
       ]
@@ -116576,7 +115341,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 266,
+          "line": 271,
           "sink": "QPushButton"
         }
       ]
@@ -116866,7 +115631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 267,
+          "line": 272,
           "sink": "setToolTip"
         }
       ]
@@ -116991,7 +115756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 175,
+          "line": 174,
           "sink": "setToolTip"
         }
       ]
@@ -117001,7 +115766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 178,
+          "line": 177,
           "sink": "setToolTip"
         }
       ]
@@ -117051,7 +115816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 181,
+          "line": 180,
           "sink": "setToolTip"
         }
       ]
@@ -117061,7 +115826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 265,
+          "line": 270,
           "sink": "setToolTip"
         }
       ]
@@ -117656,7 +116421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 540,
+          "line": 584,
           "sink": "setText"
         }
       ]
@@ -117893,11 +116658,6 @@
           "path": "cdmw/ui/archive_browser/progress.py",
           "line": 77,
           "sink": "python-return:_archive_progress_phase_for_detail"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 843,
-          "sink": "_set_archive_load_progress"
         }
       ]
     },
@@ -120821,7 +119581,7 @@
       "origins": [
         {
           "path": "cdmw/services/material_authority_resource_service.py",
-          "line": 450,
+          "line": 452,
           "sink": "ValueError"
         }
       ]
@@ -121061,7 +119821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 93,
+          "line": 84,
           "sink": "ValueError"
         }
       ]
@@ -121393,16 +120153,6 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
           "line": 5073,
           "sink": "rust-presentation"
-        }
-      ]
-    },
-    {
-      "key": "Stale",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/filter_workers.py",
-          "line": 321,
-          "sink": "_set_archive_load_progress"
         }
       ]
     },
@@ -121872,26 +120622,6 @@
       ]
     },
     {
-      "key": "Starting archive refresh.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 295,
-          "sink": "append_archive_log"
-        }
-      ]
-    },
-    {
-      "key": "Starting archive scan (cache-aware).",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 295,
-          "sink": "append_archive_log"
-        }
-      ]
-    },
-    {
       "key": "Starting build.",
       "origins": [
         {
@@ -122016,7 +120746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 335,
+          "line": 322,
           "sink": "append_archive_log"
         }
       ]
@@ -122026,12 +120756,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 310,
+          "line": 297,
           "sink": "append_archive_log"
         },
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 311,
+          "line": 298,
           "sink": "set_status_message"
         }
       ]
@@ -122041,7 +120771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 327,
+          "line": 314,
           "sink": "append_archive_log"
         }
       ]
@@ -122051,7 +120781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 742,
+          "line": 627,
           "sink": "append_archive_log"
         }
       ]
@@ -122061,7 +120791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 649,
+          "line": 534,
           "sink": "append_archive_log"
         }
       ]
@@ -122071,7 +120801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 706,
+          "line": 591,
           "sink": "append_archive_log"
         }
       ]
@@ -122081,7 +120811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 679,
+          "line": 564,
           "sink": "append_archive_log"
         }
       ]
@@ -122091,7 +120821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 810,
+          "line": 695,
           "sink": "append_log"
         }
       ]
@@ -122101,7 +120831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 811,
+          "line": 696,
           "sink": "append_archive_log"
         }
       ]
@@ -122356,7 +121086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 255,
+          "line": 260,
           "sink": "_add_detail_section"
         },
         {
@@ -122716,8 +121446,18 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/close_controller.py",
-          "line": 388,
+          "line": 390,
           "sink": "set_status_message"
+        }
+      ]
+    },
+    {
+      "key": "Still working: {value_0}. Elapsed: {value_1} seconds.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/remote_controller.py",
+          "line": 631,
+          "sink": "emit"
         }
       ]
     },
@@ -122845,16 +121585,6 @@
       "key": "Stopping",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/controller.py",
-          "line": 456,
-          "sink": "_set_archive_load_progress"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/filter_workers.py",
-          "line": 156,
-          "sink": "_set_archive_load_progress"
-        },
-        {
           "path": "cdmw/ui/archive_browser/progress.py",
           "line": 37,
           "sink": "python-return:_archive_progress_phase_for_detail"
@@ -122883,31 +121613,6 @@
           "path": "tools/translation_studio/ai_panel.py",
           "line": 513,
           "sink": "_note"
-        }
-      ]
-    },
-    {
-      "key": "Stopping previous archive filter before applying column sort...",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/controller.py",
-          "line": 456,
-          "sink": "_set_archive_load_progress"
-        }
-      ]
-    },
-    {
-      "key": "Stopping previous archive filter...",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/filter_workers.py",
-          "line": 156,
-          "sink": "_set_archive_load_progress"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/filter_workers.py",
-          "line": 157,
-          "sink": "set_status_message"
         }
       ]
     },
@@ -123181,7 +121886,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 209,
+          "line": 356,
           "sink": "ValueError"
         }
       ]
@@ -123793,16 +122498,6 @@
           "path": "cdmw/ui/archive_browser/mesh_launch_flow.py",
           "line": 113,
           "sink": "MeshImportSupplementalFileSpec"
-        }
-      ]
-    },
-    {
-      "key": "Suspicious locations:\n{value_0}\n\nVerify or repair the game installation and move archive backups outside the game folder.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 172,
-          "sink": "setInformativeText"
         }
       ]
     },
@@ -125486,7 +124181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/log_controller.py",
-          "line": 30,
+          "line": 27,
           "sink": "set_status_message"
         }
       ]
@@ -125596,17 +124291,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 321,
+          "line": 320,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 321,
+          "line": 320,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 326,
+          "line": 325,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -127036,12 +125731,12 @@
         },
         {
           "path": "cdmw/ui/new_item/model_import.py",
-          "line": 968,
+          "line": 971,
           "sink": "TypeError"
         },
         {
           "path": "cdmw/ui/new_item/model_import.py",
-          "line": 970,
+          "line": 973,
           "sink": "ValueError"
         }
       ]
@@ -127402,6 +126097,16 @@
       ]
     },
     {
+      "key": "The archive operation could not finish.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
+          "line": 64,
+          "sink": "show_failure"
+        }
+      ]
+    },
+    {
       "key": "The archive results are stale or belong to mixed sessions.",
       "origins": [
         {
@@ -127456,7 +126161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 404,
+          "line": 430,
           "sink": "_show_error"
         }
       ]
@@ -127478,6 +126183,16 @@
           "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
           "line": 319,
           "sink": "_fail_pending"
+        }
+      ]
+    },
+    {
+      "key": "The archive worker exited before this operation could start.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_catalogue_service.py",
+          "line": 634,
+          "sink": "ArchiveBackendError"
         }
       ]
     },
@@ -127506,7 +126221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 576,
+          "line": 517,
           "sink": "_handle_archive_remote_preview_dependencies_failed"
         }
       ]
@@ -128111,7 +126826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 564,
+          "line": 566,
           "sink": "setToolTip"
         }
       ]
@@ -128211,7 +126926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_controller.py",
-          "line": 281,
+          "line": 300,
           "sink": "RuntimeError"
         }
       ]
@@ -128221,7 +126936,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_controller.py",
-          "line": 285,
+          "line": 304,
           "sink": "RuntimeError"
         }
       ]
@@ -128250,14 +126965,9 @@
       "key": "The game build changed. Use New Item > Tools > Check mods for game updates to review older mods and overlays.",
       "origins": [
         {
-          "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 539,
-          "sink": "append_log"
-        },
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 352,
-          "sink": "emit"
+          "path": "cdmw/services/game_executable_fingerprints.py",
+          "line": 58,
+          "sink": "python-return:check_game_executable_fingerprints"
         }
       ]
     },
@@ -128336,12 +127046,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 500,
+          "line": 502,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 304,
+          "line": 303,
           "sink": "setToolTip"
         },
         {
@@ -129821,7 +128531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 721,
+          "line": 766,
           "sink": "setText"
         }
       ]
@@ -130267,12 +128977,27 @@
       ]
     },
     {
-      "key": "The standalone archive backend could not finish the requested operation.",
+      "key": "The standalone archive backend is unavailable.",
       "origins": [
         {
+          "path": "cdmw/ui/archive_browser/controller.py",
+          "line": 491,
+          "sink": "ArchiveBackendError"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/filter_workers.py",
+          "line": 17,
+          "sink": "ArchiveBackendError"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/filter_workers.py",
+          "line": 24,
+          "sink": "ArchiveBackendError"
+        },
+        {
           "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 93,
-          "sink": "setText"
+          "line": 99,
+          "sink": "ArchiveBackendError"
         }
       ]
     },
@@ -130341,7 +129066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 603,
+          "line": 503,
           "sink": "_set_archive_warmup_overlay"
         }
       ]
@@ -130966,7 +129691,7 @@
         },
         {
           "path": "cdmw/ui/model_library/tab.py",
-          "line": 315,
+          "line": 316,
           "sink": "getItem"
         }
       ]
@@ -131013,6 +129738,16 @@
           "path": "cdmw/services/mesh_archive_refit.py",
           "line": 99,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "This archive operation was superseded.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_catalogue_service.py",
+          "line": 250,
+          "sink": "RuntimeError"
         }
       ]
     },
@@ -131066,7 +129801,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 582,
+          "line": 523,
           "sink": "_handle_archive_remote_preview_dependencies_failed"
         },
         {
@@ -132876,7 +131611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 477,
+          "line": 479,
           "sink": "addItem"
         }
       ]
@@ -133906,17 +132641,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 321,
+          "line": 320,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 321,
+          "line": 320,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 326,
+          "line": 325,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -134201,7 +132936,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 639,
+          "line": 638,
           "sink": "setText"
         }
       ]
@@ -134626,7 +133361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_controller.py",
-          "line": 511,
+          "line": 544,
           "sink": "TypeError"
         }
       ]
@@ -135122,6 +133857,16 @@
       "manual": true
     },
     {
+      "key": "Unresponsive archive worker is being stopped.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/archive_backend_client.py",
+          "line": 597,
+          "sink": "_fail_all"
+        }
+      ]
+    },
+    {
       "key": "Unsafe Expert Controls",
       "origins": [
         {
@@ -135178,16 +133923,6 @@
           "path": "cdmw/services/mesh_archive_refit.py",
           "line": 350,
           "sink": "ValueError"
-        }
-      ]
-    },
-    {
-      "key": "Unsupported CDMW_ARCHIVE_BACKEND value {value_0}; using the default v2 archive backend.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 205,
-          "sink": "append_archive_log"
         }
       ]
     },
@@ -135586,7 +134321,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mod_package_retrofit_workers.py",
-          "line": 334,
+          "line": 338,
           "sink": "ValueError"
         }
       ]
@@ -136448,16 +135183,6 @@
           "path": "cdmw/services/archive_overlay_migration.py",
           "line": 328,
           "sink": "ValueError"
-        }
-      ]
-    },
-    {
-      "key": "Use Legacy This Session",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 102,
-          "sink": "addButton"
         }
       ]
     },
@@ -139061,7 +137786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 235,
+          "line": 234,
           "sink": "QLabel"
         }
       ]
@@ -139156,27 +137881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_memory.py",
-          "line": 269,
-          "sink": "append_archive_log"
-        }
-      ]
-    },
-    {
-      "key": "WARNING: Archive browser state used Python fallback for a very large entry set; first render may be slower. Native fallback reason: {value_0}",
-      "origins": [
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 684,
-          "sink": "emit"
-        }
-      ]
-    },
-    {
-      "key": "WARNING: Archive cache hit is slower than expected: total={value_0}s.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 828,
+          "line": 265,
           "sink": "append_archive_log"
         }
       ]
@@ -139196,7 +137901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 243,
+          "line": 230,
           "sink": "append_archive_log"
         }
       ]
@@ -139601,7 +138306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/log_controller.py",
-          "line": 233,
+          "line": 230,
           "sink": "setText"
         },
         {
@@ -139812,32 +138517,12 @@
       ]
     },
     {
-      "key": "Warning: archive folder filters could not be built: {value_0}",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/filter_workers.py",
-          "line": 78,
-          "sink": "append_archive_log"
-        }
-      ]
-    },
-    {
       "key": "Warning: archive folder filters could not be loaded from the worker: {value_0}",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 850,
+          "line": 740,
           "sink": "append_archive_log"
-        }
-      ]
-    },
-    {
-      "key": "Warning: archive search cache could not be saved: {value_0}",
-      "origins": [
-        {
-          "path": "cdmw/workers/archive_workers.py",
-          "line": 128,
-          "sink": "emit"
         }
       ]
     },
@@ -139858,41 +138543,6 @@
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
           "line": 554,
           "sink": "log"
-        }
-      ]
-    },
-    {
-      "key": "Warning: item-name search could not be built: {value_0}",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/index_workers.py",
-          "line": 395,
-          "sink": "append_archive_log"
-        }
-      ]
-    },
-    {
-      "key": "Warning: path lookup cache could not be written: {value_0}",
-      "origins": [
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 595,
-          "sink": "emit"
-        },
-        {
-          "path": "cdmw/workers/archive_workers.py",
-          "line": 244,
-          "sink": "emit"
-        }
-      ]
-    },
-    {
-      "key": "Warning: path lookup could not be built: {value_0}",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/index_workers.py",
-          "line": 262,
-          "sink": "append_archive_log"
         }
       ]
     },
@@ -139921,7 +138571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 739,
+          "line": 633,
           "sink": "append_archive_log"
         }
       ]
@@ -139941,7 +138591,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 694,
+          "line": 588,
           "sink": "append_archive_log"
         },
         {
@@ -143406,7 +142056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/tab.py",
-          "line": 324,
+          "line": 325,
           "sink": "_set_status"
         }
       ]
@@ -143566,12 +142216,12 @@
         },
         {
           "path": "cdmw/ui/shell/log_controller.py",
-          "line": 43,
+          "line": 40,
           "sink": "appendPlainText"
         },
         {
           "path": "cdmw/ui/shell/log_controller.py",
-          "line": 86,
+          "line": 83,
           "sink": "appendPlainText"
         },
         {
@@ -144160,11 +142810,6 @@
           "sink": "python-return:_neutral_archive_filter_state"
         },
         {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 323,
-          "sink": "_apply_archive_filter_state"
-        },
-        {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
           "line": 213,
           "sink": "QPushButton"
@@ -144183,11 +142828,6 @@
           "path": "cdmw/ui/model_library/panels.py",
           "line": 442,
           "sink": "addItem"
-        },
-        {
-          "path": "cdmw/workers/archive_filter_workers.py",
-          "line": 111,
-          "sink": "python-return:_candidate_entries_for_filter"
         }
       ]
     },
@@ -144773,11 +143413,6 @@
           "path": "cdmw/ui/archive_browser/filters.py",
           "line": 89,
           "sink": "python-return:_neutral_archive_filter_state"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 323,
-          "sink": "_apply_archive_filter_state"
         }
       ]
     },
@@ -145201,7 +143836,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 479,
+          "line": 703,
           "sink": "_reject_invalid_payload"
         }
       ]
@@ -145631,12 +144266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 253,
-          "sink": "_set_archive_cache_health"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 274,
+          "line": 114,
           "sink": "_set_archive_cache_health"
         }
       ]
@@ -146916,7 +145546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_model.py",
-          "line": 306,
+          "line": 331,
           "sink": "emit"
         }
       ]
@@ -147326,7 +145956,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 410,
+          "line": 588,
           "sink": "TypeError"
         }
       ]
@@ -147691,7 +146321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/render_lifecycle.py",
-          "line": 342,
+          "line": 141,
           "sink": "_log_archive_browser_render_stage"
         }
       ]
@@ -149433,11 +148063,6 @@
           "path": "cdmw/ui/shell/archive_backend_client.py",
           "line": 565,
           "sink": "emit"
-        },
-        {
-          "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 579,
-          "sink": "ArchiveBackendError"
         }
       ]
     },
@@ -149707,21 +148332,6 @@
       ]
     },
     {
-      "key": "extension:{value_0}",
-      "origins": [
-        {
-          "path": "cdmw/workers/archive_filter_workers.py",
-          "line": 113,
-          "sink": "python-return:_candidate_entries_for_filter"
-        },
-        {
-          "path": "cdmw/workers/archive_filter_workers.py",
-          "line": 123,
-          "sink": "python-return:_candidate_entries_for_filter"
-        }
-      ]
-    },
-    {
       "key": "extent",
       "origins": [
         {
@@ -149771,12 +148381,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_controller.py",
-          "line": 267,
+          "line": 286,
           "sink": "_fail_publication"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_controller.py",
-          "line": 312,
+          "line": 335,
           "sink": "emit"
         }
       ]
@@ -150336,7 +148946,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_model.py",
-          "line": 439,
+          "line": 464,
           "sink": "python-return:data"
         },
         {
@@ -150408,16 +149018,6 @@
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
           "line": 116,
           "sink": "finish_texture_workflow_panel_body"
-        }
-      ]
-    },
-    {
-      "key": "finalize",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/controller.py",
-          "line": 589,
-          "sink": "_log_archive_browser_render_stage"
         }
       ]
     },
@@ -151326,27 +149926,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 268,
+          "line": 241,
           "sink": "_set_archive_cache_health"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 712,
+          "line": 606,
           "sink": "_set_archive_cache_health"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 873,
-          "sink": "_set_archive_cache_health"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 767,
-          "sink": "_set_archive_cache_health"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 776,
+          "line": 757,
           "sink": "_set_archive_cache_health"
         },
         {
@@ -152686,7 +151276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_model.py",
-          "line": 421,
+          "line": 446,
           "sink": "python-return:data"
         }
       ]
@@ -156761,7 +155351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_model.py",
-          "line": 271,
+          "line": 296,
           "sink": "emit"
         }
       ]
@@ -158061,7 +156651,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 468,
+          "line": 674,
           "sink": "_reject_invalid_payload"
         }
       ]
@@ -158306,7 +156896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_controller.py",
-          "line": 277,
+          "line": 296,
           "sink": "_fail_publication"
         }
       ]
@@ -159743,21 +158333,6 @@
           "path": "tools/placement_studio/clip_names.py",
           "line": 422,
           "sink": "python-data:_SIDE"
-        }
-      ]
-    },
-    {
-      "key": "role:{value_0}",
-      "origins": [
-        {
-          "path": "cdmw/workers/archive_filter_workers.py",
-          "line": 113,
-          "sink": "python-return:_candidate_entries_for_filter"
-        },
-        {
-          "path": "cdmw/workers/archive_filter_workers.py",
-          "line": 123,
-          "sink": "python-return:_candidate_entries_for_filter"
         }
       ]
     },
@@ -161534,11 +160109,6 @@
     {
       "key": "source={value_0}",
       "origins": [
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 62,
-          "sink": "python-return:_format_timing_summary"
-        },
         {
           "path": "cdmw/workers/archive_sidecar_workers.py",
           "line": 42,
@@ -163476,7 +162046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 477,
+          "line": 479,
           "sink": "addItem"
         }
       ]
@@ -163771,7 +162341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 879,
+          "line": 763,
           "sink": "_set_archive_cache_health"
         },
         {
@@ -163851,7 +162421,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 261,
+          "line": 234,
           "sink": "_set_archive_cache_health"
         },
         {
@@ -164722,6 +163292,16 @@
       ]
     },
     {
+      "key": "waiting for progress",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_catalogue_service.py",
+          "line": 213,
+          "sink": "emit"
+        }
+      ]
+    },
+    {
       "key": "walking",
       "origins": [
         {
@@ -165256,7 +163836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 511,
+          "line": 510,
           "sink": "tr"
         }
       ]
@@ -165276,7 +163856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 408,
+          "line": 407,
           "sink": "warning"
         }
       ]
@@ -165645,6 +164225,11 @@
       "key": "{value_0}\n[truncated]",
       "origins": [
         {
+          "path": "cdmw/services/archive_failure_report.py",
+          "line": 23,
+          "sink": "python-return:bounded_text"
+        },
+        {
           "path": "cdmw/ui/new_item/read_failure.py",
           "line": 34,
           "sink": "python-return:_bounded"
@@ -165686,7 +164271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 518,
+          "line": 562,
           "sink": "QListWidgetItem"
         }
       ]
@@ -165927,21 +164512,11 @@
       "manual": true
     },
     {
-      "key": "{value_0} (1%)",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 282,
-          "sink": "_update_startup_splash"
-        }
-      ]
-    },
-    {
       "key": "{value_0} (ID {value_1})",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 616,
+          "line": 660,
           "sink": "setText"
         }
       ]
@@ -165951,7 +164526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 522,
+          "line": 566,
           "sink": "setToolTip"
         }
       ]
@@ -165991,7 +164566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 415,
+          "line": 414,
           "sink": "_add_combo_choice"
         }
       ]
@@ -166088,11 +164663,6 @@
           "path": "cdmw/ui/archive_browser/progress.py",
           "line": 209,
           "sink": "set_status_message"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
-          "line": 788,
-          "sink": "_update_startup_splash"
         }
       ]
     },
@@ -166141,7 +164711,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 405,
+          "line": 404,
           "sink": "_add_combo_choice"
         },
         {
@@ -166456,7 +165026,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 617,
+          "line": 661,
           "sink": "setText"
         },
         {
@@ -166546,7 +165116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 651,
+          "line": 695,
           "sink": "addItem"
         }
       ]
@@ -166651,12 +165221,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_model.py",
-          "line": 741,
+          "line": 766,
           "sink": "python-return:_format_bytes"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_model.py",
-          "line": 747,
+          "line": 772,
           "sink": "python-return:_format_bytes"
         }
       ]
@@ -166731,7 +165301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 618,
+          "line": 662,
           "sink": "setText"
         }
       ]
@@ -167841,7 +166411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/model_import.py",
-          "line": 1088,
+          "line": 1091,
           "sink": "python-return:_nothing_to_import"
         }
       ]
@@ -167851,7 +166421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/model_import.py",
-          "line": 1084,
+          "line": 1087,
           "sink": "python-return:_nothing_to_import"
         }
       ]
@@ -167966,7 +166536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/model_import.py",
-          "line": 1094,
+          "line": 1097,
           "sink": "python-return:fbx_needs_blender_message"
         }
       ]
@@ -168121,7 +166691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/controller.py",
-          "line": 756,
+          "line": 650,
           "sink": "set_status_message"
         }
       ]
@@ -169201,7 +167771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 505,
+          "line": 507,
           "sink": "setText"
         }
       ]
@@ -170332,16 +168902,6 @@
       ]
     },
     {
-      "key": "{value_0}. {value_1}.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/render_lifecycle.py",
-          "line": 88,
-          "sink": "python-return:_archive_status_text"
-        }
-      ]
-    },
-    {
       "key": "{value_0}...",
       "origins": [
         {
@@ -170356,7 +168916,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 464,
+          "line": 491,
           "sink": "setText"
         },
         {
@@ -171046,7 +169606,7 @@
       "origins": [
         {
           "path": "cdmw/services/shader_controls_preview.py",
-          "line": 207,
+          "line": 208,
           "sink": "ValueError"
         }
       ]
@@ -171466,7 +170026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 464,
+          "line": 491,
           "sink": "setText"
         },
         {
@@ -171814,11 +170374,6 @@
     {
       "key": "{value_0}={value_1}s",
       "origins": [
-        {
-          "path": "cdmw/workers/archive_scan_workers.py",
-          "line": 62,
-          "sink": "python-return:_format_timing_summary"
-        },
         {
           "path": "cdmw/workers/archive_sidecar_workers.py",
           "line": 42,

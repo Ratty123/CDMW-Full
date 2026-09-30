@@ -47,25 +47,6 @@ def _record_archive_worker_lifecycle(target: object, event: str, **fields: objec
 class ArchiveWorkerLifecycleMixin:
     """Small archive-browser worker stop helpers owned outside the shell window."""
 
-    def _stop_archive_basic_index_worker(self) -> None:
-        self.archive_basic_index_request_id = int(getattr(self, "archive_basic_index_request_id", 0) or 0) + 1
-        if self.archive_basic_index_worker is not None:
-            _record_archive_worker_lifecycle(
-                self,
-                "archive_worker_cancelled",
-                reason="cancelled_by_new_scan",
-                worker="basic_index",
-            )
-            try:
-                self.archive_basic_index_worker.stop()
-            except Exception as exc:
-                _record_archive_worker_lifecycle(
-                    self,
-                    "archive_worker_failed",
-                    reason="worker_failed",
-                    worker="basic_index",
-                    error=str(exc),
-                )
 
     def _stop_archive_sidecar_worker(self) -> None:
         if self.archive_sidecar_worker is not None:
@@ -75,29 +56,6 @@ class ArchiveWorkerLifecycleMixin:
             except Exception as exc:
                 _record_archive_worker_lifecycle(self, "archive_worker_failed", reason="worker_failed", worker="sidecar", error=str(exc))
 
-    def _stop_archive_derived_cache_worker(self) -> None:
-        self.archive_derived_cache_write_pending = False
-        self.archive_enhanced_index_request_id = int(
-            getattr(self, "archive_enhanced_index_request_id", 0) or 0
-        ) + 1
-        if self.archive_derived_cache_worker is not None:
-            _record_archive_worker_lifecycle(self, "archive_worker_cancelled", reason="cancelled_by_shutdown", worker="derived_cache")
-            try:
-                self.archive_derived_cache_worker.stop()
-            except Exception as exc:
-                _record_archive_worker_lifecycle(self, "archive_worker_failed", reason="worker_failed", worker="derived_cache", error=str(exc))
-        if self.archive_enhanced_index_worker is not None:
-            _record_archive_worker_lifecycle(self, "archive_worker_cancelled", reason="cancelled_by_shutdown", worker="enhanced_index")
-            try:
-                self.archive_enhanced_index_worker.stop()
-            except Exception as exc:
-                _record_archive_worker_lifecycle(self, "archive_worker_failed", reason="worker_failed", worker="enhanced_index", error=str(exc))
-        if self.archive_structure_filter_worker is not None:
-            _record_archive_worker_lifecycle(self, "archive_worker_cancelled", reason="cancelled_by_shutdown", worker="structure_filter")
-            try:
-                self.archive_structure_filter_worker.stop()
-            except Exception as exc:
-                _record_archive_worker_lifecycle(self, "archive_worker_failed", reason="worker_failed", worker="structure_filter", error=str(exc))
 
 
 def _preview_request_origin(depth: int = 6) -> str:
@@ -420,23 +378,6 @@ class ArchivePreviewWorkerMixin:
             return
         if remote_dependencies is not None:
             entry = remote_dependencies.selected_entry
-        # The path lookup takes seconds to build over a full archive, and only
-        # the Asset Family metadata needs it — geometry decodes and renders
-        # without it. Blocking here charged the first model selection of every
-        # session for the whole build, so start it and carry on; the metadata is
-        # re-resolved once it lands.
-        awaiting_lookup = bool(
-            entry is not None
-            and str(getattr(entry, "extension", "") or "").strip().lower()
-            in NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS
-            and self._archive_basic_index_missing_for_lookup()
-        )
-        if awaiting_lookup:
-            self._ensure_archive_basic_index_worker_started()
-            self._archive_preview_pending_lookup_entry = entry
-            self.shell.set_status_message(
-                "Preview is loading; archive material and texture lookup is still building."
-            )
         self.scheduled_archive_preview_request = None
         if not force and self._mesh_replacement_builder_active():
             self._defer_archive_preview_refresh_for_builder(entry)

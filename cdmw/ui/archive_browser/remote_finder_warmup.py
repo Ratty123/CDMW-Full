@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import OrderedDict, deque
 from collections.abc import Callable, Iterator, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from PySide6.QtCore import QObject, QThread, QTimer, Qt, Signal, Slot
 from PySide6.QtGui import QImage
@@ -49,6 +49,9 @@ class RemoteItemFinderWarmupController(QObject):
 
     iconsReady = Signal(str, object)
     iconsFailed = Signal(str, object)
+    catalogueFailed = Signal(object)
+    catalogueReady = Signal()
+    delayNotice = Signal(str)
 
     def __init__(
         self,
@@ -68,6 +71,7 @@ class RemoteItemFinderWarmupController(QObject):
         self._fingerprint = ""
         self._ui_generation = 0
         self._state = "idle"
+        self._failed_operation = None
         self._catalogue_ready = False
         self._initial_search_complete = False
         self._enumeration_page_start = 0
@@ -91,6 +95,8 @@ class RemoteItemFinderWarmupController(QObject):
         service.result_ready.connect(self._handle_result)
         service.request_failed.connect(self._handle_failure)
         service.request_cancelled.connect(self._handle_cancelled)
+        if hasattr(service, "operation_delayed"):
+            service.operation_delayed.connect(self._handle_delay_notice)
 
     @property
     def session_id(self) -> str:
@@ -104,7 +110,13 @@ class RemoteItemFinderWarmupController(QObject):
             and self._fingerprint == session.fingerprint
         )
         self._ui_generation = max(self._ui_generation, int(ui_generation))
-        if same_session and self._state not in {"idle", "failed"}:
+        resolver = getattr(self._service, "session", None)
+        previous = resolver(self._session_id) if callable(resolver) and self._session_id else None
+        recovered_session = previous is not None and previous.session_id == session.session_id
+        if (same_session or recovered_session) and self._fingerprint == session.fingerprint and self._state != "idle":
+            self._session_id = session.session_id
+            if self._initial_request is not None:
+                self._initial_request = replace(self._initial_request, session_id=session.session_id)
             return
         self.invalidate()
         self._session_id = session.session_id
@@ -123,6 +135,9 @@ class RemoteItemFinderWarmupController(QObject):
             except Exception:
                 pass
         self._requests.clear()
+        if self._failed_operation is not None:
+            self._service.cancel(self._failed_operation[0])
+        self._failed_operation = None
         for handle in tuple(self._threads.values()):
             handle.worker.stop()
         self._session_id = ""
@@ -271,8 +286,9 @@ class RemoteItemFinderWarmupController(QObject):
                 self._session_id,
                 ui_generation=self._ui_generation,
             )
-        except Exception:
+        except Exception as error:
             self._state = "failed"
+            self.catalogueFailed.emit(error)
             return
         self._state = "building"
         self._requests[request_id] = _WarmupRequest("build", self._generation)
@@ -287,8 +303,9 @@ class RemoteItemFinderWarmupController(QObject):
                 request,
                 ui_generation=self._ui_generation,
             )
-        except Exception:
+        except Exception as error:
             self._state = "failed"
+            self.catalogueFailed.emit(error)
             return
         self._state = "initial_search"
         self._requests[request_id] = _WarmupRequest("initial_search", self._generation)
@@ -394,17 +411,33 @@ class RemoteItemFinderWarmupController(QObject):
         tracked = self._requests.pop(request_id, None)
         if tracked is None or tracked.generation != self._generation or self._closing:
             return
+        result_session = getattr(result, "session_id", self._session_id)
+        if result_session != self._session_id:
+            resolver = getattr(self._service, "session", None)
+            recovered = resolver(result_session) if callable(resolver) else None
+            if recovered is None or recovered.fingerprint != self._fingerprint:
+                return
+            self._session_id = recovered.session_id
+            if self._initial_request is not None:
+                self._initial_request = replace(self._initial_request, session_id=recovered.session_id)
         if tracked.kind == "build" and isinstance(result, BuildNameIndexResult):
-            if result.session_id != self._session_id or not result.available:
+            if result.session_id != self._session_id:
+                return
+            if not result.available:
+                from cdmw.domain.archives.catalogue_operations import ArchiveBackendError
+                self._failed_operation = (request_id, tracked)
                 self._state = "failed"
+                self.catalogueFailed.emit(ArchiveBackendError("item_names_unavailable", result.warning or "Item-name indexing did not produce an available catalogue."))
                 return
             self._catalogue_ready = True
+            self.catalogueReady.emit()
             self._start_initial_search()
             return
         if tracked.kind in {"initial_search", "catalogue_page"} and isinstance(result, ItemCatalogSearchResult):
             if result.session_id != self._session_id:
                 self._state = "failed"
                 return
+            self.catalogueReady.emit()
             if tracked.kind == "initial_search":
                 self._publish_initial_search(result)
             else:
@@ -565,17 +598,43 @@ class RemoteItemFinderWarmupController(QObject):
         while len(self._search_cache) > _SEARCH_CACHE_LIMIT:
             self._search_cache.popitem(last=False)
 
+    def retry_failed_operation(self) -> bool:
+        if self._closing or self._failed_operation is None:
+            return False
+        old_id, tracked = self._failed_operation
+        if tracked.generation != self._generation:
+            return False
+        try:
+            request_id = self._service.retry_failed(old_id)
+        except Exception as error:
+            self.catalogueFailed.emit(error)
+            return False
+        self._requests[request_id] = tracked
+        self._state = "building" if tracked.kind == "build" else "initial_search"
+        if tracked.kind == "catalogue_page":
+            self._enumeration_done = False
+        self._failed_operation = None
+        return True
+
+    def _handle_delay_notice(self, request_id: str, stage: str, elapsed: float) -> None:
+        tracked = self._requests.get(request_id)
+        if tracked is not None and tracked.generation == self._generation and not self._closing:
+            self.delayNotice.emit(f"Item-name indexing: {stage}. Elapsed: {elapsed:.0f} seconds.")
+
     @Slot(str, object)
-    def _handle_failure(self, request_id: str, _error: object) -> None:
+    def _handle_failure(self, request_id: str, error: object) -> None:
         tracked = self._requests.pop(request_id, None)
-        if tracked is not None and tracked.generation == self._generation:
+        if tracked is not None and tracked.generation == self._generation and not self._closing:
+            if tracked.kind != "icons":
+                self._failed_operation = (request_id, tracked)
+                self.catalogueFailed.emit(error)
             self._handle_tracked_failure(tracked)
 
     @Slot(str)
     def _handle_cancelled(self, request_id: str) -> None:
         tracked = self._requests.pop(request_id, None)
-        if tracked is not None and tracked.generation == self._generation:
-            self._handle_tracked_failure(tracked)
+        if tracked is not None and tracked.generation == self._generation and not self._closing:
+            self._state = "idle"
 
     def _handle_tracked_failure(self, tracked: _WarmupRequest) -> None:
         if tracked.kind == "icons":

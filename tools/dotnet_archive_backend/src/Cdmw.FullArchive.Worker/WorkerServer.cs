@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.ComponentModel;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
@@ -179,11 +180,38 @@ internal sealed class WorkerServer(Stream input, Stream output, string cacheRoot
         }
         catch (Exception exception)
         {
+            var error = ClassifyFailure(exception);
             await WriteAsync(
                 writer,
-                WorkerProtocol.Failure(request, "worker_failure", exception.Message, exception.ToString()),
+                WorkerProtocol.Failure(request, error.Code, error.Message, error.Detail),
                 CancellationToken.None).ConfigureAwait(false);
         }
+    }
+
+    internal static WorkerError ClassifyFailure(Exception exception)
+    {
+        // Use exception types, native status, and Win32 sharing/lock codes.
+        // Unknown failures retain their exact diagnostics without guessing corruption.
+        var code = exception switch
+        {
+            DllNotFoundException => "worker_missing",
+            BadImageFormatException => "backend_incompatible",
+            FileNotFoundException missing when missing.FileName?.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) == true
+                || missing.FileName?.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) == true => "worker_missing",
+            FileNotFoundException or DirectoryNotFoundException => "source_missing",
+            UnauthorizedAccessException => "permission_denied",
+            Win32Exception win32 when win32.NativeErrorCode == 5 => "permission_denied",
+            Win32Exception win32 when win32.NativeErrorCode is 32 or 33 => "file_sharing",
+            Win32Exception win32 when win32.NativeErrorCode is 193 or 216 => "backend_incompatible",
+            IOException io when (io.HResult & 0xffff) is 32 or 33 => "file_sharing",
+            TimeoutException => "operation_timeout",
+            NativeArchiveException native when native.Status == NativeStatus.FormatError => "invalid_archive",
+            NativeArchiveException native when native.Status == NativeStatus.Unsupported => "unsupported_operation",
+            JsonException => "protocol_failure",
+            InvalidDataException => "invalid_data",
+            _ => "worker_failure",
+        };
+        return new WorkerError(code, exception.Message, exception.ToString());
     }
 
     private static WorkerMessage HandlePing(WorkerMessage request)

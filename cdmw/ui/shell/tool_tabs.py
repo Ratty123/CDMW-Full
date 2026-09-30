@@ -220,8 +220,8 @@ class ShellToolTabsMixin:
             # Archive Browser preview makes the identical call before it
             # previews a model.
             ensure_archive_texture_indexes=lambda: bool(
-                callable(getattr(self.archive, "_ensure_archive_basic_index_worker_started", None))
-                and self.archive._ensure_archive_basic_index_worker_started()
+                callable(getattr(self.archive, "_archive_catalogue_lookup_pending", None))
+                and self.archive._archive_catalogue_lookup_pending()
             ),
             get_archive_mutation_service=_archive_mutations,
             get_archive_material_preview_model=_archive_material_preview_model,

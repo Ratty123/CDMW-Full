@@ -9,6 +9,7 @@ feature coordination in focused modules as they are extracted from the shell.
 - [Mesh replacement review status](#mesh-replacement-review-status)
 - [Loose mod imports and tool availability](#loose-mod-imports-and-tool-availability)
 - [Catalogue and Item Finder](#catalogue-and-item-finder)
+- [Scanner failures and recovery](#scanner-failures-and-recovery)
 - [Body & Face Finder](#body--face-finder)
 - [Preview dependencies and payload validation](#preview-dependencies-and-payload-validation)
 - [Read-only boundary and exports](#read-only-boundary-and-exports)
@@ -71,12 +72,51 @@ use the same rule.
 
 ## Catalogue and Item Finder
 
-The resident v2 catalogue is the listing authority. Its status messages reach the
+The standalone resident catalogue is the only listing authority. Its status messages reach the
 owning shell through the archive workspace's `shell` reference. Preview requests are
 request-correlated and latest-wins: a stale selection may be superseded but may
 not clear or replace the current scene. Archive Browser publishes the path,
 basename, extension, dependency, and native package indexes reused by Model
 Library, Mesh Editor, and Create New Item.
+
+## Scanner failures and recovery
+
+The older application scanner, shadow mode and **Use Legacy This Session** action
+are removed. `CDMW_ARCHIVE_BACKEND` no longer selects a scanner; any existing value
+produces one log notice and is ignored. Existing cache formats remain readable,
+and removal does not delete old user caches or change game archives.
+
+`ArchiveCatalogueService` owns one retry per logical operation, including any
+worker restart, fingerprint-checked session reopening, query reconstruction and
+staged publication. Temporary sharing violations, unexpected exits and timeouts
+retry after a cancellable one-second delay. Permanent errors report immediately.
+Manual **Retry** starts a fresh budget and repeats the captured operation with its
+original filters, sorting and selection. Page and item-index retries do not reopen
+the whole browser. Exports and archive mutations gain no automatic replay.
+
+After 30 seconds without meaningful progress, status shows the stage and elapsed
+time. After five minutes without progress, the service requests cancellation,
+allows two seconds for acknowledgement, and uses bounded process-tree termination
+when required. The existing ten-second startup and three-minute native item-indexer
+timeouts remain. Work that continues progressing can run longer than five minutes.
+Cancellation, a changed root, an obsolete request or shutdown prevents later retry
+and error publication.
+
+Open/refresh failures offer **Retry**, **Copy error report**, **Details** and
+**Close**, preserving the previous published view. Background indexing failures
+show **Item names unavailable** with their own controls while archive rows remain
+usable. Successful recovery clears the failure display. Reports retain typed
+`code`, `message` and `detail`, runtime/backend identity, attempts, stage, counts,
+elapsed time, an affected path and diagnostic tail. Copied reports redact game
+and profile prefixes, retain at most twelve progress entries and are capped at
+16 KiB. An unknown failure is reported with its details without claiming game
+corruption.
+
+The opening workflow checks the game executable on a cancellable background task.
+It saves the existing `archive/game_executable_fingerprints` record only after
+catalogue publication succeeds. A demonstrated hash change forces a fresh
+generation and retains the existing feature-evidence rules. This is game-update
+bookkeeping, not a general game-integrity check.
 
 The resident item catalogue and name index follow model paths embedded in matching
 part-prefab payloads. A shared PAC can therefore carry every owning item name, and an Item

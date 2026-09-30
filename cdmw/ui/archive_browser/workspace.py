@@ -21,7 +21,6 @@ from cdmw.ui.archive_browser.preview_timing import ArchivePreviewTimingMixin
 from cdmw.ui.archive_browser.preview_zoom import ArchivePreviewZoomMixin
 from cdmw.ui.archive_browser.progress import ArchiveProgressMixin
 from cdmw.ui.archive_browser.scan_lifecycle import ArchiveScanLifecycleMixin
-from cdmw.ui.archive_browser.index_workers import ArchiveIndexWorkerMixin
 from cdmw.ui.archive_browser.sidecar_index import ArchiveSidecarIndexMixin
 from cdmw.ui.archive_browser.render_lifecycle import ArchiveRenderLifecycleMixin
 from cdmw.ui.archive_browser.filter_workers import ArchiveFilterWorkerMixin
@@ -112,7 +111,6 @@ class ArchiveBrowserWorkspace(
     ArchivePreviewZoomMixin,
     ArchiveProgressMixin,
     ArchiveScanLifecycleMixin,
-    ArchiveIndexWorkerMixin,
     ArchiveSidecarIndexMixin,
     ArchiveRenderLifecycleMixin,
     ArchiveFilterWorkerMixin,

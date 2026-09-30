@@ -203,7 +203,7 @@ def main() -> int:
                         "generation": request.get("ui_generation", 0),
                         "total_matches": 1,
                         "page_start": int(payload.get("page_start", 0)),
-                        "rows": [entry],
+                        "rows": [entry] if int(payload.get("page_start", 0)) == 0 else [],
                     },
                 )
             )

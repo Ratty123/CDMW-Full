@@ -212,7 +212,7 @@ def test_catalogue_service_reopens_session_and_reconstructs_query_after_crash(tm
         ui_generation=2,
     )
     assert _wait_until(
-        lambda: any(row[0] == query_request_id for row in results or failures),
+        lambda: any(row[0] == query_request_id for row in results) or any(row[0] == query_request_id for row in failures),
         timeout_ms=8_000,
     )
     assert not [row for row in failures if row[0] == query_request_id]
@@ -224,7 +224,7 @@ def test_catalogue_service_reopens_session_and_reconstructs_query_after_crash(tm
         ui_generation=3,
     )
     assert _wait_until(
-        lambda: any(row[0] == page_request_id for row in results or failures),
+        lambda: any(row[0] == page_request_id for row in results) or any(row[0] == page_request_id for row in failures),
         timeout_ms=8_000,
     )
     assert not [row for row in failures if row[0] == page_request_id]

@@ -7,8 +7,13 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Changed
+
+- Archive Browser always uses the standalone archive backend. The retired scanner, shadow comparison and session fallback are removed; obsolete `CDMW_ARCHIVE_BACKEND` overrides are ignored with a log notice. Existing user caches remain in place.
+
 ### Fixed
 
+- Temporary archive-worker and item-indexing failures receive one cancellable retry. Stalled work shows its stage and elapsed time, then stops after five minutes without progress. Persistent failures offer targeted Retry, Copy error report and Details; background item-name failures leave archive browsing available. Reports preserve error codes and redact local folder prefixes.
 - Generated material caches and transient preview, Effects and model-import folders track ownership and live use. Later launches safely reclaim abandoned marked data, retry failed cleanup and report preserved leftovers; recovery backups, baselines and export history remain protected. Effects shutdown removes its empty parent after the builder and preview stop.
 - Archive scans skip backup vaults instead of treating their indexes as live game archives, preventing extraction failures from missing backup PAZ files. Existing catalogues containing backup sources rebuild automatically when reopened.
 - Ready ZIP exports retain the complete mod folder name, including dots and manager suffixes, so separate exports cannot overwrite an unrelated shortened ZIP.

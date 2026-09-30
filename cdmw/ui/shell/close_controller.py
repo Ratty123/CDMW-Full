@@ -135,12 +135,8 @@ class CloseControllerMixin:
 
     def _tracked_worker_threads(self) -> list[tuple[str, QThread | None, object | None]]:
         tracked: list[tuple[str, QThread | None, object | None]] = [
-            ("worker_thread", self.worker_thread, self.textures.scan_worker or self.archive.archive_scan_worker or self.archive.archive_filter_worker or self.textures.build_worker or self.textures.dds_to_png_worker or self.utility_worker),
+            ("worker_thread", self.worker_thread, self.textures.scan_worker or self.textures.build_worker or self.textures.dds_to_png_worker or self.utility_worker),
             ("archive_sidecar_thread", self.archive.archive_sidecar_thread, self.archive.archive_sidecar_worker),
-            ("archive_basic_index_thread", self.archive.archive_basic_index_thread, self.archive.archive_basic_index_worker),
-            ("archive_derived_cache_thread", self.archive.archive_derived_cache_thread, self.archive.archive_derived_cache_worker),
-            ("archive_enhanced_index_thread", self.archive.archive_enhanced_index_thread, self.archive.archive_enhanced_index_worker),
-            ("archive_structure_filter_thread", self.archive.archive_structure_filter_thread, self.archive.archive_structure_filter_worker),
             ("archive_item_icon_warmup_thread", self.archive.archive_item_icon_warmup_thread, self.archive.archive_item_icon_warmup_worker),
             ("archive_item_icon_priority_thread", self.archive.archive_item_icon_priority_thread, self.archive.archive_item_icon_priority_worker),
             ("archive_preview_thread", self.archive.archive_preview_thread, self.archive.archive_preview_worker),
@@ -260,6 +256,12 @@ class CloseControllerMixin:
                 request_item_finder_shutdown()
             except (AttributeError, RuntimeError):
                 pass
+        fingerprint_stop = getattr(self.archive, "archive_game_fingerprint_stop", None)
+        if fingerprint_stop is not None:
+            fingerprint_stop.set()
+        clear_failure = getattr(self.archive, "_clear_archive_failure_display", None)
+        if callable(clear_failure):
+            clear_failure()
         catalogue = getattr(self.archive, "archive_catalogue_service", None)
         request_catalogue_shutdown = getattr(catalogue, "request_shutdown", None)
         if callable(request_catalogue_shutdown):
@@ -511,6 +513,12 @@ class CloseControllerMixin:
                 request_item_finder_shutdown()
             except (AttributeError, RuntimeError):
                 pass
+        fingerprint_stop = getattr(self.archive, "archive_game_fingerprint_stop", None)
+        if fingerprint_stop is not None:
+            fingerprint_stop.set()
+        clear_failure = getattr(self.archive, "_clear_archive_failure_display", None)
+        if callable(clear_failure):
+            clear_failure()
         catalogue = getattr(self.archive, "archive_catalogue_service", None)
         request_catalogue_shutdown = getattr(catalogue, "request_shutdown", None)
         if callable(request_catalogue_shutdown):

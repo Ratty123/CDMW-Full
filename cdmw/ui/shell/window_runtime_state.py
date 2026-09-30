@@ -6,7 +6,6 @@ from collections import Counter, OrderedDict, deque
 
 from PySide6.QtCore import QProcess, Qt, QTimer
 
-from cdmw.domain.archives.backend_mode import resolve_archive_backend_mode
 from cdmw.services.archive_catalogue_service import ArchiveCatalogueService
 from cdmw.ui.shell.archive_backend_client import ArchiveBackendClient
 
@@ -17,15 +16,8 @@ class ShellWindowRuntimeStateMixin:
     def _initialize_window_runtime_state(self) -> None:
         self.worker_thread: Optional[QThread] = None
         self.textures.scan_worker: Optional[ScanWorker] = None
-        self.archive.archive_scan_worker: Optional[ArchiveScanWorker] = None
-        self.archive.archive_scan_ui_receiver: object | None = None
         self.archive.archive_sidecar_thread: Optional[QThread] = None
         self.archive.archive_sidecar_worker: Optional[ArchiveSidecarIndexWorker] = None
-        self.archive.archive_derived_cache_thread: Optional[QThread] = None
-        self.archive.archive_derived_cache_worker: Optional[ArchiveDerivedIndexCacheWriteWorker] = None
-        self.archive.archive_derived_cache_index_ui_receiver = self.archive.archive_basic_index_ui_receiver = self.archive.archive_enhanced_index_ui_receiver = self.archive.archive_item_icon_priority_ui_receiver = self.archive.archive_item_icon_warmup_ui_receiver = None
-        self.archive.archive_derived_cache_write_pending = False
-        self.archive.archive_filter_worker: Optional[ArchiveFilterWorker] = None
         self.textures.build_worker: Optional[BuildWorker] = None
         self.textures.dds_to_png_worker: Optional[DdsToPngWorker] = None
         self.utility_worker: Optional[UtilityWorker] = None

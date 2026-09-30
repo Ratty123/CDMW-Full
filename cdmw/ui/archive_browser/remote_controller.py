@@ -88,6 +88,7 @@ class ArchiveRemoteCatalogueController(QObject):
         self._generation = 0
         self._requests: dict[str, _TrackedRequest] = {}
         self._staged: _StagedQuery | None = None
+        self._failed_operation = None
         self._current_session: ArchiveSessionHandle | None = None
         self._current_query: ArchiveQuery | None = None
         self._structure_pending: set[_StructureChildrenFetch] = set()
@@ -100,6 +101,8 @@ class ArchiveRemoteCatalogueController(QObject):
         service.request_failed.connect(self._handle_failure)
         service.request_cancelled.connect(self._handle_cancelled)
         service.progress.connect(self._handle_progress)
+        if hasattr(service, "operation_delayed"):
+            service.operation_delayed.connect(self._handle_delay_notice)
         model.pageRequested.connect(self._fetch_page)
         model.childrenRequested.connect(self._fetch_children)
 
@@ -173,12 +176,25 @@ class ArchiveRemoteCatalogueController(QObject):
         return None if entry is None else self._service.compatibility_entry(entry)
 
     def cancel_pending(self) -> None:
+        end = getattr(self._service, "end_publication", None)
+        if callable(end):
+            end(self._generation)
+        if self._failed_operation is not None:
+            self._service.cancel(self._failed_operation[0])
+        self._failed_operation = None
         self._generation += 1
         self._cancel_tracked_requests()
         self._staged = None
+        self._model.retain_view(self._generation)
         self._model.suspend_requests(False)
 
     def _begin_generation(self, selection_identity: ArchiveDurableIdentity | None) -> int:
+        end = getattr(self._service, "end_publication", None)
+        if callable(end):
+            end(self._generation)
+        if self._failed_operation is not None:
+            self._service.cancel(self._failed_operation[0])
+        self._failed_operation = None
         self._generation += 1
         self._cancel_tracked_requests()
         self._staged = None
@@ -186,6 +202,9 @@ class ArchiveRemoteCatalogueController(QObject):
         if selection_identity is not None:
             self._selection_identity = selection_identity
         self._model.suspend_requests(True)
+        begin = getattr(self._service, "begin_publication", None)
+        if callable(begin):
+            begin(self._generation)
         return self._generation
 
     def _cancel_tracked_requests(self) -> None:
@@ -291,6 +310,10 @@ class ArchiveRemoteCatalogueController(QObject):
         self._current_session = staged.session
         self._current_query = staged.query
         self._staged = None
+        self._failed_operation = None
+        end = getattr(self._service, "end_publication", None)
+        if callable(end):
+            end(staged.generation)
         self._set_actions_safe(True)
         self.queryPublished.emit(handle)
         self._dispatch_structure_requests()
@@ -463,15 +486,24 @@ class ArchiveRemoteCatalogueController(QObject):
             return
         if tracked.kind == "page" and isinstance(result, ArchivePage):
             if not self._model.accept_page(result):
-                self._restart_current_query_after_recovery(result.session_id)
-                return
+                handle = ArchiveQueryHandle(result.session_id, result.query_id, result.generation, result.total_matches)
+                if not self._adopt_recovered_view(handle) or not self._model.accept_page(result):
+                    self.requestFailed.emit("fetch_page", RuntimeError("Recovered archive page did not match the current query."))
+                    return
             self._finish_pending_selection()
+            self._model.suspend_requests(False)
             return
         if tracked.kind == "children" and isinstance(result, ArchiveChildrenResult):
             fetch = tracked.payload
             if isinstance(fetch, RemoteChildrenFetch):
                 if not self._model.accept_children(fetch, result):
-                    self._restart_current_query_after_recovery(result.session_id)
+                    previous = self._model.query_handle
+                    if previous is not None:
+                        handle = replace(previous, session_id=result.session_id, query_id=result.query_id)
+                        if self._adopt_recovered_view(handle):
+                            fetch = replace(fetch, session_id=result.session_id, query_id=result.query_id)
+                            self._model.accept_children(fetch, result)
+            self._model.suspend_requests(False)
             return
         if tracked.kind == "structure_children" and isinstance(result, ArchiveChildrenResult):
             fetch = tracked.payload
@@ -486,9 +518,10 @@ class ArchiveRemoteCatalogueController(QObject):
                 or result.query_id
                 or result.offset != fetch.offset
             ):
-                self._structure_pending.add(fetch)
-                self._restart_current_query_after_recovery(result.session_id)
-                return
+                previous = self._model.query_handle
+                if previous is None or result.query_id or result.offset != fetch.offset or not self._adopt_recovered_view(replace(previous, session_id=result.session_id)):
+                    self.requestFailed.emit("fetch_children", RuntimeError("Recovered structure did not match the current source fingerprint."))
+                    return
             self.structureChildrenReady.emit(fetch.parent_path, result)
             return
         if tracked.kind == "facets" and isinstance(result, ArchiveFacetsResult):
@@ -549,6 +582,7 @@ class ArchiveRemoteCatalogueController(QObject):
         current = tracked or self._requests.pop(request_id, None)
         if current is None or current.generation != self._generation:
             return
+        self._failed_operation = (request_id, current, self._staged)
         if current.kind == "structure_children":
             if isinstance(current.payload, _StructureChildrenFetch):
                 self._structure_inflight.discard(current.payload)
@@ -556,14 +590,45 @@ class ArchiveRemoteCatalogueController(QObject):
             return
         if current.kind == "page" and isinstance(current.payload, RemotePageFetch):
             self._model.reject_page(current.payload.page_start)
+            self._model.suspend_requests(True)
         elif current.kind == "children" and isinstance(current.payload, RemoteChildrenFetch):
             self._model.reject_children(current.payload)
+            self._model.suspend_requests(True)
         if current.kind.startswith("stage_") or current.kind in {"open", "query"}:
             self._fail_publication(current.kind, error)
             return
         if current.kind == "selection":
             self.selectionUnavailable.emit(self._selection_identity)
         self.requestFailed.emit(current.kind, error)
+
+    def retry_failed_operation(self) -> bool:
+        failed = self._failed_operation
+        if failed is None or failed[1].generation != self._generation:
+            return False
+        old_id, tracked, staged = failed
+        begin = getattr(self._service, "begin_publication", None)
+        publication = tracked.kind.startswith("stage_") or tracked.kind in {"open", "query"}
+        if publication and callable(begin):
+            begin(self._generation)
+        self._staged = staged
+        if publication or tracked.kind in {"page", "children"}:
+            self._model.suspend_requests(True)
+        try:
+            request_id = self._service.retry_failed(old_id)
+        except Exception as error:
+            self._fail_publication(tracked.kind, error)
+            return False
+        self._requests[request_id] = tracked
+        if tracked.kind == "structure_children" and isinstance(tracked.payload, _StructureChildrenFetch):
+            self._structure_inflight.add(tracked.payload)
+        self._failed_operation = None
+        self.statusChanged.emit("Retrying archive operation...")
+        return True
+
+    def _handle_delay_notice(self, request_id: str, stage: str, elapsed: float) -> None:
+        tracked = self._requests.get(request_id)
+        if tracked is not None and tracked.generation == self._generation:
+            self.statusChanged.emit(f"Still working: {stage}. Elapsed: {elapsed:.0f} seconds.")
 
     def _handle_cancelled(self, request_id: str) -> None:
         tracked = self._requests.pop(request_id, None)
@@ -599,6 +664,10 @@ class ArchiveRemoteCatalogueController(QObject):
     def _fail_publication(self, kind: str, error: object) -> None:
         self._cancel_tracked_requests()
         self._staged = None
+        end = getattr(self._service, "end_publication", None)
+        if callable(end):
+            end(self._generation)
+        self._model.retain_view(self._generation)
         self._model.suspend_requests(False)
         self.statusChanged.emit("Archive catalogue update failed; the previous valid view remains open.")
         self.requestFailed.emit(kind, error)
@@ -613,25 +682,19 @@ class ArchiveRemoteCatalogueController(QObject):
         staged.query = replace(staged.query, session_id=session.session_id)
         return True
 
-    def _restart_current_query_after_recovery(self, session_id: str) -> None:
-        current_session = self._current_session
-        current_query = self._current_query
-        recovered = self._service.session(session_id)
-        if (
-            current_session is None
-            or current_query is None
-            or recovered is None
-            or recovered.fingerprint != current_session.fingerprint
-        ):
+    def _adopt_recovered_view(self, handle: ArchiveQueryHandle) -> bool:
+        previous = self._current_session
+        recovered = self._service.session(handle.session_id)
+        if previous is None or recovered is None or previous.fingerprint != recovered.fingerprint:
             self._set_actions_safe(False)
-            self.requestFailed.emit(
-                "worker_recovery",
-                RuntimeError("Archive worker recovery could not preserve the current source fingerprint."),
-            )
-            return
+            return False
+        if not self._model.recover_query(handle):
+            return False
         self._current_session = recovered
-        self.statusChanged.emit("Archive worker restarted; restoring the current archive query...")
-        self.apply_query(replace(current_query, session_id=recovered.session_id))
+        if self._current_query is not None:
+            self._current_query = replace(self._current_query, session_id=recovered.session_id)
+        self.queryPublished.emit(handle)
+        return True
 
     def _staged_payload_error(self, staged: _StagedQuery) -> str:
         handle = staged.handle

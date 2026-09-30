@@ -22,9 +22,6 @@ class LogControllerMixin:
             return True
         if getattr(self.textures, "_texture_export_kind", ""):
             return True
-        if block_on_archive_index and self.archive.archive_basic_index_thread is not None:
-            self.set_status_message("Archive lookup indexes are still warming. Wait for them to finish before refreshing archives.", error=True)
-            return True
         text_search_tab = created_tool_widget(getattr(self, "text_search_tab", None))
         if text_search_tab is not None and text_search_tab.is_busy():
             self.set_status_message("Text Search is still running. Stop it first before starting another task.", error=True)

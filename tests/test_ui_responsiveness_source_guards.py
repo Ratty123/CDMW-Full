@@ -20,7 +20,6 @@ def _archive_lifecycle_source() -> str:
     return "\n".join(
         (
             _read("cdmw/ui/archive_browser/scan_lifecycle.py"),
-            _read("cdmw/ui/archive_browser/index_workers.py"),
             _read("cdmw/ui/archive_browser/sidecar_index.py"),
             _read("cdmw/ui/archive_browser/render_lifecycle.py"),
         )
@@ -153,7 +152,7 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         self.assertIn("def _archive_item_icon_lookup_index_missing(self) -> bool:", source)
         self.assertIn("lookup_missing = self._archive_item_icon_lookup_index_missing()", source)
         self.assertIn("if not lookup_missing and self._archive_item_icon_negative_note(prepared_key):", source)
-        self.assertIn("self._ensure_archive_basic_index_worker_started()", source)
+        self.assertIn("self._archive_catalogue_lookup_pending()", source)
         self.assertIn("if self._archive_item_icon_lookup_index_missing():\n            self.archive_item_icon_preload_pending_after_ready = True", source)
         self.assertIn("if not self._archive_browser_background_work_allowed() and visible_remaining <= 0:", source)
         self.assertIn("def _archive_item_icon_prepared_pixmap_available(", source)
@@ -238,140 +237,14 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         self.assertIn('"ui/item_finder_selected_key"', source)
         self.assertIn('"ui/item_finder_scroll_value"', source)
 
-    def test_startup_archive_autoload_holds_splash_until_search_ready(self) -> None:
-        source = "\n".join(
-            (
-                _read("cdmw/ui/shell/app_window.py"),
-                _read("cdmw/ui/shell/startup_controller.py"),
-                _read("cdmw/ui/shell/startup_restore.py"),
-                _read("cdmw/ui/archive_browser/progress.py"),
-                _archive_lifecycle_source(),
-            )
-        )
-        self.assertNotIn('not self._preference_bool("auto_load_archive_on_startup", False)', source)
-        self.assertIn("browser_view_will_warm_for_startup", source)
-        self.assertIn("force_render: bool = False", source)
-        self.assertNotIn("_release_startup_after_archive_render", source)
-        self.assertIn("force_render=False", source)
-        autoload_start = source.index("    if window.shell._startup_archive_autoload_expected():")
-        autoload_body = source[autoload_start: source.index("    else:", autoload_start)]
-        self.assertNotIn("window._release_startup_splash()", autoload_body)
-        startup_load_start = source.index("    def _maybe_autoload_archive_on_startup")
-        startup_load_body = source[startup_load_start: source.index("    def _load_game_executable_fingerprints", startup_load_start)]
-        self.assertIn('bool(getattr(self, "_previous_session_unclean", False))', startup_load_body)
-        self.assertIn('self.archive._apply_archive_filter_state(self.archive._neutral_archive_filter_state())', startup_load_body)
-        self.assertIn('os.environ["CDMW_DEFER_TEXTURE_PREVIEW"] = "1"', source)
-        self.assertIn('os.environ.pop("CDMW_DEFER_TEXTURE_PREVIEW", None)', source)
-        scan_complete_start = source.index("    def _handle_archive_scan_complete")
-        scan_complete_body = source[scan_complete_start: source.index("    def _finalize_archive_scan_complete", scan_complete_start)]
-        self.assertIn("def _ensure_archive_extension_index_ready", source)
-        self.assertIn("self._ensure_archive_extension_index_ready()", scan_complete_body)
-        self.assertNotIn("archive_startup_saved_filter_apply_pending = True", startup_load_body)
-        self.assertNotIn("Saved filters will apply when search is ready.", startup_load_body)
-        self.assertIn('self.archive.archive_startup_hold_until_ready = True', source)
-        self.assertIn("def _maybe_release_startup_after_archive_ready", source)
-        self.assertIn("and not bool(getattr(self, \"archive_startup_hold_until_ready\", False))", source)
-        self.assertIn("startup_hold or (not browser_visible) or self._archive_browser_background_work_allowed()", source)
-        self.assertIn("and self.archive_derived_cache_thread is None", source)
-        self.assertIn("and not self.archive_deferred_derived_cache_write_pending", source)
-        self.assertIn("def _archive_startup_progress_work_active(self) -> bool:", source)
-        self.assertIn('if not self.shell._archive_startup_progress_work_active():', source)
-        self.assertIn("getattr(self, \"_startup_splash_release_pending\", False)", source)
-        self.assertIn("QTimer.singleShot(1000, self._maybe_release_startup_after_archive_ready)", source)
-        self.assertIn('self.shell._startup_splash_progress_detail', source)
-        self.assertIn("if startup_deferred_archive_load:", source)
-        self.assertIn('worker_extension_filter = "*"', source)
-        self.assertIn("worker_view_mode = ARCHIVE_BROWSER_VIEW_MODE", source)
-        self.assertIn("build_tree_index=build_browser_tree_index", source)
-        self.assertIn("build_category_index=build_browser_category_index", source)
-        self.assertIn("not startup_deferred_archive_load\n            and\n            self._archive_folder_tree_enabled()", source)
-        self.assertIn("not startup_deferred_archive_load\n            and\n            self._archive_category_view_enabled()", source)
-        self.assertIn('_record_runtime_event("startup_autoload_begin"', source)
-        self.assertIn('self._record_startup_prompt_event("splash_released"', source)
-        self.assertIn('self._record_startup_prompt_event("main_window_shown"', source)
-        self.assertIn("def _schedule_startup_benchmark_search_after_visible", source)
-        self.assertIn("def _try_start_startup_benchmark_search_after_visible", source)
-        self.assertIn("self._startup_benchmark_search_pending = True", source)
-        self.assertIn("or self._startup_archive_first_paint_needed()", source)
-        self.assertIn("startup_benchmark_search_ready_after_paint", source)
-        self.assertIn('self.archive_browser_preload_state = "ready"', source)
-        self.assertIn("self.archive_browser_render_signature = self._current_archive_browser_render_signature()", source)
-        self.assertIn("delay_ms = max(1, int(self.archive_selection_state_timer.interval()) + 1)", source)
+    def test_startup_opens_only_the_resident_backend_in_the_background(self) -> None:
+        source = _read("cdmw/ui/shell/startup_controller.py")
+        start = source.index("    def _maybe_autoload_archive_on_startup")
+        body = source[start:source.index("    def _load_game_executable_fingerprints", start)]
+        self.assertIn("self._release_startup_splash()", body)
+        self.assertIn("QTimer.singleShot(0, lambda: self.archive.scan_archives(", body)
+        self.assertNotIn("use_remote_backend", body)
 
-    def test_archive_refresh_queues_filters_before_first_list(self) -> None:
-        source = (
-            _read("cdmw/ui/shell/app_window.py")
-            + "\n"
-            + _archive_lifecycle_source()
-            + "\n"
-            + _read("cdmw/ui/archive_browser/filter_workers.py")
-            + "\n"
-            + _read("cdmw/ui/archive_browser/filter_controls.py")
-        )
-        filters_source = _read("cdmw/ui/archive_browser/filters.py")
-        domain_filters_source = _read("cdmw/domain/archives/filters.py")
-        scan_start = source.index("    def scan_archives(")
-        scan_body = source[scan_start: source.index("    def _ensure_archive_extension_index_ready", scan_start)]
-        complete_start = source.index("    def _handle_archive_scan_complete")
-        complete_body = source[complete_start: source.index("    def _finalize_archive_scan_complete", complete_start)]
-
-        self.assertIn("queue_filters_after_first_list = bool(", scan_body)
-        self.assertIn("Current filters will apply when search is ready.", scan_body)
-        self.assertIn('"filter_text": ""', scan_body)
-        self.assertIn('"extension_filter": "*"', scan_body)
-        self.assertIn('"view_mode": ARCHIVE_BROWSER_VIEW_MODE', scan_body)
-        self.assertIn("Applying queued filters after archive list opened.", source)
-        self.assertIn("Filters will apply when search is ready", source)
-        self.assertIn("def _archive_filter_state_needs_basic_lookup", filters_source)
-        self.assertIn("self._archive_filter_state_needs_basic_lookup(saved_state)", source)
-        self.assertIn("self._current_archive_filter_needs_basic_lookup()", source)
-        self.assertIn("Filters will apply when archive lookup indexes are ready.", source)
-        self.assertNotIn("request_signature or self._current_archive_filter_signature()", complete_body)
-        lookup_start = filters_source.index("    def _archive_filter_state_needs_basic_lookup")
-        lookup_body = filters_source[lookup_start: filters_source.index("    def _current_archive_filter_needs_path_lookup", lookup_start)]
-        self.assertIn("Path lookup is only required for item-name related-file expansion.", lookup_body)
-        self.assertIn("return self._archive_filter_state_needs_path_lookup(state)", lookup_body)
-        self.assertNotIn("extension_filter and extension_filter not", lookup_body)
-        self.assertNotIn("role_filter and role_filter", lookup_body)
-        helper_start = domain_filters_source.index("def archive_filter_text_explicitly_requests_item_name")
-        helper_body = domain_filters_source[helper_start: domain_filters_source.index("__all__", helper_start)]
-        self.assertIn('re.search(r"(^|\\s)name\\s*:"', helper_body)
-        self.assertIn('return not any(char in text for char in "/\\\\_*.?[]")', helper_body)
-        item_search_start = filters_source.index("    def _archive_saved_filter_needs_item_search")
-        item_search_body = filters_source[item_search_start: filters_source.index("    def _archive_filter_state_needs_path_lookup", item_search_start)]
-        self.assertIn("archive_filter_text_needs_item_name_search", item_search_body)
-        self.assertIn("def _archive_filter_state_explicitly_requires_item_search", item_search_body)
-        self.assertIn("def _archive_filter_state_waits_for_item_search", filters_source)
-        self.assertIn("and self._archive_filter_state_explicitly_requires_item_search(state)", filters_source)
-        self.assertIn("and not self.shell._startup_benchmark_enabled()", source)
-        self.assertNotIn("model_like_extensions", item_search_body)
-        self.assertIn("def _schedule_archive_enhanced_index_auto_prewarm", source)
-        self.assertIn("def _start_archive_enhanced_index_auto_prewarm", source)
-        self.assertIn("self._schedule_archive_enhanced_index_auto_prewarm()", source)
-        self.assertIn("Item-name search cache warming after archive list opened.", source)
-        worker_source = _read("cdmw/workers/archive_filter_workers.py")
-        self.assertIn("bounded_item_name_python_scan", worker_source)
-        self.assertIn("item_name_search_enabled = _archive_filter_text_needs_item_name_search(self.filter_text)", worker_source)
-        self.assertIn("item_search_aliases = self.item_search_aliases if item_name_search_enabled else {}", worker_source)
-        self.assertIn("len(source_entries) <= 250_000", worker_source)
-        self.assertIn("name_search=bounded_python_scan", worker_source)
-        self.assertIn("def _archive_filter_can_use_loaded_item_aliases", filters_source)
-        self.assertIn("self.archive_item_search_aliases", filters_source)
-        self.assertIn("<= 250_000", filters_source)
-        apply_start = source.index("    def _apply_archive_filter(self) -> None:")
-        apply_body = source[apply_start: source.index("    def _start_archive_filter_worker", apply_start)]
-        self.assertIn("self.archive_filter_requested_signature = self._current_archive_filter_signature()", apply_body)
-        self.assertIn("self.archive_filters_dirty = False", apply_body)
-        pending_start = source.index("    def _apply_pending_archive_enhanced_filter_refresh")
-        pending_body = source[pending_start: source.index("    def _archive_browser_render_is_ready", pending_start)]
-        self.assertNotIn('self.archive_browser_preload_state != "ready"', pending_body)
-        self.assertNotIn("not self.archive_browser_first_visible_paint_done", pending_body)
-        scan_source = _read("cdmw/workers/archive_scan_workers.py")
-        run_start = scan_source.index("    @Slot()\n    def run")
-        run_body = scan_source[run_start:]
-        self.assertIn("if entries and self.load_basic_index_cache:", run_body)
-        self.assertIn("entries and self.load_basic_index_cache and not basic_indexes_loaded_from_cache", run_body)
-        self.assertNotIn("self.load_basic_index_cache or not can_use_initial_list", run_body)
 
     def test_archive_click_lag_preload_state_guards_ready_render(self) -> None:
         source = (
@@ -399,7 +272,7 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         controls_body = source[controls_start: source.index("    def _refresh_archive_browser_view_stage_populate", controls_start)]
         self.assertIn("defer_missing_children=True", controls_body)
         self.assertNotIn("build_archive_structure_children_map(self.archive_entries)", controls_body)
-        self.assertIn('self._log_archive_browser_render_stage("model_reset"', source)
+        self.assertIn('self._mark_archive_browser_render_ready(reason="catalogue_view"', source)
         self.assertIn("if self._archive_browser_render_is_ready():", refresh_body)
         self.assertIn("self.archive_browser_refresh_pending = False", refresh_body)
         self.assertNotIn("skipped=population_active", refresh_body)
@@ -416,8 +289,6 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         menu_body = actions_source[menu_start: actions_source.index("    def _preview_current_archive_entry", menu_start)]
         selection_start = preview_result_source.index("    def _handle_archive_current_item_change(")
         selection_body = preview_result_source[selection_start: preview_result_source.index("    def _schedule_archive_selection_state_update", selection_start)]
-        filter_finalize_start = filter_worker_source.index("    def _finalize_archive_filter_complete(")
-        filter_finalize_body = filter_worker_source[filter_finalize_start:]
         self.assertIn("def mousePressEvent(self, event) -> None:", model_source)
         self.assertIn("if event.button() == Qt.RightButton:", model_source)
         self.assertIn("event.accept()", model_source)
@@ -447,12 +318,9 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         render_body = worker_source[render_start: worker_source.index("    def _flush_scheduled_archive_preview_request", render_start)]
         flush_start = worker_source.index("    def _flush_scheduled_archive_preview_request(")
         flush_body = worker_source[flush_start: worker_source.index("    def _start_archive_preview_worker", flush_start)]
-        filter_finalize_start = filter_worker_source.index("    def _finalize_archive_filter_complete(")
-        filter_finalize_body = filter_worker_source[filter_finalize_start:]
 
         self.assertIn("self._render_archive_preview(entry)", selection_body)
         self.assertIn("if self.shell._startup_benchmark_enabled():", selection_body)
-        self.assertIn("or self.shell._startup_benchmark_enabled()", filter_finalize_body)
         self.assertIn("self._show_archive_preview_loading_state(entry)", render_body)
         self.assertIn("preview_cache_snapshot = {", flush_body)
         self.assertIn("full_cache_key=cache_key", flush_body)
@@ -484,38 +352,16 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         self.assertIn("enrich=False", flush_body)
         self.assertIn("self._clear_archive_texture_reference_views()", source + asset_source)
 
-    def test_archive_background_work_waits_for_browser_ready_or_first_paint(self) -> None:
-        scan_source = _read("cdmw/ui/archive_browser/scan_lifecycle.py")
-        render_source = _read("cdmw/ui/archive_browser/render_lifecycle.py")
-        source = "\n".join(
-            (
-                _read("cdmw/ui/shell/app_window.py"),
-                scan_source,
-                render_source,
-                _read("cdmw/ui/archive_browser/icon_pipeline.py"),
-            )
-        )
-        allowed_start = render_source.index("    def _archive_browser_background_work_allowed(self) -> bool:")
-        allowed_body = render_source[allowed_start: render_source.index("    def _schedule_archive_post_ready_background_work", allowed_start)]
-        finalize_start = scan_source.index("    def _finalize_archive_scan_complete(")
-        finalize_body = scan_source[finalize_start:]
-        icon_start = source.index("    def _schedule_archive_asset_catalog_icon_preload")
-        icon_body = source[icon_start: source.index("    def _queue_archive_asset_catalog_icon_warmup_rows", icon_start)]
-        self.assertIn('self.archive_browser_preload_state != "ready"', allowed_body)
-        self.assertIn("self.archive_browser_first_visible_paint_done", allowed_body)
-        self.assertIn("return False", allowed_body)
-        self.assertNotIn("self.archive_browser_ready_at", allowed_body)
-        self.assertIn("self.archive_deferred_basic_index_start_pending = bool(prewarm_basic_index)", source)
-        self.assertIn("self.archive_deferred_enhanced_index_start_pending = bool(prewarm_enhanced_index)", source)
-        self.assertIn("self.archive_deferred_sidecar_start_pending = True", finalize_body)
-        self.assertIn("self._schedule_archive_post_ready_background_work()", finalize_body)
-        self.assertIn("self._start_archive_basic_index_worker()", source)
-        self.assertIn("if not self._archive_browser_background_work_allowed():", icon_body)
-        self.assertIn("self.archive_item_icon_preload_pending_after_ready = bool(self.archive_item_asset_catalog)", icon_body)
-        self.assertIn("if self._archive_item_icon_lookup_index_missing():", icon_body)
-        self.assertNotIn("self._ensure_archive_basic_index_worker_started()", icon_body)
-        self.assertNotIn("archive_item_icon_preload_limit", source)
-        self.assertNotIn("len(rows) >=", icon_body)
+    def test_background_work_waits_for_browser_ready_or_first_paint(self) -> None:
+        source = _read("cdmw/ui/archive_browser/render_lifecycle.py")
+        start = source.index("    def _archive_browser_background_work_allowed(")
+        body = source[start:source.index("    def _schedule_archive_post_ready_background_work", start)]
+        self.assertIn('self.archive_browser_preload_state != "ready"', body)
+        self.assertIn("self.archive_browser_first_visible_paint_done", body)
+        self.assertIn("return False", body)
+        bridge = _read("cdmw/ui/archive_browser/remote_window_bridge.py")
+        publish = bridge[bridge.index("    def _handle_query_published"):bridge.index("    def _handle_facets")]
+        self.assertIn("start_item_finder_warmup(", publish)
 
     def test_startup_splash_progress_uses_single_text_source(self) -> None:
         source = _read("cdmw/ui/startup_splash_host.py")
@@ -584,20 +430,12 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
     def test_archive_browser_uses_virtual_model_not_legacy_tree_population(self) -> None:
         source = _read("cdmw/ui/shell/app_window.py") + "\n" + _read("cdmw/ui/archive_browser/controller.py")
         self.assertIn("def _populate_archive_virtual_tree(", source)
-        self.assertIn("self.archive_tree.set_archive_state(", source)
+        self.assertIn("self.archive_tree.use_remote_model(", source)
         self.assertNotIn("def _begin_archive_tree_clear(", source)
         self.assertNotIn("self.archive_tree_clear_timer.setInterval(12)", source)
         self.assertNotIn("def _continue_archive_tree_clear(self) -> None:", source)
         self.assertNotIn("self.archive_tree.takeTopLevelItem(0)", source)
 
-    def test_archive_ready_avoids_ui_thread_full_archive_scans(self) -> None:
-        source = _read("cdmw/ui/shell/app_window.py") + "\n" + _read("cdmw/ui/shell/log_controller.py")
-        busy_start = source.index("    def set_busy(")
-        busy_body = source[busy_start: source.index("    def reset_progress", busy_start)]
-        self.assertNotIn("archive_filtered_dds_count", busy_body)
-        self.assertNotIn('any(entry.extension == ".dds" for entry in self.archive_filtered_entries)', busy_body)
-        self.assertNotIn("ArchiveEnhancedIndexWorker(tuple(self.archive_entries))", source)
-        self.assertNotIn("ArchiveStructureFilterWorker(tuple(self.archive_entries))", source)
 
     def test_theme_changes_show_busy_overlay_before_heavy_apply(self) -> None:
         source = (
@@ -752,40 +590,9 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         self.assertIn("font.setStyleHint(QFont.StyleHint.Monospace)", source)
 
     def test_archive_search_preserves_left_controls_scroll_position(self) -> None:
-        source = (
-            _read("cdmw/ui/shell/app_window.py")
-            + "\n"
-            + _read("cdmw/ui/shell/window_runtime_state.py")
-            + "\n"
-            + _read("cdmw/ui/archive_browser/runtime_state.py")
-            + "\n"
-            + _read("cdmw/ui/archive_browser/filter_workers.py")
-            + "\n"
-            + _read("cdmw/ui/archive_browser/filter_controls.py")
-        )
-        self.assertIn("self.archive_controls_scroll_filter_anchor: Optional[int] = None", source)
-        self.assertIn("def _capture_archive_controls_scroll_for_filter(self) -> None:", source)
-        self.assertIn("def _restore_archive_controls_scroll_after_filter(self) -> None:", source)
-        self.assertIn("QTimer.singleShot(80, _restore)", source)
-
-        apply_start = source.index("    def _apply_archive_filter(self) -> None:")
-        apply_body = source[apply_start: source.index("    def _start_archive_filter_worker", apply_start)]
-        self.assertIn("self._capture_archive_controls_scroll_for_filter()", apply_body)
-
-        worker_start = source.index("    def _start_archive_filter_worker(")
-        worker_body = source[worker_start: source.index("    def _handle_archive_filter_complete", worker_start)]
-        self.assertIn('self.shell.set_busy(True, build_mode=False)', worker_body)
-        self.assertIn("self._restore_archive_controls_scroll_after_filter()", worker_body)
-
-        complete_start = source.index("    def _handle_archive_filter_complete(")
-        complete_body = source[complete_start: source.index("    def _finalize_archive_filter_complete", complete_start)]
-        self.assertIn("Rendering archive browser view...", complete_body)
-        self.assertIn("self._restore_archive_controls_scroll_after_filter()", complete_body)
-
-        finish_start = source.index("        def finish_filter_render() -> None:")
-        finish_body = source[finish_start: source.index("        defer_default_selection =", finish_start)]
-        self.assertIn("self._restore_archive_controls_scroll_after_filter()", finish_body)
-        self.assertIn("self.archive_controls_scroll_filter_anchor = None", finish_body)
+        source = _read("cdmw/ui/archive_browser/filter_workers.py")
+        self.assertLess(source.index("self._capture_archive_controls_scroll_for_filter()"), source.index("self._submit_archive_filter()"))
+        self.assertGreater(source.index("self._restore_archive_controls_scroll_after_filter()"), source.index("self._submit_archive_filter()"))
 
     def test_archive_asset_family_graph_cache_is_bounded_and_logged(self) -> None:
         shell_source = _read("cdmw/ui/archive_browser/runtime_state.py")

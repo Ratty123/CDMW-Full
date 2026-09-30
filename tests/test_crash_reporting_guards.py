@@ -85,7 +85,6 @@ ARCHIVE_PROGRESS = ROOT / "cdmw" / "ui" / "archive_browser" / "progress.py"
 ARCHIVE_FILTERS = ROOT / "cdmw" / "ui" / "archive_browser" / "filters.py"
 ARCHIVE_FILTER_CONTROLS = ROOT / "cdmw" / "ui" / "archive_browser" / "filter_controls.py"
 ARCHIVE_SCAN_LIFECYCLE = ROOT / "cdmw" / "ui" / "archive_browser" / "scan_lifecycle.py"
-ARCHIVE_INDEX_WORKERS_UI = ROOT / "cdmw" / "ui" / "archive_browser" / "index_workers.py"
 ARCHIVE_RENDER_LIFECYCLE = ROOT / "cdmw" / "ui" / "archive_browser" / "render_lifecycle.py"
 ARCHIVE_ASSET_CATALOG = ROOT / "cdmw" / "ui" / "archive_browser" / "asset_catalog.py"
 ARCHIVE_ASSET_CATALOG_DIALOG = ROOT / "cdmw" / "ui" / "archive_browser" / "asset_catalog_dialog.py"
@@ -545,20 +544,6 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("record_runtime_event_fn(", diagnostics_service_source)
         self.assertIn("if bool(payload.get(\"clean_shutdown\")):\n            return False", diagnostics_service_source)
 
-    def test_archive_scan_breadcrumbs_are_recorded_for_native_faults(self) -> None:
-        scan_worker_source = (ROOT / "cdmw" / "workers" / "archive_scan_workers.py").read_text(encoding="utf-8")
-        archive_source = "\n".join(
-            (
-                ARCHIVE.read_text(encoding="utf-8"),
-                ARCHIVE_FORMAT.read_text(encoding="utf-8"),
-            )
-        )
-        self.assertIn("archive_scan_breadcrumb.json", scan_worker_source)
-        self.assertIn("def _write_scan_breadcrumb", scan_worker_source)
-        self.assertIn("on_breadcrumb=self._write_scan_breadcrumb", scan_worker_source)
-        self.assertIn("on_breadcrumb: Optional[Callable[[Mapping[str, object]], None]]", archive_source)
-        self.assertIn('"phase": "parse_archive_pamt"', archive_source)
-        self.assertIn('"pamt_path": str(pamt_path)', archive_source)
 
     def test_ui_breadcrumbs_are_recorded_for_unclean_exit_context(self) -> None:
         source = MAIN_WINDOW.read_text(encoding="utf-8")
@@ -884,7 +869,6 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertNotIn("QTimer.singleShot(500, self._maybe_autoload_archive_on_startup)", shell_startup_source)
         self.assertIn("Startup archive auto-load skipped because the previous session did not shut down cleanly", startup_source)
         self.assertIn('self.archive.archive_startup_autoload_defer_preview = True', startup_source)
-        self.assertIn("defer_default_selection=defer_default_selection", main_behavior_source)
         self.assertIn("def show_settings_section(self, key: str) -> None:", settings_source)
         self.assertIn('self.settings_tab.show_settings_section("paths")', navigation_source)
 
@@ -897,7 +881,6 @@ class CrashReportingGuardTests(unittest.TestCase):
                 ARCHIVE_ASSET_FAMILY_LAYOUT.read_text(encoding="utf-8"),
                 ARCHIVE_FILTER_CONTROLS.read_text(encoding="utf-8"),
                 ARCHIVE_SCAN_LIFECYCLE.read_text(encoding="utf-8"),
-                ARCHIVE_INDEX_WORKERS_UI.read_text(encoding="utf-8"),
                 ARCHIVE_RENDER_LIFECYCLE.read_text(encoding="utf-8"),
                 ARCHIVE_ASSET_CATALOG.read_text(encoding="utf-8"),
                 ARCHIVE_ASSET_CATALOG_DIALOG.read_text(encoding="utf-8"),
@@ -932,7 +915,6 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("icon_row_timer.timeout.connect(_load_next_catalog_row_icon)", source)
         self.assertIn("archive_item_icon_preload_timer = QTimer(self)", source)
         self.assertIn("def _schedule_archive_asset_catalog_icon_preload(self, delay_ms: int = 900) -> None:", source)
-        self.assertIn("self._schedule_archive_asset_catalog_icon_preload()", source)
         self.assertIn("self.archive_item_icon_pixmap_cache_limit = 1200", source)
         self.assertNotIn("archive_item_icon_preload_limit", source)
         self.assertIn("self.archive_item_icon_prepared_path_cache", source)
@@ -1005,12 +987,7 @@ class CrashReportingGuardTests(unittest.TestCase):
         autoload_body = source[autoload_start : source.index("    def _load_game_executable_fingerprints", autoload_start)]
         self.assertIn('if bool(getattr(self, "_startup_archive_path_prompt_open", False)):', autoload_body)
         self.assertIn("QTimer.singleShot(250, self._maybe_autoload_archive_on_startup)", autoload_body)
-        self.assertIn("health_report = self._check_archive_cache_health(package_root_text)", autoload_body)
-        self.assertIn("self._warn_if_archive_cache_stale(health_report, package_root_text)", autoload_body)
-        self.assertIn("Keep CDMW open until the cache status reaches ready.", autoload_body)
-        self.assertIn("lambda: self.archive.scan_archives(\n                    force_refresh=", autoload_body)
-        legacy_scan_start = autoload_body.rindex("self.archive.scan_archives(force_refresh=")
-        self.assertNotIn("self._release_startup_splash()", autoload_body[legacy_scan_start:])
+        self.assertIn("lambda: self.archive.scan_archives(force_refresh=", autoload_body)
         queue_start = source.index("def queue_startup_archive_autoload(")
         queue_body = source[queue_start : source.index("class StartupPromptMixin:", queue_start)]
         self.assertIn('window.shell._show_startup_archive_path_prompt_if_needed(', queue_body)
@@ -1043,7 +1020,7 @@ class CrashReportingGuardTests(unittest.TestCase):
         )
 
         scan_start = source.index("    def scan_archives(")
-        scan_body = source[scan_start : source.index("    def _ensure_archive_extension_index_ready", scan_start)]
+        scan_body = source[scan_start : source.index("    def _archive_game_fingerprint_checked", scan_start)]
         self.assertIn("self.shell._prompt_for_archive_package_root_if_missing(", scan_body)
         self.assertIn('reason="refresh" if force_refresh else "scan"', scan_body)
         self.assertIn("after_autodetect=lambda: self.scan_archives(", scan_body)

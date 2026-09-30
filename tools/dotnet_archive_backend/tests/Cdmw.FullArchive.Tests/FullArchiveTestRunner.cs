@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
@@ -10,7 +11,7 @@ namespace Cdmw.FullArchive.Tests;
 
 internal static class FullArchiveTestRunner
 {
-    public static async Task<int> RunAsync(bool archiveQueryOnly = false, bool itemCatalogueOnly = false, bool previewDependenciesOnly = false, bool archiveDiscoveryOnly = false)
+    public static async Task<int> RunAsync(bool archiveQueryOnly = false, bool itemCatalogueOnly = false, bool previewDependenciesOnly = false, bool archiveDiscoveryOnly = false, bool scannerRecoveryOnly = false)
     {
         var tests = new (string Name, Func<Task> Run)[]
         {
@@ -47,7 +48,12 @@ internal static class FullArchiveTestRunner
             ("bounded_protocol_reader", BoundedProtocolReaderAsync),
             ("source_independence_and_baseline", SourceIndependenceAndBaselineAsync),
             ("stdio_worker_ping_shutdown", StdioWorkerPingShutdownAsync),
+            ("scanner_error_classification", ScannerErrorClassificationAsync),
         };
+        if (scannerRecoveryOnly)
+        {
+            tests = tests.Where(static test => test.Name is "scanner_error_classification" or "stdio_worker_ping_shutdown").ToArray();
+        }
         if (archiveDiscoveryOnly)
         {
             tests = tests.Where(static test => test.Name is "native_and_generation_cache"
@@ -92,6 +98,39 @@ internal static class FullArchiveTestRunner
         }
         Console.Error.WriteLine(string.Join(Environment.NewLine + Environment.NewLine, failures));
         return 1;
+    }
+
+    private static Task ScannerErrorClassificationAsync()
+    {
+        var cases = new (Exception Error, string Code)[]
+        {
+            (new IOException("sharing violation", unchecked((int)0x80070020)), "file_sharing"),
+            (new IOException("lock violation", unchecked((int)0x80070021)), "file_sharing"),
+            (new UnauthorizedAccessException("access denied"), "permission_denied"),
+            (new Win32Exception(5, "helper access denied"), "permission_denied"),
+            (new Win32Exception(32, "helper sharing violation"), "file_sharing"),
+            (new Win32Exception(33, "helper lock violation"), "file_sharing"),
+            (new Win32Exception(193, "invalid helper image"), "backend_incompatible"),
+            (new Win32Exception(216, "incompatible helper architecture"), "backend_incompatible"),
+            (new FileNotFoundException("helper missing", "cdmw-archive-accelerator.exe"), "worker_missing"),
+            (new FileNotFoundException("source missing", "0.paz"), "source_missing"),
+            (new DllNotFoundException("native missing"), "worker_missing"),
+            (new BadImageFormatException("incompatible helper"), "backend_incompatible"),
+            (new NativeArchiveException(NativeStatus.FormatError, "invalid index"), "invalid_archive"),
+            (new TimeoutException("indexer timed out"), "operation_timeout"),
+            (new InvalidOperationException("exact unknown diagnostic"), "worker_failure"),
+        };
+        foreach (var (exception, expected) in cases)
+        {
+            var error = WorkerServer.ClassifyFailure(exception);
+            if (error.Code != expected || error.Message != exception.Message || error.Detail != exception.ToString())
+                throw new InvalidOperationException($"Incorrect scanner failure classification: {expected} / {error.Code}");
+            var json = JsonSerializer.Serialize(error, WorkerProtocol.JsonOptions);
+            using var document = JsonDocument.Parse(json);
+            if (document.RootElement.EnumerateObject().Count() != 3)
+                throw new InvalidOperationException("Worker error wire fields changed.");
+        }
+        return Task.CompletedTask;
     }
 
     private static Task CacheLayoutMigrationAsync()

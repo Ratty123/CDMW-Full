@@ -139,13 +139,10 @@ class NativeAccelerationPlanTests(unittest.TestCase):
         native = Path("native/cdmw_archive_accelerator/src/main.cpp").read_text(encoding="utf-8")
         build = Path("build_native_windows.ps1").read_text(encoding="utf-8")
         spec = Path("CrimsonDesertModWorkbench.spec").read_text(encoding="utf-8")
-        scan_worker = Path("cdmw/workers/archive_scan_workers.py").read_text(encoding="utf-8")
 
         self.assertIn("ARCHIVE_ACCELERATOR_PROTOCOL = 1", adapter)
         self.assertIn("scan_archive_entries_cached_accelerated", adapter)
         self.assertIn("_native_browser_state_block_reason", adapter)
-        self.assertIn("scan_archive_entries_cached_accelerated", scan_worker)
-        self.assertIn('fallback_reason.endswith("_python_path")', scan_worker)
         self.assertIn("scan-job", native)
         self.assertIn("browser-state-job", native)
         self.assertIn("entry-read-job", native)

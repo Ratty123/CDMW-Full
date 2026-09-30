@@ -95,30 +95,22 @@ class ArchiveFilesPanelMixin:
             category_provider=self._archive_entry_category,
             category_sort_key=self._archive_category_sort_key,
         )
-        selection = self.archive_backend_selection
-        if selection.displays_v2 or selection.runs_shadow:
-            self.archive_remote_bridge = ArchiveRemoteWindowBridge(
-                self,
-                display_v2=selection.displays_v2,
-                shadow=selection.runs_shadow,
-            )
-            if selection.displays_v2:
-                self.archive_item_finder_warmup_controller = RemoteItemFinderWarmupController(
-                    self.archive_catalogue_service,
-                    self.shell.settings,
-                    background_allowed=self._archive_browser_background_work_allowed,
-                    parent=self,
-                )
-                self.archive_character_finder_warmup_controller = CharacterFinderWarmupController(self)
-                self.archive_remote_bridge.backendFailed.connect(
-                    self._handle_archive_backend_v2_failure
-                )
-                self.archive_remote_bridge.previewDependenciesReady.connect(
-                    self._handle_archive_remote_preview_dependencies_ready
-                )
-                self.archive_remote_bridge.previewDependenciesFailed.connect(
-                    self._handle_archive_remote_preview_dependencies_failed
-                )
+        self.archive_remote_bridge = ArchiveRemoteWindowBridge(self)
+        self.archive_item_finder_warmup_controller = RemoteItemFinderWarmupController(
+            self.archive_catalogue_service, self.shell.settings,
+            background_allowed=self._archive_browser_background_work_allowed, parent=self,
+        )
+        self.archive_character_finder_warmup_controller = CharacterFinderWarmupController(self)
+        self.archive_remote_bridge.backendFailed.connect(self._handle_archive_backend_failure)
+        self.archive_remote_bridge.previewDependenciesReady.connect(self._handle_archive_remote_preview_dependencies_ready)
+        self.archive_remote_bridge.previewDependenciesFailed.connect(self._handle_archive_remote_preview_dependencies_failed)
+        from cdmw.ui.archive_browser.failure_report import ArchiveFailurePanel
+        self.archive_item_names_failure_panel = ArchiveFailurePanel(self)
+        self.archive_item_names_failure_panel.retryRequested.connect(self.archive_item_finder_warmup_controller.retry_failed_operation)
+        self.archive_item_finder_warmup_controller.catalogueFailed.connect(self._handle_archive_item_names_failure)
+        self.archive_item_finder_warmup_controller.catalogueReady.connect(self.archive_item_names_failure_panel.clear)
+        self.archive_item_finder_warmup_controller.delayNotice.connect(self.shell.set_status_message)
+        archive_files_layout.addWidget(self.archive_item_names_failure_panel)
         self.archive_tree.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.archive_tree.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.archive_tree.setAlternatingRowColors(False)

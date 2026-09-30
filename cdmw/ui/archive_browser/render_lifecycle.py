@@ -3,100 +3,23 @@
 from __future__ import annotations
 
 import time
-from collections.abc import Mapping
-from typing import Callable, List, Optional
+from typing import Callable, Optional
 
 from PySide6.QtCore import QTimer
 
-from cdmw.domain.archives.filters import normalize_archive_browser_sort_column
 from cdmw.ui.shell.lazy_tool_tab import created_tool_widget
 
 
 class ArchiveRenderLifecycleMixin:
     """Archive browser render-ready state and deferred background work."""
 
-    def _ensure_archive_basic_index_worker_started(self) -> bool:
-        if not self._archive_basic_index_missing_for_lookup():
-            return False
-        if self.archive_basic_index_thread is None:
-            self.archive_deferred_basic_index_start_pending = False
-            self.archive_basic_index_state = "warming"
-            QTimer.singleShot(0, self._start_archive_basic_index_worker)
-        return True
-
-    def _ensure_archive_enhanced_index_worker_started(self) -> bool:
-        if not self._archive_enhanced_index_missing_for_search():
-            return False
-        if self.archive_enhanced_index_thread is None:
-            self.archive_deferred_enhanced_index_start_pending = False
-            self.archive_enhanced_index_state = "warming"
-            self.archive_enhanced_index_activity = "loading"
-            QTimer.singleShot(0, self._start_archive_enhanced_index_worker)
-        return True
-
-    def _schedule_archive_enhanced_index_auto_prewarm(self, delay_ms: int = 900) -> None:
-        if self.shell._shutting_down or self.shell._startup_benchmark_enabled():
-            return
-        if not bool(getattr(self, "archive_enhanced_index_auto_prewarm_pending", False)):
-            return
-        QTimer.singleShot(max(0, int(delay_ms)), self._start_archive_enhanced_index_auto_prewarm)
-
-    def _start_archive_enhanced_index_auto_prewarm(self) -> None:
-        if self.shell._shutting_down or self.shell._startup_benchmark_enabled():
-            return
-        if not bool(getattr(self, "archive_enhanced_index_auto_prewarm_pending", False)):
-            return
-        if (
-            getattr(self.shell, "_startup_splash_window", None) is not None
-            or bool(getattr(self, "archive_startup_hold_until_ready", False))
-            or not self.archive_browser_first_visible_paint_done
-            or self.shell.worker_thread is not None
-        ):
-            self._schedule_archive_enhanced_index_auto_prewarm(900)
-            return
-        if self._ensure_archive_enhanced_index_worker_started():
-            self.shell.append_archive_log("Item-name search cache warming after archive list opened.")
-
-    def _archive_background_search_ready(self) -> bool:
-        return (
-            str(getattr(self, "archive_basic_index_state", "idle") or "idle") in {"ready", "idle", "failed"}
-            and str(getattr(self, "archive_enhanced_index_state", "idle") or "idle") in {"ready", "idle", "failed"}
-            and self.archive_derived_cache_thread is None
-            and not self.archive_derived_cache_write_pending
-            and not self.archive_deferred_derived_cache_write_pending
-        )
-
-    def _archive_status_text(self, base_text: str = "") -> str:
-        pending: List[str] = []
-        if str(getattr(self, "archive_basic_index_state", "") or "") == "warming":
-            pending.append("Building path lookup")
-        if str(getattr(self, "archive_enhanced_index_state", "") or "") == "warming":
-            activity = str(getattr(self, "archive_enhanced_index_activity", "") or "").lower()
-            pending.append("Loading archive search cache" if activity == "loading" else "Preparing archive search cache")
-        if (
-            self.archive_derived_cache_thread is not None
-            or self.archive_derived_cache_write_pending
-            or self.archive_deferred_derived_cache_write_pending
-        ):
-            pending.append("Saving archive search cache")
-        if bool(getattr(self, "archive_startup_saved_filter_apply_pending", False)):
-            pending.append("Filters will apply when search is ready")
-        if pending:
-            prefix = str(base_text or "Archive list available").strip()
-            if "archive list available" not in prefix.lower():
-                prefix = "Archive list available"
-            return f"{prefix}. " + "; ".join(pending) + "."
-        clean_base = str(base_text or "").strip()
-        if clean_base.startswith("Applied archive filters"):
-            return clean_base
-        return "Archive ready."
 
     def _archive_progress_format_text(self) -> str:
         return f"{min(max(int(getattr(self, '_archive_load_progress_percent', 100)), 0), 100)}%"
 
     def _set_archive_list_status(self, base_text: str = "Archive list available") -> None:
-        status_text = self._archive_status_text(base_text)
-        if self._archive_background_search_ready():
+        status_text = base_text
+        if not self.archive_remote_query_pending:
             self._set_archive_load_progress(status_text, phase="Ready", percent=100)
         else:
             self._set_archive_load_progress(status_text, phase="Indexing", percent=90)
@@ -106,7 +29,6 @@ class ArchiveRenderLifecycleMixin:
         return (
             self._startup_archive_browser_render_ready()
             and self.shell.worker_thread is None
-            and not self.archive_scan_finalize_pending
         )
 
     def _startup_archive_browser_render_ready(self) -> bool:
@@ -134,7 +56,7 @@ class ArchiveRenderLifecycleMixin:
                 if not self._startup_archive_browser_render_ready():
                     self.shell._update_startup_splash("Rendering archive browser view...", 90, 100)
                 else:
-                    self.shell._update_startup_splash(self._archive_status_text("Archive list available"), 0, 0)
+                    self.shell._update_startup_splash("Archive list available", 0, 0)
             QTimer.singleShot(1000, self._maybe_release_startup_after_archive_ready)
             return
         self.archive_startup_hold_until_ready = False
@@ -144,83 +66,6 @@ class ArchiveRenderLifecycleMixin:
         self.shell._release_startup_splash()
         self._schedule_archive_post_ready_background_work()
 
-    def _try_apply_startup_saved_filters(self) -> None:
-        if self.shell._shutting_down or not bool(getattr(self, "archive_startup_saved_filter_apply_pending", False)):
-            return
-        saved_state = getattr(self, "archive_startup_saved_filter_state", {}) or {}
-        if not isinstance(saved_state, Mapping):
-            self.archive_startup_saved_filter_apply_pending = False
-            return
-        allow_hidden_startup_filter = bool(getattr(self, "archive_startup_hold_until_ready", False))
-        if not self.archive_browser_first_visible_paint_done and not allow_hidden_startup_filter:
-            return
-        waits_for_item_search = self._archive_filter_state_waits_for_item_search(saved_state)
-        if waits_for_item_search:
-            self._ensure_archive_enhanced_index_worker_started()
-            if not self.archive_startup_saved_filter_wait_logged:
-                self.archive_startup_saved_filter_wait_logged = True
-                self.shell.append_archive_log("Filters will apply when item-name search is ready.")
-                self._set_archive_list_status("Archive list available")
-            return
-        if (
-            self._archive_filter_state_explicitly_requires_item_search(saved_state)
-            and self._archive_enhanced_index_missing_for_search()
-            and not self.shell._startup_benchmark_enabled()
-        ):
-            self.archive_enhanced_filter_refresh_pending = True
-            self._ensure_archive_enhanced_index_worker_started()
-        needs_basic_lookup = self._archive_filter_state_needs_basic_lookup(saved_state)
-        if needs_basic_lookup and self._archive_basic_index_missing_for_lookup():
-            self._ensure_archive_basic_index_worker_started()
-            if not self.archive_startup_saved_filter_wait_logged:
-                self.archive_startup_saved_filter_wait_logged = True
-                self.shell.append_archive_log("Filters will apply when archive lookup indexes are ready.")
-                self._set_archive_list_status("Archive list available")
-            return
-        if self.shell.worker_thread is not None:
-            QTimer.singleShot(300, self._try_apply_startup_saved_filters)
-            return
-        self.archive_startup_saved_filter_apply_pending = False
-        self.archive_startup_saved_filter_wait_logged = False
-        self._apply_archive_filter_state(saved_state)
-        self.archive_filters_dirty = True
-        self._update_archive_filter_button_state()
-        self.shell.append_archive_log("Applying queued filters after archive list opened.")
-        self._apply_archive_filter()
-
-    def _archive_sort_waits_for_enhanced_index(self) -> bool:
-        column = normalize_archive_browser_sort_column(self.archive_tree_sort_column)
-        return column == 1 and self._archive_enhanced_index_missing_for_search()
-
-    def _schedule_archive_initial_sort_after_first_paint(self, delay_ms: int = 250) -> None:
-        if self.shell._shutting_down or not self.archive_initial_sort_apply_pending:
-            return
-        QTimer.singleShot(max(0, int(delay_ms)), self._apply_archive_initial_sort_after_first_paint)
-
-    def _apply_archive_initial_sort_after_first_paint(self) -> None:
-        if self.shell._shutting_down or not self.archive_initial_sort_apply_pending:
-            return
-        if self.shell.worker_thread is not None:
-            self._schedule_archive_initial_sort_after_first_paint(300)
-            return
-        if self._archive_sort_waits_for_enhanced_index():
-            self._ensure_archive_enhanced_index_worker_started()
-            self.shell.append_archive_log(
-                "Archive column sort is waiting for item-name search before applying name evidence order.",
-                verbose=True,
-            )
-            self._schedule_archive_initial_sort_after_first_paint(700)
-            return
-        current_entry = self._current_archive_entry()
-        preferred_path = current_entry.path if current_entry is not None else ""
-        self.archive_initial_sort_apply_pending = False
-        self.shell.append_archive_log("Applying deferred archive column sort after first paint.", verbose=True)
-        if self.archive_entries:
-            self._start_archive_filter_worker(preferred_path)
-        else:
-            self._sort_current_archive_filtered_entries()
-            self._rebuild_archive_browser_indexes_for_current_sort()
-            self._populate_archive_tree(preferred_path, rebuild_index=False)
 
     def _invalidate_archive_browser_name_columns(self) -> None:
         self.archive_browser_row_display_cache.clear()
@@ -231,52 +76,6 @@ class ArchiveRenderLifecycleMixin:
         preferred_path = current_entry.path if current_entry is not None else ""
         self._populate_archive_tree(preferred_path, rebuild_index=False, defer_default_selection=True)
 
-    def _schedule_archive_pending_enhanced_filter_refresh(self, delay_ms: int = 250) -> None:
-        if self.shell._shutting_down or not self.archive_enhanced_filter_refresh_pending:
-            return
-        QTimer.singleShot(max(0, int(delay_ms)), self._apply_pending_archive_enhanced_filter_refresh)
-
-    def _apply_pending_archive_enhanced_filter_refresh(self) -> None:
-        if self.shell._shutting_down or not self.archive_enhanced_filter_refresh_pending:
-            return
-        if not self.archive_filter_edit.text().strip() or self.archive_filters_dirty:
-            self.archive_enhanced_filter_refresh_pending = False
-            return
-        if not self.shell._is_tool_visible_or_current(self.shell.archive_browser_tab):
-            self.shell.append_archive_log(
-                "Archive Browser activation timing | cause=item_search_filter_refresh | state=deferred",
-                verbose=True,
-            )
-            return
-        if (
-            self.shell.worker_thread is not None
-            or (
-                self._archive_saved_filter_needs_item_search(self._capture_archive_filter_state())
-                and self._archive_enhanced_index_missing_for_search()
-            )
-            or (
-                self._current_archive_filter_needs_basic_lookup()
-                and self._archive_basic_index_missing_for_lookup()
-            )
-        ):
-            if self._archive_saved_filter_needs_item_search(self._capture_archive_filter_state()):
-                self._ensure_archive_enhanced_index_worker_started()
-            if self._current_archive_filter_needs_basic_lookup():
-                self._ensure_archive_basic_index_worker_started()
-            self.shell.append_archive_log(
-                "Archive Browser activation timing | cause=item_search_filter_refresh | state=deferred",
-                verbose=True,
-            )
-            self._schedule_archive_pending_enhanced_filter_refresh(500)
-            return
-        current_entry = self._current_archive_entry()
-        preferred_path = current_entry.path if current_entry is not None else ""
-        self.archive_enhanced_filter_refresh_pending = False
-        self.shell.append_archive_log(
-            "Archive Browser activation timing | cause=item_search_filter_refresh | state=applied",
-            verbose=True,
-        )
-        self._start_archive_filter_worker(preferred_path)
 
     def _archive_browser_render_is_ready(self) -> bool:
         return (
@@ -351,7 +150,7 @@ class ArchiveRenderLifecycleMixin:
             current_entry_path = current_entry.path if current_entry is not None else ""
             self.archive_browser_refresh_pending = False
             if self.shell.worker_thread is None:
-                self._start_archive_filter_worker(
+                self._submit_archive_filter(
                     current_entry_path,
                     build_category_index=rebuild_category_index,
                 )
@@ -487,64 +286,18 @@ class ArchiveRenderLifecycleMixin:
             delay_ms = 550 if self.archive_browser_first_visible_paint_done else 2000
         QTimer.singleShot(max(0, int(delay_ms)), self._start_archive_deferred_background_work)
 
+
+    def _try_apply_startup_saved_filters(self) -> None:
+        # Saved filters are part of the immutable query captured before opening.
+        self.archive_startup_saved_filter_apply_pending = False
+
     def _start_archive_deferred_background_work(self) -> None:
         self.archive_deferred_background_start_pending = False
         if self.shell._shutting_down:
             return
-        startup_hold = bool(getattr(self, "archive_startup_hold_until_ready", False))
-        browser_visible = self.shell._is_tool_visible_or_current(self.shell.archive_browser_tab)
-        background_allowed = bool(startup_hold or (not browser_visible) or self._archive_browser_background_work_allowed())
-        if self.archive_deferred_basic_index_start_pending and self.archive_basic_index_thread is None:
-            if not background_allowed:
-                self._schedule_archive_post_ready_background_work(250)
-                return
-            self.archive_deferred_basic_index_start_pending = False
-            self._start_archive_basic_index_worker()
-            self._schedule_archive_post_ready_background_work(900)
+        if not self._archive_browser_background_work_allowed():
             return
-        if not background_allowed:
-            self._schedule_archive_post_ready_background_work(
-                250 if browser_visible else 1000
-            )
-            return
-        if (
-            self.archive_basic_index_thread is not None
-            or
-            self.archive_enhanced_index_thread is not None
-            or self.archive_derived_cache_thread is not None
-            or self.archive_sidecar_thread is not None
-        ):
-            self._schedule_archive_post_ready_background_work(900)
-            return
-        if self.archive_deferred_enhanced_index_start_pending and self.archive_enhanced_index_thread is None:
-            self.archive_deferred_enhanced_index_start_pending = False
-            self._start_archive_enhanced_index_worker()
-            self._schedule_archive_post_ready_background_work(900)
-            return
-        if self.archive_deferred_derived_cache_write_pending and self.archive_derived_cache_thread is None:
-            self.archive_deferred_derived_cache_write_pending = False
-            self._start_archive_derived_index_cache_writer()
-            self._schedule_archive_post_ready_background_work(900)
-            return
-        if startup_hold:
-            self._maybe_release_startup_after_archive_ready()
-            return
-        if self.archive_deferred_sidecar_start_pending:
-            self.archive_deferred_sidecar_start_pending = False
-            if self.shell.worker_thread is None and self.archive_sidecar_thread is None:
-                self.shell.append_archive_log("Archive Browser activation timing | cause=sidecar_index | start=deferred", verbose=True)
-                self._start_archive_sidecar_index_worker()
-                self._schedule_archive_post_ready_background_work(900)
-                return
-        # Last rung: every index the preview itself reads is published by now, so
-        # the warm-up job measures the real cold cost instead of racing them.
-        if self._start_archive_preview_core_prewarm():
-            self._schedule_archive_post_ready_background_work(900)
-            return
-        if self.archive_item_icon_preload_pending_after_ready:
-            self.archive_item_icon_preload_pending_after_ready = False
-            self.shell.append_archive_log("Archive Browser activation timing | cause=icon_warmup | start=deferred", verbose=True)
-            self._schedule_archive_asset_catalog_icon_preload(delay_ms=700)
+        self._start_archive_preview_core_prewarm()
 
     def _handle_archive_browser_first_visible_paint(self) -> None:
         if self.shell._shutting_down or not self.isVisible() or not self.shell._is_tool_visible_or_current(self.shell.archive_browser_tab):
@@ -567,10 +320,7 @@ class ArchiveRenderLifecycleMixin:
             ):
                 self.shell._schedule_startup_splash_finish_after_main_window_paint(80)
         self._schedule_archive_post_ready_background_work(550)
-        if self.archive_initial_sort_apply_pending:
-            self._schedule_archive_initial_sort_after_first_paint(150)
         self._try_apply_startup_saved_filters()
-        self._schedule_archive_enhanced_index_auto_prewarm()
 
 
 __all__ = ["ArchiveRenderLifecycleMixin"]

@@ -4,9 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from cdmw.ui.archive_browser import filter_workers as filter_workers_module
 from cdmw.ui.archive_browser import workers as preview_workers_module
-from cdmw.ui.archive_browser.filter_workers import ArchiveFilterWorkerMixin
 from cdmw.ui.archive_browser.static_replacement_d3d11_request_state import (
     alignment_d3d11_clear_original_texture_worker_refs,
     alignment_d3d11_clear_package_worker_refs,
@@ -59,46 +57,13 @@ def _timer_type():
     return _FakeTimer
 
 
-@pytest.mark.parametrize("lane", ("structure", "filter", "preview", "startup"))
+@pytest.mark.parametrize("lane", ("preview", "startup"))
 def test_ui_worker_cleanup_retains_refs_until_native_thread_joins(monkeypatch, lane: str) -> None:
     timer = _timer_type()
     thread = _FakeThread()
     worker = _FakeWorker()
 
-    if lane == "structure":
-        class _Owner(ArchiveFilterWorkerMixin):
-            def __init__(self):
-                self.shell = self
-                self.archive = self
-                self.textures = self
-
-            pass
-
-        owner = _Owner()
-        owner.archive_structure_filter_thread = thread
-        owner.archive_structure_filter_worker = worker
-        monkeypatch.setattr(filter_workers_module, "QTimer", timer)
-        cleanup = lambda: owner._cleanup_archive_structure_filter_refs(thread, worker)
-        refs = lambda: (owner.archive_structure_filter_thread, owner.archive_structure_filter_worker)
-    elif lane == "filter":
-        class _Owner(ArchiveFilterWorkerMixin):
-            def __init__(self):
-                self.shell = self
-                self.archive = self
-                self.textures = self
-
-            def _cleanup_worker_refs(self, owner_thread: object) -> None:
-                assert owner_thread is self.worker_thread
-                self.worker_thread = None
-                self.archive_filter_worker = None
-
-        owner = _Owner()
-        owner.worker_thread = thread
-        owner.archive_filter_worker = worker
-        monkeypatch.setattr(filter_workers_module, "QTimer", timer)
-        cleanup = lambda: owner._cleanup_archive_filter_worker_refs(thread, worker)
-        refs = lambda: (owner.worker_thread, owner.archive_filter_worker)
-    elif lane == "preview":
+    if lane == "preview":
         class _Owner(ArchivePreviewWorkerMixin):
             def __init__(self):
                 self.shell = self

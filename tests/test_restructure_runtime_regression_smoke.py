@@ -13,7 +13,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication, QLabel, QPushButton, QWidget
 
 from cdmw.app.events import AppEventBus
-from cdmw.domain.archives.backend_mode import ArchiveBackendMode, ArchiveBackendSelection
+from cdmw.ui.archive_browser.mesh_builder_startup_smoke import configure_synthetic_archive_context
 from cdmw.models import ArchiveEntry
 from cdmw.services.service_container import ServiceContainer
 from cdmw.services.settings_service import create_settings
@@ -202,21 +202,7 @@ class RestructureRuntimeRegressionSmokeTests(unittest.TestCase):
             payload_path = root / "sample.hkx"
             payload_path.write_bytes(b"HKX")
             entry = _entry("character/bin__/meshphysics/sample.hkx", root)
-            if self.window.archive.archive_remote_bridge is not None:
-                self.window.archive.archive_remote_bridge.deactivate()
-            self.window.archive.archive_remote_bridge = None
-            self.window.archive.archive_backend_selection = ArchiveBackendSelection(
-                ArchiveBackendMode.LEGACY,
-                "test_session_legacy",
-                True,
-            )
-            self.window.archive.archive_backend_mode = ArchiveBackendMode.LEGACY
-            self.window.archive.archive_tree.use_legacy_model()
-            self.window.archive.archive_filtered_entries = [entry]
-            self.window.archive.archive_tree.set_archive_state([entry], mode="flat")
-            item = self.window.archive.archive_tree.find_item_for_entry(0)
-            self.assertIsNotNone(item)
-            self.window.archive.archive_tree.setCurrentItem(item)
+            configure_synthetic_archive_context(self.window, entry)
             self.window.archive.archive_preview_showing_loose = False
             self.window.worker_thread = None
             self.window.archive._update_archive_model_action_controls(None)

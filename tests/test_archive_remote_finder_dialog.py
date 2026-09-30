@@ -17,6 +17,7 @@ from cdmw.domain.archives.item_catalogue import (
     ItemCatalogSearchResult,
 )
 from cdmw.ui.archive_browser.remote_finder_dialog import RemoteArchiveFinderDialog
+from cdmw.domain.archives.catalogue_operations import ArchiveBackendError
 
 
 _APPLICATION: QApplication | None = None
@@ -45,6 +46,7 @@ class _Service(QObject):
         self.scopes: list[object] = []
         self.icons: list[object] = []
         self.cancelled: list[str] = []
+        self.retried: list[str] = []
 
     def search_item_catalog(self, request: object, **_kwargs: object) -> str:
         self.searches.append(request)
@@ -61,6 +63,10 @@ class _Service(QObject):
     def cancel(self, request_id: str) -> bool:
         self.cancelled.append(request_id)
         return True
+
+    def retry_failed(self, request_id: str) -> str:
+        self.retried.append(request_id)
+        return "retry-" + request_id
 
 
 class _Controller:
@@ -132,6 +138,45 @@ def _row(item_id: int) -> ItemCatalogRow:
         1,
         "model link",
     )
+
+
+def test_finder_scope_failure_keeps_typed_report_and_retries_the_scope_only() -> None:
+    _app()
+    window = _Window()
+    dialog = RemoteArchiveFinderDialog(window)
+    _drain()
+    window.archive_catalogue_service.result_ready.emit("search-1", "search_item_catalog",
+        ItemCatalogSearchResult("session-a", 1, 0, 72, (_row(12),), ()))
+    dialog._tree.setCurrentRow(0)
+    dialog._scope_selected(include_related=True)
+    service = window.archive_catalogue_service
+    service.request_failed.emit("scope-1", ArchiveBackendError("permission_denied", "Access denied", "Exact scope detail"))
+    assert not dialog._failure_panel.isHidden()
+    assert "permission_denied" in dialog._failure_panel.report and "Exact scope detail" in dialog._failure_panel.report
+    dialog._failure_panel.copy_button.click()
+    assert QApplication.clipboard().text() == dialog._failure_panel.report
+    dialog._failure_panel.retry_button.click()
+    assert service.retried == ["scope-1"] and len(service.searches) == 1
+    assert dialog._scope_request_id == "retry-scope-1"
+    service.result_ready.emit("retry-scope-1", "scope_item_catalog", ItemCatalogScopeResult("session-a", (), 0, 0, False))
+    assert dialog._failure_panel.isHidden()
+    dialog.close()
+
+
+def test_new_finder_search_invalidates_failed_retry_and_late_errors() -> None:
+    _app()
+    window = _Window()
+    dialog = RemoteArchiveFinderDialog(window)
+    _drain()
+    service = window.archive_catalogue_service
+    service.request_failed.emit("search-1", ArchiveBackendError("invalid_archive", "Invalid input"))
+    dialog._search_edit.setText("new search")
+    dialog._start_search()
+    assert "search-1" in service.cancelled and dialog._failed_request is None
+    assert dialog._failure_panel.isHidden()
+    service.request_failed.emit("search-1", ArchiveBackendError("unknown", "late"))
+    assert dialog._failure_panel.isHidden()
+    dialog.close()
 
 
 def test_selecting_an_item_shows_its_equip_slot_and_description() -> None:

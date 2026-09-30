@@ -429,7 +429,7 @@ public sealed class ArchiveItemCatalogBuildService(
                 if (File.Exists(candidate)) return candidate;
             }
         }
-        throw new FileNotFoundException("cdmw-archive-accelerator.exe was not found. Rebuild CDMW Full or set CDMW_FULL_ARCHIVE_ITEM_INDEX_PATH.");
+        throw new FileNotFoundException("cdmw-archive-accelerator.exe was not found. Rebuild CDMW Full or set CDMW_FULL_ARCHIVE_ITEM_INDEX_PATH.", "cdmw-archive-accelerator.exe");
     }
 
     private static string ReadString(JsonElement row, string name) =>

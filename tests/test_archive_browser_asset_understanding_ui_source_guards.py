@@ -21,7 +21,6 @@ ARCHIVE_ASSET_CATALOG_SCOPE = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "a
 ARCHIVE_FILTER_CONTROLS = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "filter_controls.py"
 ARCHIVE_FILES_PANEL = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "files_panel.py"
 ARCHIVE_ICON_PIPELINE = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "icon_pipeline.py"
-ARCHIVE_INDEX_WORKERS_UI = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "index_workers.py"
 ARCHIVE_ATTACHMENT_DONOR_PICKER_DIALOG = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "attachment_donor_picker_dialog.py"
 ARCHIVE_ATTACHMENT_PLACEMENT_DIFF_DIALOG = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "attachment_placement_diff_dialog.py"
 ARCHIVE_ATTACHMENT_SAFE_PLACEMENT_DIALOG = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "attachment_safe_placement_dialog.py"
@@ -69,7 +68,6 @@ ARCHIVE_REFERENCE_PREVIEW = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "ref
 ARCHIVE_SOURCE_MIX_ACTIONS = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "source_mix_actions.py"
 ARCHIVE_SOURCE_MIX_OVERLAY = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "source_mix_overlay.py"
 ARCHIVE_WORKERS = REPO_ROOT / "cdmw" / "workers" / "archive_workers.py"
-ARCHIVE_SCAN_WORKERS = REPO_ROOT / "cdmw" / "workers" / "archive_scan_workers.py"
 ARCHIVE_PREVIEW_NATIVE = REPO_ROOT / "cdmw" / "workers" / "archive_preview_native.py"
 MESH_DOMAIN_SESSION = REPO_ROOT / "cdmw" / "domain" / "mesh" / "session.py"
 MESH_EDITOR_SHELL_BRIDGE = REPO_ROOT / "cdmw" / "ui" / "mesh_editor" / "shell_bridge.py"
@@ -468,7 +466,6 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
                 MODIFY_ORIGINAL_WORKSPACE_SERVICE.read_text(encoding="utf-8"),
                 ARCHIVE_MESH_SETUP_HELPERS.read_text(encoding="utf-8"),
                 ARCHIVE_SCAN_LIFECYCLE.read_text(encoding="utf-8"),
-                ARCHIVE_INDEX_WORKERS_UI.read_text(encoding="utf-8"),
                 ARCHIVE_RENDER_LIFECYCLE.read_text(encoding="utf-8"),
             )
         )
@@ -652,46 +649,17 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertNotIn('"Name hint: {first_related_name}"', source)
         self.assertIn("variant_count", source)
 
-    def test_large_category_view_population_is_batched(self) -> None:
-        source = (
-            MAIN_WINDOW.read_text(encoding="utf-8")
-            + "\n"
-            + ARCHIVE_SCAN_LIFECYCLE.read_text(encoding="utf-8")
-            + "\n"
-            + ARCHIVE_RENDER_LIFECYCLE.read_text(encoding="utf-8")
-            + "\n"
-            + (REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "controller.py").read_text(encoding="utf-8")
-            + "\n"
-            + ARCHIVE_ASSET_CATALOG.read_text(encoding="utf-8")
-            + "\n"
-            + ARCHIVE_ASSET_CATALOG_DIALOG.read_text(encoding="utf-8")
-            + "\n"
-            + ARCHIVE_ASSET_CATALOG_SCOPE.read_text(encoding="utf-8")
-            + "\n"
-            + UTILITY_CONTROLLER.read_text(encoding="utf-8")
-        )
-        scan_worker_source = ARCHIVE_SCAN_WORKERS.read_text(encoding="utf-8")
-
-        self.assertIn("browser_state[\"category_entry_indexes\"] = build_archive_category_entry_index", scan_worker_source)
-        self.assertIn("build_browser_category_index = bool(", source)
-        self.assertIn("startup_deferred_archive_load = bool(", source)
-        self.assertIn("build_category_index=build_browser_category_index", source)
-        self.assertIn("build_category_index=rebuild_category_index", source)
-        self.assertIn("elif refresh_archive_browser:", source)
-        self.assertIn("self.archive_tree.set_archive_state(", source)
-        self.assertNotIn("self.archive_tree_category_population_timer", source)
-        self.assertNotIn("def _begin_archive_category_population(", source)
-        self.assertNotIn("def _continue_archive_category_population(self) -> None:", source)
-        self.assertIn("category = str(value or \"\")", source)
-        self.assertIn("collected_indexes.update(self._archive_category_entry_indexes().get(category, []))", source)
-        self.assertIn("and not self._archive_category_index_ready()", source)
-        self.assertIn('("category_index_s", "category_index")', scan_worker_source)
-        self.assertNotIn("else build_archive_category_entry_index(self.archive_filtered_entries)", source)
-        self.assertNotIn("self.archive_tree_category_entry_indexes = build_archive_category_entry_index(self.archive_filtered_entries)\n            return self.archive_tree_category_entry_indexes", source)
-        self.assertNotIn("if kind == \"category\":\n                self._ensure_archive_category_item_populated(item)", source)
-        self.assertIn("category_evidence", source)
-        self.assertIn("Category evidence:", source)
-        self.assertIn("Generated thumbnail from asset texture", source)
+    def test_categories_use_remote_pages_and_keep_asset_evidence(self) -> None:
+        controller = (REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "controller.py").read_text(encoding="utf-8")
+        remote = (REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "remote_controller.py").read_text(encoding="utf-8")
+        assets = "\n".join(path.read_text(encoding="utf-8") for path in
+                           (ARCHIVE_ASSET_CATALOG, ARCHIVE_ASSET_CATALOG_DIALOG, ARCHIVE_ASSET_CATALOG_SCOPE))
+        self.assertIn("self.archive_tree.use_remote_model(bridge.model)", controller)
+        self.assertIn("self._service.fetch_children(", remote)
+        self.assertNotIn("self.archive_tree.set_archive_state(", controller)
+        self.assertIn("category_evidence", assets)
+        self.assertIn("Category evidence:", assets)
+        self.assertIn("Generated thumbnail from asset texture", assets)
 
     def test_archive_startup_progress_is_coalesced_for_smooth_splash(self) -> None:
         source = (
@@ -770,65 +738,6 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertNotIn("return 420, 130", source)
         self.assertIn("current_item is not None and not defer_default_selection", source)
 
-    def test_archive_startup_defers_enhanced_and_basic_indexes_until_after_ready(self) -> None:
-        source = "\n".join(
-            (
-                MAIN_WINDOW.read_text(encoding="utf-8"),
-                ARCHIVE_SCAN_LIFECYCLE.read_text(encoding="utf-8"),
-                ARCHIVE_INDEX_WORKERS_UI.read_text(encoding="utf-8"),
-                ARCHIVE_RENDER_LIFECYCLE.read_text(encoding="utf-8"),
-            )
-        )
-        worker_source = ARCHIVE_WORKERS.read_text(encoding="utf-8")
-        scan_body = ARCHIVE_SCAN_WORKERS.read_text(encoding="utf-8")
-        self.assertIn(
-            "Item-name search cache is missing or stale; archive list will open and search will build on demand.",
-            scan_body,
-        )
-        self.assertIn("class ArchiveBasicIndexWorker", worker_source)
-        self.assertIn("class ArchiveEnhancedIndexWorker", worker_source)
-        self.assertIn('"enhanced_index_needs_build"', source)
-        self.assertIn('"basic_index_needs_build"', source)
-        self.assertIn("prewarm_basic_index = bool(", source)
-        self.assertIn("prewarm_enhanced_index = bool(", source)
-        self.assertIn("self.archive_deferred_basic_index_start_pending = bool(prewarm_basic_index)", source)
-        self.assertIn("self.archive_deferred_enhanced_index_start_pending = bool(prewarm_enhanced_index)", source)
-        self.assertIn("Path lookup cache deferred; it will build when filters", source)
-        self.assertIn("Item-name search cache warming after archive list opened.", source)
-        self.assertIn("archive_enhanced_index_auto_prewarm_pending", source)
-        self.assertIn("def _schedule_archive_enhanced_index_auto_prewarm", source)
-        self.assertIn("self._start_archive_basic_index_worker()", source)
-        self.assertIn("self._start_archive_enhanced_index_worker()", source)
-        self.assertIn("self._schedule_archive_post_ready_background_work()", source)
-        self.assertIn("Checking archive path lookup cache in background...", worker_source)
-        self.assertIn('"cache_loaded": bool(basic_cache.get("cache_loaded", True))', worker_source)
-        run_start = scan_body.index("    @Slot()\n    def run")
-        run_body = scan_body[run_start:]
-        self.assertIn("enhanced_index_needs_build = bool(entries and name_search_index is None)", run_body)
-        self.assertIn("enhanced_index_needs_build = bool(entries)", run_body)
-        self.assertIn("load_name_search_index_cache: bool = False", scan_body)
-        self.assertIn("load_name_search_index=self.load_name_search_index_cache", run_body)
-        self.assertIn("Item-name search cache will load on demand after the archive list opens.", run_body)
-        self.assertIn("build_enhanced_indexes_before_ready = bool(", run_body)
-        self.assertIn("or source != \"cache\"", run_body)
-        self.assertIn("self._build_enhanced_archive_indexes_inline(", run_body)
-        self.assertIn("entries,", run_body)
-        self.assertIn("Preparing archive search cache as part of archive cache build.", run_body)
-        self.assertIn("basic_indexes_needed_before_ready", run_body)
-        self.assertIn("Path lookup cache is deferred until filters", run_body)
-        self.assertIn("load_or_update_archive_basic_index_shards(", run_body)
-        self.assertIn("save_archive_basic_index_cache(", run_body)
-        self.assertIn('"enhanced_index_needs_build": enhanced_index_needs_build', run_body)
-        self.assertIn('"basic_index_needs_build": bool(', run_body)
-        self.assertIn("role_index", run_body)
-        enhanced_start = worker_source.index("class ArchiveEnhancedIndexWorker")
-        enhanced_end = worker_source.index("class ArchiveStructureFilterWorker", enhanced_start)
-        enhanced_body = worker_source[enhanced_start:enhanced_end]
-        self.assertIn("Preparing archive search cache (2/3): path/name index...", enhanced_body)
-        self.assertIn("load_or_update_archive_name_search_shards(", enhanced_body)
-        archive_name_search_source = Path("cdmw/core/archive_name_search.py").read_text(encoding="utf-8")
-        self.assertIn("def load_or_update_archive_name_search_shards", archive_name_search_source)
-        self.assertIn("Preparing archive search cache (2/3): path/name index", archive_name_search_source)
 
     def test_placement_workspace_and_loose_overlay_review_are_present(self) -> None:
         source = "\n".join(

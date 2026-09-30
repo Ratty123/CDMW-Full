@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from collections import Counter, OrderedDict, deque
+import os
+import threading
 
 from PySide6.QtCore import QProcess, Qt, QTimer
 
-from cdmw.domain.archives.backend_mode import resolve_archive_backend_mode
 from cdmw.services.archive_catalogue_service import ArchiveCatalogueService
 from cdmw.ui.shell.archive_backend_client import ArchiveBackendClient
 
@@ -32,10 +33,13 @@ class ArchiveRuntimeStateMixin:
             )
         except Exception:
             pass
-        self.archive_backend_selection = resolve_archive_backend_mode()
-        self.archive_backend_mode = self.archive_backend_selection.mode
-        self.archive_backend_mode_warning_logged = False
-        self.archive_backend_failure_dialog_open = False
+        self.archive_obsolete_backend_override = os.environ.get("CDMW_ARCHIVE_BACKEND")
+        self.archive_obsolete_override_logged = False
+        self.archive_backend_failure_dialog = None
+        self.archive_open_generation = 0
+        self.archive_game_fingerprint_task = None
+        self.archive_game_fingerprint_stop = threading.Event()
+        self.archive_open_game_fingerprints = None
         self.archive_remote_bridge = None
         self.archive_item_finder_warmup_controller = None
         self.archive_character_finder_warmup_controller = None
@@ -78,9 +82,6 @@ class ArchiveRuntimeStateMixin:
         self.archive_preview_request_started_at: Dict[int, float] = {}
         self.archive_preview_request_phase_timings: Dict[int, Dict[str, float]] = {}
         self.archive_preview_request_sources: Dict[int, str] = {}
-        # Set when a model preview renders before the archive path lookup is
-        # ready, so its Asset Family metadata can be completed once it lands.
-        self._archive_preview_pending_lookup_entry = None
         # Counts the re-resolves spent waiting for a worker secondary index that
         # was still building when the preview's dependencies were answered.
         self._archive_preview_secondary_index_retries = 0
@@ -124,28 +125,14 @@ class ArchiveRuntimeStateMixin:
         self.archive_extension_counts: Counter[str] = Counter()
         self.archive_entry_metadata_signature = ""
         self.archive_entry_metadata_sources: Tuple[Tuple[object, object, object], ...] = ()
-        self.archive_scan_shard_entry_signatures: Dict[str, str] = {}
-        self.archive_scan_shard_entry_counts: Dict[str, int] = {}
         self.archive_result_filter_signature: Tuple[object, ...] = ()
-        self.archive_basic_index_state = "idle"
-        self.archive_basic_index_request_id = 0
-        self.archive_basic_index_thread: Optional[QThread] = None
-        self.archive_basic_index_worker: Optional[ArchiveBasicIndexWorker] = None
         self.archive_name_search_index: Optional[ArchiveNameSearchIndex] = None
         self.archive_item_search_aliases: Dict[str, str] = {}
         self.archive_item_display_names: Dict[str, str] = {}
         self.archive_item_exact_display_names: Dict[str, str] = {}
         self.archive_item_related_display_names: Dict[str, str] = {}
-        self.archive_enhanced_index_state = "idle"
-        self.archive_enhanced_index_request_id = 0
-        self.archive_enhanced_index_activity = "idle"
-        self.archive_enhanced_index_auto_prewarm_pending = False
         self.archive_native_derived_cache_ready = False
-        self.archive_enhanced_index_thread: Optional[QThread] = None
-        self.archive_enhanced_index_worker: Optional[ArchiveEnhancedIndexWorker] = None
         self.archive_structure_filter_state = "idle"
-        self.archive_structure_filter_thread: Optional[QThread] = None
-        self.archive_structure_filter_worker: Optional[ArchiveStructureFilterWorker] = None
         self.archive_browser_row_display_cache: OrderedDict[
             Tuple[str, str, int, bool],
             ArchiveBrowserRowPayload,
@@ -182,17 +169,13 @@ class ArchiveRuntimeStateMixin:
         self.archive_sidecar_entries_by_texture_path: Dict[str, List[ArchiveEntry]] = {}
         self.archive_sidecar_entries_by_texture_basename: Dict[str, List[ArchiveEntry]] = {}
         self.archive_sidecar_generation = 0
-        self.archive_scan_finalize_pending = False
         self.archive_filtered_entries: List[ArchiveEntry] = []
         self.archive_filtered_dds_count = 0
         self.archive_filters_dirty = False
-        self.archive_filter_apply_pending = False
         self.archive_filter_requested_signature: Tuple[object, ...] = ()
         self.archive_controls_scroll_filter_anchor: Optional[int] = None
         self.archive_tree_sort_column = -1
         self.archive_tree_sort_order = "asc"
-        self.archive_initial_sort_apply_pending = False
-        self.archive_enhanced_filter_refresh_pending = False
         self.archive_browser_refresh_pending = False
         self.archive_startup_autoload_defer_preview = False
         self.archive_startup_saved_filter_apply_pending = False
@@ -210,10 +193,6 @@ class ArchiveRuntimeStateMixin:
         self.archive_browser_render_reason = ""
         self.archive_context_menu_selection_suppressed = False
         self.archive_deferred_background_start_pending = False
-        self.archive_deferred_basic_index_start_pending = False
-        self.archive_deferred_enhanced_index_start_pending = False
-        self.archive_deferred_derived_cache_write_pending = False
-        self.archive_deferred_sidecar_start_pending = False
         self.archive_item_icon_preload_pending_after_ready = False
         self._activate_archive_browser_on_scan_complete = True
         self.archive_tree_child_folders: Dict[Tuple[str, ...], List[Tuple[str, Tuple[str, ...]]]] = {}

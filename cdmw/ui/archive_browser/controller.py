@@ -436,87 +436,12 @@ class ArchiveBrowserTreeControllerMixin:
             self.archive_tree_sort_order = "asc"
         self._update_archive_tree_sort_indicator()
         self.shell.schedule_settings_save()
-        remote_bridge = getattr(self, "archive_remote_bridge", None)
-        if remote_bridge is not None and remote_bridge.displays_v2:
-            remote_bridge.apply_current_query()
-            return
-        if self._archive_sort_waits_for_enhanced_index():
-            self._ensure_archive_enhanced_index_worker_started()
-            self.archive_initial_sort_apply_pending = True
-            self.shell.append_archive_log(
-                "Archive name-column sort will apply after item-name search is ready.",
-                verbose=True,
-            )
-            self._schedule_archive_initial_sort_after_first_paint(700)
-            return
-        if self.shell.worker_thread is not None:
-            if self.archive_filter_worker is not None:
-                self.archive_filter_apply_pending = True
-                self.archive_filter_worker.stop()
-                self._set_archive_load_progress(
-                    "Stopping previous archive filter before applying column sort...",
-                    phase="Stopping",
-                )
-            else:
-                self.archive_browser_refresh_pending = True
-                self.shell.set_status_message("Archive column sort will apply after the current task finishes.")
-            return
-        if not self.archive_entries and not self.archive_filtered_entries:
-            return
-        if self.archive_active_asset_catalog_scope:
-            self._sort_current_archive_filtered_entries()
-            self._rebuild_archive_browser_indexes_for_current_sort()
-            self._populate_archive_tree(
-                preferred_path,
-                rebuild_index=False,
-                on_complete=(
-                    lambda bridge=remote_bridge: bridge.schedule_shadow_comparison("sort_complete")
-                    if remote_bridge is not None and remote_bridge.shadows_legacy
-                    else None
-                ),
-            )
-            return
-        if self.archive_entries:
-            self._start_archive_filter_worker(preferred_path)
-        else:
-            self._sort_current_archive_filtered_entries()
-            self._rebuild_archive_browser_indexes_for_current_sort()
-            self._populate_archive_tree(
-                preferred_path,
-                rebuild_index=False,
-                on_complete=(
-                    lambda bridge=remote_bridge: bridge.schedule_shadow_comparison("sort_complete")
-                    if remote_bridge is not None and remote_bridge.shadows_legacy
-                    else None
-                ),
-            )
+        self._submit_archive_filter(preferred_path)
 
     def _handle_archive_browser_view_mode_changed(self, _index: int) -> None:
         self._mark_archive_browser_render_stale()
         self.archive_tree.setRootIsDecorated(self._archive_tree_view_enabled())
-        remote_bridge = getattr(self, "archive_remote_bridge", None)
-        if remote_bridge is not None and remote_bridge.displays_v2:
-            remote_bridge.apply_current_query()
-            return
-        if self.shell.worker_thread is not None:
-            self.archive_browser_refresh_pending = True
-            return
-        current_entry = self._current_archive_entry()
-        current_entry_path = current_entry.path if current_entry is not None else ""
-        rebuild_tree_index = bool(self._archive_folder_tree_enabled() and not self.archive_tree_index_ready and self.archive_filtered_entries)
-        rebuild_category_index = bool(self._archive_category_view_enabled() and not self._archive_category_index_ready() and self.archive_filtered_entries)
-        if (rebuild_tree_index or rebuild_category_index) and self.archive_entries:
-            self._start_archive_filter_worker(current_entry_path)
-            return
-        self._populate_archive_tree(
-            current_entry_path,
-            rebuild_index=rebuild_tree_index,
-            on_complete=(
-                lambda bridge=remote_bridge: bridge.schedule_shadow_comparison("view_mode_complete")
-                if remote_bridge is not None and remote_bridge.shadows_legacy
-                else None
-            ),
-        )
+        self._submit_archive_filter()
 
     def _rebuild_archive_tree_index(self) -> None:
         (
@@ -560,36 +485,18 @@ class ArchiveBrowserTreeControllerMixin:
         on_complete: Optional[Callable[[], None]] = None,
         defer_default_selection: bool = False,
     ) -> None:
-        self.archive_browser_row_display_cache.clear()
-        self.archive_tree.blockSignals(True)
-        try:
-            self.archive_tree.setRootIsDecorated(self._archive_tree_view_enabled())
-            reset_started_at = time.perf_counter()
-            self.archive_tree.set_archive_state(
-                self.archive_filtered_entries,
-                mode=self._archive_virtual_tree_mode(),
-                tree_child_folders=self.archive_tree_child_folders,
-                tree_direct_files=self.archive_tree_direct_files,
-                tree_folder_entry_indexes=self.archive_tree_folder_entry_indexes,
-                category_entry_indexes=self.archive_tree_category_entry_indexes,
-                fetch_batch_size=self._archive_virtual_fetch_batch_size(),
-            )
-            self._log_archive_browser_render_stage("model_reset", reset_started_at)
-        finally:
-            self.archive_tree.blockSignals(False)
-            self.archive_tree.setEnabled(True)
-        prewarm_started_at = time.perf_counter()
-        self._prewarm_archive_browser_row_display_cache()
-        self._log_archive_browser_render_stage("row_prewarm", prewarm_started_at)
-        finalize_started_at = time.perf_counter()
-        self._finalize_archive_tree_render(
-            preferred_path,
-            defer_default_selection=defer_default_selection,
-        )
-        self._log_archive_browser_render_stage("finalize", finalize_started_at)
+        bridge = self.archive_remote_bridge
+        if bridge is None:
+            from cdmw.domain.archives.catalogue_operations import ArchiveBackendError
+            self._handle_archive_backend_failure("browse", ArchiveBackendError("backend_unavailable", "The standalone archive backend is unavailable."))
+            return
+        self.archive_tree.use_remote_model(bridge.model)
+        self.archive_tree.setRootIsDecorated(bridge.model.view_mode.value != "flat")
+        self.archive_tree.setEnabled(True)
         self.shell._schedule_archive_tree_content_autofit()
-        self._set_archive_warmup_overlay(False)
-        self._mark_archive_browser_render_ready(reason="model_reset", on_complete=on_complete)
+        if not self.archive_remote_query_pending:
+            self._set_archive_warmup_overlay(False)
+        self._mark_archive_browser_render_ready(reason="catalogue_view", on_complete=on_complete)
 
     def _finalize_archive_tree_render(
         self,
@@ -629,19 +536,6 @@ class ArchiveBrowserTreeControllerMixin:
         on_complete: Optional[Callable[[], None]] = None,
         defer_default_selection: bool = False,
     ) -> None:
-        if rebuild_index:
-            self.archive_tree_index_ready = False
-            if self.archive_entries and self.shell.worker_thread is None:
-                self._start_archive_filter_worker(preferred_path)
-                return
-        if (
-            self._archive_category_view_enabled()
-            and not self._archive_category_index_ready()
-            and self.archive_filtered_entries
-            and self.shell.worker_thread is None
-        ):
-            self._start_archive_filter_worker(preferred_path)
-            return
         self._populate_archive_virtual_tree(
             preferred_path,
             on_complete=on_complete,

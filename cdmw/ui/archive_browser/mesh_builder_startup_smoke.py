@@ -8,7 +8,10 @@ from pathlib import Path
 from PySide6.QtCore import QCoreApplication, QEvent, QObject, QTimer
 from PySide6.QtWidgets import QApplication, QComboBox, QProgressDialog
 
-from cdmw.domain.archives.backend_mode import ArchiveBackendMode, ArchiveBackendSelection
+from cdmw.domain.archives.catalogue import (
+    ArchiveDurableIdentity, ArchiveEntryDto, ArchiveEntryRole, ArchivePage,
+    ArchiveQuery, ArchiveQueryHandle, ArchiveSessionHandle, ArchiveViewMode,
+)
 from cdmw.models import ArchiveEntry, ModelPreviewData
 from cdmw.services.mesh_workflow_service import (
     ParsedMesh,
@@ -87,20 +90,32 @@ def synthetic_builder_preflight(
 
 
 def configure_synthetic_archive_context(window: object, entry: ArchiveEntry) -> None:
-    remote_bridge = getattr(window.archive, "archive_remote_bridge", None)
-    deactivate = getattr(remote_bridge, "deactivate", None)
-    if callable(deactivate):
-        deactivate()
-    window.archive.archive_remote_bridge = None
-    window.archive.archive_backend_selection = ArchiveBackendSelection(
-        ArchiveBackendMode.LEGACY,
-        "mesh_builder_startup_smoke",
-        True,
-    )
-    window.archive.archive_backend_mode = ArchiveBackendMode.LEGACY
-    window.archive.archive_entries = [entry]
-    window.archive.archive_entries_by_normalized_path = {entry.path.casefold(): (entry,)}
-    window.archive.archive_entries_by_basename = {entry.basename.casefold(): (entry,)}
+    workspace = window.archive
+    bridge = workspace.archive_remote_bridge
+    service = workspace.archive_catalogue_service
+    session = ArchiveSessionHandle("synthetic-session", str(entry.pamt_path.parent.parent), "synthetic-fingerprint", 1, 3, False)
+    handle = ArchiveQueryHandle(session.session_id, "synthetic-query", bridge.controller.generation, 1)
+    dto = ArchiveEntryDto(session.session_id, 0,
+        ArchiveDurableIdentity(entry.path.casefold(), str(entry.pamt_path), entry.paz_index, entry.offset),
+        entry.path, str(entry.pamt_path), str(entry.paz_file), entry.paz_index, entry.offset,
+        entry.comp_size, entry.orig_size, entry.flags, entry.extension, entry.pamt_path.stem,
+        ArchiveEntryRole.MODEL if entry.extension == ".pac" else ArchiveEntryRole.OTHER, "Synthetic", True)
+    query = ArchiveQuery(session.session_id, view_mode=ArchiveViewMode.FLAT)
+    service._sessions[session.session_id] = session
+    service._current_session_id = session.session_id
+    service._queries[handle.query_id] = (query, handle, session.fingerprint)
+    bridge.controller._current_session = session
+    bridge.controller._current_query = query
+    bridge.model.publish_query(handle, view_mode=ArchiveViewMode.FLAT, prime=False)
+    bridge.model.accept_page(ArchivePage(session.session_id, handle.query_id, handle.generation, 1, 0, (dto,)))
+    from cdmw.ui.archive_browser.remote_preview_dependencies import ArchivePreviewDependencySet
+    entry.prepared_path = entry.prepared_path or entry.pamt_path.parent.parent / entry.basename
+    snapshot = ArchivePreviewDependencySet(session.session_id, 0, (entry,),
+        {entry.path.casefold(): (entry,)}, {entry.basename.casefold(): (entry,)}, 1, False)
+    bridge.prepared_dependencies_for = lambda candidate: snapshot if candidate.identity == entry.identity else None
+    workspace.archive_tree.setCurrentIndex(bridge.model.index(0, 0))
+    workspace.archive_entries_by_normalized_path = {entry.path.casefold(): (entry,)}
+    workspace.archive_entries_by_basename = {entry.basename.casefold(): (entry,)}
 
 
 def _failure_detail(events: list[tuple[str, dict[str, object]]]) -> str:

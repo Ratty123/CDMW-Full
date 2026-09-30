@@ -11,6 +11,7 @@ from typing import Callable, Mapping, Sequence
 from uuid import uuid4
 
 from PySide6.QtCore import QObject, QProcess, QTimer, Signal
+from shiboken6 import isValid
 
 from cdmw.domain.archives.catalogue import ArchiveSessionHandle
 from cdmw.domain.archives.catalogue_operations import (
@@ -45,21 +46,12 @@ class ArchiveBackendClientState(str, Enum):
     FAILED = "failed"
 
 
-_AUTOMATIC_RETRY_OPERATIONS = frozenset(
-    {
-        ArchiveBackendOperation.CACHE_HEALTH,
-        ArchiveBackendOperation.OPEN_ARCHIVE,
-    }
-)
-
-
 @dataclass(slots=True)
 class _PendingRequest:
     envelope: ArchiveBackendEnvelope
     expected_session_id: str | None
     expected_fingerprint: str | None
     sent: bool = False
-    retries: int = 0
 
 
 class ArchiveBackendClient(QObject):
@@ -113,9 +105,10 @@ class ArchiveBackendClient(QObject):
         self._shutdown_request_id: str | None = None
         self._expected_stop = False
         self._resident_requested = False
-        self._automatic_restart_used = False
+        self._restart_requested = False
         self._process_generation = 0
         self._capabilities: tuple[str, ...] = ()
+        self.backend_identity = "cdmw-full-archive-worker (standalone)"
 
         self._start_timer = QTimer(self)
         self._start_timer.setSingleShot(True)
@@ -180,9 +173,7 @@ class ArchiveBackendClient(QObject):
         self._pending[envelope.request_id] = pending
         self._queued_request_ids.append(envelope.request_id)
         self._resident_requested = True
-        if self._state in {ArchiveBackendClientState.STOPPED, ArchiveBackendClientState.FAILED}:
-            self._automatic_restart_used = False
-        self._ensure_started()
+        self.ensure_ready()
         if self.is_ready:
             self._flush_queue()
         return envelope.request_id
@@ -224,6 +215,7 @@ class ArchiveBackendClient(QObject):
         if self._state in {ArchiveBackendClientState.STOPPED, ArchiveBackendClientState.STOPPING}:
             return
         self._resident_requested = False
+        self._restart_requested = False
         self._expected_stop = True
         self._set_state(ArchiveBackendClientState.STOPPING)
         for request_id in tuple(self._pending):
@@ -395,7 +387,6 @@ class ArchiveBackendClient(QObject):
         elif message.status is ArchiveBackendStatus.RESULT:
             self._observe_success(message, pending)
             self._pending.pop(message.request_id, None)
-            self._automatic_restart_used = False
             self.request_succeeded.emit(message.request_id, message.payload or {})
         elif message.status is ArchiveBackendStatus.CANCELLED:
             self._pending.pop(message.request_id, None)
@@ -432,6 +423,10 @@ class ArchiveBackendClient(QObject):
         self._handshake_request_id = None
         self._start_timer.stop()
         self._capabilities = result.capabilities
+        self.backend_identity = (
+            f"cdmw-full-archive-worker {result.worker_version}; protocol {result.protocol_version}; "
+            f"index {result.index_version}; native ABI {result.native_abi_version}"
+        )
         self._set_state(ArchiveBackendClientState.READY)
         self.worker_ready.emit()
         self._flush_queue()
@@ -518,7 +513,7 @@ class ArchiveBackendClient(QObject):
     def _handle_start_timeout(self) -> None:
         if self._state not in {ArchiveBackendClientState.STARTING, ArchiveBackendClientState.HANDSHAKING}:
             return
-        self._protocol_failure("Archive backend did not become ready within 10 seconds.")
+        self._protocol_failure("Archive backend did not become ready within 10 seconds.", code="startup_timeout")
 
     def _handle_process_error(
         self,
@@ -529,9 +524,11 @@ class ArchiveBackendClient(QObject):
         if not self._is_current_process(process, generation):
             return
         self._drain_stderr(process, generation)
+        detail = process.errorString()
+        self._append_diagnostic(f"Archive backend process error: {detail}")
         if self._state is ArchiveBackendClientState.STARTING:
             self._set_state(ArchiveBackendClientState.FAILED)
-            self._fail_all("process_start_failed", f"Archive backend process failed to start: {error}")
+            self._fail_all("process_start_failed", f"Archive backend process failed to start: {detail}")
 
     def _handle_process_finished(
         self,
@@ -559,50 +556,47 @@ class ArchiveBackendClient(QObject):
         if self._expected_stop or self._state is ArchiveBackendClientState.STOPPING:
             self._expected_stop = False
             self._set_state(ArchiveBackendClientState.STOPPED)
+            if self._restart_requested:
+                self._restart_requested = False
+                self._ensure_started()
             return
 
         detail = self.diagnostics_tail.strip() or f"exit code {exit_code}, status {exit_status}"
+        self._set_state(ArchiveBackendClientState.FAILED)
         self.worker_crashed.emit(detail)
-        retry_ids: list[str] = []
-        for request_id, pending in tuple(self._pending.items()):
-            if (
-                pending.envelope.operation in _AUTOMATIC_RETRY_OPERATIONS
-                and pending.retries < 1
-                and not self._automatic_restart_used
-            ):
-                pending.retries += 1
-                pending.sent = False
-                retry_ids.append(request_id)
-            else:
-                self._fail_request(
-                    request_id,
-                    ArchiveBackendError(
-                        "worker_crashed",
-                        "Archive backend stopped unexpectedly; this operation was not automatically retried.",
-                        detail,
-                    ),
-                )
-        self._queued_request_ids = deque(retry_ids)
-        should_restart = not self._automatic_restart_used and (bool(retry_ids) or self._resident_requested)
-        if should_restart:
-            self._automatic_restart_used = True
-            self._set_state(ArchiveBackendClientState.STOPPED)
-            QTimer.singleShot(0, self._ensure_started)
-        else:
-            self._set_state(ArchiveBackendClientState.FAILED)
+        self._fail_all("worker_crashed", "Archive backend stopped unexpectedly.")
+        self._queued_request_ids.clear()
+        if self._restart_requested:
+            self._restart_requested = False
+            self._ensure_started()
 
-    def _protocol_failure(self, message: str) -> None:
+    def _protocol_failure(self, message: str, *, code: str = "protocol_failure") -> None:
         self._append_diagnostic(message)
+        self._expected_stop = True
+        self._set_state(ArchiveBackendClientState.FAILED)
+        self._fail_all(code, message)
         process = self._process
-        if process is None or not self._process_is_running():
-            self._set_state(ArchiveBackendClientState.FAILED)
-            self._fail_all("protocol_failure", message)
+        if process is not None and self._process_is_running():
+            try:
+                process.kill()
+            except (AttributeError, RuntimeError):
+                pass
+
+    def ensure_ready(self) -> None:
+        """Start transport on the catalogue owner's request; never replay work."""
+        if self._process_is_running() and self._state is ArchiveBackendClientState.FAILED:
+            self._restart_requested = True
             return
-        try:
-            process.kill()
-        except (AttributeError, RuntimeError):
-            self._set_state(ArchiveBackendClientState.FAILED)
-            self._fail_all("protocol_failure", message)
+        self._ensure_started()
+
+    def abort_unresponsive(self) -> None:
+        """Use the existing bounded termination and process-tree kill path."""
+        self._append_diagnostic("Archive worker did not acknowledge cancellation within two seconds.")
+        self._expected_stop = True
+        self._set_state(ArchiveBackendClientState.FAILED)
+        self.worker_crashed.emit(self.diagnostics_tail)
+        self._fail_all("worker_crashed", "Unresponsive archive worker is being stopped.")
+        self._terminate_after_shutdown_grace()
 
     def _terminate_after_shutdown_grace(self) -> None:
         self._shutdown_timer.stop()
@@ -638,7 +632,7 @@ class ArchiveBackendClient(QObject):
             return False
 
     def _is_current_process(self, process: QProcess, generation: int) -> bool:
-        return self._process is process and self._process_generation == generation
+        return isValid(self) and isValid(process) and self._process is process and self._process_generation == generation
 
     def _remove_queued_request(self, request_id: str) -> None:
         self._queued_request_ids = deque(

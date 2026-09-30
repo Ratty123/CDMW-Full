@@ -84,7 +84,6 @@ TARGET_ARCHITECTURE_PATHS = (
     "cdmw/ui/archive_browser/filters.py",
     "cdmw/ui/archive_browser/files_panel.py",
     "cdmw/ui/archive_browser/filter_workers.py",
-    "cdmw/ui/archive_browser/index_workers.py",
     "cdmw/ui/archive_browser/render_lifecycle.py",
     "cdmw/ui/archive_browser/scan_lifecycle.py",
     "cdmw/ui/archive_browser/sidecar_index.py",

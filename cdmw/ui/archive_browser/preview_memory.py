@@ -139,9 +139,6 @@ class ArchivePreviewMemoryAuditMixin:
             name
             for name, thread in (
                 ("archive_scan", getattr(self.shell, "worker_thread", None)),
-                ("basic_index", getattr(self, "archive_basic_index_thread", None)),
-                ("enhanced_index", getattr(self, "archive_enhanced_index_thread", None)),
-                ("derived_cache_write", getattr(self, "archive_derived_cache_thread", None)),
                 ("sidecar_index", getattr(self, "archive_sidecar_thread", None)),
                 ("structure_filter", getattr(self, "archive_structure_filter_thread", None)),
                 ("icon_warmup", getattr(self, "archive_item_icon_warmup_thread", None)),
@@ -175,7 +172,6 @@ class ArchivePreviewMemoryAuditMixin:
             "archive_path_index_multi_count": path_index_diag.get("multi_count", 0),
             "archive_basename_index_singleton_count": basename_index_diag.get("singleton_count", 0),
             "archive_basename_index_multi_count": basename_index_diag.get("multi_count", 0),
-            "archive_basic_index_state": str(getattr(self, "archive_basic_index_state", "") or ""),
             "archive_name_search_token_count": int(getattr(name_search_index, "row_count", 0) or 0),
             "archive_name_search_token_rows_type": type(token_rows).__name__ if token_rows is not None else "",
             "archive_name_search_decoded_token_count": int(getattr(token_rows, "decoded_token_count", 0) or 0),

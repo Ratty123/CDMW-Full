@@ -17,7 +17,7 @@ class ArchiveVirtualPathLookupMixin:
         if not matches:
             matches = getattr(self, "archive_mesh_entries_by_normalized_path", {}).get(normalized, ())
         if not matches and getattr(self, "archive_entries", ()):
-            ensure_indexes = getattr(self, "_ensure_archive_basic_index_worker_started", None)
+            ensure_indexes = getattr(self, "_archive_catalogue_lookup_pending", None)
             if callable(ensure_indexes):
                 ensure_indexes()
         return matches[0] if matches else None
@@ -36,7 +36,7 @@ class ArchiveVirtualPathLookupMixin:
             return path_index, basename_index
         if not getattr(self, "archive_entries", ()):
             return {}, {}
-        ensure_indexes = getattr(self, "_ensure_archive_basic_index_worker_started", None)
+        ensure_indexes = getattr(self, "_archive_catalogue_lookup_pending", None)
         if callable(ensure_indexes):
             ensure_indexes()
         set_status = getattr(self.shell, "set_status_message", None)

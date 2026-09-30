@@ -34,6 +34,7 @@ from cdmw.domain.archives.item_catalogue import (
     migrate_legacy_item_catalogue_filter,
 )
 from cdmw.workers.archive_item_finder_workers import ArchiveItemThumbnailWorker
+from cdmw.ui.archive_browser.failure_report import ArchiveFailurePanel
 
 
 class _ItemFinderGrid(QListWidget):
@@ -65,6 +66,7 @@ class RemoteArchiveFinderDialog(QDialog):
         self._search_request_id: str | None = None
         self._scope_request_id: str | None = None
         self._icon_request_id: str | None = None
+        self._failed_request: tuple[str, str] | None = None
         self._rows: dict[int, ItemCatalogRow] = {}
         self._tree_items: dict[int, QListWidgetItem] = {}
         self._icon_requested: set[int] = set()
@@ -136,6 +138,9 @@ class RemoteArchiveFinderDialog(QDialog):
         layout.addLayout(controls)
 
         self._build_item_results(layout)
+        self._failure_panel = ArchiveFailurePanel(self)
+        self._failure_panel.retryRequested.connect(self._retry_failed_request)
+        layout.addWidget(self._failure_panel)
 
         buttons = QHBoxLayout()
         self._status = QLabel("Loading catalogue...")
@@ -361,7 +366,28 @@ class RemoteArchiveFinderDialog(QDialog):
 
     def _session_is_current(self) -> bool:
         session = self._bridge.current_session
-        return bool(session is not None and session.session_id == self._session_id and session.fingerprint == self._fingerprint)
+        return bool(session is not None and session.fingerprint == self._fingerprint)
+
+    def _clear_failure(self) -> None:
+        if self._failed_request is not None:
+            self._service.cancel(self._failed_request[0])
+            self._failed_request = None
+        self._failure_panel.clear()
+
+    def _retry_failed_request(self) -> None:
+        if self._closing or self._failed_request is None or not self._session_is_current():
+            return
+        request_id, attribute = self._failed_request
+        try:
+            replacement = self._service.retry_failed(request_id)
+        except (KeyError, RuntimeError):
+            return
+        self._failed_request = None
+        setattr(self, attribute, replacement)
+        self._status.setText("Retrying catalogue operation...")
+        self._cancel_button.setVisible(True)
+        self._failure_panel.retry_button.setEnabled(False)
+        self._update_buttons()
 
     def _queue_first_page(self) -> None:
         self._page_start = 0
@@ -405,6 +431,7 @@ class RemoteArchiveFinderDialog(QDialog):
             return
         self._cancel_request("_search_request_id")
         self._cancel_icon_loading()
+        self._clear_failure()
         category, group = self._selected_filters()
         request = ItemCatalogSearchRequest(
             self._session_id,
@@ -429,7 +456,7 @@ class RemoteArchiveFinderDialog(QDialog):
             )
         except Exception as exc:
             self._search_request_id = None
-            self._show_error(str(exc))
+            self._show_failure(exc)
         self._update_buttons()
 
     def _cancel_search(self) -> None:
@@ -464,6 +491,17 @@ class RemoteArchiveFinderDialog(QDialog):
         self._status.setText(f"{phase}: {completed:,} / {total:,}" if total > 0 else f"{phase}...")
 
     def _handle_result(self, request_id: str, operation: str, result: object) -> None:
+        if self._closing or not self._session_is_current():
+            return
+        if request_id not in (self._search_request_id, self._scope_request_id, self._icon_request_id):
+            return
+        result_session_id = getattr(result, "session_id", self._session_id)
+        if result_session_id != self._session_id:
+            recovered = self._service.session(result_session_id)
+            if recovered is None or recovered.fingerprint != self._fingerprint:
+                return
+            self._session_id = recovered.session_id
+        self._failure_panel.clear()
         if request_id == self._search_request_id and isinstance(result, ItemCatalogSearchResult):
             self._search_request_id = None
             self._publish_search(result)
@@ -477,16 +515,22 @@ class RemoteArchiveFinderDialog(QDialog):
             self._publish_icon_sources(result)
 
     def _handle_failure(self, request_id: str, error: object) -> None:
-        if request_id == self._search_request_id:
-            self._search_request_id = None
-            self._show_error(str(error))
-        elif request_id == self._scope_request_id:
-            self._scope_request_id = None
-            self._show_error(f"Could not build the archive scope: {error}")
-        elif request_id == self._icon_request_id:
-            self._icon_request_id = None
-            if not self._closing:
-                self._visible_icon_timer.start()
+        if self._closing or not self._session_is_current():
+            return
+        for attribute in ("_search_request_id", "_scope_request_id", "_icon_request_id"):
+            if request_id == getattr(self, attribute):
+                setattr(self, attribute, None)
+                self._failed_request = (request_id, attribute)
+                self._show_failure(error)
+                return
+
+    def _show_failure(self, error: object) -> None:
+        session = self._bridge.current_session
+        self._show_error(getattr(error, "message", str(error)))
+        self._retry_button.setVisible(False)
+        self._failure_panel.retry_button.setEnabled(self._failed_request is not None)
+        self._failure_panel.show_failure("Catalogue operation failed", error,
+            operation="item_catalogue", package_root=str(getattr(session, "package_root", "")))
 
     def _handle_cancelled(self, request_id: str) -> None:
         for attribute in ("_search_request_id", "_scope_request_id", "_icon_request_id"):
@@ -702,6 +746,7 @@ class RemoteArchiveFinderDialog(QDialog):
 
     def _start_scope(self, request: ItemCatalogScopeRequest, *, label: str) -> None:
         self._cancel_request("_scope_request_id")
+        self._clear_failure()
         self._pending_scope_label, self._pending_scope_item_ids = label, request.item_ids
         self._status.setText("Resolving archive links for the selected scope...")
         try:
@@ -711,7 +756,7 @@ class RemoteArchiveFinderDialog(QDialog):
             )
         except Exception as exc:
             self._scope_request_id = None
-            self._show_error(str(exc))
+            self._show_failure(exc)
         self._update_buttons()
 
     def _publish_scope(self, result: ItemCatalogScopeResult) -> None:
@@ -733,7 +778,7 @@ class RemoteArchiveFinderDialog(QDialog):
         self._update_buttons()
 
     def _request_visible_icons(self) -> None:
-        if self._icon_request_id or not self._tree_items or self._closing:
+        if self._icon_request_id or not self._tree_items or self._closing or self._failed_request is not None:
             return
         self._apply_cached_warmup_icons(tuple(self._tree_items))
         viewport = self._item_grid.viewport()
@@ -900,6 +945,7 @@ class RemoteArchiveFinderDialog(QDialog):
     def closeEvent(self, event: object) -> None:
         self._save_settings()
         self._closing = True
+        self._clear_failure()
         self._search_timer.stop()
         self._visible_icon_timer.stop()
         for attribute in ("_search_request_id", "_scope_request_id"):

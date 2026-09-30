@@ -438,7 +438,7 @@ class ArchiveIconPipelineMixin:
             self._queue_archive_asset_catalog_priority_icon_warmup_rows(priority_rows, front=True)
             if lookup_missing:
                 self.archive_item_icon_preload_pending_after_ready = True
-                self._ensure_archive_basic_index_worker_started()
+                self._archive_catalogue_lookup_pending()
                 return
             return
         if not queued_rows:
@@ -446,7 +446,7 @@ class ArchiveIconPipelineMixin:
                 self.archive_item_icon_preload_queue[0:0] = promoted_rows
             if lookup_missing and requested_keys:
                 self.archive_item_icon_preload_pending_after_ready = True
-                self._ensure_archive_basic_index_worker_started()
+                self._archive_catalogue_lookup_pending()
                 return
             if (
                 visible_request
@@ -462,7 +462,7 @@ class ArchiveIconPipelineMixin:
             self.archive_item_icon_preload_queue.extend(queued_rows)
         if lookup_missing:
             self.archive_item_icon_preload_pending_after_ready = True
-            self._ensure_archive_basic_index_worker_started()
+            self._archive_catalogue_lookup_pending()
             return
         if not self.archive_item_icon_preload_timer.isActive() and self.archive_item_icon_warmup_thread is None:
             self.archive_item_icon_preload_timer.start(max(0, int(delay_ms)))
@@ -509,7 +509,7 @@ class ArchiveIconPipelineMixin:
             return
         if self._archive_item_icon_lookup_index_missing():
             self.archive_item_icon_preload_pending_after_ready = True
-            self._ensure_archive_basic_index_worker_started()
+            self._archive_catalogue_lookup_pending()
             return
         if self.archive_item_icon_priority_thread is not None:
             return
@@ -548,7 +548,7 @@ class ArchiveIconPipelineMixin:
             return
         if self._archive_item_icon_lookup_index_missing():
             self.archive_item_icon_preload_pending_after_ready = True
-            self._ensure_archive_basic_index_worker_started()
+            self._archive_catalogue_lookup_pending()
             return
         visible_remaining = int(getattr(self, "archive_item_icon_visible_warmup_remaining", 0) or 0)
         if not self._archive_browser_background_work_allowed() and visible_remaining <= 0:

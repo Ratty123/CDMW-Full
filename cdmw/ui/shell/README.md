@@ -69,11 +69,13 @@ disabled button states.
 `archive_backend_client.py` owns the resident, bounded `QProcess` protocol and
 nonblocking shutdown lifecycle for the independent full archive worker;
 `archive_backend_resources.py` owns packaged and development worker discovery.
-The shell defaults to v2, validates protocol/native ABI/index compatibility
-before dispatch, and never silently falls back. A catalogue-publication failure
-offers retry, cancel, or a legacy scan for the current process only. Explicit
-session fallback cancels tracked requests, restores the legacy tree model, and
-requests nonblocking worker shutdown without persisting a setting.
+The standalone backend is the only scanner. The client validates protocol,
+native ABI and index compatibility before dispatch. The catalogue service owns
+one automatic retry per logical operation, including any session or query
+reconstruction. Failure controls provide targeted Retry, Copy error report,
+Details and Close. Background item-name failures leave archive rows usable.
+See [Archive Browser recovery](../archive_browser/README.md#scanner-failures-and-recovery)
+for timeout, cancellation and report limits.
 
 ## Shutdown and archive barriers
 
