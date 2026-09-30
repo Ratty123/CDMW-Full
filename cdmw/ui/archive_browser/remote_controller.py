@@ -315,17 +315,19 @@ class ArchiveRemoteCatalogueController(QObject):
         if callable(end):
             end(staged.generation)
         self._set_actions_safe(True)
+        # Queue extension counts before publication starts the catalogue warmups.
+        # The first page stays usable while those counts are still being loaded.
+        if staged.facets is None:
+            QTimer.singleShot(0, lambda current=handle: self._request_facets_if_current(current))
         self.queryPublished.emit(handle)
         self._dispatch_structure_requests()
         self.statusChanged.emit(f"Archive catalogue ready. Showing {handle.total_matches:,} entries.")
         if staged.query.view_mode is ArchiveViewMode.FLAT and handle.total_matches > 0:
             self._model.request_visible_rows(0, min(handle.total_matches - 1, self._model.page_size - 1))
         self._restore_selection(handle)
-        if staged.facets is None:
-            QTimer.singleShot(0, lambda current=handle: self._request_facets_if_current(current))
 
     def _request_facets_if_current(self, handle: ArchiveQueryHandle) -> None:
-        if self._model.query_handle == handle and self._staged is None:
+        if handle.generation == self._generation and self._model.query_handle == handle and self._staged is None:
             self._request_facets(handle)
 
     def _request_facets(self, handle: ArchiveQueryHandle) -> None:

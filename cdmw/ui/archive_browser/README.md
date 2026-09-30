@@ -79,6 +79,18 @@ not clear or replace the current scene. Archive Browser publishes the path,
 basename, extension, dependency, and native package indexes reused by Model
 Library, Mesh Editor, and Create New Item.
 
+**Select Extension** opens a grouped, searchable extension list. Select a leaf
+and confirm, or double-click it, to close the picker and update the filter. The
+picker is available as soon as archive rows are published; extension counts load
+ahead of catalogue warmups and update an already-open picker without losing its
+search. Apply **Search** to refresh the archive results.
+
+Item Finder shows its categories and subcategories in an expanded list on the
+right, with item counts. Select a category for all its groups, or a subcategory
+to narrow the results. Search, paging, previews and asset actions remain in the
+main panes. Saved category filters and pane widths restore on reopening; older
+two-pane layouts gain the category pane without adding a new setting.
+
 ## Scanner failures and recovery
 
 The older application scanner, shadow mode and **Use Legacy This Session** action

@@ -257,8 +257,6 @@ class ArchiveFilterStateMixin:
 
     def _open_archive_extension_picker(self) -> None:
         extension_counts = self._archive_extension_counts()
-        if not extension_counts:
-            extension_counts = Counter({".dds": 0})
         current_value = normalize_archive_extension_filter(
             self.textures._combo_value(self.archive_extension_filter_combo) or ARCHIVE_EXTENSION_FILTER
         )
@@ -279,6 +277,11 @@ class ArchiveFilterStateMixin:
         search_edit = QLineEdit()
         search_edit.setPlaceholderText("Filter extensions or groups, e.g. hkx, texture, metadata")
         layout.addWidget(search_edit)
+        loading_hint = QLabel("Loading extension counts...")
+        loading_hint.setObjectName("HintLabel")
+        loading_hint.setWordWrap(True)
+        loading_hint.setVisible(not bool(extension_counts))
+        layout.addWidget(loading_hint)
 
         extension_tree = QTreeWidget()
         extension_tree.setColumnCount(3)
@@ -291,51 +294,12 @@ class ArchiveFilterStateMixin:
         extension_tree.header().setSectionResizeMode(0, QHeaderView.Stretch)
         extension_tree.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
         extension_tree.header().setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        all_count = sum(int(count) for count in extension_counts.values())
-        all_item = QTreeWidgetItem(extension_tree, ["All files", f"{all_count:,}", "All"])
-        all_item.setData(0, Qt.UserRole, "*")
-        self._style_archive_role_columns(all_item, "Other", 0, 1, 2)
-
-        grouped: Dict[str, List[Tuple[str, int]]] = defaultdict(list)
-        for extension, count in sorted(extension_counts.items(), key=lambda item: (-item[1], item[0])):
-            grouped[self._archive_extension_group_label(extension)].append((extension, int(count)))
-
-        selected_item: Optional[QTreeWidgetItem] = None
-        if current_value in {"*", "all", ".*"}:
-            selected_item = all_item
-        group_order = (
-            "Model / Mesh / Physics",
-            "Texture / Image",
-            "Material / Metadata",
-            "Animation / Scene",
-            "Audio / Video",
-            "UI / Text",
-            "Other",
-        )
-        for group_name in group_order:
-            values = grouped.get(group_name, [])
-            if not values:
-                continue
-            group_total = sum(count for _extension, count in values)
-            group_item = QTreeWidgetItem(extension_tree, [group_name, f"{group_total:,}", group_name])
-            group_item.setData(0, Qt.UserRole, "")
-            self._style_archive_role_columns(group_item, group_name, 0, 1, 2)
-            group_item.setExpanded(True)
-            for extension, count in values:
-                child = QTreeWidgetItem(group_item, [extension, f"{count:,}", group_name])
-                child.setData(0, Qt.UserRole, extension)
-                self._style_archive_role_columns(child, group_name, 0, 1, 2)
-                if extension == current_value:
-                    selected_item = child
-        if selected_item is not None:
-            extension_tree.setCurrentItem(selected_item)
-            extension_tree.scrollToItem(selected_item)
         layout.addWidget(extension_tree, stretch=1)
 
         actions = QHBoxLayout()
         actions.setSpacing(8)
         clear_button = QPushButton("All Files")
-        select_button = QPushButton("Select")
+        select_button = QPushButton("Select Extension")
         cancel_button = QPushButton("Cancel")
         select_button.setDefault(True)
         actions.addWidget(clear_button)
@@ -363,10 +327,8 @@ class ArchiveFilterStateMixin:
                 top_item.setHidden(bool(needle) and not top_match and not any_child_visible)
 
         def _select_value(value: str) -> None:
-            normalized = normalize_archive_extension_filter(value or "*")
-            self.textures._set_combo_by_value(self.archive_extension_filter_combo, normalized)
-            self._mark_archive_filters_dirty()
-            self.shell.schedule_settings_save()
+            nonlocal selected_value
+            selected_value = normalize_archive_extension_filter(value or "*")
             dialog.accept()
 
         def _select_current() -> None:
@@ -379,12 +341,78 @@ class ArchiveFilterStateMixin:
                 return
             _select_value(value)
 
+        def _populate_extensions(counts: Counter, preferred: str) -> None:
+            extension_tree.clear()
+            all_count = sum(int(count) for count in counts.values())
+            all_item = QTreeWidgetItem(extension_tree, ["All files", f"{all_count:,}" if counts else "", "All"])
+            all_item.setData(0, Qt.UserRole, "*")
+            self._style_archive_role_columns(all_item, "Other", 0, 1, 2)
+            grouped: Dict[str, List[Tuple[str, int]]] = defaultdict(list)
+            for extension, count in sorted(counts.items(), key=lambda item: (-item[1], item[0])):
+                grouped[self._archive_extension_group_label(extension)].append((extension, int(count)))
+            selected_item = all_item if preferred == "*" else None
+            group_order = (
+                "Model / Mesh / Physics", "Texture / Image", "Material / Metadata",
+                "Animation / Scene", "Audio / Video", "UI / Text", "Other",
+            )
+            for group_name in group_order:
+                values = grouped.get(group_name, [])
+                if not values:
+                    continue
+                group_item = QTreeWidgetItem(extension_tree,
+                    [group_name, f"{sum(count for _, count in values):,}", group_name])
+                group_item.setData(0, Qt.UserRole, "")
+                self._style_archive_role_columns(group_item, group_name, 0, 1, 2)
+                group_item.setExpanded(True)
+                for extension, count in values:
+                    child = QTreeWidgetItem(group_item, [extension, f"{count:,}", group_name])
+                    child.setData(0, Qt.UserRole, extension)
+                    self._style_archive_role_columns(child, group_name, 0, 1, 2)
+                    if extension == preferred:
+                        selected_item = child
+            extension_tree.setCurrentItem(selected_item)
+            if selected_item is not None:
+                extension_tree.scrollToItem(selected_item)
+            loading_hint.setVisible(not bool(counts))
+            _apply_filter(search_edit.text())
+
+        bridge = getattr(self, "archive_remote_bridge", None)
+        controller = getattr(bridge, "controller", None)
+        session = getattr(bridge, "current_session", None)
+        session_id = getattr(session, "session_id", None)
+        selected_value: str | None = None
+
+        def _facets_ready(facets) -> None:
+            if getattr(facets, "session_id", None) != session_id:
+                return
+            item = extension_tree.currentItem()
+            preferred = item.data(0, Qt.UserRole) if item is not None else current_value
+            _populate_extensions(Counter({facet.key: int(facet.count) for facet in facets.extensions if facet.key}),
+                                 preferred or current_value)
+
+        def _double_click(item: QTreeWidgetItem, _column: int) -> None:
+            value = item.data(0, Qt.UserRole)
+            if isinstance(value, str) and value:
+                _select_value(value)
+
         search_edit.textChanged.connect(_apply_filter)
         clear_button.clicked.connect(lambda _checked=False: _select_value("*"))
         select_button.clicked.connect(lambda _checked=False: _select_current())
         cancel_button.clicked.connect(dialog.reject)
-        extension_tree.itemDoubleClicked.connect(lambda _item, _column: _select_current())
-        dialog.exec()
+        extension_tree.itemDoubleClicked.connect(_double_click)
+        _populate_extensions(extension_counts, current_value)
+        if controller is not None:
+            controller.facetsReady.connect(_facets_ready)
+        try:
+            result = dialog.exec()
+        finally:
+            if controller is not None:
+                controller.facetsReady.disconnect(_facets_ready)
+            dialog.deleteLater()
+        if result == QDialog.Accepted and selected_value is not None:
+            self.textures._set_combo_by_value(self.archive_extension_filter_combo, selected_value)
+            self._mark_archive_filters_dirty()
+            self.shell.schedule_settings_save()
 
     def _rebuild_archive_extension_filter_choices(self, selected_value: Optional[str] = None) -> None:
         selected_raw = (

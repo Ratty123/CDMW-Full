@@ -10,9 +10,12 @@ experimental-feature notes do not establish equivalent in-game behavior.
 ### Changed
 
 - Archive Browser always uses the standalone archive backend. The retired scanner, shadow comparison and session fallback are removed; obsolete `CDMW_ARCHIVE_BACKEND` overrides are ignored with a log notice. Existing user caches remain in place.
+- Item Finder shows categories and subcategories with item counts in a persistent list on the right. The archive extension picker button is named Select Extension.
 
 ### Fixed
 
+- Selecting an archive extension closes the picker, including on double-click. The picker becomes available when archive rows appear and receives extension counts ahead of background catalogue warmups.
+- Unavailable hairstyles can be selected to inspect their preview and compatibility reason without enabling Start or losing the selection when other checks finish. Hairstyles using separate base and tail meshes remain unsupported by Hair Tools.
 - Temporary archive-worker and item-indexing failures receive one cancellable retry. Stalled work shows its stage and elapsed time, then stops after five minutes without progress. Persistent failures offer targeted Retry, Copy error report and Details; background item-name failures leave archive browsing available. Reports preserve error codes and redact local folder prefixes.
 - Generated material caches and transient preview, Effects and model-import folders track ownership and live use. Later launches safely reclaim abandoned marked data, retry failed cleanup and report preserved leftovers; recovery backups, baselines and export history remain protected. Effects shutdown removes its empty parent after the builder and preview stop.
 - Archive scans skip backup vaults instead of treating their indexes as live game archives, preventing extraction failures from missing backup PAZ files. Existing catalogues containing backup sources rebuild automatically when reopened.

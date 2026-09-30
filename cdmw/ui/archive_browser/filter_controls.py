@@ -26,11 +26,6 @@ class ArchiveFilterControlsMixin:
     def _mark_archive_filters_dirty(self) -> None:
         self.archive_filters_dirty = True
         self._mark_archive_browser_render_stale()
-        if self.archive_filter_worker is not None:
-            try:
-                self.archive_filter_worker.stop()
-            except Exception:
-                pass
         self._update_archive_filter_button_state()
 
     def _capture_archive_controls_scroll_for_filter(self) -> None:
@@ -226,7 +221,9 @@ class ArchiveFilterControlsMixin:
         self.archive_filter_apply_button.setEnabled(can_apply)
         self.archive_path_search_button.setEnabled(self.shell.worker_thread is None and not remote_pending)
         self.archive_extension_picker_button.setEnabled(
-            self.shell.worker_thread is None and not remote_pending and bool(self._archive_extension_counts())
+            self.shell.worker_thread is None
+            and not remote_pending
+            and (remote_session_ready or bool(self._archive_extension_counts()))
         )
         self.archive_filter_clear_button.setEnabled(self.shell.worker_thread is None and not remote_pending)
         self.archive_asset_catalog_button.setEnabled(

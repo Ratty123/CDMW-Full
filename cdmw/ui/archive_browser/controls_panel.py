@@ -114,7 +114,7 @@ class ArchiveControlsPanelMixin:
             "Filter by extension. Pick one from the loaded archive index or type a specific extension directly."
         )
         self.archive_extension_picker_button = QToolButton()
-        self.archive_extension_picker_button.setText("Select")
+        self.archive_extension_picker_button.setText("Select Extension")
         self.archive_extension_picker_button.setMinimumWidth(68)
         self.archive_extension_picker_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.archive_extension_picker_button.setToolTip("Open a grouped extension picker from the current archive index.")

@@ -278,12 +278,14 @@ class HairReferencePickerDialog(QDialog):
     def _choose(self):
         detail = self._details.get(self._key())
         if detail is None: return
+        inputs = self._verified.get(self._key()) if self._audit_hair else None
+        if self._audit_hair and inputs is None:
+            self._select()
+            return
         self._preparation_generation += 1
         self.choose.setEnabled(False); self.status.setText("Preparing character materials…")
         if self._audit_hair:
-            inputs = self._verified.get(self._key())
-            if inputs is not None:
-                self._prepared(self._preparation_generation, inputs)
+            self._prepared(self._preparation_generation, inputs)
             return
         self._prepare.start(detail, self._preparation_generation)
 
@@ -344,21 +346,23 @@ class HairReferencePickerDialog(QDialog):
         key, self._audit_active = self._audit_active, None
         if inputs is not None:
             self._verified[key] = inputs
+            self._audit_errors.pop(key, None)
         elif error:
             self._audit_errors[key] = error
         for i in range(self.grid.count()):
             item = self.grid.item(i)
             if item.data(Qt.UserRole) == key:
                 item.setToolTip(error or inputs.detail.row.path)
+                item.setText(f"{self._rows[key].label} — unavailable" if error else self._rows[key].label)
                 if error:
-                    item.setText(item.text() + " — unavailable")
-                    item.setFlags(item.flags() & ~Qt.ItemIsEnabled)
+                    # Keep the choice inspectable so its compatibility reason
+                    # is visible; _select and _choose still require a verified base.
+                    item.setFlags(item.flags() | Qt.ItemIsEnabled)
                 elif not self._selection_touched and inputs.detail.row.path.casefold() == self._preferred_path:
                     self._select_row(i)
-        if inputs is not None and (not self._selection_touched or self._key() is None
-                                   or self._key() in self._audit_errors):
+        if inputs is not None and (not self._selection_touched or self._key() is None):
             preferred = next((i for i in range(self.grid.count()) if self._rows[self.grid.item(i).data(Qt.UserRole)].path.casefold() == self._preferred_path
-                              and self.grid.item(i).flags() & Qt.ItemIsEnabled), None)
+                              and self.grid.item(i).data(Qt.UserRole) in self._verified), None)
             for i in range(self.grid.count()):
                 if self.grid.item(i).data(Qt.UserRole) in self._verified:
                     self._select_row(preferred if preferred is not None and not self._selection_touched else i)
@@ -390,7 +394,8 @@ class HairReferencePickerDialog(QDialog):
     def _preparation_failed(self, token, message):
         if self._closed or token != self._preparation_generation: return
         detail = self._details.get(self._key())
-        self.choose.setEnabled(detail is not None and len(detail.models) == 1)
+        self.choose.setEnabled(detail is not None and len(detail.models) == 1
+                               and (not self._audit_hair or self._key() in self._verified))
         self._error(message)
 
     def _refresh_thumbnails(self):

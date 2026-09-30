@@ -1048,7 +1048,7 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn('extension_line_edit.setPlaceholderText("Select or type extension")', source)
         self.assertIn("type a specific extension directly", source)
         self.assertIn("self.archive_extension_picker_button = QToolButton()", source)
-        self.assertIn('self.archive_extension_picker_button.setText("Select")', source)
+        self.assertIn('self.archive_extension_picker_button.setText("Select Extension")', source)
         self.assertIn("self.archive_extension_picker_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)", source)
         self.assertIn("archive_filter_grid = QGridLayout()", source)
         self.assertIn("archive_filter_grid.setColumnMinimumWidth(0, 64)", source)

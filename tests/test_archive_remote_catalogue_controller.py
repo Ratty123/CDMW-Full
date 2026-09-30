@@ -5,7 +5,7 @@ from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, Signal, QTimer
 from PySide6.QtWidgets import QApplication
 
 from cdmw.domain.archives.catalogue import (
@@ -212,6 +212,48 @@ def test_open_keeps_previous_rows_until_new_first_page_is_ready() -> None:
     assert model.data(model.index(0, 0)) == "file_0.pac"
     assert controller.current_session == _session()
     assert published[-1].query_id == "query-new"
+
+
+def test_extension_counts_dispatch_before_publication_warmups_without_blocking_rows() -> None:
+    _app()
+    service = _FakeCatalogueService()
+    model = RemoteArchiveBrowserModel(page_size=4)
+    controller = ArchiveRemoteCatalogueController(service, model)
+    order = []
+    original_facets = service.facets
+
+    def facets(session_id, *, ui_generation):
+        order.append("facets")
+        return original_facets(session_id, ui_generation=ui_generation)
+
+    service.facets = facets
+
+    def warmup():
+        order.append("warmup")
+        assert model.data(model.index(0, 0)) == "file_0.pac"
+
+    controller.queryPublished.connect(lambda _handle: QTimer.singleShot(0, warmup))
+    _open_flat(service, controller)
+    assert model.data(model.index(0, 0)) == "file_0.pac"
+    assert order == []
+    _drain_events()
+    assert order == ["facets", "warmup"]
+    request_id, _session_id, _generation = service.latest("facets")
+    assert request_id in controller._requests  # Counts can remain pending while rows are usable.
+    controller.cancel_pending()
+
+
+def test_queued_extension_counts_do_not_run_after_a_new_root_request() -> None:
+    _app()
+    service = _FakeCatalogueService()
+    model = RemoteArchiveBrowserModel(page_size=4)
+    controller = ArchiveRemoteCatalogueController(service, model)
+    _open_flat(service, controller)
+    controller.open_archive("C:/different-game", query=ArchiveQuery("", view_mode=ArchiveViewMode.FLAT))
+    _drain_events()
+    assert not any(kind == "facets" for _identifier, kind, _payload, _generation in service.calls)
+    assert model.data(model.index(0, 0)) == "file_0.pac"
+    controller.cancel_pending()
 
 
 def test_filter_generations_cancel_obsolete_query_and_ignore_late_result() -> None:

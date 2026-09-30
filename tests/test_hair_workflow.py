@@ -364,7 +364,7 @@ def test_picker_selection_owns_preparation_and_can_retry_failure(owner):
     assert dialog.selected_entry is target and dialog._closed
 
 
-def test_unsupported_registered_style_is_disabled_and_next_verified_base_selected(owner):
+def test_unsupported_registered_style_is_inspectable_and_next_verified_base_selected(owner):
     from PySide6.QtCore import Qt
     dialog = picker_module.HairReferencePickerDialog(owner, "hair", styles=((0, "first"), (1, "second")), audit_hair=True)
     QApplication.processEvents()
@@ -373,16 +373,53 @@ def test_unsupported_registered_style_is_disabled_and_next_verified_base_selecte
                        for i, item in enumerate((first, second))}
     dialog._add(first)
     dialog._add(second)
-    dialog.grid.setCurrentRow(0)
+    dialog._select_row(0)
     dialog._audit_active = first.key
     dialog._audit_done(dialog._generation, None, "This registered hairstyle uses multiple PAC meshes.")
-    assert not dialog.grid.item(0).flags() & Qt.ItemIsEnabled
+    assert dialog.grid.item(0).flags() & Qt.ItemIsEnabled
     assert "multiple PAC" in dialog.grid.item(0).toolTip() and not dialog.choose.isEnabled()
     inputs = SimpleNamespace(detail=dialog._details[second.key])
     dialog._audit_active = second.key
     dialog._audit_done(dialog._generation, inputs, "")
     assert dialog._key() == second.key and dialog.choose.isEnabled()
     assert dialog.selected_entry is None  # Choices are checked without starting the editor.
+    dialog.reject()
+
+
+@pytest.mark.parametrize("interaction", ["mouse", "keyboard"])
+def test_unavailable_hairstyle_can_show_its_reason_without_starting_or_losing_selection(owner, interaction):
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+
+    dialog = picker_module.HairReferencePickerDialog(owner, "hair",
+        styles=((0, "first"), (1, "second"), (2, "third")), audit_hair=True)
+    QApplication.processEvents()
+    first, unavailable, pending = row(1), row(2), row(3)
+    for index, item in enumerate((first, unavailable, pending)):
+        dialog._details[item.key] = replace(detail(item), models=(SimpleNamespace(entry_id=index),))
+        dialog._add(item)
+    dialog._verified[first.key] = SimpleNamespace(detail=dialog._details[first.key])
+    dialog._select_row(0)
+    reason = "This registered hairstyle uses multiple PAC meshes. Choose another base."
+    dialog._audit_active = unavailable.key
+    dialog._audit_done(dialog._generation, None, reason)
+    dialog.show()
+    QApplication.processEvents()
+    if interaction == "mouse":
+        QTest.mouseClick(dialog.grid.viewport(), Qt.LeftButton,
+            pos=dialog.grid.visualItemRect(dialog.grid.item(1)).center())
+    else:
+        QTest.keyClick(dialog.grid, Qt.Key_Right)
+    assert dialog._key() == unavailable.key
+    assert dialog.status.text() == reason and not dialog.choose.isEnabled()
+    dialog._audit_active = pending.key
+    dialog._audit_done(dialog._generation, SimpleNamespace(detail=dialog._details[pending.key]), "")
+    assert dialog._key() == unavailable.key and dialog.status.text() == reason
+    dialog._choose()  # A double click cannot bypass the disabled Start action.
+    assert dialog.status.text() == reason and dialog.selected_entry is None and not dialog._closed
+    assert dialog._prepare.started == []
+    dialog._preparation_failed(dialog._preparation_generation, reason)
+    assert not dialog.choose.isEnabled()
     dialog.reject()
 
 

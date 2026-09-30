@@ -5,7 +5,7 @@ from dataclasses import replace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, Signal, Qt
 from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QApplication, QWidget
 
@@ -328,7 +328,7 @@ def test_clear_drops_the_saved_filter_before_it_searches_again() -> None:
     """Clear used to reset the controls and search with the old filter anyway.
 
     The saved category/group live in `_preferred_*` until the first facet
-    response replaces them with a real combo selection. `_selected_filters` prefers
+    response replaces them with a category-list selection. `_selected_filters` prefers
     them, so pressing Clear before the facets arrived showed "All" in every control
     over results that were still restricted by the filter the dialog opened with.
     """
@@ -349,3 +349,110 @@ def test_clear_drops_the_saved_filter_before_it_searches_again() -> None:
     assert window.archive_catalogue_service.searches[-1].category is None
     assert window.archive_catalogue_service.searches[-1].group is None
     dialog.close()
+
+
+def test_category_list_is_on_the_right_and_filters_categories_or_groups() -> None:
+    _app()
+    window = _Window()
+    dialog = RemoteArchiveFinderDialog(window)
+    _drain()
+    service = window.archive_catalogue_service
+    categories = (ItemCatalogCategoryFacet("Weapon", "Sword", 80),
+                  ItemCatalogCategoryFacet("Weapon", "Shield", 5),
+                  ItemCatalogCategoryFacet("Armor", "Head", 4))
+    service.result_ready.emit("search-1", "search_item_catalog",
+        ItemCatalogSearchResult("session-a", 89, 0, 72, (_row(9),), categories))
+    dialog.resize(940, 640)
+    dialog.show()
+    _drain()
+    tree = dialog._category_tree
+    panel = dialog._item_splitter.widget(2)
+    assert panel.objectName() == "ItemFinderCategoryPanel" and panel.isAncestorOf(tree)
+    assert panel.width() >= 230 and panel.x() > dialog._item_splitter.widget(1).x()
+    assert tree.textElideMode() == Qt.ElideNone
+    assert tree.topLevelItem(0).text(1) == "89"
+    weapon = tree.topLevelItem(1)
+    assert weapon.text(0) == "Weapon" and weapon.text(1) == "85" and weapon.isExpanded()
+    shield = weapon.child(1)
+    assert shield.text(0) == "Shield" and shield.text(1) == "5"
+    assert shield.toolTip(0) == "Weapon / Shield"
+    dialog._page_start = 72
+    tree.setCurrentItem(shield)
+    assert dialog._search_timer.isActive() and dialog._page_start == 0
+    dialog._search_timer.stop()
+    dialog._start_search()
+    assert (service.searches[-1].category, service.searches[-1].group) == ("Weapon", "Shield")
+    assert service.searches[-1].page_start == 0
+    tree.setCurrentItem(weapon)
+    dialog._search_timer.stop()
+    dialog._start_search()
+    assert (service.searches[-1].category, service.searches[-1].group) == ("Weapon", None)
+    dialog._clear_filters()
+    assert dialog._selected_filters() == (None, None)
+    assert service.searches[-1].category is None and service.searches[-1].group is None
+    dialog.close()
+
+
+def test_saved_category_and_two_panel_layout_restore_into_the_category_list() -> None:
+    from cdmw.services.settings_service import create_settings
+    import tempfile
+    from pathlib import Path
+
+    _app()
+    with tempfile.TemporaryDirectory() as directory:
+        window = _Window()
+        window.settings = create_settings(settings_file_path=Path(directory) / "finder.cfg")
+        window.settings.setValue("ui/item_finder_category", "Weapon")
+        window.settings.setValue("ui/item_finder_group", "Shield")
+        window.settings.setValue("ui/item_finder_splitter_sizes", [700, 330])
+        dialog = RemoteArchiveFinderDialog(window)
+        _drain()
+        service = window.archive_catalogue_service
+        assert (service.searches[0].category, service.searches[0].group) == ("Weapon", "Shield")
+        assert dialog._restored_splitter_sizes() == [454, 330, 246]
+        service.result_ready.emit("search-1", "search_item_catalog",
+            ItemCatalogSearchResult("session-a", 5, 0, 72, (),
+                (ItemCatalogCategoryFacet("Weapon", "Sword", 80), ItemCatalogCategoryFacet("Weapon", "Shield", 5))))
+        assert dialog._selected_filters() == ("Weapon", "Shield")
+        assert dialog._category_tree.currentItem().text(0) == "Shield"
+        assert len(service.searches) == 1 and not dialog._search_timer.isActive()
+        dialog.close()
+        sizes = window.settings.value("ui/item_finder_splitter_sizes")
+        assert len(sizes) == 3
+        reopened = RemoteArchiveFinderDialog(window)
+        assert reopened._restored_splitter_sizes() == sizes
+        assert reopened._selected_filters() == ("Weapon", "Shield")
+        reopened.close()
+
+
+def test_late_category_rows_are_localized_without_changing_the_backend_filter(tmp_path) -> None:
+    from cdmw.ui.localization import UiLocalizer
+
+    app = _app()
+    window = _Window()
+    localizer = UiLocalizer(language_dir=tmp_path, language_code="de")
+    window.ui_localizer = localizer
+    localizer.activate_runtime_tracking(window, application=app)
+    dialog = RemoteArchiveFinderDialog(window)
+    try:
+        _drain()
+        window.archive_catalogue_service.result_ready.emit("search-1", "search_item_catalog",
+            ItemCatalogSearchResult("session-a", 5, 0, 72, (),
+                (ItemCatalogCategoryFacet("Weapon", "Shield", 5),)))
+        _drain()
+        tree = dialog._category_tree
+        assert tree.headerItem().text(0) == localizer.translate("Category") != "Category"
+        assert tree.topLevelItem(0).text(0) == localizer.translate("All categories") != "All categories"
+        shield = tree.topLevelItem(1).child(0)
+        assert shield.text(0) == localizer.translate("Shield") != "Shield"
+        assert shield.text(1) == "5"
+        tree.setCurrentItem(shield)
+        dialog._search_timer.stop()
+        dialog._start_search()
+        request = window.archive_catalogue_service.searches[-1]
+        assert (request.category, request.group) == ("Weapon", "Shield")
+    finally:
+        dialog.close()
+        localizer.shutdown()
+        window.deleteLater()
+        _drain()

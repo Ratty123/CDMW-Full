@@ -6866,13 +6866,13 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 131,
-          "sink": "addItem"
+          "line": 305,
+          "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 693,
-          "sink": "addItem"
+          "line": 714,
+          "sink": "QTreeWidgetItem"
         }
       ]
     },
@@ -20228,6 +20228,11 @@
           "path": "cdmw/ui/archive_browser/controls_panel.py",
           "line": 210,
           "sink": "_add_combo_choice"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
+          "line": 295,
+          "sink": "_section_label"
         }
       ]
     },
@@ -20303,6 +20308,11 @@
           "path": "cdmw/ui/archive_browser/preview_state.py",
           "line": 266,
           "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
+          "line": 298,
+          "sink": "setHeaderLabels"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_model.py",
@@ -57495,6 +57505,11 @@
       "key": "Items",
       "origins": [
         {
+          "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
+          "line": 298,
+          "sink": "setHeaderLabels"
+        },
+        {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
           "line": 56,
           "sink": "setHorizontalHeaderLabels"
@@ -61028,6 +61043,16 @@
           "path": "cdmw/ui/new_item/effect_workspace.py",
           "line": 446,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Loading extension counts...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/filters.py",
+          "line": 280,
+          "sink": "QLabel"
         }
       ]
     },
@@ -109145,16 +109170,6 @@
       "key": "Select",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/controls_panel.py",
-          "line": 117,
-          "sink": "setText"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/filters.py",
-          "line": 338,
-          "sink": "QPushButton"
-        },
-        {
           "path": "cdmw/ui/archive_browser/source_picker_dialog.py",
           "line": 492,
           "sink": "QPushButton"
@@ -109438,6 +109453,21 @@
           "path": "cdmw/ui/text_search/controller.py",
           "line": 29,
           "sink": "getExistingDirectory"
+        }
+      ]
+    },
+    {
+      "key": "Select Extension",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/controls_panel.py",
+          "line": 117,
+          "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/filters.py",
+          "line": 302,
+          "sink": "QPushButton"
         }
       ]
     },
@@ -165030,6 +165060,11 @@
           "sink": "setText"
         },
         {
+          "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
+          "line": 733,
+          "sink": "setToolTip"
+        },
+        {
           "path": "cdmw/ui/archive_browser/static_replacement_texture_diagnostics.py",
           "line": 120,
           "sink": "texture_context_kv_row"
@@ -165108,16 +165143,6 @@
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
           "line": 649,
           "sink": "setText"
-        }
-      ]
-    },
-    {
-      "key": "{value_0} / {value_1} ({value_2})",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 695,
-          "sink": "addItem"
         }
       ]
     },

@@ -286,8 +286,10 @@ the hairstyle. Compatible single-mesh PAC registrations at LOD0 are supported, i
 registered variants without a `_player` suffix.
 
 Entries with multiple PAC references, additional LODs, unsupported layouts or incomplete
-dependencies explain their restriction before Start. Ordinary hair PACs retain the
-general mesh tools.
+dependencies explain their restriction before Start. Unavailable choices remain
+selectable for preview and for reading the exact reason, while Start stays disabled.
+Styles with a separate tail mesh require multiple PACs and cannot currently be edited
+together in Hair Tools. Ordinary hair PACs retain the general mesh tools.
 
 The hairstyle chooser shows each registered mesh once, keeps the first slot's
 number and icon, and searches both that number and the asset name. It loads 24

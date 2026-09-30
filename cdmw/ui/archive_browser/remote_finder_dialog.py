@@ -6,9 +6,9 @@ from PySide6.QtCore import QSize, QThread, QTimer, Qt
 from PySide6.QtGui import QIcon, QImage, QPainter, QPalette, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
-    QComboBox,
     QDialog,
     QFrame,
+    QHeaderView,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -19,6 +19,8 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSplitter,
+    QTreeWidget,
+    QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -127,12 +129,9 @@ class RemoteArchiveFinderDialog(QDialog):
         controls = QHBoxLayout()
         self._search_edit = QLineEdit()
         self._search_edit.setPlaceholderText("Search item name, ID, model stem, category, or icon path")
-        self._category_combo = QComboBox()
-        self._category_combo.addItem("All categories", (None, None))
         search_button = QPushButton("Search")
         clear_button = QPushButton("Clear")
         controls.addWidget(self._search_edit, stretch=1)
-        controls.addWidget(self._category_combo)
         controls.addWidget(search_button)
         controls.addWidget(clear_button)
         layout.addLayout(controls)
@@ -168,7 +167,7 @@ class RemoteArchiveFinderDialog(QDialog):
         self._visible_icon_timer.setSingleShot(True)
         self._visible_icon_timer.setInterval(100)
         self._search_edit.textChanged.connect(self._queue_first_page)
-        self._category_combo.currentIndexChanged.connect(self._queue_first_page)
+        self._category_tree.currentItemChanged.connect(lambda _current, _previous: self._queue_first_page())
         self._search_edit.returnPressed.connect(self._start_search)
         search_button.clicked.connect(self._start_search)
         clear_button.clicked.connect(self._clear_filters)
@@ -287,9 +286,32 @@ class RemoteArchiveFinderDialog(QDialog):
         detail_actions.addStretch(1)
         detail_layout.addLayout(detail_actions)
         splitter.addWidget(detail_panel)
+        category_panel = QFrame()
+        category_panel.setObjectName("ItemFinderCategoryPanel")
+        category_panel.setMinimumWidth(230)
+        category_panel.setMaximumWidth(390)
+        category_layout = QVBoxLayout(category_panel)
+        category_layout.setContentsMargins(4, 0, 0, 0)
+        category_layout.addWidget(self._section_label("Categories"))
+        self._category_tree = QTreeWidget()
+        self._category_tree.setObjectName("ItemFinderCategoryList")
+        self._category_tree.setHeaderLabels(["Category", "Items"])
+        self._category_tree.setSelectionMode(QAbstractItemView.SingleSelection)
+        self._category_tree.setUniformRowHeights(True)
+        self._category_tree.setTextElideMode(Qt.ElideNone)
+        self._category_tree.header().setSectionResizeMode(0, QHeaderView.Stretch)
+        self._category_tree.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        self._category_tree.header().setStretchLastSection(False)
+        all_categories = QTreeWidgetItem(self._category_tree, ["All categories", ""])
+        all_categories.setData(0, Qt.UserRole, (None, None))
+        self._category_tree.setCurrentItem(all_categories)
+        category_layout.addWidget(self._category_tree, stretch=1)
+        splitter.addWidget(category_panel)
+        splitter.setChildrenCollapsible(False)
         splitter.setStretchFactor(0, 2)
         splitter.setStretchFactor(1, 1)
-        splitter.setSizes(self._restored_splitter_sizes() or [820, 380])
+        splitter.setStretchFactor(2, 0)
+        splitter.setSizes(self._restored_splitter_sizes() or [640, 330, 246])
         layout.addWidget(splitter, stretch=1)
 
     @staticmethod
@@ -332,7 +354,9 @@ class RemoteArchiveFinderDialog(QDialog):
             sizes = [max(1, int(value)) for value in raw]
         except (TypeError, ValueError):
             return []
-        return sizes if len(sizes) == 2 else []
+        if len(sizes) == 2:
+            return [max(1, sizes[0] - 246), sizes[1], 246]
+        return sizes if len(sizes) == 3 else []
 
     def _connect_service(self) -> None:
         self._service.result_ready.connect(self._handle_result)
@@ -395,16 +419,16 @@ class RemoteArchiveFinderDialog(QDialog):
 
     def _clear_filters(self) -> None:
         self._search_timer.stop()
-        for widget in (self._search_edit, self._category_combo):
+        for widget in (self._search_edit, self._category_tree):
             widget.blockSignals(True)
         try:
             self._search_edit.clear()
-            self._category_combo.setCurrentIndex(0)
+            self._category_tree.setCurrentItem(self._category_tree.topLevelItem(0))
         finally:
-            for widget in (self._search_edit, self._category_combo):
+            for widget in (self._search_edit, self._category_tree):
                 widget.blockSignals(False)
         # The saved filter is held here until the first facet response replaces it with
-        # a real combo selection. Clearing only the controls left the next search still
+        # a real category selection. Clearing only the controls left the next search still
         # reading it, so Clear pressed before the facets arrived showed "All" over
         # results that were still restricted.
         self._preferred_category = ""
@@ -416,7 +440,8 @@ class RemoteArchiveFinderDialog(QDialog):
         category: str | None = self._preferred_category or None
         group: str | None = self._preferred_group or None
         if category is None:
-            value = self._category_combo.currentData()
+            item = self._category_tree.currentItem()
+            value = item.data(0, Qt.UserRole) if item is not None else None
             if isinstance(value, tuple) and len(value) == 2:
                 category = str(value[0]) if value[0] else None
                 group = str(value[1]) if value[1] else None
@@ -682,32 +707,38 @@ class RemoteArchiveFinderDialog(QDialog):
         self._update_buttons()
 
     def _populate_facets(self, result: ItemCatalogSearchResult) -> None:
-        category_value = (
-            (self._preferred_category, self._preferred_group)
-            if self._preferred_category
-            else self._category_combo.currentData()
-        )
-        self._category_combo.blockSignals(True)
+        category_value = self._selected_filters()
+        blocked = self._category_tree.blockSignals(True)
         try:
-            self._category_combo.clear()
-            self._category_combo.addItem("All categories", (None, None))
+            self._category_tree.clear()
+            all_categories = QTreeWidgetItem(self._category_tree,
+                ["All categories", f"{sum(facet.count for facet in result.categories):,}"])
+            all_categories.setData(0, Qt.UserRole, (None, None))
+            selected = all_categories
+            categories: dict[str, QTreeWidgetItem] = {}
+            counts: dict[str, int] = {}
             for facet in result.categories:
-                self._category_combo.addItem(
-                    f"{facet.category} / {facet.group} ({facet.count:,})",
-                    (facet.category, facet.group),
-                )
-            self._restore_combo_data(self._category_combo, category_value)
+                parent = categories.get(facet.category)
+                if parent is None:
+                    parent = QTreeWidgetItem(self._category_tree, [facet.category, ""])
+                    parent.setData(0, Qt.UserRole, (facet.category, None))
+                    parent.setExpanded(True)
+                    categories[facet.category] = parent
+                    if category_value == (facet.category, None):
+                        selected = parent
+                counts[facet.category] = counts.get(facet.category, 0) + facet.count
+                parent.setText(1, f"{counts[facet.category]:,}")
+                item = QTreeWidgetItem(parent, [facet.group, f"{facet.count:,}"])
+                item.setData(0, Qt.UserRole, (facet.category, facet.group))
+                item.setToolTip(0, f"{facet.category} / {facet.group}")
+                if category_value == (facet.category, facet.group):
+                    selected = item
+            self._category_tree.setCurrentItem(selected)
+            self._category_tree.scrollToItem(selected)
         finally:
-            self._category_combo.blockSignals(False)
+            self._category_tree.blockSignals(blocked)
         self._preferred_category = ""
         self._preferred_group = ""
-
-    @staticmethod
-    def _restore_combo_data(combo: QComboBox, value: object) -> None:
-        for index in range(combo.count()):
-            if combo.itemData(index) == value:
-                combo.setCurrentIndex(index)
-                return
 
     def _previous_page(self) -> None:
         self._page_start = max(0, self._page_start - self._page_size)
