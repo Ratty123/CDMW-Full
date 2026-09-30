@@ -8,6 +8,8 @@ import tempfile
 from pathlib import Path
 from typing import Callable, Mapping, Optional, Sequence
 
+from cdmw.core.temp_cache import session_generated_cache_path
+
 from .material_profiles import (
     CDMaterialRuntimeProfile,
     apply_true_source_basic_controls_to_profile,
@@ -725,7 +727,7 @@ def _bake_complete_swap_material_atlas_png(
     ).hexdigest()[:12]
     safe_target = _sanitize_texture_component(target_name) or "runtime_slot"
     safe_role = _sanitize_texture_component(slot_kind) or "role"
-    root = Path(tempfile.gettempdir()) / "cdmw_baked_material_atlases"
+    root = session_generated_cache_path("cdmw_baked_material_atlases")
     root.mkdir(parents=True, exist_ok=True)
     path = root / f"{safe_target}_{safe_role}_atlas_{digest}.png"
     descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.stem}.", suffix=".tmp", dir=root)

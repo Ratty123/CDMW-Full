@@ -654,7 +654,7 @@ class ModelImportBuildTests(unittest.TestCase):
                 generated.mkdir()
                 return str(generated)
 
-            with patch("cdmw.ui.new_item.model_import.tempfile.mkdtemp", make_root), patch(
+            with patch("cdmw.core.owned_temp.tempfile.mkdtemp", make_root), patch(
                 "cdmw.services.model_library_service.ModelLibraryService.resolve_importable_model",
                 side_effect=ValueError("bad model"),
             ):

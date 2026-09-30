@@ -11,6 +11,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from cdmw.core.temp_cache import session_generated_cache_path
+
 if TYPE_CHECKING:
     from cdmw.core.texture_native import NativeTextureEncodeRequest
 
@@ -171,7 +173,7 @@ def _publish_content_addressed_dds(
     content_sha256: str,
     stop_event: threading.Event,
 ) -> Path:
-    root = Path(tempfile.gettempdir()) / "cdmw-material-authority-artifacts-v1"
+    root = session_generated_cache_path("cdmw-material-authority-artifacts-v1")
     root.mkdir(parents=True, exist_ok=True)
     target = root / f"{content_sha256}.dds"
     if target.is_file():

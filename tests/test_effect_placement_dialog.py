@@ -1099,6 +1099,87 @@ class DialogTests(_DialogPresentationMixin, _DialogTestCase):
                 workspace.request_shutdown()
                 self._settle(lambda: workspace._thread is None)
 
+    def test_default_placement_root_is_marked_and_removed_on_shutdown(self) -> None:
+        from cdmw.core.owned_temp import OWNER_MARKER
+
+        dialog = self._dialog()
+        workspace = dialog.workspace
+        workspace._initial_package_timer.stop()
+        root = workspace._output_root
+        self.assertTrue(root.name.startswith("cdmw_effect_placement_"))
+        self.assertTrue((root / OWNER_MARKER).is_file())
+        workspace.request_shutdown()
+        self._settle(lambda: not workspace.iter_shutdown_workers())
+        self.assertFalse(root.exists())
+
+    def test_owned_effect_root_cleanup_waits_for_preview_and_builder_without_blocking_ui(self) -> None:
+        from PySide6.QtCore import Qt
+        from cdmw.core.owned_temp import create_owned_temp_directory, owned_temp_directory_is_protected
+        from cdmw.workers import new_item_cleanup_worker
+        from cdmw.workers.utility_workers import UtilityWorker
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = create_owned_temp_directory(prefix="cdmw_effect_workspace_", parent=Path(folder))
+            dialog = self._dialog(output_root=root)
+            workspace = dialog.workspace
+            workspace._initial_package_timer.stop()
+            packages = [root / "package_first", root / "package_second"]
+            previews = []
+            for path in packages:
+                path.mkdir()
+                (path / "derived.bin").write_bytes(b"temporary preview")
+                previews.append(EffectPlacementPreview(
+                    package_dir=path, box_submesh_index=0, item_submesh_count=1,
+                    box_min=(-1, -1, -1), box_max=(1, 1, 1)))
+            workspace._preview, workspace._loading_preview = previews
+            started, release, preview_stopped = threading.Event(), threading.Event(), threading.Event()
+
+            def build(_log, _stop):
+                started.set()
+                self.assertTrue(release.wait(5), "shutdown must return while the builder is finishing")
+
+            worker = UtilityWorker(build, task_accepts_cancel=True)
+            thread = QThread(workspace)
+            worker.moveToThread(thread)
+            workspace._thread, workspace._worker = thread, worker
+            worker.finished.connect(thread.quit, Qt.ConnectionType.DirectConnection)
+            thread.finished.connect(worker.deleteLater)
+            thread.finished.connect(workspace._build_finished)
+            thread.started.connect(worker.run)
+            thread.start()
+            self._settle(started.is_set)
+            ui_thread = threading.get_ident()
+            original = new_item_cleanup_worker.cleanup_owned_temp_directory
+
+            def cleanup(path, **kwargs):
+                self.assertNotEqual(threading.get_ident(), ui_thread)
+                return original(path, **kwargs)
+
+            try:
+                with (
+                    patch("cdmw.ui.new_item.effect_placement_dialog.preview_process_barrier", return_value=preview_stopped),
+                    patch.object(new_item_cleanup_worker, "cleanup_owned_temp_directory", side_effect=cleanup),
+                ):
+                    before = time.monotonic()
+                    workspace.request_shutdown()
+                    self.assertLess(time.monotonic() - before, 0.1)
+                    ticks = []
+                    QTimer.singleShot(0, lambda: ticks.append(True))
+                    self._settle(lambda: bool(ticks))
+                    self.assertTrue(all(path.is_dir() for path in packages))
+                    preview_stopped.set()
+                    self._settle(lambda: not packages[0].exists())
+                    self.assertTrue(root.is_dir(), "the still-finishing builder owns the root")
+                    self.assertTrue(owned_temp_directory_is_protected(root))
+                    release.set()
+                    self._settle(lambda: not workspace.iter_shutdown_workers())
+                    self.assertFalse(root.exists(), "the last package retirement must remove the empty parent")
+            finally:
+                preview_stopped.set()
+                release.set()
+                workspace.request_shutdown()
+                self._settle(lambda: not workspace.iter_shutdown_workers())
+
     def test_cleanup_refuses_every_package_outside_the_owned_output_root(self) -> None:
         import tempfile
 

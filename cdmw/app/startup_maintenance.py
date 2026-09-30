@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import os
+from dataclasses import asdict
+from pathlib import Path
+import tempfile
 import threading
 import time
 from typing import Optional
@@ -17,11 +20,17 @@ def prepare_app_temp_cache_cleanup() -> None:
     try:
         from cdmw.core.temp_cache import APP_TEMP_CACHE_ROOT_ENV, app_temp_root, prune_app_temp_cache
         from cdmw.services.workspace_layout import workspace_paths
+        from cdmw.services.temp_data_cleanup import maintain_temp_data
 
-        legacy_temp_root = app_temp_root()
-        os.environ.setdefault(APP_TEMP_CACHE_ROOT_ENV, str(workspace_paths(bootstrap_root())["archive_cache_root"]))
-        prune_app_temp_cache()
-        prune_app_temp_cache(root=legacy_temp_root)
+        paths = workspace_paths(bootstrap_root())
+        legacy_temp_root = app_temp_root(temp_root=Path(tempfile.gettempdir()))
+        os.environ.setdefault(APP_TEMP_CACHE_ROOT_ENV, str(paths["archive_cache_root"]))
+        current_root = app_temp_root()
+        cache_pruning = {str(root): asdict(prune_app_temp_cache(root=root))
+                         for root in dict.fromkeys((current_root, legacy_temp_root))}
+        maintain_temp_data(cache_roots=(app_temp_root(), legacy_temp_root),
+                           report_path=paths["crash_reports_dir"] / "temp_data_cleanup.json",
+                           cache_pruning=cache_pruning)
     except Exception:
         pass
 

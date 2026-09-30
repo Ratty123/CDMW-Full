@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import mimetypes
-import tempfile
 from pathlib import Path
 from typing import Any, AbstractSet
+
+from cdmw.core.temp_cache import session_generated_cache_path
 
 from cdmw.core.atomic_file import atomic_write_bytes
 
@@ -58,7 +59,7 @@ def _embedded_gltf_extract_dir(source_path: Path) -> Path:
     except OSError:
         key = str(source_path)
     digest = hashlib.sha1(key.encode("utf-8", errors="ignore")).hexdigest()[:16]
-    return Path(tempfile.gettempdir()) / "cdmw_gltf_imports" / digest
+    return session_generated_cache_path("cdmw_gltf_imports", digest)
 
 
 __all__ = ["write_embedded_gltf_image"]

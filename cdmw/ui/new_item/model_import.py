@@ -22,12 +22,12 @@ import copy
 import hashlib
 import math
 import shutil
-import tempfile
 import threading
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Callable, Iterable, Mapping, Optional, Sequence, Tuple
 
+from cdmw.core.owned_temp import OWNER_MARKER, cleanup_owned_temp_directory, create_owned_temp_directory
 from cdmw.domain.cancellation import RunCancelled
 from cdmw.models import ArchiveEntry
 from cdmw.services.fbx_blender_conversion import (
@@ -942,7 +942,10 @@ class ModelImportSource:
         if not self.owns_extract_root or root is None:
             return
         self.extract_root = None
-        shutil.rmtree(root, ignore_errors=True)
+        if (root / OWNER_MARKER).exists():
+            cleanup_owned_temp_directory(root)
+        else:
+            shutil.rmtree(root, ignore_errors=True)
 
 
 def prepare_model_import_mesh_edit(
@@ -1234,16 +1237,19 @@ def load_model_import_source(
 
     chosen = Path(chosen_path)
     owns_root = extract_root is None
-    root = Path(extract_root) if extract_root is not None else Path(tempfile.mkdtemp(prefix="cdmw_new_item_model_"))
+    root = Path(extract_root) if extract_root is not None else create_owned_temp_directory(prefix="cdmw_new_item_model_")
+    # ZIP extraction atomically replaces its target. Keep the locked ownership
+    # record in a parent that extraction and FBX conversion never replace.
+    extraction = root / "source" if owns_root else root
     converted_fbx = False
     try:
-        model_path = ModelLibraryService().resolve_importable_model(chosen, extract_root=root, stop_event=stop_event)
+        model_path = ModelLibraryService().resolve_importable_model(chosen, extract_root=extraction, stop_event=stop_event)
         if model_path is None:
             # An FBX is read by asking Blender for it as glTF first, and only with the Blender
             # the reader pointed at: a conversion nobody asked for is one nobody can account
             # for when the result looks wrong.
             if chosen.suffix.casefold() == FBX_EXTENSION or _fbx_inside(chosen):
-                model_path = _fbx_converted_to_glb(chosen, root, blender_path, on_log, stop_event)
+                model_path = _fbx_converted_to_glb(chosen, extraction, blender_path, on_log, stop_event)
                 converted_fbx = model_path is not None
             if model_path is None:
                 raise ValueError(_nothing_to_import(chosen, root))
@@ -1288,7 +1294,7 @@ def load_model_import_source(
         )
     except BaseException:
         if owns_root:
-            shutil.rmtree(root, ignore_errors=True)
+            cleanup_owned_temp_directory(root)
         raise
 
 

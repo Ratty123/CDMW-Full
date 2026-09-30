@@ -9,6 +9,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- Generated material caches and transient preview, Effects and model-import folders track ownership and live use. Later launches safely reclaim abandoned marked data, retry failed cleanup and report preserved leftovers; recovery backups, baselines and export history remain protected. Effects shutdown removes its empty parent after the builder and preview stop.
 - Archive scans skip backup vaults instead of treating their indexes as live game archives, preventing extraction failures from missing backup PAZ files. Existing catalogues containing backup sources rebuild automatically when reopened.
 - Ready ZIP exports retain the complete mod folder name, including dots and manager suffixes, so separate exports cannot overwrite an unrelated shortened ZIP.
 - Repackage Mods selects available dotted filenames without looping indefinitely and can cancel during filename selection.

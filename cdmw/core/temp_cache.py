@@ -13,13 +13,20 @@ from pathlib import Path
 from typing import Iterator, Optional, Sequence
 
 from cdmw.constants import APP_NAME
+from cdmw.core.owned_temp import (
+    cleanup_owned_temp_directory,
+    create_owned_temp_directory,
+    owned_temp_directory_is_protected,
+)
 
 
 DIRECTXTEX_TEXTURE_PREVIEW_CACHE_DIRNAME = "preview/textures/directxtex"
 ITEM_ICON_PREVIEW_CACHE_DIRNAME = "preview/item-icons"
 LEGACY_DIRECTXTEX_TEXTURE_PREVIEW_CACHE_DIRNAME = "directxtex_texture_preview"
+GENERATED_MATERIALS_CACHE_DIRNAME = "generated_materials"
 
 APP_TEMP_CACHE_DIRNAMES: tuple[str, ...] = (
+    GENERATED_MATERIALS_CACHE_DIRNAME,
     "archive_preview_cache",
     DIRECTXTEX_TEXTURE_PREVIEW_CACHE_DIRNAME,
     ITEM_ICON_PREVIEW_CACHE_DIRNAME,
@@ -44,6 +51,8 @@ _CACHE_UNIT_LOCKS: weakref.WeakValueDictionary[str, threading.RLock] = weakref.W
 _ACTIVE_CACHE_UNITS: dict[str, int] = {}
 _RECENT_CACHE_UNITS: "OrderedDict[str, float]" = OrderedDict()
 _RECENT_CACHE_UNIT_LIMIT = 8192
+_GENERATED_ROOTS: dict[Path, Path] = {}
+_GENERATED_ROOT_LOCK = threading.Lock()
 
 
 @dataclass(frozen=True)
@@ -126,6 +135,17 @@ def app_temp_root(*, temp_root: Optional[Path] = None) -> Path:
 
 def app_temp_cache_path(dirname: str, *parts: object, temp_root: Optional[Path] = None) -> Path:
     return app_temp_root(temp_root=temp_root).joinpath(str(dirname), *(str(part) for part in parts))
+
+
+def session_generated_cache_path(dirname: str, *parts: object) -> Path:
+    """Keep derived textures for the whole session, then retire them on a later launch."""
+    parent = app_temp_cache_path(GENERATED_MATERIALS_CACHE_DIRNAME).resolve()
+    with _GENERATED_ROOT_LOCK:
+        root = _GENERATED_ROOTS.get(parent)
+        if root is None or not root.is_dir():
+            root = create_owned_temp_directory(prefix="run-", parent=parent)
+            _GENERATED_ROOTS[parent] = root
+    return root.joinpath(dirname, *(str(part) for part in parts))
 
 
 def _absolute_path(path: Path | str) -> Path:
@@ -223,6 +243,9 @@ def mark_app_temp_cache_recent(
 
 
 def _cache_unit_is_protected(path: Path | str) -> bool:
+    unit = _app_temp_cache_unit_path(path)
+    if unit.parent.name == GENERATED_MATERIALS_CACHE_DIRNAME and owned_temp_directory_is_protected(unit):
+        return True
     key = _cache_unit_key(path)
     now = time.monotonic()
     with _CACHE_STATE_LOCK:
@@ -367,7 +390,12 @@ def prune_app_temp_cache(
                 continue
             try:
                 if unit.is_dir:
-                    shutil.rmtree(unit.path)
+                    if unit.path.parent.name == GENERATED_MATERIALS_CACHE_DIRNAME:
+                        if not cleanup_owned_temp_directory(unit.path, abandoned_only=True):
+                            failed_units += 1
+                            continue
+                    else:
+                        shutil.rmtree(unit.path)
                 else:
                     unit.path.unlink()
             except OSError:

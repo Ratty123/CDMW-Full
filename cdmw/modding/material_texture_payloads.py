@@ -11,6 +11,8 @@ from dataclasses import replace
 from pathlib import Path, PurePosixPath
 from typing import Callable, Mapping, Optional, Sequence
 
+from cdmw.core.temp_cache import session_generated_cache_path
+
 from cdmw.core.atomic_file import atomic_binary_writer
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.textures.material_parameters import evaluate_material_parameters
@@ -1250,7 +1252,7 @@ def _source_slot_png_with_base_color_factor_path(
             f"{auto_balance}|{shadow_lift}|{tone_contrast:.6f}|{colourise_key}"
         )
     digest = hashlib.sha1(fingerprint.encode("utf-8", errors="ignore")).hexdigest()[:12]
-    root = Path(output_root) if output_root is not None else Path(tempfile.gettempdir()) / "cdmw_synthetic_materials"
+    root = Path(output_root) if output_root is not None else session_generated_cache_path("cdmw_synthetic_materials")
     root.mkdir(parents=True, exist_ok=True)
     suffix = (
         "basecolorfactor"

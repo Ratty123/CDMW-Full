@@ -11,6 +11,7 @@ from typing import Optional, Tuple
 from PySide6.QtCore import QObject, QProcess, QThread, Qt, QTimer
 from shiboken6 import isValid
 
+from cdmw.core.owned_temp import cleanup_owned_temp_directory
 from cdmw.workers.new_item_workers import model_source_cleanup_task
 from cdmw.workers.utility_workers import UtilityWorker
 
@@ -45,6 +46,21 @@ def preview_process_barrier(controller: object) -> threading.Event:
 
 
 @dataclass(frozen=True, slots=True)
+class EmptyOwnedTempCleanup:
+    """Retire an empty marked root after its builder and preview consumers stop."""
+
+    path: Path
+    ready: tuple[threading.Event, ...] = ()
+
+    def wait_until_unused(self) -> None:
+        for event in self.ready:
+            event.wait()
+
+    def cleanup(self) -> None:
+        cleanup_owned_temp_directory(self.path, only_empty=True)
+
+
+@dataclass(frozen=True, slots=True)
 class PreviewPackageCleanup:
     """One retired transient directory, bounded by its owning preview root."""
 
@@ -52,6 +68,7 @@ class PreviewPackageCleanup:
     output_root: Path
     direct_package: bool = False
     ready: threading.Event | None = None
+    empty_root_cleanup: EmptyOwnedTempCleanup | None = None
 
     def wait_until_unused(self, stop_event=None) -> None:
         if self.ready is not None:
@@ -65,6 +82,9 @@ class PreviewPackageCleanup:
         if self.direct_package and (path.parent != root or not path.name.startswith("package_")):
             raise ValueError("Effect cleanup must name a directly owned package.")
         shutil.rmtree(path, ignore_errors=True)
+        if self.empty_root_cleanup is not None:
+            self.empty_root_cleanup.wait_until_unused()
+            self.empty_root_cleanup.cleanup()
 
 
 class ModelSourceCleanupLane(QObject):
@@ -142,4 +162,4 @@ class ModelSourceCleanupLane(QObject):
         self._start_next()
 
 
-__all__ = ["ModelSourceCleanupLane", "PreviewPackageCleanup", "preview_process_barrier"]
+__all__ = ["EmptyOwnedTempCleanup", "ModelSourceCleanupLane", "PreviewPackageCleanup", "preview_process_barrier"]

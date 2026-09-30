@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import re
-import tempfile
 from dataclasses import fields, replace
 from pathlib import Path, PurePosixPath
 from typing import Callable, Mapping, Optional, Sequence
+
+from cdmw.core.temp_cache import session_generated_cache_path
 
 from cdmw.domain.textures.material_parameters import effective_emissive_intensity, evaluate_material_parameters
 
@@ -689,7 +690,7 @@ def _complete_swap_runtime_material_mask_png_path(
     digest = hashlib.sha1("|".join(source_key_parts).encode("utf-8", errors="ignore")).hexdigest()[:12]
     safe_material = _sanitize_texture_component(material_name) or "material"
     safe_profile = _sanitize_texture_component(material_profile.name) or "profile"
-    root = Path(tempfile.gettempdir()) / "cdmw_synthetic_materials"
+    root = session_generated_cache_path("cdmw_synthetic_materials")
     root.mkdir(parents=True, exist_ok=True)
     path = root / f"{safe_material}_material_mask_{safe_profile}_{digest}.png"
     if path.is_file():
@@ -980,7 +981,7 @@ def _complete_swap_neutral_support_png_path(
     digest = hashlib.sha1(f"{material_name}|complete_support|{normalized_slot}|{color}".encode("utf-8", errors="ignore")).hexdigest()[:12]
     safe_material = _sanitize_texture_component(material_name) or "material"
     safe_slot = _sanitize_texture_component(normalized_slot) or "support"
-    root = Path(tempfile.gettempdir()) / "cdmw_synthetic_materials"
+    root = session_generated_cache_path("cdmw_synthetic_materials")
     root.mkdir(parents=True, exist_ok=True)
     path = root / f"{safe_material}_{safe_slot}_neutral_{digest}.png"
     if not path.is_file():
@@ -1013,7 +1014,7 @@ def _complete_swap_edge_relief_support_png_path(
         pass
     digest = hashlib.sha1("|".join(source_key).encode("utf-8", errors="ignore")).hexdigest()[:12]
     safe_material = _sanitize_texture_component(material_name) or "material"
-    root = Path(tempfile.gettempdir()) / "cdmw_synthetic_materials"
+    root = session_generated_cache_path("cdmw_synthetic_materials")
     root.mkdir(parents=True, exist_ok=True)
     path = root / f"{safe_material}_{normalized_slot}_edge_relief_{digest}.png"
     if path.is_file():
@@ -1289,7 +1290,7 @@ def _solid_material_factor_png_path(
     digest = hashlib.sha1(f"{material_name}|{slot_kind}|{components}".encode("utf-8", errors="ignore")).hexdigest()[:12]
     safe_material = _sanitize_texture_component(material_name) or "material"
     safe_slot = _sanitize_texture_component(slot_kind) or "slot"
-    root = Path(tempfile.gettempdir()) / "cdmw_synthetic_materials"
+    root = session_generated_cache_path("cdmw_synthetic_materials")
     root.mkdir(parents=True, exist_ok=True)
     path = root / f"{safe_material}_{safe_slot}_{digest}.png"
     if not path.is_file():
@@ -1528,7 +1529,7 @@ def _specular_glossiness_runtime_base_png_path(
             pass
     digest = hashlib.sha1("|".join(key_parts).encode("utf-8", errors="ignore")).hexdigest()[:12]
     safe_material = _sanitize_texture_component(str(getattr(texture_set, "material_name", "") or "")) or "material"
-    root = Path(tempfile.gettempdir()) / "cdmw_synthetic_materials"
+    root = session_generated_cache_path("cdmw_synthetic_materials")
     root.mkdir(parents=True, exist_ok=True)
     path = root / f"{safe_material}_specgloss_runtime_base_{digest}.png"
     if path.is_file():

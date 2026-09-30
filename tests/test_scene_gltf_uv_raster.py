@@ -417,7 +417,7 @@ def test_active_hash_raster_dilation_and_publication_cancellation_cleanup(
 
     mesh_path = tmp_path / "mesh.gltf"
     mesh_path.write_text("{}", encoding="utf-8")
-    monkeypatch.setattr(raster_module.tempfile, "gettempdir", lambda: str(tmp_path))
+    monkeypatch.setenv("CDMW_TEMP_CACHE_ROOT", str(tmp_path / "cache"))
     with pytest.raises(RunCancelled, match="during PNG encoding"):
         publish_gltf_raster_png(
             GltfRasterResult(
@@ -431,7 +431,7 @@ def test_active_hash_raster_dilation_and_publication_cancellation_cleanup(
             {"version": 2},
             stop_event=_CancelAfter(6),
         )
-    assert not list((tmp_path / "cdmw_gltf_uv_bakes").rglob("*.tmp"))
+    assert not list((tmp_path / "cache").rglob("*.tmp"))
 
 
 def test_raster_dimension_ceiling_is_checked_before_output_allocation() -> None:

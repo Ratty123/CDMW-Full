@@ -14,6 +14,8 @@ from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QImage, QMatrix4x4, QVector3D
 
+from cdmw.core.temp_cache import session_generated_cache_path
+
 from cdmw.core.dds_native import dds_source_path_from_report
 from cdmw.core.model_preview_orientation import resolve_preview_texture_flip_vertical
 from cdmw.models import (
@@ -1578,7 +1580,7 @@ def material_combiner_cache_dir(model: ModelPreviewData) -> Path:
             for parameter in tuple(getattr(texture_input, "material_parameters", ()) or ()):
                 for field_name in ("parameter_kind", "parameter_name", "value", "numeric_value", "color_value"):
                     digest.update(str(getattr(parameter, field_name, "") or "").encode("utf-8", errors="replace"))
-    return Path(tempfile.gettempdir()) / "cdmw_material_combiner" / digest.hexdigest()[:20]
+    return session_generated_cache_path("cdmw_material_combiner", digest.hexdigest()[:20])
 
 
 def apply_material_combiner(

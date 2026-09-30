@@ -287,10 +287,15 @@ class EffectWorkspaceTests(unittest.TestCase):
         self.assertEqual(workspace.library_model.row(1).stem, "fx_new_fire_loop")
 
     def test_shutdown_cancels_pending_library_preparation(self) -> None:
+        from cdmw.core.owned_temp import OWNER_MARKER
+
         controller = _Controller()
         controller.stems = tuple(f"fx_fire_{index}" for index in range(20_000))
         workspace = GuidedEffectsWorkspace(controller, placement_factory=_Placement)
+        root = workspace._placement_root
+        self.assertTrue((root / OWNER_MARKER).is_file())
         workspace.request_shutdown()
+        self.assertFalse(root.exists())
         controller.effect_catalogue_ready.emit()
         self.app.processEvents()
         self.assertFalse(workspace._library_timer.isActive())

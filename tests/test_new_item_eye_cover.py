@@ -172,7 +172,7 @@ def test_template_preview_binds_owned_surface_alpha_and_source_parameter(tmp_pat
     from cdmw.services.shader_controls_preview import shader_preview_mesh
     from cdmw.services.mesh_rust_authoring import _mesh_texture_payloads, _mesh_material_presentations, _session_root_identity
     from tests.test_new_item_materials import dds
-    monkeypatch.setattr("cdmw.services.shader_controls_preview.gettempdir", lambda: str(tmp_path))
+    monkeypatch.setenv("CDMW_TEMP_CACHE_ROOT", str(tmp_path / "cache"))
     base = tmp_path / "base.dds"
     base.write_bytes(dds())
     part = SubMesh(name="Blade", material="Blade", vertices=[(0., 0., 0.), (1., 0., 0.), (0., 1., 0.)],

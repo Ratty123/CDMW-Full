@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import tempfile
 from dataclasses import replace
 from functools import partial
-from pathlib import Path
 from typing import Optional
 
+from cdmw.core.owned_temp import cleanup_owned_temp_directory, create_owned_temp_directory
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.services.new_item_effect_search import filter_effect_rows
 from cdmw.workers.new_item_lookup import NewItemLookupLane
@@ -257,7 +256,7 @@ class GuidedEffectsWorkspace(EffectWorkspaceAuthoringMixin, QWidget):
         self._preview_dirty = True
         self._preview_retry_remaining = 1
         self._placement_position = self._committed.offset if self._committed.stem else None
-        self._placement_root = Path(tempfile.mkdtemp(prefix="cdmw_effect_workspace_"))
+        self._placement_root = create_owned_temp_directory(prefix="cdmw_effect_workspace_")
         self._label_by_stem: dict[str, str] = {}
         self._library_rows: dict[str, EffectLibraryRow] = {}
         self._library_build = None
@@ -852,7 +851,5 @@ class GuidedEffectsWorkspace(EffectWorkspaceAuthoringMixin, QWidget):
         self.look_timer.stop()
         if self.placement is not None:
             self.placement.request_shutdown()
-        try:
-            self._placement_root.rmdir()
-        except OSError:
-            pass
+        if self.placement is None or not hasattr(self.placement, "_empty_root_cleanup"):
+            cleanup_owned_temp_directory(self._placement_root, only_empty=True)

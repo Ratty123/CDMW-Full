@@ -13,6 +13,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping, Sequence
 
+from cdmw.core.temp_cache import session_generated_cache_path
+
 from cdmw.core.common import raise_if_cancelled
 
 from .material_atlas import material_texture_slot_mode, resize_atlas_tile
@@ -686,7 +688,7 @@ def publish_gltf_raster_png(
     canonical = json.dumps(provenance, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
     provenance_hash = hashlib.sha256(canonical).hexdigest()
     source_hash = _file_sha256(source_path, stop_event=stop_event)
-    root = Path(tempfile.gettempdir()) / "cdmw_gltf_uv_bakes" / source_hash[:24]
+    root = session_generated_cache_path("cdmw_gltf_uv_bakes", source_hash[:24])
     root.mkdir(parents=True, exist_ok=True)
     safe_slot = "".join(character if character.isalnum() else "_" for character in slot_key).strip("_") or "texture"
     output_path = root / f"{safe_slot}_{provenance_hash[:24]}.png"

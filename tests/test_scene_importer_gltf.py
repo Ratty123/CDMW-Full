@@ -289,6 +289,34 @@ class GltfSceneImporterTests(unittest.TestCase):
             self.assertTrue((package / glow["file"]["path"]).is_file())
             self.assertEqual(manifest["material_presentations"][0]["emissive_intensity"], 4.5522)
 
+    def test_owned_zip_import_keeps_its_marker_outside_atomic_extraction(self) -> None:
+        from cdmw.core.owned_temp import OWNER_MARKER, owned_temp_directory_is_protected
+        from cdmw.ui.new_item.model_import import load_model_import_source
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bin_chunk, document = _triangle_payload()
+            document["buffers"][0]["uri"] = "triangle.bin"
+            archive = root / "model.zip"
+            with zipfile.ZipFile(archive, "w") as packed:
+                packed.writestr("triangle.bin", bin_chunk)
+                packed.writestr("model.gltf", json.dumps(document))
+            original = archive.read_bytes()
+            source = load_model_import_source(archive)
+            owned_root = source.extract_root
+            try:
+                self.assertTrue(source.owns_extract_root)
+                self.assertEqual(source.model_path.parent, owned_root / "source")
+                self.assertTrue((owned_root / OWNER_MARKER).is_file())
+                self.assertFalse((owned_root / "source" / OWNER_MARKER).exists())
+                self.assertTrue(owned_temp_directory_is_protected(owned_root))
+                self.assertEqual(source.scene.mesh.total_vertices, 3)
+                self.assertEqual(archive.read_bytes(), original)
+            finally:
+                source.cleanup()
+            self.assertFalse(owned_root.exists())
+            self.assertEqual(archive.read_bytes(), original)
+
     def test_zip_containing_gltf_imports_via_safe_extract_cache(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

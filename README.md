@@ -28,6 +28,20 @@ upscaling tools. Configure these only for workflows that need them.
 Settings are stored beside the executable. App-managed files, including caches,
 projects and outputs, use the `workspace/` folder.
 
+Generated material textures use `workspace/cache/generated_materials/`. Each run
+keeps its textures locked while CDMW is using them. Background maintenance on a
+later launch removes abandoned marked runs after a 30-minute grace period and
+retries marked preview, Effects and model-import leftovers. The shared cache
+budget remains 512 MiB, with a 384 MiB pruning target; active files can exceed
+that soft limit.
+The latest maintenance summary is `workspace/logs/temp_data_cleanup.json`.
+
+Unmarked legacy folders and inaccessible files are recorded and preserved.
+Recovery backups, Mesh Editor baselines, export history, projects and mod outputs
+are retained data and are excluded from this cleanup. Some per-user history and
+native preferences live in Windows AppData, and short-lived helper files still
+use Windows Temp.
+
 ## Contents
 
 - [Tools](#tools)

@@ -11,10 +11,12 @@ viewport's edge (see :class:`PlacementFrame`). Nothing here touches the archives
 
 from __future__ import annotations
 
-from cdmw.workers.new_item_cleanup_worker import ModelSourceCleanupLane, PreviewPackageCleanup, preview_process_barrier
-import tempfile
+from cdmw.workers.new_item_cleanup_worker import EmptyOwnedTempCleanup, ModelSourceCleanupLane, PreviewPackageCleanup, preview_process_barrier
+import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Optional, Sequence, Tuple
+
+from cdmw.core.owned_temp import create_owned_temp_directory
 
 from PySide6.QtCore import QThread, Qt, QTimer, Signal
 from PySide6.QtWidgets import (
@@ -157,7 +159,7 @@ class EffectPlacementWorkspace(
         # Keep legacy constructor keywords accepted after removing the mode selector.
         del lighting_preset, lighting_changed
         self._lighting_preset = "neutral_studio"
-        self._output_root = Path(output_root) if output_root is not None else Path(tempfile.gettempdir()) / "cdmw_effect_placement"
+        self._output_root = Path(output_root) if output_root is not None else create_owned_temp_directory(prefix="cdmw_effect_placement_")
         self._cleanup_lane = ModelSourceCleanupLane(parent=self)
         self._preview: Optional[EffectPlacementPreview] = None
         self._effect_preview = effect_preview
@@ -656,8 +658,15 @@ class EffectPlacementWorkspace(
             worker.stop()
         thread = self._thread
         if thread is not None:
+            build_stopped = threading.Event()
+            thread.finished.connect(build_stopped.set, Qt.ConnectionType.DirectConnection)
+            if thread.isFinished():
+                build_stopped.set()
             thread.requestInterruption()
             thread.quit()
+        else:
+            build_stopped = threading.Event()
+            build_stopped.set()
         host = self.host
         if host is not None:
             try:
@@ -665,12 +674,19 @@ class EffectPlacementWorkspace(
                 host.controller.shutdown()
             except Exception:  # noqa: BLE001
                 pass
+        ready = getattr(self, "_preview_shutdown_ready", None)
+        barriers = (build_stopped,) if ready is None else (build_stopped, ready)
+        self._empty_root_cleanup = (
+            EmptyOwnedTempCleanup(self._output_root, barriers)
+            if self._output_root.name.startswith(("cdmw_effect_workspace_", "cdmw_effect_placement_")) else None
+        )
         self._remove_owned_package(self._preview)
         self._remove_owned_package(self._loading_preview)
         for retired in self._retired_previews:
             self._remove_owned_package(retired)
         self._loading_preview = None
         self._retired_previews = []
+        self._cleanup_lane.retire(self._empty_root_cleanup)
 
     def _remove_owned_package(self, preview: Optional[EffectPlacementPreview]) -> bool:
         """Remove only one package directory created directly under this workspace root."""
@@ -682,7 +698,8 @@ class EffectPlacementWorkspace(
         if candidate.parent != root or not candidate.name.startswith("package_"):
             return False
         self._cleanup_lane.retire(PreviewPackageCleanup(
-            candidate, root, direct_package=True, ready=getattr(self, "_preview_shutdown_ready", None)))
+            candidate, root, direct_package=True, ready=getattr(self, "_preview_shutdown_ready", None),
+            empty_root_cleanup=getattr(self, "_empty_root_cleanup", None)))
         return True
 
 

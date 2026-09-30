@@ -27,6 +27,14 @@ older or unrelated processes descendants of a helper.
 leases. Builders publish complete units before returning; readers hold a lease
 while consuming paths, and pruning skips active or just-returned units.
 
+`owned_temp.py` marks private transient roots with their path and filesystem
+identity and holds a file lock for their lifetime. Cleanup refuses unmarked,
+redirected, linked or live roots and keeps the marker when a payload deletion
+fails. `session_generated_cache_path` groups derived material artifacts into a
+locked per-run unit under the configured cache; callers retain usable paths for
+the entire session. Startup maintenance retires abandoned runs and writes a
+bounded report through `services/temp_data_cleanup.py`, off the UI thread.
+
 `texture_encode_cache.py` retains at most 64 validated native DDS results and
 128 MiB within the process. Its keys hash the prepared source contents and include
 the encoder identity, format, dimensions, mip count, colour/alpha policies and

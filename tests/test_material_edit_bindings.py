@@ -45,7 +45,7 @@ def test_mesh_commands_bind_each_part_preserve_other_parts_and_round_trip(tmp_pa
     from tests.test_mesh_rust_replacement import command
     raw = named_parts(alias)
     monkeypatch.setattr(exact, "_pac_fixture", lambda **_: raw)
-    monkeypatch.setattr("cdmw.services.shader_controls_preview.gettempdir", lambda: str(tmp_path))
+    monkeypatch.setenv("CDMW_TEMP_CACHE_ROOT", str(tmp_path / "cache"))
     original, service, session = exact._open_exact_session(tmp_path / "session")
     try:
         snapshot = session.shadow_service.capture_export_snapshot(session.shadow_session_id)
@@ -94,7 +94,7 @@ def test_new_item_both_preview_stages_apply_each_named_part(tmp_path, monkeypatc
     from cdmw.ui.new_item.item_preview import build_item_preview_package
     from cdmw.ui.new_item.model_import import ModelPlacement
     from cdmw.services.effect_placement_preview import build_effect_placement_package
-    monkeypatch.setattr("cdmw.services.shader_controls_preview.gettempdir", lambda: str(tmp_path))
+    monkeypatch.setenv("CDMW_TEMP_CACHE_ROOT", str(tmp_path / "cache"))
     raw = named_parts("sharedX")
     mesh = parse_pac(raw, "character/model/item.pac")
     files = {f.path: f.data for f in dependencies(mesh)}
@@ -217,7 +217,7 @@ def test_shader_lod_preview_does_not_fall_back_to_another_parts_wrapper(tmp_path
     from cdmw.services.mesh_replacement_import import initial_replacement_state, mesh_with_part_ids
     from cdmw.services.mesh_shader_controls_preview import stage_shader_preview
     monkeypatch.setattr(exact, "_pac_fixture", lambda **_: named_parts("target0"))
-    monkeypatch.setattr("cdmw.services.shader_controls_preview.gettempdir", lambda: str(tmp_path))
+    monkeypatch.setenv("CDMW_TEMP_CACHE_ROOT", str(tmp_path / "cache"))
     _, service, session = exact._open_exact_session(tmp_path / "session")
     try:
         snapshot = session.shadow_service.capture_export_snapshot(session.shadow_session_id)

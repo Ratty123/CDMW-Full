@@ -4,8 +4,9 @@ from __future__ import annotations
 import copy
 import hashlib
 from pathlib import Path
-from tempfile import gettempdir
 from types import SimpleNamespace
+
+from cdmw.core.temp_cache import session_generated_cache_path
 
 from cdmw.core.common import raise_if_cancelled
 from cdmw.domain.mesh.shader_controls import EYE_COVER, family_for, preview_factors, eye_cover_colour_range
@@ -82,7 +83,7 @@ def shader_preview_groups(mesh, choices, *, plain_pbr=False):
 def publish_preview_texture(data):
     """Content-addressed derived DDS cache. Called by material preparation workers."""
     from cdmw.services.mesh_rust_replacement_materials import _replacement_texture_path
-    directory = Path(gettempdir()) / "cdmw-shader-preview-v1"
+    directory = session_generated_cache_path("cdmw-shader-preview-v1")
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / (hashlib.sha256(data).hexdigest() + ".dds")
     if not path.exists():

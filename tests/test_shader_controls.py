@@ -442,7 +442,7 @@ def test_mesh_command_caches_masks_reuses_base_maps_and_restores_on_undo(tmp_pat
     from tests.test_mesh_rust_authoring_exact_output import _open_exact_session
     from tests.test_mesh_rust_replacement import command
     _, service, session = _open_exact_session(tmp_path / "session")
-    monkeypatch.setattr("cdmw.services.shader_controls_preview.gettempdir", lambda: str(tmp_path))
+    monkeypatch.setenv("CDMW_TEMP_CACHE_ROOT", str(tmp_path / "cache"))
     try:
         snapshot = session.shadow_service.capture_export_snapshot(session.shadow_session_id)
         mask = ReplacementFile(FAMILIES[0].default_mask, dds())
@@ -455,7 +455,7 @@ def test_mesh_command_caches_masks_reuses_base_maps_and_restores_on_undo(tmp_pat
         edited = apply(.2)
         first = session.archive_refit_material_cache[edited["state"]["archive_refit_materials"]["key"]]
         assert any(row["role"] == "shader_mask" for row in first["textures"])
-        resources = list((tmp_path / "cdmw-shader-preview-v1").glob("*.dds"))
+        resources = list((tmp_path / "cache").rglob("cdmw-shader-preview-v1/*.dds"))
         assert len(resources) == 1
         stamp = resources[0].stat().st_mtime_ns
         edited = apply(.7)
@@ -482,15 +482,17 @@ def test_mesh_command_caches_masks_reuses_base_maps_and_restores_on_undo(tmp_pat
 
 
 def test_texture_cache_validates_before_publication_and_honours_cancel(tmp_path, monkeypatch):
+    from cdmw.core.temp_cache import session_generated_cache_path
     from cdmw.services.shader_controls_preview import publish_preview_texture, shader_preview_mesh
     from cdmw.domain.cancellation import RunCancelled
     from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
     from tests.test_new_item_materials import dds
     from cdmw.services.mesh_rust_authoring import RustMeshProtocolError
-    monkeypatch.setattr("cdmw.services.shader_controls_preview.gettempdir", lambda: str(tmp_path))
+    monkeypatch.setenv("CDMW_TEMP_CACHE_ROOT", str(tmp_path / "cache"))
+    directory = session_generated_cache_path("cdmw-shader-preview-v1")
     with pytest.raises(RustMeshProtocolError, match="not a DDS"):
         publish_preview_texture(b"invalid DDS")
-    assert not list((tmp_path / "cdmw-shader-preview-v1").iterdir())
+    assert not list(directory.iterdir())
     event = threading.Event()
     def read(_path):
         event.set()
@@ -499,7 +501,7 @@ def test_texture_cache_validates_before_publication_and_honours_cancel(tmp_path,
     mesh = ParsedMesh(path="imported.obj", submeshes=[SubMesh(name="Blade", material="Blade")])
     with pytest.raises(RunCancelled):
         shader_preview_mesh(mesh, (("Blade", choice()),), snapshot=snapshot, stop_event=event)
-    assert not list((tmp_path / "cdmw-shader-preview-v1").iterdir())
+    assert not list(directory.iterdir())
 
 
 def test_pac_vertex_colours_reach_render_document_and_effect_placement():
@@ -569,7 +571,7 @@ def test_new_item_preview_keeps_base_dds_and_adds_only_an_owned_shader_mask(tmp_
     from cdmw.services.shader_controls_preview import shader_preview_mesh
     from cdmw.services.mesh_rust_authoring import _mesh_texture_payloads, _mesh_material_presentations, _material_input_is_renderer_role_eligible, _session_root_identity
     from tests.test_new_item_materials import dds
-    monkeypatch.setattr("cdmw.services.shader_controls_preview.gettempdir", lambda: str(tmp_path))
+    monkeypatch.setenv("CDMW_TEMP_CACHE_ROOT", str(tmp_path / "cache"))
     base = tmp_path / "base.dds"
     base.write_bytes(dds())
     part = SubMesh(name="Blade", material="Blade", vertices=[(0., 0., 0.), (1., 0., 0.), (0., 1., 0.)],

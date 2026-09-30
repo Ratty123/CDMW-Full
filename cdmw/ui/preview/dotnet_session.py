@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import shutil
-import tempfile
 import uuid
 from collections import OrderedDict
 from collections.abc import Callable, Mapping, Sequence
@@ -14,6 +12,8 @@ from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import QObject, QProcess, QTimer, Signal
+
+from cdmw.core.owned_temp import cleanup_owned_temp_directory, create_owned_temp_directory
 
 from cdmw.services.atomic_file_service import atomic_copy_file
 from cdmw.services.preview_rendering_service import (
@@ -680,7 +680,7 @@ class RustPreviewSessionController(
             return package
         output_dir = self._runtime_output_dir
         if output_dir is None:
-            output_dir = Path(tempfile.mkdtemp(prefix="cdmw_preview_session_output_"))
+            output_dir = create_owned_temp_directory(prefix="cdmw_preview_session_output_")
             self._runtime_output_dir = output_dir
         output_dir.mkdir(parents=True, exist_ok=True)
         return replace(
@@ -697,7 +697,7 @@ class RustPreviewSessionController(
         output_dir = self._runtime_output_dir
         self._runtime_output_dir = None
         if output_dir is not None:
-            shutil.rmtree(output_dir, ignore_errors=True)
+            cleanup_owned_temp_directory(output_dir)
 
     def prewarm(
         self,

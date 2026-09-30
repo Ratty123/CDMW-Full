@@ -89,6 +89,9 @@ def pytest_unconfigure() -> None:
 
             QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
             app.shutdown()
+    from cdmw.core.owned_temp import close_owned_temp_directory_locks
+
+    close_owned_temp_directory_locks()
     if _original_cache_root is None:
         os.environ.pop(_CACHE_ENV, None)
     else:
