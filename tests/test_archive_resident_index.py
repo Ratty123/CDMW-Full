@@ -43,6 +43,17 @@ def test_resident_index_reads_exact_locations_and_reuses_generation(catalogue):
         assert list(index.by_basename[entry.basename.lower()]) == [entry]
 
 
+def test_row_paths_and_package_ownership_are_reused_without_string_decode(catalogue, monkeypatch):
+    _root, entries, source = catalogue
+    index = source.open()
+    expected = tuple((entry.path, str(entry.pamt_path.parent).replace("\\", "/").casefold()) for entry in entries)
+    tuple(index)  # Prime each archive payload file path, which remains decoded on demand.
+    monkeypatch.setattr(index, "_string", lambda *args: pytest.fail("resident path or owner decoded again"))
+    for row, (path, package) in enumerate(expected):
+        assert index._package_for_row(row) == package
+        assert index[row].path == path
+
+
 @pytest.mark.parametrize('filtered', [False, True])
 def test_skeleton_search_filters_names_before_decoding_records(catalogue, tmp_path, monkeypatch, filtered):
     from cdmw.core.skeleton_resolver import _all_indexed_pab_candidates, _descriptor_candidates_for_model

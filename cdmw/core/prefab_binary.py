@@ -62,6 +62,8 @@ binary; it pairs with the ``.padxil`` shader cache instead.
 from __future__ import annotations
 
 import struct
+import threading
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import Iterator, Mapping, Sequence
 
@@ -398,6 +400,54 @@ def _read_types(reader: _Reader, count: int) -> tuple[PrefabType, ...]:
     return tuple(types)
 
 
+_TYPE_CACHE = OrderedDict()
+_TYPE_CACHE_LOCK = threading.Lock()
+_TYPE_CACHE_LIMIT = 32
+_TYPE_CACHE_SCHEMA_BYTES = 256 * 1024
+
+
+def _read_cached_types(reader: _Reader, count: int) -> tuple[PrefabType, ...]:
+    """Reuse immutable descriptors only when the complete schema bytes match."""
+    start = reader.pos
+    scan = _Reader(reader.data, start)
+    try:
+        for _ in range(count):
+            length = scan.u32()
+            if length > 256 or scan.pos + length > len(scan.data):
+                raise PrefabBinaryError("invalid schema span")
+            scan.pos += length
+            members = scan.u16()
+            if members > _MAX_MEMBERS:
+                raise PrefabBinaryError("invalid member count")
+            for _ in range(members):
+                for _ in range(2):
+                    length = scan.u32()
+                    if length > 256 or scan.pos + length > len(scan.data):
+                        raise PrefabBinaryError("invalid schema span")
+                    scan.pos += length
+                if scan.pos + 8 > len(scan.data):
+                    raise PrefabBinaryError("invalid member span")
+                scan.pos += 8
+    except PrefabBinaryError:
+        return _read_types(reader, count)
+    if scan.pos - start > _TYPE_CACHE_SCHEMA_BYTES:
+        return _read_types(reader, count)
+    key = (start, count, reader.data[start:scan.pos])
+    with _TYPE_CACHE_LOCK:
+        cached = _TYPE_CACHE.get(key)
+        if cached is not None:
+            _TYPE_CACHE.move_to_end(key)
+            reader.pos = scan.pos
+            return cached
+    types = _read_types(reader, count)
+    with _TYPE_CACHE_LOCK:
+        _TYPE_CACHE[key] = types
+        _TYPE_CACHE.move_to_end(key)
+        while len(_TYPE_CACHE) > _TYPE_CACHE_LIMIT:
+            _TYPE_CACHE.popitem(last=False)
+    return types
+
+
 @dataclass(slots=True)
 class _Header:
     version: int
@@ -433,7 +483,7 @@ def _read_header(data: bytes) -> _Header:
     if not 0 < type_count <= _MAX_TYPES:
         raise PrefabBinaryError(f"implausible type count {type_count}")
 
-    types = _read_types(reader, type_count)
+    types = _read_cached_types(reader, type_count)
 
     pool: list[str] = []
     if revision >= STRING_POOL_MIN_REVISION:

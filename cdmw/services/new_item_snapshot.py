@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import struct
 import threading
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Callable, Dict, FrozenSet, Iterable, List, Mapping, Optional, Sequence, Tuple
 
@@ -129,6 +129,15 @@ class NewItemSnapshot:
     def source_files_changed(self) -> bool:
         """Check on a worker before planning, including after a manager or Steam repair."""
         return self.provenance is not None and self.provenance.files_changed()
+
+    def discovery_view(self) -> NewItemSnapshot:
+        """Read discovery inputs with their own revisions, outside an author's plan."""
+        reader = self.read_entry
+        if self.provenance is not None and getattr(reader, "__self__", None) is self.provenance:
+            reader = self.provenance.reader
+        tracker = SourceTracker(reader)
+        return replace(self, read_entry=tracker.read, provenance=tracker, _payloads={},
+                       _authoring_indexes={}, _contexts={}, _families={})
 
     def entry(self, path: str) -> ArchiveEntry:
         key = str(path or "").replace("\\", "/").strip("/").lower()

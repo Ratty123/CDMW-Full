@@ -130,6 +130,9 @@ class ResidentArchiveIndex(Sequence[ArchiveEntry]):
             self._extensions = {}
             self._source_paths = {}
             self._source_packages = {}
+            self._row_paths = []
+            self._row_packages = array("I")
+            self._package_names = []
             self._active = bytearray(count)
             mounts = None
             mount_path = root / "meta" / "0.papgt"
@@ -146,6 +149,10 @@ class ResidentArchiveIndex(Sequence[ArchiveEntry]):
                             continue
                         raise ValueError(f"Mounted archive is missing: {mount.name}")
                     mounts[str(root / mount.name).replace("\\", "/").casefold()] = rank
+            package_ids, package_ranks = {}, []
+            unpack = _RECORD.unpack_from
+            paths, basenames, extensions = self._paths, self._basenames, self._extensions
+            active = self._active
             for row in range(count):
                 if row % 4096 == 0:
                     raise_if_cancelled(stop_event, "Archive catalogue loading cancelled.")
@@ -155,24 +162,35 @@ class ResidentArchiveIndex(Sequence[ArchiveEntry]):
                         # bounded slice while building a large shared index.
                         time.sleep(.001)
                 record = records + row * record_size
-                text = self._string(_OFFSET.unpack_from(data, record)[0], _LENGTH.unpack_from(data, record + 48)[0])
-                text = text.replace("\\", "/").strip("/").lower()
-                previous = self._paths.get(text)
+                fields = unpack(data, record)
+                original_path = self._string(fields[0], fields[6]).replace("\\", "/").strip("/")
+                text = original_path.lower()
+                self._row_paths.append(text if text == original_path else original_path)
+                source_key = (fields[1], fields[7])
+                owner = package_ids.get(source_key)
+                if owner is None:
+                    package = str(self._source_path(*source_key)).replace("\\", "/").rsplit("/", 1)[0].casefold()
+                    owner = len(self._package_names)
+                    package_ids[source_key] = owner
+                    self._source_packages[source_key] = package
+                    self._package_names.append(package)
+                    package_ranks.append(mounts.get(package) if mounts is not None else None)
+                self._row_packages.append(owner)
+                previous = paths.get(text)
                 if mounts is None:
-                    flags = _LENGTH.unpack_from(data, record + 68)[0]
-                    self._active[row] = not (flags & 2) or bool(flags & 1)
-                elif self._package_for_row(row) in mounts:
-                    rank = mounts[self._package_for_row(row)]
-                    winner = next((prior for prior in _rows(previous if previous is not None else ()) if self._active[prior]), None)
-                    if winner is None or rank < mounts[self._package_for_row(winner)]:
-                        self._active[row] = 1
+                    flags = fields[11]
+                    active[row] = not (flags & 2) or bool(flags & 1)
+                elif (rank := package_ranks[owner]) is not None:
+                    winner = next((prior for prior in _rows(previous if previous is not None else ()) if active[prior]), None)
+                    if winner is None or rank < package_ranks[self._row_packages[winner]]:
+                        active[row] = 1
                         if winner is not None:
-                            self._active[winner] = 0
-                _append(self._paths, text, row)
+                            active[winner] = 0
+                _append(paths, text, row)
                 basename = text.rsplit("/", 1)[-1]
-                _append(self._basenames, basename, row)
+                _append(basenames, basename, row)
                 extension = "." + basename.rsplit(".", 1)[1] if "." in basename else ""
-                _append(self._extensions, extension, row)
+                _append(extensions, extension, row)
             self.by_path = _EntryGroups(self, self._paths)
             self.by_basename = _EntryGroups(self, self._basenames)
             self.by_extension = _EntryGroups(self, self._extensions)
@@ -209,7 +227,7 @@ class ResidentArchiveIndex(Sequence[ArchiveEntry]):
         fields = _RECORD.unpack_from(self._mapping, self._records + row * _RECORD.size)
         path, pamt, paz, offset, stored, original, path_size, pamt_size, paz_size, flags, paz_index, *_ = fields
         return ArchiveEntry(
-            path=self._string(path, path_size).replace("\\", "/").strip("/"),
+            path=self._row_paths[row],
             pamt_path=self._source_path(pamt, pamt_size), paz_file=self._source_path(paz, paz_size),
             offset=offset, comp_size=stored, orig_size=original, flags=flags, paz_index=paz_index,
         )
@@ -242,14 +260,7 @@ class ResidentArchiveIndex(Sequence[ArchiveEntry]):
         return _FilteredGroups(self.by_path, sources), _FilteredGroups(self.by_basename, sources)
 
     def _package_for_row(self, row):
-        record = self._records + row * _RECORD.size
-        key = (_OFFSET.unpack_from(self._mapping, record + 8)[0],
-               _LENGTH.unpack_from(self._mapping, record + 52)[0])
-        package = self._source_packages.get(key)
-        if package is None:
-            package = str(self._source_path(*key)).replace("\\", "/").rsplit("/", 1)[0].casefold()
-            self._source_packages[key] = package
-        return package
+        return self._package_names[self._row_packages[row]]
 
     def matching(self, extensions, *, active_only=True, contains="") -> Iterator[ArchiveEntry]:
         """Worker-side filtered enumeration, retaining the backend's mount winner."""

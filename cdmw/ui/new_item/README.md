@@ -275,6 +275,13 @@ Opening Effects reuses the completed metadata or the build already in progress; 
 restarts indexing. A valid disk cache avoids decoding again, and rereading the archives
 refreshes the catalogue even before Effects is opened.
 
+Catalogue discovery uses separate source tracking, so browsing unrelated effects does
+not add them to an item's export checks. Planning still tracks the selected effect and
+every authoring dependency it reads, and changed sources still invalidate the plan.
+Metadata decoding reuses bounded immutable schemas only when their contents match and
+collects catalogue facts in one traversal. Full authoring decoding and validation remain
+available through the same Python parser.
+
 A first build after a missing or outdated cache can still be in progress on an immediate
 visit to Effects; the workspace stays usable while it finishes. The native window
 resizes after Qt settles its container geometry, so the first opening fills the

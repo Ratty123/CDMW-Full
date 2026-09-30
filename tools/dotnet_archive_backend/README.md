@@ -194,6 +194,11 @@ shadow comparisons are removed. Existing `CDMW_ARCHIVE_BACKEND` values are ignor
 with one log notice; there is no replacement selector or fallback action. Existing
 cache compatibility and archive readers remain available.
 
+Python's generation-bound resident view decodes row paths once and reuses package
+ownership and mount ranks. It preserves path spelling, lookup order, active overrides,
+source validation, cancellation and the existing periodic worker yield. The published
+index format and worker protocol are unchanged.
+
 The catalogue service coordinates one retry for temporary sharing failures,
 unexpected worker exits and timeouts, across transport restart, session/query
 reconstruction and publication. Transport never replays requests independently.

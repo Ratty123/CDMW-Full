@@ -132,3 +132,31 @@ def test_changed_archive_and_in_memory_reader_reject_stale_plan(tmp_path):
         file.write(b"changed")
     with pytest.raises(StaleNewItemSource, match="Source changed"):
         service.export_loose(plan, tmp_path / "stale", manager="JMM")
+
+
+@pytest.mark.parametrize("child_decoder", [False, True])
+def test_effect_discovery_does_not_expand_authoring_revision(tmp_path, child_decoder):
+    from cdmw.services.effect_catalogue import build_effect_catalogue
+    from cdmw.services.effect_catalogue_process import build_effect_catalogue_in_subprocess
+    files = current_files()
+    unrelated = {f"effect/binary__/releasebin/lab_{n}.pae": b"owned invalid effect" for n in range(40)}
+    files.update(unrelated)
+    pamt = build_package(tmp_path / "game", files)
+    entries = parse_archive_pamt(pamt)
+    service = NewItemService()
+    snapshot = service.build_snapshot(entries, read_entry=lambda entry: files[entry.path])
+    before = snapshot.provenance.capture()
+    build = build_effect_catalogue_in_subprocess if child_decoder else build_effect_catalogue
+    catalogue = build(snapshot)
+    assert set(catalogue.facts) >= {f"lab_{n}" for n in range(40)}
+    assert snapshot.provenance.capture().payloads == before.payloads
+    plan = service.plan(spec(), snapshot)
+    assert not any(row["path"] in unrelated for row in plan.manifest["sources"])
+
+    selected = next(iter(unrelated))
+    snapshot.payload(selected)
+    revision = snapshot.provenance.capture()
+    assert any(row.entry.path == selected for row in revision.payloads)
+    files[selected] = b"owned changed effect"
+    with pytest.raises(StaleNewItemSource, match="Source changed"):
+        revision.validate()

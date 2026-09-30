@@ -41,6 +41,7 @@ flag can be written back in place; strings and collections are read, not resized
 from __future__ import annotations
 
 import struct
+from functools import lru_cache
 from dataclasses import dataclass, field
 from typing import Iterator, Optional, Sequence, Tuple, Union
 
@@ -172,6 +173,44 @@ class ReflectNode:
 
 
 @dataclass(frozen=True, slots=True)
+class EffectMetadata:
+    strings: Tuple[str, ...]
+    resources: Tuple[str, ...]
+    emitters: Tuple[str, ...]
+    presets: Tuple[Tuple[str, str], ...]
+    spawn_infinite_emitter: bool
+    spawn_infinite_particle: bool
+    any_infinite_loop: bool
+
+    @classmethod
+    def collect(cls, root):
+        strings, emitters, presets = [], {}, {}
+        spawn_loop = spawn_particle = any_loop = False
+        for node in root.walk():
+            spawn = node.type_name == "EmitterSpawnData"
+            for value in node.values:
+                if value.kind == KIND_STRING:
+                    text = str(value.value)
+                    strings.append(text)
+                    if value.name == "_emitterDataName" and text:
+                        emitters[text] = None
+                    kind = {"_renderGroupPreset": "render", "_simulationGroupPreset": "simulation"}.get(value.name)
+                    if kind and text:
+                        presets[kind, text] = None
+                elif value.kind == KIND_STRING_LIST:
+                    strings.extend(str(item) for item in value.value)
+                if value.name == "_loopCount" and value.value == -1:
+                    any_loop = True
+                    spawn_loop = spawn_loop or spawn
+                if spawn and value.name == "_isInfiniteParticle" and value.value:
+                    spawn_particle = True
+        resources = tuple(dict.fromkeys(text for text in strings if "/" in text and
+                          text.lower().endswith((".dds", ".pam", ".pac", ".paem", ".pae", ".effect"))))
+        return cls(tuple(strings), resources, tuple(emitters), tuple(presets),
+                   spawn_loop, spawn_particle, any_loop)
+
+
+@dataclass(frozen=True, slots=True)
 class EffectDocument:
     """A decoded ``.pae`` or ``.paem``."""
 
@@ -185,6 +224,7 @@ class EffectDocument:
     byte_length: int
     walk_complete: bool
     walk_note: str = ""
+    catalogue_metadata: Optional[EffectMetadata] = field(default=None, repr=False)
 
     @property
     def root_type(self) -> str:
@@ -193,6 +233,8 @@ class EffectDocument:
     def strings(self) -> Tuple[str, ...]:
         """Every string value in the graph, in walk order."""
 
+        if self.catalogue_metadata is not None:
+            return self.catalogue_metadata.strings
         out: list[str] = []
         for value in self.root.all_values():
             if value.kind == KIND_STRING:
@@ -204,6 +246,8 @@ class EffectDocument:
     def resources(self) -> Tuple[str, ...]:
         """Paths the graph names (textures, meshes, vector fields, emitter files), deduplicated."""
 
+        if self.catalogue_metadata is not None:
+            return self.catalogue_metadata.resources
         seen: list[str] = []
         for text in self.strings():
             lowered = text.lower()
@@ -214,6 +258,8 @@ class EffectDocument:
     def emitter_names(self) -> Tuple[str, ...]:
         """The emitters an effect instances (``emitter/<stem>``), in order, deduplicated."""
 
+        if self.catalogue_metadata is not None:
+            return self.catalogue_metadata.emitters
         seen: list[str] = []
         for value in self.root.all_values():
             if value.name == "_emitterDataName" and value.kind == KIND_STRING:
@@ -299,12 +345,24 @@ def write_value(data: bytes, value: ReflectValue, new_raw: bytes) -> bytes:
 # the walk
 
 
+def _build_member_descriptors(types):
+    return tuple(tuple((member, 1 << index, member.flags in CONTAINER_KINDS,
+                        bool(member.attr_flags & ATTR_NOT_SERIALISED))
+                       for index, member in enumerate(kind.members)) for kind in types)
+
+
+_member_descriptors = lru_cache(maxsize=32)(_build_member_descriptors)
+
+
 class _Walker:
     def __init__(self, data: bytes, base: int, types: Sequence[PrefabType], blob_offset: int, blob_length: int, *, metadata_only: bool = False) -> None:
         self.data = data
         #: Absolute offset of the reflect container within ``data``.
         self.base = base
         self.types = tuple(types)
+        descriptors = (_member_descriptors(self.types) if sum(len(kind.members) for kind in self.types) <= 8192
+                       else _build_member_descriptors(self.types))
+        self.member_descriptors = dict(zip(map(id, self.types), descriptors))
         self.pos = base + blob_offset
         self.end = base + blob_offset + blob_length
         self.metadata_only = metadata_only
@@ -442,10 +500,10 @@ class _Walker:
         if depth > _MAX_DEPTH:
             raise EffectBinaryError(f"{kind.type_name} nests deeper than {_MAX_DEPTH}")
         path = f"{kind.type_name}"
-        for index, member in enumerate(kind.members):
-            selected = bool((mask >> index) & 1)
-            if member.flags in CONTAINER_KINDS:
-                if member.attr_flags & ATTR_NOT_SERIALISED:
+        for member, bit, container, editor_only in self.member_descriptors[id(kind)]:
+            selected = bool(mask & bit)
+            if container:
+                if editor_only:
                     continue
                 null = self.u8()
                 node.wire[member.name] = {"null": null == 1}
@@ -579,4 +637,5 @@ def decode_effect_binary(data: bytes, *, metadata_only: bool = False) -> EffectD
         byte_length=len(payload),
         walk_complete=complete,
         walk_note=note,
+        catalogue_metadata=EffectMetadata.collect(root) if metadata_only else None,
     )

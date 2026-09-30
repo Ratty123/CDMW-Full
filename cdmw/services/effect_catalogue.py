@@ -130,7 +130,11 @@ def effect_facts_from_document(stem: str, document: EffectDocument) -> EffectFac
     # (`_loopCount` -1) says the same thing from below
     infinite_emitter = flag("_hasInfiniteEmitter")
     infinite_particle = flag("_hasInfiniteLifeTimeParticle")
-    for spawn in root.find("EmitterSpawnData"):
+    metadata = document.catalogue_metadata
+    if metadata is not None:
+        infinite_emitter = infinite_emitter or metadata.spawn_infinite_emitter
+        infinite_particle = infinite_particle or metadata.spawn_infinite_particle
+    for spawn in (() if metadata is not None else root.find("EmitterSpawnData")):
         loop = spawn.value("_loopCount")
         if loop is not None and loop.value == -1:
             infinite_emitter = True
@@ -180,6 +184,8 @@ def build_effect_catalogue(
 ) -> EffectCatalogue:
     """Read and decode every effect the snapshot names (or `stems`) into a catalogue."""
 
+    if isinstance(snapshot, NewItemSnapshot):
+        snapshot = snapshot.discovery_view()
     wanted = sorted(stems) if stems is not None else sorted(snapshot.effect_stems)
     catalogue = EffectCatalogue(signature=catalogue_signature(snapshot, stop_event=stop_event))
     total = len(wanted)

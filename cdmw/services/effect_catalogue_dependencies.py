@@ -33,13 +33,15 @@ class Dependency:
 
 
 def describe(document):
-    paths = (*emitter_paths_of(document), *(preset_path(kind, name) for kind, name in preset_names_of(document)))
+    metadata = document.catalogue_metadata
+    presets = metadata.presets if metadata is not None else preset_names_of(document)
+    paths = (*emitter_paths_of(document), *(preset_path(kind, name) for kind, name in presets))
     resources = document.resources()
     return Dependency(tuple(dict.fromkeys(paths)),
                       tuple(p for p in resources if p.endswith('.dds') and 'nonetexture' not in p.casefold()),
                       tuple(p for p in resources if p.endswith(('.pam', '.pac'))),
-                      tuple(name for _kind, name in preset_names_of(document)),
-                      any(v.name == '_loopCount' and v.value == -1 for v in document.root.all_values()),
+                      tuple(name for _kind, name in presets),
+                      metadata.any_infinite_loop if metadata is not None else any(v.name == '_loopCount' and v.value == -1 for v in document.root.all_values()),
                       '' if document.walk_complete else document.walk_note)
 
 

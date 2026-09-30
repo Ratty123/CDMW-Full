@@ -24,6 +24,29 @@ class EffectFactsTests(unittest.TestCase):
     def setUp(self) -> None:
         self.facts = effect_facts_from_document("fx_hit_common_fire_attach_a_loop", decode_effect_binary(FIXTURE.read_bytes()))
 
+    def test_schema_cache_is_content_keyed_and_metadata_matches_full_walk(self):
+        from cdmw.core import prefab_binary
+        from cdmw.services.effect_catalogue_dependencies import describe
+        data = FIXTURE.read_bytes()
+        full = decode_effect_binary(data)
+        first = decode_effect_binary(data, metadata_only=True)
+        second = decode_effect_binary(data, metadata_only=True)
+        self.assertIs(first.types, second.types)
+        self.assertEqual(first.strings(), full.strings())
+        self.assertEqual(first.resources(), full.resources())
+        self.assertEqual(first.emitter_names(), full.emitter_names())
+        self.assertEqual(describe(first), describe(full))
+        offset = first.container_offset + first.types[0].offset + 4
+        changed = data[:offset] + b"Z" + data[offset+1:]
+        altered = decode_effect_binary(changed, metadata_only=True)
+        self.assertIsNot(altered.types, first.types)
+        self.assertTrue(altered.root_type.startswith("Z"))
+        invalid = data[:offset] + b"_" + data[offset+1:]
+        with self.assertRaises(ValueError):
+            decode_effect_binary(invalid, metadata_only=True)
+        self.assertLessEqual(len(prefab_binary._TYPE_CACHE), 32)
+        self.assertTrue(all(len(key[2]) <= 256 * 1024 for key in prefab_binary._TYPE_CACHE))
+
     def test_facts_come_from_the_binary(self) -> None:
         self.assertEqual(self.facts.name, "fx/materialfx/fx_hit_common_fire_attach_a_loop")
         self.assertEqual(self.facts.emitters, ("emitter/cdem_last_fire_circle_trail_001a", "emitter/cdem_material_firefly_alpha_uberstandard"))

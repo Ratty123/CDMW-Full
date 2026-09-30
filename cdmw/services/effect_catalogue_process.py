@@ -40,6 +40,8 @@ def build_effect_catalogue_in_subprocess(
     index, snapshot, and reader closure remain in their owning process.
     """
     raise_if_cancelled(stop_event)
+    if isinstance(snapshot, NewItemSnapshot):
+        snapshot = snapshot.discovery_view()
     signature = catalogue_signature(snapshot, stop_event=stop_event)
     wanted = sorted(snapshot.effect_stems)
     effect_paths = {f'{EFFECT_DIR}{stem}.pae': stem for stem in wanted}
