@@ -444,9 +444,12 @@ std::vector<Entry> scan_package_root(const fs::path& package_root, const Progres
                 continue;
             }
             const auto& item = *iterator;
-            if (iterator.depth() == 0 && item.is_directory(error) && lower_copy(item.path().filename().string()) == "cdmods") {
-                iterator.disable_recursion_pending();
-                continue;
+            if (iterator.depth() == 0 && item.is_directory(error)) {
+                const auto name = lower_copy(item.path().filename().string());
+                if (name == "cdmods" || name == "backups") {
+                    iterator.disable_recursion_pending();
+                    continue;
+                }
             }
             if (item.is_regular_file(error) && lower_copy(item.path().extension().string()) == ".pamt") {
                 pamt_files.push_back(item.path());

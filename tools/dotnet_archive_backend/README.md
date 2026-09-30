@@ -3,6 +3,14 @@
 This package is full CDMW's independently owned archive backend. It does not
 reference Archive Lite projects, assemblies, settings, processes, or caches.
 
+Directory scans skip the archive root's `backups/` and `Cdmods/` directories,
+case-insensitively, before descending into them. Native discovery, source
+fingerprints and the retained Python scanner use the same exclusions. Live
+archive groups and overlays remain discoverable, including groups under
+`game_files/`. A cached catalogue fingerprinted with backup sources becomes stale
+and rebuilds automatically on the next archive open. An explicitly selected
+`.pamt` file can still be inspected even when it is inside a backup directory.
+
 The self-contained Windows x64 worker uses newline-delimited JSON on standard
 input and output. Protocol v3 caps each message at one MiB and carries request,
 UI-generation, session, operation, and status fields. The worker loads only
@@ -106,6 +114,14 @@ ctest --test-dir native/cdmw_full_archive_core/build -C Release --output-on-fail
 dotnet build tools/dotnet_archive_backend/Cdmw.FullArchive.slnx -c Release --nologo --verbosity:minimal
 dotnet run --project tools/dotnet_archive_backend/tests/Cdmw.FullArchive.Tests/Cdmw.FullArchive.Tests.csproj -c Release --no-build
 .venv\Scripts\python.exe tools/dotnet_archive_backend/probe_full_archive_backend.py --worker tools/dotnet_archive_backend/src/Cdmw.FullArchive.Worker/bin/Release/net10.0-windows/win-x64/cdmw-full-archive-worker.exe
+```
+
+For focused backup-discovery, folder-extraction and existing-cache upgrade checks:
+
+```powershell
+cmake --build native/cdmw_full_archive_core/build --config Release --target cdmw_full_archive_core
+dotnet run --project tools/dotnet_archive_backend/tests/Cdmw.FullArchive.Tests -c Release -- --archive-discovery
+.\.venv\Scripts\python.exe -m pytest tests/test_archive_discovery.py -p no:cacheprovider --basetemp="$env:TEMP\cdmw-pytest-archive-discovery"
 ```
 
 For focused query regression checks, including compilation:

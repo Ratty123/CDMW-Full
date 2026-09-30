@@ -10,13 +10,15 @@ namespace Cdmw.FullArchive.Tests;
 
 internal static class FullArchiveTestRunner
 {
-    public static async Task<int> RunAsync(bool archiveQueryOnly = false, bool itemCatalogueOnly = false, bool previewDependenciesOnly = false)
+    public static async Task<int> RunAsync(bool archiveQueryOnly = false, bool itemCatalogueOnly = false, bool previewDependenciesOnly = false, bool archiveDiscoveryOnly = false)
     {
         var tests = new (string Name, Func<Task> Run)[]
         {
             ("cache_layout_compatibility", CacheLayoutMigrationAsync),
             ("legacy_generation_and_prepared_cache", LegacyGenerationAndPreparedCacheAsync),
             ("native_and_generation_cache", NativeAndGenerationCacheAsync),
+            ("archive_discovery_excludes_backups", ArchiveDiscoveryTests.ScanAndExportAsync),
+            ("existing_backup_cache_is_rebuilt", ArchiveDiscoveryTests.ExistingBackupCacheAsync),
             ("compact_dependency_index", CompactDependencyIndexAsync),
             ("query_lookup_search_prepare_export", QueryLookupSearchPrepareExportAsync),
             ("preview_association_and_prepare_batch", PreviewAssociationAndPrepareBatchAsync),
@@ -46,6 +48,11 @@ internal static class FullArchiveTestRunner
             ("source_independence_and_baseline", SourceIndependenceAndBaselineAsync),
             ("stdio_worker_ping_shutdown", StdioWorkerPingShutdownAsync),
         };
+        if (archiveDiscoveryOnly)
+        {
+            tests = tests.Where(static test => test.Name is "native_and_generation_cache"
+                or "archive_discovery_excludes_backups" or "existing_backup_cache_is_rebuilt").ToArray();
+        }
         if (archiveQueryOnly)
         {
             tests = tests.Where(static test => test.Name is

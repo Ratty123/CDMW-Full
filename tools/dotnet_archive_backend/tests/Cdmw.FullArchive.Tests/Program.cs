@@ -14,7 +14,8 @@ internal static class Program
                         : FullArchiveTestRunner.RunAsync(
                             archiveQueryOnly: args.Length == 1 && args[0] == "--archive-query",
                             itemCatalogueOnly: args.Length == 1 && args[0] == "--item-catalogue",
-                            previewDependenciesOnly: args.Length == 1 && args[0] == "--preview-dependencies");
+                            previewDependenciesOnly: args.Length == 1 && args[0] == "--preview-dependencies",
+                            archiveDiscoveryOnly: args.Length == 1 && args[0] == "--archive-discovery");
 
     private static async Task<int> PreparationAsync()
     {

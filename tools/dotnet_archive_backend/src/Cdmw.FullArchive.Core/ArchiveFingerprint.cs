@@ -110,29 +110,36 @@ public static class ArchiveFingerprint
             }
             return related.Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase).ToArray();
         }
-        var options = new EnumerationOptions
+        var topLevelOptions = new EnumerationOptions
+        {
+            IgnoreInaccessible = true,
+            AttributesToSkip = FileAttributes.ReparsePoint,
+            MatchCasing = MatchCasing.CaseInsensitive,
+        };
+        var recursiveOptions = new EnumerationOptions
         {
             RecurseSubdirectories = true,
             IgnoreInaccessible = true,
             AttributesToSkip = FileAttributes.ReparsePoint,
             MatchCasing = MatchCasing.CaseInsensitive,
         };
-        return Directory.EnumerateFiles(root, "*", options)
+        var rootFiles = Directory.EnumerateFiles(root, "*", topLevelOptions);
+        var directories = Directory.EnumerateDirectories(root, "*", topLevelOptions)
+            .Where(static path => !IsIgnoredArchiveDirectory(path));
+        return rootFiles.Concat(directories.SelectMany(path => Directory.EnumerateFiles(path, "*", recursiveOptions)))
             .Where(static path =>
                 path.EndsWith(".pamt", StringComparison.OrdinalIgnoreCase) ||
                 path.EndsWith(".paz", StringComparison.OrdinalIgnoreCase) ||
                 path.EndsWith(".pathc", StringComparison.OrdinalIgnoreCase))
-            .Where(path => !IsCdmodsPath(root, path))
             .Order(StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
 
-    private static bool IsCdmodsPath(string root, string path)
+    private static bool IsIgnoredArchiveDirectory(string path)
     {
-        var relative = Path.GetRelativePath(root, path);
-        var firstSeparator = relative.IndexOfAny([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar]);
-        var first = firstSeparator < 0 ? relative : relative[..firstSeparator];
-        return first.Equals("cdmods", StringComparison.OrdinalIgnoreCase);
+        var name = Path.GetFileName(path);
+        return name.Equals("cdmods", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("backups", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string RelativeIdentity(string root, string file) =>

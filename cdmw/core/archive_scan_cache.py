@@ -79,7 +79,7 @@ _ARCHIVE_CACHE_ROOT_PREFIXES: Tuple[str, ...] = (
 _ARCHIVE_ITEM_ICON_THUMBNAIL_CACHE_LOCK = threading.Lock()
 _ARCHIVE_ITEM_ICON_THUMBNAIL_MANIFEST_CACHE: Dict[str, Tuple[Tuple[int, int], Dict[str, object]]] = {}
 _ARCHIVE_SCAN_CACHE_SUPPORTED_VERSIONS = {3}
-_ARCHIVE_SCAN_IGNORED_TOP_LEVEL_DIRS: frozenset[str] = frozenset({"cdmods"})
+_ARCHIVE_SCAN_IGNORED_TOP_LEVEL_DIRS: frozenset[str] = frozenset({"cdmods", "backups"})
 
 
 def discover_pamt_files(package_root: Path) -> List[Path]:
@@ -89,16 +89,17 @@ def discover_pamt_files(package_root: Path) -> List[Path]:
     if not root.exists() or not root.is_dir():
         raise ValueError(f"Archive package root does not exist or is not a folder: {root}")
     files: List[Path] = []
-    for path in root.rglob("*.pamt"):
-        if not path.is_file():
-            continue
-        try:
-            top_level_dir = path.relative_to(root).parts[0].lower()
-        except (IndexError, ValueError):
-            top_level_dir = ""
-        if top_level_dir in _ARCHIVE_SCAN_IGNORED_TOP_LEVEL_DIRS:
-            continue
-        files.append(path)
+    for directory, subdirectories, filenames in os.walk(root):
+        if Path(directory) == root:
+            subdirectories[:] = [
+                name for name in subdirectories if name.lower() not in _ARCHIVE_SCAN_IGNORED_TOP_LEVEL_DIRS
+            ]
+        for name in filenames:
+            if not name.lower().endswith(".pamt"):
+                continue
+            path = Path(directory) / name
+            if path.is_file():
+                files.append(path)
     files.sort()
     return _in_mount_order(root, files)
 
