@@ -9,6 +9,8 @@ new policy to `cdmw/domain/`, coordination to `cdmw/services/`, long-running
 execution to `cdmw/workers/`, mesh/material operations to `cdmw/modding/`, and
 preview packaging to `cdmw/rendering/`.
 
+## Compatibility facades
+
 `archive.py` and `archive_modding.py` are cached lazy compatibility facades.
 Their explicit owner maps live in `archive_compat_exports*.py` and
 `archive_modding_compat_exports*.py`; focused core modules import the mapped
@@ -19,6 +21,8 @@ corpus reporting from bounded `archive_binary_preview_{analysis,corpus}.py`
 owners. Keep their output and cancellation contracts exact when decomposing
 the remaining format decoders.
 
+## Process and temporary resource ownership
+
 `common.py` validates Windows process creation times when following parent IDs
 for helper cleanup. Reused IDs and unavailable identity data must not make
 older or unrelated processes descendants of a helper.
@@ -26,6 +30,8 @@ older or unrelated processes descendants of a helper.
 `temp_cache.py` owns process-local keyed build serialization and scoped cache
 leases. Builders publish complete units before returning; readers hold a lease
 while consuming paths, and pruning skips active or just-returned units.
+
+## Texture encode cache
 
 `texture_encode_cache.py` retains at most 64 validated native DDS results and
 128 MiB within the process. Its keys hash the prepared source contents and include
@@ -35,6 +41,8 @@ this reuse without changing quality or output ownership. Cache hits still use
 staged DDS validation, cancellation checks and atomic publication; failures and
 sources changed during conversion are not retained. Encoding and file I/O run
 outside the cache lock so independent workers do not wait behind another encode.
+
+## Archive content creation
 
 Brand-new archive content is split by format owner. `archive_entry_addition.py`
 adds validated PAMT/PAZ entries; `archive_overlay.py` and `papgt_format.py` build
@@ -47,6 +55,8 @@ by `item_recipe_links.py` using decoded inputs and outputs; ambiguous boundaries
 remain unsupported. These modules return plans and bytes, never bypass service-owned
 confirmation, backup, rollback, or restore.
 
+## Effect binary decoding
+
 `effect_binary.py` owns byte-complete `.pae` / `.paem` reflection decoding and
 offset-addressed values. `effect_edit.py` permits only fixed-size value changes
 and same-length reference renames. Presence masks support the installed nine-byte
@@ -58,10 +68,14 @@ changes invalidate the effect catalogue so incomplete cached results are rebuilt
 Approximate particle presentation belongs to
 the effect services and resident Rust host, not to these binary owners.
 
+## Build compatibility
+
 `mod_compatibility.decode_paver_build` shares binary PAVER version decoding with
 archive backup metadata and retains legacy text versions. Matching PAVER hashes
 take precedence over display-label changes; differing comparable hashes still
 mark the build as changed.
+
+## Material and character appearance
 
 `archive_model_texture_binding_selection.py` matches exact component/submesh
 identities and selects sidecar texture bindings. The semantics module preserves
@@ -70,5 +84,7 @@ existing imports while keeping selection rules in this bounded owner.
 `archive_mesh_appearance.py` and `character_appearance_bundle.py` resolve
 read-only PABC/PAMT presentation and portable dependency bundles. Source archive
 payloads remain immutable; callers receive clones or atomic extracted bundles.
+
+## Focused checks
 
 Related tests: focused feature tests and architecture guards under `tests/`.

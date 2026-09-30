@@ -9,6 +9,8 @@ Services may coordinate domain, core, modding, rendering, filesystem, and worker
 code. They must not import PySide widgets or mutate UI state directly. Archive
 mutation flows stay explicit, confirmable, backed up, and recoverable.
 
+## Archive coordination
+
 Archive UI coordination uses focused read, query, preview, extraction,
 environment, and cached lazy workflow surfaces composed by `ArchiveService`.
 `archive_catalogue_service.py` is the typed v3 catalogue boundary over the
@@ -22,6 +24,8 @@ UI modules never import archive implementation modules or the
 Mutation commands and backup locations remain owned by
 `ArchiveMutationService`; long-running calls are dispatched through workers.
 
+## Preview services
+
 `preview_workflow_service.py` and `preview_rendering_service.py` are cached,
 lazy UI surfaces for preview preparation and low-level renderer/native host
 operations. They preserve owner object identity without loading optional
@@ -30,31 +34,35 @@ preview stacks merely from importing the service modules.
 to archive export, attachment, model relationship, sidecar, audio, prefab,
 weapon-swap, and index operations.
 
-`mesh_workflow_service.py` and `texture_workflow_service.py` expose the UI's
-mesh/native and texture/recolor coordination surfaces without eager imports.
-`mesh_rust_authoring.py` owns the production Rust editor's disposable shadow
-session, revisioned commands, and validated finish publication.
-`mesh_service_morph.py` dispatches native body-slider and garment-refit commands
-with a bounded 90-second budget. A failed command retains the previous service
-state and history. `mesh_archive_refit.py` keeps each loaded body's or garment's
-source identity and neutral-coordinate mapping separate; output validates every
-rebuilt asset before publishing the combined mod.
-`mesh_service_resident_transaction.py` retains the compatibility trust boundary
-for shared-memory terminal gestures. It validates the
-shared-memory descriptor, session identity, revisions, topology generation,
-tool/payload kind, and bounds before committing sparse geometry or selection
-changes to `MeshService`. One accepted gesture creates one history entry;
-stale, malformed, or rejected transactions fail closed. The helper keeps its
-native result provisional until the correlated host decision, and accepted,
-rejected, Undo, and Redo decisions resynchronize the resident
-`cdmw_mesh_core` mirror.
-`mesh_service_history.py` owns history capture and restoration;
-`mesh_service_history_files.py` owns bounded Morph & Refit file snapshots and
-atomic restoration. Replacement publication keeps its checkpoint together so
-rollback restores the same session state and owned files.
-Focused material-sidecar, text-search, Texture Replacer, HKX-edit, and startup
-splash services provide the same boundary for their owning features. UI code
-does not import `cdmw.core`, `cdmw.modding`, or `cdmw.rendering` directly.
+## Mesh and texture workflows
+
+`mesh_workflow_service.py` and `texture_workflow_service.py` expose the UI's mesh/native
+and texture/recolor coordination surfaces without eager imports.
+`mesh_rust_authoring.py` owns the production Rust editor's disposable shadow session,
+revisioned commands, and validated finish publication. `mesh_service_morph.py`
+dispatches native body-slider and garment-refit commands with a bounded 90-second
+budget. A failed command retains the previous service state and history.
+`mesh_archive_refit.py` keeps each loaded body's or garment's source identity and
+neutral-coordinate mapping separate; output validates every rebuilt asset before
+publishing the combined mod. `mesh_service_resident_transaction.py` retains the
+compatibility trust boundary for shared-memory terminal gestures.
+
+It validates the shared-memory descriptor, session identity, revisions, topology
+generation, tool/payload kind, and bounds before committing sparse geometry or selection
+changes to `MeshService`. One accepted gesture creates one history entry; stale,
+malformed, or rejected transactions fail closed. The helper keeps its native result
+provisional until the correlated host decision, and accepted, rejected, Undo, and Redo
+decisions resynchronize the resident `cdmw_mesh_core` mirror. `mesh_service_history.py`
+owns history capture and restoration; `mesh_service_history_files.py` owns bounded Morph
+& Refit file snapshots and atomic restoration.
+
+Replacement publication keeps its checkpoint together so rollback restores the same
+session state and owned files. Focused material-sidecar, text-search, Texture Replacer,
+HKX-edit, and startup splash services provide the same boundary for their owning
+features. UI code does not import `cdmw.core`, `cdmw.modding`, or `cdmw.rendering`
+directly.
+
+## Research and item icons
 
 `ResearchService` composes archive analysis, reference queries, texture
 analysis/report export, preview preparation, and transactional note persistence.
@@ -66,6 +74,8 @@ loose-package patching. `ModelLibraryService` coordinates local scans, SQLite
 catalogues, downloads, and ZIP/import-path resolution. Their UI callers keep
 slow requests in existing cancellable workers.
 
+## Asset authoring integrations
+
 `asset_authoring_service.py` owns discovery for active Mesh Core, xatlas, and
 OpenImageIO components, plus source scene import, UV/tangent authoring, and
 pre-mutation mesh health reports. Missing components are reported as
@@ -73,6 +83,8 @@ unavailable/configured-missing and must not break startup. Source maps stay
 intermediates; DDS output remains on the existing CDMW/DirectXTex paths. Exact
 component versions are opt-in discovery probes so normal startup does not run
 external tools.
+
+## New Item snapshots and planning
 
 `new_item_service.py`, `new_item_snapshot.py` and `new_item_planning.py` are the
 Create New Item's boundary: a read-only snapshot of the tables a brand-new item
@@ -86,6 +98,8 @@ migration, removal and restore stay in the focused `archive_overlay_*.py`
 services; they stage complete output, keep an ownership marker and receipt, and
 never adopt a foreign numeric archive group.
 
+### Effect catalogue and placement
+
 Effect catalogue, placement, character-reference, rotation, target-compatibility
 and preview-model services decode archive facts off the UI thread and produce a
 bounded, explicitly approximate resident package. `new_item_materials.py` and
@@ -93,12 +107,16 @@ the model-preview services share the canonical material route rather than
 building a New Item-only renderer. None of these services mutates a widget or a
 shipped archive on its own.
 
+### Effect catalogue process
+
 `effect_catalogue_process.py` spools effect inputs one at a time through the
 snapshot's reader, then decodes them in an owned, cancellable child process.
 This keeps Python effect decoding from delaying the UI and preview workers.
 The existing catalogue lane owns progress, cache I/O and stale-result rejection;
 the child receives effect bytes rather than the live archive index or reader.
 Metadata decoding retains catalogue fields while validating the full grammar.
+
+## Rust material packages
 
 `mesh_rust_preview_package.py` adapts Preview Core's material graph for both
 direct and full Rust preview packages. An untextured base layer may carry
@@ -110,15 +128,21 @@ Repeated material-layer references share one copied DDS resource per source
 file. Source identity checks, cancellation, and atomic package publication
 still apply, including when a repeated input changes during preparation.
 
+### External image preparation
+
 External-image DDS preparation uses each material role's colour space: base
 colour and emission are sRGB, while normal and packed surface maps are linear.
 Missing image metadata must not brighten colour pixels, and embedded sRGB
 metadata must not alter roughness or metalness values. Explicit encoder policies
 still take precedence; older preview packages are invalidated by the cache schema.
 
+### Preview failure reporting
+
 The Model Library preview subprocess returns preparation failures as an error
 result and a nonzero exit code. The parent displays that reason; a frozen worker
 must exit without opening a blocking PyInstaller exception dialog.
+
+## Focused checks
 
 Related tests: `tests/test_services.py`, `tests/test_archive_service_boundaries.py`,
 `tests/test_research_service_boundary.py`, `tests/test_diagnostics_service.py`,

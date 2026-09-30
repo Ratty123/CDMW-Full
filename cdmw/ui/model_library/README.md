@@ -9,11 +9,15 @@ Rust host only when a prepared package is ready, then promotes it after the
 host reports `ready`; the unopened tab retains a lightweight placeholder.
 Archive Browser preview remains an explicit manual action.
 
+## Catalogue caches
+
 Catalogue shard caches are keyed by their full source URL, so changing mirrors
 cannot reuse another mirror's records. New catalogue IDs skip full-text deletion
 scans; updates replace their previous searchable text. Nested ZIP extraction
 caches live outside the verified outer tree and are reused only while both
 archive contents and extracted files remain valid.
+
+## Localization and preview controls
 
 Runtime localization defers child-added processing until after construction.
 Creating a task thread must not expose its incomplete PySide wrapper to the
@@ -27,6 +31,8 @@ Imported models initially face their broad plane, with the grid aligned behind
 that plane. The framing axis participates in the package cache identity so an
 earlier package cannot silently restore a different opening view.
 
+## Imported material preservation
+
 Imported glTF materials retain OPAQUE, MASK and BLEND independently from their
 opacity factor. Blended triangles draw after opaque geometry in camera-depth
 order, including during placement changes. Metallic/roughness factors multiply
@@ -34,23 +40,26 @@ their authored maps, and missing maps use glTF defaults; a constant base colour
 does not inherit the missing-texture placeholder. Transmission/refraction remains
 unsupported and is reported by the import diagnostics.
 
-Scene imports (glTF/GLB/OBJ/DAE) normalize texture V, so the preparation step
-stamps that orientation onto the preview meshes before the canonical package is
-written; the Flip V control inverts the same value and rebuilds. Prepared
-packages are cached by an identity covering source and referenced-resource
-content/revisions, selected ZIP member, render settings, orientation,
-cache/compiler profile and app version. A valid hit is accepted before scene
-import and returns its stored geometry/texture summary with the package, so
-re-selecting a model or toggling Flip V back skips parsing and packaging. An
-unsupported or incomplete dependency shape bypasses durable reuse rather than
-risking stale rendering.
-OBJ identities include every declared texture map, including emissive, normal,
-roughness, metallic and opacity maps. Uncached Rust packages are retired after
-replacement or close; cancellation and stale delivery also release private
-packages. Cleanup waits for live renderer leases and preserves durable entries.
-OBJ cache discovery uses the importer's material-library and texture-path rules,
-including same-stem MTL fallback, tab-separated or multiple libraries, and texture
-filenames with spaces or map options.
+### Texture orientation and appearance
+
+Scene imports (glTF/GLB/OBJ/DAE) normalize texture V, so the preparation step stamps
+that orientation onto the preview meshes before the canonical package is written; the
+Flip V control inverts the same value and rebuilds. Prepared packages are cached by an
+identity covering source and referenced-resource content/revisions, selected ZIP member,
+render settings, orientation, cache/compiler profile and app version. A valid hit is
+accepted before scene import and returns its stored geometry/texture summary with the
+package, so re-selecting a model or toggling Flip V back skips parsing and packaging.
+
+An unsupported or incomplete dependency shape bypasses durable reuse rather than risking
+stale rendering. OBJ identities include every declared texture map, including emissive,
+normal, roughness, metallic and opacity maps. Uncached Rust packages are retired after
+replacement or close; cancellation and stale delivery also release private packages.
+Cleanup waits for live renderer leases and preserves durable entries. OBJ cache
+discovery uses the importer's material-library and texture-path rules, including
+same-stem MTL fallback, tab-separated or multiple libraries, and texture filenames with
+spaces or map options.
+
+### Geometry and texture package tiers
 
 Pre-decoded external geometry is labelled `preview` inside the Rust document;
 the manifest separately retains its true glTF, GLB, OBJ, DAE, or converted-FBX
@@ -68,11 +77,15 @@ remain visible, while full PAC/PAC_XML material synthesis stays reserved for
 surfaces that promote to the complete tier. Direct packages have their own
 durable cache identity and cannot be mistaken for a full-material package.
 
+## Import workers and ownership
+
 ZIP discovery/extraction and generic Preview/Import path resolution run through
 the Model Library task worker. Results are discarded when the selected row
 changes. The shell imports scene geometry and scans texture/sidecar companions
 in its cancellable utility worker before opening import setup; an archive
 selection change invalidates the prepared result.
+
+### Pure catalogue and scan rules
 
 Immutable catalogue records, extension/status fields, URL normalization, and
 download-candidate policy live in `cdmw/domain/library/models.py`. Scan,
@@ -83,6 +96,8 @@ download-state filtering, column filtering, and sorting produce one immutable
 prepared-row result in that same tracked task lane. The UI only rejects stale
 request IDs and adds already-prepared rows in batches.
 
+## Compact Workspace and task state
+
 Compact Workspace rearranges these same widgets without creating a second
 Model Library implementation. Its controls lane is bounded to 256-300 px and
 does not horizontally scroll at the supported compact sizes, even after another
@@ -90,6 +105,8 @@ tool changes the process-wide UI font; the compact content ignores its former
 wide minimum-size hint and wraps into the bounded viewport. Results keep the
 remaining width, while details sit beside the resident preview. Classic Workspace
 retains the original arrangement.
+
+## Deletion and preview icon workers
 
 Confirmed local deletion also uses the tracked task lane. The worker revalidates
 the approved root and downloaded-folder ownership marker, plans recursively

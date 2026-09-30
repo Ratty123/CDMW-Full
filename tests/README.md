@@ -10,6 +10,8 @@ were caused by missing buttons, callbacks, or fallback paths. They are brittle b
 nature, but they protect user-facing workflows until those surfaces have smaller
 behavior-level harnesses.
 
+## Fixtures and private evidence
+
 `tests/fixtures/` contains the bounded, documented inputs that are part of the
 regression contract, including trimmed golden byte fixtures. Full game archives,
 extracted corpora, screenshots, captures, benchmark output, restore points, and
@@ -27,22 +29,26 @@ Choose the exact test file for an ordinary change. On a fresh source checkout,
 prepare the native helpers and archive worker using the root README's source
 setup first. Full-suite and native tests require those real helpers.
 
-GitHub's Windows Build defaults to the `smoke` gate on Python 3.14
-for code pushes, pull requests, tags and manual runs. Documentation and GitHub
-issue/pull-request template-only pushes and pull requests skip both Windows
-Build and CodeQL; mixed code/documentation changes still run. The CodeQL
-workflow owns its triggers instead of GitHub's automatic default setup and
-retains the existing five-language coverage and weekly security refresh.
-CodeQL uploads all security results but disables optional database-archive
-publication, whose bundling can stall after analysis has completed. All five
-language scans and their security-result uploads remain required.
-The default Windows QA path runs focused CodeQL workflow-contract and Archive
-Browser Finder wiring tests after smoke, without requesting the full suite.
-The smoke gate covers startup/tool
-construction, archive confirmation/backup/rollback, output path safety,
-helper cleanup, metadata and localization without building native helpers.
-The real-window localization regression also runs with frequent garbage
-collection to catch native widget lifetime faults during startup.
+### CI triggers and default checks
+
+GitHub's Windows Build defaults to the `smoke` gate on Python 3.14 for code pushes, pull
+requests, tags and manual runs. Documentation and GitHub issue/pull-request
+template-only pushes and pull requests skip both Windows Build and CodeQL; mixed
+code/documentation changes still run. The CodeQL workflow owns its triggers instead of
+GitHub's automatic default setup and retains the existing five-language coverage and
+weekly security refresh. CodeQL uploads all security results but disables optional
+database-archive publication, whose bundling can stall after analysis has completed. All
+five language scans and their security-result uploads remain required.
+
+The default Windows QA path runs focused CodeQL workflow-contract and Archive Browser
+Finder wiring tests after smoke, without requesting the full suite. The smoke gate
+covers startup/tool construction, archive confirmation/backup/rollback, output path
+safety, helper cleanup, metadata and localization without building native helpers. The
+real-window localization regression also runs with frequent garbage collection to catch
+native widget lifetime faults during startup.
+
+### Exhaustive tests and packaging
+
 Manual `exhaustive_tests` opts into native builds and the full nonvisual suite
 on Python 3.11 and 3.14. Packaging requires the selected QA to pass and runs
 only for tags or manual dispatch; onefile is the default, with onedir and both
@@ -51,6 +57,9 @@ Before publishing a release, wait for Windows Build and every CodeQL language
 check on its commit to finish successfully. Pending, cancelled, timed-out, or
 failed checks must be resolved before publication. Jobs skipped by the documented
 conditions above are expected; they do not replace any required check.
+
+### Scope, exit codes and shutdown
+
 Feature-specific and native regressions should use their owning tests when
 those surfaces change. There is no nightly schedule. CI excludes
 `visual`, `real_game` and machine-sensitive `timing` tests.
@@ -61,6 +70,9 @@ The shared pytest teardown drains requested Qt deletions and shuts down
 QApplication before Python exits. A subprocess regression checks both the
 session cleanup and the final process status, since a passing pytest summary
 does not rule out a later crash in the offscreen platform plugin.
+
+### Module isolation and fault reports
+
 Smoke, Mesh unit, and full gates run each complete test module in a fresh
 interpreter to contain accumulated Qt state. Full discovers its modules through
 pytest collection with the active markers; collection errors also fail the gate.
@@ -83,6 +95,8 @@ the explicit broad nonvisual aggregate for CI, release confidence, or a
 requested complete Mesh regression. `-Area responsiveness` checks pointer
 handler and host-heartbeat contracts without substituting for native or
 packaged behavior.
+
+### Release and visible proof
 
 Native-helper release builds are required when helper/native release output or
 capability provenance changes. `build.bat onefile release` is reserved for

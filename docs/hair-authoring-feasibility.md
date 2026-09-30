@@ -29,18 +29,22 @@ the existing rendered thumbnails, and selecting a hairstyle retains the full 3D
 preview. Page/filter changes cancel icon and compatibility work and reject late
 results. Failed compatibility checks retain their explanation when reselected.
 
-The character's mounted appearance and customization documents own fitting roles,
-scales and registration. Oongka uses `5_pom` head/body references and `1_phm` hair;
-a shared hair prefix cannot identify the character. HeadScale is applied around
-the authored head joint, including its weighted body descendants. CharacterScale
-is the shared parent transform and cancels in donor authoring coordinates. Facial
-details use the same head transform. The clean fitting mannequin uses the head's
-fitted eye-cover surfaces as smooth eyes, omitting the separate shader-dependent
-iris/lens geometry, lashes, brows and hidden mouth detail. Heads without fitted
-eye covers retain their separate eye reference. Face and
-body crown/back geometry are partitioned to avoid an overlapping face shell.
-The resulting scalp and neck/shoulder
-references stay outside output geometry.
+### Mounted character references
+
+The character's mounted appearance and customization documents own fitting roles, scales
+and registration. Oongka uses `5_pom` head/body references and `1_phm` hair; a shared
+hair prefix cannot identify the character. HeadScale is applied around the authored head
+joint, including its weighted body descendants. CharacterScale is the shared parent
+transform and cancels in donor authoring coordinates. Facial details use the same head
+transform. The clean fitting mannequin uses the head's fitted eye-cover surfaces as
+smooth eyes, omitting the separate shader-dependent iris/lens geometry, lashes, brows
+and hidden mouth detail.
+
+Heads without fitted eye covers retain their separate eye reference. Face and body
+crown/back geometry are partitioned to avoid an overlapping face shell. The resulting
+scalp and neck/shoulder references stay outside output geometry.
+
+### Catalogue evidence
 
 The mounted catalogue re-audited on 2026-09-20 contained:
 
@@ -64,18 +68,21 @@ no PAC meshes, rigs or physics. The mod's colour palettes remain owned by the
 mounted game/mod; no global palette or existing colour indices are replaced by
 hair package export. Beard entries are reference data, not beard-authoring support.
 
+### Start, cancellation and adoption
+
 Only Start prepares the replacement editor. Preparation owns a cancellation token,
-rejects stale catalogue/character/selection results and retains the current scene
-until a complete isolated replacement is ready. Failures clear progress and allow
-Retry. Different targets, characters and edit modes use the existing unsaved-work
-confirmation. A preset change on the active generated target publishes one undoable
-edit without reopening the archive. Reference geometry uses the existing bounded
-cache (four entries, 128 MiB); geometry-only reference loads avoid full editable
-sessions, roundtrip validation and material/DDS preparation. A conservative
-per-vertex budget avoids recursively visiting every scalar for cache sizing.
-Identity includes source generation, authored
-descriptors and transformed geometry. Alternative reference pickers apply role and
-character eligibility before pagination.
+rejects stale catalogue/character/selection results and retains the current scene until
+a complete isolated replacement is ready. Failures clear progress and allow Retry.
+Different targets, characters and edit modes use the existing unsaved-work confirmation.
+A preset change on the active generated target publishes one undoable edit without
+reopening the archive. Reference geometry uses the existing bounded cache (four entries,
+128 MiB); geometry-only reference loads avoid full editable sessions, roundtrip
+validation and material/DDS preparation.
+
+A conservative per-vertex budget avoids recursively visiting every scalar for cache
+sizing. Identity includes source generation, authored descriptors and transformed
+geometry. Alternative reference pickers apply role and character eligibility before
+pagination.
 
 ## Grooming, skinning and motion
 
@@ -87,51 +94,57 @@ Qt owns setup and lifecycle. Python owns archive/material loading, host validati
 atomic history, drafts and temporary packages. Actual loader-resolved DDS, tint,
 alpha and sidedness are retained; neutral shaded fitting geometry is separate.
 
-Select, Ctrl-select, marquee and the toolbar's Clear Selection/Select All/Invert
-change only hair-lock selection. Repeated host state notifications preserve the
-acknowledged generated preview instead of exposing retained template geometry.
-Move and Lengthen acquire
-a clicked lock while preserving an existing selected group. Move follows the grabbed
-position with a smooth, distance-based falloff; **Move reach** controls how much of
-the lock follows. It evaluates the original shape against the complete drag, so
-mouse event frequency does not amplify the edit. Lengthen changes tips
-and fixes roots. Comb, Smooth, Curl and Clump respect brush influence and selection.
-Draw supports Freehand, Straight, Arc and Circle strokes, visible cards during
-dragging and explicit mirror pairs. Straight and Arc use the dragged endpoints;
-Arc has a signed Bend control. Circle uses the drag as its diameter. Freehand's
-Stroke smoothing filters spatial jitter while preserving the root and current tip,
-without a trailing pointer delay. **Follow scalp** starts enabled for Freehand;
-shape templates start in the view plane. The checkbox and temporary Ctrl override
-control surface following independently of collision, which stays active. With
-surface following enabled, each pointer sample projects onto the curved scalp.
-Freehand continues from its last tip in the camera plane beyond the outline or
-while Ctrl is held. Draw resolves contacts along the view ray to preserve the
-stroke silhouette, with gentle outward smoothing across small depth creases.
-Triangle-normal clearance must not reverse adjacent guide samples. Sampled
+### Selection and guide editing
+
+Select, Ctrl-select, marquee and the toolbar's Clear Selection/Select All/Invert change
+only hair-lock selection. Repeated host state notifications preserve the acknowledged
+generated preview instead of exposing retained template geometry. Move and Lengthen
+acquire a clicked lock while preserving an existing selected group. Move follows the
+grabbed position with a smooth, distance-based falloff; **Move reach** controls how much
+of the lock follows. It evaluates the original shape against the complete drag, so mouse
+event frequency does not amplify the edit. Lengthen changes tips and fixes roots.
+
+Comb, Smooth, Curl and Clump respect brush influence and selection. Draw supports
+Freehand, Straight, Arc and Circle strokes, visible cards during dragging and explicit
+mirror pairs. Straight and Arc use the dragged endpoints; Arc has a signed Bend control.
+Circle uses the drag as its diameter. Freehand's Stroke smoothing filters spatial jitter
+while preserving the root and current tip, without a trailing pointer delay. **Follow
+scalp** starts enabled for Freehand; shape templates start in the view plane.
+
+The checkbox and temporary Ctrl override control surface following independently of
+collision, which stays active. With surface following enabled, each pointer sample
+projects onto the curved scalp. Freehand continues from its last tip in the camera plane
+beyond the outline or while Ctrl is held. Draw resolves contacts along the view ray to
+preserve the stroke silhouette, with gentle outward smoothing across small depth
+creases. Triangle-normal clearance must not reverse adjacent guide samples. Sampled
 guide segments and generated card width keep contacts active in both modes.
-Long strokes retain their pointer path separately and resample the bounded guide
-by distance, preserving root and tip. Extra samples near the root let the stroke
-leave the scalp gradually. The initial outward seed is replaced on the first drag.
-Cards start narrow and tangent to the scalp, then broaden and roll into the follower
-bundle with distance; motion blends from the inward root extent to each row's full
-radius so rotating cards remain outside the head without lifting the whole lock by
-its widest section. Card taper and texture coordinates
-follow physical distance rather than pointer sample count. Saved guides retain
-their authored shape; older strokes with a baked-in straight root need redrawing.
-Live Draw reuses the prepared scalp index and generates only the active locks.
-Idle strokes reuse the current frame; endpoint-based tools coalesce queued moves
-within a frame while Freehand retains its path samples.
-Cut removes distal geometry; Erase/Delete remove owned geometry.
-Width and generated follower density affect selected locks. Empty selections,
-rigid sections, unresolved groups and unsupported existing-hair operations report
-requirements rather than silently succeeding. Draw and follower generation require
-generated hair. Ambiguous existing sections are described as original sections
-without grooming guides, without warning colours or automatic highlighting.
-Their preparation controls are collapsed until needed and remain available after
-all sections are prepared, allowing roots and rigid attachments to be corrected.
-Root/group assignment or
-a rigid classification is required for motion preview; shaping an unprepared
-section explains how to assign its guide.
+
+Long strokes retain their pointer path separately and resample the bounded guide by
+distance, preserving root and tip. Extra samples near the root let the stroke leave the
+scalp gradually. The initial outward seed is replaced on the first drag. Cards start
+narrow and tangent to the scalp, then broaden and roll into the follower bundle with
+distance; motion blends from the inward root extent to each row's full radius so
+rotating cards remain outside the head without lifting the whole lock by its widest
+section.
+
+Card taper and texture coordinates follow physical distance rather than pointer sample
+count. Saved guides retain their authored shape; older strokes with a baked-in straight
+root need redrawing. Live Draw reuses the prepared scalp index and generates only the
+active locks. Idle strokes reuse the current frame; endpoint-based tools coalesce queued
+moves within a frame while Freehand retains its path samples. Cut removes distal
+geometry; Erase/Delete remove owned geometry. Width and generated follower density
+affect selected locks.
+
+Empty selections, rigid sections, unresolved groups and unsupported existing-hair
+operations report requirements rather than silently succeeding. Draw and follower
+generation require generated hair. Ambiguous existing sections are described as original
+sections without grooming guides, without warning colours or automatic highlighting.
+Their preparation controls are collapsed until needed and remain available after all
+sections are prepared, allowing roots and rigid attachments to be corrected. Root/group
+assignment or a rigid classification is required for motion preview; shaping an
+unprepared section explains how to assign its guide.
+
+### Existing geometry and export
 
 Export does not require editor guides for unchanged existing geometry. Missing
 bindings are accepted only when the immutable PAC donor proves the retained
@@ -141,28 +154,31 @@ untouched sections alongside groomed sections and retained triangles after cuts.
 Changed unprepared sections remain blocked. Generated geometry still requires
 guide coverage; draft versions and the original skin-weight layout stay unchanged.
 
-Each completed action uses the ordered publication queue and receives the normal
-host acknowledgement. Draw can start another stroke while previous Draws prepare
-and save; pending locks stay visible, and each completed stroke retains its own
-history step. The queue accepts up to 32 pending edits within an estimated 256 MiB
-snapshot budget and pauses new input if saving falls too far behind. Pending Draw
-previews are cached between pointer updates. Undo and Finish wait for the accepted
-strokes to drain. The Mesh Editor
-spinner tracks background preparation and saving, rather than the active mouse
-gesture; losing pointer capture cancels the unfinished stroke.
-Conversion's full-state reply also completes its matching
-publication when it equals the locally prepared state, releasing Undo and Finish.
-Incremental edits retain unchanged channels and references;
-new topology uses complete output validation. An immutable original PAC skin donor
-is retained in authoring coordinates and matched by stable part identity. Generated
-preview geometry never becomes the donor for subsequent strokes. Exact vertex
-lineage preserves original packed records, including their separate skeletal and
-cloth-guide lanes. New vertices use the existing validated weight transfer.
-Ordinary PAC records support six skeletal influences; cloth-bound records support
-four and reserve the remaining lanes for simulation guides. Generated vertices
-requiring five or six bones use the ordinary branch instead of copying an
-incompatible cloth binding. Compatible existing cloth records remain intact.
-The 40-byte layout guard stays enabled.
+### Publication and history
+
+Each completed action uses the ordered publication queue and receives the normal host
+acknowledgement. Draw can start another stroke while previous Draws prepare and save;
+pending locks stay visible, and each completed stroke retains its own history step. The
+queue accepts up to 32 pending edits within an estimated 256 MiB snapshot budget and
+pauses new input if saving falls too far behind. Pending Draw previews are cached
+between pointer updates. Undo and Finish wait for the accepted strokes to drain.
+
+The Mesh Editor spinner tracks background preparation and saving, rather than the active
+mouse gesture; losing pointer capture cancels the unfinished stroke. Conversion's
+full-state reply also completes its matching publication when it equals the locally
+prepared state, releasing Undo and Finish. Incremental edits retain unchanged channels
+and references; new topology uses complete output validation. An immutable original PAC
+skin donor is retained in authoring coordinates and matched by stable part identity.
+Generated preview geometry never becomes the donor for subsequent strokes.
+
+Exact vertex lineage preserves original packed records, including their separate
+skeletal and cloth-guide lanes. New vertices use the existing validated weight transfer.
+Ordinary PAC records support six skeletal influences; cloth-bound records support four
+and reserve the remaining lanes for simulation guides. Generated vertices requiring five
+or six bones use the ordinary branch instead of copying an incompatible cloth binding.
+Compatible existing cloth records remain intact. The 40-byte layout guard stays enabled.
+
+### Donor matching
 
 PAC donor matching keeps verified original-vertex maps and rounded-position
 matches first. Remaining nearest-record searches use NumPy float64 operations
@@ -171,27 +187,29 @@ memory scales with the donor mesh, not every source/target pair. A local spot
 check with 2,000 queries and 1,500 donors took 0.264 seconds before and 0.019 seconds
 after with NumPy loaded; this measures donor matching only, not complete export.
 
+### XPBD preview and references
+
 The XPBD preview keeps roots, scalp and reference transforms aligned. Cached scalp
-surface contacts check guide segments and card width; neck and shoulder collision
-shapes remain active. Card rows are resolved after their neighbouring segments,
-and consistent component winding preserves concave ear contacts. A head-relative
-rest-shape force prevents whole guides from rotating down under gravity; tip
-retention decreases with Shape softness. The visible notice explains that editor
-motion does not simulate the donor's in-game rig or physics. Eyes
-share one `head:` reference identity and follow the head rigidly; they are
-excluded from scalp planting and contacts. This uses the existing reference fields
-and leaves the document version unchanged. Every movement
-preset is checked separately. Existing bindings with radial offsets greater than
-15% of the scalp's largest extent cannot play or settle: their broad root groups
-distort under guide rotation. The UI requests smaller root selections or rigid
-scalp sections; this does not block static editing or export. Play/Pause/Reset
-are transient, Reset is deterministic, and editing during playback resumes from
-the edited rest shape. Use settled shape requires a valid, played simulation and
-creates one undoable rest-shape edit.
-The host measures short guide segments at renderer float32 precision so full and
-incremental JSON encodings agree, including conversion after cutting and erasing.
-Simulation frames never enter drafts or output. Hair-to-hair collision and new
-game physics rigs remain outside this workflow.
+surface contacts check guide segments and card width; neck and shoulder collision shapes
+remain active. Card rows are resolved after their neighbouring segments, and consistent
+component winding preserves concave ear contacts. A head-relative rest-shape force
+prevents whole guides from rotating down under gravity; tip retention decreases with
+Shape softness. The visible notice explains that editor motion does not simulate the
+donor's in-game rig or physics.
+
+Eyes share one `head:` reference identity and follow the head rigidly; they are excluded
+from scalp planting and contacts. This uses the existing reference fields and leaves the
+document version unchanged. Every movement preset is checked separately. Existing
+bindings with radial offsets greater than 15% of the scalp's largest extent cannot play
+or settle: their broad root groups distort under guide rotation. The UI requests smaller
+root selections or rigid scalp sections; this does not block static editing or export.
+
+Play/Pause/Reset are transient, Reset is deterministic, and editing during playback
+resumes from the edited rest shape. Use settled shape requires a valid, played
+simulation and creates one undoable rest-shape edit. The host measures short guide
+segments at renderer float32 precision so full and incremental JSON encodings agree,
+including conversion after cutting and erasing. Simulation frames never enter drafts or
+output. Hair-to-hair collision and new game physics rigs remain outside this workflow.
 
 ## Drafts, materials and output
 
@@ -202,12 +220,16 @@ Reopening and saving again preserves native snapshot part identities and materia
 metadata. A clean native snapshot opened for autosave is invalidated by subsequent
 grooming. Conversion is undoable. Finish waits for pending publications.
 
+### Texture editor handoff
+
 Open in Texture Editor and Apply edited DDS retain material slots, dimensions,
 compression and mip counts. Required DDS are validated. The engine's unbound
 `nonetexture0xffffffff.dds` marker remains in XML but is not a missing texture.
 Qt setup text is included in all 14 built-in languages. The existing native Rust
 editor still displays English controls; this change does not add a native
 translation framework.
+
+### Barber registration
 
 `hair_registration.py` appends the selected character's barber record and clones
 its prefab, PAC, PAC_XML, HKX and icon under a distinct identity.
@@ -240,6 +262,8 @@ installed archive fingerprints. These are offscreen editor and file checks.
 | Persistence and output | Generated and existing sequences, skeletal/cloth-record preservation, five/six-bone generated output, repeated save/reopen, conversion/Undo, inclusion, pending Finish, PAC reparsing and complete temporary overlay packages |
 | Desktop and game | Offscreen captures do not prove normal-window interaction or presentation latency. Packaged startup/provenance is a separate check. In-game installation, barber selection, save/load, headgear and physics remain unverified. |
 
+### Focused commands
+
 Focused commands (run Python with a pytest base temp outside the checkout):
 
 ```powershell
@@ -250,25 +274,30 @@ cargo test --manifest-path tools/rust_mesh_lab/Cargo.toml --release --locked -p 
 .\.venv\Scripts\python.exe scripts/validate_ui_localization_catalogs.py
 ```
 
+### Authorized workflow probe
+
 `tools/dotnet_archive_backend/probe_hair_workflow.py` requires explicitly authorized
-`--game`, `--cache`, `--worker` and temporary `--evidence` paths. `--character`
-selects the mounted context; `--mode` selects generated/existing. `--audit-all`
-checks every listed registration. `--prepared-setup` exercises the complete staged
-loader. `--live-renderer` points to the compiled Rust test executable and runs the
-production pointer/host matrix; `--capture-steps` also records textured per-tool
-DX12 captures from the real material loader. `--resume-draft` checks reopening,
-saving again and export. `--skip-package` limits an already covered output run.
+`--game`, `--cache`, `--worker` and temporary `--evidence` paths. `--character` selects
+the mounted context; `--mode` selects generated/existing. `--audit-all` checks every
+listed registration. `--prepared-setup` exercises the complete staged loader.
+`--live-renderer` points to the compiled Rust test executable and runs the production
+pointer/host matrix; `--capture-steps` also records textured per-tool DX12 captures from
+the real material loader. `--resume-draft` checks reopening, saving again and export.
+`--skip-package` limits an already covered output run.
+
 An isolated checkout also needs the built native helpers: use the existing
-`CDMW_MESH_CORE_BIN` and `CDMW_ARCHIVE_ACCELERATOR_BIN` overrides when those
-binaries are in the main checkout.
-`--style-index` selects a zero-based catalogue entry directly; use a compatible
-entry from `--audit-all` (Oongka's first supported entry is index 1).
-Set `CDMW_HAIR_PROBE_EMPTY_START=1` for the focused empty-scalp sequence: two
-Draw strokes, selection, Lengthen, Undo/Redo, draft reopening and package export.
-Short crown strokes are selected from the top view where they were drawn;
-the front view may correctly hide them behind the head. Step captures include
-that top view as well as the front view.
-Every successful installed-data probe verifies unchanged archive fingerprints.
+`CDMW_MESH_CORE_BIN` and `CDMW_ARCHIVE_ACCELERATOR_BIN` overrides when those binaries
+are in the main checkout. `--style-index` selects a zero-based catalogue entry directly;
+use a compatible entry from `--audit-all` (Oongka's first supported entry is index 1).
+Set `CDMW_HAIR_PROBE_EMPTY_START=1` for the focused empty-scalp sequence: two Draw
+strokes, selection, Lengthen, Undo/Redo, draft reopening and package export. Short crown
+strokes are selected from the top view where they were drawn; the front view may
+correctly hide them behind the head.
+
+Step captures include that top view as well as the front view. Every successful
+installed-data probe verifies unchanged archive fingerprints.
+
+### Rust rendering and benchmark probes
 
 The Rust ignored `hair_production_render_and_benchmark` test consumes the probe's
 `input.json` via `CDMW_HAIR_PROBE_INPUT` and writes into
@@ -292,6 +321,8 @@ correction pushing an earlier card row back into the scalp.
 checks settled-state validity for every frame of six movements at three frame-time
 variations. Very short cut tips retain a small numerical separation during motion
 so float32 rounding cannot collapse their segments and reject the settled edit.
+
+### Publication and rig boundaries
 
 The local-only Rust publication hold remains in force. New game rigs, additional
 LOD writers and multi-PAC hairstyle authoring need their own verified support.

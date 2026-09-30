@@ -3,6 +3,8 @@
 Owns archive safety, role, selection, filter, attachment, prefab, relationship,
 weapon-swap, extension, and text-payload rules used by UI, services, and workers.
 
+## Mutation contracts
+
 `mutation.py` owns shared patch request/result contracts. Core patching and
 the archive mutation service re-export those exact classes, so importing the
 service container does not load the archive writer.
@@ -16,10 +18,14 @@ wire validation shared across the shell client, services, and Archive Browser.
 text-payload detection. `attachments.py`, `prefab.py`, `relationships.py`, and
 `weapon_swap.py` own immutable contracts re-exported by legacy core owners.
 
+## Mod merge contracts
+
 `mod_merge.py` owns conflict/result contracts for composing selected mod folders.
 `overlay_merge.py` composes supported table, shop, localization and texture
 registry edits against recorded originals. These are pure byte/record rules;
 the mod-merge and overlay services own file access, staging and publication.
+
+## Ownership boundary and checks
 
 Keep binary parsing, archive IO, extraction, patching, and preview construction
 outside this package. Those belong in `cdmw/core/`, `cdmw/services/`, and
