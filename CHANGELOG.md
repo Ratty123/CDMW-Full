@@ -17,6 +17,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- Item Finder keeps category names, item captions and detail actions readable at narrow widths and larger fonts. Long details wrap without changing copied text, the grid uses its available width, and the empty details view shows a compact selection prompt.
 - Selecting an archive extension closes the picker, including on double-click. The picker becomes available when archive rows appear and receives extension counts ahead of background catalogue warmups.
 - Unavailable hairstyles can be selected to inspect their preview and compatibility reason without enabling Start or losing the selection when other checks finish. Hairstyles using separate base and tail meshes remain unsupported by Hair Tools.
 - Temporary archive-worker and item-indexing failures receive one cancellable retry. Stalled work shows its stage and elapsed time, then stops after five minutes without progress. Persistent failures offer targeted Retry, Copy error report and Details; background item-name failures leave archive browsing available. Reports preserve error codes and redact local folder prefixes.

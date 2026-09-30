@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QSize, QThread, QTimer, Qt
-from PySide6.QtGui import QIcon, QImage, QPainter, QPalette, QPixmap
+from math import ceil
+
+from PySide6.QtCore import QEvent, QModelIndex, QRect, QSize, QThread, QTimer, Qt
+from PySide6.QtGui import QFontMetrics, QIcon, QImage, QPainter, QPalette, QPixmap, QTextOption
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QDialog,
@@ -18,7 +20,12 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QSplitter,
+    QStyle,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
+    QTextBrowser,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -37,16 +44,131 @@ from cdmw.domain.archives.item_catalogue import (
 )
 from cdmw.workers.archive_item_finder_workers import ArchiveItemThumbnailWorker
 from cdmw.ui.archive_browser.failure_report import ArchiveFailurePanel
+from cdmw.ui.wrapping_layout import WrappingLayout
 
 
 class _ItemFinderGrid(QListWidget):
     """Icon grid with the prior private test hooks retained during the UI transition."""
+
+    def resizeEvent(self, event: object) -> None:
+        super().resizeEvent(event)
+        self._update_grid_layout()
+
+    def changeEvent(self, event: QEvent) -> None:
+        super().changeEvent(event)
+        if event.type() in (QEvent.FontChange, QEvent.StyleChange):
+            self._update_grid_layout()
+
+    def _update_grid_layout(self) -> None:
+        if getattr(self, "_updating_grid_layout", False):
+            return
+        self._updating_grid_layout = True
+        try:
+            width = max(1, self.viewport().width() - self.spacing() * 2)
+            minimum_width = max(176, self.fontMetrics().horizontalAdvance("Weapon / Shield") + 24)
+            columns = max(1, width // minimum_width)
+            cell_width = width // columns
+            text_width = max(1, cell_width - 24)
+            text_height = self.fontMetrics().height() * 2
+            for index in range(self.count()):
+                text_height = max(text_height, self.fontMetrics().boundingRect(
+                    QRect(0, 0, text_width, 10000), Qt.TextWordWrap, self.item(index).text()
+                ).height())
+            cell_height = self.iconSize().height() + text_height + 24
+            self.setGridSize(QSize(cell_width, cell_height))
+            item_size = QSize(max(1, cell_width - 8), cell_height - 8)
+            for index in range(self.count()):
+                item = self.item(index)
+                if item.sizeHint() != item_size:
+                    item.setSizeHint(item_size)
+        finally:
+            self._updating_grid_layout = False
 
     def topLevelItemCount(self) -> int:
         return self.count()
 
     def topLevelItem(self, index: int) -> QListWidgetItem | None:
         return self.item(index)
+
+
+class _ItemFinderCategoryDelegate(QStyledItemDelegate):
+    """Give wrapped category names enough row height at the current column width."""
+
+    def paint(self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex) -> None:
+        tree = self.parent()
+        styled = QStyleOptionViewItem(option)
+        styled.font = tree.font()
+        self.initStyleOption(styled, index)
+        styled.fontMetrics = QFontMetrics(styled.font)
+        text_rect = tree.style().subElementRect(QStyle.SE_ItemViewItemText, styled, tree)
+        text = styled.text
+        styled.text = ""
+        tree.style().drawControl(QStyle.CE_ItemViewItem, styled, painter, tree)
+        painter.save()
+        painter.setClipRect(option.rect)
+        painter.setFont(styled.font)
+        painter.setPen(styled.palette.color(QPalette.Text))
+        painter.drawText(text_rect, Qt.AlignLeft | Qt.AlignVCenter | Qt.TextWordWrap, text)
+        painter.restore()
+
+    def sizeHint(self, option: QStyleOptionViewItem, index: QModelIndex) -> QSize:
+        size = super().sizeHint(option, index)
+        if index.column() != 0:
+            return size
+        tree = self.parent()
+        depth = 1
+        parent = index.parent()
+        while parent.isValid():
+            depth += 1
+            parent = parent.parent()
+        styled = QStyleOptionViewItem(option)
+        styled.font = tree.font()
+        self.initStyleOption(styled, index)
+        metrics = QFontMetrics(styled.font)
+        # Qt applies stylesheet padding outside the delegate's sizeHint call.
+        text_width = max(1, tree.columnWidth(0) - tree.indentation() * depth - 16)
+        text_height = metrics.boundingRect(
+            QRect(0, 0, text_width, 10000), Qt.TextWordWrap, styled.text
+        ).height()
+        padding = max(0, size.height() - metrics.height())
+        return QSize(size.width(), text_height + padding)
+
+
+class _ItemFinderDetailText(QTextBrowser):
+    """Selectable plain text that wraps long identifiers without changing their contents."""
+
+    def __init__(self, text: str) -> None:
+        super().__init__()
+        self.setFrameShape(QFrame.NoFrame)
+        self.setStyleSheet("QTextBrowser { background: transparent; border: none; padding: 0; }")
+        self.document().setDocumentMargin(0)
+        self.setWordWrapMode(QTextOption.WrapAtWordBoundaryOrAnywhere)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setFocusPolicy(Qt.ClickFocus)
+        policy = QSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+        policy.setHeightForWidth(True)
+        self.setSizePolicy(policy)
+        self.textChanged.connect(self.updateGeometry)
+        self.setPlainText(text)
+
+    def text(self) -> str:
+        return self.toPlainText()
+
+    def setText(self, text: str) -> None:
+        self.setPlainText(text)
+
+    def heightForWidth(self, width: int) -> int:
+        document = self.document().clone()
+        document.setDefaultFont(self.font())
+        document.setTextWidth(max(1, width))
+        return ceil(document.size().height()) + 2
+
+    def sizeHint(self) -> QSize:
+        return QSize(200, self.heightForWidth(200))
+
+    def minimumSizeHint(self) -> QSize:
+        return QSize(0, self.fontMetrics().height() + 2)
 
 
 class RemoteArchiveFinderDialog(QDialog):
@@ -212,6 +334,7 @@ class RemoteArchiveFinderDialog(QDialog):
         self._item_grid.setIconSize(QSize(112, 112))
         self._item_grid.setGridSize(QSize(176, 184))
         self._item_grid.setSpacing(4)
+        self._item_grid.setMinimumWidth(376)
         self._item_grid.setSelectionMode(QAbstractItemView.SingleSelection)
         browser_layout.addWidget(self._item_grid)
         splitter.addWidget(browser_panel)
@@ -237,30 +360,35 @@ class RemoteArchiveFinderDialog(QDialog):
         self._detail_icon.setAlignment(Qt.AlignCenter)
         self._detail_icon.setFixedSize(120, 120)
         self._detail_icon.setFrameShape(QFrame.StyledPanel)
-        header.addWidget(self._detail_icon)
+        header.addWidget(self._detail_icon, alignment=Qt.AlignTop)
         header_text = QVBoxLayout()
         self._detail_title = self._detail_label("Select an item", prominent=True)
         self._detail_internal = self._detail_label("Recovered item details will appear here.")
         self._detail_category = self._detail_label("")
         self._detail_summary = self._detail_label("")
         header_text.addWidget(self._detail_title)
-        header_text.addWidget(self._detail_internal)
-        header_text.addWidget(self._detail_category)
-        header_text.addWidget(self._detail_summary)
         header_text.addStretch(1)
         header.addLayout(header_text, stretch=1)
         detail_body_layout.addLayout(header)
+        detail_body_layout.addWidget(self._detail_internal)
+        detail_body_layout.addWidget(self._detail_category)
+        detail_body_layout.addWidget(self._detail_summary)
 
-        detail_body_layout.addWidget(self._section_label("Evidence"))
+        self._detail_content = QWidget()
+        content_layout = QVBoxLayout(self._detail_content)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(6)
+        content_layout.addWidget(self._section_label("Evidence"))
         self._detail_evidence = self._detail_label("Select an item to inspect its recovered evidence.")
         self._detail_category_evidence = self._detail_label("")
-        detail_body_layout.addWidget(self._detail_evidence)
-        detail_body_layout.addWidget(self._detail_category_evidence)
-        self._detail_stats = self._add_detail_section(detail_body_layout, "Stats")
-        self._detail_description = self._add_detail_section(detail_body_layout, "Description")
-        self._detail_localized = self._add_detail_section(detail_body_layout, "Localized names")
-        self._detail_models = self._add_detail_section(detail_body_layout, "Models and PAC links")
-        self._detail_icons = self._add_detail_section(detail_body_layout, "Icons")
+        content_layout.addWidget(self._detail_evidence)
+        content_layout.addWidget(self._detail_category_evidence)
+        self._detail_stats = self._add_detail_section(content_layout, "Stats")
+        self._detail_description = self._add_detail_section(content_layout, "Description")
+        self._detail_localized = self._add_detail_section(content_layout, "Localized names")
+        self._detail_models = self._add_detail_section(content_layout, "Models and PAC links")
+        self._detail_icons = self._add_detail_section(content_layout, "Icons")
+        detail_body_layout.addWidget(self._detail_content)
         detail_body_layout.addStretch(1)
         detail_scroll.setWidget(detail_body)
         detail_layout.addWidget(detail_scroll, stretch=1)
@@ -279,11 +407,10 @@ class RemoteArchiveFinderDialog(QDialog):
             f"Open {new_item_tool_name} with this item as the template: a brand-new item with its own name, "
             "stats, model and shop slot."
         )
-        detail_actions = QHBoxLayout()
+        detail_actions = WrappingLayout()
         detail_actions.addWidget(self._exact_button)
         detail_actions.addWidget(self._related_button)
         detail_actions.addWidget(self._clone_button)
-        detail_actions.addStretch(1)
         detail_layout.addLayout(detail_actions)
         splitter.addWidget(detail_panel)
         category_panel = QFrame()
@@ -297,11 +424,16 @@ class RemoteArchiveFinderDialog(QDialog):
         self._category_tree.setObjectName("ItemFinderCategoryList")
         self._category_tree.setHeaderLabels(["Category", "Items"])
         self._category_tree.setSelectionMode(QAbstractItemView.SingleSelection)
-        self._category_tree.setUniformRowHeights(True)
+        self._category_tree.setUniformRowHeights(False)
+        self._category_tree.setWordWrap(True)
+        self._category_tree.setItemDelegate(_ItemFinderCategoryDelegate(self._category_tree))
         self._category_tree.setTextElideMode(Qt.ElideNone)
         self._category_tree.header().setSectionResizeMode(0, QHeaderView.Stretch)
         self._category_tree.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
         self._category_tree.header().setStretchLastSection(False)
+        self._category_tree.header().sectionResized.connect(
+            lambda _section, _old_size, _new_size: self._category_tree.doItemsLayout()
+        )
         all_categories = QTreeWidgetItem(self._category_tree, ["All categories", ""])
         all_categories.setData(0, Qt.UserRole, (None, None))
         self._category_tree.setCurrentItem(all_categories)
@@ -310,14 +442,13 @@ class RemoteArchiveFinderDialog(QDialog):
         splitter.setChildrenCollapsible(False)
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 2)
-        splitter.setStretchFactor(2, 1)
+        splitter.setStretchFactor(2, 0)
         splitter.setSizes(self._restored_splitter_sizes() or [246, 640, 330])
         layout.addWidget(splitter, stretch=1)
 
     @staticmethod
-    def _detail_label(text: str, *, prominent: bool = False) -> QLabel:
-        label = QLabel(text)
-        label.setWordWrap(True)
+    def _detail_label(text: str, *, prominent: bool = False) -> _ItemFinderDetailText:
+        label = _ItemFinderDetailText(text)
         label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         if prominent:
             font = label.font()
@@ -335,7 +466,7 @@ class RemoteArchiveFinderDialog(QDialog):
         label.setContentsMargins(0, 10, 0, 0)
         return label
 
-    def _add_detail_section(self, layout: QVBoxLayout, title: str) -> QLabel:
+    def _add_detail_section(self, layout: QVBoxLayout, title: str) -> _ItemFinderDetailText:
         layout.addWidget(self._section_label(title))
         value = self._detail_label("None")
         layout.addWidget(value)
@@ -587,7 +718,6 @@ class RemoteArchiveFinderDialog(QDialog):
             display_name = row.display_name or row.internal_name or f"Item {row.item_id}"
             item = QListWidgetItem(self._fallback_icon(row), f"{display_name}\n{row.category} / {row.group}")
             item.setData(Qt.UserRole, row.item_id)
-            item.setSizeHint(QSize(168, 178))
             item.setTextAlignment(Qt.AlignHCenter)
             item.setToolTip(
                 f"{row.internal_name} (ID {row.item_id})\n"
@@ -597,6 +727,7 @@ class RemoteArchiveFinderDialog(QDialog):
             self._tree_items[row.item_id] = item
         if not self._facets_ready:
             self._populate_facets(result)
+        self._item_grid._update_grid_layout()
         self._facets_ready = True
         if previous_selection and previous_selection[0] in self._tree_items:
             self._item_grid.setCurrentItem(self._tree_items[previous_selection[0]])
@@ -656,6 +787,8 @@ class RemoteArchiveFinderDialog(QDialog):
 
     def _update_selected_item_detail(self) -> None:
         row = self._selected_row()
+        for widget in (self._detail_category, self._detail_summary, self._detail_content):
+            widget.setVisible(row is not None)
         if row is None:
             self._detail_icon.clear()
             self._detail_icon.setText("?")

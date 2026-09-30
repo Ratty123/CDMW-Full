@@ -7,9 +7,9 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QObject, Signal, Qt
-from PySide6.QtGui import QImage
-from PySide6.QtWidgets import QApplication, QWidget
+from PySide6.QtCore import QObject, QRect, Signal, Qt
+from PySide6.QtGui import QFont, QImage
+from PySide6.QtWidgets import QApplication, QScrollArea, QStyle, QStyleOptionViewItem, QWidget
 
 from cdmw.domain.archives.catalogue import ArchiveSessionHandle
 from cdmw.domain.archives.item_catalogue import (
@@ -436,6 +436,115 @@ def test_saved_category_and_pane_widths_restore_into_the_category_list(saved_siz
         reopened.close()
 
 
+@pytest.mark.parametrize(
+    ("width", "height", "font_size", "density"),
+    [(940, 640, 10, "compact"), (1240, 800, 10, "compact"), (1960, 1160, 10, "compact"),
+     (940, 640, 15, "compact"), (1240, 800, 15, "comfortable")],
+)
+def test_finder_layout_keeps_text_and_actions_visible(width, height, font_size, density) -> None:
+    from cdmw.ui.themes import build_app_palette, build_app_stylesheet
+    from tests.qt_font_metrics_support import ensure_default_ui_font_available
+
+    app = _app()
+    if not ensure_default_ui_font_available():
+        pytest.skip("The application font is required for text geometry checks")
+    original_font, original_palette, original_stylesheet = app.font(), app.palette(), app.styleSheet()
+    app.setFont(QFont("Segoe UI", font_size))
+    app.setPalette(build_app_palette("graphite"))
+    app.setStyleSheet(build_app_stylesheet("graphite", density_key=density))
+    window = _Window()
+    window.open_new_item_studio = lambda _item_id: None
+    dialog = RemoteArchiveFinderDialog(window)
+    try:
+        _drain()
+        names = ("Ancient Shield", "Artisan's Ornamented Shield", "Ancient Ceremonial Shield of the Guardians")
+        rows = tuple(replace(_row(index + 1), display_name=names[index % len(names)], group="Shield",
+            internal_name="IT_Shield_0001_Golden_Ceremonial_Variant_<literal>",
+            pac_files=("character/equipment/shield/ceremonial_guardians_shield_0001.pac",),
+            description="A shield carried by the royal guard, with an ornate polished surface.")
+            for index in range(72))
+        facets = tuple(ItemCatalogCategoryFacet(category, group, 76) for category, group in (
+            ("Weapon", "Shield"), ("Weapon", "Axe / Mace / Hammer"), ("Weapon", "Polearm / Spear"),
+            ("Progression / Reward", "Artifact"), ("Quest / Document", "Book / Diary"),
+            ("Quest / Document", "Map / Treasure"), ("Tool", "Throwable / Utility"),
+            ("Tool", "Backpack / Pack")))
+        window.archive_catalogue_service.result_ready.emit("search-1", "search_item_catalog",
+            ItemCatalogSearchResult("session-a", 76, 0, 72, rows, facets))
+        dialog.resize(width, height)
+        dialog.show()
+        _drain()
+        assert dialog.width() == width
+        assert dialog._detail_content.isHidden()
+        assert dialog._detail_category.isHidden() and dialog._detail_summary.isHidden()
+        assert dialog._item_splitter.sizes()[2] <= 330
+
+        for button in (dialog._exact_button, dialog._related_button, dialog._clone_button):
+            assert button.width() >= button.sizeHint().width()
+            assert button.parentWidget().rect().contains(button.geometry())
+        buttons = (dialog._exact_button, dialog._related_button, dialog._clone_button)
+        assert all(not first.geometry().intersects(second.geometry())
+                   for index, first in enumerate(buttons) for second in buttons[index + 1:])
+
+        tree = dialog._category_tree
+        for top_index in range(tree.topLevelItemCount()):
+            parent = tree.topLevelItem(top_index)
+            for item in (parent, *(parent.child(index) for index in range(parent.childCount()))):
+                for column in (0, 1):
+                    index = tree.indexFromItem(item, column)
+                    option = QStyleOptionViewItem()
+                    option.initFrom(tree)
+                    tree.itemDelegate().initStyleOption(option, index)
+                    option.rect = tree.visualRect(index)
+                    text_rect = tree.style().subElementRect(QStyle.SE_ItemViewItemText, option, tree)
+                    needed = tree.fontMetrics().boundingRect(
+                        QRect(0, 0, text_rect.width(), 10000), Qt.TextWordWrap, item.text(column)).height()
+                    assert text_rect.height() >= needed, item.text(column)
+
+        grid = dialog._item_grid
+        first_row = [grid.visualItemRect(grid.item(index)) for index in range(grid.count())]
+        top = first_row[0].y()
+        used_width = max(rect.right() + 1 for rect in first_row if rect.y() == top)
+        assert grid.viewport().width() - used_width <= 20
+        for item_index in range(3):
+            item = grid.item(item_index)
+            option = QStyleOptionViewItem()
+            option.initFrom(grid)
+            grid.itemDelegate().initStyleOption(option, grid.indexFromItem(item))
+            option.decorationPosition = QStyleOptionViewItem.Top
+            option.decorationSize = grid.iconSize()
+            option.rect = grid.visualItemRect(item)
+            text_rect = grid.style().subElementRect(QStyle.SE_ItemViewItemText, option, grid)
+            needed = grid.fontMetrics().boundingRect(
+                QRect(0, 0, text_rect.width(), 10000), Qt.TextWordWrap, item.text()).height()
+            assert text_rect.height() >= needed, item.text()
+
+        grid.setCurrentRow(0)
+        _drain()
+        assert not dialog._detail_content.isHidden()
+        scroll = dialog._item_splitter.widget(2).findChild(QScrollArea)
+        assert scroll.horizontalScrollBar().maximum() == 0
+        for name in ("_detail_title", "_detail_internal", "_detail_category", "_detail_summary",
+                     "_detail_evidence", "_detail_category_evidence", "_detail_stats",
+                     "_detail_description", "_detail_localized", "_detail_models", "_detail_icons"):
+            field = getattr(dialog, name)
+            assert field.document().size().height() <= field.height(), name
+            assert field.horizontalScrollBar().maximum() == 0, name
+        expected = rows[0].internal_name + " (ID 1)"
+        assert dialog._detail_internal.text() == expected
+        dialog._detail_internal.selectAll()
+        dialog._detail_internal.copy()
+        assert app.clipboard().text() == expected
+    finally:
+        dialog.close()
+        window.close()
+        dialog.deleteLater()
+        window.deleteLater()
+        app.setFont(original_font)
+        app.setPalette(original_palette)
+        app.setStyleSheet(original_stylesheet)
+        _drain()
+
+
 def test_late_category_rows_are_localized_without_changing_the_backend_filter(tmp_path) -> None:
     from cdmw.ui.localization import UiLocalizer
 
@@ -447,6 +556,7 @@ def test_late_category_rows_are_localized_without_changing_the_backend_filter(tm
     dialog = RemoteArchiveFinderDialog(window)
     try:
         _drain()
+        assert dialog._detail_title.text() == localizer.translate("Select an item") != "Select an item"
         window.archive_catalogue_service.result_ready.emit("search-1", "search_item_catalog",
             ItemCatalogSearchResult("session-a", 5, 0, 72, (),
                 (ItemCatalogCategoryFacet("Weapon", "Shield", 5),)))

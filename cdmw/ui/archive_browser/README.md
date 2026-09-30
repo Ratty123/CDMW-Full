@@ -88,8 +88,13 @@ search. Apply **Search** to refresh the archive results.
 Item Finder shows its categories and subcategories in an expanded list on the
 left, with item counts. The item grid is in the middle and item details and asset
 actions are on the right. Select a category for all its groups, or a subcategory
-to narrow the results. Saved category filters and pane widths restore on reopening; older
-two-pane layouts gain the category pane without adding a new setting.
+to narrow the results. Category names and grid captions wrap for larger fonts;
+the grid uses the available width. Detail actions wrap onto more rows when
+needed, and long names and paths wrap while retaining their original copied
+text. Additional window width goes to the grid; the details pane keeps its
+chosen width and shows only a selection prompt until an item is selected.
+Saved category filters and pane widths restore on reopening; older two-pane
+layouts gain the category pane without adding a new setting.
 
 ## Scanner failures and recovery
 

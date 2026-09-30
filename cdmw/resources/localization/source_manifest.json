@@ -3501,7 +3501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 60,
+          "line": 184,
           "sink": "RuntimeError"
         }
       ]
@@ -6866,12 +6866,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 305,
+          "line": 437,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 714,
+          "line": 848,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -16406,7 +16406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 120,
+          "line": 244,
           "sink": "QLabel"
         }
       ]
@@ -19541,7 +19541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 154,
+          "line": 275,
           "sink": "QPushButton"
         }
       ]
@@ -20196,7 +20196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 542,
+          "line": 699,
           "sink": "setText"
         }
       ]
@@ -20206,7 +20206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 532,
+          "line": 689,
           "sink": "show_failure"
         }
       ]
@@ -20216,7 +20216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 464,
+          "line": 621,
           "sink": "setText"
         }
       ]
@@ -20231,7 +20231,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 295,
+          "line": 422,
           "sink": "_section_label"
         }
       ]
@@ -20311,7 +20311,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 298,
+          "line": 425,
           "sink": "setHeaderLabels"
         },
         {
@@ -20331,7 +20331,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 667,
+          "line": 826,
           "sink": "setText"
         }
       ]
@@ -24606,7 +24606,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 133,
+          "line": 255,
           "sink": "QPushButton"
         },
         {
@@ -25526,7 +25526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 275,
+          "line": 402,
           "sink": "QPushButton"
         }
       ]
@@ -25631,7 +25631,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 155,
+          "line": 276,
           "sink": "QPushButton"
         },
         {
@@ -33446,7 +33446,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 261,
+          "line": 387,
           "sink": "_add_detail_section"
         },
         {
@@ -39156,7 +39156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 676,
+          "line": 835,
           "sink": "setText"
         }
       ]
@@ -39521,7 +39521,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 255,
+          "line": 381,
           "sink": "_section_label"
         }
       ]
@@ -52046,7 +52046,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 264,
+          "line": 390,
           "sink": "_add_detail_section"
         }
       ]
@@ -56846,7 +56846,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 113,
+          "line": 237,
           "sink": "setWindowTitle"
         },
         {
@@ -57376,7 +57376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 659,
+          "line": 818,
           "sink": "setText"
         }
       ]
@@ -57506,7 +57506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 298,
+          "line": 425,
           "sink": "setHeaderLabels"
         },
         {
@@ -60996,12 +60996,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 146,
+          "line": 267,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 444,
+          "line": 601,
           "sink": "setText"
         }
       ]
@@ -61596,7 +61596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 262,
+          "line": 388,
           "sink": "_add_detail_section"
         }
       ]
@@ -69551,7 +69551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 263,
+          "line": 389,
           "sink": "_add_detail_section"
         }
       ]
@@ -72411,7 +72411,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 151,
+          "line": 272,
           "sink": "QPushButton"
         },
         {
@@ -73246,7 +73246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 582,
+          "line": 739,
           "sink": "setText"
         }
       ]
@@ -73806,7 +73806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 676,
+          "line": 835,
           "sink": "setText"
         }
       ]
@@ -76561,32 +76561,27 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 318,
-          "sink": "_detail_label"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 649,
+          "line": 808,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 677,
+          "line": 836,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 678,
+          "line": 837,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 680,
+          "line": 839,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 681,
+          "line": 840,
           "sink": "setText"
         },
         {
@@ -80026,7 +80021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 279,
+          "line": 406,
           "sink": "setToolTip"
         }
       ]
@@ -93301,7 +93296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 150,
+          "line": 271,
           "sink": "QPushButton"
         },
         {
@@ -97831,12 +97826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 244,
-          "sink": "_detail_label"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 637,
+          "line": 796,
           "sink": "setText"
         }
       ]
@@ -97856,7 +97846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 666,
+          "line": 825,
           "sink": "setText"
         }
       ]
@@ -103241,7 +103231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 751,
+          "line": 916,
           "sink": "setText"
         }
       ]
@@ -104396,7 +104386,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 152,
+          "line": 273,
           "sink": "QPushButton"
         },
         {
@@ -104511,7 +104501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 387,
+          "line": 543,
           "sink": "setText"
         }
       ]
@@ -108351,7 +108341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 776,
+          "line": 941,
           "sink": "setText"
         }
       ]
@@ -108491,7 +108481,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 132,
+          "line": 254,
           "sink": "QPushButton"
         },
         {
@@ -108756,7 +108746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 129,
+          "line": 253,
           "sink": "setPlaceholderText"
         }
       ]
@@ -109026,7 +109016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 444,
+          "line": 601,
           "sink": "setText"
         }
       ]
@@ -111596,12 +111586,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 243,
-          "sink": "_detail_label"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 636,
+          "line": 795,
           "sink": "setText"
         },
         {
@@ -111636,12 +111621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 256,
-          "sink": "_detail_label"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 640,
+          "line": 799,
           "sink": "setText"
         }
       ]
@@ -111766,7 +111746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 732,
+          "line": 897,
           "sink": "information"
         }
       ]
@@ -115181,7 +115161,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 269,
+          "line": 396,
           "sink": "QPushButton"
         }
       ]
@@ -115371,7 +115351,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 271,
+          "line": 398,
           "sink": "QPushButton"
         }
       ]
@@ -115661,7 +115641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 272,
+          "line": 399,
           "sink": "setToolTip"
         }
       ]
@@ -115856,7 +115836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 270,
+          "line": 397,
           "sink": "setToolTip"
         }
       ]
@@ -116451,7 +116431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 584,
+          "line": 741,
           "sink": "setText"
         }
       ]
@@ -121116,7 +121096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 260,
+          "line": 386,
           "sink": "_add_detail_section"
         },
         {
@@ -126191,7 +126171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 430,
+          "line": 587,
           "sink": "_show_error"
         }
       ]
@@ -128561,7 +128541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 766,
+          "line": 931,
           "sink": "setText"
         }
       ]
@@ -164301,7 +164281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 562,
+          "line": 719,
           "sink": "QListWidgetItem"
         }
       ]
@@ -164546,7 +164526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 660,
+          "line": 819,
           "sink": "setText"
         }
       ]
@@ -164556,7 +164536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 566,
+          "line": 722,
           "sink": "setToolTip"
         }
       ]
@@ -165056,12 +165036,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 661,
+          "line": 820,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 733,
+          "line": 867,
           "sink": "setToolTip"
         },
         {
@@ -165326,7 +165306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 662,
+          "line": 821,
           "sink": "setText"
         }
       ]
@@ -168941,7 +168921,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 491,
+          "line": 648,
           "sink": "setText"
         },
         {
@@ -170051,7 +170031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 491,
+          "line": 648,
           "sink": "setText"
         },
         {
