@@ -3,6 +3,8 @@ from __future__ import annotations
 import os
 from dataclasses import replace
 
+import pytest
+
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QObject, Signal, Qt
@@ -351,7 +353,7 @@ def test_clear_drops_the_saved_filter_before_it_searches_again() -> None:
     dialog.close()
 
 
-def test_category_list_is_on_the_right_and_filters_categories_or_groups() -> None:
+def test_category_list_is_on_the_left_and_filters_categories_or_groups() -> None:
     _app()
     window = _Window()
     dialog = RemoteArchiveFinderDialog(window)
@@ -366,9 +368,13 @@ def test_category_list_is_on_the_right_and_filters_categories_or_groups() -> Non
     dialog.show()
     _drain()
     tree = dialog._category_tree
-    panel = dialog._item_splitter.widget(2)
+    panel = dialog._item_splitter.widget(0)
+    browse_panel = dialog._item_splitter.widget(1)
+    detail_panel = dialog._item_splitter.widget(2)
     assert panel.objectName() == "ItemFinderCategoryPanel" and panel.isAncestorOf(tree)
-    assert panel.width() >= 230 and panel.x() > dialog._item_splitter.widget(1).x()
+    assert browse_panel.objectName() == "ItemFinderBrowsePanel" and browse_panel.isAncestorOf(dialog._item_grid)
+    assert detail_panel.objectName() == "ItemFinderDetailPanel"
+    assert panel.width() >= 230 and panel.x() < browse_panel.x() < detail_panel.x()
     assert tree.textElideMode() == Qt.ElideNone
     assert tree.topLevelItem(0).text(1) == "89"
     weapon = tree.topLevelItem(1)
@@ -393,7 +399,11 @@ def test_category_list_is_on_the_right_and_filters_categories_or_groups() -> Non
     dialog.close()
 
 
-def test_saved_category_and_two_panel_layout_restore_into_the_category_list() -> None:
+@pytest.mark.parametrize(
+    ("saved_sizes", "expected_sizes"),
+    [([700, 330], [246, 454, 330]), ([700, 330, 280], [280, 700, 330])],
+)
+def test_saved_category_and_pane_widths_restore_into_the_category_list(saved_sizes, expected_sizes) -> None:
     from cdmw.services.settings_service import create_settings
     import tempfile
     from pathlib import Path
@@ -404,23 +414,24 @@ def test_saved_category_and_two_panel_layout_restore_into_the_category_list() ->
         window.settings = create_settings(settings_file_path=Path(directory) / "finder.cfg")
         window.settings.setValue("ui/item_finder_category", "Weapon")
         window.settings.setValue("ui/item_finder_group", "Shield")
-        window.settings.setValue("ui/item_finder_splitter_sizes", [700, 330])
+        window.settings.setValue("ui/item_finder_splitter_sizes", saved_sizes)
         dialog = RemoteArchiveFinderDialog(window)
         _drain()
         service = window.archive_catalogue_service
         assert (service.searches[0].category, service.searches[0].group) == ("Weapon", "Shield")
-        assert dialog._restored_splitter_sizes() == [454, 330, 246]
+        assert dialog._restored_splitter_sizes() == expected_sizes
         service.result_ready.emit("search-1", "search_item_catalog",
             ItemCatalogSearchResult("session-a", 5, 0, 72, (),
                 (ItemCatalogCategoryFacet("Weapon", "Sword", 80), ItemCatalogCategoryFacet("Weapon", "Shield", 5))))
         assert dialog._selected_filters() == ("Weapon", "Shield")
         assert dialog._category_tree.currentItem().text(0) == "Shield"
         assert len(service.searches) == 1 and not dialog._search_timer.isActive()
+        pane_sizes = dialog._item_splitter.sizes()
         dialog.close()
         sizes = window.settings.value("ui/item_finder_splitter_sizes")
-        assert len(sizes) == 3
+        assert sizes == [pane_sizes[1], pane_sizes[2], pane_sizes[0]]
         reopened = RemoteArchiveFinderDialog(window)
-        assert reopened._restored_splitter_sizes() == sizes
+        assert reopened._restored_splitter_sizes() == pane_sizes
         assert reopened._selected_filters() == ("Weapon", "Shield")
         reopened.close()
 

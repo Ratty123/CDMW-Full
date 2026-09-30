@@ -13,7 +13,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - Create New Item keeps effects catalogue discovery separate from export source tracking; selected authoring dependencies still receive stale-source checks.
 - Effects catalogue parsing reuses bounded immutable schemas and collects metadata in one traversal, preserving full authoring decoding and validation.
 - Archive Browser always uses the standalone archive backend. The retired scanner, shadow comparison and session fallback are removed; obsolete `CDMW_ARCHIVE_BACKEND` overrides are ignored with a log notice. Existing user caches remain in place.
-- Item Finder shows categories and subcategories with item counts in a persistent list on the right. The archive extension picker button is named Select Extension.
+- Item Finder shows categories and subcategories with item counts in a persistent list on the left, the item grid in the middle and details on the right. Saved pane widths follow their respective panes. The archive extension picker button is named Select Extension.
 
 ### Fixed
 

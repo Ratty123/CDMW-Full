@@ -291,7 +291,7 @@ class RemoteArchiveFinderDialog(QDialog):
         category_panel.setMinimumWidth(230)
         category_panel.setMaximumWidth(390)
         category_layout = QVBoxLayout(category_panel)
-        category_layout.setContentsMargins(4, 0, 0, 0)
+        category_layout.setContentsMargins(0, 0, 4, 0)
         category_layout.addWidget(self._section_label("Categories"))
         self._category_tree = QTreeWidget()
         self._category_tree.setObjectName("ItemFinderCategoryList")
@@ -306,12 +306,12 @@ class RemoteArchiveFinderDialog(QDialog):
         all_categories.setData(0, Qt.UserRole, (None, None))
         self._category_tree.setCurrentItem(all_categories)
         category_layout.addWidget(self._category_tree, stretch=1)
-        splitter.addWidget(category_panel)
+        splitter.insertWidget(0, category_panel)
         splitter.setChildrenCollapsible(False)
-        splitter.setStretchFactor(0, 2)
-        splitter.setStretchFactor(1, 1)
-        splitter.setStretchFactor(2, 0)
-        splitter.setSizes(self._restored_splitter_sizes() or [640, 330, 246])
+        splitter.setStretchFactor(0, 0)
+        splitter.setStretchFactor(1, 2)
+        splitter.setStretchFactor(2, 1)
+        splitter.setSizes(self._restored_splitter_sizes() or [246, 640, 330])
         layout.addWidget(splitter, stretch=1)
 
     @staticmethod
@@ -355,8 +355,9 @@ class RemoteArchiveFinderDialog(QDialog):
         except (TypeError, ValueError):
             return []
         if len(sizes) == 2:
-            return [max(1, sizes[0] - 246), sizes[1], 246]
-        return sizes if len(sizes) == 3 else []
+            return [246, max(1, sizes[0] - 246), sizes[1]]
+        # Saved widths retain the original browse, detail, category order.
+        return [sizes[2], sizes[0], sizes[1]] if len(sizes) == 3 else []
 
     def _connect_service(self) -> None:
         self._service.result_ready.connect(self._handle_result)
@@ -993,7 +994,10 @@ class RemoteArchiveFinderDialog(QDialog):
         try:
             self._settings.setValue("ui/item_finder_geometry", self.saveGeometry())
             if self._item_splitter is not None:
-                self._settings.setValue("ui/item_finder_splitter_sizes", self._item_splitter.sizes())
+                category_width, browse_width, detail_width = self._item_splitter.sizes()
+                self._settings.setValue(
+                    "ui/item_finder_splitter_sizes", [browse_width, detail_width, category_width]
+                )
             self._settings.setValue("ui/item_finder_search_text", self._search_edit.text())
             self._settings.setValue("ui/item_finder_category", category or "")
             self._settings.setValue("ui/item_finder_group", group or "")

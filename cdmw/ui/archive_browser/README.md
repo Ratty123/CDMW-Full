@@ -86,9 +86,9 @@ ahead of catalogue warmups and update an already-open picker without losing its
 search. Apply **Search** to refresh the archive results.
 
 Item Finder shows its categories and subcategories in an expanded list on the
-right, with item counts. Select a category for all its groups, or a subcategory
-to narrow the results. Search, paging, previews and asset actions remain in the
-main panes. Saved category filters and pane widths restore on reopening; older
+left, with item counts. The item grid is in the middle and item details and asset
+actions are on the right. Select a category for all its groups, or a subcategory
+to narrow the results. Saved category filters and pane widths restore on reopening; older
 two-pane layouts gain the category pane without adding a new setting.
 
 ## Scanner failures and recovery
