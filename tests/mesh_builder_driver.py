@@ -152,9 +152,12 @@ class MeshBuilderDriver:
         )
         before = set(self.window._modeless_alignment_dialogs)
         try:
+            entry = self.window.archive.archive_remote_bridge.current_compatibility_entry()
+            if entry is None:
+                raise AssertionError("Synthetic Mesh Builder catalogue selection is unavailable.")
             prompt_archive_static_replacement_options(
                 self.window.archive,
-                self.window.archive.archive_entries[0],
+                entry,
                 self.root / f"{dialog_title}.obj",
                 dialog_title=dialog_title,
                 placement_context_note=placement_context_note,

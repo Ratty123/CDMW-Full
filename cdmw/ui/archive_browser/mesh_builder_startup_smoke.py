@@ -183,9 +183,12 @@ def _exercise_builder_mode(
         compatibility_host = window.shell.mesh_editor_tab.embedded_builder_host
         window.shell.mesh_editor_tab.workspace_stack.setCurrentWidget(compatibility_host)
         window.shell._activate_tool_widget(window.shell.mesh_editor_tab)
+        entry = window.archive.archive_remote_bridge.current_compatibility_entry()
+        if entry is None:
+            raise RuntimeError("Synthetic Mesh Builder catalogue selection is unavailable.")
         prompt_archive_static_replacement_options(
             window,
-            window.archive.archive_entries[0],
+            entry,
             root / f"{mode_name}.obj",
             dialog_title=f"Synthetic {mode_name}",
             embedded_host=compatibility_host,
