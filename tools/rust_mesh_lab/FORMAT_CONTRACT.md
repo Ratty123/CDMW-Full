@@ -1,6 +1,8 @@
 # Rust Mesh Lab format contract
 
-This inventory records the local CDMW contracts examined at implementation time. “Proven” means backed by the current local owner and synthetic tests. It does not mean private real-game parity has run in Rust.
+This inventory records the local CDMW contracts examined at implementation time.
+“Proven” means backed by the current local owner and synthetic tests. It does not mean
+private real-game parity has run in Rust.
 
 ## Support matrix
 
@@ -12,25 +14,65 @@ This inventory records the local CDMW contracts examined at implementation time.
 | PAM | Geometry read | `cdmw/modding/mesh_parser.py`, `native/cdmw_preview_core/src/owners/geometry_static.cpp` | Proven quantized candidate layouts; global/scan fallback variants incomplete |
 | PAMLOD | Geometry read | same static owners | Declared LOD groups and proven quantized groups; unsupported groups fail visibly |
 | DDS | Metadata read, supported archive reconstruction, and direct 2D GPU upload | `cdmw/core/archive_extraction.py`, `cdmw/core/dds_resource_limits.py` | Legacy/DX10 metadata and common BC/R/RG/RGBA/BGRA formats; bounded Partial and Sparse reconstruction is synthetically proven for supported 2D entries, while arrays/cubes and fallback transcode remain incomplete |
-| PAC XML / PAM XML / PAMLOD XML | Bounded texture/material-parameter read | material sidecar owners | Wrapper/submesh/shader/texture provenance plus typed/unknown parameter names, raw values, attributes, and explicit/incomplete confidence are native. Base, normal, packed/separate surface, occlusion, emissive, RGB Specular, independent red-channel Glossiness/Smoothness, explicit-cutout Opacity, exact global `_heightTexture`, qualified hair Flow, and diagnostic Layer Mask references are sampled per material owner. Glossiness supplies `roughness = 1 - glossiness` only when packed material, separate Roughness, and packed skin response have not already supplied roughness; Specular and Glossiness can coexist without sharing a binding. Height is linear and uses R-channel fragment-normal/roughness relief around neutral 0.5; unique finite `_screenSpaceDisplacementScale`, `_detailScreenSpaceDisplacementScale`, or `_heightIntensity` values clamp to 0–1, otherwise the preview uses the current 0.025 default. Explicit zero disables the effect. Wrinkle, detail, parallax, and layer displacement references remain unbound; no vertex displacement is claimed. Flow is linear, preserves `_flowTexture`, SSDM, or direction provenance, and supplies two-channel strand direction only when the owning material identifies a proven `SkinnedMeshHair`, `SkinnedMeshFur`, or `AnimalHair` family; non-hair Flow remains classified and bound without changing pixels. Exact `_colorBlendingMaskTexture` and `_detailMaskTexture` references are linear Layer Mask evidence with production R/B selectors; the grayscale diagnostic does not compose dye/detail layers or modify lit output. Unique explicit Float/Byte4 roughness, metallic/metalness, and specular factors are sampled per owner; hex emissive color and finite float intensity are sampled with a bound emissive texture. Explicit `AlphaTest`/`AlphaClip`/`AlphaCutout`/`Cutout` enable state selects the current approximate 0.08 cutout threshold and Opacity red-channel coverage, falling back to base-color alpha. Remaining scalar/vector factors, actual layers/dyes, channel-authoritative opacity, blend transparency, and non-global displacement semantics remain incomplete |
+| PAC XML / PAM XML / PAMLOD XML | Bounded texture/material-parameter read | material sidecar owners | [Detailed limitations](#pac-xml--pam-xml--pamlod-xml-limitations) |
 | PAMI / APP XML / Prefab-data XML | Relationship target only | appearance/material owners | Native semantic parsing not implemented |
 | PAB | Fixed-layout read and hierarchy overlay | `cdmw/modding/skeleton_parser.py` | Synthetic source-port proof only; heuristic legacy scan, private corpus parity, PAC palette/weight binding, pose, and writeback are not implemented |
 | PABC | Unsupported in Rust | `cdmw/modding/skeleton_variation_parser.py` | No variation application parity yet |
 | Morph-target PAMT | Explicitly distinct, unsupported | `cdmw/core/archive_mesh_appearance.py` | Never passed to the archive-index decoder based on extension alone |
 | Meshinfo | Unsupported metadata | current preview owners | No unproven table authority is claimed |
 
+## Material sidecar limitations
+
+### PAC XML / PAM XML / PAMLOD XML limitations
+
+Wrapper/submesh/shader/texture provenance plus typed/unknown parameter names, raw
+values, attributes, and explicit/incomplete confidence are native. Base, normal,
+packed/separate surface, occlusion, emissive, RGB Specular, independent red-channel
+Glossiness/Smoothness, explicit-cutout Opacity, exact global `_heightTexture`, qualified
+hair Flow, and diagnostic Layer Mask references are sampled per material owner.
+Glossiness supplies `roughness = 1 - glossiness` only when packed material, separate
+Roughness, and packed skin response have not already supplied roughness; Specular and
+Glossiness can coexist without sharing a binding.
+
+Height is linear and uses R-channel fragment-normal/roughness relief around neutral 0.5;
+unique finite `_screenSpaceDisplacementScale`, `_detailScreenSpaceDisplacementScale`, or
+`_heightIntensity` values clamp to 0–1, otherwise the preview uses the current 0.025
+default. Explicit zero disables the effect. Wrinkle, detail, parallax, and layer
+displacement references remain unbound; no vertex displacement is claimed. Flow is
+linear, preserves `_flowTexture`, SSDM, or direction provenance, and supplies
+two-channel strand direction only when the owning material identifies a proven
+`SkinnedMeshHair`, `SkinnedMeshFur`, or `AnimalHair` family; non-hair Flow remains
+classified and bound without changing pixels.
+
+Exact `_colorBlendingMaskTexture` and `_detailMaskTexture` references are linear Layer
+Mask evidence with production R/B selectors; the grayscale diagnostic does not compose
+dye/detail layers or modify lit output. Unique explicit Float/Byte4 roughness,
+metallic/metalness, and specular factors are sampled per owner; hex emissive color and
+finite float intensity are sampled with a bound emissive texture. Explicit
+`AlphaTest`/`AlphaClip`/`AlphaCutout`/`Cutout` enable state selects the current
+approximate 0.08 cutout threshold and Opacity red-channel coverage, falling back to
+base-color alpha. Remaining scalar/vector factors, actual layers/dyes,
+channel-authoritative opacity, blend transparency, and non-global displacement semantics
+remain incomplete
+
+
 ## Archive index contract
 
 The current archive-index role is accepted only through structural parsing:
 
 1. Three little-endian `u32` values: header checksum, PAZ count, reserved value.
-2. `paz_count` records of three little-endian `u32` values. CDMW currently skips their semantics; Rust preserves them as checksum, file-count candidate, and reserved fields without using them as authority.
+2. `paz_count` records of three little-endian `u32` values. CDMW currently skips their
+   semantics; Rust preserves them as checksum, file-count candidate, and reserved fields
+   without using them as authority.
 3. A length-prefixed directory path-record block.
 4. A length-prefixed file-name path-record block.
 5. A `u32` folder count followed by 16-byte records: hash, path-record offset, first file index, file count.
-6. A `u32` file count followed by 20-byte records: path-record offset, PAZ byte offset, stored size, original size, PAZ index, flags.
+6. A `u32` file count followed by 20-byte records: path-record offset, PAZ byte offset,
+   stored size, original size, PAZ index, flags.
 
-Path records contain a parent `u32`, one-byte part length, and UTF-8 bytes. `0xffffffff` is the root sentinel. Rust rejects path cycles, out-of-range offsets, traversal, drive-qualified components, excessive depth, and excessive path bytes.
+Path records contain a parent `u32`, one-byte part length, and UTF-8 bytes. `0xffffffff`
+is the root sentinel. Rust rejects path cycles, out-of-range offsets, traversal,
+drive-qualified components, excessive depth, and excessive path bytes.
 
 The low flag nibble is compression type; the next nibble is encryption type. Current labels are:
 
@@ -42,11 +84,30 @@ The low flag nibble is compression type; the next nibble is encryption type. Cur
 | 3 | Zlib | Unsupported, fail closed |
 | 4 | QuickLZ | Unsupported, fail closed |
 
-Encryption type 3 uses the current filename-derived ChaCha20 contract. Rust uses the maintained RustCrypto `chacha20` implementation in legacy mode, ports only the proven lookup3 seed/key/nonce derivation, and does not implement its own cipher primitive. Types 1, 2, and unknown values fail closed.
+Encryption type 3 uses the current filename-derived ChaCha20 contract. Rust uses the
+maintained RustCrypto `chacha20` implementation in legacy mode, ports only the proven
+lookup3 seed/key/nonce derivation, and does not implement its own cipher primitive.
+Types 1, 2, and unknown values fail closed.
 
-Archive discovery recursively finds `.pamt` index candidates, ignores top-level `cdmods`, sorts deterministically, validates every numbered payload identity and range, and does not read entry payloads during browsing. `meta/0.papgt` mount ordering remains a parity gap.
+Archive discovery recursively finds `.pamt` index candidates, ignores top-level
+`cdmods`, sorts deterministically, validates every numbered payload identity and range,
+and does not read entry payloads during browsing. `meta/0.papgt` mount ordering remains
+a parity gap.
 
-Partial DDS reconstruction parses the bounded PATHC fixed header, texture-header, checksum, entry, collision, and filename tables; resolves the exact normalized virtual path with the current lookup3 contract; validates the legacy/DX10 2D header and mip plan; and decodes the supported single-chunk or first-four-mip LZ4 layout. Payload chunk sizes override stale PATHC block-size metadata only under the same bounded plausibility rule as current CDMW. Missing or ambiguous PATHC records, malformed tables, unsupported texture shapes, truncated blocks, and outputs above the caller's active limit fail before publication. Reconstruction is in memory and leaves the PAZ and PATHC files byte-exact. Synthetic cross-implementation fixtures require exact reconstructed SHA-256 values `c9096e57e46707bd071a94b7274c6e8af0ddf01766137a186b58e993893b21a5` (Partial) and `2880a12980fe3145ebafbe2a3d9cf177337608e9037db99a9d5e717ecfc522cb` (Sparse); private archive-corpus parity is not yet proven.
+Partial DDS reconstruction parses the bounded PATHC fixed header, texture-header,
+checksum, entry, collision, and filename tables; resolves the exact normalized virtual
+path with the current lookup3 contract; validates the legacy/DX10 2D header and mip
+plan; and decodes the supported single-chunk or first-four-mip LZ4 layout. Payload chunk
+sizes override stale PATHC block-size metadata only under the same bounded plausibility
+rule as current CDMW. Missing or ambiguous PATHC records, malformed tables, unsupported
+texture shapes, truncated blocks, and outputs above the caller's active limit fail
+before publication.
+
+Reconstruction is in memory and leaves the PAZ and PATHC files byte-exact. Synthetic
+cross-implementation fixtures require exact reconstructed SHA-256 values
+`c9096e57e46707bd071a94b7274c6e8af0ddf01766137a186b58e993893b21a5` (Partial) and
+`2880a12980fe3145ebafbe2a3d9cf177337608e9037db99a9d5e717ecfc522cb` (Sparse); private
+archive-corpus parity is not yet proven.
 
 ## PAC contract
 
@@ -58,13 +119,17 @@ The Rust PAC reader currently requires:
 - section 0 with a LOD count from 1 through 10;
 - descriptor patterns currently proven by the native preview core;
 - finite bounds and counts below 200,000 vertices and 20,000,000 indices per descriptor;
-- one validated geometry section and candidate vertex layout for every accepted section 4→LOD0 through section 1→LOD3 mapping;
+- one validated geometry section and candidate vertex layout for every accepted section
+  4→LOD0 through section 1→LOD3 mapping;
 - every index inside its submesh vertex count;
 - finite decoded positions, UVs, and normals.
 
-Candidate vertex strides are 32, 36, 40, 44, and 48 bytes with the locally accepted UV-offset family and the packed normal at byte 16. Positions use the existing PAC extent decoder; packed 10:10:10 normals use the current component reorder.
+Candidate vertex strides are 32, 36, 40, 44, and 48 bytes with the locally accepted
+UV-offset family and the packed normal at byte 16. Positions use the existing PAC extent
+decoder; packed 10:10:10 normals use the current component reorder.
 
-This is not yet PAC skinning parity. Bone indices, weights, palettes, rigid attachment context, and extra influence gates remain explicit readiness blockers.
+This is not yet PAC skinning parity. Bone indices, weights, palettes, rigid attachment
+context, and extra influence gates remain explicit readiness blockers.
 
 ## PAM and PAMLOD contract
 
@@ -74,11 +139,16 @@ PAM uses the local fixed header locations:
 - bounding-box minimum at byte 20 and maximum at byte 32;
 - geometry offset at byte 60;
 - submesh table at byte 1040 with a 536-byte record stride;
-- count/offset fields in the first 16 bytes, a 256-byte texture name at byte 16, and a 256-byte material name at byte 272.
+- count/offset fields in the first 16 bytes, a 256-byte texture name at byte 16, and a
+  256-byte material name at byte 272.
 
-PAMLOD uses declared LOD count at byte 0, geometry offset at byte 4, bounds at bytes 16 and 28, and scans only structurally valid descriptor/name records before geometry. Candidate layouts validate every index before decoding.
+PAMLOD uses declared LOD count at byte 0, geometry offset at byte 4, bounds at bytes 16
+and 28, and scans only structurally valid descriptor/name records before geometry.
+Candidate layouts validate every index before decoding.
 
-Static positions are quantized `u16` values over the declared bounds. UVs are binary16 values when the accepted stride carries them. Missing normals are recomputed deterministically from validated triangles.
+Static positions are quantized `u16` values over the declared bounds. UVs are binary16
+values when the accepted stride carries them. Missing normals are recomputed
+deterministically from validated triangles.
 
 ## PAB contract
 
@@ -86,13 +156,28 @@ The Rust PAB reader is read-only and accepts only the current fixed local contra
 
 - `PAR ` magic and a complete 22-byte header;
 - little-endian `u16` bone count at byte 20, limited to 4,096;
-- one sequential record per bone: `u32` name hash, one-byte name length, name bytes, signed `i32` parent (`-1` root), bind and inverse-bind 4×4 float matrices, two duplicate matrices that are validated but not retained, float3 scale, float4 quaternion, and float3 position;
+- one sequential record per bone: `u32` name hash, one-byte name length, name bytes,
+  signed `i32` parent (`-1` root), bind and inverse-bind 4×4 float matrices, two
+  duplicate matrices that are validated but not retained, float3 scale, float4
+  quaternion, and float3 position;
 - finite decoded matrix/transform values;
-- parent indices inside the declared count, no self-parent, at least one root for a non-empty hierarchy, and no parent cycle.
+- parent indices inside the declared count, no self-parent, at least one root for a
+  non-empty hierarchy, and no parent cycle.
 
-The immutable result retains source hash, semantic fingerprint, index/name/hash/parent, bind and inverse-bind transforms, scale/rotation/position, record source ranges, roots, maximum hierarchy depth, and trailing-byte count. Overlay endpoints use bind-matrix translation with the current production row-versus-column normalization rule. Direct and archive PAC loads first try the exact same-stem PAB; otherwise one candidate from the current proven character-family basename rules may resolve. Multiple family candidates, duplicate virtual paths, malformed data, excessive files, and unsupported layouts leave the base PAC viewable and report why no skeleton was selected.
+The immutable result retains source hash, semantic fingerprint, index/name/hash/parent,
+bind and inverse-bind transforms, scale/rotation/position, record source ranges, roots,
+maximum hierarchy depth, and trailing-byte count. Overlay endpoints use bind-matrix
+translation with the current production row-versus-column normalization rule. Direct and
+archive PAC loads first try the exact same-stem PAB; otherwise one candidate from the
+current proven character-family basename rules may resolve. Multiple family candidates,
+duplicate virtual paths, malformed data, excessive files, and unsupported layouts leave
+the base PAC viewable and report why no skeleton was selected.
 
-This is hierarchy context, not PAC skinning parity. Palette slots, bone indices and weights in PAC vertices, rigid attachments, PABC variation, morph application, animation, pose editing, PAB writeback, and private real-PAB corpus parity remain open. The heuristic legacy scan in the Python owner is deliberately not ported because it guesses record boundaries.
+This is hierarchy context, not PAC skinning parity. Palette slots, bone indices and
+weights in PAC vertices, rigid attachments, PABC variation, morph application,
+animation, pose editing, PAB writeback, and private real-PAB corpus parity remain open.
+The heuristic legacy scan in the Python owner is deliberately not ported because it
+guesses record boundaries.
 
 ## Resource limits
 
@@ -106,4 +191,5 @@ This is hierarchy context, not PAC skinning parity. Palette slots, bone indices 
 - Lasso: 4,096 retained points.
 - Archive UI query: 20,000 displayed identities; full match count retained.
 
-All offsets, table lengths, buffer sizes, and decoded sizes use checked arithmetic before allocation or slicing.
+All offsets, table lengths, buffer sizes, and decoded sizes use checked arithmetic
+before allocation or slicing.

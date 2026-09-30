@@ -6,12 +6,16 @@ prepares schema-v8 material/geometry packages consumed by Rust/D3D12, and emits 
 preview jobs do not inject synthetic textures or silently enable Python
 fallback.
 
+## Consumers and package contract
+
 Archive Browser and Create New Item both consume this package contract. A New
 Item template request may race bare Python geometry against the native package;
 the native result promotes the resident scene to canonical textures without
 restarting the renderer or resetting its camera. Character appearance overrides
 are read-only presentation clones and are acknowledged in the package report;
 they never rewrite the selected PAC or its linked PABC/PAMT sources.
+
+## Windows paths and ownership
 
 Windows file access uses absolute extended-length Unicode paths, including UNC
 shares, for prepared models, dependencies, cache files, jobs and package/report
@@ -28,37 +32,44 @@ synthetic PAC, short/279/440-character paths, Unicode, both CLI/service calls,
 and missing, denied, invalid and locked inputs. `self-test` additionally checks
 UNC normalization, already-extended paths and Windows length-error classification.
 
-PBD profiles accept authored XML element values and legacy attributes, including
-the four collision modes. Profile hints stay attached to their named parts and
-respect explicit empty overrides. Nested `AttachedCloth` values do not overwrite
-the owning spline settings. Cloak pinning follows the authored `IsCloak` setting,
-which defaults to false; material names, paths and mesh names cannot enable it.
-Render-cloth approximations require a known
-40-byte PAC layout with a nonzero cloth contribution; a spline profile alone
-does not establish render-cloth bindings. The approximation still uses render
-triangles and inferred pins, without game collision or authored guide solving.
-`self-test-pbd` checks these profile and vertex-gate decoding contracts, including
-resolved cloak settings through native pin output with owned XML fixtures,
-without the archive/path self-tests or game data.
+## Physics profiles and PAC validation
+
+PBD profiles accept authored XML element values and legacy attributes, including the
+four collision modes. Profile hints stay attached to their named parts and respect
+explicit empty overrides. Nested `AttachedCloth` values do not overwrite the owning
+spline settings. Cloak pinning follows the authored `IsCloak` setting, which defaults to
+false; material names, paths and mesh names cannot enable it. Render-cloth
+approximations require a known 40-byte PAC layout with a nonzero cloth contribution; a
+spline profile alone does not establish render-cloth bindings.
+
+The approximation still uses render triangles and inferred pins, without game collision
+or authored guide solving. `self-test-pbd` checks these profile and vertex-gate decoding
+contracts, including resolved cloak settings through native pin output with owned XML
+fixtures, without the archive/path self-tests or game data.
 
 PAC preview rejects trailing descriptor-like metadata only when the retained
 40-byte vertex descriptors exactly fill every present LOD section, matching the
 authoring parser. `tests/test_native_preview_pac_geometry.py` exercises the real
 helper with false matches and genuine parts, including parts unique to one LOD.
 
+## Archive indexing
+
 Cold PAMT scans classify entries before constructing archive paths, retain only
 the same preview-relevant records, and reuse each PAZ path within a table. XML
 classification still uses the complete directory path. These allocation savings
 leave the serialized index and material/texture resolution contract unchanged.
 
+## Layered material ownership
+
 For layered Crimson materials, `_colorBlendingMaskTexture` remains a colour-layer
 selector rather than a PBR map. Preview packages publish three `color_seed` rows from
 the PAC's `_tintColorR/G/B` values; the resident compiler reconstructs those masked
-regions before grime/detail overlays, preserves the source fabric's local luminance,
-and suppresses the older global-tint approximation. When several logical items share
-one physical PAC, the ordered item prefab supplies `_modelPropertyIndex` per model and
-the native material reader scopes each `.pac_xml` to that exact `ModelProperty` block;
-the first item's index is therefore kept out of every sibling item's cache identity.
+regions before grime/detail overlays, preserves the source fabric's local luminance, and
+suppresses the older global-tint approximation. When several logical items share one
+physical PAC, the ordered item prefab supplies `_modelPropertyIndex` per model and the
+native material reader scopes each `.pac_xml` to that exact `ModelProperty` block; the
+first item's index is therefore kept out of every sibling item's cache identity.
+
 The production shader compresses high-energy studio radiance into SDR before tone
 mapping instead of multiplying it by a fixed HDR exposure, so bright dye and metal
 retain their colour without flattening into white.
@@ -66,6 +77,8 @@ retain their colour without flattening into white.
 Exact ordered PAC wrappers keep their own parameter tables when several parts
 reuse a detail-mask DDS or material name. Shared texture resources do not merge
 different wrappers' dyes and layers into each part's material graph.
+
+## Implementation owners
 
 `src/main.cpp` is only the executable adapter. Ordered protocol, archive,
 geometry, material, package, report, rebuild, index, and command owners live in
@@ -94,22 +107,26 @@ cdmw-preview-core.exe mesh-rebuild-job job.json output.bin report.json
 cdmw-preview-core.exe name-index-job input.tsv output.bin report.json [progress.json]
 ```
 
-`preview-job` reads a Python-written job file and writes a JSON report. On
-supported entries it returns `status=ok` and a package path. Unsupported or
-unsafe inputs produce an explicit error/fallback reason; callers decide how to
-surface that result. Full-CDMW archive-v2 callers also send an authoritative,
-bounded `archive_dependency_entries` snapshot. The native core resolves
-cross-PAMT basenames and paths from that snapshot and reads its prepared files;
-legacy callers retain the Archive Lite basename-index and package-scan fallback.
-Prepared entries may carry `prepared_size` (actual worker output bytes), independently
-of the original archive `orig_size`. Omitted or negative values retain the legacy
-original-size check. Static PAM versions `0x1802` and `0x01001806` use a single
-LZ4 geometry block with a plain prefix and trailer. PAMLOD uses independently
-compressed or plain LOD blocks with 16-byte alignment, including padding after
-its descriptor table. Archive preparation and Preview Core share the static
-decoder; verified older prepared payloads are decoded before mesh parsing.
-Decoded lengths must match the archive metadata, and invalid block boundaries
+### Preview job protocol
+
+`preview-job` reads a Python-written job file and writes a JSON report. On supported
+entries it returns `status=ok` and a package path. Unsupported or unsafe inputs produce
+an explicit error/fallback reason; callers decide how to surface that result. Full-CDMW
+archive-v2 callers also send an authoritative, bounded `archive_dependency_entries`
+snapshot. The native core resolves cross-PAMT basenames and paths from that snapshot and
+reads its prepared files; legacy callers retain the Archive Lite basename-index and
+package-scan fallback. Prepared entries may carry `prepared_size` (actual worker output
+bytes), independently of the original archive `orig_size`.
+
+Omitted or negative values retain the legacy original-size check. Static PAM versions
+`0x1802` and `0x01001806` use a single LZ4 geometry block with a plain prefix and
+trailer. PAMLOD uses independently compressed or plain LOD blocks with 16-byte
+alignment, including padding after its descriptor table. Archive preparation and Preview
+Core share the static decoder; verified older prepared payloads are decoded before mesh
+parsing. Decoded lengths must match the archive metadata, and invalid block boundaries
 remain errors. Preparation uses a new cache identity for these static formats.
+
+### Material path identity
 
 Material archive paths accept a leading slash and either separator while retaining
 exact folder identity. PAMLOD keeps each part's material and accepts the shipped

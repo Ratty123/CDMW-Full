@@ -4,6 +4,8 @@ Owns the main window shell, workspace layout, tab registry, actions, menus,
 toolbar, status bar, settings/theme/language wiring, startup/close controllers,
 activation handling, diagnostics, and app-level dialogs.
 
+## Layout persistence
+
 `cdmw.ui.layout_persistence` saves window/dialog geometry, splitter proportions
 and interactive column widths through the shell's existing portable `.cfg`
 settings. It covers late-created tools, detached windows, Placement & Animations,
@@ -23,30 +25,35 @@ Regression coverage lives in `test_ui_layout_persistence.py`,
 `test_shell_layout_persistence.py`, `test_new_item_layout_persistence.py` and
 `test_mesh_editor_layout_persistence.py` under `tests/`.
 
-`compact/` owns the restart-selected Compact Workspace presentation around the
-same authoritative tool widgets. Compact is the first-run default; an existing
-Classic or Compact choice remains authoritative. Compact mode
-hides the existing tab bars, routes its rail through the shared activation
-path, reuses the existing actions and status widgets, and never constructs a
-second tool/controller/worker tree. Its shared application theme and category state
-are documented in `docs/features/compact-workspace.md`.
-The shared Activity drawer checks tool-log content without copying the complete
-document on tab activation or each appended line. Repeated activation keeps its
-document connection; Copy still retrieves the full log, and whitespace-only logs
-retain their empty-state and Copy/Clear behavior.
-Activity history redraws are batched on a 40 ms timer while its page is visible;
-hidden drawers and the Current Tool Log page do not rebuild the history text.
-Opening Activity immediately catches up, Clear remains immediate, and Copy reads
-the current history even before a scheduled redraw. All retained events and
-duplicate coalescing keep their existing semantics.
-Assets lists Browse Archives, Create New Item, Model Library, and Item Icons in
-that order.
-The Compact navigation rail sizes to its labels, icons, and layout margins,
-including room for a scrollbar, so it stays narrow without clipping larger fonts
-or longer translations. Collapsing categories keeps that width stable.
-The shell navigation arrow controls the app rail. Mesh Editor's own header
-chevrons independently collapse its Tools and Inspector panels; floating and
-pinned tool settings are owned by the [Mesh Editor](../mesh_editor/README.md).
+## Compact Workspace and navigation
+
+`compact/` owns the restart-selected Compact Workspace presentation around the same
+authoritative tool widgets. Compact is the first-run default; an existing Classic or
+Compact choice remains authoritative. Compact mode hides the existing tab bars, routes
+its rail through the shared activation path, reuses the existing actions and status
+widgets, and never constructs a second tool/controller/worker tree. Its shared
+application theme and category state are documented in
+`docs/features/compact-workspace.md`. The shared Activity drawer checks tool-log content
+without copying the complete document on tab activation or each appended line.
+
+Repeated activation keeps its document connection; Copy still retrieves the full log,
+and whitespace-only logs retain their empty-state and Copy/Clear behavior. Activity
+history redraws are batched on a 40 ms timer while its page is visible; hidden drawers
+and the Current Tool Log page do not rebuild the history text. Opening Activity
+immediately catches up, Clear remains immediate, and Copy reads the current history even
+before a scheduled redraw. All retained events and duplicate coalescing keep their
+existing semantics.
+
+Assets lists Browse Archives, Create New Item, Model Library, and Item Icons in that
+order. The Compact navigation rail sizes to its labels, icons, and layout margins,
+including room for a scrollbar, so it stays narrow without clipping larger fonts or
+longer translations. Collapsing categories keeps that width stable. The shell navigation
+arrow controls the app rail. Mesh Editor's own header chevrons independently collapse
+its Tools and Inspector panels; floating and pinned tool settings are owned by the [Mesh
+Editor](../mesh_editor/README.md).
+
+### Lazy tool loading
+
 Lazy tools reveal an indeterminate progress bar immediately, preload only Qt-free
 data dependencies on a tracked low-priority thread, then import their UI module,
 construct the widget, and apply presentation in separate GUI turns. Tool-specific
@@ -56,6 +63,9 @@ property inspection must not construct unopened lazy tools.
 Archive Browser's compact Select, Actions, and More Filters triggers retain their
 existing routing while rendering normal, hover, pressed/open-menu, focus, and
 disabled button states.
+
+### Archive worker lifecycle
+
 `archive_backend_client.py` owns the resident, bounded `QProcess` protocol and
 nonblocking shutdown lifecycle for the independent full archive worker;
 `archive_backend_resources.py` owns packaged and development worker discovery.
@@ -64,6 +74,8 @@ before dispatch, and never silently falls back. A catalogue-publication failure
 offers retry, cancel, or a legacy scan for the current process only. Explicit
 session fallback cancels tracked requests, restores the legacy tree model, and
 requests nonblocking worker shutdown without persisting a setting.
+
+## Shutdown and archive barriers
 
 Shell close tracks `QThread` workers and parented `QProcess` helpers separately.
 Windows startup requires a kill-on-close job before launching helpers. Closing
@@ -76,11 +88,15 @@ The shell remains visible with a closing status while that barrier is held, then
 closes normally or reaches the final cutoff. The game is explicitly allowed to
 outlive CDMW. See `docs/runbooks/worker-lifecycle.md` for the ownership contract.
 
+## Ownership boundaries
+
 Keep this package focused on application frame behavior. Feature tabs belong in
 `cdmw/ui/<feature>/`; business coordination belongs in `cdmw/services/`; slow
 work belongs in `cdmw/workers/`. `MainWindow` uses the shell-owned `WorkbenchWindow`;
 shell and feature behavior uses ordinary methods on owning widgets and
 controllers. There is no runtime provider registry or generated method manifest.
+
+## In-app documentation
 
 `Help > Documentation` is the app's wiki surface. It uses a hierarchical topic
 tree, a generated all-topic index, multi-word relevance search with `Ctrl+K`,
@@ -88,6 +104,8 @@ article links, breadcrumbs, and back/forward history. English topic data in
 `about_documentation_en.py` is the single source; all 14 built-in languages use
 the shared localization catalog instead of maintaining separate translated
 topic copies.
+
+## Settings and display scaling
 
 Settings font sizes are exact user preferences; responsive screen scaling may
 compact spacing and control metrics, but it does not rewrite the chosen UI or
@@ -105,23 +123,29 @@ Overflow wrapping happens once, preserving the central widget and nested preview
 parents on subsequent resizes. Screen, work-area, and DPI changes refresh the
 shell metrics once; ordinary resizing keeps the inexpensive path.
 
+### Responsive feature layouts
+
 Research and Textures action rows wrap, and Settings Performance cards switch
 between one and two columns. Compact rail/status heights follow the font, and its
 line icons rasterize at the requesting device pixel ratio. The Qt display matrix
 and its scope are documented in `docs/test-matrix.md`.
 
-All 19 application themes use semantic palette roles for shared and
-feature-owned chrome. Feature surfaces may retain intentional content colours
-only with an explicit paired foreground; they must not pin buttons, fields,
-selection, warnings, editors, or disabled text to a Graphite-era literal.
-Use `accent_text` on `accent`, and `text_strong` on `accent_soft`; the two
-foregrounds are not interchangeable. Button text targets at least 4.5:1 contrast
-in normal, hover, pressed, checked, and disabled states.
-`tests/test_theme_surface_coherence.py` applies every theme to real Classic
-Placement, Mesh Editor, Archive Browser, New Item, and XML-editor surfaces and
-guards new stylesheet/rich-text literals. It also checks painted button text in
-both Classic and Compact. Compact's separate synthetic harness
-continues to cover the same production widgets at its supported sizes.
+## Themes and contrast
+
+All 19 application themes use semantic palette roles for shared and feature-owned
+chrome. Feature surfaces may retain intentional content colours only with an explicit
+paired foreground; they must not pin buttons, fields, selection, warnings, editors, or
+disabled text to a Graphite-era literal. Use `accent_text` on `accent`, and
+`text_strong` on `accent_soft`; the two foregrounds are not interchangeable.
+
+Button text targets at least 4.5:1 contrast in normal, hover, pressed, checked, and
+disabled states. `tests/test_theme_surface_coherence.py` applies every theme to real
+Classic Placement, Mesh Editor, Archive Browser, New Item, and XML-editor surfaces and
+guards new stylesheet/rich-text literals. It also checks painted button text in both
+Classic and Compact. Compact's separate synthetic harness continues to cover the same
+production widgets at its supported sizes.
+
+## Focused checks
 
 Related tests: `tests/test_shell_*.py`, architecture guards, and shell entries
 under `tests/`.

@@ -62,12 +62,16 @@ from its `.pab` into named regions (thigh, forearm, breast, ...) with per-vertex
 weights, so a morph slider can target "the left thigh" without a hand-painted
 vertex selection.
 
+### Palette identity
+
 PAC influence slots are per-mesh palette tokens, so pass
 `bone_palette=resolve_pac_bone_palette(raw, skeleton)`. Passing an empty palette
 means "unresolved" and the map claims nothing rather than mislabelling anatomy.
 `primary_influence_only` (the default) keeps each vertex's heaviest influence,
 because only the primary PAC slot decodes reliably; regions are then
 anatomically correct but carry no falloff.
+
+### Region rules and falloff
 
 `DEFAULT_BODY_REGION_RULES` is a data table matched against bone names, ranked by
 whole-token match, then rule priority, then pattern length. It is tuned for the
@@ -87,6 +91,8 @@ surface, not adjacency rings, so the same band feathers the same amount of body
 regardless of mesh density. Without it a slider creases the surface at region
 boundaries.
 
+### Generated sliders
+
 `body_region_sliders.py` instantiates a template set (Size, Length, Taper,
 Flatten, Shift) against every region, producing a `MeshMorphProfile` of ready
 `MeshMorphDefinition` objects. Each slider takes its weighted vertices, pivot,
@@ -97,6 +103,8 @@ Slider rules evaluate in Python and reach the native core as sparse deltas, so
 adding a rule kind needs no C++ change. `radius` (girth, proportional to
 distance from the bone axis) was added for this: `volume` displaces every vertex
 the same absolute amount, which is not what a Size slider means.
+
+### Profile fingerprints and browser model
 
 Generated profiles are fingerprinted over exactly the submeshes their
 definitions touch, matching what `MeshService.activate_morph_profile` checks —
@@ -111,6 +119,8 @@ keyed by sorted region id, so adding a region cannot recolour the others. The
 widget that renders it lives at `cdmw/ui/mesh_editor/body_region_atlas_panel.py`
 and is self-contained — it emits the picked region ids and knows nothing about
 its host.
+
+### Inspection and focused checks
 
 Inspect a real body headlessly with `python -m tools.dump_body_region_map`, which
 prints the per-region report, applies the falloff, and can write a

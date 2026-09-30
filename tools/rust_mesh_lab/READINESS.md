@@ -1,12 +1,55 @@
 # Rust Mesh Lab readiness
 
+## Contents
+
+- [Result](#result)
+- [Implemented and locally proven](#implemented-and-locally-proven)
+- [Incomplete gates](#incomplete-gates)
+- [Texture-complete goal remains open](#texture-complete-goal-remains-open)
+- [Synthetic texture-resolution proof](#synthetic-texture-resolution-proof)
+- [Synthetic Partial/Sparse archive proof](#synthetic-partialsparse-archive-proof)
+- [Synthetic Release measurement](#synthetic-release-measurement)
+- [Headless D3D12 renderer proof](#headless-d3d12-renderer-proof)
+- [Headless interaction stress proof](#headless-interaction-stress-proof)
+- [Headless painted-control and edit-scope proof](#headless-painted-control-and-edit-scope-proof)
+- [Supplied PAC headless edit proof](#supplied-pac-headless-edit-proof)
+- [Visible synthetic interaction proof](#visible-synthetic-interaction-proof)
+- [Production boundary](#production-boundary)
+
 ## Result
 
 **PARTIALLY READY**
 
-The isolated lab builds, launches a responsive Windows window, selects a Direct3D 12 adapter, renders validated geometry and distinct sidecar-resolved base/normal/packed-material/separate-roughness/separate-metalness/occlusion/emissive/independent-RGB-Specular/red-channel-Glossiness-Smoothness/opacity/global-height/flow/layer-mask DDS files on their owning submesh ranges through `wgpu`, preserves typed and unknown sidecar material parameters, applies uniquely owned explicit roughness/metalness/specular/height-scale factors to their material ranges, emissive color/intensity to bound emissive textures, explicit alpha-test enable state as an approximate cutout policy, hair anisotropy only when Flow belongs to a proven hair/fur shader family, and production R/B channel selection for color-blending/detail masks, opens archive roots read-only, reconstructs bounded supported 2D Partial/Sparse archive DDS entries in memory, virtualizes archive results, loads direct/archive PAC/PAM/PAMLOD candidates, decodes a bounded fixed-layout PAB companion when exact or unambiguous proven-family resolution succeeds, and supports fifteen aspect-correct geometry/material preview modes—including Game Outdoor lighting and texture-independent Part ID ownership colors—plus independent Normals, Bounds, and read-only x-ray Bones overlays, camera navigation, pointer-driven selection, transform, sculpt, and history workflows on an in-memory generational mesh. The same app-owned workflows now have no-window construction and behavior coverage, and the shared multi-role DDS upload plus renderer draw path has an opt-in offscreen D3D12 validation/readback gate.
+The isolated lab builds, launches a responsive Windows window, selects a Direct3D 12
+adapter, renders validated geometry and distinct sidecar-resolved
+base/normal/packed-material/separate-roughness/separate-metalness/occlusion/emissive/independent-RGB-Specular/red-channel-Glossiness-Smoothness/opacity/global-height/flow/layer-mask
+DDS files on their owning submesh ranges through `wgpu`, preserves typed and unknown
+sidecar material parameters, applies uniquely owned explicit
+roughness/metalness/specular/height-scale factors to their material ranges, emissive
+color/intensity to bound emissive textures, explicit alpha-test enable state as an
+approximate cutout policy, hair anisotropy only when Flow belongs to a proven hair/fur
+shader family, and production R/B channel selection for color-blending/detail masks,
+opens archive roots read-only, reconstructs bounded supported 2D Partial/Sparse archive
+DDS entries in memory, virtualizes archive results, loads direct/archive PAC/PAM/PAMLOD
+candidates, decodes a bounded fixed-layout PAB companion when exact or unambiguous
+proven-family resolution succeeds, and supports fifteen aspect-correct geometry/material
+preview modes—including Game Outdoor lighting and texture-independent Part ID ownership
+colors—plus independent Normals, Bounds, and read-only x-ray Bones overlays, camera
+navigation, pointer-driven selection, transform, sculpt, and history workflows on an
+in-memory generational mesh.
 
-It is not LAB READY because private real-game and PAB corpus parity, complete layered/dye and blended-alpha material composition, non-global and true vertex displacement, Partial PAR and unsupported DDS subresources/transcoding, PAC palette/weight skinning and PABC/morph appearance, representative stress/performance evidence, cache, versioned lab projects, fuzzing, and source fingerprint sessions remain incomplete.
+The same app-owned workflows now have no-window construction and behavior coverage, and
+the shared multi-role DDS upload plus renderer draw path has an opt-in offscreen D3D12
+validation/readback gate.
+
+It is not LAB READY because private real-game and PAB corpus parity, complete
+layered/dye and blended-alpha material composition, non-global and true vertex
+displacement, Partial PAR and unsupported DDS subresources/transcoding, PAC
+palette/weight skinning and PABC/morph appearance, representative stress/performance
+evidence, cache, versioned lab projects, fuzzing, and source fingerprint sessions remain
+incomplete.
+
+### CDMW-managed mode
 
 This result describes standalone Rust Mesh Lab. The same executable also owns
 the dedicated CDMW-managed embedded Mesh Editor mode selected with
@@ -17,23 +60,26 @@ output, Morph & Refit safety, atomic-history, packaging, HWND, and compiled v2
 GUI-contract tests. Neither set of tests substitutes for visible Windows or licensed-game
 proof.
 
-The managed mode has a deliberately narrower, CDMW-owned authoring contract than
-the standalone lab. It now filters hidden Geometry Layer Parts from both drawing
-and picking, accepts a Bones overlay only from a complete bounded acyclic linked
-hierarchy, reports bounded named weights for selected vertices, supports face and
-edge Extrude on world X/Y/Z, and provides deterministic Off/X/Y/Z object-space
-symmetry for Grab, Smooth, Inflate, and Pinch. Skin-weight adjustment and
-normalization require explicit Vertex targets; source transfer accepts explicit
-vertices or Parts. All three remain available only for Exact PAC LOD 0 Parts
-with a resolved PAB palette, unchanged topology/source mapping, and the proven
-40-byte, six-slot `pac_slot_u10x6` layout; PAM, PAMLOD, Free Edit OBJ,
-unresolved palettes, generated vertices, and protected extra-influence lanes are
-disabled rather than silently flattened. These integrated capabilities do not
-change the standalone readiness claims below. Bevel/chamfer, UV1 and a 2D UV
-workspace, a true weight-paint heatmap/brush, normal-direction extrusion, and
-full integrated layered/dye material composition remain open; already-resolved
-DDS inputs now travel through the isolated CDMW package and remain bound across
-shadow revisions.
+### Managed authoring contract
+
+The managed mode has a deliberately narrower, CDMW-owned authoring contract than the
+standalone lab. It now filters hidden Geometry Layer Parts from both drawing and
+picking, accepts a Bones overlay only from a complete bounded acyclic linked hierarchy,
+reports bounded named weights for selected vertices, supports face and edge Extrude on
+world X/Y/Z, and provides deterministic Off/X/Y/Z object-space symmetry for Grab,
+Smooth, Inflate, and Pinch. Skin-weight adjustment and normalization require explicit
+Vertex targets; source transfer accepts explicit vertices or Parts.
+
+All three remain available only for Exact PAC LOD 0 Parts with a resolved PAB palette,
+unchanged topology/source mapping, and the proven 40-byte, six-slot `pac_slot_u10x6`
+layout; PAM, PAMLOD, Free Edit OBJ, unresolved palettes, generated vertices, and
+protected extra-influence lanes are disabled rather than silently flattened. These
+integrated capabilities do not change the standalone readiness claims below.
+
+Bevel/chamfer, UV1 and a 2D UV workspace, a true weight-paint heatmap/brush,
+normal-direction extrusion, and full integrated layered/dye material composition remain
+open; already-resolved DDS inputs now travel through the isolated CDMW package and
+remain bound across shadow revisions.
 
 ## Implemented and locally proven
 
@@ -48,34 +94,206 @@ shadow revisions.
   invokes only the packaged executable when Rust Edit Mesh is explicitly chosen.
 - Pinned Rust 1.95.0 and locked dependencies.
 - Read-only `.pamt` index discovery and parsing with PAZ range validation.
-- Stored and LZ4 entry decode; bounded PATHC-backed Partial DDS reconstruction; validated Sparse DDS zero padding; and filename-derived ChaCha20 type 3 support using the current CDMW lookup3 contract for both PATHC paths and long encrypted filenames.
+- Stored and LZ4 entry decode; bounded PATHC-backed Partial DDS reconstruction;
+  validated Sparse DDS zero padding; and filename-derived ChaCha20 type 3 support using
+  the current CDMW lookup3 contract for both PATHC paths and long encrypted filenames.
 - PAC/PAM/PAMLOD geometry foundations with fail-closed layout validation.
-- Fixed-layout PAB hierarchy decode with a 4,096-bone/64-MiB boundary, finite transforms, validated parent indices/cycles/roots, names and hashes, bind and inverse-bind transforms, source/semantic fingerprints, and deterministic parent-child line segments. Direct and archive PAC loads prefer an exact same-stem companion, accept only one candidate from the current proven family-name set, and leave the base mesh viewable with a visible warning for missing, ambiguous, malformed, duplicated, or unsupported PAB data. The heuristic legacy scan is not ported, and this does not claim PAC palette/weight binding.
-- Proven PAC section-to-LOD decoding and an **Editable LOD** selector. The worker prepares every decoded LOD, and switching preserves independent geometry, selection, and Undo/Redo state without multiplying the 512 MiB history budget. Non-manifold source edges retain all incident faces rather than rejecting an otherwise valid lower LOD.
-- DDS legacy/DX10 metadata, bounded mip planning, supported 2D archive Partial/Sparse reconstruction, role-authoritative color-space classification, and direct supported 2D `wgpu` upload. Base/emissive roles select an sRGB GPU format; technical roles select linear even when the file header carries an sRGB variant, and impossible sRGB/format combinations fail closed.
-- Bounded material-sidecar scanning preserves wrapper type, submesh, shader/material name, texture parameter, original path, inferred role, and unknown texture references across common attribute spellings. It also preserves Float/Float2/Float3/Half2/Color/Byte4/BitFlag32/unsigned/signed/bool and unknown parameter tags with their original name, raw value, attributes, and explicit/incomplete confidence. Direct and archive loaders derive same-stem material sidecars, prefer explicit sidecar references over decoded-name base-color fallback, map wrapper owners independently onto every LOD's decoded submesh order, and use exact/relative/unambiguous asset relations without selecting ambiguous basenames. Base color, normal, packed material, separate roughness/metalness/occlusion, emissive, specular, glossiness, opacity, global Height, Flow, and Layer Mask roles may coexist per owner; disjoint owners may bind different DDS files, and same-owner conflicts leave only the conflicting preview slot unresolved. Linear Specular is sampled as RGB reflectance, while legacy Glossiness/Smoothness has its own slot and supplies red-channel `roughness = 1 - glossiness` only when no packed material, separate Roughness, or packed skin response already owns roughness. It samples Opacity red-channel coverage only for an explicitly enabled alpha-test family parameter, falls back to base-color alpha, and uses the current production-preview 0.08 cutoff; an opaque material ignores the same Opacity binding. Only an exact `_heightTexture` declaration binds global linear Height. Height R perturbs the fragment normal from neighboring UV samples and adjusts roughness around neutral 0.5 using a unique finite `_screenSpaceDisplacementScale`, `_detailScreenSpaceDisplacementScale`, or `_heightIntensity` clamped to 0–1; absent scale falls back to 0.025 and explicit zero disables the effect. Wrinkle/detail/parallax/layer displacement stays preserved but unbound, and no vertices move. Flow is linear and preserves `_flowTexture`, SSDM, or direction provenance, but only `SkinnedMeshHair`, `SkinnedMeshFur`, and `AnimalHair` owners enable its two-channel UV strand direction and shifted primary/secondary anisotropic bands; a non-hair owner remains byte-identical. Exact `_colorBlendingMaskTexture` and `_detailMaskTexture` parameters bind a separate linear Layer Mask role with the production R and B selectors. The Layer Mask view renders only that component in grayscale and leaves Textured output unchanged because actual dye/detail sources are not yet composed. The approximation also samples unique explicit roughness, metallic/metalness, and specular Float or Byte4 factors clamped to 0–1, preserves authored zero independently from absence, applies a unique hex emissive color plus finite float intensity clamped to 0–32 only with a bound emissive texture, and follows production true/false/string/numeric alpha-enable semantics. Conflicting or invalid values leave only that field unbound. Channel-authoritative opacity, blend transparency, actual layered/dye composition, non-global displacement, and remaining scalar/vector parameters remain incomplete.
+- Fixed-layout PAB hierarchy decode with a 4,096-bone/64-MiB boundary, finite
+  transforms, validated parent indices/cycles/roots, names and hashes, bind and
+  inverse-bind transforms, source/semantic fingerprints, and deterministic parent-child
+  line segments. Direct and archive PAC loads prefer an exact same-stem companion,
+  accept only one candidate from the current proven family-name set, and leave the base
+  mesh viewable with a visible warning for missing, ambiguous, malformed, duplicated, or
+  unsupported PAB data. The heuristic legacy scan is not ported, and this does not claim
+  PAC palette/weight binding.
+- Proven PAC section-to-LOD decoding and an **Editable LOD** selector. The worker
+  prepares every decoded LOD, and switching preserves independent geometry, selection,
+  and Undo/Redo state without multiplying the 512 MiB history budget. Non-manifold
+  source edges retain all incident faces rather than rejecting an otherwise valid lower
+  LOD.
+- DDS legacy/DX10 metadata, bounded mip planning, supported 2D archive Partial/Sparse
+  reconstruction, role-authoritative color-space classification, and direct supported 2D
+  `wgpu` upload. Base/emissive roles select an sRGB GPU format; technical roles select
+  linear even when the file header carries an sRGB variant, and impossible sRGB/format
+  combinations fail closed.
+- Bounded material-sidecar scanning preserves wrapper type, submesh, shader/material
+  name, texture parameter, original path, inferred role, and unknown texture references
+  across common attribute spellings. It also preserves
+  Float/Float2/Float3/Half2/Color/Byte4/BitFlag32/unsigned/signed/bool and unknown
+  parameter tags with their original name, raw value, attributes, and
+  explicit/incomplete confidence. Direct and archive loaders derive same-stem material
+  sidecars, prefer explicit sidecar references over decoded-name base-color fallback,
+  map wrapper owners independently onto every LOD's decoded submesh order, and use
+  exact/relative/unambiguous asset relations without selecting ambiguous basenames.
+
+  Base color, normal, packed material, separate roughness/metalness/occlusion, emissive,
+  specular, glossiness, opacity, global Height, Flow, and Layer Mask roles may coexist
+  per owner; disjoint owners may bind different DDS files, and same-owner conflicts
+  leave only the conflicting preview slot unresolved. Linear Specular is sampled as RGB
+  reflectance, while legacy Glossiness/Smoothness has its own slot and supplies
+  red-channel `roughness = 1 - glossiness` only when no packed material, separate
+  Roughness, or packed skin response already owns roughness.
+
+  It samples Opacity red-channel coverage only for an explicitly enabled alpha-test
+  family parameter, falls back to base-color alpha, and uses the current
+  production-preview 0.08 cutoff; an opaque material ignores the same Opacity binding.
+  Only an exact `_heightTexture` declaration binds global linear Height. Height R
+  perturbs the fragment normal from neighboring UV samples and adjusts roughness around
+  neutral 0.5 using a unique finite `_screenSpaceDisplacementScale`,
+  `_detailScreenSpaceDisplacementScale`, or `_heightIntensity` clamped to 0–1; absent
+  scale falls back to 0.025 and explicit zero disables the effect.
+
+  Wrinkle/detail/parallax/layer displacement stays preserved but unbound, and no
+  vertices move. Flow is linear and preserves `_flowTexture`, SSDM, or direction
+  provenance, but only `SkinnedMeshHair`, `SkinnedMeshFur`, and `AnimalHair` owners
+  enable its two-channel UV strand direction and shifted primary/secondary anisotropic
+  bands; a non-hair owner remains byte-identical. Exact `_colorBlendingMaskTexture` and
+  `_detailMaskTexture` parameters bind a separate linear Layer Mask role with the
+  production R and B selectors. The Layer Mask view renders only that component in
+  grayscale and leaves Textured output unchanged because actual dye/detail sources are
+  not yet composed.
+
+  The approximation also samples unique explicit roughness, metallic/metalness, and
+  specular Float or Byte4 factors clamped to 0–1, preserves authored zero independently
+  from absence, applies a unique hex emissive color plus finite float intensity clamped
+  to 0–32 only with a bound emissive texture, and follows production
+  true/false/string/numeric alpha-enable semantics. Conflicting or invalid values leave
+  only that field unbound. Channel-authoritative opacity, blend transparency, actual
+  layered/dye composition, non-global displacement, and remaining scalar/vector
+  parameters remain incomplete.
 - Immutable decoded source document and separate editable working document.
 - Generational vertex/edge/face handles and topology generation.
-- Interactive Move, Rotate, Scale, Grab, Smooth, Inflate, and Pinch with Smooth/Linear/Constant visible-surface falloff, stable begin weights for Grab, resampled weights for the other brushes, and 1–8 Smooth passes; atomic face Delete/Subdivide/Duplicate/Extrude/Inset Individual, selected-edge Subdivide, Duplicate as New Part, Undo, and Redo. Multi-face duplication retains patch adjacency through one isolated clone per source vertex; the New Part path assigns the next free submesh, preserves per-face material ownership, and lets the selected copy move without changing pre-existing vertices. Extrude uses a positive user-set distance, shares one offset cap clone per selected source vertex, adds walls only on selected-region boundaries, preserves every surviving source position and normal plus inherited owner/material/UV/normal attributes, removes newly unreferenced selected-region interior vertices, and selects only the cap. Inset Individual keeps each source triangle boundary exact, interpolates three generated position/UV pairs toward that face's centroid by a strict 0–1 amount, fills six same-owner ring triangles, and selects only the independent caps; adjacent selected faces deliberately do not share their generated cap vertices. Topology failures leave the complete working state unchanged and generated caps/faces/edges become the deterministic selection.
+- Interactive Move, Rotate, Scale, Grab, Smooth, Inflate, and Pinch with
+  Smooth/Linear/Constant visible-surface falloff, stable begin weights for Grab,
+  resampled weights for the other brushes, and 1–8 Smooth passes; atomic face
+  Delete/Subdivide/Duplicate/Extrude/Inset Individual, selected-edge Subdivide,
+  Duplicate as New Part, Undo, and Redo. Multi-face duplication retains patch adjacency
+  through one isolated clone per source vertex; the New Part path assigns the next free
+  submesh, preserves per-face material ownership, and lets the selected copy move
+  without changing pre-existing vertices.
+
+  Extrude uses a positive user-set distance, shares one offset cap clone per selected
+  source vertex, adds walls only on selected-region boundaries, preserves every
+  surviving source position and normal plus inherited owner/material/UV/normal
+  attributes, removes newly unreferenced selected-region interior vertices, and selects
+  only the cap. Inset Individual keeps each source triangle boundary exact, interpolates
+  three generated position/UV pairs toward that face's centroid by a strict 0–1 amount,
+  fills six same-owner ring triangles, and selects only the independent caps; adjacent
+  selected faces deliberately do not share their generated cap vertices.
+
+  Topology failures leave the complete working state unchanged and generated
+  caps/faces/edges become the deterministic selection.
 - One modal gesture owner and one committed history entry per confirmed gesture.
-- Optional persistent edit colours accumulate displacement magnitude from the loaded topology across later gestures, map small/medium/large changes through green/yellow/red, survive a temporary display-toggle change, and reset after topology or LOD changes without entering saved material or geometry data.
-- Deterministic click/brush/rectangle/lasso query predicates, stale-snapshot rejection, and a persistent 32-pixel screen grid that bounds local candidate inspection in the interaction crate.
-- User-selectable depth-aware Visible and X-Ray selection. Visible candidates query a projected-triangle BVH with interpolated depth; sculpt brushes always use that surface-only route, and no synchronous GPU readback is used.
-- Viewport-aligned Vertex/Edge/Face Click, Brush, Rectangle, and Lasso selection with visible overlays in either depth mode and Replace/Add/Subtract/Toggle operations.
-- Topology-aware All/Linked/Grow/Shrink/Invert commands for Vertex, Edge, and Face domains plus complete Clear. Linked expands current seeds through only their vertex-, shared-vertex edge-, or shared-edge face-connected components; Grow expands one ring, Shrink removes elements adjacent to an unselected topological neighbor, Invert changes only the active domain, and type-specific All activates and replaces that domain. Every actual command change is one selection-only Undo entry; a no-op is not recorded.
-- Bounded raw pointer sampling that retains press, intermediate movement, and release when Windows coalesces redraws; long lassos compact deterministically while retaining their final release point, one completed gesture creates one history entry, and Esc/resize/focus loss restores the pre-gesture mesh.
-- Orbit, pan, zoom, frame-selected/all, six standard views, and one aspect-aware camera generation shared by rendering and interaction snapshots. Startup now uses the corrected named Front orientation, with Back on the opposite mesh side.
-- Direct3D 12 `wgpu` surface, depth target, persistent revisioned mesh/normal/bounds buffers, an independent optional skeleton-line buffer, Textured/Game Outdoor/Base Color/Normal Map/UV Checker/Base Alpha/Part ID/Material Response/Layer Mask/Solid/Solid+Wire/Wireframe/Vertices/Wire+Vertices/X-Ray modes, and independent Normals/Bounds/Bones overlays. Solid and material triangles are two-sided but remain depth-testing and depth-writing, so reversed or interior surfaces stay lit without making the mesh see-through. Game Outdoor is a production-constant-informed lighting comparison inside the approximate shader; Part ID colors actual material-owner ranges without requiring a texture; Layer Mask is a grayscale inspection mode, not layer composition. Bones is an always-readable blue parent-child bind hierarchy and remains disabled with an exact reason until a supported drawable PAB resolves.
-- egui archive/assets, viewport, inspector, selection/edit, and status surfaces. The viewport and Inspector explicitly label material rendering as approximate. Archive textures report whether their bytes came from Stored, Partial raw, Partial DDS, Sparse DDS, or LZ4 handling; Flow rows retain their source relationship while prepared factors state whether the owner qualifies as a proven hair/fur family; Layer Mask rows retain their exact parameter while prepared factors report R/B selection; actual sampling still requires each DDS binding. Resolved skeleton context reports path, resolution/decode provenance, parser, bone/root/depth/segment/tail counts, and a collapsed index/name/hash/parent/bind-position hierarchy while stating that PAC binding is still unresolved. A collapsed material-parameter section reports preserved values, owners, confidence, and sampled/unbound state without flooding the default layout.
-- No-window `LabApplication` construction plus 16 painted-control/input tests whose coordinates come from egui's clipped draw output: all fifteen preview modes, LOD menus, Normals/Bounds/Bones and camera controls, PAB hierarchy plus texture relationship and material-parameter provenance, 24 selection domain/shape/depth combinations through the bounded raw-pointer route, topology-aware All/Linked/Grow/Shrink/Invert/Clear with exact selection history and disconnected-island isolation, all seven transform/sculpt tools, Smooth/Linear/Constant falloff and 1–8 Smooth passes, and all seven topology actions: face Delete, face Subdivide, selected-edge Subdivide, face Duplicate, Duplicate as New Part, face Extrude, and Inset Individual. The same tests cover exact Undo/Redo, disabled controls, 1×/1.5×/2× camera input, three resize shapes, Esc/resize cancellation, and dense face-selection fill without per-triangle outline strokes. The painted Extrude and Inset Individual paths consume non-default values, require every original synthetic-triangle vertex to remain exact, and validate the selected caps before Undo/Redo. Lower Inspector controls are verified at 1280×720 and 1000×600.
-- Offscreen D3D12 renderer coverage uploads sixteen DDS files with the live plan/upload helper, composes base/normal/packed-material/roughness/metalness/occlusion/emissive/specular/glossiness/opacity/height/flow/layer-mask roles across two base-colored ranges, applies separate explicit emissive, roughness, metalness, metallic-specular, gloss-to-roughness, opaque/cutout Opacity, positive/zero-scale Height, inactive-non-hair/active-hair Flow, layer-mask fallback/R/B-channel, and Bones off/on probes, and exercises all fifteen preview modes with Normals, Bounds, and Bones across 4:3, portrait, and widescreen targets. A validation error scope and CPU readbacks reject invalid or all-background output, require Bones and all thirteen sampled roles to change pixels independently where applicable, require Specular and Glossiness to remain independent, require Glossiness to change dielectric roughness, and require explicit or packed roughness to outrank it; the same coverage requires cutout Opacity to remove visible pixels while opaque Opacity remains byte-identical, Height to change pixels at positive strength while explicit zero remains byte-identical, Flow to change hair pixels while leaving a non-hair frame byte-identical, Layer Mask and its R/B selector to change diagnostic pixels, the overlay-free Part ID probe to produce two owner colors without texture bindings, overlay-free Game Outdoor to differ from standard Textured lighting, source sRGB Base Color samples to survive the output target, bounded front-lit readability, and distinct curved generic/metal/leather/cloth/skin/glass material responses without constructing a window.
-- The same GPU smoke includes a reversed-winding Solid surface and requires non-background lit pixels, directly checking that two-sided rendering has neither culled nor blackened the back-facing geometry.
-- Read-only `headless-mesh` probe for caller-selected PAC/PAM/PAMLOD files, with fresh-working-mesh operation/Undo/Redo fingerprints and invariants for Move, Grab, Smooth, Inflate, Pinch, face Delete, face Subdivide, selected-edge Subdivide, face Duplicate, Duplicate as New Part, face Extrude, and individual-face Inset on every decoded LOD.
+- Optional persistent edit colours accumulate displacement magnitude from the loaded
+  topology across later gestures, map small/medium/large changes through
+  green/yellow/red, survive a temporary display-toggle change, and reset after topology
+  or LOD changes without entering saved material or geometry data.
+- Deterministic click/brush/rectangle/lasso query predicates, stale-snapshot rejection,
+  and a persistent 32-pixel screen grid that bounds local candidate inspection in the
+  interaction crate.
+- User-selectable depth-aware Visible and X-Ray selection. Visible candidates query a
+  projected-triangle BVH with interpolated depth; sculpt brushes always use that
+  surface-only route, and no synchronous GPU readback is used.
+- Viewport-aligned Vertex/Edge/Face Click, Brush, Rectangle, and Lasso selection with
+  visible overlays in either depth mode and Replace/Add/Subtract/Toggle operations.
+- Topology-aware All/Linked/Grow/Shrink/Invert commands for Vertex, Edge, and Face
+  domains plus complete Clear. Linked expands current seeds through only their vertex-,
+  shared-vertex edge-, or shared-edge face-connected components; Grow expands one ring,
+  Shrink removes elements adjacent to an unselected topological neighbor, Invert changes
+  only the active domain, and type-specific All activates and replaces that domain.
+  Every actual command change is one selection-only Undo entry; a no-op is not recorded.
+- Bounded raw pointer sampling that retains press, intermediate movement, and release
+  when Windows coalesces redraws; long lassos compact deterministically while retaining
+  their final release point, one completed gesture creates one history entry, and
+  Esc/resize/focus loss restores the pre-gesture mesh.
+- Orbit, pan, zoom, frame-selected/all, six standard views, and one aspect-aware camera
+  generation shared by rendering and interaction snapshots. Startup now uses the
+  corrected named Front orientation, with Back on the opposite mesh side.
+- Direct3D 12 `wgpu` surface, depth target, persistent revisioned mesh/normal/bounds
+  buffers, an independent optional skeleton-line buffer, Textured/Game Outdoor/Base
+  Color/Normal Map/UV Checker/Base Alpha/Part ID/Material Response/Layer
+  Mask/Solid/Solid+Wire/Wireframe/Vertices/Wire+Vertices/X-Ray modes, and independent
+  Normals/Bounds/Bones overlays. Solid and material triangles are two-sided but remain
+  depth-testing and depth-writing, so reversed or interior surfaces stay lit without
+  making the mesh see-through. Game Outdoor is a production-constant-informed lighting
+  comparison inside the approximate shader; Part ID colors actual material-owner ranges
+  without requiring a texture; Layer Mask is a grayscale inspection mode, not layer
+  composition. Bones is an always-readable blue parent-child bind hierarchy and remains
+  disabled with an exact reason until a supported drawable PAB resolves.
+- egui archive/assets, viewport, inspector, selection/edit, and status surfaces. The
+  viewport and Inspector explicitly label material rendering as approximate. Archive
+  textures report whether their bytes came from Stored, Partial raw, Partial DDS, Sparse
+  DDS, or LZ4 handling; Flow rows retain their source relationship while prepared
+  factors state whether the owner qualifies as a proven hair/fur family; Layer Mask rows
+  retain their exact parameter while prepared factors report R/B selection; actual
+  sampling still requires each DDS binding.
+
+  Resolved skeleton context reports path, resolution/decode provenance, parser,
+  bone/root/depth/segment/tail counts, and a collapsed
+  index/name/hash/parent/bind-position hierarchy while stating that PAC binding is still
+  unresolved. A collapsed material-parameter section reports preserved values, owners,
+  confidence, and sampled/unbound state without flooding the default layout.
+- No-window `LabApplication` construction plus 16 painted-control/input tests whose
+  coordinates come from egui's clipped draw output: all fifteen preview modes, LOD
+  menus, Normals/Bounds/Bones and camera controls, PAB hierarchy plus texture
+  relationship and material-parameter provenance, 24 selection domain/shape/depth
+  combinations through the bounded raw-pointer route, topology-aware
+  All/Linked/Grow/Shrink/Invert/Clear with exact selection history and
+  disconnected-island isolation, all seven transform/sculpt tools,
+  Smooth/Linear/Constant falloff and 1–8 Smooth passes, and all seven topology actions:
+  face Delete, face Subdivide, selected-edge Subdivide, face Duplicate, Duplicate as New
+  Part, face Extrude, and Inset Individual.
+
+  The same tests cover exact Undo/Redo, disabled controls, 1×/1.5×/2× camera input,
+  three resize shapes, Esc/resize cancellation, and dense face-selection fill without
+  per-triangle outline strokes. The painted Extrude and Inset Individual paths consume
+  non-default values, require every original synthetic-triangle vertex to remain exact,
+  and validate the selected caps before Undo/Redo. Lower Inspector controls are verified
+  at 1280×720 and 1000×600.
+- Offscreen D3D12 renderer coverage uploads sixteen DDS files with the live plan/upload
+  helper, composes
+  base/normal/packed-material/roughness/metalness/occlusion/emissive/specular/glossiness/opacity/height/flow/layer-mask
+  roles across two base-colored ranges, applies separate explicit emissive, roughness,
+  metalness, metallic-specular, gloss-to-roughness, opaque/cutout Opacity,
+  positive/zero-scale Height, inactive-non-hair/active-hair Flow, layer-mask
+  fallback/R/B-channel, and Bones off/on probes, and exercises all fifteen preview modes
+  with Normals, Bounds, and Bones across 4:3, portrait, and widescreen targets.
+
+  A validation error scope and CPU readbacks reject invalid or all-background output,
+  require Bones and all thirteen sampled roles to change pixels independently where
+  applicable, require Specular and Glossiness to remain independent, require Glossiness
+  to change dielectric roughness, and require explicit or packed roughness to outrank
+  it; the same coverage requires cutout Opacity to remove visible pixels while opaque
+  Opacity remains byte-identical, Height to change pixels at positive strength while
+  explicit zero remains byte-identical, Flow to change hair pixels while leaving a
+  non-hair frame byte-identical, Layer Mask and its R/B selector to change diagnostic
+  pixels, the overlay-free Part ID probe to produce two owner colors without texture
+  bindings, overlay-free Game Outdoor to differ from standard Textured lighting, source
+  sRGB Base Color samples to survive the output target, bounded front-lit readability,
+  and distinct curved generic/metal/leather/cloth/skin/glass material responses without
+  constructing a window.
+- The same GPU smoke includes a reversed-winding Solid surface and requires
+  non-background lit pixels, directly checking that two-sided rendering has neither
+  culled nor blackened the back-facing geometry.
+- Read-only `headless-mesh` probe for caller-selected PAC/PAM/PAMLOD files, with
+  fresh-working-mesh operation/Undo/Redo fingerprints and invariants for Move, Grab,
+  Smooth, Inflate, Pinch, face Delete, face Subdivide, selected-edge Subdivide, face
+  Duplicate, Duplicate as New Part, face Extrude, and individual-face Inset on every
+  decoded LOD.
 - Bounded cancellable latest-wins loader/search worker with stale-result rejection.
 - Versioned neutral binary package and manifest comparison.
-- Explicit neutral OBJ/MTL export of the edited working copy with staging, cancellation checks, reparse, structural comparison, atomic new-directory publication, and no source texture embedding.
-- Synthetic unit tests, formatting, Clippy, Release workspace build, no-window app coverage, opt-in offscreen GPU coverage, and visible Release interaction smoke.
-- Deterministic synthetic stress covering 16,800 real-app lasso gestures across every domain/depth/operation/shape combination; 400 committed and 400 cancelled sculpt strokes; four 2,048-update and four bounded 5,000-sample strokes; tool, mode, resize, and focus-loss interruption cases; and two repeatable 1,000-gesture mixed app sessions. Every checkpoint requires valid geometry, idle operators, bounded latency/pointer queues, exact cancellation, and total Undo-plus-Redo retained history within its configured budget.
+- Explicit neutral OBJ/MTL export of the edited working copy with staging, cancellation
+  checks, reparse, structural comparison, atomic new-directory publication, and no
+  source texture embedding.
+- Synthetic unit tests, formatting, Clippy, Release workspace build, no-window app
+  coverage, opt-in offscreen GPU coverage, and visible Release interaction smoke.
+- Deterministic synthetic stress covering 16,800 real-app lasso gestures across every
+  domain/depth/operation/shape combination; 400 committed and 400 cancelled sculpt
+  strokes; four 2,048-update and four bounded 5,000-sample strokes; tool, mode, resize,
+  and focus-loss interruption cases; and two repeatable 1,000-gesture mixed app
+  sessions. Every checkpoint requires valid geometry, idle operators, bounded
+  latency/pointer queues, exact cancellation, and total Undo-plus-Redo retained history
+  within its configured budget.
 
 ## Incomplete gates
 
@@ -96,68 +314,96 @@ shadow revisions.
 
 ## Texture-complete goal remains open
 
-Loading the mesh shape is not appearance parity. The lab now parses material
-sidecar texture ownership, resolves multiple disjoint
-base/normal/packed-material/roughness/metalness/occlusion/emissive/specular/glossiness/opacity/global-height/flow/layer-mask relationships,
-applies role-correct sRGB/linear upload mapping, derives tangents from current
-geometry, switches fixed role sets per material range and LOD, and keeps
-explained neutral defaults for missing, ambiguous, or conflicting roles. Lab
-readiness still requires the asset
-graph to resolve every authoritative material relationship, validate supported
-Partial/Sparse DDS reconstruction across a private archive corpus, decode Partial
-PAR and unsupported array/cube or fallback-transcode cases, sample every supported
-texture role and subresource, apply non-global displacement and the remaining preserved scalar/vector factors, channel-authoritative opacity and blend policy, and compose actual layered materials rather than only inspecting their masks
-on their owning submeshes. The rainbow surface remains the normal-based
-placeholder wherever no authoritative material role can bind; the plain shader
-is an approximation, not proof of the character's exact loaded skin. This
-partial path must not be reported as complete texture loading.
+Loading the mesh shape is not appearance parity. The lab now parses material sidecar
+texture ownership, resolves multiple disjoint
+base/normal/packed-material/roughness/metalness/occlusion/emissive/specular/glossiness/opacity/global-height/flow/layer-mask
+relationships, applies role-correct sRGB/linear upload mapping, derives tangents from
+current geometry, switches fixed role sets per material range and LOD, and keeps
+explained neutral defaults for missing, ambiguous, or conflicting roles.
+
+Lab readiness still requires the asset graph to resolve every authoritative material
+relationship, validate supported Partial/Sparse DDS reconstruction across a private
+archive corpus, decode Partial PAR and unsupported array/cube or fallback-transcode
+cases, sample every supported texture role and subresource, apply non-global
+displacement and the remaining preserved scalar/vector factors, channel-authoritative
+opacity and blend policy, and compose actual layered materials rather than only
+inspecting their masks on their owning submeshes.
+
+The rainbow surface remains the normal-based placeholder wherever no authoritative
+material role can bind; the plain shader is an approximation, not proof of the
+character's exact loaded skin. This partial path must not be reported as complete
+texture loading.
 
 ## Synthetic texture-resolution proof
 
 No-window unit fixtures use an extracted `character/model`, `modelproperty`, and
-`texture` layout. They require explicit sidecar base color to outrank a valid
-decoded fallback, resolve all thirteen sampled roles across distinct owners,
-bind distinct DDS files when submesh owners are disjoint, isolate two paths that
-claim the same owner/preview slot—including Specular versus Glossiness—without discarding a valid sibling role, preserve
-owner identity when lower-LOD submesh order changes, refuse a missing explicit
-DDS instead of falling back, and retain one decoded reference only when no sidecar exists.
-Parser fixtures cover nested and self-closing
-texture parameters, common path/name attribute variants, XML entities, role
-classification, malformed-but-bounded texture recovery, typed/vector/unknown parameter preservation,
-and incomplete-value confidence. Loader fixtures require explicit emissive, roughness/metalness/specular/height-scale, alpha-cutout, and layer-mask channel factors to follow reordered LOD ownership and isolate conflicting values field by field; only exact global `_heightTexture` references may bind while wrinkle displacement remains unbound, alpha enable values follow the production true/false/string/numeric contract, Flow anisotropy is prepared only for proven hair/fur shader families, and color-blending/detail masks select R/B respectively. Renderer tests
-require legacy DXT1 base color to map to BC1 sRGB, an sRGB-declared normal to map
-to linear BC7, and unsupported sRGB format combinations to fail. The opt-in
-offscreen D3D12 gate uploads sixteen synthetic DDS files, composes thirteen roles across
-two independent material ranges, and compares unresolved,
-base-only, one-extra-role, metallic and dielectric Specular-map, metallic and dielectric Glossiness-map, opaque and cutout Opacity-map, positive and zero-scale Height-map, inactive non-hair and active hair Flow-map, layer-mask fallback/R/B-channel, overlay-free Part ID and Game Outdoor, factored-emissive,
-roughness-factor, metalness-factor, metalness-plus-specular-factor, and fully
-composed CPU readbacks plus Bones-off/Bones-on and authored-colour effect
-off/on overlay readbacks through the live helper during its 84-frame pass,
-including a Base Color round-trip and curved
-generic/metal/leather/cloth/skin/glass material-proof matrix that can be retained
-as a 3x2 BMP. The additional frame reverses every triangle's
-winding and requires a visible lit Solid surface. Every
-sampled role and each explicit factor class must change pixels independently;
-Specular must change metallic pixels while leaving dielectric pixels identical. Glossiness must independently change dielectric roughness, while packed material roughness, explicit Roughness, and packed skin response must outrank it; cutout Opacity must remove visible pixels while opaque Opacity remains byte-identical; Height must change pixels at positive strength and remain byte-identical at explicit zero; hair Flow must change pixels while the same non-hair binding remains byte-identical; Layer Mask must differ from fallback and R/B selectors must differ from each other; Part ID must render both material-owner ranges as distinct colors without texture bindings; Game Outdoor must differ from the same base material under standard Textured lighting. This is synthetic relationship
-and GPU execution proof, not evidence that the supplied PAC has a material
-sidecar or that a private archive reproduces its full appearance.
+`texture` layout. They require explicit sidecar base color to outrank a valid decoded
+fallback, resolve all thirteen sampled roles across distinct owners, bind distinct DDS
+files when submesh owners are disjoint, isolate two paths that claim the same
+owner/preview slot—including Specular versus Glossiness—without discarding a valid
+sibling role, preserve owner identity when lower-LOD submesh order changes, refuse a
+missing explicit DDS instead of falling back, and retain one decoded reference only when
+no sidecar exists.
+
+Parser fixtures cover nested and self-closing texture parameters, common path/name
+attribute variants, XML entities, role classification, malformed-but-bounded texture
+recovery, typed/vector/unknown parameter preservation, and incomplete-value confidence.
+Loader fixtures require explicit emissive, roughness/metalness/specular/height-scale,
+alpha-cutout, and layer-mask channel factors to follow reordered LOD ownership and
+isolate conflicting values field by field; only exact global `_heightTexture` references
+may bind while wrinkle displacement remains unbound, alpha enable values follow the
+production true/false/string/numeric contract, Flow anisotropy is prepared only for
+proven hair/fur shader families, and color-blending/detail masks select R/B
+respectively.
+
+Renderer tests require legacy DXT1 base color to map to BC1 sRGB, an sRGB-declared
+normal to map to linear BC7, and unsupported sRGB format combinations to fail.
+
+The opt-in offscreen D3D12 gate uploads sixteen synthetic DDS files, composes thirteen
+roles across two independent material ranges, and compares unresolved, base-only,
+one-extra-role, metallic and dielectric Specular-map, metallic and dielectric
+Glossiness-map, opaque and cutout Opacity-map, positive and zero-scale Height-map,
+inactive non-hair and active hair Flow-map, layer-mask fallback/R/B-channel,
+overlay-free Part ID and Game Outdoor, factored-emissive, roughness-factor,
+metalness-factor, metalness-plus-specular-factor, and fully composed CPU readbacks plus
+Bones-off/Bones-on and authored-colour effect off/on overlay readbacks through the live
+helper during its 84-frame pass, including a Base Color round-trip and curved
+generic/metal/leather/cloth/skin/glass material-proof matrix that can be retained as a
+3x2 BMP.
+
+The additional frame reverses every triangle's winding and requires a visible lit Solid
+surface. Every sampled role and each explicit factor class must change pixels
+independently; Specular must change metallic pixels while leaving dielectric pixels
+identical. Glossiness must independently change dielectric roughness, while packed
+material roughness, explicit Roughness, and packed skin response must outrank it; cutout
+Opacity must remove visible pixels while opaque Opacity remains byte-identical;
+
+Height must change pixels at positive strength and remain byte-identical at explicit
+zero; hair Flow must change pixels while the same non-hair binding remains
+byte-identical; Layer Mask must differ from fallback and R/B selectors must differ from
+each other; Part ID must render both material-owner ranges as distinct colors without
+texture bindings; Game Outdoor must differ from the same base material under standard
+Textured lighting.
+
+This is synthetic relationship and GPU execution proof, not evidence that the supplied
+PAC has a material sidecar or that a private archive reproduces its full appearance.
 
 ## Synthetic Partial/Sparse archive proof
 
-The archive crate reconstructs a fixed Partial DDS fixture through a bounded
-sibling `meta/0.pathc` and a fixed Sparse DDS fixture by validated zero padding.
-Their complete output hashes must exactly match the current CDMW Python oracles:
-`c9096e57e46707bd071a94b7274c6e8af0ddf01766137a186b58e993893b21a5`
-for Partial and
-`2880a12980fe3145ebafbe2a3d9cf177337608e9037db99a9d5e717ecfc522cb`
-for Sparse. Separate regressions cover lookup3 block boundaries and long-filename
-ChaCha derivation, missing PATHC, excessive PATHC records, truncated compressed
-blocks, caller-selected output limits, stale PATHC chunk sizes, and byte-exact
-source preservation. A no-window loader fixture crosses the real application
-archive boundary, inspects the reconstructed DDS as uploadable, exposes
-**Archive decode Partial DDS** in the painted Inspector, and again requires the
-PAZ and PATHC files to remain unchanged. This is exact synthetic
-cross-implementation and app-boundary proof, not private archive-corpus parity.
+The archive crate reconstructs a fixed Partial DDS fixture through a bounded sibling
+`meta/0.pathc` and a fixed Sparse DDS fixture by validated zero padding. Their complete
+output hashes must exactly match the current CDMW Python oracles:
+`c9096e57e46707bd071a94b7274c6e8af0ddf01766137a186b58e993893b21a5` for Partial and
+`2880a12980fe3145ebafbe2a3d9cf177337608e9037db99a9d5e717ecfc522cb` for Sparse. Separate
+regressions cover lookup3 block boundaries and long-filename ChaCha derivation, missing
+PATHC, excessive PATHC records, truncated compressed blocks, caller-selected output
+limits, stale PATHC chunk sizes, and byte-exact source preservation.
+
+A no-window loader fixture crosses the real application archive boundary, inspects the
+reconstructed DDS as uploadable, exposes **Archive decode Partial DDS** in the painted
+Inspector, and again requires the PAZ and PATHC files to remain unchanged. This is exact
+synthetic cross-implementation and app-boundary proof, not private archive-corpus
+parity.
 
 ## Synthetic Release measurement
 
@@ -176,70 +422,89 @@ GPU-frame, UI-latency, memory, or real-game proof. It does not satisfy the
 
 ## Headless D3D12 renderer proof
 
-The opt-in no-window GPU gate on 2026-08-31 created a Direct3D 12 `wgpu`
-adapter/device and rendered a synthetic triangle through the same mesh draw
-dispatcher used by the live viewport. It submitted Textured, Game Outdoor, Base Color,
-Normal Map, UV Checker, Base Alpha, Part ID, Material Response, Layer Mask, Solid Faces,
-Solid + Wire, Wireframe, Vertices, Wire + Vertices, and X-Ray with Normals and
-Bounds across 640×480, 480×640, and 1280×720 targets, then submitted and read
-back material-role, metallic and dielectric Specular-map, metallic and dielectric Glossiness-map, opaque and cutout Opacity-map, positive and zero-scale Height-map, inactive non-hair and active hair Flow-map, layer-mask fallback/R/B-channel, overlay-free Part ID and Game Outdoor, emissive-factor,
-roughness-factor, metalness-factor, metalness-plus-specular-factor, and fully
-composed, Bones-off/Bones-on, and reversed-winding Solid probes: 76 frames total. The D3D12 validation scope was
-empty and the readback contained non-background pixels. The same gate also
-checks the live GPU-cache predicate: a different working-mesh identity with
-equal geometry/topology revisions must not reuse the previous buffers. That
-regression failed under the old revision-only predicate and passes with the
-identity-aware key. No winit window or
-surface was created. This proves offscreen command encoding, pipeline/resource
-compatibility, aspect-dependent camera framing, and observable output. The reversed-winding probe must retain lit non-background surface pixels, proving the Solid pass is two-sided without disabling depth writes. Positive Height strength changes pixels while explicit zero leaves the frame byte-identical; this is fragment relief, not vertex displacement. Qualified hair Flow changes pixels while an unqualified non-hair Flow binding leaves the frame byte-identical. Layer Mask changes diagnostic pixels and its R/B selectors produce distinct output without changing the lit material. Part ID renders two texture-independent owner colors after the targeted readback disables diagnostic overlays. Game Outdoor changes the same base material through only the source-backed lighting constants and exposure branch. It is
-not visual appearance, pointer latency, frame pacing, or real-PAC GPU proof.
+The opt-in no-window GPU gate on 2026-08-31 created a Direct3D 12 `wgpu` adapter/device
+and rendered a synthetic triangle through the same mesh draw dispatcher used by the live
+viewport.
+
+It submitted Textured, Game Outdoor, Base Color, Normal Map, UV Checker, Base Alpha,
+Part ID, Material Response, Layer Mask, Solid Faces, Solid + Wire, Wireframe, Vertices,
+Wire + Vertices, and X-Ray with Normals and Bounds across 640×480, 480×640, and 1280×720
+targets, then submitted and read back material-role, metallic and dielectric
+Specular-map, metallic and dielectric Glossiness-map, opaque and cutout Opacity-map,
+positive and zero-scale Height-map, inactive non-hair and active hair Flow-map,
+layer-mask fallback/R/B-channel, overlay-free Part ID and Game Outdoor, emissive-factor,
+roughness-factor, metalness-factor, metalness-plus-specular-factor, and fully composed,
+Bones-off/Bones-on, and reversed-winding Solid probes: 76 frames total.
+
+The D3D12 validation scope was empty and the readback contained non-background pixels.
+The same gate also checks the live GPU-cache predicate: a different working-mesh
+identity with equal geometry/topology revisions must not reuse the previous buffers.
+That regression failed under the old revision-only predicate and passes with the
+identity-aware key. No winit window or surface was created. This proves offscreen
+command encoding, pipeline/resource compatibility, aspect-dependent camera framing, and
+observable output. The reversed-winding probe must retain lit non-background surface
+pixels, proving the Solid pass is two-sided without disabling depth writes.
+
+Positive Height strength changes pixels while explicit zero leaves the frame
+byte-identical; this is fragment relief, not vertex displacement. Qualified hair Flow
+changes pixels while an unqualified non-hair Flow binding leaves the frame
+byte-identical. Layer Mask changes diagnostic pixels and its R/B selectors produce
+distinct output without changing the lit material. Part ID renders two
+texture-independent owner colors after the targeted readback disables diagnostic
+overlays. Game Outdoor changes the same base material through only the source-backed
+lighting constants and exposure branch.
+
+It is not visual appearance, pointer latency, frame pacing, or real-PAC GPU proof.
 
 ## Headless interaction stress proof
 
 The opt-in serial stress gate on 2026-08-30 ran 16,800 lasso gestures covering
 Vertex/Edge/Face, Visible/X-Ray, Replace/Add/Subtract/Toggle, winding reversal,
-self-intersection, repeated points, tiny/large polygons, and polygons leaving
-the viewport. It also ran 100 committed and 100 cancelled strokes for each of
-Grab, Smooth, Inflate, and Pinch, plus 2,048-update strokes, bounded
-5,000-sample pointer streams, tool/mode changes, resize cancellation, and
-focus-loss cancellation. Two independent 1,000-gesture mixed app sessions
-finished with identical fingerprints and history metrics. The gate requires
-valid topology after every checkpoint, no active gesture, an idle operator,
-256-sample latency bounds, a 4,096-event pointer bound, exact cancelled-state
-restoration, and retained Undo-plus-Redo history within a 4 KiB synthetic
-budget. Building this proof found that moving an entry from Undo to Redo
-subtracted it from the reported retained bytes even though the snapshots stayed
-resident; accounting now covers both stacks and releases Redo bytes only when a
-new commit discards them. This is deterministic synthetic app stress, not an OS
-working-set, visible input, real-PAC, frame-pacing, or device-loss soak.
+self-intersection, repeated points, tiny/large polygons, and polygons leaving the
+viewport. It also ran 100 committed and 100 cancelled strokes for each of Grab, Smooth,
+Inflate, and Pinch, plus 2,048-update strokes, bounded 5,000-sample pointer streams,
+tool/mode changes, resize cancellation, and focus-loss cancellation. Two independent
+1,000-gesture mixed app sessions finished with identical fingerprints and history
+metrics.
+
+The gate requires valid topology after every checkpoint, no active gesture, an idle
+operator, 256-sample latency bounds, a 4,096-event pointer bound, exact cancelled-state
+restoration, and retained Undo-plus-Redo history within a 4 KiB synthetic budget.
+Building this proof found that moving an entry from Undo to Redo subtracted it from the
+reported retained bytes even though the snapshots stayed resident; accounting now covers
+both stacks and releases Redo bytes only when a new commit discards them.
+
+This is deterministic synthetic app stress, not an OS working-set, visible input,
+real-PAC, frame-pacing, or device-loss soak.
 
 ## Headless painted-control and edit-scope proof
 
 Fifteen no-window tests now construct the real `LabApplication`, discover control
-coordinates from egui's clipped draw output, and route resulting actions at the
-same post-frame boundary as the Windows runtime. They cover all fifteen preview modes and the LOD
-menus, camera, every selection shape/domain/depth combination, topology-aware
-All/Linked/Grow/Shrink/Invert/Clear across all three domains, all seven
-transform/sculpt tools, all seven topology actions, history, disabled states,
-high-DPI input, short-window scroll,
-resize, and cancellation. The latest draw-command regression selects 256 faces
-and requires translucent face fills with no individual outline strokes. A
-separate two-component regression requires Linked to stop at the seeded island
-for vertices, edges, and faces, restore/replay the one-element seed through
-Undo/Redo, skip repeated no-ops, and leave geometry unchanged. The two-triangle-
-quad regression separately requires exact connected-ring results and selection-
-only Undo/Redo. The weighted-sculpt regression
-chooses Linear falloff and four Smooth passes through painted controls, requires
-nonuniform bounded weights from the real projected brush, proves four passes
-reduce total edge length more than one pass, and restores/replays the exact mesh
-with Undo/Redo. Mesh regressions separately
-require deformation positions and normals to remain exact outside the affected
-one-ring, topology operations to preserve normals on surviving source vertices,
-extrusion to keep surviving source attributes exact while creating only a
-connected cap plus boundary walls, and individual inset to preserve every
-source vertex while creating separate interpolated caps and six-face rings.
-These checks inspect application state and
-egui draw commands, not native pixels or visible appearance.
+coordinates from egui's clipped draw output, and route resulting actions at the same
+post-frame boundary as the Windows runtime. They cover all fifteen preview modes and the
+LOD menus, camera, every selection shape/domain/depth combination, topology-aware
+All/Linked/Grow/Shrink/Invert/Clear across all three domains, all seven transform/sculpt
+tools, all seven topology actions, history, disabled states, high-DPI input,
+short-window scroll, resize, and cancellation. The latest draw-command regression
+selects 256 faces and requires translucent face fills with no individual outline
+strokes.
+
+A separate two-component regression requires Linked to stop at the seeded island for
+vertices, edges, and faces, restore/replay the one-element seed through Undo/Redo, skip
+repeated no-ops, and leave geometry unchanged. The two-triangle- quad regression
+separately requires exact connected-ring results and selection- only Undo/Redo. The
+weighted-sculpt regression chooses Linear falloff and four Smooth passes through painted
+controls, requires nonuniform bounded weights from the real projected brush, proves four
+passes reduce total edge length more than one pass, and restores/replays the exact mesh
+with Undo/Redo.
+
+Mesh regressions separately require deformation positions and normals to remain exact
+outside the affected one-ring, topology operations to preserve normals on surviving
+source vertices, extrusion to keep surviving source attributes exact while creating only
+a connected cap plus boundary walls, and individual inset to preserve every source
+vertex while creating separate interpolated caps and six-face rings. These checks
+inspect application state and egui draw commands, not native pixels or visible
+appearance.
 
 ## Supplied PAC headless edit proof
 
@@ -255,25 +520,26 @@ section-to-LOD mapping as the production parser, and their counts matched:
 | 3 | 337 | 429 | 12/12 |
 
 Move, Grab, Smooth, Inflate, Pinch, face Delete, face Subdivide, selected-edge
-Subdivide, face Duplicate, Duplicate as New Part, face Extrude, and individual-
-face Inset each ran on fresh working meshes for every LOD.
-Every operation changed the expected
-fingerprint, preserved every position and normal outside its permitted scope,
-created one history entry, passed invariants, restored the exact baseline with
-Undo, and reproduced the exact edited fingerprint with Redo. The single warm
-decode took 3.25 ms and all 48 complete operation/Undo/Redo scenarios took
-852.06 ms. Single-face Extrude and Inset each added exactly three vertices and
-six faces on every LOD while preserving every original position and normal.
-Inset operation samples were 16.00, 2.03, 0.52, and 0.26 ms for LOD0 through
-LOD3 respectively. LOD3
-contains three source edges shared by four faces;
-the production parser confirmed those incidences, and the Rust graph now
-preserves them instead of imposing an unsupported two-face limit. A focused
-synthetic regression failed under the old limit and passed after the correction.
-SHA-256 and timestamp comparisons before and after the run confirmed the source
-file was unchanged. These are single-file CPU edit/history measurements, not
-full PAC/PAM/PAMLOD parity, visible selection or LOD-switch proof, live pointer
-latency, FPS, GPU, or memory evidence.
+Subdivide, face Duplicate, Duplicate as New Part, face Extrude, and individual- face
+Inset each ran on fresh working meshes for every LOD. Every operation changed the
+expected fingerprint, preserved every position and normal outside its permitted scope,
+created one history entry, passed invariants, restored the exact baseline with Undo, and
+reproduced the exact edited fingerprint with Redo. The single warm decode took 3.25 ms
+and all 48 complete operation/Undo/Redo scenarios took 852.06 ms.
+
+Single-face Extrude and Inset each added exactly three vertices and six faces on every
+LOD while preserving every original position and normal. Inset operation samples were
+16.00, 2.03, 0.52, and 0.26 ms for LOD0 through LOD3 respectively. LOD3 contains three
+source edges shared by four faces; the production parser confirmed those incidences, and
+the Rust graph now preserves them instead of imposing an unsupported two-face limit. A
+focused synthetic regression failed under the old limit and passed after the correction.
+
+SHA-256 and timestamp comparisons before and after the run confirmed the source file was
+unchanged. These are single-file CPU edit/history measurements, not full PAC/PAM/PAMLOD
+parity, visible selection or LOD-switch proof, live pointer latency, FPS, GPU, or memory
+evidence.
+
+### Separate selection check
 
 A separate opt-in Debug headless selection test on the same PAC seeded the first
 available handle in each LOD0 domain. Linked selected 246 of 13,740 vertices in
@@ -286,17 +552,18 @@ pointer-latency, Release-performance, or representative-corpus evidence.
 
 ## Visible synthetic interaction proof
 
-A Release build on 2026-08-29 loaded the redistributable 3-vertex PAM and 2×2
-DDS fixture through Direct3D 12 and exercised the actual Windows event path.
-The live viewport switched among textured, wireframe, and X-Ray rendering, changed
-standard camera views, zoomed with the wheel, retained both endpoints of a fast
-Brush drag, selected a face with Rectangle, displayed and applied the Move and
-Rotate gizmos, applied Grab sculpting, and restored a Move through Undo. Window
-resize kept equal world-space X/Y spans equal in screen pixels; the automated
-projection test covers both wide and tall viewport shapes. This is synthetic
-interaction proof, not real-PAC usability or representative latency/FPS. The
-depth-aware Visible route has deterministic synthetic unit proof but was added
-after this live capture and has not yet been exercised through the visible Windows path.
+A Release build on 2026-08-29 loaded the redistributable 3-vertex PAM and 2×2 DDS
+fixture through Direct3D 12 and exercised the actual Windows event path. The live
+viewport switched among textured, wireframe, and X-Ray rendering, changed standard
+camera views, zoomed with the wheel, retained both endpoints of a fast Brush drag,
+selected a face with Rectangle, displayed and applied the Move and Rotate gizmos,
+applied Grab sculpting, and restored a Move through Undo.
+
+Window resize kept equal world-space X/Y spans equal in screen pixels; the automated
+projection test covers both wide and tall viewport shapes. This is synthetic interaction
+proof, not real-PAC usability or representative latency/FPS. The depth-aware Visible
+route has deterministic synthetic unit proof but was added after this live capture and
+has not yet been exercised through the visible Windows path.
 
 ## Production boundary
 

@@ -8,6 +8,19 @@ Keep PySide UI and archive mutation confirmation outside this package. UI
 packages collect user intent; services coordinate execution; archive patching
 and backup policy stay behind archive services/core paths.
 
+## Contents
+
+- [Source identity and material preservation](#source-identity-and-material-preservation)
+- [OBJ material dependencies](#obj-material-dependencies)
+- [Body region decomposition](#body-region-decomposition)
+- [PAC skin-influence layout](#pac-skin-influence-layout)
+- [PAB bind transforms](#pab-bind-transforms)
+- [PAC vertex jiggle contribution](#pac-vertex-jiggle-contribution)
+- [PABV skeleton volumes (read-only)](#pabv-skeleton-volumes-read-only)
+- [PAC cloth guides (read-only)](#pac-cloth-guides-read-only)
+
+## Source identity and material preservation
+
 Facial PAMT targets retain their authored case, hashes and transforms through
 `skeleton_variation_parser.py` and mesh export. `JawOpen` and `jawOpen` are distinct
 game targets; exact duplicate names remain invalid. Presentation builds cloned
@@ -370,23 +383,24 @@ their rest positions through the complete rig reference. This establishes
 read-only source math, not live profile selection, game animation, production
 preview integration, GPU arithmetic or in-game parity.
 
-The native `cdmw_mesh::jiggle_rig` consumes a snapshot of the prepared palette,
-parents and original-inverse/neutral-global/neutral-local matrices, stored as
-4-by-4 row arrays. It recomputes parent order and validates the snapshot before
-stepping all bones. Its preview binding inverts the **blended** neutral rest
-matrix once, then composes that inverse with each current render transform to
-preserve displayed sculpted positions. This is tested with different bone scales,
-where blending inverse bone matrices gives the wrong result. State and bindings
-cannot be used with a different rig instance. An explicit jiggle-buffer bypass
-handles all-disabled comparisons independently of byte38 and bone overrides.
-`mesh_rust_jiggle.py` publishes this rig and retained LOD0 records to the owned,
-hash-checked `jiggle-rig.json` payload. Unchanged records remain byte-identical;
-edited skin weights use the existing PAC encoder. Geometry-only and contribution
-edits reuse that payload. The native Jiggle pane prepares bindings on its bounded
-loader, then plays a procedural root-pose test using decoded initialization settings.
-Preview frames stay separate from authored mesh data. This integrates the decoded
-math, but does not establish runtime activation, live profile selection, wind/water
-generation, guide cloth or in-game parity.
+The native `cdmw_mesh::jiggle_rig` consumes a snapshot of the prepared palette, parents
+and original-inverse/neutral-global/neutral-local matrices, stored as 4-by-4 row arrays.
+It recomputes parent order and validates the snapshot before stepping all bones. Its
+preview binding inverts the **blended** neutral rest matrix once, then composes that
+inverse with each current render transform to preserve displayed sculpted positions.
+This is tested with different bone scales, where blending inverse bone matrices gives
+the wrong result. State and bindings cannot be used with a different rig instance.
+
+An explicit jiggle-buffer bypass handles all-disabled comparisons independently of
+byte38 and bone overrides. `mesh_rust_jiggle.py` publishes this rig and retained LOD0
+records to the owned, hash-checked `jiggle-rig.json` payload. Unchanged records remain
+byte-identical; edited skin weights use the existing PAC encoder. Geometry-only and
+contribution edits reuse that payload. The native Jiggle pane prepares bindings on its
+bounded loader, then plays a procedural root-pose test using decoded initialization
+settings. Preview frames stay separate from authored mesh data.
+
+This integrates the decoded math, but does not establish runtime activation, live
+profile selection, wind/water generation, guide cloth or in-game parity.
 
 ## PABV skeleton volumes (read-only)
 
@@ -398,16 +412,19 @@ record reader; neither is the PAC cloth guide mesh. The known PAR `0x36/1`
 standalone header contains a flags word at byte
 16 and a ushort record count at byte 20.
 
-`decode_pab_embedded_volumes` reads the default volume sets retained in a
-fixed-layout PAB `1/5`. After its bone records, PAB flag `0x10` adds one uint
-per bone and `0x2` adds one byte per bone. The primary volume count follows;
-separate rendering and physics sets may follow in that order. EOF can omit
-either later set, while a serialized zero count remains an explicit empty set.
-PAB flag `0x4` adds per-volume flags. These bits differ from standalone PABV
-flags. The embedded loader converts keys below the bone count from indices to
-stored hashes and retains larger keys, independently of PAB flag `0x1`.
-The returned records use materialized hashes with original absolute PAB byte
-offsets; strict rig resolution still rejects unresolved or ambiguous hashes.
+### Skeleton and model volume sources
+
+`decode_pab_embedded_volumes` reads the default volume sets retained in a fixed-layout
+PAB `1/5`. After its bone records, PAB flag `0x10` adds one uint per bone and `0x2` adds
+one byte per bone. The primary volume count follows; separate rendering and physics sets
+may follow in that order. EOF can omit either later set, while a serialized zero count
+remains an explicit empty set. PAB flag `0x4` adds per-volume flags. These bits differ
+from standalone PABV flags.
+
+The embedded loader converts keys below the bone count from indices to stored hashes and
+retains larger keys, independently of PAB flag `0x1`. The returned records use
+materialized hashes with original absolute PAB byte offsets; strict rig resolution still
+rejects unresolved or ambiguous hashes.
 
 This path is traced through `SkeletonAsyncLoadingTask` (`0x142CCEF80`), PAB
 loader `0x142D34A90`, and resource-manager slot `0x48` (`0x142CD0B20`). Bone
@@ -418,48 +435,52 @@ PHW rig contains 28 primary capsules, 16 rendering capsules and an empty physics
 set, consuming the full file. Every volume resolves to that rig. These defaults
 do not establish the final appearance override or runtime collision activation.
 
-`decode_pac_embedded_volumes` locates the model's own volume set in decompressed
-PAC `3/9` metadata with guide layouts 0, 3 or 7. After descriptors and any guide
-data, metadata bit `0x2000` adds 24 bytes of auxiliary bounds and two
-ushort-counted arrays with strides 16 and 24. The ushort-counted bone-hash
-palette and 24-byte model bounds follow; bit `0x4` adds another 24-byte bounds
-block. The volume count and shared records come next. Every PAC volume has a
-flags word, independently of bit `0x4`. Later metadata remains outside the set.
-The undecoded embedded bone-group branch (`0x20`) fails explicitly. Raw keys,
-geometry, flags and absolute offsets are retained; the decoder does not infer
-index conversion or expose these records as already bound to a skeleton.
+`decode_pac_embedded_volumes` locates the model's own volume set in decompressed PAC
+`3/9` metadata with guide layouts 0, 3 or 7. After descriptors and any guide data,
+metadata bit `0x2000` adds 24 bytes of auxiliary bounds and two ushort-counted arrays
+with strides 16 and 24. The ushort-counted bone-hash palette and 24-byte model bounds
+follow; bit `0x4` adds another 24-byte bounds block. The volume count and shared records
+come next. Every PAC volume has a flags word, independently of bit `0x4`. Later metadata
+remains outside the set.
+
+The undecoded embedded bone-group branch (`0x20`) fails explicitly. Raw keys, geometry,
+flags and absolute offsets are retained; the decoder does not infer index conversion or
+expose these records as already bound to a skeleton.
 
 The PAC path is `CharacterMeshAsyncLoadingTask` (`0x142CD7030`), metadata reader
 `0x142C61960`, guide/palette reader `0x142C63CE0`, and bounds/volume reader
-`0x142C65090`. Manager slot `0x50` (`0x142CD0FD0`) enables the record flags
-byte before calling `0x1426A9530`. A ready model resource's volume set at
-`+0x110` takes precedence over PAB/body/head sources in `0x142D91540`; an empty
-serialized model set does not create that resource. Among five copied PHW
-samples, lower-body `0166` contains one capsule and upper-body `00_0001`
-contains two, with keys matching their PAC bone-hash palettes. The `0145`,
-upper-body `0002`, and Damiane nude samples have explicit empty model sets.
-This does not establish runtime activation or a cause for differing jiggle.
-`tests/test_pac_embedded_volumes.py` checks metadata boundaries, all three
-supported guide layouts, mandatory flags, truncation and immutable raw keys.
+`0x142C65090`. Manager slot `0x50` (`0x142CD0FD0`) enables the record flags byte before
+calling `0x1426A9530`. A ready model resource's volume set at `+0x110` takes precedence
+over PAB/body/head sources in `0x142D91540`; an empty serialized model set does not
+create that resource. Among five copied PHW samples, lower-body `0166` contains one
+capsule and upper-body `00_0001` contains two, with keys matching their PAC bone-hash
+palettes. The `0145`, upper-body `0002`, and Damiane nude samples have explicit empty
+model sets.
 
-The mapped producer `0x142D3F550` passes each raw record key to the skeleton's
-sorted hash lookup `0x140466840`, and supplies that skeleton to definition
-preparation `0x142D3EE80`. PAC keys therefore enter this path as hashes,
-without the PAB loader's index conversion. `select_cloth_body_volumes` in
-`pac_cloth_preview.py` materializes nonempty PAC records as hash-keyed volumes;
-only a confirmed empty model set permits PAB primary defaults or explicit
-appearance inputs. An explicit body PABV replaces the defaults; an explicit
-head PABV replaces only the first matching `Bip01 Head` record using the decoded
-merge. Standalone preview inputs require bone hashes, since their own source
-rigs are not selected for legacy-index conversion. Appearance selection is
-manual and runtime activation is not reproduced.
-`build_cloth_body_collider_snapshot` strictly binds the selected
-set and projects its primitives into the matched neutral pose. Missing or
-ambiguous hashes and unsupported shapes make contacts unavailable instead of
-silently selecting rig geometry. The native control identifies model,
-appearance-input or rig-default provenance; ordinary cloth playback remains
-available on unsupported defaults. Failed or cancelled input loads retain
-the previous input snapshot and its owned preview file.
+This does not establish runtime activation or a cause for differing jiggle.
+`tests/test_pac_embedded_volumes.py` checks metadata boundaries, all three supported
+guide layouts, mandatory flags, truncation and immutable raw keys.
+
+The mapped producer `0x142D3F550` passes each raw record key to the skeleton's sorted
+hash lookup `0x140466840`, and supplies that skeleton to definition preparation
+`0x142D3EE80`. PAC keys therefore enter this path as hashes, without the PAB loader's
+index conversion. `select_cloth_body_volumes` in `pac_cloth_preview.py` materializes
+nonempty PAC records as hash-keyed volumes; only a confirmed empty model set permits PAB
+primary defaults or explicit appearance inputs. An explicit body PABV replaces the
+defaults; an explicit head PABV replaces only the first matching `Bip01 Head` record
+using the decoded merge.
+
+Standalone preview inputs require bone hashes, since their own source rigs are not
+selected for legacy-index conversion. Appearance selection is manual and runtime
+activation is not reproduced. `build_cloth_body_collider_snapshot` strictly binds the
+selected set and projects its primitives into the matched neutral pose. Missing or
+ambiguous hashes and unsupported shapes make contacts unavailable instead of silently
+selecting rig geometry. The native control identifies model, appearance-input or
+rig-default provenance; ordinary cloth playback remains available on unsupported
+defaults. Failed or cancelled input loads retain the previous input snapshot and its
+owned preview file.
+
+### Volume records and primitive colliders
 
 Each record stores a bone key, a 4x4 local matrix, a retained usage byte and a
 serialized shape tag. Tags 0/1/2/4/5 become engine box/cylinder/mesh/sphere/capsule
@@ -485,19 +506,22 @@ explicitly resolved flags instead of treating the source word as final. Box/mesh
 geometry can be inspected but is not substituted with approximate primitive
 contacts.
 
-`prepare_pabv_cloth_colliders` performs the primitive producer's flag override
-and deduplication after strict bone binding. It requires all three runtime hash
-sets explicitly, keyed by output bits `0x2`, `0x4` and `0x8`. These are not
-automatically equated with the material XML inclusion/exclusion name lists.
-The comparison at `0x143A52AC0` checks both type words and flags exactly, then
-uses an inclusive float32(0.001) tolerance for radius, height and all 16 matrix
-values. Bone identity does not participate. The first matching definition and
-its binding are retained; matches are checked against kept definitions in source
-order, without transitive grouping. Returned source ordinals preserve that
-provenance. `has_activation_flag` is the producer's OR of definition flag `0x1`.
-The instance initializer `0x143648EB0` copies that summary into byte `+0x49`;
-the group builder maps it to group bit `0x4`, the same-PAC exception described
-below. It does not establish whether the game enables the collider group.
+`prepare_pabv_cloth_colliders` performs the primitive producer's flag override and
+deduplication after strict bone binding. It requires all three runtime hash sets
+explicitly, keyed by output bits `0x2`, `0x4` and `0x8`. These are not automatically
+equated with the material XML inclusion/exclusion name lists. The comparison at
+`0x143A52AC0` checks both type words and flags exactly, then uses an inclusive
+float32(0.001) tolerance for radius, height and all 16 matrix values. Bone identity does
+not participate.
+
+The first matching definition and its binding are retained; matches are checked against
+kept definitions in source order, without transitive grouping. Returned source ordinals
+preserve that provenance. `has_activation_flag` is the producer's OR of definition flag
+`0x1`. The instance initializer `0x143648EB0` copies that summary into byte `+0x49`; the
+group builder maps it to group bit `0x4`, the same-PAC exception described below. It
+does not establish whether the game enables the collider group.
+
+### Default flags and appearance overrides
 
 `default_pabv_cloth_flag_bone_sets` supplies the decoded initial profile from
 the PBD manager's successful configuration-load path in build `1.0.0.2944`:
@@ -531,6 +555,8 @@ the collider source's `+0x30` at `0x142D94CFF`, then `0x143648EB0`. These offset
 belong to different structures. An earlier rendering-volume interpretation was
 too broad; a rendering override must not replace the cloth source by name alone.
 
+### Body and head merge
+
 `merge_pabv_body_head_volumes` implements the ready-source merge at
 `0x142D3EB50`, called through resource-manager slot `0xA0` (`0x142CD4990`). It
 copies every body record in order, then replaces only the first `Bip01 Head`
@@ -540,6 +566,8 @@ indices require each source's explicit matching rig before merging; the head
 never implicitly borrows the body's index layout. The materialized result
 uses hash keys and per-record flags, and retains `(input, record)` provenance.
 These are decoded records, not an exported PABV or its original header.
+
+### Remaining volume boundaries and checks
 
 Automatic resource selection, compiled-resource overrides, load-failure handling,
 any later runtime set changes and native preview integration remain separate
@@ -562,17 +590,19 @@ there is no guide section, not that the model has no other physics. The guide
 block follows the complete submesh descriptor table. It has its own bounding
 box, up to 1024 vertices, triangle indices and a separate alpha bitmask.
 
-The retained `metadata_flags` also supplies the profile selector's default mode:
-bit 15 clear means cloth, set means spline. `inspect_guide_profile_admission`
-follows the loader/selector chain from `0x142C6D6E0` through `0x142C61960` and
-`0x142C63CE0` to `0x142CE39D0`. Guide count becomes resource `+0x148`; the
-`count <= 1024` result becomes byte `+0x120`. Both a nonzero count and that limit
-check are required. The optional global discard policy for oversized guides
-does not change their rejection by the selector. Byte `+0x121` retains bit 15
-and selects fallback mode `1 + bit`. The inspection tool reports these static
-prerequisites separately from live activation, which still depends on profile
-selection and scene scheduling. Neither the inspector nor this reference writes
-a PAC or assumes a live global value.
+The retained `metadata_flags` also supplies the profile selector's default mode: bit 15
+clear means cloth, set means spline. `inspect_guide_profile_admission` follows the
+loader/selector chain from `0x142C6D6E0` through `0x142C61960` and `0x142C63CE0` to
+`0x142CE39D0`. Guide count becomes resource `+0x148`; the `count <= 1024` result becomes
+byte `+0x120`. Both a nonzero count and that limit check are required. The optional
+global discard policy for oversized guides does not change their rejection by the
+selector. Byte `+0x121` retains bit 15 and selects fallback mode `1 + bit`.
+
+The inspection tool reports these static prerequisites separately from live activation,
+which still depends on profile selection and scene scheduling. Neither the inspector nor
+this reference writes a PAC or assumes a live global value.
+
+### Guide records and particle initialization
 
 Each 16-byte guide record contains three unsigned 15-bit coordinates, a fourth
 10-bit bone palette slot at bytes 6–7, three more 10-bit slots packed at bytes
@@ -605,6 +635,8 @@ resolve the active material. Channel A supplies the particle's group ID; only
 IDs 1 through 31 select dynamic-fix bits in the traced base-movement shader.
 Membership does not establish whether a runtime bit is active.
 
+### Preview snapshots and attachment preparation
+
 `pac_cloth_preview.build_cloth_preview_snapshot` now prepares the guide data for
 native playback using the host's already resolved PAB/PAC palette and neutral
 appearance. Animation frames preserve guide weights divided by 255; CPU rest
@@ -616,29 +648,31 @@ palette references make this capability unavailable instead of inventing pins.
 
 The existing owned `jiggle-rig.json` can carry an optional `cloth` snapshot;
 `jiggle.decoded.cloth` reports its availability, guide/fixed/area counts and
-`rotation_available`. Orientation neighbors use explicit per-component,
-vertex-alpha preparation with automatic weighting disabled; this does not infer
-the active runtime material. Older snapshots without neighbors still support
-translation-only playback.
-It is cached with the source and rig, uses the existing atomic payload writer,
-and preserves all retained render record lanes. A missing or unsupported guide
-mesh leaves decoded jiggle available. This additive transport does not change
-the payload version or require older readers to consume the new member.
-The native `cdmw_mesh::cloth` core consumes this snapshot with retained render
-records. Its controlled preview profile uses unit dynamic inverse masses,
-explicit gravity/damping/stiffness, a bounded Jacobi schedule, optional vertex
-alpha and a preview floor. These choices are not inferred active game settings.
-Optional two-edge guide rotation uses the decoded frame correction and binds
-edited positions through the full neutral guide/skeletal matrix blend. Unknown
-neighbors disable that option; degenerate frames stop playback without publishing
-an invalid frame. Area records remain counted but inactive; runtime
-dispatch/overrides and the full collision stages remain incomplete. The native
-core is connected to Mesh Data > Cloth through the existing bounded loader and
-draw-only motion controller. Current/original/disabled comparisons use verified
-byte39 contributions; current rules evaluate original neutral source heights to
-match PAC output after sculpting. These arrays are also available on cloth parts
-without jiggle flags. Preview-only solver settings and controlled root motion do
-not modify PACs or establish game-equivalent playback.
+`rotation_available`. Orientation neighbors use explicit per-component, vertex-alpha
+preparation with automatic weighting disabled; this does not infer the active runtime
+material. Older snapshots without neighbors still support translation-only playback. It
+is cached with the source and rig, uses the existing atomic payload writer, and
+preserves all retained render record lanes. A missing or unsupported guide mesh leaves
+decoded jiggle available.
+
+This additive transport does not change the payload version or require older readers to
+consume the new member. The native `cdmw_mesh::cloth` core consumes this snapshot with
+retained render records. Its controlled preview profile uses unit dynamic inverse
+masses, explicit gravity/damping/stiffness, a bounded Jacobi schedule, optional vertex
+alpha and a preview floor. These choices are not inferred active game settings. Optional
+two-edge guide rotation uses the decoded frame correction and binds edited positions
+through the full neutral guide/skeletal matrix blend.
+
+Unknown neighbors disable that option; degenerate frames stop playback without
+publishing an invalid frame. Area records remain counted but inactive; runtime
+dispatch/overrides and the full collision stages remain incomplete. The native core is
+connected to Mesh Data > Cloth through the existing bounded loader and draw-only motion
+controller. Current/original/disabled comparisons use verified byte39 contributions;
+current rules evaluate original neutral source heights to match PAC output after
+sculpting. These arrays are also available on cloth parts without jiggle flags.
+
+Preview-only solver settings and controlled root motion do not modify PACs or establish
+game-equivalent playback.
 
 The cloth attachment report compares the two decoded mode-1 preparation paths:
 candidate pools per connected component, and one pool for the entire guide mesh.
@@ -665,19 +699,21 @@ triangles report unknown neighbors. Float32 and CPU half packing follow the
 traced operations; the reference uses Python's power function and does not
 claim bit-exact `powf`, live activation, solver or collision parity.
 
+### Profile fields and initial constraints
+
 The shared Python PBD parser retains `Mass`, `UseVertexAlphaPositionBlending`,
 `UseRotationCorrection`, `UnderWaterGuideMeshVertexWeightCoefficient`,
-`AutoWeightingExponentialBase` and `AutoWeightingInputRatioShift` for guide
-inspection. The latter defaults are 0.4 and 0; they do not establish whether
-automatic weighting is enabled. Decoded initialization defaults are mass 1, vertex-alpha
-blending on, rotation correction off and underwater coefficient 1. A declared
-`SimulationMode` resets rotation correction to on for cloth or off for spline;
-later explicit options override it. Source order is retained, and `AttachedCloth`
-options remain separate from the parent material. `IsCloak`,
-`ShrinkWhenShieldIsInSocket` and `UseInputPositionCollision` are retained in
-source order and default to false. A cloak-like filename does not enable
-`IsCloak`; the engine's material reset clears that byte. These fields do not replace
-the preview's approximate solver or heuristic pins.
+`AutoWeightingExponentialBase` and `AutoWeightingInputRatioShift` for guide inspection.
+The latter defaults are 0.4 and 0; they do not establish whether automatic weighting is
+enabled. Decoded initialization defaults are mass 1, vertex-alpha blending on, rotation
+correction off and underwater coefficient 1. A declared `SimulationMode` resets rotation
+correction to on for cloth or off for spline; later explicit options override it.
+
+Source order is retained, and `AttachedCloth` options remain separate from the parent
+material. `IsCloak`, `ShrinkWhenShieldIsInSocket` and `UseInputPositionCollision` are
+retained in source order and default to false. A cloak-like filename does not enable
+`IsCloak`; the engine's material reset clears that byte. These fields do not replace the
+preview's approximate solver or heuristic pins.
 
 With an explicitly supplied material, the guide report calculates initial
 inverse masses and selects the corresponding half-precision position blends.
@@ -700,6 +736,8 @@ same directed edge for both hinge normals, so flat adjacent faces have rest
 angle pi. Optional bending coefficients follow the traced cotangent formula;
 the report includes its cotangent limit and marks degenerate geometry explicitly.
 Unrecognized records remain present without invented measurements.
+
+### Constraint records and solver math
 
 The game expands each 10-byte PAC record to a 36-byte CPU record, then packs it
 into a 16-byte upload record. Upload types distinguish distance, angle bending,
@@ -738,19 +776,22 @@ replace the mass pair with `1-ratio` and `1+ratio` according to LRA ordering,
 subject to the decoded thresholds and each particle's underwater state. The
 short-edge stiffness reduction also retains its runtime and extra-data gates.
 
-Angle bending uses the authored same-edge normal convention (flat angle pi).
-Coefficient bending uses positions relative to the first endpoint, including
-when half rounding leaves a nonzero coefficient sum. Their different
-denominator/degeneracy thresholds are preserved. Type 2 alone does not select
-coefficient bending: guide mode, flags2 bit `0x400`, effective input-position
-blend below 0.5 and bend/iteration gates also participate. The blend is particle
-half 94 or its nonnegative extra-data half-6 override, not `_cr` at half 90.
-`select_guide_bending_projection` selects the formulation after eligibility is
-established; higher blends and other eligible cases use angle bending. All six
-inspected normal-step shader variants leave type-3 area
-records unprojected in this constraint loop. That does not establish global
-area support or behavior in other stages. These references do not implement a
-complete solver or change the approximate preview.
+Angle bending uses the authored same-edge normal convention (flat angle pi). Coefficient
+bending uses positions relative to the first endpoint, including when half rounding
+leaves a nonzero coefficient sum. Their different denominator/degeneracy thresholds are
+preserved. Type 2 alone does not select coefficient bending: guide mode, flags2 bit
+`0x400`, effective input-position blend below 0.5 and bend/iteration gates also
+participate.
+
+The blend is particle half 94 or its nonnegative extra-data half-6 override, not `_cr`
+at half 90. `select_guide_bending_projection` selects the formulation after eligibility
+is established; higher blends and other eligible cases use angle bending. All six
+inspected normal-step shader variants leave type-3 area records unprojected in this
+constraint loop. That does not establish global area support or behavior in other
+stages. These references do not implement a complete solver or change the approximate
+preview.
+
+### Base forces, damping and contact response
 
 `pac_cloth_base.py` provides the normal base-step force, damping, contact-response
 and position-prediction math, checked against packed and native-16-bit variants
@@ -788,6 +829,8 @@ remain separate. Synthetic composition tests connect this base math to authored
 stretch constraints and final movement; a repeated-step test checks damped fall
 against an independent geometric-series solution. This is not a complete solver
 or evidence of visible/game parity, and does not change the preview.
+
+### Timing, animation and state stages
 
 `pac_cloth_state.py` connects timing, guide/static animation and explicit state stages
 from the same base shader:
@@ -842,6 +885,8 @@ from the same base shader:
   frame flags2 `0x10000`, overstretch ratio at least 99 and a non-gravity
   acceleration absolute-component sum strictly below float32(0.1) hold both
   position histories at working `_x`; stored velocity remains intact.
+
+### Guide space and static attachments
 
 Guide space adjustment has two separate decisions. Frame flags `0x1` skips
 external forces; flags2 `0x100` skips position integration. A special movement
@@ -899,6 +944,8 @@ non-gravity acceleration onto that direction. A result strictly above 30 sets
 particle `0x40000`; otherwise it clears the bit. A zero direction has no supported
 finite shader result and is rejected.
 
+### Contact cache and storage variants
+
 The pre-collision cache is a ten-uint window addressed by simulation parameter
 uint32 at 148 plus `particle_index * 10`, in the resource selected by uint16 at
 226. It is **not** particle `sbc_offset` at 124. With a valid resource, frame
@@ -908,18 +955,21 @@ frame `0x10` independently resets the last five to
 The caller supplies the resolved window when either reset is active. These
 writes preserve the particle's contact normals and radius.
 
-Contact-cache writeback requires an explicit shader storage variant. Without
-frame flags2 `0x200`, the packed variant clears both complete contact vectors;
-the native-16-bit variant clears their xyz components and preserves each w.
-Both clear `cr` and preserve `lra_ratio`. With that flag, both retain the cache.
-These stages preserve unrelated record bytes and reject missing consumed inputs.
-Water classification from supplied samples and guide input-position collisions
-from supplied collider snapshots are covered below. Actual texture/resource
-acquisition, later collider queries and full CPU dispatch remain caller work.
-Animation preparation invokes fixed-state preparation internally; do not clear
-particle flags first. Clock, guide, force and prediction composition and static
+Contact-cache writeback requires an explicit shader storage variant. Without frame
+flags2 `0x200`, the packed variant clears both complete contact vectors; the
+native-16-bit variant clears their xyz components and preserves each w. Both clear `cr`
+and preserve `lra_ratio`. With that flag, both retain the cache. These stages preserve
+unrelated record bytes and reject missing consumed inputs. Water classification from
+supplied samples and guide input-position collisions from supplied collider snapshots
+are covered below. Actual texture/resource acquisition, later collider queries and full
+CPU dispatch remain caller work.
+
+Animation preparation invokes fixed-state preparation internally; do not clear particle
+flags first. Clock, guide, force and prediction composition and static
 attachment/reference/fixed-state branches are covered by synthetic tests. These
 references do not establish bit-exact GPU execution or change the interactive preview.
+
+### Input collisions and thickness modes
 
 `pac_cloth_collisions.apply_cloth_input_collisions` implements the guide-only
 input-position pass from the same packed and native-16-bit base shaders. It runs
@@ -976,6 +1026,8 @@ thresholds, mask/owner selection, ordered projections, source immutability and
 composition with fixed integration. Later collision/constraint passes, live
 resource production and native preview integration remain separate work.
 
+### Collider update and geometry
+
 The same module's `update_guide_cloth_collider_result` and
 `update_static_cloth_collider_result` reproduce the selected-record geometry
 and history writes from `ComputePbdUpdateBoneCollidables` (captured PASC SHA-256
@@ -1016,6 +1068,8 @@ and a generated-record handoff through moving capsule contact. These are finite
 reference calculations, not GPU rounding, native preview or game parity proof.
 Authoring collider definitions, resolving bone/LOD resources and connecting the
 native preview remain separate work.
+
+### Signed distance and contact projection
 
 The same module also decodes shape and contact math from
 `ComputePbdProcessConstraints`. These helpers operate on explicitly selected
@@ -1061,6 +1115,8 @@ the kinetic coefficient times penetration, capped by the active static coefficie
 and by the remaining tangent length. These rules are separate from the moving
 collider's optional 0.45 correction.
 
+### Attached static collisions
+
 `apply_attached_static_cloth_collisions` connects that single-collider projection
 to the attached-static list in **both** the guide and static-mesh constraint
 branches. The caller supplies positions after preceding animated contacts, the
@@ -1090,6 +1146,8 @@ constraint/collision eligibility remains the caller's responsibility.
   reference/group/element order while the reference position stays fixed. Contact
   is ORed with the incoming aggregate, including a contact with no position change.
   The function does not write normals, particle flags or caches.
+
+### Animated collision candidate selection
 
 `select_guide_cloth_collision_candidates` decodes animated collider eligibility
 and cache selection for the guide constraint branch. It requires the **original**
@@ -1124,14 +1182,17 @@ this selector does not load result or scene records or project particle position
   entries are skipped without forcing another full search.
 
 Matching definition source normally excludes a group; group bit `0x4` permits
-consideration only for a matching non-sentinel PAC ID in the same raw scene.
-Definition uint 100 bit `0x1` then requires that PAC match; with this bit clear,
-the definition must come from a different raw source. Buffer-0 substitution does
-not make different raw owners equal. Groups without bit `0x1` are excluded by
-working particle bits `0x30000` or scene bit `0x1`. Groups with bit `0x1` in the
-same scene are excluded when frame bit `0x20` and scene bit `0x200` are both set.
-Group bit `0x2` is additionally excluded for particle half 88 below float32(0.3)
-when frame bit `0x20000000` is set and scene bit `0x200` is clear.
+consideration only for a matching non-sentinel PAC ID in the same raw scene. Definition
+uint 100 bit `0x1` then requires that PAC match; with this bit clear, the definition
+must come from a different raw source. Buffer-0 substitution does not make different raw
+owners equal. Groups without bit `0x1` are excluded by working particle bits `0x30000`
+or scene bit `0x1`.
+
+Groups with bit `0x1` in the same scene are excluded when frame bit `0x20` and scene bit
+`0x200` are both set. Group bit `0x2` is additionally excluded for particle half 88
+below float32(0.3) when frame bit `0x20000000` is set and scene bit `0x200` is clear.
+
+### Runtime collision group flags
 
 `pac_cloth_runtime.build_cloth_collision_group_flags` connects the CPU producer
 at `0x142DE29C6..29FD` to these consumers:
@@ -1151,19 +1212,22 @@ This is runtime ownership state, not a PAC vertex flag or an authored collision
 enable switch. The reference still requires the actual component byte; this
 trace does not establish every writer or replace the other admission gates.
 
-One traced critical-flag setter is `0x140470970`: after resolving the actor's
-equipment type, it enables the instance byte when
-`EquipTypeInfo._isCriticalCollidable` is nonzero. The table reader `0x1414FC990`
-places that boolean at CPU field `+0x38`; its serialized byte is 39 bytes after
-the end of the length-prefixed name payload. This is unrelated to PAC vertex byte 38.
-In the inspected build's 117-row `equiptypeinfo.staticinfobody`, only
-`OneHandShield`, `OneHandShieldRight` and `OneHandTowerShield` enable it.
-That is authored table evidence, not proof of a selected live item or all later
-writers. Ordinary groups remain eligible for the main collision pass without
-this flag. A zero group word must not be interpreted as globally disabled.
-Focused tests compose CPU flags with both shader selection and projection,
-including the volume producer's same-PAC exception. Native preview integration
-and full actor/resource/visibility selection remain separate.
+One traced critical-flag setter is `0x140470970`: after resolving the actor's equipment
+type, it enables the instance byte when `EquipTypeInfo._isCriticalCollidable` is
+nonzero. The table reader `0x1414FC990` places that boolean at CPU field `+0x38`; its
+serialized byte is 39 bytes after the end of the length-prefixed name payload. This is
+unrelated to PAC vertex byte 38. In the inspected build's 117-row
+`equiptypeinfo.staticinfobody`, only `OneHandShield`, `OneHandShieldRight` and
+`OneHandTowerShield` enable it. That is authored table evidence, not proof of a selected
+live item or all later writers.
+
+Ordinary groups remain eligible for the main collision pass without this flag. A zero
+group word must not be interpreted as globally disabled. Focused tests compose CPU flags
+with both shader selection and projection, including the volume producer's same-PAC
+exception. Native preview integration and full actor/resource/visibility selection
+remain separate.
+
+### Collision cache and motion sampling
 
 `update_guide_cloth_collision_cache` consumes all eligible response-plane queries
 in their evaluation order. The supplied distance is measured before correction
@@ -1176,18 +1240,19 @@ preserved. Modes other than rebuilding leave the cache and working flags intact.
 The existing base finalizer resets this cache half and clears its valid bit
 when frame bit `0x10` requests that earlier reset.
 
-`select_cloth_collider_blends` resolves the constraint shader's timing from
-per-frame parameters, the 1216-byte PBD globals and the 44-byte push constants.
-It returns `None` for the decoded frame/clock/substep skips. Frame flags2 bit
-`0x8000` selects the scaled clock at global byte 896 instead of 864. Fixed-step
-blends are `substep/count` and `(substep+1)/count`; variable mode (`flags2 & 0x800`)
-uses 0/1 and only substep 0. These differ from base animation's interval timing.
-Global uint 1124 must equal **1** to subdivide that interval by solver iteration.
-The local limit is `min(flags2 & 7, push_uint4)`; global uint 1148 enables the
-unsigned adjustment `push_uint0 + local_limit - push_uint4`. The previous
-iteration is one less than that result. The helper preserves the shader's uint
-and float32 conversions; a zero divisor is rejected. Frame bit `0x2` selects
-current-time sampling, otherwise previous-time sampling is used.
+`select_cloth_collider_blends` resolves the constraint shader's timing from per-frame
+parameters, the 1216-byte PBD globals and the 44-byte push constants. It returns `None`
+for the decoded frame/clock/substep skips. Frame flags2 bit `0x8000` selects the scaled
+clock at global byte 896 instead of 864. Fixed-step blends are `substep/count` and
+`(substep+1)/count`; variable mode (`flags2 & 0x800`) uses 0/1 and only substep 0. These
+differ from base animation's interval timing. Global uint 1124 must equal **1** to
+subdivide that interval by solver iteration.
+
+The local limit is `min(flags2 & 7, push_uint4)`; global uint 1148 enables the unsigned
+adjustment `push_uint0 + local_limit - push_uint4`. The previous iteration is one less
+than that result. The helper preserves the shader's uint and float32 conversions; a zero
+divisor is rejected. Frame bit `0x2` selects current-time sampling, otherwise
+previous-time sampling is used.
 
 `sample_cloth_collider_motion` consumes a 56-byte animated result with
 previous/current endpoint pairs at 8/20 and 32/44. After interpolation and space
@@ -1197,6 +1262,8 @@ Movement is `(currentA - sampleA) + u*((currentB - currentA) - (sampleB - sample
 adding this to the reference gives the position used for the current-time surface
 query. This captures endpoint-dependent movement rather than just translating by
 the first endpoint. A collapsed averaged axis has no supported finite result.
+
+### Guide and static animated collisions
 
 `apply_guide_cloth_animated_collisions` composes timing, candidate selection,
 endpoint movement, surface response, flags and cache recording. It starts after
@@ -1250,6 +1317,8 @@ Definition ownership flags, guide groups and the animated cache are not used.
   and local limit as timing, even when blend subdivision is disabled. Both
   category histories remain the initial working position.
 
+### Bone collision composition and validation
+
 `apply_cloth_bone_collisions` connects the outer gate, selected animated branch,
 attached-static loop and subsequent history blend. It returns `None` for a
 frame/clock/substep skip. Otherwise, frame `0x100` must be set and the original
@@ -1276,6 +1345,8 @@ the shared static/guide collision stage through the final history blend. They
 do not establish GPU rounding or gameplay parity. Layer/world contacts, final
 state writes and native preview wiring remain to be connected; this is not the
 complete cloth solver.
+
+### Material to frame runtime handoff
 
 `pac_cloth_runtime.py` traces the CPU material-to-frame update at `0x143CE26F0`.
 Its `build_cloth_material_collision_mask` also follows `0x143CE1B20`: an empty
@@ -1310,21 +1381,24 @@ preserves other frame state, and invalidates upload only when a word changes:
 | `UseBackStopCollision` (`+0x192`) | None in this producer | 32 / `0x8` |
 | `UseLraConstraint` (`+0x195`) | Global byte `0x146D10C18` | 32 / `0x80` |
 
-Flag builder `0x1435FF2F0` sets rotation and shield-shrink bits directly.
-Caller `0x143600750` resolves `IsCloak` at `0x143600E3C..0E55`, passes it to
-the builder, and uploads the returned word at `0x1436017DC`. The caller sets
-the input-position bit at `0x1436018E3..18F7` and uploads flags2 at `0x1436019C2`.
-Caller `0x14360124F` supplies the backstop byte in R9b; builder `0x1435FF35A`
-selects bit `0x8`. The LRA branch at `0x1435FF39F` requires both its global and
-material byte. Optional backstop/LRA arguments preserve those bits for existing
-callers when omitted; specifying LRA requires both explicit booleans. This
-avoids silently replacing unresolved runtime inputs with defaults.
-The cloak bit is distinct from the `EnlargeCriticalCollidable` preset and the
-equipment-derived critical-collider group bit. Authored XML, explicit runtime
-switches, and these CPU flags are composed with decoded guide rotation,
-critical input projection, and same-scene collider admission in focused tests.
-Live global values, remaining frame flags, scene state and native preview
-integration remain explicit requirements; these references do not export a profile.
+Flag builder `0x1435FF2F0` sets rotation and shield-shrink bits directly. Caller
+`0x143600750` resolves `IsCloak` at `0x143600E3C..0E55`, passes it to the builder, and
+uploads the returned word at `0x1436017DC`. The caller sets the input-position bit at
+`0x1436018E3..18F7` and uploads flags2 at `0x1436019C2`. Caller `0x14360124F` supplies
+the backstop byte in R9b; builder `0x1435FF35A` selects bit `0x8`. The LRA branch at
+`0x1435FF39F` requires both its global and material byte. Optional backstop/LRA
+arguments preserve those bits for existing callers when omitted; specifying LRA requires
+both explicit booleans.
+
+This avoids silently replacing unresolved runtime inputs with defaults. The cloak bit is
+distinct from the `EnlargeCriticalCollidable` preset and the equipment-derived
+critical-collider group bit. Authored XML, explicit runtime switches, and these CPU
+flags are composed with decoded guide rotation, critical input projection, and
+same-scene collider admission in focused tests. Live global values, remaining frame
+flags, scene state and native preview integration remain explicit requirements; these
+references do not export a profile.
+
+### Stiffness and iteration controls
 
 `update_cloth_frame_stiffness` converts raw authored coefficients before writing
 the existing frame record; they are not direct shader stiffness values. For a
@@ -1364,18 +1438,20 @@ compares the full selected count before masking. The CPU XML parser rounds odd
 `SolverIterationCount` values upward before this update; the function takes that
 already-parsed value. This stage does not establish the complete dispatch loop.
 
-`select_cloth_dispatch_schedule` now covers the CPU loop bounds in
-`0x142D46C70` using the resolved 1216-byte PBD global record and explicit runtime
-limits. Mode 0 schedules the larger of the ordinary and scaled substep counts
-(offsets 884/916). Mode 1 caps the ordinary count with global `0x146D10A88` and
-caps solver iterations with `0x146D10B78`. Both modes schedule at least one CPU
-substep, clamp iterations from `0x146D10AD8` to record offset 824, then round odd
-iterations upward with uint32 arithmetic. Per-model clock and iteration gates
-still apply inside the shaders: one scheduled CPU substep does not force a model
-with zero clock substeps to simulate. Nonzero counters at 808, 816 or 820 supply
-the movement enable; constraints also require a nonzero selected iteration count.
-These counters describe static initialization and simulation parameter work,
-not visibility or the presence of a valid guide binding.
+### Dispatch scheduling
+
+`select_cloth_dispatch_schedule` now covers the CPU loop bounds in `0x142D46C70` using
+the resolved 1216-byte PBD global record and explicit runtime limits. Mode 0 schedules
+the larger of the ordinary and scaled substep counts (offsets 884/916). Mode 1 caps the
+ordinary count with global `0x146D10A88` and caps solver iterations with `0x146D10B78`.
+Both modes schedule at least one CPU substep, clamp iterations from `0x146D10AD8` to
+record offset 824, then round odd iterations upward with uint32 arithmetic.
+
+Per-model clock and iteration gates still apply inside the shaders: one scheduled CPU
+substep does not force a model with zero clock substeps to simulate. Nonzero counters at
+808, 816 or 820 supply the movement enable; constraints also require a nonzero selected
+iteration count. These counters describe static initialization and simulation parameter
+work, not visibility or the presence of a valid guide binding.
 
 The traced order within each substep is advanced damping, base movement,
 triangle contact slots, layer collision points, hair SDF collision, the repeated
@@ -1397,15 +1473,17 @@ by the approximate preview.
 | `0x142D4D7B0` | `ComputeTriangleADMMDualUpdate` | 8 / 10 | 32 |
 
 Nonzero `_pbdIterationPushedBackward` at offset 1148 changes the linear category's
-effective iteration to `count + 1 - i`. Input/output slots still alternate from
-0 to 1 on the first CPU iteration. X uses the selected maximum-element count at
-`320 + 4*category`, Y uses the parameter count at `160 + 4*category`, and Z is the
-caller enable. Zero dimensions remain zero work; uint32 addition precedes the
-X shift. Inputs selecting beyond the decoded 40-category arrays reject rather
-than borrowing subsequent fields. The reference returns a compact schedule and
-one iteration at a time, not an unbounded allocation for arbitrary stored counts.
-Actual scene admission, clock production, buffer binding, skip-bend/collision
-constants and the triangle solver remain outside these references.
+effective iteration to `count + 1 - i`. Input/output slots still alternate from 0 to 1
+on the first CPU iteration. X uses the selected maximum-element count at `320 +
+4*category`, Y uses the parameter count at `160 + 4*category`, and Z is the caller
+enable. Zero dimensions remain zero work; uint32 addition precedes the X shift. Inputs
+selecting beyond the decoded 40-category arrays reject rather than borrowing subsequent
+fields.
+
+The reference returns a compact schedule and one iteration at a time, not an unbounded
+allocation for arbitrary stored counts. Actual scene admission, clock production, buffer
+binding, skip-bend/collision constants and the triangle solver remain outside these
+references.
 
 The dynamic-fix mask has a different source: `0x143CE1F00` copies live owner
 `+0x158` to simulation parameter `+168`. PAC guide membership and a material
@@ -1413,6 +1491,8 @@ name alone do not determine which groups are active. Upstream controller
 assignment, collision/contact generation and preview integration remain
 separate work. Synthetic tests connect the new stiffness upload to the
 existing stretch projection without claiming visible or in-game parity.
+
+### LOD and frame blending
 
 The same module now follows LOD and blend state into the two separate frame
 halves: elasticity at 76 and fading at 78. `select_cloth_simulation_lod` applies
@@ -1452,17 +1532,19 @@ scene warmup request, timer activation and external elasticity ratio still needs
 upstream tracing. Synthetic composition connects LOD reactivation to the uploaded
 fade and `select_guide_result_positions`; no visible or gameplay claim follows.
 
+### Water, wind and environment forces
+
 `pac_cloth_environment.py` decodes water volume queries and constructs environmental
-acceleration from explicit runtime records and scene samples.
-`plan_cloth_water_samples` consumes the 768-byte water constant buffer and a
-position already relative to the previous view. Common UVs are
-`(0.5 + x * float8, 0.5 - z * float12)`. The detailed top texture is selected only
-when `abs(x) < float416 / 2` and `abs(z) < float424 / 2`, using UVs
-`(0.5 + x * float424, 0.5 - z * float428)`. The inspected shader reuses float424
-for the Z bound and X scale. Coarse top, bottom and both air-pocket samples use
-common UVs. Water samplers are bilinear clamp; air-pocket samplers are bilinear
-black-border, all at LOD zero. The helper returns unclamped coordinates and does
-not acquire textures or execute samplers.
+acceleration from explicit runtime records and scene samples. `plan_cloth_water_samples`
+consumes the 768-byte water constant buffer and a position already relative to the
+previous view. Common UVs are `(0.5 + x * float8, 0.5 - z * float12)`. The detailed top
+texture is selected only when `abs(x) < float416 / 2` and `abs(z) < float424 / 2`, using
+UVs `(0.5 + x * float424, 0.5 - z * float428)`. The inspected shader reuses float424 for
+the Z bound and X scale.
+
+Coarse top, bottom and both air-pocket samples use common UVs. Water samplers are
+bilinear clamp; air-pocket samplers are bilinear black-border, all at LOD zero. The
+helper returns unclamped coordinates and does not acquire textures or execute samplers.
 
 `classify_cloth_water` consumes four samples in selected-top, bottom, air-top,
 air-bottom order. Water constants float3 at 32 supply minimum, maximum and bias.
@@ -1508,6 +1590,8 @@ non-finite and are explicitly unsupported, without inventing recovery behavior.
 Tests cover the decoded branches and compose the result with base integration,
 prediction and final movement; they do not prove GPU or game equivalence.
 
+### Final movement and input blending
+
 `pac_cloth_movement.py` implements the decoded core of the normal final-movement
 pass, confirmed against both packed and native-16-bit variants of
 `ComputePbdProcessFinalMovement`. `cloth_attachment_correction` uses the selected
@@ -1527,18 +1611,19 @@ weights can still affect other solver stages. The global switch, scene/frame
 gate, underwater fifth power, particle-state overrides and pinch-timer recovery
 remain explicit. These weights are not a generic jiggle-strength slider.
 
-`finalize_cloth_motion` applies attachment correction before the final animation
-blend. Frame flags2 bit `0x40` also shifts `currentPosForVelocity` by that
-correction, excluding its direct contribution from the next velocity. Velocity
-uses the selected substep clock (`0x800` selects variable rather than fixed)
-times scene half 94 (`timeScale`), floored by the minimum velocity delta time.
-The caller supplies the appropriate global clock family (`0x8000` selects
-scaled clocks). Per-frame half 54 limits speed, with particle bit 4 reducing
-that limit to one tenth. Velocity suppression precedes ground response:
-particle bit 2 applies parameter half 254 (`groundFriction`) to horizontal
-motion relative to per-frame half3 at 56 (`modifiedPbdBoneVelocity`), clears Y,
-and can apply the half-46 backward speed along scene half3 at 86. Consequently,
-the final velocity is not universally bounded by the earlier speed cap.
+`finalize_cloth_motion` applies attachment correction before the final animation blend.
+Frame flags2 bit `0x40` also shifts `currentPosForVelocity` by that correction,
+excluding its direct contribution from the next velocity. Velocity uses the selected
+substep clock (`0x800` selects variable rather than fixed) times scene half 94
+(`timeScale`), floored by the minimum velocity delta time. The caller supplies the
+appropriate global clock family (`0x8000` selects scaled clocks). Per-frame half 54
+limits speed, with particle bit 4 reducing that limit to one tenth.
+
+Velocity suppression precedes ground response: particle bit 2 applies parameter half 254
+(`groundFriction`) to horizontal motion relative to per-frame half3 at 56
+(`modifiedPbdBoneVelocity`), clears Y, and can apply the half-46 backward speed along
+scene half3 at 86. Consequently, the final velocity is not universally bounded by the
+earlier speed cap.
 
 The normal pass writes the final position to `_p[1]` and `_x`, preserving old
 `_x` as the next `_p[0]` history except for its decoded frame-state override.
@@ -1548,6 +1633,8 @@ bookkeeping, NaN recovery and GPU rounding; they are not a complete solver and
 are not wired into the preview. Tests compose authored anchor preparation,
 stretch correction, final movement and render-position interpolation on owned
 geometry; they do not establish game or rendered parity.
+
+### Guide result frames
 
 `pac_cloth_frames.py` provides a mathematical reference for the guide branch of
 `ComputePbdUpdateResult`, using explicitly supplied runtime inputs. Particle
@@ -1586,23 +1673,25 @@ are reported unsupported, without inventing an identity result. These functions
 do not discover active flags, solve particle motion, emulate dispatch/resource
 selection or claim bit-exact GPU arithmetic. They are not wired into the preview.
 
+### Render skinning handoff
+
 `pac_cloth_skinning.py` provides a mathematical reference for the decoded
 guide-to-render handoff. `prepare_guide_skinning_matrices` accepts externally
 supplied guide animation frames and subtracts each shader-decoded rest position
 through its frame. This preserves rotation about the guide, not just translation.
 The frame's fourth column is metadata, not conventional homogeneous coordinates.
 
-`blend_render_cloth_matrix` averages the four referenced guide matrices using
-normalized render-to-guide weights. These weights differ from the unnormalized
-guide-to-bone weights above. It then blends toward the caller-supplied ordinary
-skeletal/jiggle matrix by `(byte39 & 63) / 63` multiplied by the weighted guide
-`row0.w` runtime factor. A stored value of 63 bypasses guide access entirely.
-Every fetched guide index must be valid, even if its weight is zero. The result
-contains four XYZ rows for point transformation; normals require the inverse
-transpose of the blended basis. This reference requires valid guide indices
-and supplied runtime matrices, which may be produced by the result-frame
-reference above. It does not emulate missing GPU resources or bit-exact
-float/half arithmetic.
+`blend_render_cloth_matrix` averages the four referenced guide matrices using normalized
+render-to-guide weights. These weights differ from the unnormalized guide-to-bone
+weights above. It then blends toward the caller-supplied ordinary skeletal/jiggle matrix
+by `(byte39 & 63) / 63` multiplied by the weighted guide `row0.w` runtime factor. A
+stored value of 63 bypasses guide access entirely. Every fetched guide index must be
+valid, even if its weight is zero. The result contains four XYZ rows for point
+transformation; normals require the inverse transpose of the blended basis.
+
+This reference requires valid guide indices and supplied runtime matrices, which may be
+produced by the result-frame reference above. It does not emulate missing GPU resources
+or bit-exact float/half arithmetic.
 
 The runtime factor's traced material source is
 `UnderWaterGuideMeshVertexWeightCoefficient`. `guide_runtime_blend_factor`
@@ -1627,6 +1716,8 @@ skeletal blend values. Zero-total vertices are counted separately. Invalid guide
 indices are counted with bounded source-offset examples, independently of guide
 decoding. A static PAC cannot establish the active runtime guide buffer or the
 final cloth contribution.
+
+### Inspection and verification limits
 
 Initialization does not establish final motion: runtime overrides, active solver
 selection, collision behavior and skeletal transformation remain unresolved here.
@@ -1669,17 +1760,18 @@ remain unchanged. These raw switches do not alter the preview's manual contact
 settings or bypass runtime global/scene eligibility.
 The profile's mode, other fields and separate `AttachedCloth` settings are preserved.
 
-The writer clones a captured profile under a deterministic `CDMW_` name, appends
-its registration to the captured catalogue, and updates the existing assignment
-owner in the selected PAC sidecar variant. A shared owner requires matching rules
-for every affected original part. It does not invent per-part overrides: Damiane's
-body profile is owned by `SkinnedMeshProperty` and shared by three parts. An empty
-variant can receive a cloned profile through that existing owner. This assigns
-metadata only; it does not create guide geometry, bone bindings or a simulation
-activation path. The profile panel checks original PAC guide geometry separately
-from the assignment and rig: a missing guide section is distinct from an
-unsupported decoder layout. This diagnostic does not block metadata edits or
-claim that guide presence alone guarantees runtime activation.
+The writer clones a captured profile under a deterministic `CDMW_` name, appends its
+registration to the captured catalogue, and updates the existing assignment owner in the
+selected PAC sidecar variant. A shared owner requires matching rules for every affected
+original part. It does not invent per-part overrides: Damiane's body profile is owned by
+`SkinnedMeshProperty` and shared by three parts. An empty variant can receive a cloned
+profile through that existing owner. This assigns metadata only; it does not create
+guide geometry, bone bindings or a simulation activation path.
+
+The profile panel checks original PAC guide geometry separately from the assignment and
+rig: a missing guide section is distinct from an unsupported decoder layout. This
+diagnostic does not block metadata edits or claim that guide presence alone guarantees
+runtime activation.
 
 XML edits use parser-derived spans, preserving encoding/BOM, comments, unknown
 fields and bytes outside the edits. Ambiguous mappings, unsupported scalar
@@ -1688,23 +1780,24 @@ The unmodified shared profile is never included as an override. Material sidecar
 edits compose before physics assignments. The package includes the catalogue, so
 other edits to that same catalogue need to be merged from the same source state.
 
-Replacement draft version 7 preserves profile rules and the existing captured
-dependency blobs. Earlier versions remain readable; removing the new rules or
-downgrading their schema fails. The normal replacement transaction, undo/redo,
-rebuild validation and `MeshDirectOutputWorker` loose-mod route carry the generated
-companions. A profile-only edit leaves the PAC byte-identical. Single-file PAC
-export is disabled when profile companions are needed. The Cloth panel's
-**Authored cloth profile > Edit profile for mod** controls dispatch Apply/Restore
-through `mesh_rust_physics_profiles.py` and the existing shadow replacement
-transaction. Variants and complete shared assignment groups are explicit.
-The raw authoring inputs are separate from converted preview coefficients.
-Raw and displayed preview gravity both use negative for down and positive for
-up, bounded to [-100, 100]. The preview boundary negates the half-rounded XML
-value for the solver's internal acceleration toward -Y; exported XML retains its
-authored sign. Fixed guides remain attached under either gravity direction.
-Guide-rotation overrides follow any SimulationMode reset in XML reader order.
-Captured dependencies retain complete archive locations and exact source bytes;
-saved drafts recover profile context without reading the original archives.
+Replacement draft version 7 preserves profile rules and the existing captured dependency
+blobs. Earlier versions remain readable; removing the new rules or downgrading their
+schema fails. The normal replacement transaction, undo/redo, rebuild validation and
+`MeshDirectOutputWorker` loose-mod route carry the generated companions. A profile-only
+edit leaves the PAC byte-identical. Single-file PAC export is disabled when profile
+companions are needed. The Cloth panel's **Authored cloth profile > Edit profile for
+mod** controls dispatch Apply/Restore through `mesh_rust_physics_profiles.py` and the
+existing shadow replacement transaction. Variants and complete shared assignment groups
+are explicit.
+
+The raw authoring inputs are separate from converted preview coefficients. Raw and
+displayed preview gravity both use negative for down and positive for up, bounded to
+[-100, 100]. The preview boundary negates the half-rounded XML value for the solver's
+internal acceleration toward -Y; exported XML retains its authored sign. Fixed guides
+remain attached under either gravity direction. Guide-rotation overrides follow any
+SimulationMode reset in XML reader order. Captured dependencies retain complete archive
+locations and exact source bytes; saved drafts recover profile context without reading
+the original archives.
 
 The same build's statically traced profile selector (`0x142ce39d0`) checks two
 resource admission fields before resolving a material. An explicit `NoSimulation`
@@ -1717,6 +1810,8 @@ live result of this selector. The source guide-count, count-limit and default-mo
 producers are decoded above. CPU loop bounds and constraint dispatch categories
 are also decoded above; scene admission and complete runtime execution remain
 unresolved.
+
+### Creating guides on existing bones
 
 `pac_cloth_guide_builder.py` now constructs layout-3 cloth guides for eligible
 guide-free PACs. A `PacClothGuideRule` selects an existing part LOD and neutral
@@ -1755,6 +1850,8 @@ recipe and dependent cloth amount rule, rebuilding from the retained PAC. This
 first generator does not import an independent guide mesh or edit an existing
 guide topology. Generated guides have no in-game activation/motion acceptance.
 
+#### Constraint consumer and construction evidence
+
 The traced 10-byte constraint consumer at `0x143CCB740` copies the four index
 words and tests **byte 8** at `0x143CCB927`. A nonzero value takes the hinge
 branch; zero checks the uint16 at byte 6 for `0xffff` to select triangle area, otherwise
@@ -1764,18 +1861,20 @@ consumer's rest-geometry branch; its meaning elsewhere remains unresolved.
 The structural inspector remains conservative about
 unobserved source shapes and preserves the complete records.
 
-A local construction experiment created four guide vertices, two fixed guides,
-four distance records, one hinge, two area records, and complete per-vertex
-constraint references in an owned synthetic PAC. Sixteen new render bindings
-across four stored LODs reparsed with unchanged geometry and unrelated render
-lanes. The serialized palette resolved against a deliberately reordered skeleton;
-the preview preparation and skinning references reproduced both a controlled
-guide translation and the supplied bone-pose weights. This establishes a
-structural construction route for that fixture. Ordered groups and pins were
-explicit experiment inputs; it preceded the bounded authoring route above.
-Existing-palette binding and adding bones to a skeleton remain separate authoring
-problems. Scene admission and in-game behavior of generated guides remain
-unverified.
+A local construction experiment created four guide vertices, two fixed guides, four
+distance records, one hinge, two area records, and complete per-vertex constraint
+references in an owned synthetic PAC. Sixteen new render bindings across four stored
+LODs reparsed with unchanged geometry and unrelated render lanes. The serialized palette
+resolved against a deliberately reordered skeleton; the preview preparation and skinning
+references reproduced both a controlled guide translation and the supplied bone-pose
+weights. This establishes a structural construction route for that fixture.
+
+Ordered groups and pins were explicit experiment inputs; it preceded the bounded
+authoring route above. Existing-palette binding and adding bones to a skeleton remain
+separate authoring problems. Scene admission and in-game behavior of generated guides
+remain unverified.
+
+#### Focused guide and profile checks
 
 New-guide coverage: `tests/test_pac_cloth_guide_builder.py`,
 `tests/test_mesh_cloth_guide_authoring.py`, and Rust headless
@@ -1789,14 +1888,17 @@ Focused coverage: `tests/test_mesh_physics_profile_authoring.py`,
 handling, history, Finish, draft recovery and companion output. These are
 nonvisual checks and do not prove runtime activation in game.
 
-On game build 1.0.0.2944 (archive build 8Q), a generated profile assigned to Canta
-Plate Cloak changed only raw Gravity from -10 to +20. The PAC stayed byte-identical;
-the catalogue, sidecar and cloned profile were delivered through a temporary
-managed overlay. The user compared normal movement with the edited run and
-reported upward cloth movement, with a screenshot showing the raised cloak.
-The source has 265 guide vertices, 17 fixed. This establishes profile loading and
-that gravity response on this cloak, not every scalar, collision path, activation
-schedule or new guide/bone authoring. Both temporary test layers were removed;
-the original user overlays, archive bytes, mount list and texture registry were
-verified against their pre-test hashes. Machine-local evidence and captures stay
-outside the repository.
+#### Reported game profile evidence
+
+On game build 1.0.0.2944 (archive build 8Q), a generated profile assigned to Canta Plate
+Cloak changed only raw Gravity from -10 to +20. The PAC stayed byte-identical; the
+catalogue, sidecar and cloned profile were delivered through a temporary managed
+overlay. The user compared normal movement with the edited run and reported upward cloth
+movement, with a screenshot showing the raised cloak. The source has 265 guide vertices,
+17 fixed.
+
+This establishes profile loading and that gravity response on this cloak, not every
+scalar, collision path, activation schedule or new guide/bone authoring. Both temporary
+test layers were removed; the original user overlays, archive bytes, mount list and
+texture registry were verified against their pre-test hashes. Machine-local evidence and
+captures stay outside the repository.

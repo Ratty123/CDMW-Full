@@ -5,6 +5,8 @@ settings, and worker handoff for replacement package building.
 
 The internal package name remains `replace_assistant` for compatibility.
 
+## Unified Textures inputs
+
 In the unified Textures workspace this is the **Replace** page. File-only imports
 use the import worker without creating editor sessions. The shared texture job
 owns source identity, inclusion, and document removal; queue rows retain stable
@@ -12,6 +14,8 @@ asset keys across edited-image preparation. Open Folder/Reload Folder replace th
 job only after a successful scan, while Add Files appends. Import cancellation and
 shutdown invalidate queued results before worker teardown. The standalone tab
 retains its existing Add Folder behavior.
+
+## Auto Match sources
 
 Bulk matching has an explicit **Auto-Match originals** source: **Game archives**
 (the default) or **Local DDS folder**. **Choose Folder...** selects a recursive
@@ -21,6 +25,8 @@ controls stay disabled during work. **Choose Local DDS...** and **Choose Archive
 DDS...** are single-file overrides in the **Selected file** row, alongside
 **Open in Editor**. The queue takes available height; embedded selection details
 stay compact and do not reserve an image-preview area.
+
+## Ownership and matching rules
 
 Keep core replacement planning and payload logic outside this UI package. Use
 `cdmw/core/replace_assistant.py`, `cdmw/core/replace_assistant_package.py`,
@@ -32,6 +38,8 @@ Unresolved items keep no inferred destination and require an explicit original
 DDS. Package builds preserve the matched package/game path, then route that
 same payload through every selected manager profile.
 
+## Standalone archive queries
+
 When the standalone archive backend is the displayed backend, Texture Replacer
 never receives the global archive entry list. In Game archives mode, Auto-Match
 resolves bounded exact-path candidates first and then bounded basename candidates
@@ -39,6 +47,8 @@ through the worker. Choose Archive DDS is
 a paged worker query, and package builds prepare only the matched session/entry
 IDs before handing local prepared files to the existing build worker. Legacy and
 shadow display modes retain the list-backed compatibility path.
+
+## Focused checks
 
 `tests/test_texture_replacement_workspace.py` exercises the shared caller,
 500-file import/matching/removal, cancellation and shutdown, and native DDS

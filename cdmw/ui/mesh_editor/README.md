@@ -1,5 +1,21 @@
 # Mesh Editor
 
+## Contents
+
+- [Layout and shared controls](#layout-and-shared-controls)
+- [Feature ownership and scope](#feature-ownership-and-scope)
+- [Parts and appearance](#parts-and-appearance)
+- [Opening meshes and preparing sessions](#opening-meshes-and-preparing-sessions)
+- [Collapsible panels and tool icons](#collapsible-panels-and-tool-icons)
+- [Hair creation](#hair-creation)
+- [Replacement workflow](#replacement-workflow)
+- [Cloth influence](#cloth-influence)
+- [Vertex Parameters](#vertex-parameters)
+- [Existing editing controls](#existing-editing-controls)
+- [Preview compatibility and output](#preview-compatibility-and-output)
+
+## Layout and shared controls
+
 Tools, Inspector and pinned tool panel widths, plus floating tool positions,
 are saved in CDMW's user `.cfg` and restored for new editor sessions. The helper
 receives them in the initial theme's `layout` field and publishes bounded,
@@ -34,6 +50,8 @@ Colour swatches also have **RGB** or **RGBA** channel menus for numeric editing.
 Vertex Parameters also supports stepping while retaining its staged Apply
 workflow and blank **Unchanged** fields.
 
+## Feature ownership and scope
+
 Owns the direct, mesh-only Mesh Editor tab shell, typed archive-session requests,
 resident authoring workspace, and output orchestration. Archive internals and
 destructive writes stay outside this UI package. Static-replacement builder
@@ -48,6 +66,8 @@ history, original-vs-edited review, validation, and read-only textured display.
 Replacement imports, reversible output inclusion, experimental translucency and glow
 extend that foundation in the existing Parts panel. General material assignment, recolouring and
 in-game swaps remain separate workflows. Hair Appearance has a scoped DDS handoff.
+
+## Parts and appearance
 
 ### Mesh islands
 
@@ -88,13 +108,14 @@ translucency cannot share a part; unsupported shader switches report a reason.
 These edits work on original PAC parts and replacement parts with their captured
 material sidecar. Edits resolve the PAC part's exact material wrapper before its
 fallback material label; sharing a texture label does not tie independent parts
-together. Parts bound to the same wrapper require matching settings.
-Glow, translucency and shader experiment numbers have sliders and editable values.
-The viewport reuses loaded textures; only material parameters change. Edits survive
-Undo/Redo, Finish, Build Mod and saved drafts (replacement draft version 11 when
-glow is present). Material-only output keeps PAC geometry bytes unchanged and
-patches only selected material wrappers plus a solid glow DDS if needed. Restore
-uses the original inputs rather than attempting to invert an already modified XML.
+together. Parts bound to the same wrapper require matching settings. Glow, translucency
+and shader experiment numbers have sliders and editable values. The viewport reuses
+loaded textures; only material parameters change. Edits survive Undo/Redo, Finish, Build
+Mod and saved drafts (replacement draft version 11 when glow is present).
+
+Material-only output keeps PAC geometry bytes unchanged and patches only selected
+material wrappers plus a solid glow DDS if needed. Restore uses the original inputs
+rather than attempting to invert an already modified XML.
 
 ### Translucency on parts
 
@@ -115,21 +136,24 @@ match Create New Item and are retained through Undo/Redo, Finish and saved draft
 (replacement draft version 10 when a surface override is present).
 
 The viewport reuses its prepared textures for absorption and surface changes and keeps
-emission. Export changes the selected PAC XML material to `SkinnedMeshTranslucent`
-with the two absorption parameters. Explicit surface overrides export a private
-`_materialTexture` DDS with roughness in green and metallic in blue, preserving
-unedited channels and complete mipmaps. Other parameters, colour, normal and glow
-paths stay intact; shared source DDS are never overwritten. Material-only edits keep
-the PAC bytes unchanged. Layered materials without a usable base map use New Item's
-shared texture preparation, baking colour and surface maps up to 2048px. Baked dye
-colours become fixed; missing declared textures or unusable colour inputs stop the
-edit before it is committed. Prepared maps are reused for absorption adjustments.
-Shared wrappers require the same settings on all their parts; missing sidecars and
-unmatched wrappers report an error before applying.
-Free Edit meshes without the original PAC binding are outside this export route.
-Authored `SkinnedMeshTranslucent` sidecars also supply absorption on reopening.
-Existing renderer packages rebuild once to pick up this interpretation; source
-DDS caches remain reusable.
+emission. Export changes the selected PAC XML material to `SkinnedMeshTranslucent` with
+the two absorption parameters. Explicit surface overrides export a private
+`_materialTexture` DDS with roughness in green and metallic in blue, preserving unedited
+channels and complete mipmaps. Other parameters, colour, normal and glow paths stay
+intact; shared source DDS are never overwritten. Material-only edits keep the PAC bytes
+unchanged.
+
+Layered materials without a usable base map use New Item's shared texture preparation,
+baking colour and surface maps up to 2048px. Baked dye colours become fixed; missing
+declared textures or unusable colour inputs stop the edit before it is committed.
+Prepared maps are reused for absorption adjustments. Shared wrappers require the same
+settings on all their parts; missing sidecars and unmatched wrappers report an error
+before applying. Free Edit meshes without the original PAC binding are outside this
+export route. Authored `SkinnedMeshTranslucent` sidecars also supply absorption on
+reopening.
+
+Existing renderer packages rebuild once to pick up this interpretation; source DDS
+caches remain reusable.
 
 This is an experimental approximation: the viewport does not reproduce game
 refraction or coloured background transmission. The shipped translucent shader
@@ -140,6 +164,8 @@ is no verified independent reflection-strength control for this path; its declar
 refractive-index parameter is ignored in the normal non-depth-thickness path, so
 the UI does not expose a misleading refraction slider.
 
+## Opening meshes and preparing sessions
+
 The resident editor defers hidden Qt compatibility panels until an explicit widget
 or action lookup needs them. Output controls keep their identity, and the latest
 panel state and fonts are replayed when the panels are constructed. Embedded
@@ -147,17 +173,20 @@ replacement controls retain their existing construction path. Initial authoring
 packages read the worker-owned shadow directly; authoritative, editable shadow
 and immutable base geometry remain separate.
 
-PAC opening covers archive bytes, appearance and skeleton, material context,
-the isolated authoring package, and the Rust host. Preparation
-reports geometry, material, texture and final validation stages. Load failures
-replace the loading overlay with the error and a Retry action for the same
-archive entry or local file, preserving draft selection. Close cancels the load
-and rejects late results. A replacement request waits for retiring loaders and
-Rust workers, retaining only the latest requested file. Unpublished sessions
-and failed preparation folders are disposed. Sparse preview batches retain their original PAC part indices,
-and repeated layer parameter tables share snapshot storage without losing owners
-or relaxing the depth and size bounds. Texture composition skips inactive normal
-mask pixels while retaining the original output bytes.
+PAC opening covers archive bytes, appearance and skeleton, material context, the
+isolated authoring package, and the Rust host. Preparation reports geometry, material,
+texture and final validation stages. Load failures replace the loading overlay with the
+error and a Retry action for the same archive entry or local file, preserving draft
+selection. Close cancels the load and rejects late results. A replacement request waits
+for retiring loaders and Rust workers, retaining only the latest requested file.
+Unpublished sessions and failed preparation folders are disposed.
+
+Sparse preview batches retain their original PAC part indices, and repeated layer
+parameter tables share snapshot storage without losing owners or relaxing the depth and
+size bounds. Texture composition skips inactive normal mask pixels while retaining the
+original output bytes.
+
+### Prepared textures and material context
 
 **Open Mesh** can lease the prepared texture package and its matching material
 context while Archive Browser is hidden. It does not wait for the archive
@@ -166,17 +195,18 @@ Large command responses, including dense jiggle data returned after part selecti
 use an atomic session-owned file with verified size and SHA-256. The control pipe
 keeps its 256 KiB limit; referenced response state is bounded to 16 MiB.
 
-The archive session loader retains the exact PAC XML under `modelproperty`, the
-PBD catalogue and referenced profile documents with archive identities and content
-hashes. This also runs when archive textures are already prepared. Physics
-bindings keep their part names, variants and explicit empty assignments, including
-inherited empty assignments. The editing context owns these immutable sources;
-ordinary preview models and their serialized form stay unchanged. Cancellation,
-stale load results and closing the session release the context. Missing or
-ambiguous paths remain unresolved, and same-name files elsewhere are not used.
-The active game variant is not inferred. These captured sources support explicit
-profile selection for cloth preview and reversible companion-file output through
-the [Authored physics profiles](#authored-physics-profiles) workflow below.
+The archive session loader retains the exact PAC XML under `modelproperty`, the PBD
+catalogue and referenced profile documents with archive identities and content hashes.
+This also runs when archive textures are already prepared. Physics bindings keep their
+part names, variants and explicit empty assignments, including inherited empty
+assignments. The editing context owns these immutable sources; ordinary preview models
+and their serialized form stay unchanged. Cancellation, stale load results and closing
+the session release the context. Missing or ambiguous paths remain unresolved, and
+same-name files elsewhere are not used.
+
+The active game variant is not inferred. These captured sources support explicit profile
+selection for cloth preview and reversible companion-file output through the [Authored
+physics profiles](#authored-physics-profiles) workflow below.
 
 ## Collapsible panels and tool icons
 
@@ -201,18 +231,19 @@ the selected tool active; focusing another panel does not change the tool.
 Escape closes the front floating panel after any focused control or active
 gesture has handled cancellation. **Orbit** exits the active tool.
 
-The pin button docks that panel beside the rail and reserves viewport space.
-One panel can be docked at a time; pinning another returns the previous one to a
-floating window. Unpin returns to floating settings; closing affects only that
-panel. Short windows scroll the icons and settings while keeping their header
-controls available. Panels stay within the available content area after resizing.
-Expanded tools use compact tabs that size to their labels and wrap into rows.
-Each group's settings appear below all its tabs, keeping related tools together.
-Clicking the active tab retains the existing toggle-to-Orbit behavior.
-Floating panels grow with their contents up to the available editor height and
-use the full panel width. Expanded and pinned panels start narrower; tool rows
-wrap at larger font sizes, and action buttons size to their labels. Topology
-keeps its numeric options in labeled rows above the actions.
+The pin button docks that panel beside the rail and reserves viewport space. One panel
+can be docked at a time; pinning another returns the previous one to a floating window.
+Unpin returns to floating settings; closing affects only that panel. Short windows
+scroll the icons and settings while keeping their header controls available. Panels stay
+within the available content area after resizing. Expanded tools use compact tabs that
+size to their labels and wrap into rows. Each group's settings appear below all its
+tabs, keeping related tools together.
+
+Clicking the active tab retains the existing toggle-to-Orbit behavior. Floating panels
+grow with their contents up to the available editor height and use the full panel width.
+Expanded and pinned panels start narrower; tool rows wrap at larger font sizes, and
+action buttons size to their labels. Topology keeps its numeric options in labeled rows
+above the actions.
 
 Collapsing panels preserves their widths and open sections, tool settings, mesh
 selection, history, and output inclusion. Layout choices last for the current
@@ -222,37 +253,41 @@ navigation is hidden.
 
 ## Hair creation
 
-Use **Hair Tools (Experimental)** above the viewport. Hairstyles have not been
-tested in game and may not work correctly. One setup dialog contains Character
-(Kliff, Damiane or Oongka) and Create/Edit. **Create starts with an empty scalp**;
-the first verified compatible base supplies skinning and materials only. Create
-does not load a thumbnail gallery. Edit shows registered hairstyles with
-thumbnails and preselects the active compatible hairstyle. **Start** stays disabled until the
-catalogue and donor checks are ready. Browsing choices does not replace the scene.
-Finder Create/Edit Hair uses this same dialog.
-Setup, loading, and catalogue errors use a compact form with one action row;
-Edit expands for the hairstyle gallery once the catalogue is available.
-Mounted barber documents using `Hair` and older/modded documents using
-`hairShape` are both supported without changing their slot names or existing choices.
+Use **Hair Tools (Experimental)** above the viewport. Hairstyles have not been tested in
+game and may not work correctly. One setup dialog contains Character (Kliff, Damiane or
+Oongka) and Create/Edit. **Create starts with an empty scalp**; the first verified
+compatible base supplies skinning and materials only. Create does not load a thumbnail
+gallery. Edit shows registered hairstyles with thumbnails and preselects the active
+compatible hairstyle. **Start** stays disabled until the catalogue and donor checks are
+ready. Browsing choices does not replace the scene. Finder Create/Edit Hair uses this
+same dialog.
 
-Mounted appearance and customization documents supply the head, facial details,
-scalp, neck and shoulders. Authored head scales use the head joint as their pivot;
-the common character scale cancels in the donor's authoring coordinates. Oongka
-uses his `5_pom` references even though his registered hair belongs to `1_phm`.
-The clean, untextured mannequin uses the head's fitted eye-cover surfaces as
-smooth eyes, excluding separate shader-dependent iris/lens meshes, lashes and
-brows. Heads without fitted covers retain their separate eye reference.
-Reference loading parses fitting geometry and
-authored transforms directly, without opening editable sessions or decoding DDS.
-Eyes follow the head but remain outside the scalp planting and collision surface.
-**Advanced > Show character bust** only controls reference visibility. It can be
-turned off before any hair is created; the empty viewport remains usable, and
-turning it back on restores the reference without changing the hairstyle.
-Compatible single-mesh PAC registrations at LOD0 are supported, including
-registered variants without a `_player` suffix. Entries
-with multiple PAC references, additional LODs, unsupported layouts or incomplete
-dependencies explain their restriction before Start. Ordinary hair PACs retain
-the general mesh tools.
+Setup, loading, and catalogue errors use a compact form with one action row; Edit
+expands for the hairstyle gallery once the catalogue is available. Mounted barber
+documents using `Hair` and older/modded documents using `hairShape` are both supported
+without changing their slot names or existing choices.
+
+### Character references and hairstyle catalogue
+
+Mounted appearance and customization documents supply the head, facial details, scalp,
+neck and shoulders. Authored head scales use the head joint as their pivot; the common
+character scale cancels in the donor's authoring coordinates. Oongka uses his `5_pom`
+references even though his registered hair belongs to `1_phm`. The clean, untextured
+mannequin uses the head's fitted eye-cover surfaces as smooth eyes, excluding separate
+shader-dependent iris/lens meshes, lashes and brows. Heads without fitted covers retain
+their separate eye reference.
+
+Reference loading parses fitting geometry and authored transforms directly, without
+opening editable sessions or decoding DDS. Eyes follow the head but remain outside the
+scalp planting and collision surface. **Advanced > Show character bust** only controls
+reference visibility. It can be turned off before any hair is created; the empty
+viewport remains usable, and turning it back on restores the reference without changing
+the hairstyle. Compatible single-mesh PAC registrations at LOD0 are supported, including
+registered variants without a `_player` suffix.
+
+Entries with multiple PAC references, additional LODs, unsupported layouts or incomplete
+dependencies explain their restriction before Start. Ordinary hair PACs retain the
+general mesh tools.
 
 The hairstyle chooser shows each registered mesh once, keeps the first slot's
 number and icon, and searches both that number and the asset name. It loads 24
@@ -264,6 +299,8 @@ compatibility work, and unavailable styles keep their explanation.
 Mouse and keyboard selections stay selected while other compatibility checks
 finish. Start waits for the selected hairstyle's own check.
 
+### Starting an isolated replacement
+
 Start prepares a complete replacement in isolation before the existing unsaved
 work confirmation and scene switch. Cancellation and failed preparation preserve
 the current scene; **Retry loading choices** restarts preparation. An active
@@ -271,18 +308,22 @@ generated hairstyle can start empty as one undoable edit without reopening its
 archive target. Procedural hairstyle presets have been removed; existing saved
 hair keeps its geometry. Repeated Create requests use the same route.
 
-Select a visible lock and use **Move** to drag it. Ctrl-click toggles selection;
-drag empty space for a marquee. **Move reach** sets how much of the lock follows
-the grabbed point, with a smooth falloff and fixed roots. **Draw** offers
-**Freehand**, **Straight**, **Arc** and **Circle**. Drag the endpoints of a line or
-arc, or the diameter of a circle. **Bend** adjusts an arc's direction and depth;
-**Stroke smoothing** reduces freehand jitter without trailing behind the pointer.
+### Selection and grooming
+
+Select a visible lock and use **Move** to drag it. Ctrl-click toggles selection; drag
+empty space for a marquee. **Move reach** sets how much of the lock follows the grabbed
+point, with a smooth falloff and fixed roots. **Draw** offers **Freehand**,
+**Straight**, **Arc** and **Circle**. Drag the endpoints of a line or arc, or the
+diameter of a circle. **Bend** adjusts an arc's direction and depth; **Stroke
+smoothing** reduces freehand jitter without trailing behind the pointer.
+
 Drawn cards follow smooth curves with up to three sections per guide segment and
-continuous shading through bends, including during grooming and motion. Extra
-card detail does not add physics points and stays within the existing vertex
-budget. Older drawn hair gains this detail on its next grooming edit or geometry
-rebuild; imported hair keeps its original topology. Drafts and output retain the
-refined geometry.
+continuous shading through bends, including during grooming and motion. Extra card
+detail does not add physics points and stays within the existing vertex budget. Older
+drawn hair gains this detail on its next grooming edit or geometry rebuild; imported
+hair keeps its original topology. Drafts and output retain the refined geometry.
+
+#### Scalp following and shape tools
 
 **Follow scalp** starts enabled for Freehand; the shape tools start in the view
 plane. Toggle it to choose surface following, or hold **Ctrl** temporarily to draw
@@ -292,42 +333,49 @@ strokes retain evenly spaced guides; cached scalp data keeps live preview work
 local to the active locks. Older strokes with a baked-in straight root retain
 their saved shape and need redrawing.
 
-**Erase** and Delete remove the selected geometry; **Cut** removes
-the pointed distal section. **Lengthen** acquires a clicked lock like Move,
-respects an existing selection and extends tips without moving roots. Empty,
-rigid and unresolved selections explain what is required.
-Comb, Smooth, Curl and Clump use the highlighted brush region, restricted to the
-selection when one exists. They work with hair drawn with **Follow scalp** either
-on or off. Short and thin locks anywhere inside the brush circle can be groomed;
-the character reference and nearer hair still block edits to hidden locks.
-**Physics** paints regions along locks with **Static** or **Physical**. Blue marks
-fixed rows and orange marks moving rows. Roots always remain fixed. The brush
-affects visible hair without needing a selection, even when other locks are
-selected. Enable **Selected locks only** to restrict painting to the selection;
-with that option enabled, an empty selection paints nothing. The brush uses
-explicit symmetry pairs. Paint is retained in drafts and Undo/Redo and follows
-cuts and grooming.
-Static rows and their follower cards stay attached to the head during preview.
-Output disables retained PAC cloth bindings at static rows, including lower LODs
-through nearest-vertex transfer from LOD0. Physical restores the template's cloth
-bindings on rebuild; it does not create a game physics rig or change skeletal
-weights. Original sections need grooming roots before painting.
-Appearance controls width and generated follower
-cards. Symmetry uses explicit pairs created while drawing. Escape cancels a
-stroke; Ctrl-Z/Ctrl-Y undo or redo one completed action. Alt-drag orbits,
-Shift-drag pans, and the wheel zooms.
+#### Erasing and cutting
+
+**Erase** and Delete remove the selected geometry; **Cut** removes the pointed distal
+section. **Lengthen** acquires a clicked lock like Move, respects an existing selection
+and extends tips without moving roots. Empty, rigid and unresolved selections explain
+what is required. Comb, Smooth, Curl and Clump use the highlighted brush region,
+restricted to the selection when one exists. They work with hair drawn with **Follow
+scalp** either on or off.
+
+Short and thin locks anywhere inside the brush circle can be groomed; the character
+reference and nearer hair still block edits to hidden locks. **Physics** paints regions
+along locks with **Static** or **Physical**. Blue marks fixed rows and orange marks
+moving rows. Roots always remain fixed. The brush affects visible hair without needing a
+selection, even when other locks are selected. Enable **Selected locks only** to
+restrict painting to the selection; with that option enabled, an empty selection paints
+nothing. The brush uses explicit symmetry pairs.
+
+Paint is retained in drafts and Undo/Redo and follows cuts and grooming. Static rows and
+their follower cards stay attached to the head during preview. Output disables retained
+PAC cloth bindings at static rows, including lower LODs through nearest-vertex transfer
+from LOD0. Physical restores the template's cloth bindings on rebuild; it does not
+create a game physics rig or change skeletal weights. Original sections need grooming
+roots before painting. Appearance controls width and generated follower cards. Symmetry
+uses explicit pairs created while drawing. Escape cancels a stroke;
+
+Ctrl-Z/Ctrl-Y undo or redo one completed action. Alt-drag orbits, Shift-drag pans, and
+the wheel zooms.
+
+### Existing hair and source preservation
 
 Existing hair retains its original geometry, UVs, skinning and material sections.
 Sections without editor guides are not broken: unchanged sections can be exported
-without preparation. To groom them or preview their motion, expand preparation,
-select a group or visible locks, choose **Set root / group selected sections**,
-then click the scalp. This explicitly combines selected sections sharing a
-material. Changed sections without valid guides remain blocked. Mark rigid scalp
-pieces as rigid. Preparation controls remain available after every section has
-been assigned, so roots and rigid attachments can be corrected without resetting
-the hairstyle. Draw and follower density are available for generated hair;
-unsupported controls explain
-that limitation. Existing locks support grooming, cutting and deletion once bound.
+without preparation. To groom them or preview their motion, expand preparation, select a
+group or visible locks, choose **Set root / group selected sections**, then click the
+scalp. This explicitly combines selected sections sharing a material. Changed sections
+without valid guides remain blocked. Mark rigid scalp pieces as rigid.
+
+Preparation controls remain available after every section has been assigned, so roots
+and rigid attachments can be corrected without resetting the hairstyle. Draw and
+follower density are available for generated hair; unsupported controls explain that
+limitation. Existing locks support grooming, cutting and deletion once bound.
+
+### Setup and references
 
 Setup contains the readable hairstyle name and **Change references**. Alternatives
 show compatible heads or base bodies, filtered in the resident catalogue before
@@ -338,29 +386,35 @@ Switching choices cancels the previous preparation; its late results and errors
 cannot replace the current selection. Failed reference choices remain retryable.
 Cancelled reference loads release their unpublished assets.
 
-**Play** becomes available when roots, geometry ownership and required textures
-are ready. **Head and shoulders** is the default test; Turn, Nod, Body sway and
-Wind are also available. Existing sections spanning too far from their guide
-cannot simulate safely: assign roots to smaller selections, or mark scalp sections
-rigid. Static editing remains available. The Rust XPBD solver drives the rendered cards and uses
-matching reference/root/collision transforms. Cached scalp-surface contacts check
-guide segments and card width. New reference setups retain the complete body
-surface for shoulder, chest and back contacts, independently of bust visibility;
-the neck uses the same blended pose for rendering and collisions. Older drafts
-use their saved bust until **Change references** loads the full body. Local
-contact searches avoid scanning distant surfaces during soft motion.
-Head contacts use the actual scalp surface, so starting Play does not push fitted
-hair outward to the head's larger bounding capsule.
+### Motion preview
+
+**Play** becomes available when roots, geometry ownership and required textures are
+ready. **Head and shoulders** is the default test; Turn, Nod, Body sway and Wind are
+also available. Existing sections spanning too far from their guide cannot simulate
+safely: assign roots to smaller selections, or mark scalp sections rigid. Static editing
+remains available. The Rust XPBD solver drives the rendered cards and uses matching
+reference/root/collision transforms. Cached scalp-surface contacts check guide segments
+and card width.
+
+New reference setups retain the complete body surface for shoulder, chest and back
+contacts, independently of bust visibility; the neck uses the same blended pose for
+rendering and collisions. Older drafts use their saved bust until **Change references**
+loads the full body. Local contact searches avoid scanning distant surfaces during soft
+motion. Head contacts use the actual scalp surface, so starting Play does not push
+fitted hair outward to the head's larger bounding capsule.
+
 A rest-shape force preserves the groom while allowing softer tip movement; adjust
-**Shape softness** to change it. This is an editor preview, not a simulation of
-the donor's in-game rig or physics.
-A stroke pauses playback and resumes
-from the edited rest shape at the current pose. Reset is deterministic. Simulation
-frames never modify drafts, output or history. **Use settled shape** explicitly
-accepts the neutral-coordinate result as one undoable edit after motion has played.
-Losing focus or resizing cancels an unfinished stroke and clears its busy state.
-While a topology edit is finishing, another click reports that preparation is
-still running; completed edits remain ordered and bounded.
+**Shape softness** to change it. This is an editor preview, not a simulation of the
+donor's in-game rig or physics. A stroke pauses playback and resumes from the edited
+rest shape at the current pose. Reset is deterministic. Simulation frames never modify
+drafts, output or history. **Use settled shape** explicitly accepts the
+neutral-coordinate result as one undoable edit after motion has played. Losing focus or
+resizing cancels an unfinished stroke and clears its busy state.
+
+While a topology edit is finishing, another click reports that preparation is still
+running; completed edits remain ordered and bounded.
+
+### Texture editing
 
 **Open in Texture Editor** and **Apply edited DDS** retain the template's verified
 material slots, dimensions, compression and mip counts. Edits follow the selected
@@ -371,40 +425,45 @@ overlay. **Convert to ordinary
 mesh** is an explicit undoable action under Advanced. Once the host accepts the
 conversion, Undo and Finish are available without waiting for another edit.
 
+### Drafts and geometry ownership
+
 Hair state v2 records stable locks, geometry ownership and retained source vertices.
 Drafts use `mesh_layer_project_v5`/`mesh_layer_generation_v5`, with reads of v1-4.
-Legacy generated bindings recover lock ownership without regenerating geometry;
-legacy existing hair needs explicit preparation for grooming or motion. Hair,
-geometry, materials and output inclusion are saved atomically. The helper
-advertises `hair_authoring_v2`.
-Small grooming updates publish only changed positions and authored normals;
-unchanged UVs, materials and skin records remain resident. Each completed action
-keeps its own Undo step. Pending Undo/Redo and Finish wait for ordered publication.
-Parts, action history, guides/roots and collision overlays remain available in
-collapsed panels; visibility never removes hair from the exported result.
-Hair section names and texture choices shorten to fit the Inspector, with full
-names on hover. Texture and movement selectors place their labels above the
-choice so larger fonts keep the surrounding controls clickable.
-Drawing and rebuilding populated sections preserve their **Include in Mod**
-setting. The first hair drawn into an empty section starts included.
-Incremental candidates reuse immutable references; acknowledgements preserve the
-camera, selection and newer local edits. Finish drains pending actions first.
-Acknowledgements read the validated revision without decoding the complete hair
-document again.
+Legacy generated bindings recover lock ownership without regenerating geometry; legacy
+existing hair needs explicit preparation for grooming or motion. Hair, geometry,
+materials and output inclusion are saved atomically. The helper advertises
+`hair_authoring_v2`. Small grooming updates publish only changed positions and authored
+normals; unchanged UVs, materials and skin records remain resident. Each completed
+action keeps its own Undo step. Pending Undo/Redo and Finish wait for ordered
+publication.
 
-Packages retain the additional-choice contract, automatically allocate distinct
-internal identities and use the readable name in their manifest. Existing
-barber slots, including mod-added duplicates, remain byte-for-byte unchanged;
-the new choice inherits the first matching donor slot's settings and icon.
-Retained PAC vertices preserve their original skeletal and cloth-guide records
-when reshaped, cut or deleted. Generated geometry always transfers skinning from
-an immutable original PAC donor matched by stable part identity, including after
-consecutive Draw strokes, Undo/Redo and reopening. Generated vertices needing five
-or six bone weights use ordinary skin records; compatible cloth bindings remain
-intact. The 40-byte PAC layout guard
-remains in force. Drafts can be reopened and saved repeatedly without losing part
-identities. A multi-LOD donor is blocked until its writer is verified. Installed archives stay
-read-only. In-game barber selection, save/load, headgear and motion remain unverified.
+Parts, action history, guides/roots and collision overlays remain available in collapsed
+panels; visibility never removes hair from the exported result. Hair section names and
+texture choices shorten to fit the Inspector, with full names on hover. Texture and
+movement selectors place their labels above the choice so larger fonts keep the
+surrounding controls clickable. Drawing and rebuilding populated sections preserve their
+**Include in Mod** setting. The first hair drawn into an empty section starts included.
+Incremental candidates reuse immutable references; acknowledgements preserve the camera,
+selection and newer local edits.
+
+Finish drains pending actions first. Acknowledgements read the validated revision
+without decoding the complete hair document again.
+
+### Package output
+
+Packages retain the additional-choice contract, automatically allocate distinct internal
+identities and use the readable name in their manifest. Existing barber slots, including
+mod-added duplicates, remain byte-for-byte unchanged; the new choice inherits the first
+matching donor slot's settings and icon. Retained PAC vertices preserve their original
+skeletal and cloth-guide records when reshaped, cut or deleted. Generated geometry
+always transfers skinning from an immutable original PAC donor matched by stable part
+identity, including after consecutive Draw strokes, Undo/Redo and reopening.
+
+Generated vertices needing five or six bone weights use ordinary skin records;
+compatible cloth bindings remain intact. The 40-byte PAC layout guard remains in force.
+Drafts can be reopened and saved repeatedly without losing part identities. A multi-LOD
+donor is blocked until its writer is verified. Installed archives stay read-only.
+In-game barber selection, save/load, headgear and motion remain unverified.
 
 ## Replacement workflow
 
@@ -423,6 +482,8 @@ OBJ face regions with different materials appear as separate source parts even
 when they belong to the same object. Material assignments continue across OBJ
 object/group boundaries until the file specifies another material.
 
+### Coordinates and source validation
+
 New imports preserve decoded coordinates: no automatic scaling, alignment or
 centering. Scale starts at 1, rotation and translation at 0. Use the existing
 transform tools for placement. **Fit to Original** explicitly fits the imported
@@ -437,6 +498,8 @@ generation or preview conversion, preserving the current edit for a valid retry.
 OBJ faces must also reference existing vertices, UVs and normals. Invalid indices
 stop import instead of substituting geometry or regenerating authored channels.
 
+### Materials and diagnostics
+
 **Keep Original Materials** is the default. Missing or stale imported MTL and
 texture references do not block this geometry-only mode. Source geometry and
 external geometry buffers in both glTF and GLB must still exist and remain
@@ -450,6 +513,8 @@ changed after import preparation and never silently uses original materials.
 Hover over the bottom status message to read the full text, or choose **Details**
 for a scrollable, selectable view. **Copy** copies the complete message, including
 any part that does not fit in the status bar.
+
+### Mod inclusion and preview modes
 
 The **Mod** checkbox means **Include in mod** and is independent of viewport
 visibility. Excluding a part retains all its editable geometry; re-enabling is
@@ -468,56 +533,64 @@ rebuilt mesh/sidecar/texture/paired-LOD bundle. Single-file export is disabled
 when companions are required. Original archive bytes are never modified by
 preparation or package creation.
 
+### Eligibility and limitations
+
 This workflow handles one eligible PAC/PAM/PAMLOD at LOD0. Active Morph & Refit
 profiles/bindings must be cleared before replacement.
 Unsupported target layouts remain blocked. Existing sessions without replacement
 state retain Exact Game Asset/Free Edit behavior. Replacement uses its own
 `replacement_game_asset` policy, not weakened Exact validation.
 
-Neutral-appearance meshes show an **Experimental** warning above the import
-controls. Imports and **Mod** inclusion are available immediately for eligible
-meshes, with no extra enable button. Positioning, scale or animation may be wrong
-in game. Imports still preserve their decoded placement. Skin weights transfer
-from the displayed original part; export uses those weights to invert the
-neutral display transform. Output Preview reparses the actual written mesh and
-displays it in the same neutral frame. Singular transforms, unsupported skin
-layouts, invalid geometry and missing dependencies still block the operation.
-The left part checkbox controls viewport visibility; the right **Mod** checkbox
-controls output inclusion. Opening the editor alone does not change geometry
-or output; cancelling the editor discards its edits.
+Neutral-appearance meshes show an **Experimental** warning above the import controls.
+Imports and **Mod** inclusion are available immediately for eligible meshes, with no
+extra enable button. Positioning, scale or animation may be wrong in game. Imports still
+preserve their decoded placement. Skin weights transfer from the displayed original
+part; export uses those weights to invert the neutral display transform. Output Preview
+reparses the actual written mesh and displays it in the same neutral frame. Singular
+transforms, unsupported skin layouts, invalid geometry and missing dependencies still
+block the operation.
+
+The left part checkbox controls viewport visibility; the right **Mod** checkbox controls
+output inclusion. Opening the editor alone does not change geometry or output;
+cancelling the editor discards its edits.
+
+### History and drafts
 
 Imports, inclusion and placement changes participate in normal Undo/Redo and
-Finish/cancel. Replacement-bearing drafts use version 2 and keep captured
-dependencies and output intent together; older apps reject them. Existing
-version-1 drafts still load unchanged. Source files are unnecessary after Apply.
-Reopened replacement drafts use their captured original DDS and material data
-to restore untouched parts and the **Original** comparison after preview caches
-or source files disappear. Saved material-owner and layer metadata is retained,
-and readable authoritative preview textures keep their existing bindings.
-Recovery handles texture roles separately, so a surviving normal map does not
-block restoration of a missing colour texture. Native-selected hair and base
-textures keep their saved binding identity and cutout transparency after their
-captured DDS files are relocated.
-Empty, malformed or truncated cached DDS files can be replaced by validated
-saved copies. Damaged DDS inputs are rejected if neither a valid cached binding
-nor a valid saved copy is available.
-New replacement payloads also retain import normals. Older replacement drafts
-still reopen and export, but require reimporting before Reset Placement or Fit
-to Original because their original normal orientation was not saved. Older
-applications reject the new replacement payload version. No bulk migration is
-performed.
-Experimental replacement drafts use project and payload version 3, retaining
-the exact neutral transform and coordinate frame. Older apps reject this format
-before attempting generation recovery. Ordinary replacement drafts remain v2.
-Repeated imports transfer skin weights from the retained original target in
-the active coordinate frame, so earlier imports do not become skin donors.
-Draft restoration is staged for every format; a rejected generation leaves the
-loaded geometry unchanged before recovery tries a previous generation.
-Malformed replacement fields, duplicate part identities and invalid target
-mappings reject the generation and allow recovery of the previous valid save.
-PAC replacement also rejects non-finite UVs or values that overflow its half-float
-storage before committing the import. Python rebuilds and native rebuild handoffs
-use the same check; valid negative and tiled UV coordinates remain supported.
+Finish/cancel. Replacement-bearing drafts use version 2 and keep captured dependencies
+and output intent together; older apps reject them. Existing version-1 drafts still load
+unchanged. Source files are unnecessary after Apply. Reopened replacement drafts use
+their captured original DDS and material data to restore untouched parts and the
+**Original** comparison after preview caches or source files disappear. Saved
+material-owner and layer metadata is retained, and readable authoritative preview
+textures keep their existing bindings.
+
+Recovery handles texture roles separately, so a surviving normal map does not block
+restoration of a missing colour texture. Native-selected hair and base textures keep
+their saved binding identity and cutout transparency after their captured DDS files are
+relocated. Empty, malformed or truncated cached DDS files can be replaced by validated
+saved copies. Damaged DDS inputs are rejected if neither a valid cached binding nor a
+valid saved copy is available. New replacement payloads also retain import normals.
+
+Older replacement drafts still reopen and export, but require reimporting before Reset
+Placement or Fit to Original because their original normal orientation was not saved.
+Older applications reject the new replacement payload version. No bulk migration is
+performed. Experimental replacement drafts use project and payload version 3, retaining
+the exact neutral transform and coordinate frame. Older apps reject this format before
+attempting generation recovery. Ordinary replacement drafts remain v2.
+
+Repeated imports transfer skin weights from the retained original target in the active
+coordinate frame, so earlier imports do not become skin donors. Draft restoration is
+staged for every format; a rejected generation leaves the loaded geometry unchanged
+before recovery tries a previous generation. Malformed replacement fields, duplicate
+part identities and invalid target mappings reject the generation and allow recovery of
+the previous valid save. PAC replacement also rejects non-finite UVs or values that
+overflow its half-float storage before committing the import.
+
+Python rebuilds and native rebuild handoffs use the same check; valid negative and tiled
+UV coordinates remain supported.
+
+### Implementation and checks
 
 `mesh_replacement_import.py`, `mesh_replacement_materials.py`, and
 `mesh_replacement_output.py` own detached preparation and complete output.
@@ -538,29 +611,34 @@ fade below that height. Height uses displayed model Y, including the neutral
 appearance transform when present, and is evaluated separately at every stored
 LOD. Previously rigid vertices remain rigid.
 
-**Apply cloth settings**, **Restore cloth**, Undo/Redo, Finish/cancel and drafts
-use the existing replacement output transaction. PAC output retains the source
-bindings and reapplies the rule on every rebuild, including after replacement.
-Restore removes the rule and recovers those retained bindings. An exported PAC
-whose bindings have been disabled cannot recover them without its source/draft.
-Unproven or shared vertex layouts, missing bindings and active hair/refit
-workflows are rejected before committing output.
-Incomplete or undecoded lower LODs disable cloth controls without blocking an
-otherwise readable mesh from opening. Replacements reject non-finite or
-out-of-range retained cloth-guide indices before committing the imported mesh.
-Skin-weight edits made before applying cloth settings remain in PAC output,
-including after inclusion changes, replacement of other parts and draft recovery.
-Parts whose geometry is unchanged keep their original lower LOD weights;
-authored LOD0 weights are patched at their final output offsets. Weight commands
-reject a fifth skeletal influence on cloth vertices and removal of a vertex's
-last bone before changing the mesh or Undo/Redo history.
-Position, UV and normal edits on original parts with unchanged vertex counts
-and faces patch their LOD0 channels while retaining lower LOD topology and
-packed fields, including when another part is replaced, parts are reordered or
-Mod inclusion changes. Moves within the original bounds preserve lower LOD
-records exactly. Moves outside those bounds expand them and re-encode lower LOD
-positions within the new quantization precision. Draft recovery uses the same
-exact record-map checks before accepting these edits.
+### Applying and restoring influence
+
+**Apply cloth settings**, **Restore cloth**, Undo/Redo, Finish/cancel and drafts use the
+existing replacement output transaction. PAC output retains the source bindings and
+reapplies the rule on every rebuild, including after replacement. Restore removes the
+rule and recovers those retained bindings. An exported PAC whose bindings have been
+disabled cannot recover them without its source/draft. Unproven or shared vertex
+layouts, missing bindings and active hair/refit workflows are rejected before committing
+output. Incomplete or undecoded lower LODs disable cloth controls without blocking an
+otherwise readable mesh from opening.
+
+Replacements reject non-finite or out-of-range retained cloth-guide indices before
+committing the imported mesh. Skin-weight edits made before applying cloth settings
+remain in PAC output, including after inclusion changes, replacement of other parts and
+draft recovery. Parts whose geometry is unchanged keep their original lower LOD weights;
+authored LOD0 weights are patched at their final output offsets. Weight commands reject
+a fifth skeletal influence on cloth vertices and removal of a vertex's last bone before
+changing the mesh or Undo/Redo history.
+
+Position, UV and normal edits on original parts with unchanged vertex counts and faces
+patch their LOD0 channels while retaining lower LOD topology and packed fields,
+including when another part is replaced, parts are reordered or Mod inclusion changes.
+Moves within the original bounds preserve lower LOD records exactly. Moves outside those
+bounds expand them and re-encode lower LOD positions within the new quantization
+precision. Draft recovery uses the same exact record-map checks before accepting these
+edits.
+
+### Influence and profile boundaries
 
 These influence controls edit render-vertex cloth influence. Profile authoring
 uses the separate **Edit profile for mod** section described below; simulation
@@ -576,6 +654,8 @@ guides. Disabling cloth clears the guide fields that the ordinary six-bone
 shader branch would otherwise reinterpret. Original skeletal weights, mesh
 geometry, materials, physics sections and companion files are preserved.
 
+### Motion preview
+
 **Motion preview** in **Mesh Data > Cloth** now applies those saved influence
 edits to an experimental native guide simulation. Choose **Up / down**,
 **Start / stop**, **Turning** or **Freehand**, then **Play preview**. Freehand
@@ -587,55 +667,61 @@ display coordinates, matching PAC output even after sculpting. Jiggle flags are
 not required. **Pause preview**, **Resume preview** and **Reset preview** share
 the existing Jiggle controller; changing between Cloth and Jiggle resets playback.
 
-**Cloth preview settings** supplies gravity, stretch/bend response, damping,
-iteration count, optional authored vertex-alpha blending and a floor with an
-adjustable Y height. **Guide rotation correction** optionally turns the cloth
-surface with its guide particles, using decoded orientation neighbors. It is
-available only when those neighbors are known. **Single-edge rotation** selects
-the decoded alternative that follows one neighbor; leave it off for two-edge
-frame alignment. Short single edges preserve the animated orientation. The
-active game material is not selected automatically. These settings affect only the
-preview. Saved cloth influence
-rules remain separate. Smaller internal simulation steps reduce excessive stretch
-on dense guide meshes while retaining the damping control's effect over time.
-Preparation runs on the bounded background loader; failed
-comparisons keep the last usable frame paused, and Reset/source changes reject
-late results. Preview frames never change authored geometry, drafts or exports.
+#### Preview settings
 
-**Body collisions** optionally projects moving cloth guides against authored
-sphere, cylinder and capsule volumes. A decoded, nonempty model PAC volume set
-takes precedence; a confirmed empty set uses the matched PAB rig's primary
-defaults. The panel identifies which source is used. Model volumes bind through
-stored bone hashes, independently of palette order. Colliders use
-the same neutral pose and up/down or turning motion as the model. **Collision
-margin** adds preview clearance. Fixed guides and zero-contribution render vertices
-retain their existing behavior. Undecoded model metadata, missing or ambiguous
-bone bindings, and unsupported volumes disable this option while leaving ordinary
-cloth playback available. They do not silently substitute rig defaults.
-**Collision sources** accepts explicit body/head PABV inputs for the current
-preview. With an empty model set, the body input replaces rig defaults and the
-head input replaces the first matching head volume. Standalone inputs must use
-bone hashes; unsupported shapes or bindings are rejected. Model volumes retain
-precedence and disable these choosers. **Clear collision inputs** restores the
-defaults. Failed or cancelled loads preserve the previous inputs. Inputs are
-held for this session only and do not change mesh Undo, drafts or exported PACs.
-Outfit files are not selected automatically and game collision activation remains
-unverified.
+**Cloth preview settings** supplies gravity, stretch/bend response, damping, iteration
+count, optional authored vertex-alpha blending and a floor with an adjustable Y height.
+**Guide rotation correction** optionally turns the cloth surface with its guide
+particles, using decoded orientation neighbors. It is available only when those
+neighbors are known. **Single-edge rotation** selects the decoded alternative that
+follows one neighbor; leave it off for two-edge frame alignment. Short single edges
+preserve the animated orientation. The active game material is not selected
+automatically. These settings affect only the preview.
 
-Cloth playback requires decoded PAC guide data, a matching fixed-layout PAB rig,
-and verified original LOD0 render mappings within the existing 100,000-vertex /
-200,000-triangle preview limit. Unsupported inputs keep their saved cloth controls
-and explain why playback is unavailable. The controlled solver uses decoded
-stretch/bend kernels and authored fixed vertices with unit dynamic masses; it does
-not reproduce runtime profiles or layer/world collisions. Body contacts use an
-explicit preview admission rule and frictionless response. Area records are
-retained but inactive in the decoded normal-step path. Initial overlap is corrected
-without adding launch velocity; moving bodies still transfer normal contact speed.
-Optional guide rotation uses its two-edge branch; this does not establish which
-branch the game selects.
-Headless controls and synthetic playback are tested. Packaged visual checks have
-exercised a Damiane body and two garments; game behavior and complete material
-fidelity remain unverified.
+Saved cloth influence rules remain separate. Smaller internal simulation steps reduce
+excessive stretch on dense guide meshes while retaining the damping control's effect
+over time. Preparation runs on the bounded background loader; failed comparisons keep
+the last usable frame paused, and Reset/source changes reject late results. Preview
+frames never change authored geometry, drafts or exports.
+
+#### Body collisions
+
+**Body collisions** optionally projects moving cloth guides against authored sphere,
+cylinder and capsule volumes. A decoded, nonempty model PAC volume set takes precedence;
+a confirmed empty set uses the matched PAB rig's primary defaults. The panel identifies
+which source is used. Model volumes bind through stored bone hashes, independently of
+palette order. Colliders use the same neutral pose and up/down or turning motion as the
+model. **Collision margin** adds preview clearance. Fixed guides and zero-contribution
+render vertices retain their existing behavior.
+
+Undecoded model metadata, missing or ambiguous bone bindings, and unsupported volumes
+disable this option while leaving ordinary cloth playback available. They do not
+silently substitute rig defaults. **Collision sources** accepts explicit body/head PABV
+inputs for the current preview. With an empty model set, the body input replaces rig
+defaults and the head input replaces the first matching head volume. Standalone inputs
+must use bone hashes; unsupported shapes or bindings are rejected. Model volumes retain
+precedence and disable these choosers. **Clear collision inputs** restores the defaults.
+
+Failed or cancelled loads preserve the previous inputs. Inputs are held for this session
+only and do not change mesh Undo, drafts or exported PACs. Outfit files are not selected
+automatically and game collision activation remains unverified.
+
+#### Required decoded inputs
+
+Cloth playback requires decoded PAC guide data, a matching fixed-layout PAB rig, and
+verified original LOD0 render mappings within the existing 100,000-vertex /
+200,000-triangle preview limit. Unsupported inputs keep their saved cloth controls and
+explain why playback is unavailable. The controlled solver uses decoded stretch/bend
+kernels and authored fixed vertices with unit dynamic masses; it does not reproduce
+runtime profiles or layer/world collisions. Body contacts use an explicit preview
+admission rule and frictionless response. Area records are retained but inactive in the
+decoded normal-step path.
+
+Initial overlap is corrected without adding launch velocity; moving bodies still
+transfer normal contact speed. Optional guide rotation uses its two-edge branch; this
+does not establish which branch the game selects. Headless controls and synthetic
+playback are tested. Packaged visual checks have exercised a Damiane body and two
+garments; game behavior and complete material fidelity remain unverified.
 
 ### Experimental jiggle contribution
 
@@ -646,6 +732,8 @@ the intended part, keep **Selected parts** enabled, and use
 uses displayed model coordinates and applies strictly below that height at every
 stored LOD. Its initial midpoint is not an anatomical waist detector. Unchecking
 the height limit applies the edit to the whole selected part.
+
+#### Region overlay and eligibility
 
 **Show jiggle regions** is an optional viewport overlay, off by default. Blue to
 orange shows increasing vertex contribution, gray marks zero contribution, and
@@ -664,6 +752,8 @@ decoded vertex contribution, not confirmed in-game activation. The overlay and
 preview use byte 38's low four bits, matching the traced game's skinned-mesh
 setup. Runtime bone overrides remain unresolved and can change the final motion.
 
+#### Contribution and disable controls
+
 **Retain original % > Apply contribution** scales each source vertex's contribution
 instead of replacing the authored gradient with one value. It supports every
 source byte while preserving its upper four bits:
@@ -673,16 +763,19 @@ Values are quantized; a weak source may have only one useful step.
 100% retains the source and 0% removes the byte-derived contribution. This cannot
 create bindings, amplify motion, or override runtime bone masks.
 
-**Disable jiggle** sets only the low four bits of zero-based byte 38 (`0x26`)
-to 15 in validated 40-byte PAC records. The upper four bits, colours, the separate
-cloth gate at byte 39, skinning, geometry and other bytes are retained.
-**Restore original jiggle** removes the
-rule and restores the retained source values. Undo/Redo, Finish and saved drafts
-use the existing replacement output transaction. Restore cannot recover values
-lost before the source PAC was opened. Layouts without proven record ownership
-at every LOD are rejected. Jiggle drafts use project/generation v7 and replacement
-payload v5 for disable-only rules or v6 for relative contributions; older drafts
-remain readable. Repeated adjustments start from the source, not the last result.
+**Disable jiggle** sets only the low four bits of zero-based byte 38 (`0x26`) to 15 in
+validated 40-byte PAC records. The upper four bits, colours, the separate cloth gate at
+byte 39, skinning, geometry and other bytes are retained. **Restore original jiggle**
+removes the rule and restores the retained source values. Undo/Redo, Finish and saved
+drafts use the existing replacement output transaction. Restore cannot recover values
+lost before the source PAC was opened. Layouts without proven record ownership at every
+LOD are rejected.
+
+Jiggle drafts use project/generation v7 and replacement payload v5 for disable-only
+rules or v6 for relative contributions; older drafts remain readable. Repeated
+adjustments start from the source, not the last result.
+
+#### Reported game evidence
 
 The disable value `255` is externally reported as tested on a modified Damiane
 body. The current shipped shader additionally decodes byte 38 as either
@@ -691,53 +784,65 @@ or stiffness, and bone overrides can supersede them. CDMW has not independently
 validated the result in-game. The source waist threshold `Y < 1.2` applies only to
 the reporter's model.
 
-**Motion preview** in the same section provides experimental inertial deformation
-of the rendered mesh. **Up / down** is the default: it repeatedly raises and lowers
-the model along its displayed Y axis, making vertical lag and bounce easier to compare.
-**Start / stop** and **Turning** remain available. Choose a motion, then **Play preview**.
-**Keep model centred** is enabled by default. It removes the test's whole-body
-translation and rotation from the displayed frame while the solver still receives
-the full motion. This keeps the body steady so small jiggles are easier to see.
-Uncheck it to see the full moving-model preview. It also works while paused and
-does not change camera orbit or pan.
-**Freehand** lets you shake the preview with the left mouse button in the
-viewport. The affected regions react to that motion; releasing lets physics
-settle. Dragging follows the camera's screen plane and
-is limited to one model extent from the starting position. Right mouse orbits,
-middle mouse pans, and Reset returns the model to its starting position. Freehand
-works with approximate jiggle, decoded bones and guide cloth. It changes only the
-motion preview, leaving mesh transforms, history, drafts and exports unchanged.
+#### Jiggle motion preview
+
+**Motion preview** in the same section provides experimental inertial deformation of the
+rendered mesh. **Up / down** is the default: it repeatedly raises and lowers the model
+along its displayed Y axis, making vertical lag and bounce easier to compare. **Start /
+stop** and **Turning** remain available. Choose a motion, then **Play preview**. **Keep
+model centred** is enabled by default. It removes the test's whole-body translation and
+rotation from the displayed frame while the solver still receives the full motion.
+
+This keeps the body steady so small jiggles are easier to see. Uncheck it to see the
+full moving-model preview. It also works while paused and does not change camera orbit
+or pan. **Freehand** lets you shake the preview with the left mouse button in the
+viewport. The affected regions react to that motion; releasing lets physics settle.
+Dragging follows the camera's screen plane and is limited to one model extent from the
+starting position. Right mouse orbits, middle mouse pans, and Reset returns the model to
+its starting position.
+
+Freehand works with approximate jiggle, decoded bones and guide cloth. It changes only
+the motion preview, leaving mesh transforms, history, drafts and exports unchanged.
 **Current flags**, **Original flags** and **All disabled** compare the saved jiggle
-rule, the retained source weights, and rigid motion using the same geometry.
-Changing comparison or motion restarts a playing test for a repeatable comparison.
-Motion and comparison buttons keep the same size on hover and selection; narrow
-panels wrap the choices without moving them under the pointer.
-**Pause preview** retains the frame; **Reset preview** returns to the editable
-rest shape. Camera orbit and framing remain available during playback.
+rule, the retained source weights, and rigid motion using the same geometry. Changing
+comparison or motion restarts a playing test for a repeatable comparison.
 
-**Decoded bones** is the default and requires a matching fixed-layout PAB rig.
-It drives the recovered bone solver through the original hierarchy and retained
-PAC skinning records. **Bone solver settings** exposes linear/angular response,
-damping, speed limits and offset limits; Reset restores the decoded initialization
-values. Hover a setting for an explanation and a simple example. Higher decoded
-damping values retain more velocity (less braking); speed and offset limits only
-affect motion that reaches the limit. Angular settings are easiest to compare with
-Turning. All eight settings take effect on the next simulation step, without
-reloading the rig. These are preview-only parameters, separate from byte 38.
-Rig reading and vertex preparation run on the existing background loader; cancellation and source
-changes reject late results, and a failed replacement keeps the previous frame paused.
+Motion and comparison buttons keep the same size on hover and selection; narrow panels
+wrap the choices without moving them under the pointer. **Pause preview** retains the
+frame; **Reset preview** returns to the editable rest shape. Camera orbit and framing
+remain available during playback.
 
-**Wind preview** is optional in Decoded bones. Enable it to adjust speed,
-horizontal direction (0 degrees = +X, 90 degrees = +Z), gust amount and cycle
-duration. These manual preview inputs drive the decoded wind sample generator;
-game weather is not loaded. Gusts vary speed/cycle and add a small yaw movement.
-The sample springs use the decoded normal initialization profile, independently
-of the character's Bone solver settings. Speed zero supplies no wind force.
-Reset wind disables it and clears its sample history on the next preview step;
+#### Decoded bones
+
+**Decoded bones** is the default and requires a matching fixed-layout PAB rig. It drives
+the recovered bone solver through the original hierarchy and retained PAC skinning
+records. **Bone solver settings** exposes linear/angular response, damping, speed limits
+and offset limits; Reset restores the decoded initialization values. Hover a setting for
+an explanation and a simple example. Higher decoded damping values retain more velocity
+(less braking); speed and offset limits only affect motion that reaches the limit.
+Angular settings are easiest to compare with Turning.
+
+All eight settings take effect on the next simulation step, without reloading the rig.
+These are preview-only parameters, separate from byte 38. Rig reading and vertex
+preparation run on the existing background loader; cancellation and source changes
+reject late results, and a failed replacement keeps the previous frame paused.
+
+#### Wind preview
+
+**Wind preview** is optional in Decoded bones. Enable it to adjust speed, horizontal
+direction (0 degrees = +X, 90 degrees = +Z), gust amount and cycle duration. These
+manual preview inputs drive the decoded wind sample generator; game weather is not
+loaded. Gusts vary speed/cycle and add a small yaw movement. The sample springs use the
+decoded normal initialization profile, independently of the character's Bone solver
+settings. Speed zero supplies no wind force. Reset wind disables it and clears its
+sample history on the next preview step;
+
 Reset preview starts the whole test again. Wind follows the retained jiggle
-contributions, so disabled vertices and All disabled bypass it. Water controls
-remain unavailable until their render consumer is verified. Wind settings are
-not written to the PAC, draft or Undo/Redo history.
+contributions, so disabled vertices and All disabled bypass it. Water controls remain
+unavailable until their render consumer is verified. Wind settings are not written to
+the PAC, draft or Undo/Redo history.
+
+#### Approximate vertices
 
 **Approximate vertices** remains available for meshes without a resolved rig,
 with its existing editor-only softness/damping controls. Both modes use a repeatable
@@ -757,6 +862,8 @@ for Reset; source edits, selection changes and host state updates discard playba
 `cdmw_jiggle.rs` owns playback and viewport snapshots; its `native` module binds the
 decoded `cdmw_mesh::jiggle_rig` solver, while `cdmw_mesh::jiggle` owns the approximate
 mode. Compatibility with game motion still needs reporter comparison.
+
+#### Reporter testing and implementation
 
 Reporter test: retain the original PAC and export 50%, disabled and restored variants
 using **Build PAC**. On the same game build, compare walking, sprinting and
@@ -778,6 +885,8 @@ skeleton. Select the parts to affect and enable **Create guides for selected
 parts only** when appropriate. Choose a **Source LOD** and **Pin guides at or
 above Y**, then **Create / update guides**. Pin height uses displayed neutral
 coordinates; generated positions remain in the PAC source frame.
+
+#### Generation and skinning limits
 
 The generator welds identical positions with identical bone weights, builds
 distance/bend/area constraints and fixed-root chains, and binds the visible
@@ -816,12 +925,16 @@ downward acceleration and positive values for upward acceleration, from -100 to
 100. Loading a profile preserves that direction; restoring manual settings
 restores the previous gravity as well.
 
+#### Assignments and guide information
+
 The profile panel reports the current model's cloth-guide count and fixed guides,
 including generated guides in Edit comparison and source guides in Original.
 A model without guides is labelled explicitly; an unsupported or damaged guide
 layout is reported as unknown instead. Profile metadata remains editable where
 its source assignment is available, but editing it does not add cloth or bone
 jiggle to a model without those bindings.
+
+#### Editing profile output
 
 Expand **Edit profile for mod**, choose the shared assignment group if there is
 more than one, and choose a captured source profile. Each group lists every
@@ -834,6 +947,8 @@ profile authoring remains unavailable for those models.
 Invalid source numbers are labelled; explicit overrides use finite bounded
 values. Preview stiffness coefficients are never copied into raw XML overrides.
 
+#### Collision and attachment overrides
+
 **Collision and attachment overrides** exposes cloak behavior, backstop
 collisions, input-position collisions, shrinking around a sheathed shield and
 long-range attachments. Tick **Override** to replace the captured value, then
@@ -843,6 +958,8 @@ Apply/Restore, history, draft and mod-output path as the other profile values.
 They do not change the manual preview's collision controls. Runtime globals,
 collider availability and scene conditions still gate the game's behavior;
 the preview does not reproduce every branch.
+
+#### History and source preservation
 
 **Apply profile edit** and **Restore profile assignment** each use Undo/Redo in
 the isolated edit session. **Finish Edit Mesh** accepts the edits into the main
@@ -871,6 +988,8 @@ selection without changing the viewport tool. Select vertices,
 edges, faces or whole parts; an empty selection has no target. Edges and faces contribute their
 unique vertices.
 
+### Editable groups and Apply behaviour
+
 **Position**, **UV Coordinates**, **Normals**, and **Skin Weights** group the
 selection's values with their editing controls. Component rows show the axis,
 current value, and new input. Displayed numbers are rounded for readability;
@@ -892,6 +1011,8 @@ Skin Weights shows only the fields needed for its selected operation; unavailabl
 weight editing shows its reason. **Cloth & other data** groups read-only summaries,
 unsupported-channel information, and **Open Cloth Controls**.
 
+### Channel support
+
 | Channel | Current support and remaining boundary |
 | --- | --- |
 | Position | Set or offset individual XYZ components. PAC output expands shared bounds when needed and retains lower LOD positions within quantization precision. |
@@ -906,19 +1027,21 @@ Viewport selection, weight and deformation colours are overlays, not saved verte
 colour data. Unidentified tail bits remain source-owned; they should not be shown
 as named editable parameters until their consumers are proven.
 
-UV1, vertex colours and undecoded fields explicitly report unavailable or
-unsupported. Renderer placeholder UVs/normals are never used as stored values.
-Editing is limited by the active format, LOD, workflow and proven output path;
-a missing source map keeps exact channel edits read-only. Skin weights are also
-read-only when neutral appearance uses different bone transforms: the current
-inverse conversion would otherwise move saved vertices during a weight edit.
-A mixed-capability batch is rejected in full. Unedited channels, materials,
-topology and cloth bindings are retained. Geometry-channel edits invalidate
-derived tangents. Channel operations, Undo/Redo and drafts use the existing
-operation types. Ordinary draft generations keep their current format and now
-retain channel-operation metadata and original PAC bounds. Ordinary neutral
-edits return to source coordinates at Finish; replacement drafts retain their
-existing explicit neutral-coordinate state.
+UV1, vertex colours and undecoded fields explicitly report unavailable or unsupported.
+Renderer placeholder UVs/normals are never used as stored values. Editing is limited by
+the active format, LOD, workflow and proven output path; a missing source map keeps
+exact channel edits read-only. Skin weights are also read-only when neutral appearance
+uses different bone transforms: the current inverse conversion would otherwise move
+saved vertices during a weight edit. A mixed-capability batch is rejected in full.
+Unedited channels, materials, topology and cloth bindings are retained. Geometry-channel
+edits invalidate derived tangents.
+
+Channel operations, Undo/Redo and drafts use the existing operation types. Ordinary
+draft generations keep their current format and now retain channel-operation metadata
+and original PAC bounds. Ordinary neutral edits return to source coordinates at Finish;
+replacement drafts retain their existing explicit neutral-coordinate state.
+
+### Implementation ownership
 
 `cdmw/domain/mesh/vertex_parameters.py` owns selection/numeric rules and
 `cdmw/services/mesh_vertex_parameters.py` owns authoritative inspection and
@@ -944,18 +1067,22 @@ Selected controls pair the muted accent background with the theme's strong text
 colour. Disabled labels stay readable; their fill, border, and interaction still
 distinguish unavailable controls.
 
-Parts use compact, single-line names with the full name and material on hover.
-Geometry Layer names also shorten to fit, reserving room for the visibility
-button; hover a shortened name to read it in full.
-The Inspector scrollbar has its own space, keeping button edges clickable.
-The checkboxes and Visibility menu hide/show parts in the viewport; hidden parts
-remain in the output, and a hidden Geometry Layer still controls its own parts.
-All and Invert operate on visible parts, and selection changes update the
-viewport immediately. Duplicate and Delete target only the explicitly selected
-whole parts. They wait for pending selection updates and require Free Edit;
-**Enable part edits…** opens the output controls directly. Delete keeps at least
-one part, and successful structural edits refresh the list through the same
-shadow history used by Undo/Redo.
+### Parts and status presentation
+
+Parts use compact, single-line names with the full name and material on hover. Geometry
+Layer names also shorten to fit, reserving room for the visibility button; hover a
+shortened name to read it in full. The Inspector scrollbar has its own space, keeping
+button edges clickable. The checkboxes and Visibility menu hide/show parts in the
+viewport; hidden parts remain in the output, and a hidden Geometry Layer still controls
+its own parts. All and Invert operate on visible parts, and selection changes update the
+viewport immediately.
+
+Duplicate and Delete target only the explicitly selected whole parts. They wait for
+pending selection updates and require Free Edit; **Enable part edits…** opens the output
+controls directly. Delete keeps at least one part, and successful structural edits
+refresh the list through the same shadow history used by Undo/Redo.
+
+### Shell and workspace owners
 
 `tab.py` is the stable public Qt class. Bounded `tab_*.py` owners hold shell,
 Rust process/protocol, package, report, session, state, interaction, and action
@@ -974,6 +1101,8 @@ service-backed workspace summary. Its Compare tab renders the service-backed
 source-vs-edited summary and emits preview-mode requests for edited, source,
 and ghost overlay views.
 
+### Archive sessions and neutral appearance
+
 `MeshEditorTab.open_archive_session()` is the normal entry point. A correlated,
 cancellable `MeshArchiveSessionLoadWorker` reads and round-trip-validates the
 exact archive bytes, creates the authoritative `MeshService` edit session, and
@@ -982,21 +1111,21 @@ the current source and produce the non-modal Resume/Start Fresh banner; starting
 fresh never deletes a draft. `MeshEditorTab.open_session()` remains a compatibility
 wrapper over this direct contract.
 
-Archive PAC sessions resolve the same head-specific PABC neutral appearance as
-Archive Browser. The embedded editor labels these meshes **neutral appearance**
-and uses the reconstructed face for selection, move/sculpt operations, comparison,
-and Undo/Redo. The authoritative mesh keeps the original PAC coordinates. Finish
-inverts each vertex's blended skin transform before exact-writer validation and
-committing edits, so the game does not apply the face correction twice. Opening
-and finishing without a geometry edit preserves the source bytes. Unreadable or
-non-invertible resolved appearance data reports a load/preparation error rather
-than opening a falsely corrected face; meshes with no linked variation retain
-their source shape. Finish or cancel this edit before importing an unrelated
-source mesh. Archive Refit has its own per-asset neutral mappings, so it can load
-body and armor together without applying the body's appearance transform to the
-armor.
-Free Edit OBJ output retains the displayed neutral shape; game-asset output
-retains the reversible source-coordinate mapping.
+Archive PAC sessions resolve the same head-specific PABC neutral appearance as Archive
+Browser. The embedded editor labels these meshes **neutral appearance** and uses the
+reconstructed face for selection, move/sculpt operations, comparison, and Undo/Redo. The
+authoritative mesh keeps the original PAC coordinates. Finish inverts each vertex's
+blended skin transform before exact-writer validation and committing edits, so the game
+does not apply the face correction twice. Opening and finishing without a geometry edit
+preserves the source bytes.
+
+Unreadable or non-invertible resolved appearance data reports a load/preparation error
+rather than opening a falsely corrected face; meshes with no linked variation retain
+their source shape. Finish or cancel this edit before importing an unrelated source
+mesh. Archive Refit has its own per-asset neutral mappings, so it can load body and
+armor together without applying the body's appearance transform to the armor. Free Edit
+OBJ output retains the displayed neutral shape; game-asset output retains the reversible
+source-coordinate mapping.
 
 Body and armor may use different PAC slot ranges. Free Edit combines their
 geometry for OBJ output without requiring a shared rig, retaining up to eight
@@ -1009,72 +1138,78 @@ character appearance and named weight editing are unavailable. Other appearance
 decode errors still stop loading. Rejections include the available zero-based
 mesh/vertex coordinates and expected/actual values in Activity and Log.
 
+### Scripted edit sessions
+
 `MeshEditorTab.open_mesh_session()` opens a scripted in-tab edit session for a
-`ParsedMesh` without starting Archive Browser UI. It creates the same
-authoritative service session and embedded Rust shadow workflow as an archive
-open; it does not build a Vortice authoring package.
-`MeshEditorController.native_update_for_result()` is native-payload-only; Python
-mesh-based preview packing is explicit archive-only code behind
-`legacy_python_update_for_result(..., allow_archive_legacy_preview_rebuild=True)`.
-`MeshEditorTab.open_mesh_file_session()` opens a supported PAC/PAM/PAMLOD file
-through `MeshService.load_mesh_file()` before entering the same standalone edit
-session path for scripted callers. UI callers should use
-`MeshEditorTab.open_mesh_file_session_async()`, which runs file IO, parsing, and
-service session creation in `MeshFileSessionLoadWorker`, then attaches the
-controller and already-loaded mesh on the UI thread.
-`tab_rust_editor.py` owns the only production editor route, with process startup,
-protocol handling, diagnostics, and shutdown in `tab_rust_process.py`.
-`tab_archive_material_context.py` owns correlated archive material requests;
-`tab_direct_output.py` owns the direct output actions. The retired
-`mesh_editor_backend` preference is ignored and no engine selector is built.
-Before loading a mesh, CDMW validates the bundled `cdmw_mesh_lab.exe`; a missing
-or incompatible package blocks the open with a visible reason and never falls
-back to Vortice.
+`ParsedMesh` without starting Archive Browser UI. It creates the same authoritative
+service session and embedded Rust shadow workflow as an archive open; it does not build
+a Vortice authoring package. `MeshEditorController.native_update_for_result()` is
+native-payload-only; Python mesh-based preview packing is explicit archive-only code
+behind `legacy_python_update_for_result(...,
+allow_archive_legacy_preview_rebuild=True)`. `MeshEditorTab.open_mesh_file_session()`
+opens a supported PAC/PAM/PAMLOD file through `MeshService.load_mesh_file()` before
+entering the same standalone edit session path for scripted callers.
 
-After the authoritative archive `MeshService` exists, CDMW starts
-`cdmw_mesh_lab.exe --cdmw-session <manifest> --embedded-parent-hwnd <decimal>`.
-Rust creates one undecorated winit/wgpu child containing the complete editor UI.
-`rust_host.py` verifies the reported HWND belongs to the launched process,
-attaches it to the native Qt host, and synchronizes resize, show/hide, focus,
-DPI/screen changes, and Qt `WinIdChange` re-parenting. Failure terminates the
-owned process, leaves no detached window, and offers Retry from a fresh shadow.
-The child uses a dedicated native surface beneath the loading/result pages, so
-GPU initialization cannot cover the loading page with a blank window. The New
-Item and Mod Management hosts retain that page until their first rendered state;
-an asynchronous paint request lets the covered child produce that first frame.
-The compiled Rust UI emits the merged
-`cdmw_rust_mesh_editor_control_contract_v2`; every enabled row has a compiled UI
-and dispatch anchor, while every disabled row carries a reason. It has no
-Vortice contract input or build-time Vortice probe. Standalone Rust Lab modes
-remain independent.
-The five direct output buttons use explicit normal, hover, pressed, and disabled
-states. Validation-gated outputs and receipt-gated restore stay visibly
-unavailable until their prerequisites exist.
-The session-state bridge carries one explicit output policy: **Exact Game
-Asset**, **Free Edit/Rebuild**, or **Read Only**. Exact PAC/PAM/PAMLOD LOD0
-sessions show only writer-safe actions, disable operations whose result cannot
-preserve protected records, expose the exact reason in help, and still defer the
-final decision to the writer and validator. Higher unproven LODs do not silently
-enter the exact policy; Free Edit may author the active higher LOD only to a new
-validated OBJ/MTL destination. Imported OBJ/FBX/DAE/glTF sessions likewise
-require the user to choose a new output folder before proven non-exact topology
-tools appear. MeshInfo and unknown formats remain read-only for selection,
-inspection, comparison, and safe export. The Python host and resident forms
-reject the same unavailable command before mutation.
+UI callers should use `MeshEditorTab.open_mesh_file_session_async()`, which runs file
+IO, parsing, and service session creation in `MeshFileSessionLoadWorker`, then attaches
+the controller and already-loaded mesh on the UI thread. `tab_rust_editor.py` owns the
+only production editor route, with process startup, protocol handling, diagnostics, and
+shutdown in `tab_rust_process.py`. `tab_archive_material_context.py` owns correlated
+archive material requests; `tab_direct_output.py` owns the direct output actions. The
+retired `mesh_editor_backend` preference is ignored and no engine selector is built.
 
-Integrated Rust authoring owns a disposable shadow `MeshService` under a single
-session directory. The preparation worker creates that isolated mesh once and
-the shadow service adopts it directly; it no longer performs two additional
-full-mesh clones before the helper can start. Protected channels, Geometry
-Layers, object transform, output state, provenance, and the native Morph & Refit
-runtime remain isolated from the authoritative session. The initial channel
-file references geometry already stored in `document.json` instead of writing a
-second positions/normals/UV/index copy. Revisioned local gestures and typed
-asynchronous service commands update only that shadow. Candidate payloads are
-consumed, superseded state files are pruned after safe replacement, generated
-layer and morph-profile trees are independently bounded, and the complete owned
-tree has an aggregate limit. Path escape, hash, length, unexpected-entry,
+Before loading a mesh, CDMW validates the bundled `cdmw_mesh_lab.exe`; a missing or
+incompatible package blocks the open with a visible reason and never falls back to
+Vortice.
+
+### Rust startup and shadow session
+
+After the authoritative archive `MeshService` exists, CDMW starts `cdmw_mesh_lab.exe
+--cdmw-session <manifest> --embedded-parent-hwnd <decimal>`. Rust creates one
+undecorated winit/wgpu child containing the complete editor UI. `rust_host.py` verifies
+the reported HWND belongs to the launched process, attaches it to the native Qt host,
+and synchronizes resize, show/hide, focus, DPI/screen changes, and Qt `WinIdChange`
+re-parenting. Failure terminates the owned process, leaves no detached window, and
+offers Retry from a fresh shadow.
+
+The child uses a dedicated native surface beneath the loading/result pages, so GPU
+initialization cannot cover the loading page with a blank window. The New Item and Mod
+Management hosts retain that page until their first rendered state; an asynchronous
+paint request lets the covered child produce that first frame. The compiled Rust UI
+emits the merged `cdmw_rust_mesh_editor_control_contract_v2`; every enabled row has a
+compiled UI and dispatch anchor, while every disabled row carries a reason. It has no
+Vortice contract input or build-time Vortice probe.
+
+Standalone Rust Lab modes remain independent. The five direct output buttons use
+explicit normal, hover, pressed, and disabled states. Validation-gated outputs and
+receipt-gated restore stay visibly unavailable until their prerequisites exist. The
+session-state bridge carries one explicit output policy: **Exact Game Asset**, **Free
+Edit/Rebuild**, or **Read Only**. Exact PAC/PAM/PAMLOD LOD0 sessions show only
+writer-safe actions, disable operations whose result cannot preserve protected records,
+expose the exact reason in help, and still defer the final decision to the writer and
+validator. Higher unproven LODs do not silently enter the exact policy;
+
+Free Edit may author the active higher LOD only to a new validated OBJ/MTL destination.
+Imported OBJ/FBX/DAE/glTF sessions likewise require the user to choose a new output
+folder before proven non-exact topology tools appear. MeshInfo and unknown formats
+remain read-only for selection, inspection, comparison, and safe export. The Python host
+and resident forms reject the same unavailable command before mutation.
+
+Integrated Rust authoring owns a disposable shadow `MeshService` under a single session
+directory. The preparation worker creates that isolated mesh once and the shadow service
+adopts it directly; it no longer performs two additional full-mesh clones before the
+helper can start. Protected channels, Geometry Layers, object transform, output state,
+provenance, and the native Morph & Refit runtime remain isolated from the authoritative
+session. The initial channel file references geometry already stored in `document.json`
+instead of writing a second positions/normals/UV/index copy.
+
+Revisioned local gestures and typed asynchronous service commands update only that
+shadow. Candidate payloads are consumed, superseded state files are pruned after safe
+replacement, generated layer and morph-profile trees are independently bounded, and the
+complete owned tree has an aggregate limit. Path escape, hash, length, unexpected-entry,
 stale-generation, replay, and out-of-order checks fail closed.
+
+### Theme and input handling
 
 The embedded child receives CDMW's active semantic palette, explicit light or
 dark variant, UI and data font sizes, scale, and density before reveal and after
@@ -1084,69 +1219,76 @@ theme. The session bar, camera strip, left tools, Parts, Layers, and History are
 split into named compact groups so controls remain scannable at constrained
 sizes.
 
-Select, Move, Rotate, Scale, Grab, Smooth, Inflate, and Pinch execute locally in
-Rust. Selection is acknowledged with a selection-only command; it never sends
-geometry channels. Geometry candidates preserve original channel values when
-their Rust `f32` representation is unchanged, including fractional PAC values.
-Whole-part translation preserves authored normals; rotation and nonuniform
-scaling transform them without replacing custom shading with face averages.
-Partial-part deformation still updates affected geometry normals.
-Selection, bone choice, output policy, and layer presentation changes leave
-resident geometry loaded. Geometry updates reuse successfully uploaded textures
-when their ownership is unchanged and retain the Bones overlay preference.
-Numeric transform steps use the same revisioned transaction lane. Inflate
-uses signed strength, where positive values inflate and negative values deflate,
-and face Extrude sends an explicit world-X, Y, or Z offset. Cleanup, mirror,
-normals/tangents, UV0, bone selection and skin-weight editing are strict typed
-`MeshService` commands with explicit selection, allowlisted arguments,
-output-policy checks, disposable candidate preflight, and shadow history.
-Adjust/Normalize require explicitly selected Vertex elements; Transfer from
-Original may restore the immutable source skin channels into an unskinned
-working mesh from selected vertices or Parts. Loop Cut count/factor, Refine
-Smooth strength/passes, and Weld distance are carried with typed topology
-commands. Successful no-op results and host diagnostics are shown instead of
-claiming that an edit completed. Morph & Refit hydrates the selected bound
-garment's saved enabled/mode/intensity/clearance values before applying a
-change; profile creation exposes its rule, axis, amount, feather, falloff, and
-mirror inputs instead of creating a hard-coded deformation. Geometry Layer
-Copy/Paste names the required selection and Free Edit policy, and layer
-visibility removes hidden Parts from both rendering and picking. Cleanup and
-other topology-changing tools remain visibly locked by Exact output with a
-direct instruction to choose Free Edit. Bevel/chamfer, UV1 and a 2D UV
-workspace, true weight paint, posed skeleton deformation, normal-direction or
-edge extrusion, sculpt symmetry, and full layered/dye material composition
-remain open rather than being presented as functional controls.
+### Local gestures and history
 
-Archive PAC sessions resolve a matching PAB automatically from the same archive
-index, using the original PAC's bone references as well as descriptor and family
-matches, before attaching it to the shadow service. The current Archive Browser
-passes its prepared per-asset dependency snapshot into the session instead of
-relying on legacy global indexes. Queued opens and draft resumes retain that
-snapshot for both skeleton and material lookup until the session closes.
-The PAB is a separate skeleton dependency; the PAC's vertex weights alone do not
-contain the named bone hierarchy.
+Select, Move, Rotate, Scale, Grab, Smooth, Inflate, and Pinch execute locally in Rust.
+Selection is acknowledged with a selection-only command; it never sends geometry
+channels. Geometry candidates preserve original channel values when their Rust `f32`
+representation is unchanged, including fractional PAC values. Whole-part translation
+preserves authored normals; rotation and nonuniform scaling transform them without
+replacing custom shading with face averages. Partial-part deformation still updates
+affected geometry normals. Selection, bone choice, output policy, and layer presentation
+changes leave resident geometry loaded.
+
+Geometry updates reuse successfully uploaded textures when their ownership is unchanged
+and retain the Bones overlay preference. Numeric transform steps use the same revisioned
+transaction lane. Inflate uses signed strength, where positive values inflate and
+negative values deflate, and face Extrude sends an explicit world-X, Y, or Z offset.
+Cleanup, mirror, normals/tangents, UV0, bone selection and skin-weight editing are
+strict typed `MeshService` commands with explicit selection, allowlisted arguments,
+output-policy checks, disposable candidate preflight, and shadow history.
+Adjust/Normalize require explicitly selected Vertex elements;
+
+Transfer from Original may restore the immutable source skin channels into an unskinned
+working mesh from selected vertices or Parts. Loop Cut count/factor, Refine Smooth
+strength/passes, and Weld distance are carried with typed topology commands. Successful
+no-op results and host diagnostics are shown instead of claiming that an edit completed.
+Morph & Refit hydrates the selected bound garment's saved
+enabled/mode/intensity/clearance values before applying a change; profile creation
+exposes its rule, axis, amount, feather, falloff, and mirror inputs instead of creating
+a hard-coded deformation.
+
+Geometry Layer Copy/Paste names the required selection and Free Edit policy, and layer
+visibility removes hidden Parts from both rendering and picking. Cleanup and other
+topology-changing tools remain visibly locked by Exact output with a direct instruction
+to choose Free Edit. Bevel/chamfer, UV1 and a 2D UV workspace, true weight paint, posed
+skeleton deformation, normal-direction or edge extrusion, sculpt symmetry, and full
+layered/dye material composition remain open rather than being presented as functional
+controls.
+
+### Skeleton lookup and Rig and Weights
+
+Archive PAC sessions resolve a matching PAB automatically from the same archive index,
+using the original PAC's bone references as well as descriptor and family matches,
+before attaching it to the shadow service. The current Archive Browser passes its
+prepared per-asset dependency snapshot into the session instead of relying on legacy
+global indexes. Queued opens and draft resumes retain that snapshot for both skeleton
+and material lookup until the session closes. The PAB is a separate skeleton dependency;
+the PAC's vertex weights alone do not contain the named bone hierarchy.
+
 The Rust window has no manual PAB picker. Rig & Skin Weights reports the actual
-automatic-resolution failure (including missing dependencies, ambiguous matches,
-and invalid or empty skeletons) and keeps weight editing disabled until the exact
-PAC LOD0, palette, source-map, and record-layout requirements are satisfied.
+automatic-resolution failure (including missing dependencies, ambiguous matches, and
+invalid or empty skeletons) and keeps weight editing disabled until the exact PAC LOD0,
+palette, source-map, and record-layout requirements are satisfied.
 
 Rig & Weights is temporarily hidden from the product tool rail. Its code and
 direct headless tests remain available; the following describes the retained
 implementation rather than a currently accessible tool.
 
-Rig & Weights identifies the loaded mesh, named Parts, and automatically attached
-PAB. Its searchable bone chooser shows parent context and a labelled gold marker
-on the active bone. Bone inspection preserves the edit selection and camera;
-**Frame bone** and **Frame influence** provide explicit navigation. **Weight
-colours** displays the active bone's resolved influence on visible surfaces using
-a labelled blue-to-gold 0–100% scale, independently of orange edit-selection
-highlights and saved materials. **Select influenced vertices** replaces the edit
-selection with positive-weight vertices in visible Parts, including their rear
-vertices. Hidden Parts remain excluded. Selected weight details are collapsible
-below the controls. Missing mappings and oversized or invalid display data show
-an unavailable reason rather than a partial or guessed influence. Skeleton lines
-use mesh-space bind positions, not the PAB's parent-local offsets. These controls
-inspect the bind rig; they do not pose it or paint weights with a brush.
+Rig & Weights identifies the loaded mesh, named Parts, and automatically attached PAB.
+Its searchable bone chooser shows parent context and a labelled gold marker on the
+active bone. Bone inspection preserves the edit selection and camera; **Frame bone** and
+**Frame influence** provide explicit navigation. **Weight colours** displays the active
+bone's resolved influence on visible surfaces using a labelled blue-to-gold 0–100%
+scale, independently of orange edit-selection highlights and saved materials. **Select
+influenced vertices** replaces the edit selection with positive-weight vertices in
+visible Parts, including their rear vertices.
+
+Hidden Parts remain excluded. Selected weight details are collapsible below the
+controls. Missing mappings and oversized or invalid display data show an unavailable
+reason rather than a partial or guessed influence. Skeleton lines use mesh-space bind
+positions, not the PAB's parent-local offsets. These controls inspect the bind rig; they
+do not pose it or paint weights with a brush.
 
 ### Morph & Refit workflow
 
@@ -1157,30 +1299,32 @@ Geometry Layers, Action History, and the individual Morph & Refit sections start
 collapsed. Each section remembers its open state while navigating between tools
 in the current editor session. Closing panels preserves geometry and selection.
 
-**Meshes & selection** offers named Part checkboxes without an inner scrollbar;
-long names stay on one line with the full name on hover. **Open Selection tool**
-opens the standard selection controls for picking a region and preserves the
-current selection. New sliders capture that selection; existing sliders and
-presets use their saved regions without requiring another selection. **Shape
-sliders** holds preview values, Reset, and Bake. **Create / edit sliders** opens
-when editing a slider and keeps its rule/axis/strength and advanced scope options
-together. Slider definition labels and fields use separate rows to fit the
-expanded panel, pinned settings, and floating windows without horizontal clipping.
-Short windows scroll vertically. The preview warning means that topology and
-definition changes are locked until Reset or Bake; it does not mean the topology
-is incompatible.
+**Meshes & selection** offers named Part checkboxes without an inner scrollbar; long
+names stay on one line with the full name on hover. **Open Selection tool** opens the
+standard selection controls for picking a region and preserves the current selection.
+New sliders capture that selection; existing sliders and presets use their saved regions
+without requiring another selection. **Shape sliders** holds preview values, Reset, and
+Bake. **Create / edit sliders** opens when editing a slider and keeps its
+rule/axis/strength and advanced scope options together.
+
+Slider definition labels and fields use separate rows to fit the expanded panel, pinned
+settings, and floating windows without horizontal clipping. Short windows scroll
+vertically. The preview warning means that topology and definition changes are locked
+until Reset or Bake; it does not mean the topology is incompatible.
 
 Framing a small selection retains the complete mesh's camera clipping range.
 Scrolling a panel cannot carry camera zoom into a later viewport click.
 
-**Meshes & selection** shows a compact card for each loaded asset, with its
-current body/armor role, Part count, and full path on hover. **Set as body**
-assigns only that asset's Parts as the driver, making an incorrect role easy to
-correct. **Add as Body...** and **Add as Armor...** open the loaded game archive catalogue with search, paging,
-and source previews. Choosing a body assigns its Parts as the driver; choosing
-armor adds and selects its Parts ready for binding. No Free Edit or external
-mesh file is required. The panel lists loaded files separately from the assigned
-body driver and bound armor/clothing.
+#### Asset roles and catalogue browsers
+
+**Meshes & selection** shows a compact card for each loaded asset, with its current
+body/armor role, Part count, and full path on hover. **Set as body** assigns only that
+asset's Parts as the driver, making an incorrect role easy to correct. **Add as
+Body...** and **Add as Armor...** open the loaded game archive catalogue with search,
+paging, and source previews. Choosing a body assigns its Parts as the driver; choosing
+armor adds and selects its Parts ready for binding. No Free Edit or external mesh file
+is required. The panel lists loaded files separately from the assigned body driver and
+bound armor/clothing.
 
 Both browsers search the same catalogue: the chosen role determines what the
 mesh does. Body is the shape driver; armor is the garment that follows it after
@@ -1189,16 +1333,19 @@ the body driver, including when an existing Morph profile has no assigned driver
 If you started with clothing instead, Add as Body assigns the
 new body while keeping the original clothing available for selection and binding.
 
-The catalogue comes from the archive workspace, including when Mesh Editor is
-detached into its own window. Cancelling the picker or failing to open the
-catalogue leaves the editor session available for further commands.
-The picker puts the searchable archive list on the left and a taller combined
-preview on the right. The current target and selected source share one view in
-their original archive coordinates, preserving their relative size and position.
-Each has its own **Solid** or **Wire** display choice. **Add as Armor...** starts
-with a shaded, untextured solid target and wire armor; **Add as Body...**
-starts with a solid body source and wire target. Wire edges overlay solid surfaces,
-including hidden edges, to make overlap visible.
+The catalogue comes from the archive workspace, including when Mesh Editor is detached
+into its own window. Cancelling the picker or failing to open the catalogue leaves the
+editor session available for further commands. The picker puts the searchable archive
+list on the left and a taller combined preview on the right. The current target and
+selected source share one view in their original archive coordinates, preserving their
+relative size and position.
+
+Each has its own **Solid** or **Wire** display choice. **Add as Armor...** starts with a
+shaded, untextured solid target and wire armor; **Add as Body...** starts with a solid
+body source and wire target. Wire edges overlay solid surfaces, including hidden edges,
+to make overlap visible.
+
+#### Combined preview and source identity
 
 The combined preview uses the interactive 3D viewport: Alt/Ctrl-drag to orbit,
 Shift-drag to pan, and scroll to zoom. **Reset view** restores the shared
@@ -1207,28 +1354,32 @@ changes reuse decoded meshes and retain the camera; resizing does not decode or
 rebuild the scene. It shows the original archive geometry; live edits and refit
 results are inspected in the main editor viewport.
 
-Archive sources keep their own original bytes, Part mappings, palettes, and
-archive paths. Each neutral appearance uses its own reversible mapping; Finish
-restores each asset's source coordinates before validation and writing. Drafts
-retain those mappings in the version 2 refit record and can still load version 1
-records. Added meshes retain their resolved textures and layered material data
-across loading, Undo/Redo, Bake, Finish, and reopening.
+Archive sources keep their own original bytes, Part mappings, palettes, and archive
+paths. Each neutral appearance uses its own reversible mapping; Finish restores each
+asset's source coordinates before validation and writing. Drafts retain those mappings
+in the version 2 refit record and can still load version 1 records. Added meshes retain
+their resolved textures and layered material data across loading, Undo/Redo, Bake,
+Finish, and reopening.
+
 New archive-refit draft generations own checksummed copies of their DDS and decoded
 layer images (up to 512 MiB combined), so clearing the preview cache does not remove
-their textures. Missing or damaged draft files reject that generation before it
-replaces the loaded geometry. Older drafts still open, with a warning when their
-cached material files are missing; reopen the source meshes to reload those textures.
-Adding an asset reuses the existing owned textures and compiles only the incoming
-asset's materials. Generated support maps use bounded array decoding and fast,
-lossless PNG compression; material ownership and texture pixels are preserved.
-Geometry, rig dependencies, and materials prepare off the UI
-thread before one undoable publication. Cancelled, stale, duplicate, invalid,
-or oversized sources leave the edit unchanged.
-Rejected material preparation also leaves the session material cache unchanged,
-so another valid archive import can proceed after a size, write, or cancellation error.
-Reset or Bake before loading; Clear Refit first if garments are already bound.
-Archive refits preserve the original topology and allow selection across all
-visible loaded assets.
+their textures. Missing or damaged draft files reject that generation before it replaces
+the loaded geometry. Older drafts still open, with a warning when their cached material
+files are missing; reopen the source meshes to reload those textures. Adding an asset
+reuses the existing owned textures and compiles only the incoming asset's materials.
+
+Generated support maps use bounded array decoding and fast, lossless PNG compression;
+material ownership and texture pixels are preserved. Geometry, rig dependencies, and
+materials prepare off the UI thread before one undoable publication. Cancelled, stale,
+duplicate, invalid, or oversized sources leave the edit unchanged. Rejected material
+preparation also leaves the session material cache unchanged, so another valid archive
+import can proceed after a size, write, or cancellation error. Reset or Bake before
+loading; Clear Refit first if garments are already bound.
+
+Archive refits preserve the original topology and allow selection across all visible
+loaded assets.
+
+#### Body selection and garment binding
 
 **Select body** selects the assigned driver Parts; it does not open another
 file. Its highlighted state shows when the body is already selected.
@@ -1239,42 +1390,47 @@ Refit setup appears immediately after the meshes, with one compact next action.
 The Rust control messages carry slider metadata only; full weighted vertex scopes
 stay in the host profiles for editing, saving, and preset export.
 
-Select clothing/armor Parts and bind them. **Create body slider** selects the
-driver and opens the slider creator in view when no shape sliders exist. Custom regions
-can still be selected with the Selection tool. The panel rejects overlapping
-roles and setup changes during an unbaked preview, and shows the binding-distance
-warning. Binding replaces the garment set; select every garment that should
-participate. Surface and Rigid modes retain per-garment enable, intensity, and
-clearance controls, which appear only after binding. **Changes not applied**
-marks pending settings; use **Apply to Selected Garments** or **Apply to All Bound
-Garments** to update the preview. Surface follows the body surface; Rigid keeps
-each garment Part rigid. Intensity controls following strength; clearance adds
-space as a percentage of body size. Positive clearance pushes outward even when
-the garment was already inside the body when bound. **Fit to body** previews a
-fit for every bound garment using Surface, 100% intensity, and the current
-clearance (at least 0.1%). It works without creating or changing a body slider;
-Reset reverts the preview and Bake keeps it. Surface also checks triangle edges
-and interiors against the current body, keeping coincident seams joined. It
-checks body contours between those samples and resolves overlapping or tightly
-spaced body regions together, including around underarms. Fitting favours the
-original shape in clear areas, reducing unnecessary shoulder and sleeve inflation.
-Nearby clothing layers over the same body region preserve their separation while
-allowing them to slide, including detailed linings beneath coarser outer shells.
-Clear belts and trim are not pulled toward layers that move away from them.
-The garment's original facing direction helps offset sleeves wrap around the
-correct side of an arm during the initial fitting passes. This guidance stops
-as the cloth settles and is restricted near open body boundaries and by each
-piece's openings, protecting collars and keeping thin attachments from stretching
-around a limb. Local stretch and sharp new creases are reduced while folds and
-sleeve openings can bend around the body.
-Complex layered outfits have a bounded 90-second command budget, including
-subsequent body-slider changes.
-Inspect folded or tightly fitted areas before baking; unusual outfits may still
-need local adjustments, particularly thin wrist trim and folded cuffs. Static
-fit and PAC round-trip checks do not establish animation or in-game appearance.
-To redo a poor baked fit, undo the bake or reload the
-original meshes before fitting again. Shape sliders move the driver and bound
-garments together. Use the normal transform tools if the meshes need alignment.
+Select clothing/armor Parts and bind them. **Create body slider** selects the driver and
+opens the slider creator in view when no shape sliders exist. Custom regions can still
+be selected with the Selection tool. The panel rejects overlapping roles and setup
+changes during an unbaked preview, and shows the binding-distance warning. Binding
+replaces the garment set; select every garment that should participate.
+
+Surface and Rigid modes retain per-garment enable, intensity, and clearance controls,
+which appear only after binding. **Changes not applied** marks pending settings; use
+**Apply to Selected Garments** or **Apply to All Bound Garments** to update the preview.
+Surface follows the body surface; Rigid keeps each garment Part rigid. Intensity
+controls following strength; clearance adds space as a percentage of body size.
+
+Positive clearance pushes outward even when the garment was already inside the body when
+bound. **Fit to body** previews a fit for every bound garment using Surface, 100%
+intensity, and the current clearance (at least 0.1%). It works without creating or
+changing a body slider; Reset reverts the preview and Bake keeps it. Surface also checks
+triangle edges and interiors against the current body, keeping coincident seams joined.
+It checks body contours between those samples and resolves overlapping or tightly spaced
+body regions together, including around underarms.
+
+Fitting favours the original shape in clear areas, reducing unnecessary shoulder and
+sleeve inflation. Nearby clothing layers over the same body region preserve their
+separation while allowing them to slide, including detailed linings beneath coarser
+outer shells. Clear belts and trim are not pulled toward layers that move away from
+them. The garment's original facing direction helps offset sleeves wrap around the
+correct side of an arm during the initial fitting passes.
+
+This guidance stops as the cloth settles and is restricted near open body boundaries and
+by each piece's openings, protecting collars and keeping thin attachments from
+stretching around a limb. Local stretch and sharp new creases are reduced while folds
+and sleeve openings can bend around the body. Complex layered outfits have a bounded
+90-second command budget, including subsequent body-slider changes. Inspect folded or
+tightly fitted areas before baking; unusual outfits may still need local adjustments,
+particularly thin wrist trim and folded cuffs.
+
+Static fit and PAC round-trip checks do not establish animation or in-game appearance.
+To redo a poor baked fit, undo the bake or reload the original meshes before fitting
+again. Shape sliders move the driver and bound garments together. Use the normal
+transform tools if the meshes need alignment.
+
+#### Geometry layers and output
 
 Archive Refit keeps the original game-file topology, so its Geometry Layers
 organise loaded assets but cannot add or remove geometry. Free Edit is disabled
@@ -1294,18 +1450,21 @@ This is geometry refitting: it does not align mismatched poses automatically or
 convert skeletons/weights. Visual fit, clipping during animation, and game
 compatibility require separate inspection.
 
-**Save Preset** saves both the active profile and its current percentages into
-the settings-owned `mesh_slider_profiles/definitions` and `presets` folders as
-one undoable transaction. Finish Edit Mesh commits this library; cancelling the
-edit discards its library changes. **Export Preset...** writes a portable JSON
-file immediately, defaulting to the `mesh_presets` folder beside application
-settings. The file includes the profile, saved vertex regions, procedural rules,
-topology fingerprint, and percentages. **Load Preset...** validates the file,
-loads its profile and values, previews it, and adds it to the session library
-with Undo/Redo. Conflicting IDs get a new imported identity rather than
-overwriting different saved definitions. The same driver topology and Part order
-are required. Refit bindings remain session-specific; set them for the loaded
-body and garments. Legacy profile and preset storage stays compatible.
+#### Presets and library history
+
+**Save Preset** saves both the active profile and its current percentages into the
+settings-owned `mesh_slider_profiles/definitions` and `presets` folders as one undoable
+transaction. Finish Edit Mesh commits this library; cancelling the edit discards its
+library changes. **Export Preset...** writes a portable JSON file immediately,
+defaulting to the `mesh_presets` folder beside application settings. The file includes
+the profile, saved vertex regions, procedural rules, topology fingerprint, and
+percentages. **Load Preset...** validates the file, loads its profile and values,
+previews it, and adds it to the session library with Undo/Redo.
+
+Conflicting IDs get a new imported identity rather than overwriting different saved
+definitions. The same driver topology and Part order are required. Refit bindings remain
+session-specific; set them for the loaded body and garments. Legacy profile and preset
+storage stays compatible.
 
 Undo and Redo restore library files through the same locked history path and update
 the acknowledged profile fingerprint. Subsequent commands and Finish accept those
@@ -1313,23 +1472,27 @@ history changes while continuing to reject unacknowledged external file changes.
 
 ### Material presentation
 
-The integrated Rust viewport reuses Archive Browser's complete resolved
-PAC/PAC_XML material model together with the native material package for the
-same mesh identity. The asynchronous resolver publishes the full model, its
-exact owning package, and the acquired lease as one correlated result; native
-batch reconstruction is only a degraded fallback because those flattened rows
-do not retain the complete dye and layer parameter graph. Stale or cancelled
-results release their lease rather than leaving a geometry-only package paired
-with new material rows. Verification uses the complete archive identity
-(normalized path, source PAMT, PAZ index, and entry offset), so two entries with
-the same virtual path cannot exchange materials. CDMW carries that verified context into the isolated
-shadow package and copies only bounded, hash-checked DDS resources beneath the
-session root, retaining their role, LOD, and material range. Owner-conserved
-full-graph channels supersede simplified package composites, while a package
-composite fills only a channel the complete graph cannot produce. A missing,
-incomplete, or unusable preview package leaves geometry editing available on
-the neutral opaque surface and reports the exact texture fallback reason; it is
-never presented as successful textured display.
+The integrated Rust viewport reuses Archive Browser's complete resolved PAC/PAC_XML
+material model together with the native material package for the same mesh identity. The
+asynchronous resolver publishes the full model, its exact owning package, and the
+acquired lease as one correlated result; native batch reconstruction is only a degraded
+fallback because those flattened rows do not retain the complete dye and layer parameter
+graph. Stale or cancelled results release their lease rather than leaving a
+geometry-only package paired with new material rows.
+
+Verification uses the complete archive identity (normalized path, source PAMT, PAZ
+index, and entry offset), so two entries with the same virtual path cannot exchange
+materials. CDMW carries that verified context into the isolated shadow package and
+copies only bounded, hash-checked DDS resources beneath the session root, retaining
+their role, LOD, and material range. Owner-conserved full-graph channels supersede
+simplified package composites, while a package composite fills only a channel the
+complete graph cannot produce.
+
+A missing, incomplete, or unusable preview package leaves geometry editing available on
+the neutral opaque surface and reports the exact texture fallback reason; it is never
+presented as successful textured display.
+
+#### Material handoff and relief
 
 If another archive mesh is requested while a Rust Finish is still reaching its
 terminal cancellation boundary, CDMW retains only the latest immutable open
@@ -1345,45 +1508,50 @@ owner's exact wrapper parameter, the native package amount, and finally the
 renderer default. Layer-only and unowned diagnostic height inputs cannot leak
 strength to another Part.
 
-The D3D12 renderer selects 4x MSAA only when the adapter supports both colour
-resolve and multisampled depth, otherwise it stays at 1x. Material samplers use
-linear minification, magnification, and mip filtering, with 16x anisotropy when
-the adapter supports it and a 1x fallback otherwise. **Solid + Wire** renders
-its wire pass with the same scene depth test and no depth writes or forward
-bias, so rear edges remain behind the surface. Only explicit **X-Ray** uses the
-no-depth wire pipeline. Wire and vertex
-appearance pickers update the GPU overlay colours, and the Normals overlay uses
-short, evenly sampled direction guides capped for dense meshes instead of
-painting a spike from every vertex. The UV page can switch directly to UV
-Checker so coordinate edits have an immediate visible comparison. The mesh
-buffers stay resident: same-topology position/normal changes update them in
-place, while a topology-generation or ownership change replaces the affected
-GPU geometry.
-The window waits when idle and requests another frame only for pointer/UI input,
-loader or CDMW state, resize, or an immediate egui repaint. Edit-change colours
-compare a same-topology gesture with its starting positions and distinguish
-outward, inward, and tangential movement; these colours are preview vertex data
-only and do not alter the authoritative mesh, materials, textures, or output.
-These behaviors have source/unit and offscreen renderer coverage, not visible
-Windows or licensed-game appearance proof.
+#### Renderer sampling
 
-**Finish Edit Mesh** drains the shadow and prepares one replacement. Exact Game
-Asset uses the existing exact validator and in-memory writer without fallback.
-Free Edit rechecks the selected destination at Finish and again immediately
-before commit, then proves the complete mesh through OBJ export and reparse.
-The authoritative mesh revision, Geometry Layers revision, and Morph & Refit
-revision/state must all still match the opening snapshot. Geometry, layers,
-object transform, output state, morph profiles, and native Morph & Refit runtime
-then commit as one reversible
-`Rust Edit Session`; Undo and Redo restore that full state. Any rejection keeps
-Rust open and leaves authority unchanged. Cancel, close, crash, protocol
-failure, or forced termination discards the shadow and only its owned files.
-An accepted Finish is only the handoff into CDMW: the user must run validation
-for that exact revision before **Install as Overlay** or **Build Mod** can
-publish it. Build Mod supports DMM/JMM/CDUMM/Crimson Sharp loose packages and a
-DMM archive group through owned sibling staging; overlay installation keeps the
-existing confirmation, backup, rollback, receipt, and restore lifecycle. Neither
-route rewrites source PAMT/PAZ archives in place.
+The D3D12 renderer selects 4x MSAA only when the adapter supports both colour resolve
+and multisampled depth, otherwise it stays at 1x. Material samplers use linear
+minification, magnification, and mip filtering, with 16x anisotropy when the adapter
+supports it and a 1x fallback otherwise. **Solid + Wire** renders its wire pass with the
+same scene depth test and no depth writes or forward bias, so rear edges remain behind
+the surface. Only explicit **X-Ray** uses the no-depth wire pipeline.
+
+Wire and vertex appearance pickers update the GPU overlay colours, and the Normals
+overlay uses short, evenly sampled direction guides capped for dense meshes instead of
+painting a spike from every vertex. The UV page can switch directly to UV Checker so
+coordinate edits have an immediate visible comparison. The mesh buffers stay resident:
+same-topology position/normal changes update them in place, while a topology-generation
+or ownership change replaces the affected GPU geometry.
+
+The window waits when idle and requests another frame only for pointer/UI input, loader
+or CDMW state, resize, or an immediate egui repaint. Edit-change colours compare a
+same-topology gesture with its starting positions and distinguish outward, inward, and
+tangential movement; these colours are preview vertex data only and do not alter the
+authoritative mesh, materials, textures, or output. These behaviors have source/unit and
+offscreen renderer coverage, not visible Windows or licensed-game appearance proof.
+
+### Finish, cancellation and terminal outcomes
+
+**Finish Edit Mesh** drains the shadow and prepares one replacement. Exact Game Asset
+uses the existing exact validator and in-memory writer without fallback. Free Edit
+rechecks the selected destination at Finish and again immediately before commit, then
+proves the complete mesh through OBJ export and reparse. The authoritative mesh
+revision, Geometry Layers revision, and Morph & Refit revision/state must all still
+match the opening snapshot. Geometry, layers, object transform, output state, morph
+profiles, and native Morph & Refit runtime then commit as one reversible `Rust Edit
+Session`;
+
+Undo and Redo restore that full state. Any rejection keeps Rust open and leaves
+authority unchanged. Cancel, close, crash, protocol failure, or forced termination
+discards the shadow and only its owned files. An accepted Finish is only the handoff
+into CDMW: the user must run validation for that exact revision before **Install as
+Overlay** or **Build Mod** can publish it. Build Mod supports DMM/JMM/CDUMM/Crimson
+Sharp loose packages and a DMM archive group through owned sibling staging; overlay
+installation keeps the existing confirmation, backup, rollback, receipt, and restore
+lifecycle.
+
+Neither route rewrites source PAMT/PAZ archives in place.
 
 Finish and Cancel record their terminal outcome before replying to the helper;
 neither reads the disposed shadow session. A successful helper exit preserves
@@ -1394,98 +1562,109 @@ Mesh Editor's Current Tool Log retains its latest 2,000 status lines, including
 progress, validation failures, and terminal outcomes. Copy and Clear act on this
 tool's log without clearing another tool's output.
 
-`tab_ui_state.py` is the effect bridge into the domain reducer. Existing mixins
-still send protocol messages, run workers, load packages and record diagnostics,
-but action visibility, blocker reasons, report/output authority and the resident
-session payload are projected from `MeshEditorUiState`. Serious synchronization
-failures record its bounded snapshot with session, process generation, request,
-base/target/service/renderer revisions and the stable recovery error code.
-The resident strip keeps **Close** at its far edge. It remains available while
-session work is active, confirms before discarding edits, and returns Mesh Editor
-to its no-session state through the same nonblocking worker and renderer teardown
-path. The Rust host remains visible before a session and after close as a
-loading, availability, or result page. Opening an archive or file session
-replaces that page with the process-owned child. An accepted Finish disposes the
-shadow and shows Run Validation, Build Mod, Install as Overlay, Restore Last
-Overlay Install, Reopen Edit, and Close Session against the accepted
-authoritative revision. `native_preview_payloads.py` and the old helper-status
-path remain compatibility code for retained preview consumers; the direct
-editor does not invoke them.
+### State, controller and action ownership
+
+`tab_ui_state.py` is the effect bridge into the domain reducer. Existing mixins still
+send protocol messages, run workers, load packages and record diagnostics, but action
+visibility, blocker reasons, report/output authority and the resident session payload
+are projected from `MeshEditorUiState`. Serious synchronization failures record its
+bounded snapshot with session, process generation, request, base/target/service/renderer
+revisions and the stable recovery error code. The resident strip keeps **Close** at its
+far edge.
+
+It remains available while session work is active, confirms before discarding edits, and
+returns Mesh Editor to its no-session state through the same nonblocking worker and
+renderer teardown path. The Rust host remains visible before a session and after close
+as a loading, availability, or result page. Opening an archive or file session replaces
+that page with the process-owned child.
+
+An accepted Finish disposes the shadow and shows Run Validation, Build Mod, Install as
+Overlay, Restore Last Overlay Install, Reopen Edit, and Close Session against the
+accepted authoritative revision. `native_preview_payloads.py` and the old helper-status
+path remain compatibility code for retained preview consumers; the direct editor does
+not invoke them.
 
 `controller.py` owns the feature-side edit-session bridge over `MeshService` and
 converts edit results into native preview update payloads.
 
+### Command palette and tool actions
+
 `actions.py` and `action_bar.py` own the Mesh Editor command palette and Qt tool
-surface. They map visible tools to service command keys without applying edits.
-Topology tools include local Subdivide and Refine Smooth. Their shared action
-descriptor owns the 200,000-faces-per-submesh safety cap, which is merged into
-resident requests before caller overrides; a request the cap rejects reports
-the native reason and leaves the resident session exactly as it was. Faces
-subdivide exactly; selected wires and vertices expand to incident faces. An
-unselected neighbour across the region border is stitched against the new
-midpoints on its edges rather than left spanning them as a T-junction. The
-remapped selection keeps the original vertices, the split wires, and the
-midpoints of fully selected wires only, so repeating the command refines the
-same region instead of adopting the bled boundary ring and quadrupling it per
-click. Face-selection values are compact face offsets everywhere in the
-resident session; per-face source indices are ancestor bookkeeping, never a
-selection space. Geometry and selection are one native history pair, so one
-Undo or Redo restores both. The Builder adopts the native remapped selection
-after remapping topology rather than clearing its mirror independently. Delete
-is the exception: it intentionally clears element selection after commit and
-never republishes the pre-delete native target against compacted face offsets.
-For imported-model authoring, the Selection panel offers **Create Part from
-Selection**. It sends the existing `separate` command after current or
-provisional Brush selection authority has landed,
-requires Faces from exactly one source part, moves those faces into a uniquely named
-appended submesh, and retains the source part's vertex channels and material route. The
-new Parts row is selected and revealed with its moved-face count. Create New Item opens
-an imported source here with Faces as the target while keeping Orbit as the neutral
-initial tool, then accepts a stable resident revision back into its placement/build workflow.
-Normal tools include service-routed recalc, tangent generation, flip,
-sharpen/soften, weighted normals, and source-normal copy commands; cleanup
-tools include remove doubles, delete loose vertices, compact orphans, winding
-repair, and hole fill. Widgets only emit descriptors. `triangulate_display` and
-`quadrangulate_display` are deliberately not among them: the service refuses
-both unless the caller passes `allow_legacy_display_cleanup=True`, so they are
-legacy/archive-path helpers rather than tools the rail may offer.
-`MeshEditorTab.update_editor_session_state()`,
+surface. They map visible tools to service command keys without applying edits. Topology
+tools include local Subdivide and Refine Smooth. Their shared action descriptor owns the
+200,000-faces-per-submesh safety cap, which is merged into resident requests before
+caller overrides; a request the cap rejects reports the native reason and leaves the
+resident session exactly as it was. Faces subdivide exactly; selected wires and vertices
+expand to incident faces.
+
+An unselected neighbour across the region border is stitched against the new midpoints
+on its edges rather than left spanning them as a T-junction. The remapped selection
+keeps the original vertices, the split wires, and the midpoints of fully selected wires
+only, so repeating the command refines the same region instead of adopting the bled
+boundary ring and quadrupling it per click. Face-selection values are compact face
+offsets everywhere in the resident session; per-face source indices are ancestor
+bookkeeping, never a selection space.
+
+Geometry and selection are one native history pair, so one Undo or Redo restores both.
+The Builder adopts the native remapped selection after remapping topology rather than
+clearing its mirror independently. Delete is the exception: it intentionally clears
+element selection after commit and never republishes the pre-delete native target
+against compacted face offsets. For imported-model authoring, the Selection panel offers
+**Create Part from Selection**.
+
+It sends the existing `separate` command after current or provisional Brush selection
+authority has landed, requires Faces from exactly one source part, moves those faces
+into a uniquely named appended submesh, and retains the source part's vertex channels
+and material route. The new Parts row is selected and revealed with its moved-face
+count. Create New Item opens an imported source here with Faces as the target while
+keeping Orbit as the neutral initial tool, then accepts a stable resident revision back
+into its placement/build workflow.
+
+Normal tools include service-routed recalc, tangent generation, flip, sharpen/soften,
+weighted normals, and source-normal copy commands; cleanup tools include remove doubles,
+delete loose vertices, compact orphans, winding repair, and hole fill. Widgets only emit
+descriptors. `triangulate_display` and `quadrangulate_display` are deliberately not
+among them: the service refuses both unless the caller passes
+`allow_legacy_display_cleanup=True`, so they are legacy/archive-path helpers rather than
+tools the rail may offer. `MeshEditorTab.update_editor_session_state()`,
 `MeshEditorTab.update_editor_action_state()`, and
-`MeshEditorTab.set_active_tool_state()` keep tool enablement and active mode
-state in the feature tab, including embedded static-builder refreshes.
+`MeshEditorTab.set_active_tool_state()` keep tool enablement and active mode state in
+the feature tab, including embedded static-builder refreshes.
 `MeshEditorController.apply_editor_action()` is the execution bridge for those
-descriptors; UI shells should emit actions, not implement edit commands.
-`MeshEditorController.run_editor_action()` wraps that bridge with native preview
-update packaging for action-bar consumers.
-Correlated resident updates treat every positive helper request ID as an
-ordering boundary. A terminal selection may wait behind an acknowledged
-geometry frame at the same revision, but it cannot be merged into that frame or
-published under its ID. Cancellation or publication failure returns an explicit
+descriptors;
+
+UI shells should emit actions, not implement edit commands.
+`MeshEditorController.run_editor_action()` wraps that bridge with native preview update
+packaging for action-bar consumers. Correlated resident updates treat every positive
+helper request ID as an ordering boundary. A terminal selection may wait behind an
+acknowledged geometry frame at the same revision, but it cannot be merged into that
+frame or published under its ID. Cancellation or publication failure returns an explicit
 rollback result so provisional selection cannot remain stranded.
-`MeshEditorController.export_validation_report()` exposes the service-backed
-pre-export validator for the active session. The visible **Run validation**
-action executes it in a background worker. Its report is stamped to the checked
-geometry revision; a later edit retires its output authority until validation is
-run again while keeping the previous report visible as last-known-good context.
-`MeshEditorController.workspace_summary()` exposes the service-backed part,
-material route, UV channel, and skinning summary for panel rendering. Whole-part
-selection belongs to the explicit Parts/PARTS lists: clicking a row toggles it
-without clearing other selected rows, and the part context menu routes
+`MeshEditorController.export_validation_report()` exposes the service-backed pre-export
+validator for the active session.
+
+The visible **Run validation** action executes it in a background worker. Its report is
+stamped to the checked geometry revision; a later edit retires its output authority
+until validation is run again while keeping the previous report visible as
+last-known-good context. `MeshEditorController.workspace_summary()` exposes the
+service-backed part, material route, UV channel, and skinning summary for panel
+rendering. Whole-part selection belongs to the explicit Parts/PARTS lists: clicking a
+row toggles it without clearing other selected rows, and the part context menu routes
 clone/delete/normal actions through `MeshEditorController` and `MeshService`.
-Material and texture names remain read-only diagnostics; no assignment or copy
-action is exposed.
-`MeshEditorController.compare_summary()` exposes source-vs-edited topology,
-bounds, scale, orientation, material, texture, and UV mismatch data for the
-workspace Compare panel.
-Parts, UV Map, Rig, Compare, validation, and rebuild presentation all use
-`MeshPanelSnapshot`: `ready`, `pending`, `error`, or `unavailable`, with the
-requested session/revision kept separate from the revision that produced any
-retained value. Only a matching session, geometry revision, request, and
-generation may publish a worker result. Selection-only resident revisions do
-not invalidate geometry reports, while an acknowledged geometry revision does;
-expected native-snapshot gaps remain unavailable instead of hydrating stale
-Python geometry, and unexpected exceptions remain visible and enter the runtime
-diagnostic trail.
+
+Material and texture names remain read-only diagnostics; no assignment or copy action is
+exposed. `MeshEditorController.compare_summary()` exposes source-vs-edited topology,
+bounds, scale, orientation, material, texture, and UV mismatch data for the workspace
+Compare panel. Parts, UV Map, Rig, Compare, validation, and rebuild presentation all use
+`MeshPanelSnapshot`: `ready`, `pending`, `error`, or `unavailable`, with the requested
+session/revision kept separate from the revision that produced any retained value. Only
+a matching session, geometry revision, request, and generation may publish a worker
+result.
+
+Selection-only resident revisions do not invalidate geometry reports, while an
+acknowledged geometry revision does; expected native-snapshot gaps remain unavailable
+instead of hydrating stale Python geometry, and unexpected exceptions remain visible and
+enter the runtime diagnostic trail.
 
 ## Preview compatibility and output
 
@@ -1496,41 +1675,51 @@ resident C++ interaction packets are described in
 [Mesh Core](../../../native/cdmw_mesh_core/README.md), separately from the
 production Rust editor's shadow-session contract above.
 
+### Preview profiles
+
 Archive and specialist previews use the viewport-only `--cdmw-preview-session`
 route. Their canonical Preview Core material packages, source bindings, role
 cameras, and capture requests are owned by the shared preview services. They
 are distinct from the editor's `--cdmw-session` route. Read-only source textures
 stay with the model while geometry and UVs change.
 
-**Finish Edit Mesh** retains its successful validation for the accepted revision,
-so **Build Mod** opens immediately without requiring a second validation. Any
-later edit invalidates that report; **Run validation** checks the new revision.
-**Export Mesh File** publishes a separate rebuilt asset and report. **Build Mod**
-opens one form for the mod manager, mod name, output folder, version, author and
-description. It publishes **DMM**, **JMM**, **CDUMM** or **Crimson Sharp** loose
-mesh packages using their respective layouts and metadata, or a **DMM Archive
-Group** in `0036/`. DMM owns the mount list, so that package omits `meta/0.papgt`.
-Packages contain the replacement payloads and manager descriptors/markers only.
-The generated README and CDMW baseline, compatibility and session records stay
-out of the mod; authoring records are saved in CDMW's local `mod_export_history`
-store and remain discoverable for the exact exported bytes. DMM uses only
-`manifest.json` for its metadata, without a duplicate `modinfo.json`.
-CDUMM uses `modinfo.json` with its default `files/` directory, without a duplicate
-manifest or unused encryption marker. Its detector accepts this layout and its
-importer reads mod details from `modinfo.json`:
-[CDUMM detector](https://github.com/faisalkindi/CrimsonDesert-UltimateModsManager/blob/master/src/cdumm/engine/crimson_browser_handler.py),
-[CDUMM importer](https://github.com/faisalkindi/CrimsonDesert-UltimateModsManager/blob/master/src/cdumm/engine/import_handler.py).
-[DMM's changelog](https://www.nexusmods.com/crimsondesert/mods/633?tab=logs)
-documents metadata lookup from `manifest.json` when `modinfo.json` is absent.
-**Create ZIP beside the mod folder** adds an archive containing exactly the same
-files, with no enclosing staging folder. **Open folder after creation** opens
-the completed mod folder only after successful publication. Both options are
-independent and off by default. Existing folders and ZIPs are never overwritten;
-folder names containing dots keep their full name in the sibling ZIP.
-The chosen mod name remains independent of the generated folder name. Cancelling
-the form writes nothing, and changing the mesh or target while it is open requires
+### Validation and export
+
+**Finish Edit Mesh** retains its successful validation for the accepted revision, so
+**Build Mod** opens immediately without requiring a second validation. Any later edit
+invalidates that report; **Run validation** checks the new revision. **Export Mesh
+File** publishes a separate rebuilt asset and report. **Build Mod** opens one form for
+the mod manager, mod name, output folder, version, author and description. It publishes
+**DMM**, **JMM**, **CDUMM** or **Crimson Sharp** loose mesh packages using their
+respective layouts and metadata, or a **DMM Archive Group** in `0036/`.
+
+DMM owns the mount list, so that package omits `meta/0.papgt`. Packages contain the
+replacement payloads and manager descriptors/markers only. The generated README and CDMW
+baseline, compatibility and session records stay out of the mod; authoring records are
+saved in CDMW's local `mod_export_history` store and remain discoverable for the exact
+exported bytes. DMM uses only `manifest.json` for its metadata, without a duplicate
+`modinfo.json`. CDUMM uses `modinfo.json` with its default `files/` directory, without a
+duplicate manifest or unused encryption marker.
+
+Its detector accepts this layout and its importer reads mod details from `modinfo.json`:
+[CDUMM
+detector](https://github.com/faisalkindi/CrimsonDesert-UltimateModsManager/blob/master/src/cdumm/engine/crimson_browser_handler.py),
+[CDUMM
+importer](https://github.com/faisalkindi/CrimsonDesert-UltimateModsManager/blob/master/src/cdumm/engine/import_handler.py).
+[DMM's changelog](https://www.nexusmods.com/crimsondesert/mods/633?tab=logs) documents
+metadata lookup from `manifest.json` when `modinfo.json` is absent. **Create ZIP beside
+the mod folder** adds an archive containing exactly the same files, with no enclosing
+staging folder. **Open folder after creation** opens the completed mod folder only after
+successful publication. Both options are independent and off by default. Existing
+folders and ZIPs are never overwritten; folder names containing dots keep their full
+name in the sibling ZIP.
+
+The chosen mod name remains independent of the generated folder name. Cancelling the
+form writes nothing, and changing the mesh or target while it is open requires
 validation again. Output stages in an owned sibling directory and publishes once; stale
 revisions, cancellation, and failure cannot leave a partial final folder or ZIP.
+
+### Overlay installation
 
 **Install as Overlay** prepares the exact mount change, carry-forward files,
 ownership, and recovery targets for review before confirmation. The service
@@ -1538,6 +1727,8 @@ rechecks the game state, validates staged content, backs up through
 `ArchiveMutationService`, and publishes the mount list last. The saved receipt
 lets **Restore Last Overlay Install** restore the prior state and remove only
 paths created by that installation. Foreign groups are never adopted.
+
+### Localization and proof limits
 
 The surrounding PySide controls use the app's localization catalogs. Rust's
 embedded editor controls currently remain English-only; a viewport-only
