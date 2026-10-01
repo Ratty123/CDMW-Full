@@ -31,8 +31,8 @@ existing GitHub secret and bucket binding before enabling public submissions.
 releasing the client. Missing configuration fails closed and keeps the app's draft.
 
 The GitHub token is fine-grained, restricted to this one inbox, with Issues read/write
-and the required Metadata read permission. The initial token expires October 31,
-2026. Rotate it in Cloudflare before that date. Never put it in the desktop app.
+and the required Metadata read permission. The current token expires October 1,
+2027. Rotate it in Cloudflare before that date. Never put it in the desktop app.
 
 Keep both encrypted secrets out of source, desktop builds, screenshots and reports.
 The site key is public; the browser page receives it from the Worker. The desktop
