@@ -14,7 +14,7 @@ import threading
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from cdmw.constants import APP_VERSION
 from cdmw.domain.cancellation import raise_if_cancelled
@@ -29,6 +29,24 @@ MAX_LAYOUT_ENTRIES = 250
 FREQUENCIES = ("Every time", "Sometimes", "Once")
 PLATFORMS = ("Steam", "Epic Games", "Other / unsure")
 CLEAN_TESTS = ("Not tried", "Still happens without mods", "Works without mods", "No mods installed")
+PROBLEM_TYPES = ("CDMW error / crash", "Slow or unresponsive", "Mod export / installation",
+                 "Unexpected in-game result", "Other / unsure")
+LAST_WORKING = ("First time trying this", "Worked before", "Not sure")
+PROBLEM_GUIDANCE = {
+    "CDMW error / crash": "Include the exact error and the last action before it. If CDMW closed, reopen it and describe that action.",
+    "Slow or unresponsive": "Say which action stalled, roughly how long you waited, and whether progress or the preview kept changing.",
+    "Mod export / installation": "Name the export option, mod manager and destination. Say whether export failed or the manager could not load the result.",
+    "Unexpected in-game result": "Describe the result in CDMW and in the game separately. Name the item, export option and how you installed the mod.",
+    "Other / unsure": "Give one specific example someone else could repeat, including the item or file and the buttons you used.",
+}
+DETAIL_RULES = (
+    ("summary", "Summary", 10, 120), ("tool", "Tool", 2, 120),
+    ("steps", "Steps to reproduce", 20, 6000),
+    ("expected", "Expected result", 10, 3000), ("actual", "Actual result", 10, 3000),
+    ("game_version", "Game version (or Unknown)", 2, 80),
+    ("mod_setup", "Mods and mod manager (or None)", 4, 2000),
+    ("input_item", "Item or file (or Not applicable)", 4, 300),
+)
 
 
 @dataclass(frozen=True)
@@ -44,31 +62,38 @@ class ProblemDetails:
     mod_setup: str
     clean_test: str
     contact: str = ""
+    problem_type: str = "Other / unsure"
+    input_item: str = "Not applicable"
+    last_working: str = "Not sure"
+    changes: str = ""
 
 
-def validate_details(details: ProblemDetails) -> tuple[str, ...]:
+def detail_errors(details: ProblemDetails) -> tuple[tuple[str, str], ...]:
     errors = []
-    for key, label, minimum, maximum in (
-        ("summary", "Summary", 10, 120), ("tool", "Tool", 2, 120),
-        ("steps", "Steps to reproduce", 20, 6000),
-        ("expected", "Expected result", 10, 3000), ("actual", "Actual result", 10, 3000),
-        ("game_version", "Game version (or Unknown)", 2, 80),
-        ("mod_setup", "Mods and mod manager (or None)", 4, 2000),
-    ):
+    for key, label, minimum, maximum in DETAIL_RULES:
         value = getattr(details, key).strip()
         if len(value) < minimum:
-            errors.append(f"{label}: please provide at least {minimum} characters.")
+            errors.append((key, f"{label}: please provide at least {minimum} characters."))
         elif len(value) > maximum:
-            errors.append(f"{label}: keep this under {maximum} characters.")
+            errors.append((key, f"{label}: keep this under {maximum} characters."))
     for key, choices, label in (
         ("frequency", FREQUENCIES, "How often"), ("game_platform", PLATFORMS, "Game platform"),
         ("clean_test", CLEAN_TESTS, "Test without mods"),
+        ("problem_type", PROBLEM_TYPES, "Type of problem"), ("last_working", LAST_WORKING, "Worked before"),
     ):
         if getattr(details, key) not in choices:
-            errors.append(f"{label}: choose an option.")
+            errors.append((key, f"{label}: choose an option."))
     if len(details.contact) > 200:
-        errors.append("Contact: keep this under 200 characters.")
+        errors.append(("contact", "Contact: keep this under 200 characters."))
+    if len(details.changes) > 1000:
+        errors.append(("changes", "Recent changes: keep this under 1000 characters."))
+    elif details.last_working == "Worked before" and len(details.changes.strip()) < 10:
+        errors.append(("changes", "Recent changes: mention updates or changes since it worked, or write Not sure yet."))
     return tuple(errors)
+
+
+def validate_details(details: ProblemDetails) -> tuple[str, ...]:
+    return tuple(message for _key, message in detail_errors(details))
 
 
 @dataclass(frozen=True)
@@ -91,6 +116,7 @@ class ProblemReportRequest:
     include_logs: bool = True
     include_layout: bool = True
     screenshot_paths: tuple[str, ...] = ()
+    draft_path: str = ""
 
 
 @dataclass(frozen=True)
@@ -260,7 +286,7 @@ def collect_problem_report(request: ProblemReportRequest, *, stop_event: threadi
         try:
             info = Path(selected).lstat()
             evidence["selected_archive_source"] = {"path": selected, "exists": True,
-                "linked": _is_link(info), "size": info.st_size, "modified_ns": info.st_mtime_ns}
+                "linked": _is_link(info), "size": info.st_size, "modified_ns": str(info.st_mtime_ns)}
         except OSError:
             evidence["selected_archive_source"] = {"path": selected, "exists": False}
     if request.include_logs:
@@ -281,20 +307,109 @@ def collect_problem_report(request: ProblemReportRequest, *, stop_event: threadi
     body = json.dumps(payload, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode("utf-8")
     if len(body) > MAX_REPORT_BYTES:
         raise ValueError("Report exceeds 8 MB. Remove a screenshot and collect it again.")
-    # The review includes all textual evidence. Image contents must be checked visually.
-    labels = {"summary": "Summary", "tool": "Tool / workflow", "steps": "Steps to reproduce",
-              "expected": "Expected result", "actual": "Actual result / error", "frequency": "How often",
-              "game_version": "Game version", "game_platform": "Game platform", "mod_setup": "Mods and manager",
-              "clean_test": "Test without mods", "contact": "Contact"}
-    preview = f"Report ID: {report_id}\n\n" + "\n\n".join(
-        f"{label}\n{payload['details'][key] or 'Not provided'}" for key, label in labels.items())
-    preview += "\n\nCollected evidence\n" + json.dumps(payload["evidence"], ensure_ascii=False, indent=2)
-    preview += "\n\nScreenshots\n" + json.dumps(
-        [{key: value for key, value in shot.items() if key != "data"} for shot in payload["screenshots"]], indent=2)
+    preview = problem_report_preview(payload)
     draft_path = Path(snapshot.workspace_root) / "problem_reports" / f"{report_id}.json"
     raise_if_cancelled(stop_event)
     atomic_write_bytes(draft_path, body)
     return ReviewedProblemReport(report_id, body, preview, draft_path)
+
+
+def problem_report_preview(payload: dict) -> str:
+    # The review includes all textual evidence. Image contents must be checked visually.
+    labels = {"summary": "Summary", "tool": "Tool / workflow", "steps": "Steps to reproduce",
+              "expected": "Expected result", "actual": "Actual result / error", "frequency": "How often",
+              "game_version": "Game version", "game_platform": "Game platform", "mod_setup": "Mods and manager",
+              "clean_test": "Test without mods", "contact": "Contact", "problem_type": "Type of problem",
+              "input_item": "Item or file", "last_working": "Worked before", "changes": "Recent changes"}
+    preview = f"Report ID: {payload['report_id']}\n\n" + "\n\n".join(
+        f"{label}\n{payload['details'].get(key) or 'Not provided'}" for key, label in labels.items())
+    preview += "\n\nCollected evidence\n" + json.dumps(payload["evidence"], ensure_ascii=False, indent=2)
+    preview += "\n\nScreenshots\n" + json.dumps(
+        [{key: value for key, value in shot.items() if key != "data"} for shot in payload["screenshots"]], indent=2)
+    return preview
+
+
+def load_problem_report(path: str, snapshot: ProblemSnapshot, *, stop_event=None) -> ReviewedProblemReport:
+    """Reopen a reviewed draft without changing its ID or exact retry payload."""
+    raise_if_cancelled(stop_event)
+    source = Path(path)
+    if source.stat().st_size > MAX_REPORT_BYTES:
+        raise ValueError("The saved draft exceeds 8 MB.")
+    with source.open("rb") as handle:
+        body = handle.read(MAX_REPORT_BYTES + 1)
+    try:
+        payload = json.loads(body)
+        if not isinstance(payload, dict) or set(payload) != {"schema_version", "report_id", "created_at", "details", "evidence", "screenshots"}:
+            raise ValueError()
+        json.dumps(payload, allow_nan=False)
+        report_id = str(UUID(payload["report_id"]))
+        if (len(body) > MAX_REPORT_BYTES or type(payload["schema_version"]) is not int or payload["schema_version"] != 1
+                or report_id != payload["report_id"] or UUID(report_id).version != 4
+                or type(payload["created_at"]) not in (int, float) or payload["created_at"] <= 0):
+            raise ValueError()
+        details = ProblemDetails(**payload["details"])
+        if validate_details(details) or not isinstance(payload["evidence"], dict):
+            raise ValueError()
+        # A hand-edited draft must not silently reintroduce private paths or credentials.
+        redactor = ReportRedactor(snapshot)
+        if redactor.value(payload["details"]) != payload["details"] or redactor.value(payload["evidence"]) != payload["evidence"]:
+            raise ValueError()
+        shots = payload["screenshots"]
+        if not isinstance(shots, list) or len(shots) > MAX_SCREENSHOTS:
+            raise ValueError()
+        from PIL import Image
+        for index, shot in enumerate(shots, 1):
+            raise_if_cancelled(stop_event)
+            if not isinstance(shot, dict) or set(shot) != {"name", "mime", "data", "size"}:
+                raise ValueError()
+            data = base64.b64decode(shot["data"], validate=True)
+            if (shot["name"] != f"screenshot-{index}.jpg" or shot["mime"] != "image/jpeg"
+                    or len(data) != shot["size"] or len(data) > MAX_SCREENSHOT_BYTES):
+                raise ValueError()
+            with Image.open(io.BytesIO(data)) as image:
+                if (image.format != "JPEG" or max(image.size) > 1920
+                        or any(image.info.get(key) for key in ("exif", "icc_profile", "comment"))):
+                    raise ValueError()
+                image.verify()
+    except (ValueError, TypeError, KeyError, AttributeError, OSError):
+        raise ValueError("Choose an unchanged CDMW report draft. If it was edited, collect a new report to review and redact it.") from None
+    raise_if_cancelled(stop_event)
+    return ReviewedProblemReport(report_id, body, problem_report_preview(payload), source)
+
+
+@dataclass(frozen=True)
+class ReportDeliveryFailure:
+    message: str
+    retry_seconds: int = 0
+    duplicate_receipt: str = ""
+
+
+def report_delivery_failure(body: bytes, status: int, retry_after: str = "", *, report_id: str = "") -> ReportDeliveryFailure:
+    try:
+        payload = json.loads(body)
+        if not isinstance(payload, dict):
+            payload = {}
+    except (ValueError, UnicodeDecodeError):
+        payload = {}
+    if status in (202, 429):
+        try:
+            seconds = max(1, min(86400, int(retry_after or payload.get("retry_after", 120))))
+        except (ValueError, TypeError, OverflowError):
+            seconds = 120
+        message = ("Delivery is still pending. Keep this draft and retry after the countdown." if status == 202
+                   else "The report limit has been reached. Keep this draft and retry after the countdown.")
+        return ReportDeliveryFailure(message, seconds)
+    if status == 409 and payload.get("code") == "already_reported" and report_id and payload.get("report_id") == report_id:
+        number = payload.get("issue_number")
+        if type(number) is int and number > 0:
+            return ReportDeliveryFailure(
+                f"A matching problem was already reported as CDMW-{number}. This new draft was not sent. Keep the original receipt for follow-up.",
+                duplicate_receipt=f"CDMW-{number}")
+    if status == 401:
+        return ReportDeliveryFailure("Private test access is missing or expired. Keep the local draft and ask the maintainer to restore test access.")
+    if status == 400:
+        return ReportDeliveryFailure("The service could not validate this report. Check the required details and collect a new draft.")
+    return ReportDeliveryFailure("Delivery is not confirmed. The local draft is safe; retry this report when the service is available.")
 
 
 def report_test_token() -> str:

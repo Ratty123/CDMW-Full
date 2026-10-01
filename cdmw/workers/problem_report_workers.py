@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import QCoreApplication, QObject, QThread, QTimer, Qt, Signal, Slot
 
-from cdmw.services.problem_report_service import ProblemReportRequest, collect_problem_report
+from cdmw.services.problem_report_service import ProblemReportRequest, collect_problem_report, load_problem_report
 from cdmw.workers.utility_workers import UtilityWorker
 
 _active_collections: set[ProblemReportCollection] = set()
@@ -21,7 +21,8 @@ class ProblemReportCollection(QObject):
         self._cancelled = False
         self.worker_thread = QThread()
         self.worker = UtilityWorker(
-            lambda _log, stop_event: collect_problem_report(request, stop_event=stop_event),
+            lambda _log, stop_event: (load_problem_report(request.draft_path, request.snapshot, stop_event=stop_event)
+                                     if request.draft_path else collect_problem_report(request, stop_event=stop_event)),
             task_accepts_cancel=True,
         )
         self.worker.moveToThread(self.worker_thread)

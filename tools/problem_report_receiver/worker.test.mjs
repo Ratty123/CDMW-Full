@@ -3,7 +3,8 @@ import { afterEach, test } from "node:test";
 import worker from "./worker.mjs";
 
 const originalFetch = globalThis.fetch;
-afterEach(() => { globalThis.fetch = originalFetch; });
+const originalNow = Date.now;
+afterEach(() => { globalThis.fetch = originalFetch; Date.now = originalNow; });
 
 class Bucket {
   values = new Map();
@@ -30,7 +31,8 @@ function report() {
 }
 function environment() { return {REPORTS:new Bucket(),GITHUB_TOKEN:"server-only",REPORT_TEST_TOKEN:"private-test-key"}; }
 function request(data = report(), token = "private-test-key") {
-  return new Request("https://reports.example/reports",{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${token}`},body:JSON.stringify(data)});
+  return new Request("https://reports.example/reports",{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${token}`,
+    "CF-Connecting-IP":"198.51.100.10"},body:JSON.stringify(data)});
 }
 function githubMock({privateRepo = true, failCreate = false, acceptedButTimedOut = false} = {}) {
   const issues = [];
@@ -160,4 +162,147 @@ test("viewer uses a fragment key and renders report content as text", async () =
   assert.match(html,/history.replaceState/);
   assert.match(html,/pre.textContent/);
   assert.match(viewer.headers.get("Content-Security-Policy"),/frame-ancestors 'none'/);
+});
+
+function clock(day) {
+  let now = Date.UTC(2026,10,day,12);
+  Date.now = () => now;
+  return milliseconds => { now += milliseconds; };
+}
+function freshReport(index) {
+  const data = report();
+  data.report_id = `12345678-1234-4321-8765-${String(index).padStart(12,"0")}`;
+  data.details.summary += ` case ${index}`;
+  return data;
+}
+function fromNetwork(data,index) {
+  const value = request(data);
+  value.headers.set("CF-Connecting-IP",`198.51.100.${index}`);
+  return value;
+}
+
+test("new IDs and new evidence cannot duplicate the same problem from a network", async () => {
+  clock(1);
+  const env=environment(); const mock=githubMock();
+  const original=report();
+  assert.equal((await worker.fetch(request(original),env)).status,201);
+  const changed=structuredClone(original);
+  changed.report_id=freshReport(2).report_id; changed.created_at=999;
+  changed.evidence={environment:{cdmw_version:"different"}};
+  changed.details.steps="  "+changed.details.steps.toUpperCase()+"  ";
+  const duplicate=await worker.fetch(request(changed),env);
+  assert.equal(duplicate.status,409);
+  assert.equal((await duplicate.json()).code,"already_reported");
+  assert.equal(mock.creates(),1);
+  assert.equal(await env.REPORTS.get(`reports/${changed.report_id}.json`),undefined);
+});
+
+test("cooldown and network daily cap persist through separate receiver requests", async () => {
+  const advance=clock(2); const env=environment(); const mock=githubMock();
+  assert.equal((await worker.fetch(request(freshReport(1)),env)).status,201);
+  const tooSoon=await worker.fetch(request(freshReport(2)),env);
+  assert.equal(tooSoon.status,429); assert.equal(tooSoon.headers.get("Retry-After"),"120");
+  for(let i=2;i<=5;i++) {
+    advance(121000);
+    assert.equal((await worker.fetch(request(freshReport(i)),env)).status,201);
+  }
+  advance(121000);
+  const capped=await worker.fetch(request(freshReport(6)),env);
+  assert.equal(capped.status,429); assert.equal((await capped.json()).code,"network_daily_limit");
+  assert.equal(mock.creates(),5);
+  // Existing receipts remain usable when the network quota is exhausted.
+  assert.equal((await worker.fetch(request(freshReport(1)),env)).status,200);
+  const state=await (await env.REPORTS.get("reports/_admission-v1.json")).json();
+  assert.equal(JSON.stringify(state).includes("198.51.100"),false);
+  assert.equal(JSON.stringify(state).includes("private-test-key"),false);
+});
+
+test("global cap cannot be bypassed by changing networks and resets at UTC midnight", async () => {
+  const advance=clock(3); const env=environment(); const mock=githubMock();
+  for(let i=1;i<=10;i++) {
+    advance(2100);
+    assert.equal((await worker.fetch(fromNetwork(freshReport(i),i),env)).status,201);
+  }
+  const capped=await worker.fetch(fromNetwork(freshReport(11),11),env);
+  assert.equal(capped.status,429); assert.equal((await capped.json()).code,"daily_report_limit");
+  assert.equal(mock.creates(),10);
+  advance(86400000);
+  assert.equal((await worker.fetch(fromNetwork(freshReport(11),11),env)).status,201);
+});
+
+test("concurrent different reports cannot overrun admission or write extra evidence", async () => {
+  clock(4); const env=environment(); const mock=githubMock();
+  const results=await Promise.all(Array.from({length:30},(_,i)=>worker.fetch(fromNetwork(freshReport(i+1),i+1),env)));
+  assert.equal(results.filter(result=>result.status===201).length,1);
+  assert.equal(results.filter(result=>result.status===429).length,29);
+  assert.equal(mock.creates(),1);
+  assert.equal(env.REPORTS.values.size,2); // one admission ledger, one report
+});
+
+test("protection fails closed on missing network or unavailable/corrupt admission storage", async () => {
+  clock(5); const env=environment(); const mock=githubMock();
+  const missing=request(); missing.headers.delete("CF-Connecting-IP");
+  assert.equal((await worker.fetch(missing,env)).status,503);
+  assert.equal(env.REPORTS.values.size,0);
+  const put=env.REPORTS.put.bind(env.REPORTS);
+  env.REPORTS.put=async (key,...args)=> { if(key.includes("_admission")) throw Error("unavailable"); return put(key,...args); };
+  assert.equal((await worker.fetch(request(),env)).status,429);
+  assert.equal(env.REPORTS.values.size,0); assert.equal(mock.creates(),0);
+  await put("reports/_admission-v1.json",JSON.stringify({version:2,entries:[]}));
+  assert.equal((await worker.fetch(request(),env)).status,503);
+  await put("reports/_admission-v1.json","null");
+  assert.equal((await worker.fetch(request(),env)).status,503);
+});
+
+test("a pending delivery from a previous day must reserve today's capacity before creating an issue", async () => {
+  const advance=clock(6); const env=environment(); githubMock({failCreate:true});
+  assert.equal((await worker.fetch(request(),env)).status,503);
+  advance(86400000); const mock=githubMock();
+  for(let i=1;i<=10;i++) {
+    advance(2100);
+    assert.equal((await worker.fetch(fromNetwork(freshReport(i),i+20),env)).status,201);
+  }
+  assert.equal((await worker.fetch(request(),env)).status,429);
+  assert.equal(mock.creates(),10);
+});
+
+test("rapid invalid requests are rejected before repeatedly reading storage", async () => {
+  clock(8); const env=environment();
+  let reads=0; const get=env.REPORTS.get.bind(env.REPORTS);
+  env.REPORTS.get=async(...args)=>{reads++; return get(...args);};
+  const invalid=report(); invalid.details.steps="broken";
+  for(let i=0;i<40;i++) assert.equal((await worker.fetch(request(invalid),env)).status,400);
+  assert.equal((await worker.fetch(request(invalid),env)).status,429);
+  assert.equal(reads,0);
+});
+
+test("evidence download preserves exact reviewed JSON bytes and large integer timestamps", async () => {
+  clock(9); const env=environment(); githubMock();
+  const raw=JSON.stringify(report(),null,2).replace('"created_at": 1','"created_at": 1790840000000000100');
+  const submission=request();
+  const value=new Request(submission.url,{method:'POST',headers:submission.headers,body:raw});
+  assert.equal((await worker.fetch(value,env)).status,201);
+  const stored=await (await env.REPORTS.get(`reports/${report().report_id}.json`)).json();
+  assert.equal(stored.report_json,raw);
+  const download=await worker.fetch(new Request(`https://reports.example/reports/${report().report_id}/download`,{
+    headers:{Authorization:`Bearer ${stored.download_key}`}}),env);
+  assert.equal(await download.text(),raw);
+  const altered=raw.replace('1790840000000000100','1790840000000000101');
+  assert.equal((await worker.fetch(new Request(submission.url,{method:'POST',headers:submission.headers,body:altered}),env)).status,409);
+  const viewer=await worker.fetch(new Request(`https://reports.example/reports/${report().report_id}`),env);
+  assert.match(await viewer.text(),/new Blob\(\[raw\]/);
+});
+
+test("earlier pilot record format retains accepted receipts and downloads", async () => {
+  clock(10); const env=environment(); const mock=githubMock();
+  await worker.fetch(request(),env);
+  const key=`reports/${report().report_id}.json`;
+  const stored=await (await env.REPORTS.get(key)).json();
+  stored.report=JSON.parse(stored.report_json); delete stored.report_json;
+  await env.REPORTS.put(key,JSON.stringify(stored));
+  assert.equal((await worker.fetch(request(),env)).status,200);
+  assert.equal(mock.creates(),1);
+  const downloaded=await worker.fetch(new Request(`https://reports.example/reports/${report().report_id}/download`,{
+    headers:{Authorization:`Bearer ${stored.download_key}`}}),env);
+  assert.deepEqual(await downloaded.json(),report());
 });

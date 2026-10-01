@@ -27,8 +27,13 @@ disabled; collecting a local draft still works.
 
 Required fields: summary, affected tool/workflow, reproduction steps, expected
 result, actual result/error, frequency, game version/platform, mods/manager and the
-result of testing without mods. `Unknown`, `None` and `Not tried` are useful answers.
+result of testing without mods. The three steps also ask for the problem type, item
+or file and whether it worked before. If it worked before, describe recent changes
+or write `Not sure yet`. Guidance changes for crashes, stalls, installation and
+in-game results. `Unknown`, `None` and `Not tried` are useful answers.
 Contact is optional. No GitHub account is required by the reporter.
+The pilot's new guidance uses English source wording; translation review is still
+needed before a wider rollout.
 
 The collector runs on a separate cancellable worker even if another CDMW tool is
 busy. It captures the context at opening, recent log excerpts, up to 40 runtime
@@ -48,6 +53,9 @@ the review step. The exact uploaded JSON is saved atomically under
 
 The receiver caps each body at 8 MiB, validates required fields and screenshot
 format, and refuses to create issues unless the configured inbox is private.
+New reports retain the exact reviewed JSON text in storage and downloads; large
+integer timestamps cannot be rounded during delivery. Earlier prototype records
+retain their original format and accepted receipts.
 It creates a private issue containing the human description and an evidence link.
 The link grants access to that report only, so do not repost it. Its key is carried
 in the URL fragment and then an Authorization header, not a server URL query.
@@ -59,8 +67,48 @@ payload; R2 conditional writes serialize delivery, and ambiguous GitHub failures
 are reconciled against existing issues before creating another. Pending deliveries
 can be retried after two minutes. A failed upload keeps the local draft. Edited and
 recollected reports get a new ID; do not recollect merely to retry an upload.
+**Open saved draft** reopens the exact ID and payload after an app restart. It checks
+the format, screenshot limits/metadata and redaction before review; altered unsafe
+drafts must be recollected. Consent is required again. **Copy receipt** supplies the
+reference for follow-up. A server limit shows a countdown; it never triggers an
+automatic retry. Screenshots must be selected again if an opened draft is edited
+and recollected.
 Evidence is inaccessible after 90 days and R2 removes it through the lifecycle rule.
 Private issue summaries remain until the maintainer removes them.
+
+## Spam controls in the private pilot
+
+- A valid private test key is required before reading evidence or calling GitHub.
+- At most **10 new report admissions per UTC day** across the service, **5 per
+  internet connection per UTC day**, and a **two-minute gap** between new reports
+  from that connection. Shared networks share this allowance.
+- A two-second global gap bounds writes to the admission object. One conditional
+  R2 write reserves capacity before report evidence or GitHub issues are created.
+  Concurrent requests cannot overrun the cap. Unavailable or corrupt protection
+  storage fails closed. Failed deliveries keep their reservation for recovery;
+  retries from a previous day must reserve current-day capacity.
+- Matching descriptions from the same connection on the same day are rejected even
+  with a new ID, changed timestamps or different collected evidence. Exact accepted
+  retries return the original receipt and remain available after quota exhaustion.
+- Early per-Worker-instance burst limits (40 requests per connection/minute and
+  120 total/minute) reduce repeated body reads. These are best-effort; the persistent
+  admission limits provide the cross-instance enforcement.
+
+The bounded ledger lives at `reports/_admission-v1.json` in the existing private
+bucket and stores only the current UTC day, report IDs, description hashes,
+timestamps and daily HMAC network identifiers. Raw IP addresses are not stored in
+reports, issues or the ledger. Cloudflare supplies the connection IP; client IDs and
+forwarding headers cannot choose the quota key. A new day replaces the ledger's old
+entries. The existing `reports/` lifecycle also removes an inactive ledger after
+90 days. The Worker uses the existing bucket/secrets; no additional service or paid
+upgrade is needed. R2 consistency/conditional writes and its single-key write rate
+are described in the [Workers API](https://developers.cloudflare.com/r2/api/workers/workers-api-reference/)
+and [R2 limits](https://developers.cloudflare.com/r2/platform/limits/).
+
+These controls bound report creation and storage; they do not guarantee zero
+request costs or prevent an attacker from consuming the day's allowance. VPNs can
+change the per-connection identity, while the global cap still applies. Anonymous
+public intake needs a real human-verification/moderation flow before release.
 
 ## Maintenance and validation
 

@@ -24,7 +24,8 @@ from PySide6.QtWidgets import QApplication, QMainWindow
 from cdmw.domain.cancellation import RunCancelled
 from cdmw.services.problem_report_service import (
     MAX_LAYOUT_ENTRIES, ProblemDetails, ProblemReportRequest, ProblemSnapshot, ReportRedactor,
-    _folder_layout, _is_link, collect_problem_report, parse_report_receipt, validate_details,
+    _folder_layout, _is_link, collect_problem_report, load_problem_report, parse_report_receipt,
+    report_delivery_failure, validate_details,
 )
 from cdmw.ui.shell.menus import ShellMenusMixin
 from cdmw.ui.shell.problem_report_dialog import ProblemReportDialog
@@ -61,11 +62,11 @@ def wait_until(predicate, timeout: float = 5) -> None:
 
 def fill_form(dialog: ProblemReportDialog) -> None:
     data = details()
-    for key in ("summary", "tool", "game_version", "contact"):
+    for key in ("summary", "tool", "input_item", "game_version", "contact"):
         getattr(dialog, key).setText(getattr(data, key))
     for key in ("steps", "expected", "actual", "mod_setup"):
         getattr(dialog, key).setPlainText(getattr(data, key))
-    for key in ("frequency", "game_platform", "clean_test"):
+    for key in ("frequency", "game_platform", "clean_test", "problem_type", "last_working"):
         widget = getattr(dialog, key)
         widget.setCurrentIndex(widget.findData(getattr(data, key)))
 
@@ -122,6 +123,7 @@ def test_collection_reads_only_scoped_metadata_and_saves_exact_reviewed_draft(tm
     assert b"secret-value" not in result.body
     assert str(tmp_path).encode() not in result.body
     assert payload["evidence"]["selected_archive_source"]["exists"] is True
+    assert payload["evidence"]["selected_archive_source"]["modified_ns"] == str(before.st_mtime_ns)
     assert len(payload["evidence"]["logs"]["runtime_events"]) == 1
     assert "private-secret.txt" not in result.preview
     assert "not a clean-install verification" in result.preview
@@ -216,7 +218,7 @@ def test_dialog_requires_fields_review_and_consent_and_rejects_stale_results(tmp
     app(); monkeypatch.setenv("CDMW_REPORT_TEST_TOKEN","synthetic-key")
     dialog = ProblemReportDialog(snapshot(tmp_path))
     dialog._collect()
-    assert "Steps to reproduce" in dialog.status.text() and not dialog.send_button.isEnabled()
+    assert "Summary" in dialog.status.text() and not dialog.send_button.isEnabled()
     fill_form(dialog); dialog._collect()
     wait_until(lambda:dialog._collection is None)
     assert dialog._reviewed is not None and not dialog.send_button.isEnabled()
@@ -320,5 +322,128 @@ def test_async_upload_preserves_same_draft_on_failure_and_accepts_only_a_receipt
         assert dialog._sent and "Report received: CDMW-2" in dialog.status.text()
         assert len(received) == 2 and received[0] == received[1]
         assert received[0][1] == "Bearer synthetic-key"
+    finally:
+        dialog.close(); server.shutdown(); server.server_close(); thread.join(2)
+
+
+def test_guided_questions_focus_the_missing_field_and_explain_workflow(tmp_path):
+    app()
+    dialog = ProblemReportDialog(snapshot(tmp_path))
+    try:
+        fill_form(dialog)
+        dialog.problem_type.setCurrentIndex(dialog.problem_type.findData("Unexpected in-game result"))
+        assert "CDMW and in the game separately" in dialog.guidance.text()
+        dialog.steps.setPlainText("broken")
+        dialog._next()
+        assert dialog.tabs.currentIndex() == 0 and "Steps to reproduce" in dialog.status.text()
+        dialog.steps.setPlainText(details().steps)
+        dialog._next()
+        assert dialog.tabs.currentIndex() == 1
+        dialog.last_working.setCurrentIndex(dialog.last_working.findData("Worked before"))
+        assert not dialog.changes.isHidden()
+        dialog._collect()
+        assert "Recent changes" in dialog.status.text() and dialog._collection is None
+        dialog.changes.setPlainText("Not sure yet")
+        dialog._collect(); wait_until(lambda:dialog._collection is None)
+        assert dialog.tabs.currentIndex() == 2 and dialog._reviewed is not None
+        assert "Unexpected in-game result" in dialog.preview.toPlainText()
+    finally:
+        dialog.close()
+
+
+def test_saved_draft_reopens_exact_payload_and_rejects_edited_private_data(tmp_path,monkeypatch):
+    app(); monkeypatch.setenv("CDMW_REPORT_TEST_TOKEN","synthetic-key")
+    reviewed = collect_problem_report(ProblemReportRequest(details(),snapshot(tmp_path)))
+    loaded = load_problem_report(str(reviewed.draft_path),snapshot(tmp_path))
+    assert loaded.body == reviewed.body and loaded.report_id == reviewed.report_id
+    monkeypatch.setattr("cdmw.ui.shell.problem_report_dialog.QFileDialog.getOpenFileName",lambda *args:(str(reviewed.draft_path),""))
+    dialog = ProblemReportDialog(snapshot(tmp_path))
+    try:
+        dialog._open_draft(); wait_until(lambda:dialog._collection is None)
+        assert dialog._reviewed.body == reviewed.body
+        assert dialog.summary.text() == details().summary
+        assert not dialog.send_button.isEnabled()
+        dialog.consent.setChecked(True)
+        assert dialog.send_button.isEnabled()
+    finally:
+        dialog.close()
+    payload=json.loads(reviewed.body)
+    payload["evidence"]["private"] = r"C:\Users\Private Person\secret.txt"
+    reviewed.draft_path.write_text(json.dumps(payload),encoding="utf-8")
+    with pytest.raises(ValueError,match="unchanged"):
+        load_problem_report(str(reviewed.draft_path),snapshot(tmp_path))
+    payload=json.loads(reviewed.body); payload["unexpected_secret"]="private-value"
+    reviewed.draft_path.write_text(json.dumps(payload),encoding="utf-8")
+    with pytest.raises(ValueError,match="unchanged"):
+        load_problem_report(str(reviewed.draft_path),snapshot(tmp_path))
+
+
+def test_controller_reuses_report_dialog_and_releases_it_on_close(tmp_path):
+    app()
+    class Owner(QMainWindow,ProfileControllerMixin):
+        def _problem_report_snapshot(self): return snapshot(tmp_path)
+    owner=Owner()
+    try:
+        owner.show_problem_report_dialog()
+        first=owner._problem_report_dialog
+        owner.show_problem_report_dialog()
+        assert owner._problem_report_dialog is first and first.isVisible()
+        first.close(); QTest.qWait(10)
+        assert owner._problem_report_dialog is None
+        owner.show_problem_report_dialog()
+        assert owner._problem_report_dialog is not first
+        owner._problem_report_dialog.close(); QTest.qWait(10)
+    finally:
+        owner.close()
+
+
+def test_report_failure_guidance_requires_matched_duplicate_and_bounds_countdown():
+    duplicate={"code":"already_reported","report_id":"current","issue_number":3}
+    failure=report_delivery_failure(json.dumps(duplicate).encode(),409,report_id="current")
+    assert failure.duplicate_receipt == "CDMW-3" and "was not sent" in failure.message
+    assert not report_delivery_failure(json.dumps(duplicate).encode(),409,report_id="different").duplicate_receipt
+    assert report_delivery_failure(b"[]",429,"999999999").retry_seconds == 86400
+    assert report_delivery_failure(b"bad",202,"bad").retry_seconds == 120
+    assert "expired" in report_delivery_failure(b"{}",401).message
+
+
+def test_saved_screenshots_preserve_reviewed_image_and_cannot_hide_extra_data(tmp_path):
+    from PIL import Image
+    shot=tmp_path / "screen.png"; Image.new("RGB",(60,30)).save(shot)
+    reviewed=collect_problem_report(ProblemReportRequest(details(),snapshot(tmp_path),screenshot_paths=(str(shot),)))
+    assert load_problem_report(str(reviewed.draft_path),snapshot(tmp_path)).body == reviewed.body
+    data=json.loads(reviewed.body); data["screenshots"][0]["private_file"]=r"C:\Users\Private\notes.txt"
+    reviewed.draft_path.write_text(json.dumps(data),encoding="utf-8")
+    with pytest.raises(ValueError,match="unchanged"):
+        load_problem_report(str(reviewed.draft_path),snapshot(tmp_path))
+
+
+def test_server_cooldown_blocks_repeated_send_and_retries_the_same_draft(tmp_path,monkeypatch):
+    app(); monkeypatch.setenv("CDMW_REPORT_TEST_TOKEN","synthetic-key")
+    received=[]
+    class Receiver(BaseHTTPRequestHandler):
+        def log_message(self,*args): pass
+        def do_POST(self):
+            body=self.rfile.read(int(self.headers["Content-Length"])); received.append(body)
+            self.send_response(429 if len(received)==1 else 201)
+            self.send_header("Content-Type","application/json")
+            self.send_header("Retry-After","1"); self.end_headers()
+            payload={"code":"report_limit","retry_after":1} if len(received)==1 else {
+                "status":"accepted","report_id":json.loads(body)["report_id"],"issue_number":4}
+            self.wfile.write(json.dumps(payload).encode())
+    server=ThreadingHTTPServer(("127.0.0.1",0),Receiver)
+    thread=threading.Thread(target=server.serve_forever,daemon=True); thread.start()
+    monkeypatch.setattr("cdmw.ui.shell.problem_report_dialog.REPORT_ENDPOINT",f"http://127.0.0.1:{server.server_port}/reports")
+    dialog=ProblemReportDialog(snapshot(tmp_path))
+    try:
+        fill_form(dialog); dialog._collect(); wait_until(lambda:dialog._collection is None)
+        dialog.consent.setChecked(True); dialog._send(); wait_until(lambda:dialog._reply is None)
+        assert not dialog.send_button.isEnabled() and "Retry in" in dialog.send_button.text()
+        dialog._send(); assert len(received)==1
+        wait_until(dialog.send_button.isEnabled,3)
+        dialog._send(); wait_until(lambda:dialog._reply is None)
+        assert dialog._sent and received[0] == received[1]
+        dialog.copy_receipt_button.click()
+        assert "CDMW-4" in QApplication.clipboard().text()
     finally:
         dialog.close(); server.shutdown(); server.server_close(); thread.join(2)

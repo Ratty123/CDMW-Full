@@ -9,7 +9,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Added
 
-- Report a Problem guides users through required details, reviews redacted evidence and optional screenshots, and keeps a local draft. Direct delivery to a private inbox is available for maintainer testing.
+- Report a Problem guides users through problem-specific questions, reviews redacted evidence and optional screenshots, and can reopen saved drafts for retry. Private test delivery includes duplicate protection, submission limits and retry guidance.
 
 ### Changed
 
