@@ -761,12 +761,14 @@ def restore_native_mesh_editor_morph_runtime_snapshot(
             context.update({key: snapshot.get(key) for key in ("snapshot_id", "source_session_id", "topology_digest")})
         _note_native_job_failure("mesh-editor-session-json", f"Snapshot restore validation failed: {exc}", payload=context, exc_info=True)
         return None
+    # Keep the temp alias used for capture: the native helper checks TEMP lexically.
+    snapshot_path = str(Path(tempfile.gettempdir()) / Path(str(descriptor["path"])).name)
     return native_mesh_editor_session_command(
         "morph_snapshot_restore",
         session_text,
         {
             "snapshot_id": descriptor["snapshot_id"],
-            "snapshot_path": descriptor["path"],
+            "snapshot_path": snapshot_path,
             "snapshot_byte_length": descriptor["byte_length"],
             "snapshot_sha256": descriptor["sha256"],
         },
@@ -786,12 +788,14 @@ def dispose_native_mesh_editor_morph_runtime_snapshot(
     descriptor = _validated_morph_runtime_snapshot_descriptor(snapshot)
     if descriptor is None:
         return False
+    # Native validation and the tracked allocation both use the unresolved temp root.
+    snapshot_path = str(Path(tempfile.gettempdir()) / Path(str(descriptor["path"])).name)
     report = native_mesh_editor_session_command(
         "morph_snapshot_dispose",
         str(descriptor["source_session_id"]),
         {
             "snapshot_id": descriptor["snapshot_id"],
-            "snapshot_path": descriptor["path"],
+            "snapshot_path": snapshot_path,
             "snapshot_byte_length": descriptor["byte_length"],
             "snapshot_sha256": descriptor["sha256"],
         },
@@ -800,7 +804,7 @@ def dispose_native_mesh_editor_morph_runtime_snapshot(
     )
     if not isinstance(report, Mapping) or report.get("disposed") is not True:
         return False
-    _release_native_preview_delta_path(str(descriptor["path"]))
+    _release_native_preview_delta_path(snapshot_path)
     return True
 
 

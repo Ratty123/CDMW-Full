@@ -1243,6 +1243,10 @@ replacement, generated layer and morph-profile trees are independently bounded, 
 complete owned tree has an aggregate limit. Path escape, hash, length, unexpected-entry,
 stale-generation, replay, and out-of-order checks fail closed.
 
+Runtime snapshot restore and cleanup support Windows temporary folders redirected
+through directory junctions, including Finish Edit Mesh. Snapshot location, length,
+and checksum validation remain mandatory.
+
 ### Theme and input handling
 
 The embedded child receives CDMW's active semantic palette, explicit light or
