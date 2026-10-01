@@ -505,3 +505,34 @@ test("verification page exposes only the public widget key and keeps credentials
   assert.match(page.headers.get("Content-Security-Policy"),/frame-src https:\/\/challenges.cloudflare.com/);
   assert.equal(page.headers.get("Referrer-Policy"),"no-referrer");
 });
+
+test("completed browser verification stays successful after provider expiry or late callbacks",async()=>{
+  const page=await worker.fetch(publicRequest("/verify"),publicEnvironment());
+  const script=(await page.text()).match(/<script nonce="[^"]+">([\s\S]*?)<\/script>/)[1];
+  const ticket=Buffer.from(JSON.stringify({nonce:"owned-test-nonce"})).toString("base64url")+".signature";
+  const elements={status:{textContent:""},retry:{hidden:true}},window={};
+  let challenge,requests=0,resets=0;
+  runInNewContext(script,{
+    window,location:{hash:"#"+ticket,pathname:"/verify"},history:{replaceState:()=>{}},atob,
+    document:{getElementById:id=>elements[id]},
+    turnstile:{render:(selector,options)=>{challenge=options;return "owned-widget"},reset:()=>resets++},
+    fetch:async()=>{requests++;return Response.json({status:"verified"})},
+  });
+  window.cdmwCheck();
+  challenge["expired-callback"]();
+  assert.match(elements.status.textContent,/expired/);
+  assert.equal(elements.retry.hidden,false);
+  elements.retry.onclick();
+  assert.equal(resets,1);
+  await challenge.callback("owned-token");
+  assert.equal(elements.status.textContent,"Verified. Return to CDMW.");
+  assert.equal(elements.retry.hidden,true);
+  challenge["expired-callback"]();
+  challenge["error-callback"]();
+  elements.retry.onclick();
+  await challenge.callback("late-token");
+  assert.equal(elements.status.textContent,"Verified. Return to CDMW.");
+  assert.equal(elements.retry.hidden,true);
+  assert.equal(requests,1);
+  assert.equal(resets,1);
+});

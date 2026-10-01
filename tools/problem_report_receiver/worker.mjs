@@ -330,23 +330,23 @@ function verificationPage(env) {
 <script nonce="${nonce}">
 const ticket=location.hash.slice(1);history.replaceState(null,'',location.pathname);
 const status=document.getElementById('status'),retry=document.getElementById('retry');
-let widget;
-function problem(text){status.textContent=text;retry.hidden=false}
+let widget,verified=false;
+function problem(text){if(verified)return;status.textContent=text;retry.hidden=false}
 window.cdmwCheck=()=>{
   try{
     if(!/^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$/.test(ticket)||ticket.length>2048)throw Error('Open this check from CDMW by selecting Send report.');
     const encoded=ticket.split('.')[0].replaceAll('-','+').replaceAll('_','/');
     const data=JSON.parse(atob(encoded+'='.repeat((4-encoded.length%4)%4)));
     widget=turnstile.render('#challenge',{sitekey:${JSON.stringify(env.TURNSTILE_SITE_KEY)},action:'cdmw_report',cData:data.nonce,theme:'dark',
-      callback:async token=>{status.textContent='Confirming…';retry.hidden=true;try{
+      callback:async token=>{if(verified)return;status.textContent='Confirming…';retry.hidden=true;try{
         const r=await fetch('/verification/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ticket,turnstile_token:token})});
         const result=await r.json();if(!r.ok||result.status!=='verified')throw Error(result.error||'Retry the check.');
-        status.textContent='Verified. Return to CDMW.';
+        verified=true;retry.hidden=true;status.textContent='Verified. Return to CDMW.';
       }catch(e){problem(e.message)}},'error-callback':()=>problem('The check could not finish. Retry or send again from CDMW.'),
       'expired-callback':()=>problem('The check expired. Retry the check.')});
   }catch(e){status.textContent=e.message}
 };
-retry.onclick=()=>{retry.hidden=true;status.textContent='';turnstile.reset(widget)};
+retry.onclick=()=>{if(verified)return;retry.hidden=true;status.textContent='';turnstile.reset(widget)};
 </script><script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=cdmwCheck&render=explicit" async defer></script></html>`;
   return new Response(html,{headers:{"Content-Type":"text/html; charset=utf-8","Cache-Control":"no-store",
     "Referrer-Policy":"no-referrer","X-Content-Type-Options":"nosniff","X-Robots-Tag":"noindex, nofollow, noarchive",

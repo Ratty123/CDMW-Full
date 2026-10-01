@@ -107,6 +107,8 @@ After review and consent, **Send report** opens the default browser. Only the re
 ID and SHA-256 of its exact bytes are sent before the check. Completing Turnstile
 lets CDMW send the already-reviewed report automatically; the browser never receives
 the report text or screenshots. **Open browser** reopens the current check.
+Once verified, the browser keeps its success message even if the completed
+Turnstile token later expires.
 **Cancel**, editing or closing invalidates the local request and stops polling;
 the saved draft remains. Verification expires after ten minutes, and a changed
 internet connection requires starting a fresh check. The app never follows network
