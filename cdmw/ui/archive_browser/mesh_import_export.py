@@ -692,15 +692,15 @@ class ArchiveMeshImportExportMixin:
         _launch_export()
 
     def _export_current_archive_model(self) -> None:
+        current_entry = self._current_archive_mesh_entry()
+        if current_entry is not None:
+            self._start_archive_mesh_export(current_entry, "obj")
+            return
+
         result = self.current_archive_preview_result
         preview_model = result.preview_model if result is not None else None
         if preview_model is None or self.archive_preview_showing_loose:
             self.shell.set_status_message("No model preview is available to export.", error=True)
-            return
-
-        current_entry = self._current_archive_mesh_entry()
-        if current_entry is not None:
-            self._start_archive_mesh_export(current_entry, "obj")
             return
 
         preview_path = str(getattr(preview_model, "path", "") or "").strip()

@@ -387,8 +387,10 @@ poses are unaffected. The native package cache invalidates older baked previews.
 
 ### OBJ export and round trips
 
-**Export OBJ...** preserves the PAC's original positions and normals, including embedded
-head and ear geometry. To bake the same neutral skeleton variation used by FBX,
+**Export > Export OBJ** exports the selected archive mesh without requiring a loaded
+preview. It and the right-click **Export OBJ...** action preserve the PAC's original
+positions and normals, including embedded head and ear geometry. To bake the same
+neutral skeleton variation used by FBX,
 right-click a PAC and choose **Export OBJ (Neutral Appearance)...**. The matching
 `.meta.json` stores the source identity and, for neutral exports, the reversible
 appearance transform. **Round-trip edit** converts neutral OBJ positions and normals
