@@ -17,9 +17,10 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PySide6.QtCore import QUrl, Qt
 from PySide6.QtGui import QIcon
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QMainWindow
+from PySide6.QtWidgets import QApplication, QMainWindow, QToolTip
 
 from cdmw.domain.cancellation import RunCancelled
 from cdmw.services.problem_report_service import (
@@ -320,8 +321,42 @@ def test_async_upload_preserves_same_draft_on_failure_and_accepts_only_a_receipt
         assert reviewed.draft_path.read_bytes() == reviewed.body
         dialog._send(); wait_until(lambda:dialog._reply is None)
         assert dialog._sent and "Report received: CDMW-2" in dialog.status.text()
+        assert dialog.tabs.currentIndex() == dialog._RECEIPT_PAGE
+        assert dialog.receipt_reference.text() == "CDMW-2"
+        assert dialog.receipt_summary.text() == details().summary
+        assert dialog.send_button.isHidden() and dialog.status.isHidden()
         assert len(received) == 2 and received[0] == received[1]
         assert received[0][1] == "Bearer synthetic-key"
+    finally:
+        dialog.close(); server.shutdown(); server.server_close(); thread.join(2)
+
+
+def test_matched_duplicate_opens_receipt_without_claiming_the_new_draft_was_sent(tmp_path,monkeypatch):
+    app(); monkeypatch.setenv("CDMW_REPORT_TEST_TOKEN","synthetic-key")
+    received=[]
+    class Receiver(BaseHTTPRequestHandler):
+        def log_message(self,*args): pass
+        def do_POST(self):
+            payload=json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            received.append(payload["report_id"])
+            self.send_response(409)
+            self.send_header("Content-Type","application/json"); self.end_headers()
+            self.wfile.write(json.dumps({"code":"already_reported","report_id":payload["report_id"],"issue_number":3}).encode())
+    server=ThreadingHTTPServer(("127.0.0.1",0),Receiver)
+    thread=threading.Thread(target=server.serve_forever,daemon=True); thread.start()
+    monkeypatch.setattr("cdmw.ui.shell.problem_report_dialog.REPORT_ENDPOINT",f"http://127.0.0.1:{server.server_port}/reports")
+    dialog=ProblemReportDialog(snapshot(tmp_path))
+    try:
+        fill_form(dialog); dialog._collect(); wait_until(lambda:dialog._collection is None)
+        dialog.consent.setChecked(True); dialog._send(); wait_until(lambda:dialog._reply is None)
+        assert dialog._sent and dialog.tabs.currentIndex() == dialog._RECEIPT_PAGE
+        assert dialog.receipt_title.text() == "Already reported"
+        assert dialog.receipt_reference.text() == "CDMW-3"
+        assert "was not sent" in dialog.receipt_detail.text()
+        assert dialog.send_button.isHidden() and not dialog._step_buttons[0].isEnabled()
+        dialog._send(); assert len(received) == 1
+        dialog.copy_receipt_button.click()
+        assert QApplication.clipboard().text() == "CDMW-3"
     finally:
         dialog.close(); server.shutdown(); server.server_close(); thread.join(2)
 
@@ -332,21 +367,107 @@ def test_guided_questions_focus_the_missing_field_and_explain_workflow(tmp_path)
     try:
         fill_form(dialog)
         dialog.problem_type.setCurrentIndex(dialog.problem_type.findData("Unexpected in-game result"))
-        assert "CDMW and in the game separately" in dialog.guidance.text()
+        assert "CDMW and in the game separately" in dialog._problem_help.toolTip()
+        assert dialog._steps_help.toolTip() == dialog._problem_help.toolTip()
+        dialog._problem_help.click()
+        assert QToolTip.text() == dialog._problem_help.toolTip()
+        QToolTip.hideText()
         dialog.steps.setPlainText("broken")
+        dialog.show()
+        dialog.summary.setFocus()
+        QTest.keyClick(dialog.summary, Qt.Key.Key_Return)
+        assert dialog.tabs.currentIndex() == 1
         dialog._next()
-        assert dialog.tabs.currentIndex() == 0 and "Steps to reproduce" in dialog.status.text()
+        assert dialog.tabs.currentIndex() == 1 and "Steps to reproduce" in dialog.status.text()
         dialog.steps.setPlainText(details().steps)
         dialog._next()
-        assert dialog.tabs.currentIndex() == 1
+        assert dialog.tabs.currentIndex() == 2
         dialog.last_working.setCurrentIndex(dialog.last_working.findData("Worked before"))
-        assert not dialog.changes.isHidden()
+        assert not dialog._changes_field.isHidden()
         dialog._collect()
         assert "Recent changes" in dialog.status.text() and dialog._collection is None
         dialog.changes.setPlainText("Not sure yet")
         dialog._collect(); wait_until(lambda:dialog._collection is None)
-        assert dialog.tabs.currentIndex() == 2 and dialog._reviewed is not None
+        assert dialog.tabs.currentIndex() == dialog._REVIEW_PAGE and dialog._reviewed is not None
         assert "Unexpected in-game result" in dialog.preview.toPlainText()
+        assert dialog._raw_preview.toPlainText() == dialog._reviewed.preview
+    finally:
+        dialog.close()
+
+
+def test_guided_navigation_validates_skipped_steps_and_recollects_after_edit(tmp_path):
+    app()
+    dialog = ProblemReportDialog(snapshot(tmp_path))
+    try:
+        fill_form(dialog)
+        dialog.game_version.clear()
+        dialog._step_buttons[3].click()
+        assert dialog.tabs.currentIndex() == 2 and "Game version" in dialog.status.text()
+        dialog.game_version.setText("Unknown")
+        dialog._step_buttons[3].click()
+        assert dialog.tabs.currentIndex() == 3 and not dialog.collect_button.isHidden()
+        dialog.collect_button.click()
+        wait_until(lambda:dialog._collection is None)
+        assert dialog.tabs.currentIndex() == dialog._REVIEW_PAGE
+        original = dialog._reviewed
+        dialog.full_details_button.click()
+        assert not dialog._raw_preview.isHidden() and dialog.preview.isHidden()
+        dialog._review_link(QUrl("https://example.invalid/"))
+        assert dialog.tabs.currentIndex() == dialog._REVIEW_PAGE
+        dialog._review_link(QUrl("edit:1"))
+        assert dialog.tabs.currentIndex() == 1
+        dialog.actual.setPlainText("A changed outcome for the same problem.")
+        assert dialog._reviewed is None and not dialog.consent.isEnabled()
+        dialog._navigate(dialog._REVIEW_PAGE)
+        wait_until(lambda:dialog._collection is None)
+        assert dialog._reviewed is not None and dialog._reviewed.report_id != original.report_id
+        assert not dialog.consent.isChecked()
+    finally:
+        dialog.close()
+
+
+def test_guided_review_escapes_report_text_and_provides_fitted_screenshots(tmp_path):
+    from PIL import Image
+    app()
+    shot = tmp_path / "screenshot.png"
+    Image.new("RGB", (1800, 900), "blue").save(shot)
+    dialog = ProblemReportDialog(snapshot(tmp_path))
+    try:
+        fill_form(dialog)
+        dialog.summary.setText("Literal <b>markup</b> in this report")
+        dialog._screenshots = (str(shot),)
+        dialog._collect()
+        wait_until(lambda:dialog._collection is None)
+        assert "<b>markup</b>" in dialog.preview.toPlainText()
+        assert dialog.image_tabs.count() == 1 and not dialog.fit_images.isHidden()
+        dialog.show()
+        QTest.qWait(10)
+        image = dialog.image_tabs.widget(0)
+        assert image._label.pixmap().width() <= image.viewport().width()
+        assert image._label.pixmap().height() <= image.viewport().height()
+        dialog.fit_images.setChecked(False)
+        assert image._label.pixmap().width() == 1800
+        dialog.actual.setPlainText("A different actual result requires review.")
+        assert dialog.image_tabs.count() == 0 and dialog.fit_images.isHidden()
+    finally:
+        dialog.close()
+
+
+def test_guided_compact_navigation_preserves_the_current_step(tmp_path):
+    app()
+    dialog = ProblemReportDialog(snapshot(tmp_path))
+    try:
+        fill_form(dialog)
+        dialog.show()
+        dialog.resize(600, 600)
+        QTest.qWait(10)
+        assert dialog.rail.isHidden() and not dialog.step_picker.isHidden()
+        dialog.step_picker.activated.emit(2)
+        assert dialog.tabs.currentIndex() == 2 and dialog.step_picker.currentIndex() == 2
+        dialog.resize(1000, 760)
+        QTest.qWait(10)
+        assert not dialog.rail.isHidden() and dialog.step_picker.isHidden()
+        assert dialog._step_buttons[2].isChecked()
     finally:
         dialog.close()
 

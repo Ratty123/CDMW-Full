@@ -1024,6 +1024,131 @@ def _app_navigation_stylesheet(theme: Dict[str, str], metrics: Dict[str, int]) -
     """
 
 
+def _problem_report_stylesheet(theme: Dict[str, str]) -> str:
+    return f"""
+    QDialog#ProblemReportDialog, QWidget#ProblemReportPage {{
+        background: {theme["window"]};
+    }}
+    QDialog#ProblemReportDialog QLineEdit,
+    QDialog#ProblemReportDialog QPlainTextEdit,
+    QDialog#ProblemReportDialog QComboBox {{
+        background: {theme["field"]};
+        border: 1px solid {theme["border_strong"]};
+        border-radius: 6px;
+        padding: 8px 10px;
+    }}
+    QDialog#ProblemReportDialog QComboBox {{
+        padding-right: 24px;
+    }}
+    QDialog#ProblemReportDialog QComboBox::down-arrow {{
+        image: none;
+    }}
+    QDialog#ProblemReportDialog QLineEdit:focus,
+    QDialog#ProblemReportDialog QPlainTextEdit:focus,
+    QDialog#ProblemReportDialog QComboBox:focus {{
+        border-color: {theme["accent"]};
+    }}
+    QDialog#ProblemReportDialog QPushButton {{
+        min-height: 18px;
+        padding: 7px 12px;
+        border-radius: 5px;
+    }}
+    QDialog#ProblemReportDialog QPushButton#EditorPrimaryButton {{
+        background: {theme["accent"]};
+        color: {theme["accent_text"]};
+        border: 1px solid {theme["accent"]};
+        font-weight: 600;
+    }}
+    QDialog#ProblemReportDialog QPushButton#EditorPrimaryButton:hover:enabled {{
+        background: {theme["accent_soft"]};
+        color: {theme["text_strong"]};
+    }}
+    QDialog#ProblemReportDialog QPushButton#EditorPrimaryButton:disabled {{
+        background: {theme["button_disabled"]};
+        color: {theme["button_disabled_text"]};
+        border-color: {theme["border"]};
+    }}
+    QDialog#ProblemReportDialog QPushButton#ProblemReportQuietButton {{
+        background: transparent;
+        color: {theme["text_muted"]};
+        border: none;
+    }}
+    QDialog#ProblemReportDialog QPushButton#ProblemReportQuietButton:hover {{
+        background: {theme["button_hover"]};
+        color: {theme["text_strong"]};
+    }}
+    QLabel#ProblemReportTitle, QLabel#ProblemReportFieldLabel {{
+        color: {theme["text_strong"]};
+    }}
+    QLabel#ProblemReportFieldLabel {{
+        font-weight: 600;
+    }}
+    QTextBrowser#ProblemReportSummary {{
+        background: {theme["window"]};
+        border: none;
+        padding: 0px;
+    }}
+    QFrame#ProblemReportHeader {{
+        background: {theme["window"]};
+        border-bottom: 1px solid {theme["border"]};
+    }}
+    QFrame#ProblemReportRail {{
+        background: {theme["surface"]};
+        border-right: 1px solid {theme["border"]};
+    }}
+    QDialog#ProblemReportDialog QPushButton#ProblemReportStep {{
+        text-align: left;
+        padding: 8px 10px;
+        background: transparent;
+        border: none;
+        border-radius: 5px;
+    }}
+    QDialog#ProblemReportDialog QPushButton#ProblemReportStep:checked,
+    QDialog#ProblemReportDialog QPushButton#ProblemReportStep:checked:hover {{
+        background: {theme["accent_soft"]};
+        color: {theme["text_strong"]};
+        font-weight: 600;
+    }}
+    QDialog#ProblemReportDialog QPushButton#ProblemReportStep:hover {{
+        background: {theme["button_hover"]};
+    }}
+    QLabel#ProblemReportMuted {{
+        color: {theme["text_muted"]};
+        background: transparent;
+    }}
+    QToolButton#ProblemReportHelp {{
+        color: {theme["text_muted"]};
+        background: transparent;
+        border: 1px solid {theme["border_strong"]};
+        border-radius: 9px;
+        min-width: 18px;
+        min-height: 18px;
+        padding: 0px;
+    }}
+    QToolButton#ProblemReportHelp:hover {{
+        color: {theme["text_strong"]};
+        background: {theme["accent_soft"]};
+    }}
+    QFrame#ProblemReportFooter {{
+        border-top: 1px solid {theme["border"]};
+        background: {theme["window"]};
+    }}
+    QLabel#ProblemReportStatus {{
+        padding: 8px 24px;
+        color: {theme["text_strong"]};
+        background: {theme["accent_soft"]};
+    }}
+    QLabel#ProblemReportReference {{
+        padding: 18px;
+        color: {theme["text_strong"]};
+        background: {theme["surface"]};
+        border: 1px solid {theme["border_strong"]};
+        border-radius: 5px;
+        font-weight: 600;
+    }}
+    """
+
+
 def build_app_stylesheet(theme_key: str, *, base_font_size: int = DEFAULT_UI_FONT_SIZE,
     data_font_size: int = DEFAULT_UI_DATA_FONT_SIZE,
     density_key: str = DEFAULT_UI_DENSITY,
@@ -1047,5 +1172,6 @@ def build_app_stylesheet(theme_key: str, *, base_font_size: int = DEFAULT_UI_FON
         _app_status_stylesheet(theme, metrics),
         _app_feedback_stylesheet(theme),
         _app_navigation_stylesheet(theme, metrics),
+        _problem_report_stylesheet(theme),
         native_tool_stylesheet(theme),
     ))

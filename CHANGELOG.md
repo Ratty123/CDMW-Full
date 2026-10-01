@@ -9,7 +9,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Added
 
-- Report a Problem guides users through problem-specific questions, reviews redacted evidence and optional screenshots, and can reopen saved drafts for retry. Private test delivery includes duplicate protection, submission limits and retry guidance.
+- Report a Problem uses a five-step guided form with brief prompts and optional **?** help, a readable report review, fitted screenshots and a receipt screen. It reviews redacted evidence and can reopen saved drafts for retry. Private test delivery includes duplicate protection, submission limits and retry guidance.
 
 ### Changed
 

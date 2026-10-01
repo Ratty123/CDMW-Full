@@ -165,18 +165,20 @@ Archive and editing workflows use local files. Optional online features, includi
 model catalogues and AI translation, connect to external services. Crash reports
 and diagnostic bundles stay local unless you share them.
 
-**Help > Report a Problem...** (also under **More**) guides you through required
-reproduction steps, expected/actual results and game/mod setup, with guidance for
-crashes, stalls, export/install problems and unexpected in-game results. It prepares a local
-draft with redacted paths and common credentials, recent log excerpts, a bounded
-folder listing and optional screenshots. Review it before sharing; screenshots can
-still contain visible personal information. It does not upload game file contents.
+**Help > Report a Problem...** (also under **More**) uses five steps: problem,
+reproduction, game and mods, evidence, then review. Short prompts keep the form
+compact; **?** buttons provide examples and workflow-specific help. It prepares a
+local draft with redacted paths and common credentials, recent log excerpts, a
+bounded folder listing and optional screenshots. The review screen has a readable
+summary, full report details and fitted screenshots with a full-size option.
+Review it before sharing; screenshots can still contain visible personal
+information. It does not upload game file contents.
 
 Direct submission currently uses a private test inbox and requires maintainer test
 access. After explicit review and consent, reports go through Cloudflare to private
 GitHub issues. Cloud evidence expires after 90 days; issue summaries and local
-drafts remain until removed. A failed upload keeps the draft for retry; **Open saved
-draft** reopens it after restarting. The private receiver rejects duplicate problems
+drafts remain until removed. A failed upload keeps the draft for retry; **Open draft…**
+reopens it after restarting. The private receiver rejects duplicate problems
 and limits new submissions. CDMW shows a countdown when it must wait before retrying.
 
 **Help > Export Diagnostics...** and **Help > Copy Latest Problem Summary** remain
