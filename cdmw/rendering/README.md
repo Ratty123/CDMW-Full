@@ -42,6 +42,13 @@ owned workers before temporary files can be removed. The current scene is
 replaced only through the existing completed-package handoff. These changes
 affect 3D material preparation; 2D DDS image previews retain their PNG cache.
 
+Building a preview or Mesh Editor package copies independent geometry batches and
+unique texture files on at most four workers per stage, including the first load
+after restarting. Results retain source order, hashes and LOD/material ownership.
+Texture admission reserves the whole batch's byte and entry limits before workers
+start; a source changed after admission cannot exceed its reserved bytes. Failed or
+cancelled copies join every worker before the caller removes its temporary output.
+
 ## Cache maintenance
 
 Preview cache maintenance never waits on another publisher's build lock. It reads

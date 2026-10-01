@@ -28,7 +28,7 @@ from dataclasses import dataclass, field, fields, is_dataclass, replace
 from enum import Enum
 from functools import wraps
 from pathlib import Path, PurePosixPath
-from types import MappingProxyType
+from types import MappingProxyType, SimpleNamespace
 from uuid import uuid4
 
 from cdmw.core.archive import ensure_archive_preview_source
@@ -4204,6 +4204,7 @@ def _atomic_copy_texture_payload(
     expected_root_identity: tuple[int, int],
     aggregate_bytes_before: int = 0,
     stop_event: threading.Event | None = None,
+    expected_source_identity: tuple[int, int, int, int] | None = None,
 ) -> dict[str, object]:
     _session_root_identity(root, expected_root_identity)
     _raise_if_texture_copy_cancelled(stop_event)
@@ -4229,6 +4230,13 @@ def _atomic_copy_texture_payload(
     try:
         with source.open("rb") as input_stream, temporary.open("xb") as output_stream:
             source_before = os.fstat(input_stream.fileno())
+            if expected_source_identity is not None and expected_source_identity != (
+                source_before.st_dev, source_before.st_ino,
+                source_before.st_size, source_before.st_mtime_ns,
+            ):
+                raise RustMeshProtocolError(
+                    f"Mesh texture changed before it was packaged: {source.name}"
+                )
             while True:
                 _raise_if_texture_copy_cancelled(stop_event)
                 chunk = input_stream.read(1024 * 1024)
@@ -4236,6 +4244,13 @@ def _atomic_copy_texture_payload(
                     break
                 _raise_if_texture_copy_cancelled(stop_event)
                 next_byte_length = byte_length + len(chunk)
+                if (
+                    expected_source_identity is not None
+                    and next_byte_length > expected_source_identity[2]
+                ):
+                    raise RustMeshProtocolError(
+                        f"Mesh texture changed while it was being packaged: {source.name}"
+                    )
                 if next_byte_length > _TEXTURE_MAX_FILE_BYTES:
                     raise RustMeshProtocolError(
                         f"Mesh texture payload exceeds 512 MiB: {source.name}"
@@ -5147,24 +5162,66 @@ def _publish_rust_texture_resources(root, bindings, sources, stop_event, expecte
     )
     if first_file_index + len(sources) > 10_000:
         raise RustMeshProtocolError("Mesh session texture payload limit reached")
-    file_references: dict[str, dict[str, object]] = {}
+    jobs = []
     for file_index, path_text in enumerate(sorted(sources, key=str.casefold), start=first_file_index):
         _raise_if_texture_copy_cancelled(stop_event)
         if entry_count + 1 > _SESSION_MAX_ENTRIES:
             raise RustMeshProtocolError(
                 "Mesh session contains too many owned entries"
             )
-        reference = _atomic_copy_texture_payload(
+        source = sources[path_text]
+        try:
+            source_stat = source.stat()
+        except OSError as exc:
+            raise RustMeshProtocolError(
+                f"Mesh could not inspect resolved texture {source.name}: {exc}"
+            ) from exc
+        size = source_stat.st_size
+        if size <= 0 or size > _TEXTURE_MAX_FILE_BYTES:
+            raise RustMeshProtocolError(
+                f"Mesh texture payload is outside the 512 MiB file limit: {source.name}"
+            )
+        if aggregate_bytes + size > _SESSION_MAX_TOTAL_BYTES:
+            raise RustMeshProtocolError("Mesh texture payload exceeds the 768 MiB aggregate limit")
+        identity = (source_stat.st_dev, source_stat.st_ino, size, source_stat.st_mtime_ns)
+        jobs.append((file_index, path_text, source, identity, aggregate_bytes))
+        entry_count += 1
+        aggregate_bytes += size
+
+    abort = threading.Event()
+    copy_stop = SimpleNamespace(
+        is_set=lambda: abort.is_set() or bool(stop_event and stop_event.is_set())
+    )
+
+    def copy_source(job):
+        file_index, _path_text, source, identity, bytes_before = job
+        return _atomic_copy_texture_payload(
             root,
-            sources[path_text],
+            source,
             file_index,
             expected_root_identity=expected_root_identity,
-            aggregate_bytes_before=aggregate_bytes,
-            stop_event=stop_event,
+            aggregate_bytes_before=bytes_before,
+            stop_event=copy_stop,
+            expected_source_identity=identity,
         )
-        file_references[path_text] = reference
-        entry_count += 1
-        aggregate_bytes += int(reference["byte_length"])
+
+    file_references: dict[str, dict[str, object]] = {}
+    if len(jobs) <= 1:
+        for job in jobs:
+            file_references[job[1]] = copy_source(job)
+    else:
+        with ThreadPoolExecutor(max_workers=4, thread_name_prefix="cdmw-texture-copy") as pool:
+            for start in range(0, len(jobs), 4):
+                batch = jobs[start : start + 4]
+                futures = [pool.submit(copy_source, job) for job in batch]
+                try:
+                    for job, future in zip(batch, futures):
+                        file_references[job[1]] = future.result()
+                except BaseException:
+                    abort.set()
+                    for future in futures:
+                        future.cancel()
+                    raise  # The pool joins before any caller cleans its output.
 
     final_entry_count, final_aggregate_bytes = _validate_owned_session_tree(
         root,

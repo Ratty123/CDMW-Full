@@ -16,8 +16,10 @@ import mmap
 import os
 import struct
 import tempfile
+import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING
@@ -1119,6 +1121,7 @@ def _copy_preview_core_geometry(raw_batches, source_package, package_dir, root_i
     part_identities: list[dict[str, object]] = []
     total_vertices = 0
     batch_indices: set[int] = set()
+    jobs = []
     for fallback_index, raw_batch in enumerate(raw_batches):
         _cancelled(cancelled)
         if not isinstance(raw_batch, Mapping):
@@ -1135,6 +1138,17 @@ def _copy_preview_core_geometry(raw_batches, source_package, package_dir, root_i
         ):
             raise ValueError("Preview Core batch identity or vertex count is invalid.")
         batch_indices.add(raw_index)
+        total_vertices += vertex_count
+        jobs.append((fallback_index, raw_batch, raw_index, vertex_count))
+
+    abort = threading.Event()
+
+    def copy_cancelled():
+        return abort.is_set() or bool(cancelled and cancelled())
+
+    def copy_batch(job):
+        fallback_index, raw_batch, raw_index, vertex_count = job
+        _cancelled(copy_cancelled)
         source_geometry = _preview_core_child(source_package, raw_batch.get("vertex_file"))
         if source_geometry is None:
             raise ValueError("Preview Core geometry is missing or escaped its package.")
@@ -1147,7 +1161,7 @@ def _copy_preview_core_geometry(raw_batches, source_package, package_dir, root_i
             element_count=vertex_count,
             expected_byte_length=vertex_count * _PREVIEW_CORE_VERTEX.size,
             expected_root_identity=root_identity,
-            cancelled=cancelled,
+            cancelled=copy_cancelled,
         )
         identity = raw_batch.get("editor_identity")
         identity = identity if isinstance(identity, Mapping) else {}
@@ -1171,7 +1185,7 @@ def _copy_preview_core_geometry(raw_batches, source_package, package_dir, root_i
                     element_count=vertex_count,
                     expected_byte_length=vertex_count * _PREVIEW_CORE_IDENTITY.size,
                     expected_root_identity=root_identity,
-                    cancelled=cancelled,
+                    cancelled=copy_cancelled,
                 )
         source_index = _preview_core_int(identity.get("source_submesh_index"), raw_index)
         local_index = _preview_core_int(identity.get("source_local_submesh_index"), 0)
@@ -1179,27 +1193,41 @@ def _copy_preview_core_geometry(raw_batches, source_package, package_dir, root_i
         component_label = str(identity.get("source_component_label", "") or "prefab")
         name = f"reference_prefab_{component_index}_{local_index}_{component_label}"
         material = str(raw_batch.get("material_name", "") or component_label)
-        direct_batches.append(
-            {
-                "index": raw_index,
-                "name": name,
-                "material": material,
-                "vertex_count": vertex_count,
-                "vertices": geometry_reference,
-                "identity": identity_reference,
-            }
-        )
-        part_identities.append(
-            {
-                "scene_submesh_index": fallback_index,
-                "source_submesh_index": source_index,
-                "name": name,
-                "material": material,
-            }
-        )
+        direct = {
+            "index": raw_index,
+            "name": name,
+            "material": material,
+            "vertex_count": vertex_count,
+            "vertices": geometry_reference,
+            "identity": identity_reference,
+        }
+        part = {
+            "scene_submesh_index": fallback_index,
+            "source_submesh_index": source_index,
+            "name": name,
+            "material": material,
+        }
         destination_geometry = package_dir / str(geometry_reference["path"])
-        prepared_batches.append((raw_batch, destination_geometry, vertex_count))
-        total_vertices += vertex_count
+        return (raw_batch, destination_geometry, vertex_count), direct, part
+
+    if len(jobs) <= 1:
+        copied = [copy_batch(job) for job in jobs]
+    else:
+        copied = []
+        with ThreadPoolExecutor(max_workers=4, thread_name_prefix="cdmw-geometry-copy") as pool:
+            for start in range(0, len(jobs), 4):
+                futures = [pool.submit(copy_batch, job) for job in jobs[start : start + 4]]
+                try:
+                    copied.extend(future.result() for future in futures)
+                except BaseException:
+                    abort.set()
+                    for future in futures:
+                        future.cancel()
+                    raise  # Join every worker before atomic-publication cleanup.
+    for prepared, direct, part in copied:
+        prepared_batches.append(prepared)
+        direct_batches.append(direct)
+        part_identities.append(part)
     return prepared_batches, direct_batches, part_identities
 
 
