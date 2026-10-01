@@ -140,6 +140,10 @@ paired foreground; they must not pin buttons, fields, selection, warnings, edito
 disabled text to a Graphite-era literal. Use `accent_text` on `accent`, and
 `text_strong` on `accent_soft`; the two foregrounds are not interchangeable.
 
+Shared Qt dropdowns use bounded, scrollable lists that open below the field when
+space allows. Near the screen edge, the list can open above to keep choices visible.
+This also applies to the reporting form's tool, action and setup menus.
+
 Button text targets at least 4.5:1 contrast in normal, hover, pressed, checked, and
 disabled states. `tests/test_theme_surface_coherence.py` applies every theme to real
 Classic Placement, Mesh Editor, Archive Browser, New Item, and XML-editor surfaces and

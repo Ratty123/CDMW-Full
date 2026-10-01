@@ -554,6 +554,7 @@ def _app_controls_stylesheet(theme: Dict[str, str], metrics: Dict[str, int]) -> 
     }}
     QComboBox {{
         padding-right: 24px;
+        combobox-popup: 0;
     }}
     QComboBox::drop-down {{
         border: none;

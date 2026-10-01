@@ -17,10 +17,12 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QUrl, Qt
+from PySide6.QtCore import QPoint, QSignalBlocker, QUrl, Qt
 from PySide6.QtGui import QIcon
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QMainWindow, QToolTip
+from PySide6.QtWidgets import (
+    QApplication, QComboBox, QMainWindow, QStyle, QStyleFactory, QStyleOptionComboBox, QToolTip,
+)
 
 from cdmw.domain.cancellation import RunCancelled
 from cdmw.services.problem_report_service import (
@@ -483,6 +485,40 @@ def test_guided_compact_navigation_preserves_the_current_step(tmp_path):
         assert dialog._step_buttons[2].isChecked()
     finally:
         dialog.close()
+
+
+def test_all_reporting_dropdowns_use_bounded_lists_and_tool_opens_below(tmp_path):
+    from cdmw.ui.themes import build_app_stylesheet
+    application = app()
+    previous_stylesheet = application.styleSheet()
+    dialog = ProblemReportDialog(snapshot(tmp_path))
+    fusion = QStyleFactory.create("Fusion")
+    fusion.setParent(dialog)
+    dialog.setStyle(fusion)
+    try:
+        application.setStyleSheet(build_app_stylesheet("graphite"))
+        fill_form(dialog)
+        dialog.show()
+        QTest.qWait(20)
+        for combo in dialog.findChildren(QComboBox):
+            option = QStyleOptionComboBox()
+            combo.initStyleOption(option)
+            assert combo.style().styleHint(QStyle.StyleHint.SH_ComboBox_Popup, option, combo) == 0
+        for selection in (0, dialog.tool.findData("settings"), dialog.tool.count() - 1):
+            with QSignalBlocker(dialog.tool):
+                dialog.tool.setCurrentIndex(selection)
+            dialog.tool.showPopup()
+            QTest.qWait(10)
+            popup = dialog.tool.view().window()
+            bottom = dialog.tool.mapToGlobal(QPoint(0, dialog.tool.height() - 1)).y()
+            assert popup.y() >= bottom - 2
+            assert dialog.tool.screen().availableGeometry().contains(popup.frameGeometry())
+            assert dialog.tool.view().verticalScrollBar().maximum() > 0
+            dialog.tool.hidePopup()
+    finally:
+        dialog.tool.hidePopup()
+        dialog.close()
+        application.setStyleSheet(previous_stylesheet)
 
 
 def test_tool_menu_covers_shell_tools_and_resets_dependent_choices(tmp_path):

@@ -19,6 +19,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- Dropdown lists open below their fields when space allows and scroll instead of expanding around the selected item.
 - Mesh interchange preserves supported material maps and values, UV sets, vertex colours, skin weights, rigs, morph targets and existing animation clips. Export packages include portable textures, game metadata and format-limit reports.
 - Meshes returned from Blender retain part/material assignments, local coordinates and bounds after renaming or reordering. Companions recover missing UV sets and textures; geometry-only meshes can return without unwrapping.
 - FBX import uses the selected Blender, supports cancellation and retains all bone influences and correct vertex colours. FBX export accepts mixed numeric vertex data.

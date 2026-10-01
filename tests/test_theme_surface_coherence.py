@@ -10,14 +10,17 @@ import re
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtGui import QColor, QImage, QPainter, QPalette, QTextDocument
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QPoint, Qt
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import (
     QApplication,
+    QComboBox,
     QFrame,
     QHBoxLayout,
     QLabel,
     QPushButton,
     QStyle,
+    QStyleFactory,
     QStyleOptionButton,
     QStyleOptionToolButton,
     QToolButton,
@@ -35,6 +38,64 @@ from tools.placement_studio.window import PlacementStudioWindow
 
 
 _APP = QApplication.instance() or QApplication([])
+
+
+def test_every_theme_opens_long_dropdowns_below_and_keeps_them_on_screen() -> None:
+    previous_palette = QPalette(_APP.palette())
+    previous_stylesheet = _APP.styleSheet()
+    parent = QFrame()
+    fusion = QStyleFactory.create("Fusion")
+    fusion.setParent(parent)
+    parent.setStyle(fusion)
+    parent.resize(340, 520)
+    combo = QComboBox(parent)
+    combo.setGeometry(24, 50, 280, 36)
+    for index in range(30):
+        combo.addItem(f"Choice {index}", index)
+    screen = parent.screen().availableGeometry()
+    parent.move(screen.topLeft() + QPoint(20, 20))
+    try:
+        parent.show()
+        for key in UI_THEME_SCHEMES:
+            _APP.setPalette(build_app_palette(key))
+            _APP.setStyleSheet(build_app_stylesheet(key))
+            QTest.qWait(10)
+            # Late selections previously made Fusion position the list above the field.
+            for selection in (0, combo.count() - 1):
+                combo.setCurrentIndex(selection)
+                combo.showPopup()
+                QTest.qWait(10)
+                popup = combo.view().window()
+                bottom = combo.mapToGlobal(QPoint(0, combo.height() - 1)).y()
+                assert popup.y() >= bottom - 2, (key, selection, popup.geometry())
+                assert screen.contains(popup.frameGeometry()), key
+                assert combo.view().verticalScrollBar().maximum() > 0, key
+                assert combo.view().viewport().rect().intersects(
+                    combo.view().visualRect(combo.view().currentIndex())
+                ), key
+                assert combo.currentData() == selection
+                combo.hidePopup()
+            combo.showPopup()
+            QTest.qWait(10)
+            QTest.keyClick(combo.view(), Qt.Key.Key_Home)
+            QTest.keyClick(combo.view(), Qt.Key.Key_Return)
+            assert combo.currentData() == 0 and not combo.view().window().isVisible(), key
+
+        # Near the screen edge, an upward list is necessary to keep choices accessible.
+        parent.move(screen.left() + 20, screen.bottom() - parent.height() - 4)
+        combo.move(24, parent.height() - 46)
+        combo.showPopup()
+        QTest.qWait(10)
+        popup = combo.view().window()
+        assert popup.geometry().bottom() <= combo.mapToGlobal(QPoint()).y() + 2
+        assert screen.contains(popup.frameGeometry())
+    finally:
+        combo.hidePopup()
+        parent.close()
+        parent.deleteLater()
+        _APP.processEvents()
+        _APP.setStyleSheet(previous_stylesheet)
+        _APP.setPalette(previous_palette)
 
 
 def _color_contrast(first: QColor, second: QColor) -> float:
