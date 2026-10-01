@@ -991,12 +991,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 504,
+          "line": 505,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 505,
+          "line": 506,
           "sink": "append_log"
         }
       ]
@@ -1921,7 +1921,7 @@
       "origins": [
         {
           "path": "cdmw/services/diagnostics_service.py",
-          "line": 238,
+          "line": 239,
           "sink": "python-return:format_issue_summary"
         }
       ]
@@ -4116,7 +4116,7 @@
       "origins": [
         {
           "path": "cdmw/services/problem_report_service.py",
-          "line": 318,
+          "line": 301,
           "sink": "ValueError"
         }
       ]
@@ -5296,7 +5296,7 @@
       "origins": [
         {
           "path": "cdmw/services/diagnostics_service.py",
-          "line": 238,
+          "line": 239,
           "sink": "python-return:format_issue_summary"
         }
       ]
@@ -7276,17 +7276,17 @@
         },
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 430,
+          "line": 431,
           "sink": "getSaveFileName:filter-label"
         },
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 454,
+          "line": 455,
           "sink": "getOpenFileName:filter-label"
         },
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 547,
+          "line": 566,
           "sink": "getSaveFileName:filter-label"
         },
         {
@@ -7876,7 +7876,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 267,
+          "line": 268,
           "sink": "ValueError"
         }
       ]
@@ -7886,7 +7886,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 291,
+          "line": 292,
           "sink": "ValueError"
         }
       ]
@@ -10761,7 +10761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 418,
+          "line": 419,
           "sink": "_protocol_failure"
         }
       ]
@@ -10771,7 +10771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 516,
+          "line": 517,
           "sink": "_protocol_failure"
         }
       ]
@@ -10781,7 +10781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 322,
+          "line": 323,
           "sink": "_protocol_failure"
         }
       ]
@@ -10791,7 +10791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 349,
+          "line": 350,
           "sink": "_protocol_failure"
         }
       ]
@@ -10801,7 +10801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 301,
+          "line": 302,
           "sink": "_protocol_failure"
         }
       ]
@@ -10811,7 +10811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 406,
+          "line": 407,
           "sink": "_protocol_failure"
         }
       ]
@@ -10821,7 +10821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 411,
+          "line": 412,
           "sink": "_protocol_failure"
         }
       ]
@@ -10831,7 +10831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 160,
+          "line": 161,
           "sink": "RuntimeError"
         }
       ]
@@ -10841,7 +10841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 531,
+          "line": 532,
           "sink": "_fail_all"
         }
       ]
@@ -10851,7 +10851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 352,
+          "line": 353,
           "sink": "_protocol_failure"
         }
       ]
@@ -10861,7 +10861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 483,
+          "line": 484,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -10871,8 +10871,18 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 398,
+          "line": 399,
           "sink": "ArchiveBackendError"
+        }
+      ]
+    },
+    {
+      "key": "Archive backend request failed: %s: %s",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/archive_backend_client.py",
+          "line": 651,
+          "sink": "log"
         }
       ]
     },
@@ -10881,7 +10891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 224,
+          "line": 225,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -10891,7 +10901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 477,
+          "line": 478,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -10901,7 +10911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 377,
+          "line": 378,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -10911,7 +10921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 208,
+          "line": 209,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -10941,7 +10951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 485,
+          "line": 486,
           "sink": "_protocol_failure"
         }
       ]
@@ -10951,7 +10961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 317,
+          "line": 318,
           "sink": "_protocol_failure"
         }
       ]
@@ -10961,7 +10971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 567,
+          "line": 568,
           "sink": "_fail_all"
         }
       ]
@@ -13111,7 +13121,7 @@
       "origins": [
         {
           "path": "cdmw/services/problem_report_service.py",
-          "line": 328,
+          "line": 311,
           "sink": "ValueError"
         }
       ]
@@ -13466,7 +13476,7 @@
       "origins": [
         {
           "path": "cdmw/services/diagnostics_service.py",
-          "line": 238,
+          "line": 239,
           "sink": "python-return:format_issue_summary"
         }
       ]
@@ -15001,7 +15011,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 1475,
+          "line": 1482,
           "sink": "_simple_morph_command"
         }
       ]
@@ -15021,7 +15031,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 1570,
+          "line": 1577,
           "sink": "RuntimeError"
         }
       ]
@@ -16876,7 +16886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 1157,
+          "line": 1160,
           "sink": "_verification_failed"
         }
       ]
@@ -16886,7 +16896,7 @@
       "origins": [
         {
           "path": "cdmw/services/problem_report_service.py",
-          "line": 168,
+          "line": 173,
           "sink": "ValueError"
         }
       ]
@@ -16896,7 +16906,7 @@
       "origins": [
         {
           "path": "cdmw/services/problem_report_service.py",
-          "line": 180,
+          "line": 185,
           "sink": "ValueError"
         }
       ]
@@ -18991,7 +19001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 943,
+          "line": 946,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -19001,7 +19011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 943,
+          "line": 946,
           "sink": "getOpenFileName"
         }
       ]
@@ -19051,7 +19061,7 @@
       "origins": [
         {
           "path": "cdmw/services/problem_report_service.py",
-          "line": 477,
+          "line": 464,
           "sink": "python-return:parse_report_receipt"
         }
       ]
@@ -20501,7 +20511,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 313,
+          "line": 314,
           "sink": "ValueError"
         }
       ]
@@ -20511,7 +20521,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 311,
+          "line": 312,
           "sink": "ValueError"
         }
       ]
@@ -20521,12 +20531,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 260,
+          "line": 261,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 307,
+          "line": 308,
           "sink": "ValueError"
         }
       ]
@@ -20536,7 +20546,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 305,
+          "line": 306,
           "sink": "ValueError"
         }
       ]
@@ -23331,7 +23341,7 @@
       "origins": [
         {
           "path": "cdmw/services/problem_report_service.py",
-          "line": 310,
+          "line": 293,
           "sink": "ValueError"
         }
       ]
@@ -24191,7 +24201,7 @@
       "origins": [
         {
           "path": "cdmw/services/problem_report_service.py",
-          "line": 428,
+          "line": 415,
           "sink": "ValueError"
         }
       ]
@@ -24611,7 +24621,7 @@
       "origins": [
         {
           "path": "cdmw/services/problem_report_service.py",
-          "line": 307,
+          "line": 290,
           "sink": "ValueError"
         }
       ]
@@ -25476,7 +25486,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 1469,
+          "line": 1476,
           "sink": "_simple_morph_command"
         }
       ]
@@ -26426,7 +26436,7 @@
         },
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 1041,
+          "line": 1044,
           "sink": "setText"
         },
         {
@@ -28016,7 +28026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 1120,
+          "line": 1123,
           "sink": "setText"
         }
       ]
@@ -29326,7 +29336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 665,
+          "line": 695,
           "sink": "set_status_message"
         }
       ]
@@ -30321,7 +30331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 642,
+          "line": 672,
           "sink": "set_status_message"
         }
       ]
@@ -30381,7 +30391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 1120,
+          "line": 1123,
           "sink": "setText"
         }
       ]
@@ -30526,7 +30536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 156,
+          "line": 157,
           "sink": "ValueError"
         }
       ]
@@ -31411,12 +31421,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 430,
+          "line": 431,
           "sink": "getSaveFileName:filter-label"
         },
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 454,
+          "line": 455,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -31981,7 +31991,7 @@
       "origins": [
         {
           "path": "cdmw/services/diagnostics_service.py",
-          "line": 238,
+          "line": 239,
           "sink": "python-return:format_issue_summary"
         }
       ]
@@ -34206,7 +34216,7 @@
       "origins": [
         {
           "path": "cdmw/services/problem_report_service.py",
-          "line": 476,
+          "line": 463,
           "sink": "ValueError"
         }
       ]
@@ -34941,7 +34951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 632,
+          "line": 662,
           "sink": "set_status_message"
         }
       ]
@@ -34951,7 +34961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 633,
+          "line": 663,
           "sink": "append_log"
         }
       ]
@@ -34961,7 +34971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 630,
+          "line": 660,
           "sink": "set_status_message"
         }
       ]
@@ -36106,7 +36116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 1041,
+          "line": 1044,
           "sink": "setText"
         }
       ]
@@ -36611,7 +36621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 990,
+          "line": 993,
           "sink": "setText"
         }
       ]
@@ -37491,32 +37501,32 @@
         },
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 450,
+          "line": 451,
           "sink": "append_log"
         },
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 487,
+          "line": 488,
           "sink": "append_log"
         },
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 508,
+          "line": 509,
           "sink": "append_log"
         },
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 574,
+          "line": 593,
           "sink": "append_log"
         },
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 645,
+          "line": 675,
           "sink": "append_log"
         },
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 668,
+          "line": 698,
           "sink": "append_log"
         },
         {
@@ -40806,7 +40816,7 @@
       "origins": [
         {
           "path": "cdmw/services/diagnostics_service.py",
-          "line": 238,
+          "line": 239,
           "sink": "python-return:format_issue_summary"
         }
       ]
@@ -41191,7 +41201,7 @@
       "origins": [
         {
           "path": "cdmw/services/diagnostics_service.py",
-          "line": 238,
+          "line": 239,
           "sink": "python-return:format_issue_summary"
         }
       ]
@@ -41831,7 +41841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 547,
+          "line": 566,
           "sink": "getSaveFileName"
         }
       ]
@@ -42316,7 +42326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 430,
+          "line": 431,
           "sink": "getSaveFileName"
         }
       ]
@@ -43406,7 +43416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 563,
+          "line": 582,
           "sink": "_run_utility_task"
         }
       ]
@@ -46386,7 +46396,7 @@
       "origins": [
         {
           "path": "cdmw/services/diagnostics_service.py",
-          "line": 238,
+          "line": 239,
           "sink": "python-return:format_issue_summary"
         }
       ]
@@ -46446,7 +46456,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 1478,
+          "line": 1485,
           "sink": "_simple_morph_command"
         }
       ]
@@ -48826,7 +48836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/app_window.py",
-          "line": 549,
+          "line": 559,
           "sink": "_write_crash_report"
         }
       ]
@@ -49236,7 +49246,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 1416,
+          "line": 1423,
           "sink": "ValueError"
         }
       ]
@@ -54356,12 +54366,12 @@
         },
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 454,
+          "line": 455,
           "sink": "getOpenFileName"
         },
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 463,
+          "line": 464,
           "sink": "question"
         }
       ]
@@ -55141,7 +55151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 463,
+          "line": 464,
           "sink": "question"
         }
       ]
@@ -59536,7 +59546,7 @@
         },
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 430,
+          "line": 431,
           "sink": "getSaveFileName:filter-label"
         },
         {
@@ -60146,7 +60156,7 @@
       "origins": [
         {
           "path": "cdmw/services/diagnostics_service.py",
-          "line": 238,
+          "line": 239,
           "sink": "python-return:format_issue_summary"
         },
         {
@@ -60661,7 +60671,7 @@
       "origins": [
         {
           "path": "cdmw/services/diagnostics_service.py",
-          "line": 238,
+          "line": 239,
           "sink": "python-return:format_issue_summary"
         }
       ]
@@ -61026,7 +61036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 430,
+          "line": 431,
           "sink": "getSaveFileName:filter-label"
         }
       ]
@@ -61451,7 +61461,7 @@
       "origins": [
         {
           "path": "cdmw/services/diagnostics_service.py",
-          "line": 238,
+          "line": 239,
           "sink": "python-return:format_issue_summary"
         }
       ]
@@ -64236,7 +64246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/app_window.py",
-          "line": 539,
+          "line": 549,
           "sink": "_write_crash_report"
         }
       ]
@@ -72166,7 +72176,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 225,
+          "line": 226,
           "sink": "RuntimeError"
         }
       ]
@@ -72176,7 +72186,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 535,
+          "line": 542,
           "sink": "TypeError"
         }
       ]
@@ -72266,7 +72276,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 444,
+          "line": 451,
           "sink": "RuntimeError"
         }
       ]
@@ -72336,17 +72346,17 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 748,
+          "line": 755,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 943,
+          "line": 950,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 1308,
+          "line": 1315,
           "sink": "ValueError"
         }
       ]
@@ -72356,7 +72366,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 253,
+          "line": 254,
           "sink": "RuntimeError"
         }
       ]
@@ -77676,7 +77686,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 991,
+          "line": 998,
           "sink": "RuntimeError"
         }
       ]
@@ -81761,7 +81771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 943,
+          "line": 946,
           "sink": "getOpenFileName"
         }
       ]
@@ -82906,7 +82916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 640,
+          "line": 670,
           "sink": "set_status_message"
         }
       ]
@@ -91701,7 +91711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 957,
+          "line": 960,
           "sink": "setText"
         }
       ]
@@ -91731,7 +91741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/app_window.py",
-          "line": 419,
+          "line": 428,
           "sink": "pump_startup_splash"
         },
         {
@@ -92561,7 +92571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/app_window.py",
-          "line": 439,
+          "line": 449,
           "sink": "pump_startup_splash"
         }
       ]
@@ -92816,7 +92826,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 1280,
+          "line": 1287,
           "sink": "ValueError"
         }
       ]
@@ -96391,7 +96401,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 1643,
+          "line": 1650,
           "sink": "RuntimeError"
         }
       ]
@@ -96401,7 +96411,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 758,
+          "line": 765,
           "sink": "RuntimeError"
         }
       ]
@@ -96581,7 +96591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 446,
+          "line": 447,
           "sink": "set_status_message"
         }
       ]
@@ -96591,7 +96601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 447,
+          "line": 448,
           "sink": "append_log"
         }
       ]
@@ -96601,7 +96611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 189,
+          "line": 190,
           "sink": "ValueError"
         }
       ]
@@ -96611,7 +96621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 171,
+          "line": 172,
           "sink": "ValueError"
         }
       ]
@@ -96621,12 +96631,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 90,
+          "line": 91,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 179,
+          "line": 180,
           "sink": "ValueError"
         }
       ]
@@ -96636,7 +96646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 177,
+          "line": 178,
           "sink": "ValueError"
         }
       ]
@@ -96646,7 +96656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 158,
+          "line": 159,
           "sink": "ValueError"
         }
       ]
@@ -96666,17 +96676,17 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 165,
+          "line": 166,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 173,
+          "line": 174,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 194,
+          "line": 195,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -96686,12 +96696,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 504,
+          "line": 505,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 505,
+          "line": 506,
           "sink": "append_log"
         }
       ]
@@ -96731,7 +96741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 75,
+          "line": 76,
           "sink": "ValueError"
         }
       ]
@@ -96741,7 +96751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 80,
+          "line": 81,
           "sink": "ValueError"
         }
       ]
@@ -96751,7 +96761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 83,
+          "line": 84,
           "sink": "ValueError"
         }
       ]
@@ -96761,7 +96771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 114,
+          "line": 115,
           "sink": "ValueError"
         }
       ]
@@ -96771,7 +96781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 109,
+          "line": 110,
           "sink": "ValueError"
         }
       ]
@@ -96811,7 +96821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 493,
+          "line": 494,
           "sink": "set_status_message"
         }
       ]
@@ -97651,7 +97661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/app_window.py",
-          "line": 539,
+          "line": 549,
           "sink": "_write_crash_report"
         }
       ]
@@ -98761,7 +98771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 475,
+          "line": 476,
           "sink": "_run_utility_task"
         }
       ]
@@ -101521,7 +101531,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 1397,
+          "line": 1404,
           "sink": "ValueError"
         }
       ]
@@ -101596,7 +101606,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 1438,
+          "line": 1445,
           "sink": "ValueError"
         }
       ]
@@ -101606,7 +101616,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 1452,
+          "line": 1459,
           "sink": "ValueError"
         }
       ]
@@ -104336,7 +104346,7 @@
       "origins": [
         {
           "path": "cdmw/services/diagnostics_service.py",
-          "line": 238,
+          "line": 239,
           "sink": "python-return:format_issue_summary"
         }
       ]
@@ -104376,7 +104386,7 @@
       "origins": [
         {
           "path": "cdmw/services/problem_report_service.py",
-          "line": 362,
+          "line": 349,
           "sink": "ValueError"
         }
       ]
@@ -104401,7 +104411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 1190,
+          "line": 1193,
           "sink": "setText"
         }
       ]
@@ -104976,7 +104986,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 1472,
+          "line": 1479,
           "sink": "_simple_morph_command"
         }
       ]
@@ -105451,7 +105461,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 1651,
+          "line": 1658,
           "sink": "RuntimeError"
         }
       ]
@@ -105461,7 +105471,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 207,
+          "line": 208,
           "sink": "RuntimeError"
         }
       ]
@@ -105471,7 +105481,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 177,
+          "line": 178,
           "sink": "RuntimeError"
         }
       ]
@@ -105481,17 +105491,17 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 215,
+          "line": 216,
           "sink": "RuntimeError"
         }
       ]
     },
     {
-      "key": "Resident C++ Morph & Refit runtime snapshot restore failed.",
+      "key": "Resident C++ Morph & Refit runtime snapshot restore failed. {value_0}",
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 352,
+          "line": 359,
           "sink": "RuntimeError"
         }
       ]
@@ -105501,7 +105511,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 418,
+          "line": 425,
           "sink": "RuntimeError"
         }
       ]
@@ -105511,7 +105521,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 449,
+          "line": 456,
           "sink": "RuntimeError"
         }
       ]
@@ -105521,7 +105531,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 296,
+          "line": 297,
           "sink": "RuntimeError"
         }
       ]
@@ -105531,7 +105541,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 321,
+          "line": 322,
           "sink": "RuntimeError"
         }
       ]
@@ -105541,7 +105551,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 1648,
+          "line": 1655,
           "sink": "RuntimeError"
         }
       ]
@@ -105551,7 +105561,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 1783,
+          "line": 1790,
           "sink": "RuntimeError"
         }
       ]
@@ -105571,7 +105581,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 791,
+          "line": 798,
           "sink": "_require_bounded_morph_json"
         }
       ]
@@ -107576,7 +107586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 1025,
+          "line": 1028,
           "sink": "setText"
         }
       ]
@@ -110686,7 +110696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 977,
+          "line": 980,
           "sink": "setToolTip"
         }
       ]
@@ -111741,7 +111751,7 @@
       "origins": [
         {
           "path": "cdmw/services/problem_report_service.py",
-          "line": 305,
+          "line": 288,
           "sink": "ValueError"
         }
       ]
@@ -114046,7 +114056,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 1575,
+          "line": 1582,
           "sink": "RuntimeError"
         }
       ]
@@ -115591,7 +115601,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 901,
+          "line": 908,
           "sink": "ValueError"
         }
       ]
@@ -117271,7 +117281,7 @@
         },
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 1025,
+          "line": 1028,
           "sink": "setText"
         }
       ]
@@ -117311,7 +117321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 1104,
+          "line": 1107,
           "sink": "setText"
         }
       ]
@@ -123366,7 +123376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 85,
+          "line": 86,
           "sink": "ValueError"
         }
       ]
@@ -124261,7 +124271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 1055,
+          "line": 1058,
           "sink": "setText"
         }
       ]
@@ -124961,7 +124971,7 @@
       "origins": [
         {
           "path": "cdmw/services/diagnostics_service.py",
-          "line": 238,
+          "line": 239,
           "sink": "python-return:format_issue_summary"
         }
       ]
@@ -130071,7 +130081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 1128,
+          "line": 1131,
           "sink": "_verification_failed"
         }
       ]
@@ -131971,7 +131981,7 @@
       "origins": [
         {
           "path": "cdmw/services/problem_report_service.py",
-          "line": 473,
+          "line": 460,
           "sink": "ValueError"
         }
       ]
@@ -132151,7 +132161,7 @@
       "origins": [
         {
           "path": "cdmw/services/problem_report_service.py",
-          "line": 390,
+          "line": 377,
           "sink": "ValueError"
         }
       ]
@@ -137346,7 +137356,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 1199,
+          "line": 1206,
           "sink": "ValueError"
         }
       ]
@@ -137356,7 +137366,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 730,
+          "line": 737,
           "sink": "ValueError"
         }
       ]
@@ -137416,17 +137426,17 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 864,
+          "line": 871,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 977,
+          "line": 984,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 1144,
+          "line": 1151,
           "sink": "ValueError"
         }
       ]
@@ -137436,7 +137446,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 1172,
+          "line": 1179,
           "sink": "ValueError"
         }
       ]
@@ -137446,7 +137456,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 710,
+          "line": 717,
           "sink": "ValueError"
         }
       ]
@@ -137636,7 +137646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 598,
+          "line": 599,
           "sink": "_fail_all"
         }
       ]
@@ -138056,7 +138066,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 626,
+          "line": 633,
           "sink": "ValueError"
         }
       ]
@@ -141011,7 +141021,7 @@
       "origins": [
         {
           "path": "cdmw/services/diagnostics_service.py",
-          "line": 238,
+          "line": 239,
           "sink": "python-return:format_issue_summary"
         }
       ]
@@ -143146,7 +143156,7 @@
       "origins": [
         {
           "path": "cdmw/services/diagnostics_service.py",
-          "line": 238,
+          "line": 239,
           "sink": "python-return:format_issue_summary"
         }
       ]
@@ -145946,7 +145956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 547,
+          "line": 566,
           "sink": "getSaveFileName:filter-label"
         }
       ]
@@ -149171,7 +149181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 677,
+          "line": 707,
           "sink": "set_status_message"
         }
       ]
@@ -149181,7 +149191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 685,
+          "line": 715,
           "sink": "set_status_message"
         }
       ]
@@ -149236,7 +149246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 681,
+          "line": 711,
           "sink": "append_log"
         }
       ]
@@ -149246,7 +149256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 686,
+          "line": 716,
           "sink": "append_log"
         }
       ]
@@ -149256,7 +149266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 683,
+          "line": 713,
           "sink": "append_log"
         }
       ]
@@ -151981,7 +151991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 566,
+          "line": 567,
           "sink": "emit"
         }
       ]
@@ -158291,12 +158301,12 @@
         },
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 585,
+          "line": 592,
           "sink": "_result"
         },
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 601,
+          "line": 608,
           "sink": "_result"
         },
         {
@@ -158508,6 +158518,26 @@
           "path": "schemas/archive_content_capabilities.v1.json",
           "line": 1,
           "sink": "json-presentation:remaining"
+        }
+      ]
+    },
+    {
+      "key": "not an event",
+      "origins": [
+        {
+          "path": "cdmw/services/problem_report_diagnostics.py",
+          "line": 77,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "not an object",
+      "origins": [
+        {
+          "path": "cdmw/services/problem_report_diagnostics.py",
+          "line": 103,
+          "sink": "ValueError"
         }
       ]
     },
@@ -158791,12 +158821,12 @@
         },
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 585,
+          "line": 592,
           "sink": "_result"
         },
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 601,
+          "line": 608,
           "sink": "_result"
         },
         {
@@ -164326,17 +164356,17 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 174,
+          "line": 175,
           "sink": "TypeError"
         },
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 257,
+          "line": 258,
           "sink": "TypeError"
         },
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 287,
+          "line": 288,
           "sink": "TypeError"
         }
       ]
@@ -166311,17 +166341,17 @@
       "origins": [
         {
           "path": "cdmw/services/diagnostics_service.py",
-          "line": 209,
+          "line": 210,
           "sink": "python-return:_context_value"
         },
         {
           "path": "cdmw/services/diagnostics_service.py",
-          "line": 211,
+          "line": 212,
           "sink": "python-return:_context_value"
         },
         {
           "path": "cdmw/services/diagnostics_service.py",
-          "line": 218,
+          "line": 219,
           "sink": "python-return:_last_operation_label"
         },
         {
@@ -170121,7 +170151,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 105,
+          "line": 106,
           "sink": "RuntimeError"
         }
       ]
@@ -170896,7 +170926,7 @@
       "origins": [
         {
           "path": "cdmw/services/diagnostics_service.py",
-          "line": 337,
+          "line": 341,
           "sink": "python-return:sanitize_runtime_event_value"
         },
         {
@@ -171241,7 +171271,7 @@
       "origins": [
         {
           "path": "cdmw/services/diagnostics_service.py",
-          "line": 238,
+          "line": 239,
           "sink": "python-return:format_issue_summary"
         }
       ]
@@ -171471,7 +171501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 976,
+          "line": 979,
           "sink": "setText"
         }
       ]
@@ -172866,7 +172896,7 @@
       "origins": [
         {
           "path": "cdmw/services/diagnostics_service.py",
-          "line": 340,
+          "line": 344,
           "sink": "python-return:sanitize_runtime_event_value"
         },
         {
