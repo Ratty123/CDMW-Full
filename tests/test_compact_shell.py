@@ -105,6 +105,7 @@ class _CompactOwner(QMainWindow):
         self.attach_all_tools_action = self.window_menu.addAction("Reattach All Tools")
         self.help_menu = menu_bar.addMenu("Help")
         self.open_documentation_action = self.help_menu.addAction("Documentation")
+        self.report_problem_action = self.help_menu.addAction("Report a Problem...")
         self.export_diagnostics_action = self.help_menu.addAction("Export Diagnostics...")
         self.copy_problem_summary_action = self.help_menu.addAction("Copy Latest Problem Summary")
         self.open_crash_reports_action = self.help_menu.addAction("Open Crash Reports Folder")
@@ -514,6 +515,7 @@ def test_compact_workspace_executes_rail_footer_status_and_drawer_contracts(tmp_
     assert workspace.rail.support_button is owner.support_corner_button
     assert owner.profile_menu.menuAction() in workspace.rail.overflow_menu.actions()
     assert owner.window_menu.menuAction() in workspace.rail.overflow_menu.actions()
+    assert owner.report_problem_action in workspace.rail.overflow_menu.actions()
     assert owner.mod_package_tool_action not in workspace.rail.overflow_menu.actions()
     assert workspace.status_strip.ready_label is owner.archive_scan_progress_label
     assert workspace.status_strip.progress_bar is owner.archive_scan_progress_bar

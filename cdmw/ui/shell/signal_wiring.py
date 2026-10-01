@@ -16,6 +16,7 @@ class ShellSignalWiringMixin:
         self.detach_current_tab_action.triggered.connect(self._detach_current_tool_tab)
         self.attach_current_tool_action.triggered.connect(self._attach_current_tool_tab)
         self.attach_all_tools_action.triggered.connect(self._attach_all_detached_tools)
+        self.report_problem_action.triggered.connect(self.show_problem_report_dialog)
         self.export_diagnostics_action.triggered.connect(self.export_diagnostic_bundle)
         self.copy_problem_summary_action.triggered.connect(self.copy_latest_problem_summary)
         self.open_crash_reports_action.triggered.connect(self.open_crash_reports_folder)

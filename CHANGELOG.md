@@ -7,6 +7,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Added
+
+- Report a Problem guides users through required details, reviews redacted evidence and optional screenshots, and keeps a local draft. Direct delivery to a private inbox is available for maintainer testing.
+
 ### Changed
 
 - Faster repeated archive browsing, effects-library discovery and effect metadata loading.

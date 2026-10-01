@@ -207,6 +207,7 @@ class CompactWorkspaceRail(QFrame):
         overflow_menu.addAction(owner.shell.profile_menu.menuAction())
         overflow_menu.addAction(owner.shell.window_menu.menuAction())
         overflow_menu.addSeparator()
+        overflow_menu.addAction(owner.shell.report_problem_action)
         overflow_menu.addAction(owner.shell.export_diagnostics_action)
         overflow_menu.addSeparator()
         overflow_menu.addAction(owner.shell.open_about_action)

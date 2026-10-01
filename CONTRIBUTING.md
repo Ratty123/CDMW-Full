@@ -6,7 +6,10 @@ Thanks for helping improve Crimson Desert Mod Workbench.
 
 - Use the latest release or beta build first.
 - Check the [CHANGELOG.md](CHANGELOG.md) to see if the problem was already fixed.
-- If the issue is a crash or preview failure, use `Help > Export Diagnostics...`
+- In source test builds, use `Help > Report a Problem...` to complete the required
+  fields and review a redacted local draft. Direct sending is limited to the private
+  maintainer test setup; see [receiver setup](tools/problem_report_receiver/README.md).
+- If the issue is a crash or preview failure, you can also use `Help > Export Diagnostics...`
   and attach the ZIP, or use `Help > Copy Latest Problem Summary` and paste it
   into the issue.
 
@@ -20,6 +23,7 @@ Please include:
 - steps to reproduce
 - relevant file paths or archive paths, if safe to share
 - screenshots or logs when helpful
+- game version and platform, mod manager/mods, and whether it also happens without mods
 - the diagnostics ZIP or copied problem summary for crashes and preview failures
 
 For preview/build problems, it helps a lot to include:

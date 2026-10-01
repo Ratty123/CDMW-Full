@@ -165,8 +165,19 @@ Archive and editing workflows use local files. Optional online features, includi
 model catalogues and AI translation, connect to external services. Crash reports
 and diagnostic bundles stay local unless you share them.
 
-For problems, include the app version, steps to reproduce and the report from
-**Help > Export Diagnostics...** or **Help > Copy Latest Problem Summary**.
+**Help > Report a Problem...** (also under **More**) guides you through required
+reproduction steps, expected/actual results and game/mod setup. It prepares a local
+draft with redacted paths and common credentials, recent log excerpts, a bounded
+folder listing and optional screenshots. Review it before sharing; screenshots can
+still contain visible personal information. It does not upload game file contents.
+
+Direct submission currently uses a private test inbox and requires maintainer test
+access. After explicit review and consent, reports go through Cloudflare to private
+GitHub issues. Cloud evidence expires after 90 days; issue summaries and local
+drafts remain until removed. A failed upload keeps the draft for retry.
+
+**Help > Export Diagnostics...** and **Help > Copy Latest Problem Summary** remain
+available for manual reporting. Review diagnostic bundles before sharing them.
 See [Contributing](CONTRIBUTING.md) for bug reports and development, and
 [Security](SECURITY.md) for vulnerability reporting.
 

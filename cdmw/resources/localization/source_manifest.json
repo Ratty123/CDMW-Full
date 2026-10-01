@@ -1066,7 +1066,7 @@
       "origins": [
         {
           "path": "cdmw/services/fbx_blender_conversion.py",
-          "line": 238,
+          "line": 240,
           "sink": "python-return:summary"
         }
       ]
@@ -2357,6 +2357,26 @@
       ]
     },
     {
+      "key": "1. Describe",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 99,
+          "sink": "addTab"
+        }
+      ]
+    },
+    {
+      "key": "1. Open…\n2. Select…\n3. Click… Include the file or item name.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 56,
+          "sink": "_text"
+        }
+      ]
+    },
+    {
       "key": "1. Source Summary",
       "origins": [
         {
@@ -2453,6 +2473,16 @@
           "path": "cdmw/ui/safe_upscale_wizard.py",
           "line": 145,
           "sink": "QGroupBox"
+        }
+      ]
+    },
+    {
+      "key": "2. Review and send",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 116,
+          "sink": "addTab"
         }
       ]
     },
@@ -3902,6 +3932,16 @@
       ]
     },
     {
+      "key": "A screenshot is too large after resizing. Crop it and try again.",
+      "origins": [
+        {
+          "path": "cdmw/services/problem_report_service.py",
+          "line": 239,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "A section can be switched off for a skeleton by the file's DisabledKeyList. Editing it then does nothing and says nothing, so the panel puts a banner up when that applies to the character you picked.",
       "origins": [
         {
@@ -4251,7 +4291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/menus.py",
-          "line": 38,
+          "line": 39,
           "sink": "addAction"
         }
       ]
@@ -5048,6 +5088,16 @@
           "path": "cdmw/ui/shell/compact/drawer.py",
           "line": 65,
           "sink": "setPlaceholderText"
+        }
+      ]
+    },
+    {
+      "key": "Actual result / error *",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 61,
+          "sink": "addRow"
         }
       ]
     },
@@ -7026,7 +7076,7 @@
         },
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 513,
+          "line": 547,
           "sink": "getSaveFileName:filter-label"
         },
         {
@@ -12782,6 +12832,16 @@
       ]
     },
     {
+      "key": "Attach at most three screenshots.",
+      "origins": [
+        {
+          "path": "cdmw/services/problem_report_service.py",
+          "line": 249,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Attach point",
       "origins": [
         {
@@ -15366,7 +15426,7 @@
       "origins": [
         {
           "path": "cdmw/services/fbx_blender_conversion.py",
-          "line": 362,
+          "line": 364,
           "sink": "RuntimeError"
         }
       ]
@@ -15376,7 +15436,7 @@
       "origins": [
         {
           "path": "cdmw/services/fbx_blender_conversion.py",
-          "line": 369,
+          "line": 371,
           "sink": "RuntimeError"
         }
       ]
@@ -15386,7 +15446,7 @@
       "origins": [
         {
           "path": "cdmw/services/fbx_blender_conversion.py",
-          "line": 360,
+          "line": 362,
           "sink": "RuntimeError"
         }
       ]
@@ -18557,6 +18617,16 @@
       ]
     },
     {
+      "key": "CDMW-{value_0} ({value_1})",
+      "origins": [
+        {
+          "path": "cdmw/services/problem_report_service.py",
+          "line": 313,
+          "sink": "python-return:parse_report_receipt"
+        }
+      ]
+    },
+    {
       "key": "CDMW_ARCHIVE_BACKEND is obsolete and ignored; using the standalone archive backend.",
       "origins": [
         {
@@ -18971,7 +19041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/menus.py",
-          "line": 64,
+          "line": 65,
           "sink": "setToolTip"
         }
       ]
@@ -19051,7 +19121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/menus.py",
-          "line": 57,
+          "line": 58,
           "sink": "QLabel"
         }
       ]
@@ -21996,7 +22066,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7447,
+          "line": 7449,
           "sink": "report"
         }
       ]
@@ -22762,6 +22832,16 @@
         {
           "path": "cdmw/services/mesh_morph_profiles.py",
           "line": 45,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Choose a PNG, JPEG or WebP screenshot under 40 megapixels.",
+      "origins": [
+        {
+          "path": "cdmw/services/problem_report_service.py",
+          "line": 231,
           "sink": "ValueError"
         }
       ]
@@ -23692,6 +23772,16 @@
       ]
     },
     {
+      "key": "Choose at most three screenshots.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 187,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Choose blender.exe...",
       "origins": [
         {
@@ -23975,6 +24065,26 @@
       "key": "Choose replacement textures for mapped draw slots. Hover a row to highlight the affected part in the preview.",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Choose screenshots smaller than 12 MB each.",
+      "origins": [
+        {
+          "path": "cdmw/services/problem_report_service.py",
+          "line": 228,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Choose screenshots…",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 83,
+          "sink": "QPushButton"
+        }
+      ]
     },
     {
       "key": "Choose shops, crafting recipes or existing reward sources, and review group memberships.",
@@ -24267,6 +24377,16 @@
       ]
     },
     {
+      "key": "Choose up to three screenshots",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 182,
+          "sink": "getOpenFileNames"
+        }
+      ]
+    },
+    {
       "key": "Choose valid island faces from the current part.",
       "origins": [
         {
@@ -24353,6 +24473,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
           "line": 393,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Choose…",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 156,
+          "sink": "addItem"
         }
       ]
     },
@@ -25675,6 +25805,11 @@
           "sink": "QPushButton"
         },
         {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 126,
+          "sink": "QPushButton"
+        },
+        {
           "path": "cdmw/ui/shell/support_dialog.py",
           "line": 52,
           "sink": "QPushButton"
@@ -26053,6 +26188,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 1829,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Collect and review",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 122,
+          "sink": "QPushButton"
         }
       ]
     },
@@ -27963,8 +28108,13 @@
     },
     {
       "key": "Contact",
-      "origins": [],
-      "manual": true
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 73,
+          "sink": "addRow"
+        }
+      ]
     },
     {
       "key": "Content-addressed Material Authority DDS cache hash mismatch.",
@@ -28456,7 +28606,7 @@
       "origins": [
         {
           "path": "cdmw/services/fbx_blender_conversion.py",
-          "line": 350,
+          "line": 352,
           "sink": "on_log"
         }
       ]
@@ -28516,7 +28666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 631,
+          "line": 665,
           "sink": "set_status_message"
         }
       ]
@@ -28681,7 +28831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/menus.py",
-          "line": 36,
+          "line": 37,
           "sink": "addAction"
         }
       ]
@@ -29491,7 +29641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 608,
+          "line": 642,
           "sink": "set_status_message"
         }
       ]
@@ -33292,6 +33442,36 @@
       ]
     },
     {
+      "key": "Delivery is not confirmed. Keep the draft and retry the same report.",
+      "origins": [
+        {
+          "path": "cdmw/services/problem_report_service.py",
+          "line": 312,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Delivery is not confirmed. The local draft is safe; retry this report when the service is available.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 304,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Delivery is still pending. Wait two minutes, then retry this report.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 303,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Delta",
       "origins": [
         {
@@ -33403,6 +33583,16 @@
           "path": "cdmw/ui/mesh_editor/tab_panel_state.py",
           "line": 503,
           "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "Describe what happened, then review the evidence before sending. This test sends to a private inbox.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 42,
+          "sink": "QLabel"
         }
       ]
     },
@@ -33658,6 +33848,16 @@
           "path": "tools/placement_studio/preflight.py",
           "line": 114,
           "sink": "python-return:render"
+        }
+      ]
+    },
+    {
+      "key": "Destination: {value_0}\nCloud evidence is retained for 90 days. Private issue summaries remain in the inbox until removed.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 102,
+          "sink": "QLabel"
         }
       ]
     },
@@ -34011,7 +34211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 598,
+          "line": 632,
           "sink": "set_status_message"
         }
       ]
@@ -34021,7 +34221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 599,
+          "line": 633,
           "sink": "append_log"
         }
       ]
@@ -34031,7 +34231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 596,
+          "line": 630,
           "sink": "set_status_message"
         }
       ]
@@ -36511,17 +36711,17 @@
         },
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 540,
+          "line": 574,
           "sink": "append_log"
         },
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 611,
+          "line": 645,
           "sink": "append_log"
         },
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 634,
+          "line": 668,
           "sink": "append_log"
         },
         {
@@ -36856,7 +37056,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 9711,
+          "line": 9713,
           "sink": "RuntimeError"
         }
       ]
@@ -40147,6 +40347,16 @@
       ]
     },
     {
+      "key": "Expected result *",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 59,
+          "sink": "addRow"
+        }
+      ]
+    },
+    {
       "key": "Expected result:",
       "origins": [
         {
@@ -40771,7 +40981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 513,
+          "line": 547,
           "sink": "getSaveFileName"
         }
       ]
@@ -40791,7 +41001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/menus.py",
-          "line": 35,
+          "line": 36,
           "sink": "addAction"
         }
       ]
@@ -42291,7 +42501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 529,
+          "line": 563,
           "sink": "_run_utility_task"
         }
       ]
@@ -47732,6 +47942,16 @@
       ]
     },
     {
+      "key": "Game platform *",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 65,
+          "sink": "addRow"
+        }
+      ]
+    },
+    {
       "key": "Game table path",
       "origins": [
         {
@@ -47788,6 +48008,26 @@
           "path": "cdmw/services/game_executable_fingerprints.py",
           "line": 58,
           "sink": "python-return:check_game_executable_fingerprints"
+        }
+      ]
+    },
+    {
+      "key": "Game version *",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 67,
+          "sink": "addRow"
+        }
+      ]
+    },
+    {
+      "key": "Game version, or Unknown",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 66,
+          "sink": "_line"
         }
       ]
     },
@@ -51687,6 +51927,16 @@
       ]
     },
     {
+      "key": "How often? *",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 63,
+          "sink": "addRow"
+        }
+      ]
+    },
+    {
       "key": "How quickly the glow brightens and dims. Zero keeps it steady. Uses the shader's time scale, not cycles per second.",
       "origins": [
         {
@@ -51800,6 +52050,16 @@
       "key": "Humanoids ({value_0})",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "I reviewed the report and screenshots and agree to send them to this private inbox",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 112,
+          "sink": "QCheckBox"
+        }
+      ]
     },
     {
       "key": "ICE",
@@ -54077,6 +54337,16 @@
       ]
     },
     {
+      "key": "Include a small game folder listing (names and sizes)",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 76,
+          "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
       "key": "Include already classified texture families too, so you can override them manually if you want.",
       "origins": [
         {
@@ -54188,6 +54458,16 @@
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
           "line": 351,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Include recent logs and operation details",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 74,
+          "sink": "QCheckBox"
         }
       ]
     },
@@ -59923,6 +60203,16 @@
           "path": "cdmw/ui/archive_browser/progress.py",
           "line": 75,
           "sink": "python-return:_archive_progress_phase_for_detail"
+        }
+      ]
+    },
+    {
+      "key": "List the manager, relevant mods and archive edits, or write None.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 68,
+          "sink": "_text"
         }
       ]
     },
@@ -69887,6 +70177,16 @@
       ]
     },
     {
+      "key": "Mods and manager *",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 69,
+          "sink": "addRow"
+        }
+      ]
+    },
+    {
       "key": "Money item",
       "origins": [
         {
@@ -70071,7 +70371,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 9042,
+          "line": 9044,
           "sink": "RuntimeError"
         }
       ]
@@ -70151,7 +70451,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8972,
+          "line": 8974,
           "sink": "RuntimeError"
         }
       ]
@@ -70161,7 +70461,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8968,
+          "line": 8970,
           "sink": "RuntimeError"
         }
       ]
@@ -70171,7 +70471,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8943,
+          "line": 8945,
           "sink": "RuntimeError"
         }
       ]
@@ -74836,7 +75136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 698,
+          "line": 703,
           "sink": "set_status_message"
         }
       ]
@@ -75738,6 +76038,21 @@
           "path": "cdmw/services/archive_overlay_manager.py",
           "line": 489,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "No screenshots (optional; up to 3)",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 87,
+          "sink": "QLabel"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 196,
+          "sink": "setText"
         }
       ]
     },
@@ -78127,6 +78442,16 @@
       ]
     },
     {
+      "key": "One specific problem, e.g. Archive Browser fails to extract a DDS",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 51,
+          "sink": "_line"
+        }
+      ]
+    },
+    {
       "key": "One texture job for Edit, Replace, Recolor, Upscale, and Review & Export.",
       "origins": [
         {
@@ -78476,7 +78801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/menus.py",
-          "line": 37,
+          "line": 38,
           "sink": "addAction"
         }
       ]
@@ -79851,7 +80176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/menus.py",
-          "line": 67,
+          "line": 68,
           "sink": "setToolTip"
         }
       ]
@@ -80271,7 +80596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 606,
+          "line": 640,
           "sink": "set_status_message"
         }
       ]
@@ -80843,6 +81168,16 @@
           "path": "cdmw/ui/character_context_panel.py",
           "line": 108,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Optional Nexus username or contact for follow-up",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 72,
+          "sink": "_line"
         }
       ]
     },
@@ -85477,6 +85812,16 @@
       ]
     },
     {
+      "key": "Paths and common credentials are redacted. Screenshots are resized and metadata is removed; visible personal information needs your review. Game file contents and full settings files are excluded.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 93,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
       "key": "Pattern",
       "origins": [
         {
@@ -88766,7 +89111,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7445,
+          "line": 7447,
           "sink": "report"
         }
       ]
@@ -88863,6 +89208,16 @@
           "path": "cdmw/ui/mesh_editor/replace_from_archive_flow.py",
           "line": 185,
           "sink": "_run_utility_task_when_idle"
+        }
+      ]
+    },
+    {
+      "key": "Preparing a local draft…",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 217,
+          "sink": "setText"
         }
       ]
     },
@@ -89166,7 +89521,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8000,
+          "line": 8002,
           "sink": "progress"
         }
       ]
@@ -89176,7 +89531,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7311,
+          "line": 7313,
           "sink": "report"
         }
       ]
@@ -89186,7 +89541,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7335,
+          "line": 7337,
           "sink": "report"
         }
       ]
@@ -96196,7 +96551,7 @@
         },
         {
           "path": "cdmw/ui/shell/menus.py",
-          "line": 43,
+          "line": 44,
           "sink": "QLabel"
         },
         {
@@ -96311,12 +96666,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/menus.py",
-          "line": 49,
+          "line": 50,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/shell/menus.py",
-          "line": 56,
+          "line": 57,
           "sink": "setToolTip"
         }
       ]
@@ -99580,6 +99935,11 @@
           "sink": "QPushButton"
         },
         {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 85,
+          "sink": "QPushButton"
+        },
+        {
           "path": "cdmw/ui/texture_editor_tab.py",
           "line": 1247,
           "sink": "QPushButton"
@@ -101292,6 +101652,46 @@
       ]
     },
     {
+      "key": "Report a Problem — private test",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 27,
+          "sink": "setWindowTitle"
+        }
+      ]
+    },
+    {
+      "key": "Report a Problem...",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/menus.py",
+          "line": 35,
+          "sink": "addAction"
+        }
+      ]
+    },
+    {
+      "key": "Report exceeds 8 MB. Remove a screenshot and collect it again.",
+      "origins": [
+        {
+          "path": "cdmw/services/problem_report_service.py",
+          "line": 283,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Report received: {value_0}\nKeep this receipt for follow-up. Local draft: {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 307,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Representative real HKX corpus: {value_0}",
       "origins": [
         {
@@ -101438,6 +101838,16 @@
           "path": "cdmw/ui/archive_browser/mesh_setup_helpers.py",
           "line": 333,
           "sink": "_section_label"
+        }
+      ]
+    },
+    {
+      "key": "Required fields are marked *. Unknown and Not tried are valid answers.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 117,
+          "sink": "QLabel"
         }
       ]
     },
@@ -105152,6 +105562,16 @@
       ]
     },
     {
+      "key": "Review {value_0} KB. Local draft saved: {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 240,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Reward entry, quantity or enhancement is out of range.",
       "origins": [
         {
@@ -108408,6 +108828,36 @@
           "path": "tools/placement_studio/rig_behaviour.py",
           "line": 131,
           "sink": "Section"
+        }
+      ]
+    },
+    {
+      "key": "Screenshots",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 182,
+          "sink": "getOpenFileNames:filter-label"
+        }
+      ]
+    },
+    {
+      "key": "Screenshots (*.png *.jpg *.jpeg *.webp)",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 182,
+          "sink": "getOpenFileNames"
+        }
+      ]
+    },
+    {
+      "key": "Screenshots must be PNG, JPEG or WebP images.",
+      "origins": [
+        {
+          "path": "cdmw/services/problem_report_service.py",
+          "line": 226,
+          "sink": "ValueError"
         }
       ]
     },
@@ -113832,6 +114282,16 @@
       ]
     },
     {
+      "key": "Send report",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 124,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Send the lines you have filtered to a translation model on your own API key.",
       "origins": [
         {
@@ -113848,6 +114308,16 @@
           "path": "tools/placement_studio/window_editing.py",
           "line": 100,
           "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "Sending the reviewed report…",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 282,
+          "sink": "setText"
         }
       ]
     },
@@ -121412,6 +121882,16 @@
       ]
     },
     {
+      "key": "Steps to reproduce *",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 57,
+          "sink": "addRow"
+        }
+      ]
+    },
+    {
       "key": "Steps to reproduce:",
       "origins": [
         {
@@ -122222,6 +122702,16 @@
       ]
     },
     {
+      "key": "Summary *",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 52,
+          "sink": "addRow"
+        }
+      ]
+    },
+    {
       "key": "Summary:",
       "origins": [
         {
@@ -122296,7 +122786,7 @@
         },
         {
           "path": "cdmw/ui/shell/menus.py",
-          "line": 65,
+          "line": 66,
           "sink": "QPushButton"
         },
         {
@@ -124148,6 +124638,16 @@
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
           "line": 83,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Test without mods *",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 71,
+          "sink": "addRow"
         }
       ]
     },
@@ -128332,6 +128832,16 @@
       ]
     },
     {
+      "key": "The report service returned an invalid receipt.",
+      "origins": [
+        {
+          "path": "cdmw/services/problem_report_service.py",
+          "line": 309,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "The requested Mesh Editor output policy is unavailable.",
       "origins": [
         {
@@ -131262,6 +131772,16 @@
       ]
     },
     {
+      "key": "Tool / workflow *",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 55,
+          "sink": "addRow"
+        }
+      ]
+    },
+    {
       "key": "Tool Axe",
       "origins": [],
       "manual": true
@@ -131403,6 +131923,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 2481,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Tool or menu where this happened",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 53,
+          "sink": "_line"
         }
       ]
     },
@@ -139412,6 +139942,16 @@
       ]
     },
     {
+      "key": "What happened instead? Include the exact error text or where it stalled.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 60,
+          "sink": "_text"
+        }
+      ]
+    },
+    {
       "key": "What is left:",
       "origins": [
         {
@@ -139493,6 +140033,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 331,
           "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
+      "key": "What should have happened?",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 58,
+          "sink": "_text"
         }
       ]
     },
@@ -142076,7 +142626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 513,
+          "line": 547,
           "sink": "getSaveFileName:filter-label"
         }
       ]
@@ -145291,7 +145841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 643,
+          "line": 677,
           "sink": "set_status_message"
         }
       ]
@@ -145301,7 +145851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 651,
+          "line": 685,
           "sink": "set_status_message"
         }
       ]
@@ -145356,7 +145906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 647,
+          "line": 681,
           "sink": "append_log"
         }
       ]
@@ -145366,7 +145916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 652,
+          "line": 686,
           "sink": "append_log"
         }
       ]
@@ -145376,7 +145926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/profile_controller.py",
-          "line": 649,
+          "line": 683,
           "sink": "append_log"
         }
       ]
@@ -147226,7 +147776,7 @@
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7593,
+          "line": 7595,
           "sink": "open_edit_session"
         },
         {
@@ -148866,7 +149416,7 @@
         },
         {
           "path": "cdmw/ui/shell/signal_wiring.py",
-          "line": 109,
+          "line": 110,
           "sink": "_export_current_archive_mesh"
         }
       ]
@@ -153336,12 +153886,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 6904,
+          "line": 6906,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7002,
+          "line": 7004,
           "sink": "RuntimeError"
         }
       ]
@@ -154756,7 +155306,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 703,
+          "line": 697,
           "sink": "_start_archive_mesh_export"
         }
       ]
@@ -166036,7 +166586,7 @@
       "origins": [
         {
           "path": "cdmw/services/fbx_blender_conversion.py",
-          "line": 238,
+          "line": 240,
           "sink": "python-return:summary"
         }
       ]
@@ -166696,7 +167246,7 @@
       "origins": [
         {
           "path": "cdmw/services/fbx_blender_conversion.py",
-          "line": 336,
+          "line": 338,
           "sink": "RuntimeError"
         }
       ]
@@ -167562,6 +168112,16 @@
         {
           "path": "cdmw/ui/new_item/shop_routes_editor.py",
           "line": 39,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} screenshot(s) selected",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 190,
           "sink": "setText"
         }
       ]

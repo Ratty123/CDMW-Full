@@ -32,6 +32,7 @@ class ShellMenusMixin:
         self.help_menu = menu_bar.addMenu("Help")
         self.open_documentation_action = self.help_menu.addAction("Documentation")
         self.help_menu.addSeparator()
+        self.report_problem_action = self.help_menu.addAction("Report a Problem...")
         self.export_diagnostics_action = self.help_menu.addAction("Export Diagnostics...")
         self.copy_problem_summary_action = self.help_menu.addAction("Copy Latest Problem Summary")
         self.open_crash_reports_action = self.help_menu.addAction("Open Crash Reports Folder")

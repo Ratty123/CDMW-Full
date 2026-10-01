@@ -507,6 +507,40 @@ class ProfileControllerMixin:
             self.set_status_message(str(exc), error=True)
             self.append_log(f"ERROR: {exc}")
 
+    def show_problem_report_dialog(self) -> None:
+        from cdmw.ui.shell.problem_report_dialog import ProblemReportDialog
+
+        dialog = getattr(self, "_problem_report_dialog", None)
+        if dialog is not None:
+            dialog.show()
+            dialog.raise_()
+            dialog.activateWindow()
+            return
+        dialog = ProblemReportDialog(self._problem_report_snapshot(), self)
+        self._problem_report_dialog = dialog
+        dialog.finished.connect(lambda _result: setattr(self, "_problem_report_dialog", None))
+        dialog.show()
+
+    def _problem_report_snapshot(self):
+        from cdmw.services.problem_report_service import ProblemSnapshot
+
+        context = self._diagnostic_context_snapshot()
+        context["archive_cache_health"] = {
+            "state": str(getattr(self.archive, "_archive_cache_health_state", "unknown")),
+            "reason": str(getattr(self.archive, "_archive_cache_health_reason", "")),
+            "scope": "metadata cache only; not a clean-install verification",
+        }
+        root = Path(self.settings_file_path).parent / "workspace"
+        return ProblemSnapshot(
+            context_json=json.dumps(context, default=str),
+            archive_root=self.archive.archive_package_root_edit.text().strip(),
+            workspace_root=str(root),
+            event_log=str(root / "logs" / "diagnostics_current.jsonl"),
+            live_log=self.textures.log_view.toPlainText()[-32000:],
+            archive_log=self.archive.archive_log_view.toPlainText()[-32000:],
+            captured_at=time.time(),
+        )
+
     def export_diagnostic_bundle(self) -> None:
         try:
             default_name = self.settings_file_path.parent / "cdmw_diagnostics.zip"
