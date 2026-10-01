@@ -194,6 +194,9 @@ class MeshEditorTabShellMixin(
         self.standalone_native_host_frame.retry_requested.connect(
             self._retry_rust_editor_requested
         )
+        self.standalone_native_host_frame.focus_requested.connect(
+            lambda: self._send_rust_message(self._rust_host_message("focus_request", request_id=0))
+        )
         self.standalone_preview = page.preview
         self.standalone_native_host = page.native_host_frame
         self._wire_shared_dotnet_controller(self.standalone_native_host)

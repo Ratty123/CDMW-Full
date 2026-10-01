@@ -110,10 +110,19 @@ incomplete. See [READINESS.md](READINESS.md).
 
 ## GPU resource lifecycle
 
-Inactive read-only previews release their renderer and retain the CPU scene
-and camera for activation. Scene replacement reuses unchanged DDS allocations.
+Inactive read-only previews stop drawing immediately and keep their renderer
+for 15 seconds. Quick tab returns reuse the device, textures, scene and camera;
+continuous inactivity releases GPU allocations while retaining the CPU scene
+and camera for later activation. Duplicate hide requests do not extend that
+retention period. Scene replacement reuses unchanged DDS allocations.
 Interactive D3D12 allocation uses wgpu's native Windows budget check at 85% of
 the current process budget and its memory-saving allocation policy.
+
+Hidden Mesh Editor and New Item native windows also stop drawing. Keyboard
+focus handoffs are queued to the native window's owning thread when the helper
+advertises `host_focus_v1`; late requests cannot focus a hidden child or take
+focus from another foreground window. Qt coalesces shared preview geometry
+changes after layout and requests asynchronous child-window movement.
 
 Device loss or an allocation failure stops use of that renderer. Preview and
 Mesh Editor attempt one delayed device recreation. A repeated failure pauses

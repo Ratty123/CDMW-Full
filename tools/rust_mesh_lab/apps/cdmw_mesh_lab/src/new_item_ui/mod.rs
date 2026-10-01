@@ -496,6 +496,11 @@ impl Application {
                 Some("shutdown") => {
                     event_loop.exit();
                 }
+                Some("focus") => {
+                    if let Some(window) = &self.window {
+                        let _ = cdmw_win32_embed::focus_child_window(window);
+                    }
+                }
                 Some("ack") => {}
                 _ => bail!("Unknown New Item host message"),
             }
@@ -640,6 +645,7 @@ impl ApplicationHandler for Application {
             ));
             emit(
                 &json!({"protocol":PROTOCOL,"type":"ready","session":self.session,
+                    "capabilities":["host_focus_v1"],
                 "child_hwnd":cdmw_win32_embed::window_hwnd(&window)?,"embedded_parent_hwnd":self.parent}),
             )?;
             window.request_redraw();
@@ -685,7 +691,9 @@ impl ApplicationHandler for Application {
             }
             WindowEvent::RedrawRequested => {
                 repaint = false;
-                if let Err(error) = self.redraw(event_loop) {
+                if self.window.as_ref().is_some_and(|window| window.is_visible() == Some(false)) {
+                    self.next_repaint = None;
+                } else if let Err(error) = self.redraw(event_loop) {
                     self.failed(event_loop, error);
                 }
             }
@@ -699,6 +707,9 @@ impl ApplicationHandler for Application {
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        if self.window.as_ref().is_some_and(|window| window.is_visible() == Some(false)) {
+            self.next_repaint = None;
+        }
         if self
             .next_repaint
             .is_some_and(|deadline| deadline <= Instant::now())

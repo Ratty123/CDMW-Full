@@ -37,9 +37,10 @@ class DotNetPreviewHostLifecycleMixin:
     def showEvent(self, event: object) -> None:  # type: ignore[override]
         super().showEvent(event)  # type: ignore[arg-type]
         self.controller.set_visible(True)
-        self._sync_embedded_child_geometry(force_frame_refresh=True)
+        self._request_child_geometry_sync(force_frame_refresh=True)
 
     def hideEvent(self, event: object) -> None:  # type: ignore[override]
+        self._geometry_sync_timer.stop()
         self.controller.set_visible(False)
         super().hideEvent(event)  # type: ignore[arg-type]
 
@@ -68,7 +69,19 @@ class DotNetPreviewHostLifecycleMixin:
         self._resident_banner.setGeometry(
             viewport.x() + 8, viewport.y() + 8, max(0, viewport.width() - 16), 58
         )
-        self._sync_embedded_child_geometry()
+        self._request_child_geometry_sync()
+
+    def _request_child_geometry_sync(self, *, force_frame_refresh: bool = False) -> None:
+        self._geometry_force_frame_refresh |= force_frame_refresh
+        if self.isVisible():
+            self._geometry_sync_timer.start(0)
+
+    def _flush_child_geometry_sync(self) -> None:
+        if not self.isVisible():
+            return
+        force = self._geometry_force_frame_refresh
+        self._geometry_force_frame_refresh = False
+        self._sync_embedded_child_geometry(force_frame_refresh=force)
 
 
 __all__ = ["DotNetPreviewHostLifecycleMixin"]

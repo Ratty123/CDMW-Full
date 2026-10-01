@@ -393,6 +393,7 @@ class MeshEditorRustProcessMixin:
                 incompatible=True,
             )
             return
+        self.standalone_native_host_frame._focus_request_supported = "host_focus_v1" in capability_set
         session = self.standalone_rust_authoring_session
         if session is not None and (
             session.hair_start_mode

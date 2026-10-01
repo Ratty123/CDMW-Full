@@ -925,6 +925,16 @@ def test_gpu_startup_errors_use_the_paused_renderer_failure_protocol() -> None:
     assert resumed.index("self.window = Some(window.clone())") < resumed.index("WindowRenderer::new")
 
 
+def test_hidden_preview_retains_renderer_until_the_idle_release_is_due() -> None:
+    source = (ROOT / "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs").read_text(encoding="utf-8")
+    hide = source.split('"deactivate_request" => {', 1)[1].split('"reembed_request" =>', 1)[0]
+    assert "self.renderer = None" not in hide
+    assert "self.renderer_idle.pause(Instant::now())" in hide
+    idle = source.split("fn about_to_wait(", 1)[1].split("#[cfg(test)]", 1)[0]
+    assert "self.renderer_idle.take_due(Instant::now())" in idle
+    assert ".chain(self.renderer_idle.release_at)" in idle
+
+
 def test_compiled_preview_contract_declares_the_complete_runtime_surface() -> None:
     source = (
         ROOT / "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs"

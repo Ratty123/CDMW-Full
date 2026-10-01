@@ -73,6 +73,7 @@ class RustMeshEditorHostFrame(QFrame):
     """Hosts one process-owned winit child and owns its failure/result UI."""
 
     retry_requested = Signal()
+    focus_requested = Signal()
     run_validation_requested = Signal()
     build_mod_requested = Signal()
     install_overlay_requested = Signal()
@@ -100,6 +101,10 @@ class RustMeshEditorHostFrame(QFrame):
         self._child_process_id = 0
         self._launch_parent_hwnd = 0
         self._editor_visible = False
+        self._focus_request_supported = False
+        self._focus_timer = QTimer(self)
+        self._focus_timer.setSingleShot(True)
+        self._focus_timer.timeout.connect(self._request_child_focus)
         self._geometry_sync_timer = QTimer(self)
         self._geometry_sync_timer.setSingleShot(True)
         self._geometry_sync_timer.timeout.connect(self._sync_child_geometry_after_layout)
@@ -269,7 +274,8 @@ class RustMeshEditorHostFrame(QFrame):
         if int(owner.value) != self._child_process_id:
             self._child_hwnd = 0
             return False
-        user32.SetParent(child, wintypes.HWND(parent_hwnd))
+        if int(user32.GetParent(child) or 0) != parent_hwnd:
+            user32.SetParent(child, wintypes.HWND(parent_hwnd))
         if int(user32.GetParent(child) or 0) != parent_hwnd:
             return False
         style = int(user32.GetWindowLongPtrW(child, _GWL_STYLE))
@@ -323,6 +329,8 @@ class RustMeshEditorHostFrame(QFrame):
             self._sync_child_geometry()
 
     def detach_child_window(self) -> None:
+        self._focus_timer.stop()
+        self._focus_request_supported = False
         self._set_child_visible(False)
         self._child_hwnd = 0
         self._child_process_id = 0
@@ -388,13 +396,18 @@ class RustMeshEditorHostFrame(QFrame):
                 # Coalesce a second sync after that native layout has settled.
                 self._geometry_sync_timer.start(0)
         elif event_type == QEvent.Type.Hide:
+            self._focus_timer.stop()
+            self._geometry_sync_timer.stop()
             self._set_child_visible(False)
         elif event_type == QEvent.Type.FocusIn and self._editor_visible and self._child_hwnd > 0:
-            try:
-                _windows_api().SetFocus(wintypes.HWND(self._child_hwnd))
-            except (AttributeError, OSError, TypeError, ValueError):
-                pass
+            self._focus_timer.start(0)
+        elif event_type == QEvent.Type.FocusOut:
+            self._focus_timer.stop()
         return super().event(event)
+
+    def _request_child_focus(self) -> None:
+        if self._focus_request_supported and self._editor_visible and self.isVisible() and self.hasFocus():
+            self.focus_requested.emit()
 
 
 __all__ = ["RustMeshEditorHostFrame"]

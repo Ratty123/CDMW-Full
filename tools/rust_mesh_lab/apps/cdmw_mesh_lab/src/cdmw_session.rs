@@ -396,6 +396,7 @@ pub enum HostEvent {
     Ready,
     Theme(Value),
     RendererRetry,
+    Focus,
     HairPreset(String),
     VertexInspection {
         request_id: u64,
@@ -840,6 +841,7 @@ impl CdmwBridge {
             "embedded_parent_hwnd": embedded_parent_hwnd,
             "capabilities": [
                 "embedded_child_window_v1",
+                "host_focus_v1",
                 "local_selection_v1",
                 "local_sculpt_v1",
                 "host_topology_v1",
@@ -1416,6 +1418,7 @@ impl CdmwBridge {
                 "hello" => Ok(HostEvent::Hello),
                 "ready" => Ok(HostEvent::Ready),
                 "renderer_retry" => Ok(HostEvent::RendererRetry),
+                "focus_request" => Ok(HostEvent::Focus),
                 "hair_preset" => {
                     let preset = value.get("preset").and_then(Value::as_str).unwrap_or("");
                     if !matches!(preset, "cropped" | "bob" | "long" | "ponytail" | "empty") {
@@ -4533,6 +4536,18 @@ mod tests {
             bridge.decode_host_event(value),
             HostEvent::Fatal(_)
         ));
+    }
+
+    #[test]
+    fn focus_request_is_correlated_without_changing_the_authoring_revision() {
+        let root = tempdir().expect("root");
+        let mut bridge = CdmwBridge::for_test(root.path().to_path_buf(), "session", 3, 4);
+        let mut request = json!({"event":"focus_request", "protocol":PROTOCOL,
+            "session_id":"session", "request_id":0, "base_revision":4, "process_generation":3});
+        assert!(matches!(bridge.decode_host_event(request.clone()), HostEvent::Focus));
+        assert_eq!(bridge.shadow_revision(), 4);
+        request["process_generation"] = json!(2);
+        assert!(matches!(bridge.decode_host_event(request), HostEvent::Fatal(_)));
     }
 
     #[test]

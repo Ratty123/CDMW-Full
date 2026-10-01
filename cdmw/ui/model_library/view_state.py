@@ -186,7 +186,21 @@ class ModelLibraryResultsViewMixin:
     def handle_activated(self) -> None:
         self._auto_preview_timer.stop()
 
+    def hideEvent(self, event) -> None:  # noqa: N802
+        self._presentation_paused = True
+        self._auto_preview_timer.stop()
+        self._results_population_timer.stop()
+        super().hideEvent(event)
+
+    def showEvent(self, event) -> None:  # noqa: N802
+        self._presentation_paused = False
+        if self._populating_results:
+            self._results_population_timer.start()
+        super().showEvent(event)
+
     def _preview_current_model_if_auto_enabled(self) -> None:
+        if not self.isVisible():
+            return
         if not hasattr(self, "auto_preview_checkbox") or not self.auto_preview_checkbox.isChecked():
             return
         payload = self._selected_payload()

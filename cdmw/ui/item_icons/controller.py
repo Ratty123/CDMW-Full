@@ -49,6 +49,7 @@ class ItemIconRecordListMixin:
             if self._record_matches_filter(record, filter_text)
         ]
         self._pending_record_total = len(self._pending_record_rows)
+        self._record_population_pending = True
         self.records_tree.blockSignals(True)
         self.records_tree.setUpdatesEnabled(False)
         sort_column = self.records_tree.sortColumn()
@@ -74,7 +75,11 @@ class ItemIconRecordListMixin:
         return item
 
     def _flush_record_population_batch(self) -> None:
+        if self._presentation_paused:
+            self._record_population_timer.stop()
+            return
         if not self._pending_record_rows:
+            self._record_population_pending = False
             self.records_tree.setSortingEnabled(True)
             selected_key = self._pending_record_select_key
             target_item: Optional[QTreeWidgetItem] = None
@@ -123,12 +128,31 @@ class ItemIconRecordListMixin:
         self._schedule_selected_record_previews()
 
     def _schedule_selected_record_previews(self) -> None:
-        self._selection_preview_timer.start()
+        self._selection_preview_pending = True
+        if not self._presentation_paused:
+            self._selection_preview_timer.start()
 
     def _refresh_selected_record_previews(self) -> None:
         self._selection_preview_timer.stop()
+        if self._presentation_paused:
+            return
+        self._selection_preview_pending = False
         self.update_source_preview()
         self.update_final_preview()
+
+    def hideEvent(self, event) -> None:  # noqa: N802
+        self._presentation_paused = True
+        self._record_population_timer.stop()
+        self._selection_preview_timer.stop()
+        super().hideEvent(event)
+
+    def showEvent(self, event) -> None:  # noqa: N802
+        self._presentation_paused = False
+        if self._record_population_pending:
+            self._record_population_timer.start()
+        if self._selection_preview_pending:
+            self._selection_preview_timer.start()
+        super().showEvent(event)
 
     def _record_for_path(self, path: Optional[Path]) -> Optional[ItemIconLibraryRecord]:
         if path is None:

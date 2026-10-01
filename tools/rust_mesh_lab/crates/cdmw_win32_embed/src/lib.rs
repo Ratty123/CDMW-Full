@@ -67,6 +67,9 @@ mod keyboard_focus {
     unsafe extern "system" {
         fn GetFocus() -> isize;
         fn SetFocus(window: isize) -> isize;
+        fn GetForegroundWindow() -> isize;
+        fn GetAncestor(window: isize, flags: u32) -> isize;
+        fn IsWindowVisible(window: isize) -> i32;
     }
 
     pub fn current() -> isize {
@@ -78,7 +81,14 @@ mod keyboard_focus {
         // SAFETY: callers obtain this live HWND from their retained winit Window.
         // No foreground-window activation or cross-thread input attachment occurs.
         unsafe {
-            SetFocus(window);
+            // A queued host request can arrive after the user changed tabs or
+            // switched applications. It must never activate a hidden child or
+            // take keyboard focus back from another foreground window.
+            if IsWindowVisible(window) != 0
+                && GetForegroundWindow() == GetAncestor(window, 2)
+            {
+                SetFocus(window);
+            }
         }
     }
 }
@@ -119,5 +129,40 @@ mod tests {
             result.unwrap_err(),
             EmbeddedWindowError::InvalidParentHandle
         );
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn hidden_window_focus_request_keeps_keyboard_focus_unchanged() {
+        use winit::application::ApplicationHandler;
+        use winit::event_loop::{ActiveEventLoop, EventLoop};
+        use winit::platform::windows::EventLoopBuilderExtWindows;
+
+        struct Probe(bool);
+        impl ApplicationHandler for Probe {
+            fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+                let window = event_loop
+                    .create_window(Window::default_attributes().with_visible(false))
+                    .unwrap();
+                let before = keyboard_focus::current();
+                assert!(!focus_child_window(&window).unwrap());
+                assert_eq!(keyboard_focus::current(), before);
+                self.0 = true;
+                event_loop.exit();
+            }
+
+            fn window_event(
+                &mut self,
+                _event_loop: &ActiveEventLoop,
+                _window_id: winit::window::WindowId,
+                _event: winit::event::WindowEvent,
+            ) {
+            }
+        }
+
+        let event_loop = EventLoop::builder().with_any_thread(true).build().unwrap();
+        let mut probe = Probe(false);
+        event_loop.run_app(&mut probe).unwrap();
+        assert!(probe.0);
     }
 }

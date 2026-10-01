@@ -97,6 +97,9 @@ prepared-row result in that same tracked task lane. The UI only rejects stale
 request IDs and adds already-prepared rows in batches.
 Checked models are restored by logical identity when sorting or refreshing rows.
 Only models still visible in the rebuilt results remain checked for batch actions.
+Leaving the tab pauses row application and automatic preview requests. Returning
+resumes pending rows with their checked models and selection intact; explicit
+downloads, imports and other started tasks continue in their existing workers.
 
 ## Compact Workspace and task state
 

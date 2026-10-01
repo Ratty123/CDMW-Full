@@ -60,6 +60,11 @@ construct the widget, and apply presentation in separate GUI turns. Tool-specifi
 I/O remains in its owning workers, and shell shutdown retains both preload and
 feature threads until native teardown completes. Translation and language-export
 property inspection must not construct unopened lazy tools.
+Navigation waits for a 75 ms settled selection before first-use preparation.
+Leaving a tool pauses its queued GUI import, construction and presentation;
+returning resumes the same preload and publishes once. Explicit hidden tool
+handoffs still complete. This policy applies to both Classic and Compact
+navigation and the shared lazy workflow containers.
 Archive Browser's compact Select, Actions, and More Filters triggers retain their
 existing routing while rendering normal, hover, pressed/open-menu, focus, and
 disabled button states.

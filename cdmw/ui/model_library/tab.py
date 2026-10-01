@@ -129,6 +129,7 @@ class ModelLibraryTab(
         self._local_frozen_rows: tuple[object, ...] = ()
         self._mirror_frozen_rows: tuple[object, ...] = ()
         self._auto_preview_timer = QTimer(self)
+        self._presentation_paused = False
         self._auto_preview_timer.setSingleShot(True)
         self._auto_preview_timer.setInterval(350)
         self._auto_preview_timer.timeout.connect(self._preview_current_model_if_auto_enabled)

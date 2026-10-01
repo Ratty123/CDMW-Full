@@ -79,6 +79,9 @@ class ItemIconLibraryTab(ItemIconRecordListMixin, ItemIconWorkerMixin, QWidget):
         self._records_by_key: dict[str, ItemIconLibraryRecord] = {}
         self._target_entries: list[object] = []
         self._loading_record = False
+        self._presentation_paused = False
+        self._record_population_pending = False
+        self._selection_preview_pending = False
         self._temp_preview_dir = tempfile.TemporaryDirectory(prefix="cdmw_item_icon_tab_")
         self._initialize_item_icon_workers()
         self._pending_record_rows: list[ItemIconLibraryRecord] = []

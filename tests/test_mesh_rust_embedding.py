@@ -217,6 +217,10 @@ def test_host_resizes_hides_focuses_and_reparents_the_owned_child() -> None:
     application.processEvents()
     launch_parent = host.prepare_launch()
     api = _FakeUser32(owner_pid=77, parent_hwnd=launch_parent)
+    focus_requests = []
+    host.focus_requested.connect(lambda: focus_requests.append(True))
+    host._focus_request_supported = True
+    host.hasFocus = lambda: True
     with patch("cdmw.ui.mesh_editor.rust_host._windows_api", return_value=api):
         attached, reason = host.attach_child_window(123, 77, launch_parent)
         assert (attached, reason) == (True, "")
@@ -224,6 +228,8 @@ def test_host_resizes_hides_focuses_and_reparents_the_owned_child() -> None:
         host.event(QEvent(QEvent.Type.Hide))
         host.event(QEvent(QEvent.Type.Show))
         host.event(QEvent(QEvent.Type.FocusIn))
+        assert focus_requests == []
+        application.processEvents()
         host.host_hwnd = lambda: launch_parent + 10  # type: ignore[method-assign]
         host.event(QEvent(QEvent.Type.WinIdChange))
         host.host_hwnd = lambda: launch_parent + 20  # type: ignore[method-assign]
@@ -233,7 +239,8 @@ def test_host_resizes_hides_focuses_and_reparents_the_owned_child() -> None:
     assert api.positions[-1][:2] == (800, 600)
     assert 0 in api.visible
     assert 5 in api.visible
-    assert api.focused[-1] == 123
+    assert api.focused == []
+    assert focus_requests == [True]
     assert api.parent_hwnd == launch_parent + 20
     host.deleteLater()
     application.processEvents()
@@ -267,6 +274,53 @@ def test_prewarmed_host_uses_native_size_settled_after_show_and_resize() -> None
         host.detach_child_window()
     host.deleteLater()
     application.processEvents()
+
+
+def test_hiding_or_losing_focus_cancels_an_obsolete_focus_request() -> None:
+    application = QApplication.instance() or QApplication([])
+    host = RustMeshEditorHostFrame()
+    requests = []
+    host.focus_requested.connect(lambda: requests.append(True))
+    host.show()
+    application.processEvents()
+    host._editor_visible = True
+    host._child_hwnd = 123
+    host._focus_request_supported = True
+    host.hasFocus = lambda: True
+    try:
+        host.event(QEvent(QEvent.Type.FocusIn))
+        host.hide()
+        application.processEvents()
+        assert requests == []
+        host._child_hwnd = 0
+        host.show()
+        application.processEvents()
+        host._child_hwnd = 123
+        host.event(QEvent(QEvent.Type.FocusIn))
+        host.event(QEvent(QEvent.Type.FocusOut))
+        application.processEvents()
+        assert requests == []
+    finally:
+        host._child_hwnd = 0
+        host.close()
+        host.deleteLater()
+        application.processEvents()
+
+
+def test_mesh_editor_routes_focus_through_its_existing_process_channel(tmp_path: Path) -> None:
+    tab = _tab(tmp_path)
+    sent = []
+    tab._send_rust_message = lambda payload: sent.append(payload)
+    try:
+        tab.standalone_native_host_frame.focus_requested.emit()
+        assert len(sent) == 1
+        assert sent[0]["event"] == "focus_request"
+        assert sent[0]["request_id"] == 0
+    finally:
+        tab.request_shutdown()
+        tab.close()
+        tab.deleteLater()
+        QApplication.processEvents()
 
 
 def test_result_page_actions_and_retry_are_explicit_signals() -> None:

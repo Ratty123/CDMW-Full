@@ -125,10 +125,15 @@ def test_a_resize_moves_the_helper_window_in_the_same_frame() -> None:
 
     frame, _controller = _host_frame()
     try:
+        frame.show()
+        _APP.processEvents()
         calls: list[int] = []
-        frame._sync_embedded_child_geometry = lambda: calls.append(1)  # type: ignore[method-assign]
+        frame._sync_embedded_child_geometry = lambda **_kwargs: calls.append(1)  # type: ignore[method-assign]
         frame.resizeEvent(QResizeEvent(QSize(800, 600), QSize(640, 480)))
-        assert calls, (
+        frame.resizeEvent(QResizeEvent(QSize(900, 600), QSize(800, 600)))
+        assert calls == []
+        _APP.processEvents()
+        assert calls == [1], (
             "a resize did not move the helper's window; it is left to the "
             "helper's own poll, which waits for the size to stop changing"
         )
@@ -145,7 +150,9 @@ def test_show_after_a_hidden_resize_resyncs_the_helper_window() -> None:
             lambda *, force_frame_refresh=False: calls.append(bool(force_frame_refresh))
         )
 
-        frame.showEvent(QShowEvent())
+        frame.show()
+        assert calls == []
+        _APP.processEvents()
 
         assert controller.visibility and controller.visibility[-1] is True
         assert calls == [True], (
@@ -153,6 +160,23 @@ def test_show_after_a_hidden_resize_resyncs_the_helper_window() -> None:
             "leaving the old width as a blank band or cropped controls"
         )
     finally:
+        frame.deleteLater()
+
+
+def test_hiding_before_geometry_flush_drops_the_queued_child_move() -> None:
+    frame, _controller = _host_frame()
+    try:
+        calls = []
+        frame._sync_embedded_child_geometry = lambda **_kwargs: calls.append(1)
+        frame.show()
+        frame.hide()
+        _APP.processEvents()
+        assert calls == []
+        frame.show()
+        _APP.processEvents()
+        assert calls == [1]
+    finally:
+        frame.close()
         frame.deleteLater()
 
 
@@ -215,3 +239,18 @@ def test_the_controller_refuses_to_reembed_without_a_running_helper() -> None:
         assert controller.reembed(0) is False
     finally:
         controller.shutdown()
+
+
+def test_shared_preview_child_moves_use_the_async_windows_flag() -> None:
+    from tests.test_mesh_rust_embedding import _FakeUser32
+
+    frame, controller = _host_frame()
+    try:
+        controller.process_id = 77
+        frame._embedded_child_hwnd = 123
+        api = _FakeUser32(owner_pid=77, parent_hwnd=frame._host_hwnd())
+        with patch("ctypes.windll.user32", api):
+            frame._sync_embedded_child_geometry()
+        assert api.positions[-1][:2] == (800, 600)
+    finally:
+        frame.deleteLater()

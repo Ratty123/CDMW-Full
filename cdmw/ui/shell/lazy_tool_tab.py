@@ -6,7 +6,7 @@ from collections.abc import Callable, Iterable
 from typing import Any
 
 from PySide6.QtCore import QObject, QThread, QTimer, Qt, Signal, Slot
-from PySide6.QtGui import QShowEvent
+from PySide6.QtGui import QHideEvent, QShowEvent
 from PySide6.QtWidgets import QLabel, QProgressBar, QVBoxLayout, QWidget
 
 
@@ -59,6 +59,11 @@ class LazyToolTab(QWidget):
         self._created_callbacks: list[Callable[[QWidget], None]] = []
         self._creating = False
         self._load_requested = False
+        self._load_requires_visible = False
+        self._next_load_step: Callable[[], None] | None = None
+        self._load_timer = QTimer(self)
+        self._load_timer.setSingleShot(True)
+        self._load_timer.timeout.connect(self._run_load_step)
         self._shutdown_requested = False
         self._shutdown_called = False
         self._prepare_thread: QThread | None = None
@@ -114,19 +119,36 @@ class LazyToolTab(QWidget):
         finally:
             self._creating = False
 
-    def request_widget(self) -> None:
+    def request_widget(self, *, require_visible: bool = False) -> None:
         """Begin first-use loading and return before imports or construction run."""
 
-        if (
-            self._widget is not None
-            or self._pending_widget is not None
-            or self._load_requested
-            or self._shutdown_requested
-        ):
+        if self._widget is not None or self._shutdown_requested:
+            return
+        if self._load_requested:
+            # Explicit handoffs may need a hidden tool. A navigation request
+            # must not downgrade that requirement or duplicate its preload.
+            if not require_visible:
+                self._load_requires_visible = False
+            if self._next_load_step is not None:
+                self._schedule_load_step(self._next_load_step, delay=75 if require_visible else 0)
             return
         self._load_requested = True
+        self._load_requires_visible = require_visible
         self._loading_widget.show()
-        QTimer.singleShot(0, self._start_prepare)
+        self._schedule_load_step(self._start_prepare, delay=75 if require_visible else 0)
+
+    def _schedule_load_step(self, step: Callable[[], None], *, delay: int = 0) -> None:
+        self._next_load_step = step
+        if not self._load_requires_visible or self.isVisible():
+            self._load_timer.start(delay)
+
+    @Slot()
+    def _run_load_step(self) -> None:
+        if self._shutdown_requested or (self._load_requires_visible and not self.isVisible()):
+            return
+        step, self._next_load_step = self._next_load_step, None
+        if step is not None:
+            step()
 
     @Slot()
     def _start_prepare(self) -> None:
@@ -161,9 +183,9 @@ class LazyToolTab(QWidget):
 
     def _schedule_ui_preparation(self) -> None:
         if self._prepare_ui is None:
-            QTimer.singleShot(0, self._construct_requested_widget)
+            self._schedule_load_step(self._construct_requested_widget)
             return
-        QTimer.singleShot(0, self._run_ui_preparation)
+        self._schedule_load_step(self._run_ui_preparation)
 
     @Slot()
     def _run_ui_preparation(self) -> None:
@@ -173,7 +195,7 @@ class LazyToolTab(QWidget):
         self._prepare_ui = None
         if prepare_ui is not None:
             prepare_ui()
-        QTimer.singleShot(0, self._construct_requested_widget)
+        self._schedule_load_step(self._construct_requested_widget)
 
     @Slot()
     def _prepare_thread_finished(self) -> None:
@@ -215,7 +237,7 @@ class LazyToolTab(QWidget):
             self._layout.addWidget(widget)
         finally:
             self._creating = False
-        QTimer.singleShot(0, self._finish_requested_widget)
+        self._schedule_load_step(self._finish_requested_widget)
 
     @Slot()
     def _finish_requested_widget(self) -> None:
@@ -229,6 +251,8 @@ class LazyToolTab(QWidget):
             raise RuntimeError("Lazy tool widget construction re-entered.")
         self._pending_widget = None
         self._widget = widget
+        self._load_timer.stop()
+        self._next_load_step = None
         callbacks = () if self._shutdown_requested else tuple(self._created_callbacks)
         self._created_callbacks.clear()
         for callback in callbacks:
@@ -240,8 +264,13 @@ class LazyToolTab(QWidget):
         return widget
 
     def showEvent(self, event: QShowEvent) -> None:  # type: ignore[override]
-        self.request_widget()
+        self.request_widget(require_visible=True)
         super().showEvent(event)
+
+    def hideEvent(self, event: QHideEvent) -> None:  # type: ignore[override]
+        if self._load_requires_visible:
+            self._load_timer.stop()
+        super().hideEvent(event)
 
     def __getattr__(self, name: str) -> Any:
         if name.startswith("__") or "_factory" not in self.__dict__:
@@ -262,6 +291,10 @@ class LazyToolTab(QWidget):
         if self._shutdown_requested:
             return
         self._shutdown_requested = True
+        self._load_timer.stop()
+        self._next_load_step = None
+        if self._pending_widget is not None:
+            self._publish_pending_widget()
         if self._prepare_thread is not None:
             self._prepare_thread.requestInterruption()
         widget = self._widget or self._pending_widget

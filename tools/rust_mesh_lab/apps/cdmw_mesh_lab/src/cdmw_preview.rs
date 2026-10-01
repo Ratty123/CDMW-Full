@@ -388,10 +388,34 @@ fn preview_render_failure(
     }
 }
 
+#[derive(Default)]
+struct PreviewRendererIdle {
+    release_at: Option<Instant>,
+}
+
+impl PreviewRendererIdle {
+    fn pause(&mut self, now: Instant) {
+        self.release_at.get_or_insert(now + Duration::from_secs(15));
+    }
+
+    fn resume(&mut self) {
+        self.release_at = None;
+    }
+
+    fn take_due(&mut self, now: Instant) -> bool {
+        if self.release_at.is_some_and(|deadline| now >= deadline) {
+            self.release_at = None;
+            return true;
+        }
+        false
+    }
+}
+
 pub struct PreviewApplication {
     window: Option<Arc<Window>>,
     parent_hwnd: u64,
     renderer: Option<WindowRenderer>,
+    renderer_idle: PreviewRendererIdle,
     bridge: PreviewBridge,
     package: LoadedCdmwSessionPackage,
     document: MeshDocument,
@@ -472,6 +496,7 @@ impl PreviewApplication {
             window: None,
             parent_hwnd,
             renderer: None,
+            renderer_idle: PreviewRendererIdle::default(),
             bridge,
             package,
             document,
@@ -1068,6 +1093,7 @@ impl PreviewApplication {
                 return true;
             }
             "activate_request" => {
+                self.renderer_idle.resume();
                 if self.renderer.is_none()
                     && let Err(error) = self.restore_renderer()
                 {
@@ -1089,7 +1115,10 @@ impl PreviewApplication {
                 self.cancel_gesture();
                 self.visible = false;
                 self.next_frame = None;
-                self.renderer = None;
+                // Rapid tab switches reuse the existing device and scene.
+                // Hidden windows stop drawing immediately; long idle periods
+                // still release their GPU allocations through AboutToWait.
+                self.renderer_idle.pause(Instant::now());
                 if let Some(window) = &self.window {
                     window.set_visible(false);
                 }
@@ -2584,6 +2613,9 @@ impl ApplicationHandler for PreviewApplication {
         };
         let adapter = renderer.adapter_report().name;
         self.renderer = Some(renderer);
+        if !self.visible {
+            self.renderer_idle.pause(Instant::now());
+        }
         if let Err(error) = self.configure_renderer() {
             self.renderer_failed(error);
             return;
@@ -2847,6 +2879,9 @@ impl ApplicationHandler for PreviewApplication {
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         let changed = self.poll_bridge() | self.poll_package_loads();
         self.poll_captures();
+        if self.renderer_idle.take_due(Instant::now()) {
+            self.renderer = None;
+        }
         if self.gpu_recovery.take_due(Instant::now()) && self.visible {
             match self.restore_renderer() {
                 Ok(()) => {
@@ -2874,6 +2909,7 @@ impl ApplicationHandler for PreviewApplication {
             self.next_frame
                 .into_iter()
                 .chain(self.gpu_recovery.deadline())
+                .chain(self.renderer_idle.release_at)
                 .min()
                 .map_or(ControlFlow::Wait, ControlFlow::WaitUntil),
         );
@@ -3728,6 +3764,41 @@ fn grid_plane_axes(grid: &Value) -> (Vec3, Vec3) {
 mod tests {
     use super::*;
     use std::time::Duration;
+
+    #[test]
+    fn preview_idle_releases_after_continuous_inactivity_and_stops_waking() {
+        let now = Instant::now();
+        let mut idle = PreviewRendererIdle::default();
+        idle.pause(now);
+        assert!(!idle.take_due(now + Duration::from_secs(14)));
+        assert!(idle.take_due(now + Duration::from_secs(15)));
+        assert!(idle.release_at.is_none());
+        assert!(!idle.take_due(now + Duration::from_secs(16)));
+    }
+
+    #[test]
+    fn preview_idle_rapid_returns_cancel_release_and_start_a_fresh_idle_period() {
+        let now = Instant::now();
+        let mut idle = PreviewRendererIdle::default();
+        for second in 0..30 {
+            idle.pause(now + Duration::from_secs(second));
+            assert!(!idle.take_due(now + Duration::from_secs(second + 1)));
+            idle.resume();
+            assert!(idle.release_at.is_none());
+        }
+        idle.pause(now + Duration::from_secs(30));
+        assert!(!idle.take_due(now + Duration::from_secs(44)));
+        assert!(idle.take_due(now + Duration::from_secs(45)));
+    }
+
+    #[test]
+    fn preview_idle_duplicate_hide_does_not_extend_gpu_retention() {
+        let now = Instant::now();
+        let mut idle = PreviewRendererIdle::default();
+        idle.pause(now);
+        idle.pause(now + Duration::from_secs(10));
+        assert!(idle.take_due(now + Duration::from_secs(15)));
+    }
 
     #[test]
     fn preview_render_failure_policy_bounds_surface_retries_and_preserves_occlusion() {

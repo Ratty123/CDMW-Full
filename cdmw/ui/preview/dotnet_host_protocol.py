@@ -32,7 +32,7 @@ class DotNetPreviewHostProtocolMixin:
                 return
         if hwnd > 0:
             self._embedded_child_hwnd = hwnd
-            self._sync_embedded_child_geometry()
+            self._request_child_geometry_sync()
 
     def _sync_embedded_child_geometry(self, *, force_frame_refresh: bool = False) -> None:
         """Size the helper's window with this one, in the same frame.
@@ -48,8 +48,8 @@ class DotNetPreviewHostProtocolMixin:
 
         Moving the child window is cheap; reallocating the swap chain is the
         part worth debouncing, and the helper still debounces that on its own.
-        Doing the move here, synchronously, means the size the helper polls for
-        already matches, so its wait never has anything stale to catch up to.
+        Coalesce Qt layout notifications and request the move without waiting
+        for a busy child window's queue. The helper retains its own size poll.
         """
 
         hwnd = getattr(self, "_embedded_child_hwnd", 0)
@@ -87,8 +87,8 @@ class DotNetPreviewHostProtocolMixin:
             height = max(0, int(rect.bottom - rect.top))
             if width <= 0 or height <= 0:
                 return
-            # SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER
-            flags = 0x0004 | 0x0010 | 0x0200
+            # SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_ASYNCWINDOWPOS
+            flags = 0x0004 | 0x0010 | 0x0200 | 0x4000
             if force_frame_refresh:
                 flags |= 0x0020  # SWP_FRAMECHANGED: settle a child resized while hidden.
             user32.SetWindowPos(

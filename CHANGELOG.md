@@ -20,6 +20,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- Rapid tool switching pauses inactive tool preparation, list updates and automatic previews. Recently used previews resume without recreating their renderer, and embedded-window focus and resizing avoid unnecessary work during navigation.
 - Completed problem-report browser checks keep their success message when the used verification token expires.
 - Dropdown lists open below their fields when space allows and scroll instead of expanding around the selected item.
 - Mesh interchange preserves supported material maps and values, UV sets, vertex colours, skin weights, rigs, morph targets and existing animation clips. Export packages include portable textures, game metadata and format-limit reports.

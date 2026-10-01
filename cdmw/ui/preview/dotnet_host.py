@@ -9,7 +9,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import QEvent, QObject, QThreadPool, Qt, Signal
+from PySide6.QtCore import QEvent, QObject, QThreadPool, QTimer, Qt, Signal
 from PySide6.QtGui import QImage
 from PySide6.QtWidgets import (
     QApplication,
@@ -100,6 +100,10 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
         self._last_capture_image = QImage()
         self._last_capture_path = Path()
         self._prewarm_task: _DotNetPreviewPrewarmTask | None = None
+        self._geometry_sync_timer = QTimer(self)
+        self._geometry_sync_timer.setSingleShot(True)
+        self._geometry_sync_timer.timeout.connect(self._flush_child_geometry_sync)
+        self._geometry_force_frame_refresh = False
         self._view_state: dict[str, object] = {
             "role": "replacement",
             "reason": "",
@@ -262,7 +266,7 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
         reembed = getattr(controller, "reembed", None)
         if callable(reembed):
             reembed(hwnd)
-        self._sync_embedded_child_geometry(force_frame_refresh=True)
+        self._request_child_geometry_sync(force_frame_refresh=True)
 
     def show_preparation_status(self, message: str) -> None:
         """Show caller-side work before a package exists, retaining a resident scene."""

@@ -292,7 +292,7 @@ class NavigationControllerMixin:
         if tab_widget is not None:
             self._select_tab_widget(tab_widget, widget)
         if isinstance(widget, LazyToolTab):
-            widget.request_widget()
+            widget.request_widget(require_visible=True)
         self._handle_tool_activated(widget)
         self._update_window_menu_state()
 
@@ -326,7 +326,7 @@ class NavigationControllerMixin:
                         self._update_window_menu_state()
 
                 widget.when_created(finish_activation)
-            widget.request_widget()
+            widget.request_widget(require_visible=True)
             from cdmw.ui.shell.compact.workspace import sync_compact_workspace_selection
 
             sync_compact_workspace_selection(self, tool_key)

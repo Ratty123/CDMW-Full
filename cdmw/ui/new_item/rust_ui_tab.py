@@ -69,6 +69,7 @@ class RustNewItemStudioTab(QWidget):
         self._host.setObjectName("NewItemRustHost")
         self._host.show_loading(f"Preparing {title}…")
         self._host.retry_requested.connect(self._retry)
+        self._host.focus_requested.connect(lambda: self._send({"type": "focus"}))
         layout.addWidget(self._host, 1)
         self._portals = PreviewPortals(self._host)
         self._dialogs = PresentationDialogs(self.workflow, self)
@@ -240,6 +241,7 @@ class RustNewItemStudioTab(QWidget):
                 self._fail(reason)
                 return
             self._ready = True
+            self._host._focus_request_supported = "host_focus_v1" in message.get("capabilities", ())
             self._timer.start()
             self._publish_state()
         elif kind == "input":

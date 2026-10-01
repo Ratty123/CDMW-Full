@@ -13,3 +13,7 @@ index worker; successful mutations update only the affected loaded row, and
 copy/index publication is atomic.
 Generated exports and loose-mod patches use the same owned lifecycle. Package
 copies are staged, cancellable, and atomically published without partial output.
+
+Leaving Item Icons pauses row insertion and queued selection previews. Returning
+resumes the retained rows and updates the latest selected icon once. Explicitly
+started scans, metadata changes and exports retain their existing worker lifecycle.

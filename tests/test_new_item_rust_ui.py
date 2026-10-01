@@ -635,6 +635,23 @@ def test_prewarm_publishes_hidden_state_then_idles_and_does_not_restart(studio):
             experimental.deleteLater()
 
 
+def test_new_item_routes_focus_through_its_existing_process_channel(studio):
+    from cdmw.ui.new_item.rust_ui_tab import RustNewItemStudioTab
+
+    _, tab, _ = studio
+    with patch.object(RustNewItemStudioTab, "_start_prepare"):
+        wrapper = RustNewItemStudioTab(workflow=tab)
+        sent = []
+        wrapper._send = sent.append
+        try:
+            wrapper._host.focus_requested.emit()
+            assert sent == [{"type": "focus"}]
+        finally:
+            wrapper.request_shutdown()
+            tab.setParent(None)
+            wrapper.deleteLater()
+
+
 def test_prewarm_failure_is_retained_without_a_background_error_notification(studio):
     _, tab, _ = studio
     from cdmw.ui.new_item.rust_ui_tab import RustNewItemStudioTab

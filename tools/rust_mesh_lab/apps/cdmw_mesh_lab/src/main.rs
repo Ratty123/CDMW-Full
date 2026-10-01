@@ -2763,6 +2763,11 @@ impl LabApplication {
                     self.gpu_recovery.retry(Instant::now());
                 }
             }
+            HostEvent::Focus => {
+                if let Some(window) = &self.window {
+                    let _ = cdmw_win32_embed::focus_child_window(window);
+                }
+            }
             HostEvent::HairPreset(preset) => {
                 self.hair.requested_preset = Some(preset);
             }
@@ -6962,7 +6967,11 @@ impl ApplicationHandler for LabApplication {
                 self.raw_orbit_captured = false;
                 self.raw_pan_captured = false;
             }
-            WindowEvent::RedrawRequested => self.redraw(event_loop),
+            WindowEvent::RedrawRequested => {
+                if window.is_visible() != Some(false) {
+                    self.redraw(event_loop);
+                }
+            }
             _ => {}
         }
     }

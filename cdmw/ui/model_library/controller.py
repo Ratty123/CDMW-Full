@@ -358,6 +358,9 @@ class ModelLibraryResultsMixin:
             QTimer.singleShot(0, self._start_pending_results_request)
 
     def _flush_results_population_batch(self) -> None:
+        if self._presentation_paused:
+            self._results_population_timer.stop()
+            return
         if self._apply_prepared_payload_batch():
             return
         if not self._pending_results_rows:
