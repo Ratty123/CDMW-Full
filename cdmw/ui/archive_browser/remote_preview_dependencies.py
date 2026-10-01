@@ -5,9 +5,10 @@ from __future__ import annotations
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
+from stat import S_ISREG
 from typing import Mapping
 
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, QTimer, Signal
 
 from cdmw.domain.archives.catalogue import (
     ArchiveAssociationPurpose,
@@ -140,6 +141,9 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
         self._pending: _PendingPreviewDependencies | None = None
         self._snapshot: ArchivePreviewDependencySet | None = None
         self._snapshot_ui_request_id = -1
+        self._snapshot_reuse_key: tuple[object, ...] | None = None
+        self._snapshot_file_identities: dict[Path, tuple[int, ...]] | None = None
+        self._queued_snapshot_request_id = -1
         self._snapshots_by_identity: OrderedDict[
             ArchiveEntryIdentity,
             ArchivePreviewDependencySet,
@@ -156,7 +160,9 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
 
     @property
     def pending_ui_request_id(self) -> int | None:
-        return None if self._pending is None else self._pending.ui_request_id
+        if self._pending is not None:
+            return self._pending.ui_request_id
+        return self._queued_snapshot_request_id if self._queued_snapshot_request_id >= 0 else None
 
     def snapshot_for(self, ui_request_id: int, entry_id: int) -> ArchivePreviewDependencySet | None:
         snapshot = self._snapshot
@@ -205,8 +211,8 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
         ui_request_id: int,
         preferred_prefab_stems: tuple[str, ...] = (),
         scope_entry_ids: tuple[int, ...] = (),
+        reuse_prepared: bool = False,
     ) -> bool:
-        self.cancel(clear_snapshot=False)
         normalized_prefab_stems = tuple(
             dict.fromkeys(
                 str(stem or "").replace("\\", "/").rsplit("/", 1)[-1].casefold()
@@ -221,6 +227,39 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
                 if not isinstance(entry_id, bool) and int(entry_id) >= 0
             )
         )[:MAX_ARCHIVE_PREVIEW_ENTRIES]
+        pending = self._pending
+        if (
+            reuse_prepared
+            and pending is not None
+            and pending.selected == selected
+            and pending.preferred_prefab_stems == normalized_prefab_stems
+            and pending.scope_entry_ids == bounded_scope_entry_ids
+        ):
+            # Open Mesh can ask for textures while this same row's dependency
+            # lookup is still running. Retarget delivery instead of decoding
+            # the same archive sources again after cancelling their first job.
+            pending.ui_request_id = int(ui_request_id)
+            return True
+        self.cancel(clear_snapshot=False)
+        reuse_key = (selected, normalized_prefab_stems, bounded_scope_entry_ids)
+        snapshot = self._snapshot
+        if (
+            reuse_prepared
+            and snapshot is not None
+            and not snapshot.truncated
+            and not snapshot.secondary_index_pending
+            and self._snapshot_reuse_key == reuse_key
+            and self._snapshot_file_identities is not None
+            and self._snapshot_file_stamps(snapshot) == self._snapshot_file_identities
+        ):
+            self._snapshot_ui_request_id = int(ui_request_id)
+            self._queued_snapshot_request_id = int(ui_request_id)
+            # Keep cached delivery queued just like worker completion. A new
+            # selection or cancellation invalidates it before it can publish.
+            QTimer.singleShot(
+                0, self, lambda: self._publish_reused_snapshot(int(ui_request_id), snapshot)
+            )
+            return True
         operation = "find_association_candidates"
         try:
             if normalized_prefab_stems and bounded_scope_entry_ids:
@@ -259,6 +298,9 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
         return True
 
     def cancel(self, *, clear_snapshot: bool = False) -> None:
+        if self._queued_snapshot_request_id >= 0:
+            self._snapshot_ui_request_id = -1
+        self._queued_snapshot_request_id = -1
         pending = self._pending
         self._pending = None
         if pending is not None:
@@ -269,6 +311,8 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
         if clear_snapshot:
             self._snapshot = None
             self._snapshot_ui_request_id = -1
+            self._snapshot_reuse_key = None
+            self._snapshot_file_identities = None
             pinned = self._snapshots_by_identity.get(self._pinned_identity) if self._pinned_identity else None
             self._snapshots_by_identity.clear()
             if pinned is not None:
@@ -329,8 +373,46 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
         )
         self._snapshot = snapshot
         self._snapshot_ui_request_id = pending.ui_request_id
+        self._snapshot_reuse_key = (
+            pending.selected, pending.preferred_prefab_stems, pending.scope_entry_ids,
+        )
+        self._snapshot_file_identities = self._snapshot_file_stamps(snapshot)
         self._remember_snapshot(snapshot)
         self.ready.emit(pending.ui_request_id, snapshot)
+
+    @staticmethod
+    def _snapshot_file_stamps(snapshot: ArchivePreviewDependencySet) -> dict[Path, tuple[int, ...]] | None:
+        paths: set[Path] = set()
+        for entry in snapshot.entries:
+            paths.update((Path(entry.pamt_path), Path(entry.paz_file)))
+            if entry.prepared_path is None:
+                return None
+            paths.add(Path(entry.prepared_path))
+            for artifact in (entry.content_analysis_json_path, entry.content_analysis_text_path):
+                if artifact is not None:
+                    paths.add(Path(artifact))
+        stamps: dict[Path, tuple[int, ...]] = {}
+        try:
+            for path in paths:
+                identity = path.stat()
+                if not S_ISREG(identity.st_mode):
+                    return None
+                stamps[path] = (
+                    identity.st_dev, identity.st_ino, identity.st_size, identity.st_mtime_ns,
+                )
+        except OSError:
+            return None
+        return stamps
+
+    def _publish_reused_snapshot(self, ui_request_id: int, snapshot: ArchivePreviewDependencySet) -> None:
+        if (
+            self._queued_snapshot_request_id != ui_request_id
+            or self._snapshot is not snapshot
+            or self._pending is not None
+        ):
+            return
+        self._queued_snapshot_request_id = -1
+        self.ready.emit(ui_request_id, snapshot)
 
     def _remember_snapshot(self, snapshot: ArchivePreviewDependencySet) -> None:
         identity = snapshot.selected_entry.identity

@@ -334,6 +334,11 @@ class ArchiveRemoteWindowBridge(QObject):
             ui_request_id=int(ui_request_id),
             preferred_prefab_stems=self._item_scope_preferred_prefab_stems,
             scope_entry_ids=self._item_scope_entry_ids,
+            reuse_prepared=bool(
+                getattr(self._window.archive, "_archive_texture_request_loading", False)
+                and int(getattr(self._window.archive, "_archive_texture_request_id", 0) or 0)
+                == int(ui_request_id)
+            ),
         )
 
     def preview_dependencies_for(

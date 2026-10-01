@@ -116,11 +116,19 @@ class ArchivePreviewWorkerMixin:
             return
         self._archive_preview_selection_retry_request_id = 0
         self._archive_preview_selection_retry_attempts = 0
-        remote_bridge = getattr(self, "archive_remote_bridge", None)
-        if remote_bridge is not None and remote_bridge.displays_v2:
-            remote_bridge.cancel_preview_dependencies(clear_snapshot=True)
         request_id = self.archive_preview_request_id + 1
         texture_request_id = int(getattr(self, "_archive_texture_request_id", 0) or 0)
+        # Keep the prepared geometry dependencies for a texture upgrade. The
+        # provider checks their source files and appearance scope before reuse.
+        texture_followup = bool(
+            getattr(self, "_archive_texture_request_loading", False)
+            and texture_request_id == request_id
+            and not include_loose_preview_assets
+            and not prefer_loose_preview
+        )
+        remote_bridge = getattr(self, "archive_remote_bridge", None)
+        if remote_bridge is not None and remote_bridge.displays_v2 and not texture_followup:
+            remote_bridge.cancel_preview_dependencies(clear_snapshot=True)
         if texture_request_id and texture_request_id != request_id:
             self._archive_texture_request_loading = False
             self._archive_texture_request_id = 0

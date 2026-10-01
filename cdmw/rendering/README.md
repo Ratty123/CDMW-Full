@@ -22,9 +22,13 @@ than a second renderer. Historical `d3d11_*`, `dotnet_*`, and
 ## Material preparation
 
 Texture preparation composes independent materials on up to four CPU workers.
-The Rust compositor shares decoded source pixels, leaves directly usable DDS
-maps compressed, and admits batches within a shared 512 MiB working-buffer
-estimate. Its resident loader keeps at most 128 MiB / 256 entries of completed
+The Rust compositor decodes independent source DDS files on up to four workers,
+after the owning reader validates their bytes and admits their decoded sizes
+within the existing 512 MiB source-image limit. Workers finish before composition
+starts or a failed load returns; shared and directly reusable maps still avoid
+duplicate decoding. It shares decoded source pixels, leaves directly usable DDS
+maps compressed, and admits composition batches within a shared 512 MiB
+working-buffer estimate. Its resident loader keeps at most 128 MiB / 256 entries of completed
 material maps; graph settings, presentation and owned texture hashes identify
 entries, and every source is still validated on a cache hit. Changing painted
 channels invalidates their material. Ordered publication retains texture owners,

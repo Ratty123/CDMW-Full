@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import hashlib
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 from PySide6.QtCore import QObject, Signal
 
 from cdmw.domain.archives.catalogue import (
@@ -13,6 +15,9 @@ from cdmw.domain.archives.catalogue import (
     ArchiveEntryDto,
     ArchiveEntryRole,
     ArchiveLookupResult,
+    ArchivePage,
+    ArchiveQueryHandle,
+    ArchiveViewMode,
 )
 from cdmw.domain.archives.catalogue_operations import PrepareEntriesResult, PrepareEntryResult
 from cdmw.models import ArchiveEntry
@@ -269,6 +274,148 @@ def test_remote_preview_provider_cancels_and_ignores_obsolete_requests() -> None
 
     assert ready == [2]
     assert provider.snapshot_for(2, 8) is not None
+
+
+def _reusable_provider(tmp_path: Path):
+    service = _CatalogueService()
+    provider = ArchiveRemotePreviewDependencyProvider(service)
+    pamt, paz = tmp_path / "0.pamt", tmp_path / "0.paz"
+    pamt.write_bytes(b"owned catalogue")
+    paz.write_bytes(b"owned archive")
+    rows = tuple(replace(
+        _dto(index, path), source_pamt=str(pamt), paz_file=str(paz),
+        identity=ArchiveDurableIdentity(path.casefold(), str(pamt).casefold(), 0, index * 100),
+    ) for index, path in ((7, "character/sword.pac"), (8, "texture/sword.dds")))
+    prepared = []
+    for row in rows:
+        path = tmp_path / f"{row.entry_id}{row.extension}"
+        payload = b"owned source " * 4
+        path.write_bytes(payload)
+        prepared.append(PrepareEntryResult(
+            ArchiveEntryRef(row.session_id, row.entry_id, row.identity, row.path),
+            str(path), len(payload), hashlib.sha256(payload).hexdigest(), "owned fixture",
+        ))
+    assert provider.request(rows[0], ui_request_id=1)
+    service.result_ready.emit("association-1", "find_association_candidates",
+        ArchiveAssociationResult("session-a", 7, (rows[1],), 1, False))
+    service.result_ready.emit("prepare-2", "prepare_entry",
+        PrepareEntriesResult("session-a", tuple(prepared), 2, 2, sum(item.size for item in prepared)))
+    return service, provider, rows[0]
+
+
+def test_texture_followup_reuses_verified_snapshot_without_archive_operations(tmp_path: Path) -> None:
+    from cdmw.ui.archive_browser.remote_window_bridge import ArchiveRemoteWindowBridge
+    from tests.test_archive_preview_request_coalescing import _DispatchHost
+    from tests.test_archive_remote_window_bridge import _app, _RemoteExportWindow
+
+    app = _app()
+    service, provider, selected = _reusable_provider(tmp_path)
+    original = provider.snapshot_for(1, selected.entry_id)
+    window = _RemoteExportWindow()
+    bridge = ArchiveRemoteWindowBridge(window)
+    bridge._preview_dependencies = provider
+    bridge.model.publish_query(
+        ArchiveQueryHandle(selected.session_id, "query-a", 1, 1),
+        view_mode=ArchiveViewMode.FLAT, prime=False,
+    )
+    assert bridge.model.accept_page(ArchivePage(selected.session_id, "query-a", 1, 1, 0, (selected,)))
+    window.archive_tree.setCurrentIndex(bridge.model.index(0, 0))
+    host = _DispatchHost()
+    host.archive_preview_request_id = 1
+    host._archive_texture_request_id = window._archive_texture_request_id = 2
+    host._archive_texture_request_loading = window._archive_texture_request_loading = True
+    host.archive_remote_bridge = bridge
+    host._set_archive_preview_base_detail_text = lambda *_args, **_kwargs: None
+    host.set_status_message = lambda _message: None
+    entry = bridge.current_compatibility_entry()
+    host._render_archive_preview(entry, force=True)
+    ready = []
+    provider.ready.connect(lambda request_id, payload: ready.append((request_id, payload)))
+    assert host._resolve_scheduled_remote_preview_dependencies(2, entry) == (None, True)
+    assert len(service.requests) == 2
+    assert provider.pending_ui_request_id == 2
+    assert ready == [], "cached delivery must remain queued"
+    app.processEvents()
+    assert ready == [(2, original)]
+    assert provider.snapshot_for(2, selected.entry_id) is original
+    assert provider.snapshot_for(1, selected.entry_id) is None
+    assert provider.pending_ui_request_id is None
+    assert host._resolve_scheduled_remote_preview_dependencies(2, entry) == (original, False)
+
+
+@pytest.mark.parametrize("change", ("pamt", "paz", "prepared", "scope", "session", "index", "refresh"))
+def test_texture_followup_rebuilds_changed_or_ineligible_dependencies(tmp_path: Path, change: str) -> None:
+    service, provider, selected = _reusable_provider(tmp_path)
+    options = {"reuse_prepared": True}
+    if change in {"pamt", "paz"}:
+        Path(selected.source_pamt if change == "pamt" else selected.paz_file).write_bytes(b"changed archive")
+    elif change == "prepared":
+        (tmp_path / "8.dds").unlink()
+    elif change == "scope":
+        options["preferred_prefab_stems"] = ("different-item",)
+    elif change == "session":
+        selected = replace(selected, session_id="new-session")
+    elif change == "index":
+        provider._snapshot = replace(provider._snapshot, secondary_index_pending=True)
+    else:
+        options["reuse_prepared"] = False
+    assert provider.request(selected, ui_request_id=2, **options)
+    assert len(service.requests) == 3
+    assert provider.snapshot_for(2, selected.entry_id) is None
+
+
+@pytest.mark.parametrize("supersede", (False, True))
+def test_reused_snapshot_delivery_respects_cancellation_and_selection(tmp_path: Path, supersede: bool) -> None:
+    from tests.test_archive_remote_window_bridge import _app
+    app = _app()
+    _service, provider, selected = _reusable_provider(tmp_path)
+    ready = []
+    provider.ready.connect(lambda request_id, _payload: ready.append(request_id))
+    assert provider.request(selected, ui_request_id=2, reuse_prepared=True)
+    if supersede:
+        provider.request(_dto(9, "character/other.pac"), ui_request_id=3)
+    else:
+        provider.cancel()
+    app.processEvents()
+    assert ready == []
+    assert provider.snapshot_for(2, selected.entry_id) is None
+
+
+def test_reused_snapshot_delivery_is_discarded_when_its_owner_is_deleted(tmp_path: Path) -> None:
+    from PySide6.QtCore import QCoreApplication, QEvent
+    from tests.test_archive_remote_window_bridge import _app
+
+    app = _app()
+    _service, provider, selected = _reusable_provider(tmp_path)
+    ready = []
+    provider.ready.connect(lambda request_id, _payload: ready.append(request_id))
+    assert provider.request(selected, ui_request_id=2, reuse_prepared=True)
+    provider.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+    app.processEvents()
+    assert ready == []
+
+
+@pytest.mark.parametrize("stage", ("discovery", "preparation"))
+def test_texture_followup_retargets_matching_work_already_running(stage: str) -> None:
+    service = _CatalogueService()
+    provider = ArchiveRemotePreviewDependencyProvider(service)
+    selected = _dto(7, "character/sword.pac")
+    ready = []
+    provider.ready.connect(lambda request_id, _payload: ready.append(request_id))
+    assert provider.request(selected, ui_request_id=1)
+    discovery = ArchiveAssociationResult("session-a", 7, (), 0, False)
+    if stage == "preparation":
+        service.result_ready.emit("association-1", "find_association_candidates", discovery)
+    before = len(service.requests)
+    assert provider.request(selected, ui_request_id=2, reuse_prepared=True)
+    assert len(service.requests) == before
+    assert service.cancelled == []
+    if stage == "discovery":
+        service.result_ready.emit("association-1", "find_association_candidates", discovery)
+    service.result_ready.emit("prepare-2", "prepare_entry",
+        PrepareEntriesResult("session-a", (_prepared(selected),), 1, 1, 40))
+    assert ready == [2]
 
 
 def test_remote_preview_provider_retains_only_the_bounded_recent_snapshots() -> None:

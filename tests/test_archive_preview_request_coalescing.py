@@ -343,6 +343,41 @@ class ArchivePreviewRequestCoalescingTests(unittest.TestCase):
 
         self.assertEqual(host.archive_preview_request_id, armed_generation)
 
+    def test_texture_dispatch_keeps_dependencies_but_refresh_clears_them(self) -> None:
+        host = _DispatchHost()
+        cancellations = []
+        host.archive_remote_bridge = SimpleNamespace(
+            displays_v2=True,
+            cancel_preview_dependencies=lambda **options: cancellations.append(options),
+        )
+        host.archive_preview_request_id = 1
+        host._archive_texture_request_id = 2
+        host._archive_texture_request_loading = True
+        entry = _entry("a.pac")
+
+        host._render_archive_preview(entry, force=True)
+
+        self.assertEqual(cancellations, [])
+        self.assertEqual(host.archive_preview_request_id, 2)
+        host.scheduled_archive_preview_request = None
+        host._render_archive_preview(entry, force=True)
+        self.assertEqual(cancellations, [{"clear_snapshot": True}])
+        self.assertFalse(host._archive_texture_request_loading)
+
+    def test_loose_preview_clears_dependencies_even_with_a_texture_request(self) -> None:
+        host = _DispatchHost()
+        cancellations = []
+        host.archive_remote_bridge = SimpleNamespace(
+            displays_v2=True,
+            cancel_preview_dependencies=lambda **options: cancellations.append(options),
+        )
+        host._archive_texture_request_id = 1
+        host._archive_texture_request_loading = True
+
+        host._render_archive_preview(_entry("a.pac"), include_loose_preview_assets=True)
+
+        self.assertEqual(cancellations, [{"clear_snapshot": True}])
+
     def test_a_stale_scheduled_request_is_never_folded(self) -> None:
         host = _DispatchHost()
         entry = _entry("a.pac")

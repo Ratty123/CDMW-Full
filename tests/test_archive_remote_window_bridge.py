@@ -442,6 +442,29 @@ def test_stale_preview_dependency_request_does_not_publish_a_terminal_failure() 
     assert failures == []
 
 
+def test_texture_request_reuses_dependencies_only_for_its_current_generation() -> None:
+    _app()
+    window = _RemoteExportWindow()
+    bridge = ArchiveRemoteWindowBridge(window)
+    row = _remote(7, "character/model/hero.pac")
+    bridge.model.publish_query(
+        ArchiveQueryHandle("session-a", "query-a", 1, 1),
+        view_mode=ArchiveViewMode.FLAT, prime=False,
+    )
+    assert bridge.model.accept_page(ArchivePage("session-a", "query-a", 1, 1, 0, (row,)))
+    window.archive_tree.setCurrentIndex(bridge.model.index(0, 0))
+    requested = []
+    bridge._preview_dependencies.request = lambda _row, **kwargs: requested.append(kwargs) or True
+    window.archive._archive_texture_request_loading = True
+    window.archive._archive_texture_request_id = 42
+    entry = bridge.current_compatibility_entry()
+    assert bridge.request_preview_dependencies(41, entry)
+    assert bridge.request_preview_dependencies(42, entry)
+    window.archive._archive_texture_request_loading = False
+    assert bridge.request_preview_dependencies(43, entry)
+    assert [request["reuse_prepared"] for request in requested] == [False, True, False]
+
+
 def test_catalogue_publication_does_not_select_or_preview_the_first_row() -> None:
     _app()
     window = _RemoteExportWindow()

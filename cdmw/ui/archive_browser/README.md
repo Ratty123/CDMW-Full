@@ -364,6 +364,14 @@ Prepared preview dependencies retain the worker's actual payload size separately
 from the original PAMT size. Static PAM's single compressed geometry block is decoded
 before mesh parsing, including older prepared sources that still contain that block.
 Prepared-file size and checksum checks run before decoding and reject changed data.
+
+Texture follow-ups, including Open Mesh preparation, reuse the same completed
+dependency snapshot when the archive session, selected entry, appearance scope,
+source files and prepared files are unchanged. A matching lookup already running
+finishes for the latest request instead of restarting. Explicit preview refreshes,
+changed files and pending name indexes still resolve anew; cancellation and changed
+selection invalidate queued delivery.
+
 Recovered relationships remain available for any selected extension and survive
 preview failure or cache reuse. An exact metadata companion can expose Asset Family
 for non-model files without adding unrelated model-family guesses.

@@ -779,6 +779,7 @@ mod work {
 
 
 const MAX_DECODED_SOURCE_BYTES: u64 = 512 * 1024 * 1024;
+const MAX_SOURCE_DECODER_WORKERS: usize = 4;
 const MAX_RESIZED_MATERIAL_BYTES: u64 = 512 * 1024 * 1024;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -884,65 +885,94 @@ impl ImageCache {
         metrics.source_reference_count = source_reference_count;
         let mut decoded = BTreeMap::new();
         let mut decoded_bytes = 0_u64;
-        for (sha256, reference) in references {
-            let bytes = read_reference(reference)?;
-            let metadata = inspect_dds(&bytes, TextureRole::Unknown)
-                .map_err(|error| SessionError::InvalidPayload(error.to_string()))?;
-            if !required.contains(&sha256) {
-                continue;
+        let mut references = references.into_iter();
+        while references.len() != 0 {
+            let mut inputs = Vec::new();
+            for (sha256, reference) in references.by_ref().take(MAX_SOURCE_DECODER_WORKERS) {
+                // The owning reader remains serial: it validates hashes and
+                // cancellation, including directly reusable and cached maps.
+                let bytes = read_reference(reference)?;
+                let metadata = inspect_dds(&bytes, TextureRole::Unknown)
+                    .map_err(|error| SessionError::InvalidPayload(error.to_string()))?;
+                if !required.contains(&sha256) {
+                    continue;
+                }
+                // Admit the whole batch before any worker allocates pixels.
+                // Retained and concurrently decoded images share this limit.
+                let image_bytes = u64::from(metadata.width) * u64::from(metadata.height) * 4;
+                if decoded_bytes.saturating_add(image_bytes) > MAX_DECODED_SOURCE_BYTES {
+                    return Err(SessionError::InvalidPayload(
+                        "Preview Core decoded material sources exceed the 512 MiB limit".to_owned(),
+                    ));
+                }
+                decoded_bytes += image_bytes;
+                metrics.source_dds_decode_count = metrics
+                    .source_dds_decode_count
+                    .checked_add(1)
+                    .ok_or_else(|| {
+                        SessionError::InvalidPayload(
+                            "Preview Core source DDS decode count overflowed".to_owned(),
+                        )
+                    })?;
+                metrics.decoded_source_bytes = metrics
+                    .decoded_source_bytes
+                    .checked_add(u64::try_from(bytes.len()).map_err(|_| {
+                        SessionError::InvalidPayload(
+                            "Preview Core source DDS byte count exceeds this platform".to_owned(),
+                        )
+                    })?)
+                    .ok_or_else(|| {
+                        SessionError::InvalidPayload(
+                            "Preview Core source DDS byte count overflowed".to_owned(),
+                        )
+                    })?;
+                metrics.decoded_rgba8_bytes = decoded_bytes;
+                metrics.decoded_source_sha256.push(sha256.clone());
+                inputs.push((sha256, reference.path.clone(), bytes));
             }
-            // Check before allocating, including sources shared by several workers.
-            let image_bytes = u64::from(metadata.width) * u64::from(metadata.height) * 4;
-            if decoded_bytes.saturating_add(image_bytes) > MAX_DECODED_SOURCE_BYTES {
-                return Err(SessionError::InvalidPayload(
-                    "Preview Core decoded material sources exceed the 512 MiB limit".to_owned(),
-                ));
-            }
-            let image = decode_dds_rgba8(&bytes, TextureRole::Unknown).map_err(|error| {
-                SessionError::InvalidPayload(format!(
-                    "Preview Core material DDS {} could not be decoded: {error}",
-                    reference.path
-                ))
-            })?;
-            decoded_bytes = decoded_bytes
-                .checked_add(u64::try_from(image.pixels.len()).map_err(|_| {
-                    SessionError::InvalidPayload(
-                        "Preview Core decoded material size exceeds this platform".to_owned(),
-                    )
-                })?)
-                .ok_or_else(|| {
-                    SessionError::InvalidPayload(
-                        "Preview Core decoded material size overflowed".to_owned(),
-                    )
-                })?;
-            if decoded_bytes > MAX_DECODED_SOURCE_BYTES {
-                return Err(SessionError::InvalidPayload(
-                    "Preview Core decoded material sources exceed the 512 MiB limit".to_owned(),
-                ));
-            }
-            metrics.source_dds_decode_count = metrics
-                .source_dds_decode_count
-                .checked_add(1)
-                .ok_or_else(|| {
-                    SessionError::InvalidPayload(
-                        "Preview Core source DDS decode count overflowed".to_owned(),
-                    )
-                })?;
-            metrics.decoded_source_bytes = metrics
-                .decoded_source_bytes
-                .checked_add(u64::try_from(bytes.len()).map_err(|_| {
-                    SessionError::InvalidPayload(
-                        "Preview Core source DDS byte count exceeds this platform".to_owned(),
-                    )
-                })?)
-                .ok_or_else(|| {
-                    SessionError::InvalidPayload(
-                        "Preview Core source DDS byte count overflowed".to_owned(),
-                    )
-                })?;
-            metrics.decoded_rgba8_bytes = decoded_bytes;
-            metrics.decoded_source_sha256.push(sha256.clone());
-            decoded.insert(sha256, Arc::new(image));
+            let decode = |(sha256, path, bytes): (String, String, Vec<u8>)| {
+                decode_dds_rgba8(&bytes, TextureRole::Unknown)
+                    .map(|image| (sha256, Arc::new(image)))
+                    .map_err(|error| {
+                        SessionError::InvalidPayload(format!(
+                            "Preview Core material DDS {path} could not be decoded: {error}"
+                        ))
+                    })
+            };
+            let images: Vec<_> = if inputs.len() <= 1 {
+                inputs.into_iter().map(decode).collect::<Result<_, _>>()?
+            } else {
+                std::thread::scope(|scope| {
+                    let mut handles = Vec::new();
+                    for input in inputs {
+                        let handle = std::thread::Builder::new()
+                            .name("cdmw-source-dds-decode".into())
+                            .spawn_scoped(scope, move || decode(input))
+                            .map_err(|error| {
+                                SessionError::InvalidPayload(format!(
+                                    "Preview Core source DDS worker could not start: {error}"
+                                ))
+                            });
+                        handles.push(handle);
+                    }
+                    // Join every owned worker even if one source fails. Images
+                    // are returned in source order after all teardown finishes.
+                    let results: Vec<_> = handles
+                        .into_iter()
+                        .map(|handle| {
+                            handle.and_then(|handle| {
+                                handle.join().unwrap_or_else(|_| {
+                                    Err(SessionError::InvalidPayload(
+                                        "Preview Core source DDS worker panicked".into(),
+                                    ))
+                                })
+                            })
+                        })
+                        .collect();
+                    results.into_iter().collect::<Result<Vec<_>, _>>()
+                })?
+            };
+            decoded.extend(images);
         }
         Ok(Self {
             decoded: Arc::new(decoded),
@@ -2110,6 +2140,145 @@ mod tests {
             warnings: Vec::new(),
             structural_fingerprint: String::new(),
         }
+    }
+
+    fn source_decode_fixture(
+        dimension: u32,
+        count: u32,
+    ) -> (PreviewCoreMaterialGraph, BTreeMap<String, Vec<u8>>) {
+        let mut files = BTreeMap::new();
+        let mut layers = Vec::new();
+        for index in 0..count {
+            let mut bytes = vec![0_u8; 148];
+            bytes[..4].copy_from_slice(b"DDS ");
+            for (offset, value) in [
+                (4, 124),
+                (12, dimension),
+                (16, dimension),
+                (28, 1),
+                (76, 32),
+                (128, 98),
+                (140, 1),
+            ] {
+                bytes[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
+            }
+            bytes[84..88].copy_from_slice(b"DX10");
+            let mut block = [0_u8; 16];
+            block[0] = 0x40; // BC7 mode 6, with distinct valid source pixels.
+            block[1] = u8::try_from(index).unwrap();
+            for _ in 0..dimension.div_ceil(4).pow(2) {
+                bytes.extend_from_slice(&block);
+            }
+            let file = reference(index, &bytes);
+            files.insert(file.sha256.clone(), bytes);
+            let mut source = layer("base", "r");
+            source.diffuse = Some(file);
+            layers.push(source);
+        }
+        let graph = PreviewCoreMaterialGraph {
+            schema_version: 1,
+            graph_version: 4,
+            semantics_version: 10,
+            quality: "full".into(),
+            resources_included: true,
+            source_edge_count: u64::from(count),
+            unique_resource_count: u64::from(count),
+            copied_resource_count: u64::from(count),
+            unique_resource_bytes: files.values().map(|bytes| bytes.len() as u64).sum(),
+            materials: vec![PreviewCoreMaterial {
+                lod_index: 0,
+                material_index: 0,
+                material_slot_index: 0,
+                material_name: "decode-fixture".into(),
+                authoring_channels: 0,
+                base_color: [1.0; 3],
+                layers,
+            }],
+        };
+        (graph, files)
+    }
+
+    #[test]
+    fn source_decoding_preserves_pixels_deduplication_validation_and_budget() {
+        let (mut graph, files) = source_decode_fixture(33, 9);
+        let duplicate = graph.materials[0].layers[0].clone();
+        graph.materials[0].layers.push(duplicate);
+        let required = files.keys().skip(1).cloned().collect();
+        let reads = Cell::new(0);
+        let cache = ImageCache::preload(&graph, &required, |reference| {
+            reads.set(reads.get() + 1);
+            Ok(files[&reference.sha256].clone())
+        })
+        .unwrap();
+        assert_eq!(reads.get(), 9, "unused sources still require validation");
+        assert_eq!(cache.metrics.source_reference_count, 10);
+        assert_eq!(cache.metrics.source_dds_decode_count, 8);
+        for sha256 in &required {
+            let expected = decode_dds_rgba8(&files[sha256], TextureRole::Unknown).unwrap();
+            let actual = &cache.decoded[sha256];
+            assert_eq!(actual.width, expected.width);
+            assert_eq!(actual.height, expected.height);
+            assert_eq!(actual.pixels, expected.pixels);
+        }
+        assert!(ImageCache::preload(&graph, &required, |reference| {
+            if reference.sha256 == *files.keys().nth(4).unwrap() {
+                Err(SessionError::InvalidPayload("cancelled source read".into()))
+            } else {
+                Ok(files[&reference.sha256].clone())
+            }
+        })
+        .is_err());
+        assert!(
+            matches!(ImageCache::preload(&graph, &required, |reference| {
+            let mut bytes = files[&reference.sha256].clone();
+            if reference.sha256 == *files.keys().nth(4).unwrap() {
+                bytes.truncate(148); // A valid header with a missing mip payload.
+            }
+            Ok(bytes)
+        }), Err(SessionError::InvalidPayload(message)) if message.contains("could not be decoded"))
+        );
+        let (mut large, _) = source_decode_fixture(4, 1);
+        let required = [large.materials[0].layers[0]
+            .diffuse
+            .as_ref()
+            .unwrap()
+            .sha256
+            .clone()]
+        .into_iter()
+        .collect();
+        let oversized = large.materials[0].layers[0].diffuse.as_mut().unwrap();
+        oversized.byte_length = 164;
+        let mut bytes = vec![0_u8; 164];
+        bytes[..148].copy_from_slice(&files.values().next().unwrap()[..148]);
+        bytes[12..16].copy_from_slice(&16384_u32.to_le_bytes());
+        bytes[16..20].copy_from_slice(&16384_u32.to_le_bytes());
+        assert!(
+            matches!(ImageCache::preload(&large, &required, |_| Ok(bytes.clone())),
+            Err(SessionError::InvalidPayload(message)) if message.contains("512 MiB"))
+        );
+    }
+
+    #[test]
+    #[ignore = "synthetic source-decode performance measurement"]
+    fn benchmark_source_dds_decoding() {
+        let (graph, files) = source_decode_fixture(2048, 16);
+        let required = files.keys().cloned().collect();
+        let mut timings = Vec::new();
+        for _ in 0..3 {
+            let started = std::time::Instant::now();
+            let cache = ImageCache::preload(&graph, &required, |reference| {
+                Ok(files[&reference.sha256].clone())
+            })
+            .unwrap();
+            timings.push(started.elapsed().as_secs_f64() * 1000.0);
+            assert_eq!(cache.metrics.source_dds_decode_count, 16);
+            assert_eq!(cache.metrics.decoded_rgba8_bytes, 256 * 1024 * 1024);
+        }
+        timings.sort_by(f64::total_cmp);
+        eprintln!(
+            "16 x 2048px BC7 source DDS decode median: {:.1} ms",
+            timings[1]
+        );
     }
 
     #[test]
