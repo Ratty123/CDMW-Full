@@ -139,33 +139,38 @@ class RestructureRuntimeRegressionSmokeTests(unittest.TestCase):
                 _app().processEvents()
             self.assertEqual("archive_browser", settings.value("ui/active_tool_key"))
 
-    def test_startup_archive_autoload_reaches_scan_after_root_preflight(self) -> None:
-        class ScanReached(RuntimeError):
-            pass
-
-        def stop_before_worker(*_args: object, **_kwargs: object) -> None:
-            raise ScanReached
-
+    def test_startup_archive_autoload_reaches_standalone_backend_after_fingerprint(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             package_root = Path(temp_dir)
-            inspected_roots: list[Path] = []
             self.window.archive.archive_package_root_edit.setText(str(package_root))
             self.window.show_first_run_guide_on_launch = False
             self.window._previous_session_unclean = False
+            self.window._startup_archive_autoload_dispatched = False
             self.window.worker_thread = None
             self.window.archive.archive_entries = []
-            self.window.archive.archive_remote_bridge = None
-            self.window._check_archive_cache_health = lambda _root: {}  # type: ignore[method-assign]
-            self.window._warn_if_archive_cache_stale = lambda *_args: None  # type: ignore[method-assign]
-            self.window._set_archive_cache_health = stop_before_worker  # type: ignore[method-assign]
+            bridge = self.window.archive.archive_remote_bridge
+            self.assertIsNotNone(bridge)
 
             with patch(
-                "cdmw.ui.archive_browser.scan_lifecycle.find_suspicious_archive_tree_roots",
-                side_effect=lambda root: inspected_roots.append(root) or (),
-            ), self.assertRaises(ScanReached):
+                "cdmw.ui.archive_browser.scan_lifecycle.QThreadPool",
+            ) as pool, patch.object(bridge, "open_archive") as open_archive:
                 self.window._maybe_autoload_archive_on_startup()
+                start_task = pool.globalInstance.return_value.start
+                start_task.assert_not_called()
+                deadline = time.monotonic() + 5.0
+                while not start_task.called and time.monotonic() < deadline:
+                    _app().processEvents()
+                    time.sleep(0.001)
+                start_task.assert_called_once()
+                task = start_task.call_args.args[0]
+                self.assertEqual(package_root, task.root)
+                self.assertIs(task, self.window.archive.archive_game_fingerprint_task)
+                open_archive.assert_not_called()
 
-        self.assertEqual([package_root], inspected_roots)
+                task.signals.completed.emit(task.generation, ({}, (), False))
+                _app().processEvents()
+                open_archive.assert_called_once_with(package_root, force_refresh=False, activate_tab=False)
+                self.assertIsNone(self.window.archive.archive_game_fingerprint_task)
 
     def test_retrofit_repackage_action_opens_tab_not_modal_dialog(self) -> None:
         with patch("cdmw.ui.tools.mod_package_retrofit.ArchiveModPackageRetrofitDialogMixin._show_mod_package_retrofit_dialog") as open_dialog:

@@ -1595,7 +1595,7 @@ def test_generated_manifest_contains_reviewed_source_keys() -> None:
         "Replacement source:",
         "Anthropic (Claude)",
         "No unapplied source-part changes.",
-        "Preparing Archive Browser View",
+        "Preparing Archive Browser",
         "Disabled - WIP. Placement swap/package flow is paused.",
         "No skeleton loaded",
         "Partial",
@@ -1701,8 +1701,9 @@ def test_generated_manifest_records_expected_origins() -> None:
         for origin in entries["No unapplied source-part changes."]["origins"]
     )
     assert any(
-        origin["sink"] == "_set_archive_warmup_overlay"
-        for origin in entries["Preparing Archive Browser View"]["origins"]
+        origin["path"] == "cdmw/ui/archive_browser/remote_window_bridge.py"
+        and origin["sink"] == "_set_archive_warmup_overlay"
+        for origin in entries["Preparing Archive Browser"]["origins"]
     )
     assert any(
         origin["sink"] == "setItemData"
