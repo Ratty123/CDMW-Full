@@ -206,6 +206,65 @@ def test_release_builder_keeps_portable_self_contained_defaults_and_smokes_befor
 
 
 @pytest.mark.skipif(sys.platform != "win32" or POWERSHELL is None, reason="PowerShell behavior test")
+@pytest.mark.parametrize(
+    ("outcome", "expected_success", "expected_error"),
+    (
+        ("passed", True, ""),
+        ("nonzero", False, "exit code 7"),
+        ("failed_report", False, "did not prove"),
+        ("missing_report", False, "exit code 0"),
+    ),
+    ids=("stderr", "exit", "report", "missing-report"),
+)
+def test_full_archive_release_probe_checks_exit_and_report_despite_stderr(
+    tmp_path: Path, outcome: str, expected_success: bool, expected_error: str,
+) -> None:
+    worker = tmp_path / "worker.exe"
+    worker.touch()
+    (tmp_path / "cdmw-full-archive-core.dll").touch()
+    probe = tmp_path / "probe.py"
+    probe.write_text(
+        "import json, sys\nfrom pathlib import Path\n"
+        "report = Path(sys.argv[sys.argv.index('--report') + 1])\n"
+        "Path(__file__).with_suffix('.receipt').write_text(str(report))\n"
+        f"outcome = {outcome!r}\n"
+        "payload = dict(status='failed' if outcome == 'failed_report' else 'passed', "
+        "evidence='synthetic_headless_qprocess', cancelled=True, "
+        "worker_stopped=True, entry_count=1, page_rows=1)\n"
+        "if outcome != 'missing_report': report.write_text(json.dumps(payload))\n"
+        "print('Synthetic probe diagnostic on stderr.', file=sys.stderr)\n"
+        "sys.exit(7 if outcome == 'nonzero' else 0)\n",
+        encoding="utf-8",
+    )
+    command = f"""
+$ErrorActionPreference = 'Stop'
+Set-StrictMode -Version Latest
+. '{str(ARCHIVE_BACKEND_RELEASE_HELPER).replace("'", "''")}'
+$fullArchiveBackendProbe = '{str(probe).replace("'", "''")}'
+$probeSucceeded = $false
+$probeError = ''
+try {{
+    Invoke-FullArchiveBackendProbe -PythonExe '{sys.executable.replace("'", "''")}' -WorkerPath '{str(worker).replace("'", "''")}' -Context 'test' | Out-Null
+    $probeSucceeded = $true
+}} catch {{
+    $probeError = $_.Exception.Message
+}}
+[PSCustomObject]@{{ success = $probeSucceeded; detail = $probeError; preference = [string]$ErrorActionPreference }} | ConvertTo-Json -Compress
+"""
+    result = subprocess.run(
+        [POWERSHELL, "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", command],
+        cwd=ROOT, capture_output=True, text=True, timeout=30,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    report = json.loads(result.stdout.strip().splitlines()[-1])
+    assert report["success"] is expected_success, report
+    assert expected_error in report["detail"], report
+    assert report["preference"] == "Stop"
+    report_path = Path(probe.with_suffix(".receipt").read_text())
+    assert not report_path.exists()
+
+
+@pytest.mark.skipif(sys.platform != "win32" or POWERSHELL is None, reason="PowerShell behavior test")
 def test_release_builder_isolates_host_injected_codex_poppler_path() -> None:
     source = BUILDER.read_text(encoding="utf-8")
 

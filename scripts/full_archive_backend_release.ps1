@@ -21,8 +21,16 @@ function Invoke-FullArchiveBackendProbe {
 
     $reportPath = Join-Path ([System.IO.Path]::GetTempPath()) ("cdmw-full-archive-packaged-{0}.json" -f [Guid]::NewGuid().ToString("N"))
     try {
-        $probeOutput = & $PythonExe $fullArchiveBackendProbe --worker $WorkerPath --report $reportPath 2>&1
-        $exitCode = $LASTEXITCODE
+        # Windows PowerShell can turn native stderr into a terminating error.
+        # Capture diagnostics, then require the exit code and evidence report.
+        $probeErrorActionPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = "Continue"
+            $probeOutput = & $PythonExe $fullArchiveBackendProbe --worker $WorkerPath --report $reportPath 2>&1
+            $exitCode = $LASTEXITCODE
+        } finally {
+            $ErrorActionPreference = $probeErrorActionPreference
+        }
         if ($exitCode -ne 0 -or -not (Test-Path -LiteralPath $reportPath -PathType Leaf)) {
             $details = ($probeOutput | Out-String).Trim()
             if (-not $details) {
