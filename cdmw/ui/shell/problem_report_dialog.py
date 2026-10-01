@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import math
 import time
+from contextlib import ExitStack
 from dataclasses import asdict
 from html import escape
 
@@ -25,9 +26,24 @@ from cdmw.services.problem_report_service import (
     detail_errors, parse_report_receipt, report_delivery_failure, report_test_token,
 )
 from cdmw.workers.problem_report_workers import ProblemReportCollection
+from cdmw.ui.shell.problem_report_catalog import (
+    ACTION_HELP, GAME_INVOLVEMENT, INSTALL_METHODS, INTERFACE_ACTION, MOD_MANAGERS, MOD_STATES,
+    REPORT_TOOLS, decode_item, decode_mod_setup, decode_tool, encode_item,
+    encode_mod_setup, encode_tool, report_tool, tool_actions,
+)
 
 
 class _ReportComboBox(QComboBox):
+    def enterEvent(self, event) -> None:
+        # Keep long selections readable when a narrow window elides their text.
+        self.setToolTip(self.currentText())
+        super().enterEvent(event)
+
+    def showPopup(self) -> None:
+        for index in range(self.count()):
+            self.setItemData(index, self.itemText(index), Qt.ItemDataRole.ToolTipRole)
+        super().showPopup()
+
     def paintEvent(self, event) -> None:
         super().paintEvent(event)
         option = QStyleOptionComboBox()
@@ -113,9 +129,10 @@ class _FieldRow(QWidget):
 
 class ProblemReportDialog(QDialog):
     _PAGE_FIELDS = (
-        frozenset(("summary", "problem_type", "tool")),
-        frozenset(("input_item", "steps", "expected", "actual", "frequency")),
-        frozenset(("game_platform", "game_version", "mod_setup", "clean_test", "last_working", "changes", "contact")),
+        frozenset(("summary", "problem_type", "tool", "workflow", "other_tool")),
+        frozenset(("input_item", "input_source", "steps", "expected", "actual", "frequency", "waited", "progress_state")),
+        frozenset(("game_involved", "game_platform", "game_version", "mod_state", "mod_manager", "install_method",
+                   "mod_setup", "clean_test", "last_working", "changes", "contact")),
         frozenset(),
     )
     _REVIEW_PAGE = 4
@@ -138,6 +155,7 @@ class ProblemReportDialog(QDialog):
         self._receipt = ""
         self._retry_until = 0.0
         self._loading_draft = False
+        self._restoring_form = False
         self._screenshots: tuple[str, ...] = ()
         self._network = QNetworkAccessManager(self)
         self._timer = QTimer(self)
@@ -175,7 +193,7 @@ class ProblemReportDialog(QDialog):
         rail_layout = QVBoxLayout(self.rail)
         rail_layout.setContentsMargins(12, 20, 12, 20)
         rail_layout.setSpacing(8)
-        self._step_names = ("Problem", "Reproduce", "Game and mods", "Evidence", "Review")
+        self._step_names = ("Problem", "Reproduce", "Setup", "Evidence", "Review")
         self._step_buttons = []
         for index, name in enumerate(self._step_names):
             button = QPushButton(f"{index + 1}  {name}")
@@ -205,26 +223,41 @@ class ProblemReportDialog(QDialog):
         body.addLayout(content, 1)
         layout.addLayout(body, 1)
 
-        form = self._page("What went wrong?", "Start with one specific example.")
-        self.summary = self._line("e.g. Archive Browser fails to extract a DDS")
-        self._add_field(form, "Summary *", self.summary,
-            "Name the action and tool that failed. Example: Archive Browser fails to extract a DDS.")
-        problem_row = _FieldRow()
+        form = self._page("What went wrong?", "Choose the tool and the action that failed.")
+        self.tool = self._combo(())
+        for spec in REPORT_TOOLS:
+            self.tool.addItem(spec.label, spec.key)
+        self._add_field(form, "Tool *", self.tool,
+            "Choose where the problem happened, even if another tool is currently open.")
+        self.workflow = self._combo(())
+        self.workflow.setEnabled(False)
+        self._workflow_help = self._add_field(form, "Affected action *", self.workflow,
+            "Choose the operation or panel involved. Other / not sure is available if none fits.")
+        self.other_tool = self._line("Tool or feature name")
+        self._add_field(form, "Other tool / feature *", self.other_tool)
+        self.other_tool.parentWidget().hide()
         self.problem_type = self._combo(PROBLEM_TYPES)
-        self._problem_help = self._add_field(problem_row.fields, "Type of problem *", self.problem_type,
+        self._problem_help = self._add_field(form, "Type of problem *", self.problem_type,
             PROBLEM_GUIDANCE["Other / unsure"])
-        self.tool = self._line("Tool or menu where this happened")
-        self.tool.setText(str(json.loads(snapshot.context_json).get("current_tab", "")))
-        self._add_field(problem_row.fields, "Tool / workflow *", self.tool,
-            "Filled from the current tool. Change it if the problem happened elsewhere.")
-        form.addWidget(problem_row)
+        self.summary = self._line("Briefly name the action and what went wrong")
+        self._add_field(form, "Summary *", self.summary,
+            "One specific problem. Example: Mesh Editor shows a black texture after importing a GLB.")
         form.addStretch(1)
 
         form = self._page("Help us repeat it", "Include the item and the actions you took.")
-        self.input_item = self._line("Item, game-relative path, or Not applicable")
-        self.input_item.setText(str(json.loads(snapshot.context_json).get("selected_archive_path", "Not applicable")))
-        self._add_field(form, "Item or file *", self.input_item,
-            "Use an item name or path inside the game archive. If no item or file is involved, write Not applicable.")
+        self._reproduce_hint = form.itemAt(1).widget()
+        self._input_fields = _FieldRow()
+        self.input_source = self._combo(())
+        self._add_field(self._input_fields.fields, "Input / source *", self.input_source,
+            "Choose the source or format you actually used. Files are not attached to the report.")
+        self.input_item = self._line("Item or filename")
+        self._add_field(self._input_fields.fields, "Item or file *", self.input_item,
+            "Use a name or game-relative path. Do not paste your full personal folder path.")
+        form.addWidget(self._input_fields)
+        self._item_label = self.input_item.parentWidget().findChild(QLabel, "ProblemReportFieldLabel")
+        self.item_unknown = _ReportCheckBox()
+        self.item_unknown.setText("I don't know the item / filename")
+        form.addWidget(self.item_unknown)
         self.steps = self._text("1. Open…\n2. Select…\n3. Click…", 90)
         self._steps_help = self._add_field(form, "Steps to reproduce *", self.steps,
             "Give one example someone else can repeat. Include the file or item and the buttons you used.")
@@ -235,20 +268,56 @@ class ProblemReportDialog(QDialog):
         self._add_field(outcome_row.fields, "Actual result / error *", self.actual,
             "Copy the exact error, or say where it stalled. For a game result, describe CDMW and the game separately.")
         form.addWidget(outcome_row)
+        self._stall_fields = _FieldRow()
+        self.waited = self._combo(("Under 1 minute", "1–5 minutes", "5–15 minutes", "Over 15 minutes", "Not sure"))
+        self._add_field(self._stall_fields.fields, "How long did you wait? *", self.waited)
+        self.progress_state = self._combo(("Progress kept changing", "Progress stopped", "App stopped responding", "No progress indicator", "Not sure"))
+        self._add_field(self._stall_fields.fields, "Progress / response *", self.progress_state)
+        form.addWidget(self._stall_fields)
         self.frequency = self._combo(FREQUENCIES)
         self._add_field(form, "How often? *", self.frequency)
         form.addStretch(1)
 
-        form = self._page("Game and mods", "Unknown and Not tried are valid answers.")
+        form = self._page("Setup", "Unknown and Not tried are valid answers.")
+        self.game_involved = self._combo(GAME_INVOLVEMENT)
+        self._add_field(form, "Game files or mods involved? *", self.game_involved,
+            "Choose No for an app-only issue. Choose Yes for game assets, exporting/installing a mod, or an in-game result.")
+        self._game_fields = QWidget()
+        game_form = QVBoxLayout(self._game_fields)
+        game_form.setContentsMargins(0, 0, 0, 0)
+        game_form.setSpacing(16)
+        form.addWidget(self._game_fields)
         self.game_platform = self._combo(PLATFORMS)
-        self._add_field(form, "Game platform *", self.game_platform)
-        self.game_version = self._line("Game version, or Unknown")
-        self._add_field(form, "Game version *", self.game_version)
-        self.mod_setup = self._text("Manager, relevant mods and install method, or None", 60)
-        self._add_field(form, "Mods and manager *", self.mod_setup,
-            "Include your mod manager, export/install method and relevant archive edits. Write None if you use no mods.")
+        self._add_field(game_form, "Game platform *", self.game_platform)
+        version_row = QWidget()
+        version_layout = QHBoxLayout(version_row)
+        version_layout.setContentsMargins(0, 0, 0, 0)
+        self.game_version = self._line("Version shown by the game")
+        self.version_unknown = _ReportCheckBox()
+        self.version_unknown.setText("Unknown")
+        version_layout.addWidget(self.game_version, 1)
+        version_layout.addWidget(self.version_unknown)
+        self._add_field(game_form, "Game version *", version_row,
+            "Use the version shown in the game. Choose Unknown if you cannot check it.")
+        self.mod_state = self._combo(MOD_STATES)
+        self._add_field(game_form, "Installed mods *", self.mod_state)
+        self._mod_fields = QWidget()
+        mod_form = QVBoxLayout(self._mod_fields)
+        mod_form.setContentsMargins(0, 0, 0, 0)
+        mod_form.setSpacing(16)
+        game_form.addWidget(self._mod_fields)
+        self.mod_manager = self._combo(MOD_MANAGERS)
+        self._add_field(mod_form, "Manager / installation tool *", self.mod_manager,
+            "Choose what you actually used. These options describe your setup; they are not a list of supported CDMW exports.")
+        self.install_method = self._combo(INSTALL_METHODS)
+        self._add_field(mod_form, "Install method *", self.install_method,
+            "Choose Not installed yet if export failed before installation. Use Not sure if you do not know.")
+        self.mod_setup = self._text("Relevant mod names/versions and changes, or Not sure", 70)
+        self._add_field(mod_form, "Relevant mods / details *", self.mod_setup,
+            "Name the mods involved and any manual archive/file edits. For another manager/method, name it here.")
+        self._mods_label = self.mod_setup.parentWidget().findChild(QLabel, "ProblemReportFieldLabel")
         self.clean_test = self._combo(CLEAN_TESTS)
-        self._add_field(form, "Test without mods *", self.clean_test,
+        self._add_field(game_form, "Test without mods *", self.clean_test,
             "Choose what you have already tried. You do not need to change or delete game files to submit a report.")
         self.last_working = self._combo(LAST_WORKING)
         self._add_field(form, "Did this work before? *", self.last_working)
@@ -270,7 +339,7 @@ class ProblemReportDialog(QDialog):
         self.include_layout = _ReportCheckBox()
         self.include_layout.setText("Folder names and sizes")
         self.include_layout.setChecked(True)
-        self._add_field(form, "", self.include_layout,
+        self._layout_help = self._add_field(form, "", self.include_layout,
             "A bounded listing of relevant game folders. Links, backup folders and game file contents are excluded.")
         form.addWidget(self._muted_label("Game file contents are excluded."))
         screenshot_row = QWidget()
@@ -380,22 +449,39 @@ class ProblemReportDialog(QDialog):
         buttons.addWidget(self.copy_receipt_button)
         buttons.addWidget(self.close_button)
         layout.addWidget(footer)
-        for widget in (self.summary, self.tool, self.input_item, self.game_version, self.contact):
+        for widget in (self.summary, self.other_tool, self.input_item, self.game_version, self.contact):
             widget.textChanged.connect(self._invalidate)
         for widget in (self.steps, self.expected, self.actual, self.mod_setup, self.changes):
             widget.textChanged.connect(self._invalidate)
-        for widget in (self.frequency, self.game_platform, self.clean_test, self.problem_type, self.last_working):
+        for widget in (self.frequency, self.game_platform, self.clean_test, self.last_working,
+                       self.mod_manager, self.install_method, self.waited, self.progress_state):
             widget.currentIndexChanged.connect(self._invalidate)
         for widget in (self.include_layout, self.include_logs):
             widget.toggled.connect(self._invalidate)
-        self.problem_type.currentIndexChanged.connect(self._update_guidance)
+        self.tool.currentIndexChanged.connect(self._tool_changed)
+        self.workflow.currentIndexChanged.connect(self._questions_changed)
+        self.input_source.currentIndexChanged.connect(self._questions_changed)
+        self.problem_type.currentIndexChanged.connect(self._questions_changed)
+        self.game_involved.currentIndexChanged.connect(self._questions_changed)
+        self.mod_state.currentIndexChanged.connect(self._questions_changed)
+        self.item_unknown.toggled.connect(self._questions_changed)
+        self.version_unknown.toggled.connect(self._questions_changed)
         self.last_working.currentIndexChanged.connect(self._update_guidance)
         for key, _label, _minimum, maximum in DETAIL_RULES:
             widget = getattr(self, key)
             if isinstance(widget, QLineEdit):
                 widget.setMaxLength(maximum)
         self.contact.setMaxLength(200)
+        self.other_tool.setMaxLength(90)
+        self.input_item.setMaxLength(240)
         self.tabs.currentChanged.connect(self._update_buttons)
+        context = json.loads(snapshot.context_json)
+        current = report_tool(str(context.get("current_tab", "")))
+        if current.key != "other":
+            self.tool.setCurrentIndex(self.tool.findData(current.key))
+        if current.key == "archive_browser":
+            self.input_item.setText(str(context.get("selected_archive_path", "")))
+        self._questions_changed()
         self._update_guidance()
         self._update_buttons()
 
@@ -478,23 +564,216 @@ class ProblemReportDialog(QDialog):
 
     def _combo(self, choices: tuple[str, ...]) -> QComboBox:
         widget = _ReportComboBox()
+        widget.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        widget.setMinimumContentsLength(12)
         widget.addItem("Choose…", "")
         for choice in choices:
             widget.addItem(choice, choice)
         return widget
 
+    @Slot()
+    def _tool_changed(self) -> None:
+        spec = report_tool(str(self.tool.currentData() or ""))
+        for widget, choices in ((self.workflow, tool_actions(spec)), (self.input_source, spec.sources)):
+            with QSignalBlocker(widget):
+                widget.clear()
+                widget.addItem("Choose…", "")
+                for choice in choices:
+                    widget.addItem(choice, choice)
+        self.workflow.setEnabled(bool(self.tool.currentData()))
+        with QSignalBlocker(self.problem_type):
+            previous = self.problem_type.currentData()
+            self.problem_type.clear()
+            self.problem_type.addItem("Choose…", "")
+            for choice in PROBLEM_TYPES:
+                if spec.mod_output or choice not in {"Mod export / installation", "Unexpected in-game result"}:
+                    self.problem_type.addItem("Incorrect result / other issue" if choice == "Other / unsure" else choice, choice)
+            self.problem_type.setCurrentIndex(max(0, self.problem_type.findData(previous)))
+        self.problem_type.setEnabled(bool(self.tool.currentData()))
+        with QSignalBlocker(self.game_involved):
+            self.game_involved.setCurrentIndex(self.game_involved.findData("Yes" if spec.game_related else "No"))
+        self._questions_changed()
+
+    def _item_applicable(self) -> bool:
+        return bool(self.tool.currentData() and self.tool.currentData() != "application"
+                    and self.workflow.currentData() != INTERFACE_ACTION)
+
+    def _output_related(self) -> bool:
+        spec = report_tool(str(self.tool.currentData() or ""))
+        action = str(self.workflow.currentData() or "").casefold()
+        return bool(spec.mod_output and (any(word in action for word in ("export", "build", "repackage", "patch"))
+            or self.problem_type.currentData() in {"Mod export / installation", "Unexpected in-game result"}))
+
+    def _mod_details_applicable(self) -> bool:
+        return self.mod_state.currentData() == "Mods installed" or self._output_related()
+
+    @Slot()
+    def _questions_changed(self) -> None:
+        spec = report_tool(str(self.tool.currentData() or ""))
+        action = str(self.workflow.currentData() or "")
+        self.other_tool.parentWidget().setVisible(self.tool.currentData() == "other")
+        self._input_fields.setVisible(self._item_applicable())
+        self.input_source.parentWidget().setVisible(self._item_applicable() and bool(spec.sources))
+        self.input_item.parentWidget().setVisible(self._item_applicable())
+        self.item_unknown.setVisible(self._item_applicable())
+        self.item_unknown.setText("I don't know the exact setting / profile" if spec.key == "settings" else
+                                  "I don't know the item / filename")
+        self.input_item.setEnabled(not self.item_unknown.isChecked())
+        self._item_label.setText(f"{spec.item_label or 'Item or file'} *")
+        self.input_item.setPlaceholderText(spec.item_hint)
+        self.steps.setPlaceholderText(spec.steps_hint if action != INTERFACE_ACTION else
+            "1. Open the panel/window.\n2. Change the control or window size.\n3. Describe the result.")
+        self._reproduce_hint.setText(f"{spec.label} · {action}" if action else "Include the item and the actions you took.")
+        force_game = (self._output_related()
+                      or self.problem_type.currentData() in {"Mod export / installation", "Unexpected in-game result"}
+                      or action == "Game folder / archive setup"
+                      or (self._item_applicable() and
+                          str(self.input_source.currentData() or "").startswith(("Game ", "DDS from game"))))
+        if force_game:
+            with QSignalBlocker(self.game_involved):
+                self.game_involved.setCurrentIndex(self.game_involved.findData("Yes"))
+        self.game_involved.setEnabled(not force_game)
+        game = self.game_involved.currentData() != "No"
+        self._game_fields.setVisible(game)
+        mods = self.mod_state.currentData()
+        self._mod_fields.setVisible(self._mod_details_applicable())
+        self._mods_label.setText("Relevant mods / output name *" if self._output_related() else "Relevant mods / details *")
+        self.clean_test.parentWidget().setVisible(mods != "No mods installed")
+        with QSignalBlocker(self.clean_test):
+            previous = self.clean_test.currentData()
+            self.clean_test.clear()
+            self.clean_test.addItem("Choose…", "")
+            for choice in CLEAN_TESTS:
+                if choice != "No mods installed" or mods == "No mods installed":
+                    self.clean_test.addItem(choice, choice)
+            self.clean_test.setCurrentIndex(max(0, self.clean_test.findData(
+                "No mods installed" if mods == "No mods installed" else previous)))
+        self.game_version.setEnabled(not self.version_unknown.isChecked())
+        self.include_layout.setEnabled(bool(self._snapshot.archive_root) and game)
+        layout_reason = ("Not included for an app-only report." if not game else
+                         "Unavailable: no game folder is configured." if not self._snapshot.archive_root else
+                         "A bounded listing of relevant game folders. Links, backup folders and game file contents are excluded.")
+        self.include_layout.setToolTip(layout_reason)
+        self._layout_help.setToolTip(layout_reason)
+        self._stall_fields.setVisible(self.problem_type.currentData() == "Slow or unresponsive")
+        self._update_guidance()
+        self._invalidate()
+
     def _details(self) -> ProblemDetails:
-        return ProblemDetails(self.summary.text().strip(), self.tool.text().strip(), self.steps.toPlainText().strip(),
-            self.expected.toPlainText().strip(), self.actual.toPlainText().strip(), str(self.frequency.currentData()),
-            self.game_version.text().strip(), str(self.game_platform.currentData()), self.mod_setup.toPlainText().strip(),
-            str(self.clean_test.currentData()), self.contact.text().strip(), str(self.problem_type.currentData()),
-            self.input_item.text().strip(), str(self.last_working.currentData()), self.changes.toPlainText().strip())
+        spec = report_tool(str(self.tool.currentData() or ""))
+        game = self.game_involved.currentData() != "No"
+        item = "Unknown item / file" if self.item_unknown.isChecked() else self.input_item.text().strip()
+        actual = self.actual.toPlainText().strip()
+        if self.problem_type.currentData() == "Slow or unresponsive":
+            actual = f"Waited: {self.waited.currentData() or ''}\nProgress: {self.progress_state.currentData() or ''}\nObserved: {actual}"
+        return ProblemDetails(self.summary.text().strip(),
+            encode_tool(spec, str(self.workflow.currentData() or ""), self.other_tool.text()),
+            self.steps.toPlainText().strip(), self.expected.toPlainText().strip(), actual,
+            str(self.frequency.currentData()),
+            ("Unknown" if self.version_unknown.isChecked() else self.game_version.text().strip()) if game else "Not applicable",
+            str(self.game_platform.currentData()) if game else "Other / unsure",
+            encode_mod_setup(str(self.mod_state.currentData() or ""),
+                             str(self.mod_manager.currentData() or "") if self._mod_details_applicable() else "",
+                             str(self.install_method.currentData() or "") if self._mod_details_applicable() else "",
+                             self.mod_setup.toPlainText() if self._mod_details_applicable() else "") if game else
+                             "Not applicable (game files and mods are not involved)",
+            str(self.clean_test.currentData()) if game else "Not tried", self.contact.text().strip(),
+            str(self.problem_type.currentData()),
+            encode_item(str(self.input_source.currentData() or ""), item) if self._item_applicable() else "Not applicable",
+            str(self.last_working.currentData()), self.changes.toPlainText().strip())
+
+    def _form_errors(self) -> tuple[tuple[str, str], ...]:
+        errors = []
+        if not self.tool.currentData():
+            errors.append(("tool", "Tool: choose where the problem happened."))
+        elif self.workflow.currentData() not in tool_actions(report_tool(str(self.tool.currentData()))):
+            errors.append(("workflow", "Affected action: choose an operation or panel."))
+        if self.tool.currentData() == "other" and len(self.other_tool.text().strip()) < 2:
+            errors.append(("other_tool", "Other tool / feature: name the feature, or write Not sure."))
+        spec = report_tool(str(self.tool.currentData() or ""))
+        if self._item_applicable():
+            if spec.sources and self.input_source.currentData() not in spec.sources:
+                errors.append(("input_source", "Input / source: choose the format or source you used."))
+            if not self.item_unknown.isChecked() and (len(self.input_item.text().strip()) < 4 or
+                    self.input_item.text().strip().casefold() in {"none", "not applicable"}):
+                errors.append(("input_item", "Item or file: name the affected item, or choose that you do not know it."))
+        if self.problem_type.currentData() == "Slow or unresponsive":
+            if not self.waited.currentData():
+                errors.append(("waited", "How long did you wait: choose an option."))
+            if not self.progress_state.currentData():
+                errors.append(("progress_state", "Progress / response: choose an option."))
+            if len(self.actual.toPlainText().strip()) < 10:
+                errors.append(("actual", "Actual result: describe what stalled or stopped responding."))
+        if not self.game_involved.currentData():
+            errors.append(("game_involved", "Game files or mods involved: choose an option."))
+        elif self.game_involved.currentData() != "No":
+            if self.mod_state.currentData() not in MOD_STATES:
+                errors.append(("mod_state", "Installed mods: choose an option."))
+            if self._mod_details_applicable():
+                if self.mod_manager.currentData() not in MOD_MANAGERS:
+                    errors.append(("mod_manager", "Manager / installation tool: choose an option."))
+                if self.install_method.currentData() not in INSTALL_METHODS:
+                    errors.append(("install_method", "Install method: choose an option."))
+                if len(self.mod_setup.toPlainText().strip()) < 4:
+                    errors.append(("mod_setup", "Relevant mods: name the mods, or write Not sure."))
+        errors.extend(detail_errors(self._details()))
+        return tuple(errors)
+
+    def _restore_details(self, data: dict) -> None:
+        """Present saved choices without invalidating the exact reviewed retry body."""
+        self._restoring_form = True
+        try:
+            with ExitStack() as stack:
+                for name in ("tool", "workflow", "other_tool", "problem_type", "summary", "input_source", "input_item",
+                             "item_unknown", "steps", "expected", "actual", "waited", "progress_state", "frequency",
+                             "game_involved", "game_platform", "game_version", "version_unknown", "mod_state",
+                             "mod_manager", "install_method", "mod_setup", "clean_test", "last_working", "changes", "contact"):
+                    stack.enter_context(QSignalBlocker(getattr(self, name)))
+                spec, action, other = decode_tool(data["tool"])
+                self.tool.setCurrentIndex(self.tool.findData(spec.key))
+                self._tool_changed()
+                self.workflow.setCurrentIndex(max(0, self.workflow.findData(action)))
+                self.other_tool.setText(other)
+                source, item = decode_item(data["input_item"])
+                self.input_source.setCurrentIndex(max(0, self.input_source.findData(source)))
+                self.item_unknown.setChecked(item == "Unknown item / file")
+                self.input_item.setText("" if self.item_unknown.isChecked() else item)
+                for key in ("summary", "contact"):
+                    getattr(self, key).setText(data[key])
+                for key in ("steps", "expected", "changes"):
+                    getattr(self, key).setPlainText(data[key])
+                actual = data["actual"]
+                if actual.startswith("Waited: ") and "\nObserved: " in actual:
+                    timing, actual = actual.split("\nObserved: ", 1)
+                    fields = dict(line.split(": ", 1) for line in timing.splitlines() if ": " in line)
+                    self.waited.setCurrentIndex(max(0, self.waited.findData(fields.get("Waited", ""))))
+                    self.progress_state.setCurrentIndex(max(0, self.progress_state.findData(fields.get("Progress", ""))))
+                self.actual.setPlainText(actual)
+                for key in ("frequency", "problem_type", "game_platform", "last_working"):
+                    widget = getattr(self, key)
+                    widget.setCurrentIndex(max(0, widget.findData(data[key])))
+                game = not (data["game_version"] == "Not applicable" and data["mod_setup"].startswith("Not applicable"))
+                self.game_involved.setCurrentIndex(self.game_involved.findData("Yes" if game else "No"))
+                self.version_unknown.setChecked(data["game_version"] == "Unknown")
+                self.game_version.setText("" if self.version_unknown.isChecked() else data["game_version"])
+                state, manager, method, notes = decode_mod_setup(data["mod_setup"])
+                self.mod_state.setCurrentIndex(max(0, self.mod_state.findData(state)))
+                self.mod_manager.setCurrentIndex(max(0, self.mod_manager.findData(manager)))
+                self.install_method.setCurrentIndex(max(0, self.install_method.findData(method)))
+                self.mod_setup.setPlainText(notes)
+                self._questions_changed()
+                self.clean_test.setCurrentIndex(max(0, self.clean_test.findData(data["clean_test"])))
+        finally:
+            self._restoring_form = False
 
     @Slot()
     def _update_guidance(self) -> None:
         guidance = PROBLEM_GUIDANCE.get(str(self.problem_type.currentData()), PROBLEM_GUIDANCE["Other / unsure"])
         self._problem_help.setToolTip(guidance)
-        self._steps_help.setToolTip(guidance)
+        spec = report_tool(str(self.tool.currentData() or ""))
+        action_help = ACTION_HELP.get(str(self.workflow.currentData() or ""), spec.help)
+        self._workflow_help.setToolTip(action_help)
+        self._steps_help.setToolTip(f"{action_help}\n\n{guidance}")
         changed = self.last_working.currentData() == "Worked before"
         self._changes_field.setVisible(changed)
 
@@ -517,7 +796,7 @@ class ProblemReportDialog(QDialog):
             return
         index = max(0, min(self._REVIEW_PAGE, index))
         required = frozenset().union(*self._PAGE_FIELDS[:index])
-        for key, message in detail_errors(self._details()):
+        for key, message in self._form_errors():
             if key in required:
                 self._show_field_error(key, message)
                 return
@@ -555,15 +834,16 @@ class ProblemReportDialog(QDialog):
         result.append(f'<p>{text(details["input_item"])}</p>')
         result.append(section("Expected result", details["expected"], 1))
         result.append(section("Actual result", details["actual"], 1))
-        setup = (f'{details["game_platform"]} · {details["game_version"]}\n'
-                 f'{details["mod_setup"]}\n'
-                 f'Without mods: {details["clean_test"]}\n'
-                 f'Worked before: {details["last_working"]}')
+        setup = ("Game files and mods are not involved.\n" if details["game_version"] == "Not applicable" and
+                 details["mod_setup"].startswith("Not applicable") else
+                 f'{details["game_platform"]} · {details["game_version"]}\n{details["mod_setup"]}\n'
+                 f'Without mods: {details["clean_test"]}\n')
+        setup += f'Worked before: {details["last_working"]}'
         if details["last_working"] == "Worked before":
             setup += f'\nRecent changes: {details["changes"]}'
         if details["contact"]:
             setup += f'\nContact: {details["contact"]}'
-        result.append(section("Game and mods", setup, 2))
+        result.append(section("Setup", setup, 2))
         evidence = ["CDMW version, system details and report context"]
         if "logs" in payload["evidence"]:
             evidence.append("Recent logs")
@@ -583,6 +863,8 @@ class ProblemReportDialog(QDialog):
 
     @Slot()
     def _invalidate(self) -> None:
+        if self._restoring_form:
+            return
         self._generation += 1
         self._reviewed = None
         self.consent.setChecked(False)
@@ -624,13 +906,13 @@ class ProblemReportDialog(QDialog):
         if self._collection is not None or self._reply is not None or self._sent:
             return
         details = self._details()
-        errors = detail_errors(details)
+        errors = self._form_errors()
         if errors:
             self._show_field_error(*errors[0])
             return
         self._invalidate()
         request = ProblemReportRequest(details, self._snapshot, self.include_logs.isChecked(),
-                                       self.include_layout.isChecked(), self._screenshots)
+                                       self.include_layout.isChecked() and self.include_layout.isEnabled(), self._screenshots)
         self._loading_draft = False
         self._start_collection(request)
 
@@ -665,16 +947,7 @@ class ProblemReportDialog(QDialog):
         payload = json.loads(result.body)
         if self._loading_draft:
             data = asdict(ProblemDetails(**payload["details"]))
-            for key, value in data.items():
-                widget = getattr(self, key)
-                with QSignalBlocker(widget):
-                    if isinstance(widget, QComboBox):
-                        widget.setCurrentIndex(widget.findData(value))
-                    elif isinstance(widget, QPlainTextEdit):
-                        widget.setPlainText(value)
-                    else:
-                        widget.setText(value)
-            self._update_guidance()
+            self._restore_details(data)
             for widget, checked in ((self.include_logs, "logs" in payload["evidence"]),
                                     (self.include_layout, "folder_layout" in payload["evidence"])):
                 with QSignalBlocker(widget):

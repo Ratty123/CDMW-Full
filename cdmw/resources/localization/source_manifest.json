@@ -1671,7 +1671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 353,
+          "line": 423,
           "sink": "_muted_label"
         }
       ]
@@ -2367,12 +2367,172 @@
       ]
     },
     {
+      "key": "1. Add the package.\n2. Choose manager, structure and repair options.\n3. Repackage.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 102,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "1. Add the texture/mod.\n2. Choose Edit, Recolor, Upscale or Replace.\n3. Apply or export.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 89,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "1. Choose the files/scope.\n2. Enter the search term and options.\n3. Run the search.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 125,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "1. Choose the item/icon.\n2. Set the background or generation options.\n3. Preview or export.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 66,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "1. Choose the template/model.\n2. Change the named setting.\n3. Preview or build.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 52,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "1. Enter the query/asset.\n2. Choose the search or analysis.\n3. Open or export the result.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 120,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "1. Find or import the model.\n2. Open its preview.\n3. Choose the affected action.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 59,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "1. Open the archive.\n2. Select the file.\n3. Choose the action that failed.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 44,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "1. Open the feature.\n2. Choose the action.\n3. Describe the result.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 140,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "1. Open the file.\n2. Choose the decoder/view.\n3. Inspect or export the affected field.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 108,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "1. Open the item/character.\n2. Select the socket or animation.\n3. Move, preview or export.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 82,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "1. Open the model.\n2. Select the part and control.\n3. Apply the change, preview or export.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 74,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "1. Open the panel/window.\n2. Change the control or window size.\n3. Describe the result.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 624,
+          "sink": "setPlaceholderText"
+        }
+      ]
+    },
+    {
+      "key": "1. Open the settings page.\n2. Change the named option.\n3. Save, reopen or restart.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 130,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "1. Open the translation file.\n2. Select language and entry.\n3. Edit, translate or export.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 114,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "1. Open…\n2. Select…\n3. Click…",
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 227,
+          "line": 261,
           "sink": "_text"
+        }
+      ]
+    },
+    {
+      "key": "1. Select the mod/overlay.\n2. Choose the management action.\n3. Confirm or preview.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 97,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -2383,6 +2543,16 @@
           "path": "cdmw/ui/safe_upscale_wizard.py",
           "line": 120,
           "sink": "QGroupBox"
+        }
+      ]
+    },
+    {
+      "key": "1. Start CDMW.\n2. Open the tool/menu.\n3. Describe the last action before the problem.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 136,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -3561,8 +3731,18 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 272,
+          "line": 342,
           "sink": "_add_field"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 655,
+          "sink": "setToolTip"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 656,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -4183,6 +4363,16 @@
           "path": "tools/translation_studio/tab.py",
           "line": 389,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "AI translation",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 111,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -5096,7 +5286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 234,
+          "line": 268,
           "sink": "_add_field"
         }
       ]
@@ -5583,6 +5773,16 @@
           "path": "cdmw/ui/new_item/panels_output.py",
           "line": 516,
           "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Add files / folder / mod",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 86,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -6243,6 +6443,16 @@
           "path": "cdmw/ui/research/tab_builders.py",
           "line": 641,
           "sink": "setHeaderLabels"
+        }
+      ]
+    },
+    {
+      "key": "Affected action *",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 234,
+          "sink": "_add_field"
         }
       ]
     },
@@ -7456,7 +7666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 576,
+          "line": 856,
           "sink": "setText"
         }
       ]
@@ -8142,6 +8352,16 @@
       ]
     },
     {
+      "key": "Animation / pose preview",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 78,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Animation Metadata",
       "origins": [
         {
@@ -8487,6 +8707,16 @@
       ]
     },
     {
+      "key": "Another manager",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 12,
+          "sink": "python-data:MOD_MANAGERS"
+        }
+      ]
+    },
+    {
       "key": "Another material operation is still finishing. Try again shortly.",
       "origins": [
         {
@@ -8503,6 +8733,16 @@
           "path": "cdmw/ui/new_item/tab.py",
           "line": 1031,
           "sink": "failed"
+        }
+      ]
+    },
+    {
+      "key": "Another method",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 14,
+          "sink": "python-data:INSTALL_METHODS"
         }
       ]
     },
@@ -8573,6 +8813,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
           "line": 1088,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Appearance / shader controls",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 48,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -11197,6 +11447,16 @@
       ]
     },
     {
+      "key": "Archive file / asset",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 43,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Archive files",
       "origins": [
         {
@@ -12513,6 +12773,11 @@
           "path": "cdmw/ui/shell/compact/registry.py",
           "line": 30,
           "sink": "CompactToolSpec"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 117,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -14361,7 +14626,7 @@
         },
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 360,
+          "line": 430,
           "sink": "QPushButton"
         },
         {
@@ -16187,6 +16452,16 @@
       ]
     },
     {
+      "key": "Briefly name the action and what went wrong",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 242,
+          "sink": "_line"
+        }
+      ]
+    },
+    {
       "key": "Brightness",
       "origins": [
         {
@@ -16392,6 +16667,16 @@
       ]
     },
     {
+      "key": "Browse / import icons",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 62,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Browse Archive",
       "origins": [
         {
@@ -16413,6 +16698,11 @@
           "path": "cdmw/ui/shell/compact/registry.py",
           "line": 19,
           "sink": "CompactToolSpec"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 39,
+          "sink": "python-data:REPORT_TOOLS"
         },
         {
           "path": "tools/format_explorer/catalogue.py",
@@ -16493,6 +16783,16 @@
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
           "line": 73,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Browse structure / fields",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 106,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -16723,6 +17023,21 @@
           "path": "tools/placement_studio/window_rig_behaviour.py",
           "line": 221,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Build / export a mod",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 49,
+          "sink": "python-data:REPORT_TOOLS"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 72,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -18592,6 +18907,46 @@
       ]
     },
     {
+      "key": "CDMW overlay",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 13,
+          "sink": "python-data:INSTALL_METHODS"
+        }
+      ]
+    },
+    {
+      "key": "CDMW overlays",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 11,
+          "sink": "python-data:MOD_MANAGERS"
+        }
+      ]
+    },
+    {
+      "key": "CDMW project / editable package",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 34,
+          "sink": "python-data:MODEL_SOURCES"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 34,
+          "sink": "python-data:REPORT_TOOLS"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 34,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "CDMW protocol failure: {value_0}",
       "origins": [
         {
@@ -18606,7 +18961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 640,
+          "line": 922,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -18616,8 +18971,18 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 640,
+          "line": 922,
           "sink": "getOpenFileName"
+        }
+      ]
+    },
+    {
+      "key": "CDMW startup / main window",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 133,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -18708,6 +19073,11 @@
           "path": "cdmw/ui/replace_assistant_tab.py",
           "line": 441,
           "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 11,
+          "sink": "python-data:MOD_MANAGERS"
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
@@ -20297,6 +20667,16 @@
       ]
     },
     {
+      "key": "Catalogue / mirror / cache",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 57,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Catalogue error: {value_0}",
       "origins": [
         {
@@ -21786,7 +22166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 292,
+          "line": 362,
           "sink": "_page"
         }
       ]
@@ -22602,6 +22982,26 @@
       ]
     },
     {
+      "key": "Choose No for an app-only issue. Choose Yes for game assets, exporting/installing a mod, or an in-game result.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 283,
+          "sink": "_add_field"
+        }
+      ]
+    },
+    {
+      "key": "Choose Not installed yet if export failed before installation. Use Not sure if you do not know.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 313,
+          "sink": "_add_field"
+        }
+      ]
+    },
+    {
       "key": "Choose Now",
       "origins": [
         {
@@ -22636,7 +23036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 287,
+          "line": 357,
           "sink": "_add_field"
         }
       ]
@@ -23357,6 +23757,16 @@
       ]
     },
     {
+      "key": "Choose a template / item",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 48,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Choose a template and model variant before painting transparency.",
       "origins": [
         {
@@ -23841,7 +24251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 608,
+          "line": 890,
           "sink": "setText"
         }
       ]
@@ -23942,6 +24352,16 @@
       ]
     },
     {
+      "key": "Choose files / scope",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 123,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Choose glowing parts, colour, strength and animation. Source glow maps are retained; parts without a glow map use a solid map. Off restores the source emission.",
       "origins": [
         {
@@ -23981,7 +24401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 278,
+          "line": 348,
           "sink": "QPushButton"
         }
       ]
@@ -24023,6 +24443,16 @@
           "path": "cdmw/app/bootstrap.py",
           "line": 84,
           "sink": "error"
+        }
+      ]
+    },
+    {
+      "key": "Choose manager / structure",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 100,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -24367,6 +24797,16 @@
       ]
     },
     {
+      "key": "Choose the operation or panel involved. Other / not sure is available if none fits.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 234,
+          "sink": "_add_field"
+        }
+      ]
+    },
+    {
       "key": "Choose the original draw/material target that this selected source should feed.",
       "origins": [],
       "manual": true
@@ -24402,12 +24842,32 @@
       ]
     },
     {
+      "key": "Choose the source or format you actually used. Files are not attached to the report.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 251,
+          "sink": "_add_field"
+        }
+      ]
+    },
+    {
       "key": "Choose the texture output directories before exporting.",
       "origins": [
         {
           "path": "cdmw/services/texture_job_service.py",
           "line": 102,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Choose the tool and the action that failed.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 226,
+          "sink": "_page"
         }
       ]
     },
@@ -24446,7 +24906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 603,
+          "line": 885,
           "sink": "getOpenFileNames"
         }
       ]
@@ -24486,8 +24946,18 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 263,
+          "line": 333,
           "sink": "_page"
+        }
+      ]
+    },
+    {
+      "key": "Choose what you actually used. These options describe your setup; they are not a list of supported CDMW exports.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 310,
+          "sink": "_add_field"
         }
       ]
     },
@@ -24496,7 +24966,17 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 250,
+          "line": 320,
+          "sink": "_add_field"
+        }
+      ]
+    },
+    {
+      "key": "Choose where the problem happened, even if another tool is currently open.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 230,
           "sink": "_add_field"
         }
       ]
@@ -24566,7 +25046,22 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 480,
+          "line": 569,
+          "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 580,
+          "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 587,
+          "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 644,
           "sink": "addItem"
         }
       ]
@@ -25891,12 +26386,12 @@
         },
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 373,
+          "line": 443,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 745,
+          "line": 1018,
           "sink": "setText"
         },
         {
@@ -26029,6 +26524,11 @@
     {
       "key": "Cloth",
       "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 71,
+          "sink": "python-data:REPORT_TOOLS"
+        },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
           "line": 163,
@@ -27057,6 +27557,16 @@
       ]
     },
     {
+      "key": "Compare / analyse",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 118,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Compare Parent",
       "origins": [
         {
@@ -27142,6 +27652,16 @@
       "manual": true
     },
     {
+      "key": "Compare files",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 106,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Compare replacement output",
       "origins": [
         {
@@ -27199,6 +27719,11 @@
     {
       "key": "Compare updates / export",
       "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 94,
+          "sink": "python-data:REPORT_TOOLS"
+        },
         {
           "path": "cdmw/ui/tools/mod_management.py",
           "line": 51,
@@ -28196,7 +28721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 259,
+          "line": 329,
           "sink": "_add_field"
         }
       ]
@@ -28401,7 +28926,7 @@
         },
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 362,
+          "line": 432,
           "sink": "QPushButton"
         },
         {
@@ -29141,7 +29666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 371,
+          "line": 441,
           "sink": "QPushButton"
         }
       ]
@@ -29231,7 +29756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 234,
+          "line": 268,
           "sink": "_add_field"
         }
       ]
@@ -30232,6 +30757,16 @@
       ]
     },
     {
+      "key": "Create / generate an icon",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 62,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Create / update guides",
       "origins": [
         {
@@ -30303,6 +30838,11 @@
           "path": "cdmw/ui/shell/compact/registry.py",
           "line": 20,
           "sink": "CompactToolSpec"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 47,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -30953,6 +31493,11 @@
           "path": "cdmw/ui/replace_assistant_tab.py",
           "line": 442,
           "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 11,
+          "sink": "python-data:MOD_MANAGERS"
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
@@ -31982,6 +32527,26 @@
       ]
     },
     {
+      "key": "DAE",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 33,
+          "sink": "python-data:MODEL_SOURCES"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 33,
+          "sink": "python-data:REPORT_TOOLS"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 33,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "DDS",
       "origins": [
         {
@@ -32227,6 +32792,21 @@
       ]
     },
     {
+      "key": "DDS from game archives",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 35,
+          "sink": "python-data:REPORT_TOOLS"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 35,
+          "sink": "python-data:TEXTURE_SOURCES"
+        }
+      ]
+    },
+    {
       "key": "DDS import preview finished with an unexpected result payload.",
       "origins": [
         {
@@ -32283,6 +32863,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 192,
           "sink": "python-return:_build_workflow_planning_sections"
+        }
+      ]
+    },
+    {
+      "key": "DDS texture",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 42,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -32963,6 +33553,11 @@
           "path": "cdmw/ui/replace_assistant_tab.py",
           "line": 439,
           "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 11,
+          "sink": "python-data:MOD_MANAGERS"
         },
         {
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
@@ -33932,6 +34527,16 @@
       ]
     },
     {
+      "key": "Detach / reattach a window",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 134,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Detach Current Tool",
       "origins": [
         {
@@ -34356,7 +34961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 253,
+          "line": 323,
           "sink": "_add_field"
         }
       ]
@@ -34518,6 +35123,16 @@
           "path": "cdmw/ui/replace_assistant_tab.py",
           "line": 523,
           "sink": "FlatSectionPanel"
+        }
+      ]
+    },
+    {
+      "key": "Direct archive edits",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 14,
+          "sink": "python-data:INSTALL_METHODS"
         }
       ]
     },
@@ -35177,6 +35792,26 @@
       ]
     },
     {
+      "key": "Display / theme / language",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 128,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Display scaling / layout",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 134,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Dissolve",
       "origins": [
         {
@@ -35416,7 +36051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 745,
+          "line": 1018,
           "sink": "setText"
         }
       ]
@@ -35707,6 +36342,16 @@
       ]
     },
     {
+      "key": "Download / import a model",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 56,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Download Checked",
       "origins": [
         {
@@ -35911,7 +36556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 696,
+          "line": 969,
           "sink": "setText"
         }
       ]
@@ -35921,7 +36566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 696,
+          "line": 969,
           "sink": "setText"
         }
       ]
@@ -37042,6 +37687,26 @@
       ]
     },
     {
+      "key": "Edit / paint / layers",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 86,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Edit / replace archive content",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 41,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Edit HKX - {value_0}",
       "origins": [
         {
@@ -37343,6 +38008,11 @@
           "path": "cdmw/ui/shell/compact/registry.py",
           "line": 29,
           "sink": "CompactToolSpec"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 110,
+          "sink": "python-data:REPORT_TOOLS"
         },
         {
           "path": "tools/format_explorer/catalogue.py",
@@ -40257,6 +40927,16 @@
       ]
     },
     {
+      "key": "Existing game item",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 50,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Existing hair cuts may only retain original card triangles.",
       "origins": [
         {
@@ -40456,7 +41136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 232,
+          "line": 266,
           "sink": "_add_field"
         }
       ]
@@ -40833,6 +41513,26 @@
           "path": "cdmw/ui/text_search/tab.py",
           "line": 216,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Export / patch an icon",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 63,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Export / save",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 111,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -41782,6 +42482,16 @@
       ]
     },
     {
+      "key": "Export a mod package",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 41,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Export a read-only hkpackfile/hkobject/hkparam XML view for browsing and comparison with legacy Havok XML tools.",
       "origins": [
         {
@@ -41848,6 +42558,16 @@
           "path": "tools/translation_studio/tab.py",
           "line": 405,
           "sink": "QGroupBox"
+        }
+      ]
+    },
+    {
+      "key": "Export decoded content",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 106,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -41982,6 +42702,16 @@
       ]
     },
     {
+      "key": "Export placement / animations",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 79,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Export recipe…",
       "origins": [
         {
@@ -42003,6 +42733,21 @@
           "path": "cdmw/ui/recolor_variants_tab.py",
           "line": 649,
           "sink": "getSaveFileName"
+        }
+      ]
+    },
+    {
+      "key": "Export results",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 118,
+          "sink": "python-data:REPORT_TOOLS"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 123,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -42413,6 +43158,16 @@
           "path": "cdmw/ui/archive_browser/binary_sidecar_actions.py",
           "line": 229,
           "sink": "set_status_message"
+        }
+      ]
+    },
+    {
+      "key": "Exported translation file",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 112,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -42927,6 +43682,16 @@
       ]
     },
     {
+      "key": "External tool / backend settings",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 128,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Extinction",
       "origins": [
         {
@@ -43117,6 +43882,16 @@
       ]
     },
     {
+      "key": "Extract files",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 40,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Extract or hand off",
       "origins": [
         {
@@ -43163,6 +43938,16 @@
           "path": "cdmw/ui/archive_browser/preview_layout.py",
           "line": 185,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Extracted / local file",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 107,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -43453,6 +44238,26 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 676,
           "sink": "python-return:_build_environment_sections"
+        }
+      ]
+    },
+    {
+      "key": "FBX",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 33,
+          "sink": "python-data:MODEL_SOURCES"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 33,
+          "sink": "python-data:REPORT_TOOLS"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 33,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -44032,6 +44837,16 @@
       ]
     },
     {
+      "key": "Field-JSON",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 12,
+          "sink": "python-data:MOD_MANAGERS"
+        }
+      ]
+    },
+    {
       "key": "Field-JSON only describes DDS assets and cannot safely package a mesh payload",
       "origins": [
         {
@@ -44187,6 +45002,16 @@
       ]
     },
     {
+      "key": "File / format",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 107,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "File Name",
       "origins": [
         {
@@ -44283,6 +45108,26 @@
           "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
           "line": 901,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Filename, format and affected field",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 107,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Filename, language and text ID / entry",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 113,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -44492,19 +45337,19 @@
       ]
     },
     {
-      "key": "Filled from the current tool. Change it if the problem happened elsewhere.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 217,
-          "sink": "_add_field"
-        }
-      ]
-    },
-    {
       "key": "Filter",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Filter / open results",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 123,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
     },
     {
       "key": "Filter Archive Files to the required/recommended files in this Asset Family.",
@@ -45966,7 +46811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 317,
+          "line": 387,
           "sink": "setText"
         }
       ]
@@ -46546,7 +47391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 270,
+          "line": 340,
           "sink": "setText"
         }
       ]
@@ -47746,7 +48591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 302,
+          "line": 372,
           "sink": "setText"
         }
       ]
@@ -47862,6 +48707,26 @@
       ]
     },
     {
+      "key": "GLB / glTF",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 33,
+          "sink": "python-data:MODEL_SOURCES"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 33,
+          "sink": "python-data:REPORT_TOOLS"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 33,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "GPU rendering paused: {value_0}. Retry from the host to resume; editing state was retained.",
       "origins": [
         {
@@ -47967,12 +48832,12 @@
       ]
     },
     {
-      "key": "Game and mods",
+      "key": "Game archive file",
       "origins": [
         {
-          "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 241,
-          "sink": "_page"
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 107,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -48081,8 +48946,68 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 274,
+          "line": 344,
           "sink": "_muted_label"
+        }
+      ]
+    },
+    {
+      "key": "Game files or mods involved? *",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 283,
+          "sink": "_add_field"
+        }
+      ]
+    },
+    {
+      "key": "Game folder / archive setup",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 128,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Game icon / DDS",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 64,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Game item / model",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 80,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Game model (PAC / PAM / PAMLOD)",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 33,
+          "sink": "python-data:MODEL_SOURCES"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 33,
+          "sink": "python-data:REPORT_TOOLS"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 33,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -48111,7 +49036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 243,
+          "line": 291,
           "sink": "_add_field"
         }
       ]
@@ -48123,6 +49048,16 @@
           "path": "tools/translation_studio/tab.py",
           "line": 576,
           "sink": "getText"
+        }
+      ]
+    },
+    {
+      "key": "Game translation file",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 112,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -48181,18 +49116,8 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 245,
+          "line": 300,
           "sink": "_add_field"
-        }
-      ]
-    },
-    {
-      "key": "Game version, or Unknown",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 244,
-          "sink": "_line"
         }
       ]
     },
@@ -48497,6 +49422,16 @@
       ]
     },
     {
+      "key": "Generated icon",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 64,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Generated icon output stem is invalid.",
       "origins": [
         {
@@ -48756,7 +49691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 228,
+          "line": 262,
           "sink": "_add_field"
         }
       ]
@@ -49692,12 +50627,32 @@
       ]
     },
     {
+      "key": "HKX / PAB",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 42,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "HKX / Physics",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_document_actions.py",
           "line": 196,
           "sink": "QTreeWidgetItem"
+        }
+      ]
+    },
+    {
+      "key": "HKX / animation tools",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 41,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -49997,6 +50952,16 @@
       ]
     },
     {
+      "key": "HKX animation",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 80,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "HKX can show collision/physics context, but in-game placement needs prefab and socket descriptor evidence.",
       "origins": [
         {
@@ -50243,6 +51208,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
           "line": 966,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Hair Tools / Appearance",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 71,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -51327,6 +52302,16 @@
       ]
     },
     {
+      "key": "Help / diagnostics / problem reporting",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 135,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Help > Documentation",
       "origins": [
         {
@@ -51341,7 +52326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 222,
+          "line": 247,
           "sink": "_page"
         }
       ]
@@ -51361,7 +52346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 456,
+          "line": 543,
           "sink": "setAccessibleName"
         }
       ]
@@ -52052,6 +53037,16 @@
       ]
     },
     {
+      "key": "How long did you wait? *",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 273,
+          "sink": "_add_field"
+        }
+      ]
+    },
+    {
       "key": "How loose output, mod-ready folders, metadata, and backups fit together.",
       "origins": [
         {
@@ -52126,7 +53121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 238,
+          "line": 278,
           "sink": "_add_field"
         }
       ]
@@ -52247,11 +53242,36 @@
       "manual": true
     },
     {
+      "key": "I don't know the exact setting / profile",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 619,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "I don't know the item / filename",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 259,
+          "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 619,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "I reviewed this report and agree to send it",
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 326,
+          "line": 396,
           "sink": "setText"
         }
       ]
@@ -52543,6 +53563,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 54,
           "sink": "python-return:_build_start_sections"
+        }
+      ]
+    },
+    {
+      "key": "Identity / stats",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 49,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -52997,6 +54027,16 @@
       ]
     },
     {
+      "key": "Import / export a profile",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 129,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Import Edited Clone...",
       "origins": [
         {
@@ -53307,6 +54347,16 @@
       ]
     },
     {
+      "key": "Import Replacement / editable exchange",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 72,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Import Replacement…",
       "origins": [
         {
@@ -53358,6 +54408,16 @@
           "path": "cdmw/ui/replace_assistant/queue.py",
           "line": 57,
           "sink": "getExistingDirectory"
+        }
+      ]
+    },
+    {
+      "key": "Import a model",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 48,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -53943,6 +55003,11 @@
           "path": "cdmw/ui/new_item/panels_model.py",
           "line": 754,
           "sink": "QRadioButton"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 50,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -54536,7 +55601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 259,
+          "line": 329,
           "sink": "_add_field"
         }
       ]
@@ -54661,7 +55726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 267,
+          "line": 337,
           "sink": "_add_field"
         }
       ]
@@ -54687,12 +55752,77 @@
       ]
     },
     {
+      "key": "Include the archive-relative path and the action/menu used. For preview issues, name the view and missing content.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 45,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Include the character/template, model and affected setting. For effects, name the effect and attachment.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 53,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Include the exact search term, file/scope, filters and a sample match you expected.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 126,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Include the item and the actions you took.",
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 222,
+          "line": 247,
           "sink": "_page"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 626,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Include the language pair, entry/ID and action. For AI translation, name the provider/model; never include an API key.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 115,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Include the launch method and last action. For layout issues, include display scale and whether a monitor move was involved.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 137,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Include the model and part, exact control/value, and whether the problem is in preview, validation, export or the game.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 75,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -54703,6 +55833,26 @@
           "path": "tools/placement_studio/move_weapon.py",
           "line": 347,
           "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
+      "key": "Include the package, selected manager/structure, repair options and the output that failed.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 103,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Include the query/asset, selected analysis and the result or reference that was missing.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 121,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -54728,16 +55878,6 @@
           "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
           "line": 2655,
           "sink": "log"
-        }
-      ]
-    },
-    {
-      "key": "Include your mod manager, export/install method and relevant archive edits. Write None if you use no mods.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 247,
-          "sink": "_add_field"
         }
       ]
     },
@@ -54835,6 +55975,16 @@
       "key": "Incomplete table row directory.",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Incorrect result / other issue",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 590,
+          "sink": "addItem"
+        }
+      ]
     },
     {
       "key": "Increment",
@@ -55482,6 +56632,16 @@
       ]
     },
     {
+      "key": "Input / source *",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 251,
+          "sink": "_add_field"
+        }
+      ]
+    },
+    {
       "key": "Input-position collisions",
       "origins": [
         {
@@ -55563,6 +56723,11 @@
           "path": "cdmw/ui/shell/compact/registry.py",
           "line": 28,
           "sink": "CompactToolSpec"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 105,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -55623,6 +56788,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 506,
           "sink": "python-return:_build_utility_sections"
+        }
+      ]
+    },
+    {
+      "key": "Inspect dependencies / references",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 118,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -55867,6 +57042,16 @@
       ]
     },
     {
+      "key": "Install method *",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 313,
+          "sink": "_add_field"
+        }
+      ]
+    },
+    {
       "key": "Install this item as a separately tracked overlay. CDMW combines shared tables, preserves other installed overlays, and backs up the files it changes. Use Installed overlays to remove an individual install.",
       "origins": [
         {
@@ -55977,6 +57162,16 @@
       ]
     },
     {
+      "key": "Installed CDMW overlay",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 95,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Installed CDMW overlays together",
       "origins": [
         {
@@ -56027,6 +57222,16 @@
       ]
     },
     {
+      "key": "Installed mods *",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 303,
+          "sink": "_add_field"
+        }
+      ]
+    },
+    {
       "key": "Installed overlays",
       "origins": [
         {
@@ -56053,6 +57258,16 @@
           "path": "cdmw/ui/tools/mod_management.py",
           "line": 60,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Installed overlays / enable / disable",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 93,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -57302,12 +58517,42 @@
       ]
     },
     {
+      "key": "Item / character / animation",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 81,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Item / file",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 139,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Item / group key",
       "origins": [
         {
           "path": "cdmw/ui/new_item/recipe_editor.py",
           "line": 68,
           "sink": "setHorizontalHeaderLabels"
+        }
+      ]
+    },
+    {
+      "key": "Item / icon",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 65,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -57538,6 +58783,11 @@
           "path": "cdmw/ui/shell/compact/registry.py",
           "line": 22,
           "sink": "CompactToolSpec"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 61,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -57817,6 +59067,16 @@
       ]
     },
     {
+      "key": "Item icons",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 49,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Item identity conflicts with {value_0}. Build a new plan from the current installed tables.",
       "origins": [
         {
@@ -57847,12 +59107,32 @@
       ]
     },
     {
+      "key": "Item name, icon filename or library entry",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 65,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Item name, internal name or key",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_template.py",
           "line": 62,
           "sink": "setPlaceholderText"
+        }
+      ]
+    },
+    {
+      "key": "Item name, template or model filename",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 51,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -57871,8 +59151,28 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 225,
+          "line": 254,
           "sink": "_add_field"
+        }
+      ]
+    },
+    {
+      "key": "Item or file, if one is involved",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 139,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Item or filename",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 253,
+          "sink": "_line"
         }
       ]
     },
@@ -57927,12 +59227,12 @@
       ]
     },
     {
-      "key": "Item, game-relative path, or Not applicable",
+      "key": "Item, character and animation/clip name",
       "origins": [
         {
-          "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 223,
-          "sink": "_line"
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 81,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -58073,6 +59373,16 @@
           "path": "schemas/archive_content_capabilities.v1.json",
           "line": 1,
           "sink": "json-presentation:remaining"
+        }
+      ]
+    },
+    {
+      "key": "JMM",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 11,
+          "sink": "python-data:MOD_MANAGERS"
         }
       ]
     },
@@ -58586,7 +59896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 331,
+          "line": 401,
           "sink": "_page"
         }
       ]
@@ -61972,6 +63282,21 @@
       ]
     },
     {
+      "key": "Local DDS",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 35,
+          "sink": "python-data:REPORT_TOOLS"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 35,
+          "sink": "python-data:TEXTURE_SOURCES"
+        }
+      ]
+    },
+    {
       "key": "Local DDS folder",
       "origins": [
         {
@@ -62033,6 +63358,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 676,
           "sink": "python-return:_build_environment_sections"
+        }
+      ]
+    },
+    {
+      "key": "Local image",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 64,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -62897,6 +64232,26 @@
       ]
     },
     {
+      "key": "Manager / installation tool *",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 310,
+          "sink": "_add_field"
+        }
+      ]
+    },
+    {
+      "key": "Manager folder / ZIP",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 13,
+          "sink": "python-data:INSTALL_METHODS"
+        }
+      ]
+    },
+    {
       "key": "Manager outputs",
       "origins": [
         {
@@ -62913,16 +64268,6 @@
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
           "line": 203,
           "sink": "setHorizontalHeaderLabels"
-        }
-      ]
-    },
-    {
-      "key": "Manager, relevant mods and install method, or None",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 246,
-          "sink": "_text"
         }
       ]
     },
@@ -62978,6 +64323,26 @@
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
           "line": 466,
           "sink": "QGroupBox"
+        }
+      ]
+    },
+    {
+      "key": "Manual installation",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 12,
+          "sink": "python-data:MOD_MANAGERS"
+        }
+      ]
+    },
+    {
+      "key": "Manual loose files",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 13,
+          "sink": "python-data:INSTALL_METHODS"
         }
       ]
     },
@@ -63382,6 +64747,16 @@
       ]
     },
     {
+      "key": "Match an item",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 62,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Match glow colour",
       "origins": [
         {
@@ -63623,6 +64998,26 @@
           "path": "cdmw/ui/archive_browser/filters.py",
           "line": 368,
           "sink": "QTreeWidgetItem"
+        }
+      ]
+    },
+    {
+      "key": "Material / XML / table",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 42,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Material / XML tools",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 41,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -64362,6 +65757,16 @@
       ]
     },
     {
+      "key": "Materials / textures",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 56,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Materials and textures only: the target's mesh is not rewritten.",
       "origins": [
         {
@@ -64616,7 +66021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 255,
+          "line": 325,
           "sink": "_add_field"
         }
       ]
@@ -64669,6 +66074,11 @@
     {
       "key": "Merge mod folders",
       "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 93,
+          "sink": "python-data:REPORT_TOOLS"
+        },
         {
           "path": "cdmw/ui/tools/mod_management.py",
           "line": 50,
@@ -65208,6 +66618,11 @@
           "path": "cdmw/ui/shell/compact/registry.py",
           "line": 23,
           "sink": "CompactToolSpec"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 68,
+          "sink": "python-data:REPORT_TOOLS"
         },
         {
           "path": "tools/format_explorer/catalogue.py",
@@ -68932,6 +70347,16 @@
       ]
     },
     {
+      "key": "Mod / overlay / recovery set",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 96,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Mod Management",
       "origins": [
         {
@@ -68948,6 +70373,11 @@
           "path": "cdmw/ui/shell/compact/registry.py",
           "line": 26,
           "sink": "CompactToolSpec"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 92,
+          "sink": "python-data:REPORT_TOOLS"
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
@@ -69058,6 +70488,36 @@
           "path": "cdmw/ui/new_item/panels_output.py",
           "line": 224,
           "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 101,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Mod folder / ZIP",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 35,
+          "sink": "python-data:REPORT_TOOLS"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 35,
+          "sink": "python-data:TEXTURE_SOURCES"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 64,
+          "sink": "python-data:REPORT_TOOLS"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 95,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -69182,6 +70642,16 @@
       ]
     },
     {
+      "key": "Mod name and version, or recovery-set name",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 96,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Mod name, as the mod manager will list it.",
       "origins": [
         {
@@ -69203,6 +70673,16 @@
           "path": "tools/placement_studio/window_editing.py",
           "line": 1200,
           "sink": "getText"
+        }
+      ]
+    },
+    {
+      "key": "Mod package",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 101,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -69438,6 +70918,11 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 54,
           "sink": "python-return:_build_start_sections"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 48,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -69468,6 +70953,26 @@
           "path": "cdmw/ui/archive_browser/filters.py",
           "line": 368,
           "sink": "QTreeWidgetItem"
+        }
+      ]
+    },
+    {
+      "key": "Model / catalogue entry",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 58,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Model / part",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 73,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -69528,6 +71033,11 @@
           "path": "cdmw/ui/shell/model_library_bridge.py",
           "line": 440,
           "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 55,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -69802,6 +71312,16 @@
       ]
     },
     {
+      "key": "Model filename or archive path; affected part if known",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 73,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Model files",
       "origins": [
         {
@@ -69903,6 +71423,16 @@
           "path": "cdmw/ui/shell/model_library_bridge.py",
           "line": 435,
           "sink": "set_status_message"
+        }
+      ]
+    },
+    {
+      "key": "Model name or filename; catalogue entry if relevant",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 58,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -70432,12 +71962,12 @@
       ]
     },
     {
-      "key": "Mods and manager *",
+      "key": "Mods installed",
       "origins": [
         {
-          "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 247,
-          "sink": "_add_field"
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 10,
+          "sink": "python-data:MOD_STATES"
         }
       ]
     },
@@ -70538,6 +72068,11 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 331,
           "sink": "python-return:_build_archive_mesh_sections"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 71,
+          "sink": "python-data:REPORT_TOOLS"
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
@@ -71078,6 +72613,16 @@
           "path": "cdmw/ui/tools/mod_management.py",
           "line": 80,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Move items into an overlay",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 94,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -71832,6 +73377,16 @@
       "manual": true
     },
     {
+      "key": "Name both the replacement and original DDS, matching mode and unresolved/incorrect match.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 156,
+          "sink": "python-data:ACTION_HELP"
+        }
+      ]
+    },
+    {
       "key": "Name each attachment point in the viewport.",
       "origins": [
         {
@@ -71872,12 +73427,242 @@
       ]
     },
     {
-      "key": "Name the action and tool that failed. Example: Archive Browser fails to extract a DDS.",
+      "key": "Name the affected mod/overlay and action. For merges or updates, name both inputs and the selected conflict option.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 98,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Name the affected panel/control, window size or display scale, and how to trigger the layout problem.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 160,
+          "sink": "python-data:ACTION_HELP"
+        }
+      ]
+    },
+    {
+      "key": "Name the backend/model, scale and settings. Include the last progress/error; never paste credentials.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 155,
+          "sink": "python-data:ACTION_HELP"
+        }
+      ]
+    },
+    {
+      "key": "Name the bone/part, weighting action and the pose that exposes the problem.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 150,
+          "sink": "python-data:ACTION_HELP"
+        }
+      ]
+    },
+    {
+      "key": "Name the character/item, socket or animation clip, and the placement/preview setting.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 83,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Name the feature and the buttons you used. Select a named tool above when possible.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 141,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Name the folder type, scan/setup action and error. Use game-relative names instead of your full personal path.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 159,
+          "sink": "python-data:ACTION_HELP"
+        }
+      ]
+    },
+    {
+      "key": "Name the format/file, decoder/view and the field or section that looks incorrect.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 109,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Name the input format and source model. Say whether the matching CDMW companion was present and paste validation errors.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 153,
+          "sink": "python-data:ACTION_HELP"
+        }
+      ]
+    },
+    {
+      "key": "Name the item/icon and source. For generated icons, include the selected model and background.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 67,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Name the model, source format and catalogue/mirror if used. Include which textures or parts are missing.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 60,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Name the mods involved and any manual archive/file edits. For another manager/method, name it here.",
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 209,
+          "line": 316,
           "sink": "_add_field"
+        }
+      ]
+    },
+    {
+      "key": "Name the part, UV set and operation. Include the texture/view used to check the result.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 151,
+          "sink": "python-data:ACTION_HELP"
+        }
+      ]
+    },
+    {
+      "key": "Name the part, channel and edited value. Include whether Apply was pressed and how the result was checked.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 148,
+          "sink": "python-data:ACTION_HELP"
+        }
+      ]
+    },
+    {
+      "key": "Name the part, cloth profile/control and value. Say whether the issue is in the preview or exported result.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 147,
+          "sink": "python-data:ACTION_HELP"
+        }
+      ]
+    },
+    {
+      "key": "Name the part, material/texture slot, display mode and missing or incorrect texture.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 145,
+          "sink": "python-data:ACTION_HELP"
+        }
+      ]
+    },
+    {
+      "key": "Name the part, source shader, experiment and changed values. Compare preview and exported/in-game results.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 146,
+          "sink": "python-data:ACTION_HELP"
+        }
+      ]
+    },
+    {
+      "key": "Name the part, target/character and parameter values used for the refit.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 152,
+          "sink": "python-data:ACTION_HELP"
+        }
+      ]
+    },
+    {
+      "key": "Name the perk/effect, target item, socket/attachment and setting. Describe preview and exported/game results separately.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 157,
+          "sink": "python-data:ACTION_HELP"
+        }
+      ]
+    },
+    {
+      "key": "Name the recovery set and chosen action. Include the error and what was restored; do not repeat archive writes just for this report.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 158,
+          "sink": "python-data:ACTION_HELP"
+        }
+      ]
+    },
+    {
+      "key": "Name the scalp/part, tool or preset, appearance control and the last completed action.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 149,
+          "sink": "python-data:ACTION_HELP"
+        }
+      ]
+    },
+    {
+      "key": "Name the settings page and option. Include the old/new values; never include keys, passwords or private paths.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 131,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Name the texture, mode and setting. For upscale, include the backend/model; for Replace, include the original and replacement.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 90,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Name the texture/mod, selected recolor method and colour/alpha options.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 154,
+          "sink": "python-data:ACTION_HELP"
         }
       ]
     },
@@ -73101,7 +74886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 258,
+          "line": 328,
           "sink": "_line"
         }
       ]
@@ -73118,6 +74903,11 @@
           "path": "cdmw/ui/safe_upscale_wizard.py",
           "line": 607,
           "sink": "python-return:_as_display_text"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 15,
+          "sink": "python-data:GAME_INVOLVEMENT"
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_panel.py",
@@ -75447,6 +77237,21 @@
       ]
     },
     {
+      "key": "No mods installed",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 10,
+          "sink": "python-data:MOD_STATES"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 205,
+          "sink": "python-return:decode_mod_setup"
+        }
+      ]
+    },
+    {
       "key": "No mounted item model is available for this overlay.",
       "origins": [
         {
@@ -76321,12 +78126,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 282,
+          "line": 352,
           "sink": "_muted_label"
         },
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 618,
+          "line": 900,
           "sink": "setText"
         }
       ]
@@ -77662,6 +79467,31 @@
       ]
     },
     {
+      "key": "Not included for an app-only report.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 655,
+          "sink": "setToolTip"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 656,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Not installed yet",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 13,
+          "sink": "python-data:INSTALL_METHODS"
+        }
+      ]
+    },
+    {
       "key": "Not mounted",
       "origins": [
         {
@@ -77753,6 +79583,46 @@
           "path": "cdmw/ui/new_item/panels_placement.py",
           "line": 44,
           "sink": "QRadioButton"
+        }
+      ]
+    },
+    {
+      "key": "Not sure",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 10,
+          "sink": "python-data:MOD_STATES"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 12,
+          "sink": "python-data:MOD_MANAGERS"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 14,
+          "sink": "python-data:INSTALL_METHODS"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 15,
+          "sink": "python-data:GAME_INVOLVEMENT"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 211,
+          "sink": "python-return:decode_mod_setup"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 211,
+          "sink": "python-return:decode_mod_setup"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 211,
+          "sink": "python-return:decode_mod_setup"
         }
       ]
     },
@@ -78193,6 +80063,26 @@
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
           "line": 820,
           "sink": "QTreeWidgetItem"
+        }
+      ]
+    },
+    {
+      "key": "OBJ",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 33,
+          "sink": "python-data:MODEL_SOURCES"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 33,
+          "sink": "python-data:REPORT_TOOLS"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 33,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -78711,7 +80601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 165,
+          "line": 183,
           "sink": "_muted_label"
         }
       ]
@@ -78723,6 +80613,16 @@
           "path": "tools/placement_studio/glossary.py",
           "line": 78,
           "sink": "Term"
+        }
+      ]
+    },
+    {
+      "key": "One specific problem. Example: Mesh Editor shows a black texture after importing a GLB.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 243,
+          "sink": "_add_field"
         }
       ]
     },
@@ -79018,6 +80918,46 @@
           "path": "tools/translation_studio/tab.py",
           "line": 297,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Open / decode a file",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 106,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Open / load a model",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 69,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Open / load translations",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 111,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Open / switch a tool",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 134,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -79776,7 +81716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 640,
+          "line": 922,
           "sink": "getOpenFileName"
         }
       ]
@@ -79877,6 +81817,16 @@
       ]
     },
     {
+      "key": "Open an item / character",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 78,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Open and author a mesh",
       "origins": [
         {
@@ -79901,7 +81851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 355,
+          "line": 425,
           "sink": "QPushButton"
         }
       ]
@@ -80258,6 +82208,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
           "line": 1104,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Open in another tool",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 57,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -81541,7 +83501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 267,
+          "line": 337,
           "sink": "_add_field"
         }
       ]
@@ -82282,6 +84242,91 @@
       ]
     },
     {
+      "key": "Other / not sure",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 9,
+          "sink": "python-data:OTHER_ACTION"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 9,
+          "sink": "python-data:REPORT_TOOLS"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 9,
+          "sink": "python-data:REPORT_TOOLS"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 9,
+          "sink": "python-data:REPORT_TOOLS"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 9,
+          "sink": "python-data:REPORT_TOOLS"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 9,
+          "sink": "python-data:REPORT_TOOLS"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 9,
+          "sink": "python-data:REPORT_TOOLS"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 9,
+          "sink": "python-data:REPORT_TOOLS"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 9,
+          "sink": "python-data:REPORT_TOOLS"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 9,
+          "sink": "python-data:REPORT_TOOLS"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 34,
+          "sink": "python-data:MODEL_SOURCES"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 34,
+          "sink": "python-data:REPORT_TOOLS"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 34,
+          "sink": "python-data:REPORT_TOOLS"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 36,
+          "sink": "python-data:REPORT_TOOLS"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 36,
+          "sink": "python-data:TEXTURE_SOURCES"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 139,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Other influences redistribute proportionally. Cloth guide weights are preserved.",
       "origins": [
         {
@@ -82298,6 +84343,16 @@
           "path": "cdmw/services/overlay_inventory_details.py",
           "line": 40,
           "sink": "python-return:external_overlay_summary"
+        }
+      ]
+    },
+    {
+      "key": "Other tool / feature *",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 237,
+          "sink": "_add_field"
         }
       ]
     },
@@ -83532,6 +85587,16 @@
       ]
     },
     {
+      "key": "PAC / PAM / PAMLOD model",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 42,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "PAC XML Editor - {value_0}",
       "origins": [
         {
@@ -83558,6 +85623,16 @@
           "path": "cdmw/services/mesh_replacement_output.py",
           "line": 97,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "PAMT / PAZ archive",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 42,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -83613,6 +85688,21 @@
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
           "line": 219,
           "sink": "_chip"
+        }
+      ]
+    },
+    {
+      "key": "PNG / JPEG / WebP",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 35,
+          "sink": "python-data:REPORT_TOOLS"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 35,
+          "sink": "python-data:TEXTURE_SOURCES"
         }
       ]
     },
@@ -84033,6 +86123,16 @@
           "path": "tools/placement_studio/window_editing.py",
           "line": 1200,
           "sink": "getText"
+        }
+      ]
+    },
+    {
+      "key": "Package name and target manager",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 101,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -85107,6 +87207,16 @@
       ]
     },
     {
+      "key": "Parts / materials / textures",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 69,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Parts sharing a material wrapper need matching settings. Restore incompatible overrides before choosing another experiment. Previews approximate the game shaders; refraction, lighting, and animation may differ in game.",
       "origins": [
         {
@@ -86111,7 +88221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 289,
+          "line": 359,
           "sink": "_muted_label"
         }
       ]
@@ -86403,6 +88513,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 54,
           "sink": "python-return:_build_start_sections"
+        }
+      ]
+    },
+    {
+      "key": "Perks / Effects",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 49,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -87235,6 +89355,11 @@
           "sink": "CompactToolSpec"
         },
         {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 77,
+          "sink": "python-data:REPORT_TOOLS"
+        },
+        {
           "path": "tools/format_explorer/catalogue.py",
           "line": 59,
           "sink": "python-data:TOOLS"
@@ -87283,6 +89408,16 @@
           "path": "cdmw/ui/archive_browser/prefab_inspector_widgets.py",
           "line": 124,
           "sink": "setWindowTitle"
+        }
+      ]
+    },
+    {
+      "key": "Placement / sockets",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 78,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -89511,7 +91646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 654,
+          "line": 936,
           "sink": "setText"
         }
       ]
@@ -90837,6 +92972,26 @@
       ]
     },
     {
+      "key": "Preview / background",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 62,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Preview / camera / display",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 69,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Preview AO strength",
       "origins": [
         {
@@ -91437,6 +93592,26 @@
       ]
     },
     {
+      "key": "Preview a file",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 40,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Preview a model",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 56,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Preview a model first, then generate an icon.",
       "origins": [
         {
@@ -91488,6 +93663,16 @@
           "path": "cdmw/ui/archive_browser/static_replacement_d3d11_presentation_state.py",
           "line": 491,
           "sink": "AlignmentD3D11StatusPresentation"
+        }
+      ]
+    },
+    {
+      "key": "Preview an installed item",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 93,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -94131,12 +96316,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 322,
+          "line": 392,
           "sink": "_muted_label"
         },
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 580,
+          "line": 860,
           "sink": "setText"
         }
       ]
@@ -94146,7 +96331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 167,
+          "line": 185,
           "sink": "_muted_label"
         }
       ]
@@ -94156,7 +96341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 341,
+          "line": 411,
           "sink": "_muted_label"
         }
       ]
@@ -94668,6 +96853,16 @@
           "path": "cdmw/ui/texture_workflow/progress_panel.py",
           "line": 13,
           "sink": "QGroupBox"
+        }
+      ]
+    },
+    {
+      "key": "Progress / response *",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 275,
+          "sink": "_add_field"
         }
       ]
     },
@@ -95478,6 +97673,26 @@
           "path": "cdmw/ui/new_item/panels_placement.py",
           "line": 234,
           "sink": "setItemData"
+        }
+      ]
+    },
+    {
+      "key": "Query / asset",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 119,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Query and file/scope where the match was expected",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 124,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -97851,7 +100066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 255,
+          "line": 325,
           "sink": "_add_field"
         }
       ]
@@ -97881,7 +100096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 265,
+          "line": 335,
           "sink": "setText"
         }
       ]
@@ -97953,6 +100168,11 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 130,
           "sink": "python-return:_build_workflow_core_sections"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 86,
+          "sink": "python-data:REPORT_TOOLS"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
@@ -98717,6 +100937,16 @@
       ]
     },
     {
+      "key": "Recovery / restore",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 94,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Recovery cancelled because the archive source changed.",
       "origins": [
         {
@@ -98743,6 +100973,16 @@
           "path": "cdmw/services/archive_catalogue_service.py",
           "line": 732,
           "sink": "TypeError"
+        }
+      ]
+    },
+    {
+      "key": "Recovery set",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 95,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -100112,6 +102352,41 @@
       ]
     },
     {
+      "key": "Relevant mod names/versions and changes, or Not sure",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 315,
+          "sink": "_text"
+        }
+      ]
+    },
+    {
+      "key": "Relevant mods / details *",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 316,
+          "sink": "_add_field"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 639,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Relevant mods / output name *",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 639,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Reload",
       "origins": [
         {
@@ -100286,7 +102561,7 @@
         },
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 280,
+          "line": 350,
           "sink": "QPushButton"
         },
         {
@@ -100822,12 +103097,27 @@
       ]
     },
     {
+      "key": "Repackage / export",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 100,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Repackage Mods",
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/registry.py",
           "line": 27,
           "sink": "CompactToolSpec"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 99,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -100848,6 +103138,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 2678,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Repair paths",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 100,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -100898,6 +103198,16 @@
           "path": "cdmw/ui/texture_workflow/workspace_ui.py",
           "line": 84,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Replace / match originals",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 87,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -102006,7 +104316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 128,
+          "line": 145,
           "sink": "setWindowTitle"
         }
       ]
@@ -102026,7 +104336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 158,
+          "line": 176,
           "sink": "QLabel"
         }
       ]
@@ -102046,12 +104356,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 331,
+          "line": 401,
           "sink": "_page"
         },
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 576,
+          "line": 856,
           "sink": "setText"
         }
       ]
@@ -102061,7 +104371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 797,
+          "line": 1075,
           "sink": "setText"
         }
       ]
@@ -102071,7 +104381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 196,
+          "line": 215,
           "sink": "setAccessibleName"
         }
       ]
@@ -105216,7 +107526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 731,
+          "line": 1004,
           "sink": "setText"
         }
       ]
@@ -105715,6 +108025,11 @@
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 87,
+          "sink": "python-data:REPORT_TOOLS"
+        },
+        {
           "path": "cdmw/ui/texture_workflow/workspace_ui.py",
           "line": 417,
           "sink": "setWindowTitle"
@@ -105831,7 +108146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 189,
+          "line": 208,
           "sink": "_muted_label"
         }
       ]
@@ -105921,7 +108236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 365,
+          "line": 435,
           "sink": "QPushButton"
         }
       ]
@@ -105971,7 +108286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 292,
+          "line": 362,
           "sink": "_page"
         }
       ]
@@ -106098,6 +108413,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 331,
           "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
+      "key": "Rig / skin weights",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 70,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -107817,6 +110142,51 @@
       ]
     },
     {
+      "key": "Save / edit icon metadata",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 63,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Save / reopen a draft",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 49,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Save / reopen a project",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 79,
+          "sink": "python-data:REPORT_TOOLS"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 87,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Save / restore settings",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 129,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Save All",
       "origins": [],
       "manual": true
@@ -108072,6 +110442,16 @@
       ]
     },
     {
+      "key": "Saved CDMW draft",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 50,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Saved Notes",
       "origins": [
         {
@@ -108187,6 +110567,16 @@
       ]
     },
     {
+      "key": "Saved placement project",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 80,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Saved preset",
       "origins": [
         {
@@ -108246,7 +110636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 683,
+          "line": 956,
           "sink": "setToolTip"
         }
       ]
@@ -108643,6 +111033,26 @@
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
           "line": 121,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Scan / add packages",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 100,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Scan / open archives",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 40,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -109251,7 +111661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 603,
+          "line": 885,
           "sink": "getOpenFileNames:filter-label"
         }
       ]
@@ -109261,7 +111671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 603,
+          "line": 885,
           "sink": "getOpenFileNames"
         }
       ]
@@ -109271,7 +111681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 287,
+          "line": 357,
           "sink": "_add_field"
         }
       ]
@@ -109342,6 +111752,16 @@
       ]
     },
     {
+      "key": "Sculpt / topology / normals",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 70,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Sculpt mode for brush-based surface edits.",
       "origins": [
         {
@@ -109402,12 +111822,57 @@
       ]
     },
     {
+      "key": "Search / browse models",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 56,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Search / edit text",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 111,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Search / filter files",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 40,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Search / find an asset",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 118,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Search File Text",
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/registry.py",
           "line": 31,
           "sink": "CompactToolSpec"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 122,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -109793,6 +112258,36 @@
           "path": "cdmw/ui/text_search/tab.py",
           "line": 163,
           "sink": "setPlaceholderText"
+        }
+      ]
+    },
+    {
+      "key": "Search term / file",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 124,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Search term or archive-relative asset path",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 119,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Search text",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 123,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -114362,6 +116857,16 @@
       ]
     },
     {
+      "key": "Selection / transforms",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 70,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Selection To Mask",
       "origins": [
         {
@@ -114711,12 +117216,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 368,
+          "line": 438,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 731,
+          "line": 1004,
           "sink": "setText"
         }
       ]
@@ -114746,7 +117251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 764,
+          "line": 1042,
           "sink": "setText"
         }
       ]
@@ -115202,6 +117707,26 @@
       ]
     },
     {
+      "key": "Setting / profile",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 129,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Setting or profile name",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 129,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Settings",
       "origins": [
         {
@@ -115268,6 +117793,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 598,
           "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
+      "key": "Settings / profiles",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 127,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -115375,6 +117910,11 @@
           "sink": "python-return:_build_reference_sections"
         },
         {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 281,
+          "sink": "_page"
+        },
+        {
           "path": "cdmw/ui/texture_workflow/setup_overview_panel.py",
           "line": 14,
           "sink": "CollapsibleSection"
@@ -115469,6 +118009,11 @@
     {
       "key": "Shader experiments",
       "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 69,
+          "sink": "python-data:REPORT_TOOLS"
+        },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
           "line": 7,
@@ -118362,6 +120907,16 @@
       ]
     },
     {
+      "key": "Skeleton / attachments",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 78,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Skeleton overlay change queued; the preview will refresh after the current build.",
       "origins": [
         {
@@ -121212,6 +123767,16 @@
       ]
     },
     {
+      "key": "Start / close CDMW",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 134,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Start / stop",
       "origins": [
         {
@@ -121388,16 +123953,6 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 192,
           "sink": "python-return:_build_workflow_planning_sections"
-        }
-      ]
-    },
-    {
-      "key": "Start with one specific example.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 207,
-          "sink": "_page"
         }
       ]
     },
@@ -122326,7 +124881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 228,
+          "line": 262,
           "sink": "_add_field"
         }
       ]
@@ -123146,7 +125701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 209,
+          "line": 243,
           "sink": "_add_field"
         }
       ]
@@ -123286,7 +125841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 263,
+          "line": 333,
           "sink": "_page"
         }
       ]
@@ -124782,6 +127337,16 @@
       ]
     },
     {
+      "key": "Template / item / model",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 51,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Template assignments inherited.",
       "origins": [
         {
@@ -125096,7 +127661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 250,
+          "line": 320,
           "sink": "_add_field"
         }
       ]
@@ -125283,6 +127848,16 @@
           "path": "cdmw/ui/archive_browser/filters.py",
           "line": 368,
           "sink": "QTreeWidgetItem"
+        }
+      ]
+    },
+    {
+      "key": "Texture / mod",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 88,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -125722,6 +128297,16 @@
       ]
     },
     {
+      "key": "Texture filename or archive-relative DDS path",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 88,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Texture files",
       "origins": [
         {
@@ -125978,6 +128563,21 @@
           "path": "cdmw/ui/replace_assistant_tab.py",
           "line": 595,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Texture project / session",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 36,
+          "sink": "python-data:REPORT_TOOLS"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 36,
+          "sink": "python-data:TEXTURE_SOURCES"
         }
       ]
     },
@@ -126313,6 +128913,11 @@
           "path": "cdmw/ui/shell/help_dialogs.py",
           "line": 257,
           "sink": "python-return:_section_category"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 85,
+          "sink": "python-data:REPORT_TOOLS"
         },
         {
           "path": "cdmw/ui/texture_workflow/workspace_ui.py",
@@ -132232,11 +134837,11 @@
       ]
     },
     {
-      "key": "Tool / workflow *",
+      "key": "Tool *",
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 217,
+          "line": 230,
           "sink": "_add_field"
         }
       ]
@@ -132387,11 +134992,11 @@
       ]
     },
     {
-      "key": "Tool or menu where this happened",
+      "key": "Tool or feature name",
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 215,
+          "line": 236,
           "sink": "_line"
         }
       ]
@@ -132858,6 +135463,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_shell_part_02.py",
           "line": 27,
           "sink": "setHeaderLabels"
+        }
+      ]
+    },
+    {
+      "key": "Translation / text entry",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 112,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -133591,7 +136206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 213,
+          "line": 240,
           "sink": "_add_field"
         }
       ]
@@ -133867,6 +136482,16 @@
       ]
     },
     {
+      "key": "UV editing",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 70,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "UV tools move UV0, not the 3D mesh. Use the checker to see the result.",
       "origins": [
         {
@@ -134043,6 +136668,21 @@
           "path": "cdmw/ui/archive_browser/static_replacement_material_authority_history.py",
           "line": 321,
           "sink": "_set_live_disabled"
+        }
+      ]
+    },
+    {
+      "key": "Unavailable: no game folder is configured.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 655,
+          "sink": "setToolTip"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 656,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -134273,6 +136913,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
           "line": 4632,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Undo / redo / save session",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 72,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -134525,6 +137175,11 @@
           "sink": "python-return:unknown_group_classification_text"
         },
         {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 297,
+          "sink": "setText"
+        },
+        {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
           "line": 233,
           "sink": "rust-presentation"
@@ -134591,7 +137246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 241,
+          "line": 281,
           "sink": "_page"
         }
       ]
@@ -135626,7 +138281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 254,
+          "line": 324,
           "sink": "_text"
         }
       ]
@@ -135918,6 +138573,16 @@
           "path": "cdmw/ui/texture_workflow/workspace_ui.py",
           "line": 84,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Upscale / AI backend",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 86,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -136537,22 +139202,22 @@
       ]
     },
     {
+      "key": "Use a name or game-relative path. Do not paste your full personal folder path.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 254,
+          "sink": "_add_field"
+        }
+      ]
+    },
+    {
       "key": "Use an 8-bit grayscale, RGB or RGBA PNG for the mask.",
       "origins": [
         {
           "path": "cdmw/services/transparency_masks.py",
           "line": 44,
           "sink": "ValueError"
-        }
-      ]
-    },
-    {
-      "key": "Use an item name or path inside the game archive. If no item or file is involved, write Not applicable.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 225,
-          "sink": "_add_field"
         }
       ]
     },
@@ -137053,6 +139718,16 @@
           "path": "cdmw/ui/archive_browser/material_sidecar_editor_helpers.py",
           "line": 199,
           "sink": "python-return:material_sidecar_preview_settings_tooltip_text"
+        }
+      ]
+    },
+    {
+      "key": "Use the version shown in the game. Choose Unknown if you cannot check it.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 300,
+          "sink": "_add_field"
         }
       ]
     },
@@ -137602,6 +140277,16 @@
       ]
     },
     {
+      "key": "Validate translations",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 111,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Validating and finishing the isolated Mesh Editor session...",
       "origins": [
         {
@@ -137663,6 +140348,11 @@
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
           "line": 515,
           "sink": "QTreeWidgetItem"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 72,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -138217,6 +140907,16 @@
       ]
     },
     {
+      "key": "Version shown by the game",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 295,
+          "sink": "_line"
+        }
+      ]
+    },
+    {
       "key": "Version-1 translation for {value_0} must be a string.",
       "origins": [
         {
@@ -138258,6 +140958,11 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 331,
           "sink": "python-return:_build_archive_mesh_sections"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 71,
+          "sink": "python-data:REPORT_TOOLS"
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
@@ -140446,7 +143151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 233,
+          "line": 267,
           "sink": "_text"
         }
       ]
@@ -140541,7 +143246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 231,
+          "line": 265,
           "sink": "_text"
         }
       ]
@@ -140651,7 +143356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 207,
+          "line": 226,
           "sink": "_page"
         }
       ]
@@ -141202,6 +143907,16 @@
       ]
     },
     {
+      "key": "Window / layout / controls",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 8,
+          "sink": "python-data:INTERFACE_ACTION"
+        }
+      ]
+    },
+    {
       "key": "Windows account encryption was unavailable, so the API key was not written to disk. Everything else was saved, and the key still works for this session; you will need to enter it again next time.",
       "origins": [
         {
@@ -141448,6 +144163,16 @@
           "path": "cdmw/ui/policy_preview_dialog.py",
           "line": 255,
           "sink": "setPlainText"
+        }
+      ]
+    },
+    {
+      "key": "Workflow profiles / rules",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 87,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -142990,6 +145715,11 @@
           "sink": "python-return:_as_display_text"
         },
         {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 15,
+          "sink": "python-data:GAME_INVOLVEMENT"
+        },
+        {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_panel.py",
           "line": 119,
           "sink": "python-return:_workflow_rule_summary"
@@ -143148,6 +145878,16 @@
           "path": "cdmw/ui/model_library/tab.py",
           "line": 325,
           "sink": "_set_status"
+        }
+      ]
+    },
+    {
+      "key": "ZIP package",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 101,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -148237,12 +150977,12 @@
       ]
     },
     {
-      "key": "e.g. Archive Browser fails to extract a DDS",
+      "key": "e.g. character/armor/item.pac",
       "origins": [
         {
-          "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 208,
-          "sink": "_line"
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 43,
+          "sink": "python-data:REPORT_TOOLS"
         }
       ]
     },
@@ -165216,7 +167956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 323,
+          "line": 393,
           "sink": "setToolTip"
         }
       ]
@@ -165988,6 +168728,16 @@
           "path": "tools/placement_studio/window_carry.py",
           "line": 157,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} *",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 622,
+          "sink": "setText"
         }
       ]
     },
@@ -168651,7 +171401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 682,
+          "line": 955,
           "sink": "setText"
         }
       ]
@@ -168661,7 +171411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 612,
+          "line": 894,
           "sink": "setText"
         }
       ]
@@ -169688,6 +172438,11 @@
           "path": "cdmw/ui/new_item/effect_library_model.py",
           "line": 167,
           "sink": "python-return:effect_display_label"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 626,
+          "sink": "setText"
         },
         {
           "path": "tools/format_explorer/tab.py",

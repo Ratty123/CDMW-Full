@@ -1436,6 +1436,14 @@ def test_manifest_extracts_only_declared_registry_and_catalogue_labels(
         "cdmw/ui/new_item/effect_library_model.py": (
             "CATEGORY_RULES = (('Effect category label', ('internal-token', 'another-token')), )\n"
         ),
+        "cdmw/ui/shell/problem_report_catalog.py": (
+            "MODEL_SOURCES = ('Input format label',)\n"
+            "REPORT_TOOLS = (ReportTool('stable-tool-key', 'Report tool label', ('Affected action label',),\n"
+            "    MODEL_SOURCES, 'Item label', 'Item example', 'Reproduction example', 'Tool guidance',\n"
+            "    aliases=('Legacy tool alias',)),)\n"
+            "ACTION_HELP = {'Affected action label': 'Action guidance'}\n"
+            "UNRELATED = ('Internal report value',)\n"
+        ),
     }
     for relative, text in sources.items():
         path = tmp_path / relative
@@ -1453,15 +1461,22 @@ def test_manifest_extracts_only_declared_registry_and_catalogue_labels(
         "External editor guidance", "Unavailable guidance",
         "Read status label", "Write status label",
         "Effect category label",
+        "Report tool label", "Affected action label", "Input format label", "Item label",
+        "Item example", "Reproduction example", "Tool guidance", "Action guidance",
     }
     assert origins["Keyword label"][0]["sink"] == "CompactToolSpec"
     assert origins["Read status label"][0]["sink"] == "python-data:READ_WORDS"
     assert origins["Alternative tool"][0]["path"] == "tools/format_explorer/catalogue.py"
+    assert origins["Action guidance"][0]["sink"] == "python-data:ACTION_HELP"
 
 
 def test_generated_manifest_covers_current_registry_and_catalogue_labels() -> None:
     from cdmw.ui.new_item.effect_library_model import CATEGORY_RULES
     from cdmw.ui.shell.compact.registry import COMPACT_CATEGORY_ORDER, COMPACT_TOOL_SPECS
+    from cdmw.ui.shell.problem_report_catalog import (
+        ACTION_HELP, GAME_INVOLVEMENT, INSTALL_METHODS, MOD_MANAGERS, MOD_STATES,
+        REPORT_TOOLS, tool_actions,
+    )
     from tools.format_explorer.catalogue import (
         READ_WORDS, TOOLS, WRITE_WORDS, _NO_TOOL, _TEXT_TOOL,
     )
@@ -1476,10 +1491,17 @@ def test_generated_manifest_covers_current_registry_and_catalogue_labels() -> No
         for segment in location.split(" > ")
         for alternative in segment.split(" / ")
     }
+    report_labels = set(ACTION_HELP.values()) | set(GAME_INVOLVEMENT + INSTALL_METHODS + MOD_MANAGERS + MOD_STATES)
+    for tool in REPORT_TOOLS:
+        report_labels.update((tool.label, tool.item_label, tool.item_hint, tool.steps_hint, tool.help))
+        report_labels.update(tool_actions(tool))
+        report_labels.update(tool.sources)
+    report_labels.discard("")
     for relative, labels in (
         ("cdmw/ui/shell/compact/registry.py", compact_labels),
         ("tools/format_explorer/catalogue.py", format_labels),
         ("cdmw/ui/new_item/effect_library_model.py", {name for name, _tokens in CATEGORY_RULES}),
+        ("cdmw/ui/shell/problem_report_catalog.py", report_labels),
     ):
         assert labels <= entries.keys()
         for label in labels:

@@ -1388,6 +1388,22 @@ def _python_ui_catalogue_sources(
     assignments: dict[str, tuple[ast.AST, ...]],
 ) -> Iterable[tuple[str, ast.AST, str]]:
     """Read declared presentation tables whose consumers cross module boundaries."""
+    if relative == "cdmw/ui/shell/problem_report_catalog.py":
+        names = ("REPORT_TOOLS", "MODEL_SOURCES", "TEXTURE_SOURCES", "INTERFACE_ACTION", "OTHER_ACTION",
+                 "MOD_STATES", "MOD_MANAGERS", "INSTALL_METHODS", "GAME_INVOLVEMENT", "ACTION_HELP")
+        for name in names:
+            for table in assignments.get(name, ()):
+                if name == "REPORT_TOOLS" and isinstance(table, (ast.Tuple, ast.List)):
+                    # ReportTool's presentation fields; stable keys and old aliases are not UI text.
+                    nodes = [field for row in table.elts if isinstance(row, ast.Call) for field in row.args[1:8]]
+                else:
+                    nodes = [table]
+                for node in nodes:
+                    for candidate in _python_return_source_nodes(node, assignments):
+                        source = _python_source_value(candidate)
+                        if source:
+                            yield source, candidate, f"python-data:{name}"
+        return
     if relative == "cdmw/ui/texture_workflow/editor_brush_presets.py":
         for table in assignments.get("BUILTIN_TEXTURE_EDITOR_BRUSH_PRESET_ORDER", ()):
             if isinstance(table, (ast.Tuple, ast.List)):

@@ -25,12 +25,22 @@ disabled; collecting a local draft still works.
 
 ## Reports and privacy
 
-Required fields: summary, affected tool/workflow, reproduction steps, expected
-result, actual result/error, frequency, game version/platform, mods/manager and the
-result of testing without mods. The three steps also ask for the problem type, item
-or file and whether it worked before. If it worked before, describe recent changes
-or write `Not sure yet`. Guidance changes for crashes, stalls, installation and
-in-game results. `Unknown`, `None` and `Not tried` are useful answers.
+The five guided steps are Problem, Reproduce, Setup, Evidence and Review. Choose
+the tool from the current CDMW tool list, then an affected action/panel. For example,
+Mesh Editor offers Cloth, Vertex Parameters, Hair Tools, UV editing and replacement
+imports. An Other / not sure route accepts a feature name. Problem type, summary,
+reproduction steps, expected/actual result and frequency are required. Input
+formats, item prompts and **?** help follow the selected tool/action. Unknown items
+have an explicit choice; app/window issues do not require an asset name.
+
+Stalls require wait time and progress/response choices. Setup asks whether game
+files/mods are involved; app-only reports skip game questions. Game reports ask
+for platform, version (or Unknown), installed-mod state and any prior test without
+mods. Installed mods and export/install problems also ask for manager, install
+method and relevant mod/output names. A failed export still asks for its target
+manager even if no mods are installed; Not installed yet and Not sure are valid
+choices. No game-file changes are required to report a problem. If it worked
+before, describe recent changes or write `Not sure yet`.
 Contact is optional. No GitHub account is required by the reporter.
 The pilot's new guidance uses English source wording; translation review is still
 needed before a wider rollout.
@@ -67,12 +77,16 @@ payload; R2 conditional writes serialize delivery, and ambiguous GitHub failures
 are reconciled against existing issues before creating another. Pending deliveries
 can be retried after two minutes. A failed upload keeps the local draft. Edited and
 recollected reports get a new ID; do not recollect merely to retry an upload.
-**Open saved draft** reopens the exact ID and payload after an app restart. It checks
+**Open draft…** reopens the exact ID and payload after an app restart. It checks
 the format, screenshot limits/metadata and redaction before review; altered unsafe
 drafts must be recollected. Consent is required again. **Copy receipt** supplies the
 reference for follow-up. A server limit shows a countdown; it never triggers an
 automatic retry. Screenshots must be selected again if an opened draft is edited
 and recollected.
+The targeted choices are stored in the existing schema-v1 description fields;
+the private receiver and issue summaries accept them without a deployment or
+schema migration. Existing drafts retain their exact retry body. Editing an old
+draft requires completing the new action/source selections before recollection.
 Evidence is inaccessible after 90 days and R2 removes it through the lifecycle rule.
 Private issue summaries remain until the maintainer removes them.
 

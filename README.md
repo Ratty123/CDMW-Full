@@ -166,8 +166,10 @@ model catalogues and AI translation, connect to external services. Crash reports
 and diagnostic bundles stay local unless you share them.
 
 **Help > Report a Problem...** (also under **More**) uses five steps: problem,
-reproduction, game and mods, evidence, then review. Short prompts keep the form
-compact; **?** buttons provide examples and workflow-specific help. It prepares a
+reproduction, setup, evidence, then review. Select the tool and affected action;
+the input choices, examples and setup questions follow that selection. Stalls ask
+about wait time and progress; app-only issues can skip game and mod questions.
+Short prompts keep the form compact; **?** buttons provide targeted help. It prepares a
 local draft with redacted paths and common credentials, recent log excerpts, a
 bounded folder listing and optional screenshots. The review screen has a readable
 summary, full report details and fitted screenshots with a full-size option.

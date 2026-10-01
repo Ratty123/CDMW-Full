@@ -30,6 +30,9 @@ from cdmw.services.problem_report_service import (
 )
 from cdmw.ui.shell.menus import ShellMenusMixin
 from cdmw.ui.shell.problem_report_dialog import ProblemReportDialog
+from cdmw.ui.shell.problem_report_catalog import (
+    REPORT_TOOLS, decode_tool, encode_tool, report_tool, tool_actions,
+)
 from cdmw.ui.shell.profile_controller import ProfileControllerMixin
 from cdmw.ui.shell.signal_wiring import ShellSignalWiringMixin
 from cdmw.workers.problem_report_workers import _active_collections
@@ -63,11 +66,18 @@ def wait_until(predicate, timeout: float = 5) -> None:
 
 def fill_form(dialog: ProblemReportDialog) -> None:
     data = details()
-    for key in ("summary", "tool", "input_item", "game_version", "contact"):
+    spec, action, other = decode_tool(data.tool)
+    dialog.tool.setCurrentIndex(dialog.tool.findData(spec.key))
+    dialog.workflow.setCurrentIndex(dialog.workflow.findData(action or "Extract files"))
+    dialog.other_tool.setText(other)
+    dialog.input_source.setCurrentIndex(dialog.input_source.findData("DDS texture"))
+    for key in ("summary", "game_version", "contact"):
         getattr(dialog, key).setText(getattr(data, key))
+    dialog.input_item.setText("character/synthetic.dds")
+    dialog.mod_state.setCurrentIndex(dialog.mod_state.findData("No mods installed"))
     for key in ("steps", "expected", "actual", "mod_setup"):
         getattr(dialog, key).setPlainText(getattr(data, key))
-    for key in ("frequency", "game_platform", "clean_test", "problem_type", "last_working"):
+    for key in ("frequency", "game_platform", "problem_type", "last_working"):
         widget = getattr(dialog, key)
         widget.setCurrentIndex(widget.findData(getattr(data, key)))
 
@@ -219,7 +229,7 @@ def test_dialog_requires_fields_review_and_consent_and_rejects_stale_results(tmp
     app(); monkeypatch.setenv("CDMW_REPORT_TEST_TOKEN","synthetic-key")
     dialog = ProblemReportDialog(snapshot(tmp_path))
     dialog._collect()
-    assert "Summary" in dialog.status.text() and not dialog.send_button.isEnabled()
+    assert "Tool" in dialog.status.text() and not dialog.send_button.isEnabled()
     fill_form(dialog); dialog._collect()
     wait_until(lambda:dialog._collection is None)
     assert dialog._reviewed is not None and not dialog.send_button.isEnabled()
@@ -367,8 +377,11 @@ def test_guided_questions_focus_the_missing_field_and_explain_workflow(tmp_path)
     try:
         fill_form(dialog)
         dialog.problem_type.setCurrentIndex(dialog.problem_type.findData("Unexpected in-game result"))
+        dialog.mod_manager.setCurrentIndex(dialog.mod_manager.findData("CDMW overlays"))
+        dialog.install_method.setCurrentIndex(dialog.install_method.findData("CDMW overlay"))
+        dialog.mod_setup.setPlainText("Synthetic test mod")
         assert "CDMW and in the game separately" in dialog._problem_help.toolTip()
-        assert dialog._steps_help.toolTip() == dialog._problem_help.toolTip()
+        assert dialog._problem_help.toolTip() in dialog._steps_help.toolTip()
         dialog._problem_help.click()
         assert QToolTip.text() == dialog._problem_help.toolTip()
         QToolTip.hideText()
@@ -468,6 +481,135 @@ def test_guided_compact_navigation_preserves_the_current_step(tmp_path):
         QTest.qWait(10)
         assert not dialog.rail.isHidden() and dialog.step_picker.isHidden()
         assert dialog._step_buttons[2].isChecked()
+    finally:
+        dialog.close()
+
+
+def test_tool_menu_covers_shell_tools_and_resets_dependent_choices(tmp_path):
+    from cdmw.ui.shell.compact.registry import COMPACT_TOOL_SPECS
+    app()
+    by_key = {tool.key:tool for tool in REPORT_TOOLS}
+    assert len(by_key) == len(REPORT_TOOLS)
+    assert all(by_key[spec.key].label == spec.label for spec in COMPACT_TOOL_SPECS)
+    assert report_tool("Archive Browser").key == "archive_browser"
+    dialog = ProblemReportDialog(snapshot(tmp_path))
+    try:
+        assert not dialog.tool.isEditable() and not dialog.workflow.isEditable()
+        for spec in REPORT_TOOLS:
+            dialog.tool.setCurrentIndex(dialog.tool.findData(spec.key))
+            assert dialog.workflow.currentData() == ""
+            actual = tuple(dialog.workflow.itemData(index) for index in range(1,dialog.workflow.count()))
+            assert actual == tool_actions(spec)
+            for action in actual:
+                decoded, restored, other = decode_tool(encode_tool(spec,action,"Synthetic feature"))
+                assert decoded.key == spec.key and restored == action
+            dialog.workflow.setCurrentIndex(1)
+        dialog.tool.setCurrentIndex(dialog.tool.findData("mesh_editor"))
+        for action in ("Cloth","Vertex Parameters","Hair Tools / Appearance","Import Replacement / editable exchange"):
+            assert dialog.workflow.findData(action) > 0
+        dialog.workflow.setCurrentIndex(dialog.workflow.findData("Cloth"))
+        assert "cloth profile/control" in dialog._workflow_help.toolTip()
+        dialog.tool.setCurrentIndex(dialog.tool.findData("textures"))
+        assert dialog.workflow.currentData() == "" and dialog.workflow.findData("Cloth") == -1
+        assert dialog.workflow.findData("Recolor") > 0 and dialog.workflow.findData("Upscale / AI backend") > 0
+    finally:
+        dialog.close()
+
+
+def test_mesh_report_targets_source_and_action_and_app_only_setup_without_changing_wire_schema(tmp_path,monkeypatch):
+    app()
+    dialog = ProblemReportDialog(snapshot(tmp_path))
+    try:
+        fill_form(dialog)
+        dialog.tool.setCurrentIndex(dialog.tool.findData("mesh_editor"))
+        dialog.workflow.setCurrentIndex(dialog.workflow.findData("Parts / materials / textures"))
+        dialog.input_source.setCurrentIndex(dialog.input_source.findData("GLB / glTF"))
+        dialog.input_item.setText("coat.glb / body part")
+        dialog.game_involved.setCurrentIndex(dialog.game_involved.findData("No"))
+        assert "material/texture slot" in dialog._steps_help.toolTip()
+        assert "Select the part" in dialog.steps.placeholderText()
+        assert dialog._game_fields.isHidden() and not dialog.include_layout.isEnabled()
+        assert not dialog._form_errors()
+        dialog._collect(); wait_until(lambda:dialog._collection is None)
+        reviewed=dialog._reviewed
+        payload=json.loads(reviewed.body)
+        assert payload["schema_version"] == 1 and set(payload["details"]) == set(dataclasses.asdict(details()))
+        assert payload["details"]["tool"] == "Mesh Editor — Parts / materials / textures"
+        assert payload["details"]["input_item"] == "Source: GLB / glTF\nItem: coat.glb / body part"
+        assert payload["details"]["game_version"] == "Not applicable"
+        assert "folder_layout" not in payload["evidence"]
+        assert "Game files and mods are not involved" in dialog.preview.toPlainText()
+        monkeypatch.setattr("cdmw.ui.shell.problem_report_dialog.QFileDialog.getOpenFileName",lambda *args:(str(reviewed.draft_path),""))
+        dialog._open_draft(); wait_until(lambda:dialog._collection is None)
+        assert dialog._reviewed.body == reviewed.body
+        assert dialog.tool.currentData() == "mesh_editor" and dialog.workflow.currentData() == "Parts / materials / textures"
+        assert dialog.input_source.currentData() == "GLB / glTF" and dialog.input_item.text() == "coat.glb / body part"
+        assert dialog.game_involved.currentData() == "No"
+        dialog.input_source.setCurrentIndex(dialog.input_source.findData("Game model (PAC / PAM / PAMLOD)"))
+        assert dialog.game_involved.currentData() == "Yes" and not dialog.game_involved.isEnabled()
+        dialog.workflow.setCurrentIndex(dialog.workflow.findData("Window / layout / controls"))
+        assert dialog.game_involved.isEnabled() and dialog._input_fields.isHidden()
+        dialog.game_involved.setCurrentIndex(dialog.game_involved.findData("No"))
+        assert dialog._details().input_item == "Not applicable" and not dialog._form_errors()
+        dialog.tool.setCurrentIndex(dialog.tool.findData("textures"))
+        assert dialog._reviewed is None and not dialog.consent.isEnabled()
+        dialog._collect()
+        assert "Affected action" in dialog.status.text()
+    finally:
+        dialog.close()
+
+
+def test_stall_report_requires_wait_and_response_and_restores_them_from_exact_draft(tmp_path,monkeypatch):
+    app()
+    dialog=ProblemReportDialog(snapshot(tmp_path))
+    try:
+        fill_form(dialog)
+        dialog.problem_type.setCurrentIndex(dialog.problem_type.findData("Slow or unresponsive"))
+        assert not dialog._stall_fields.isHidden()
+        dialog._collect()
+        assert "How long" in dialog.status.text()
+        dialog.waited.setCurrentIndex(dialog.waited.findData("5–15 minutes"))
+        dialog.progress_state.setCurrentIndex(dialog.progress_state.findData("Progress stopped"))
+        dialog.actual.clear()
+        assert any(key=="actual" for key,_ in dialog._form_errors())
+        dialog.actual.setPlainText("Progress remains at 0% after Extract.")
+        dialog._collect(); wait_until(lambda:dialog._collection is None)
+        reviewed=dialog._reviewed
+        assert "Waited: 5–15 minutes\nProgress: Progress stopped\nObserved:" in json.loads(reviewed.body)["details"]["actual"]
+        monkeypatch.setattr("cdmw.ui.shell.problem_report_dialog.QFileDialog.getOpenFileName",lambda *args:(str(reviewed.draft_path),""))
+        dialog._open_draft(); wait_until(lambda:dialog._collection is None)
+        assert dialog._reviewed.body == reviewed.body
+        assert dialog.waited.currentData() == "5–15 minutes" and dialog.progress_state.currentData() == "Progress stopped"
+        assert dialog.actual.toPlainText() == "Progress remains at 0% after Extract."
+        dialog.problem_type.setCurrentIndex(dialog.problem_type.findData("CDMW error / crash"))
+        assert dialog._stall_fields.isHidden() and "Waited:" not in dialog._details().actual
+    finally:
+        dialog.close()
+
+
+def test_export_target_is_required_even_when_no_mod_has_been_installed(tmp_path):
+    app()
+    dialog=ProblemReportDialog(snapshot(tmp_path))
+    try:
+        fill_form(dialog)
+        dialog.workflow.setCurrentIndex(dialog.workflow.findData("Export a mod package"))
+        assert not dialog._mod_fields.isHidden()
+        dialog._collect()
+        assert "Manager" in dialog.status.text()
+        dialog.mod_manager.setCurrentIndex(dialog.mod_manager.findData("CDUMM"))
+        dialog.install_method.setCurrentIndex(dialog.install_method.findData("Not installed yet"))
+        dialog.mod_setup.setPlainText("Synthetic texture replacement mod")
+        assert not dialog._form_errors()
+        assert "Mods: No mods installed\nManager: CDUMM\nInstallation: Not installed yet" in dialog._details().mod_setup
+        dialog.input_item.setText("Not applicable")
+        assert any(key=="input_item" for key,_ in dialog._form_errors())
+        dialog.item_unknown.setChecked(True)
+        assert not dialog._form_errors() and "Unknown item / file" in dialog._details().input_item
+        dialog.tool.setCurrentIndex(dialog.tool.findData("application"))
+        dialog.workflow.setCurrentIndex(dialog.workflow.findData("Start / close CDMW"))
+        assert dialog.input_item.parentWidget().isHidden() and dialog._game_fields.isHidden()
+        assert dialog.problem_type.findData("Unexpected in-game result") == -1
+        assert dialog._details().input_item == "Not applicable"
     finally:
         dialog.close()
 
