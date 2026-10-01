@@ -1,27 +1,47 @@
-# CDMW private reporting test
+# CDMW problem reporting
 
 The source app offers **Help > Report a Problem...** and **More > Report a Problem...**.
-This is a private submission test, not an anonymous public intake service.
+Public CDMW clients submit through a browser check to a separate private inbox.
+No GitHub login, GitHub token or shared submission key is needed in the app.
 
-## Installed test resources
+## Service configuration
 
-- Worker: `cdmw-reports-test`, on the Workers Free plan.
-- Intake: `https://cdmw-reports-test.cdmw-workbench.workers.dev/reports`.
-- Health: `https://cdmw-reports-test.cdmw-workbench.workers.dev/health`.
+- Worker: `cdmw-reports`, on the Workers Free plan.
+- Intake: `https://cdmw-reports.cdmw-workbench.workers.dev/reports`.
+- Health: `https://cdmw-reports.cdmw-workbench.workers.dev/health`.
 - Private GitHub inbox: `Ratty123/CDMW-Reports`.
 - Private Standard R2 bucket: `cdmw-reports-test`, bound as `REPORTS`.
 - Object lifecycle: delete `reports/` objects after 90 days.
 
-The Worker has two encrypted secrets: `GITHUB_TOKEN` and `REPORT_TEST_TOKEN`.
+The Worker needs these runtime values:
+
+| Name | Type | Purpose |
+| --- | --- | --- |
+| `REPORTS` | R2 binding | Existing private `cdmw-reports-test` bucket |
+| `GITHUB_TOKEN` | Encrypted secret | Issues read/write in `Ratty123/CDMW-Reports` only |
+| `TURNSTILE_SITE_KEY` | Plaintext variable | Public key for the browser widget |
+| `TURNSTILE_SECRET_KEY` | Encrypted secret | Server verification and signed submission tickets |
+| `PUBLIC_REPORTS` | Plaintext variable, `1` | Enable public clients with browser verification |
+
+Create a Managed Cloudflare Turnstile widget restricted to
+`cdmw-reports.cdmw-workbench.workers.dev`. Use its actual keys; known Cloudflare test
+keys cannot enable the public receiver. Deploy the canonical Worker and retain the
+existing GitHub secret and bucket binding before enabling public submissions.
+`/health` must return `configured: true` and `verification: "browser"` before
+releasing the client. Missing configuration fails closed and keeps the app's draft.
+
 The GitHub token is fine-grained, restricted to this one inbox, with Issues read/write
 and the required Metadata read permission. The initial token expires October 31,
 2026. Rotate it in Cloudflare before that date. Never put it in the desktop app.
 
-The local test access key is in the ignored
-`workspace/problem_report_test/access-key.txt`. The local test launcher reads it into
-`CDMW_REPORT_TEST_TOKEN` for that CDMW process only. Keep this key out of commits,
-screenshots, public builds and shared reports. Starting CDMW normally leaves sending
-disabled; collecting a local draft still works.
+Keep both encrypted secrets out of source, desktop builds, screenshots and reports.
+The site key is public; the browser page receives it from the Worker. The desktop
+app contains only the service URL and never reads `CDMW_REPORT_TEST_TOKEN`.
+
+For receiver-only legacy pilot tests, leaving `PUBLIC_REPORTS` unset retains the
+original `REPORT_TEST_TOKEN` authentication. Public mode ignores that key. The
+current desktop client always uses browser verification, so the old local test
+launcher is unnecessary. Existing stored reports and draft schema-v1 remain valid.
 
 ## Reports and privacy
 
@@ -29,8 +49,9 @@ CDMW Full's source repository is public. Reports go to the separate private
 `Ratty123/CDMW-Reports` repository, visible to its maintainer and invited repository
 collaborators. A reporter receives a reference, not a link to the private issue.
 The app's Review and receipt screens explain these access limits through **?** help.
-The public app and a private support inbox are independent; the current intake
-still requires private test access and is not yet enabled for all public users.
+The public source and support inbox are independent. The receiver's repository name
+is fixed and it verifies the inbox is private before creating an issue; changing
+its visibility stops delivery rather than exposing new reports in a public issue.
 
 The five guided steps are Problem, Reproduce, Setup, Evidence and Review. Choose
 the tool from the current CDMW tool list, then an affected action/panel. For example,
@@ -49,8 +70,7 @@ manager even if no mods are installed; Not installed yet and Not sure are valid
 choices. No game-file changes are required to report a problem. If it worked
 before, describe recent changes or write `Not sure yet`.
 Contact is optional. No GitHub account is required by the reporter.
-The pilot's new guidance uses English source wording; translation review is still
-needed before a wider rollout.
+Guidance uses English source wording where a reviewed translation is unavailable.
 
 The collector runs on a separate cancellable worker even if another CDMW tool is
 busy. It captures the context at opening, recent log excerpts, up to 40 runtime
@@ -83,6 +103,15 @@ use no-store and noindex headers. These headers do not replace access control.
 The evidence viewer renders descriptions as text and uses no third-party assets.
 Cloudflare still processes network/request metadata as the hosting provider.
 
+After review and consent, **Send report** opens the default browser. Only the report
+ID and SHA-256 of its exact bytes are sent before the check. Completing Turnstile
+lets CDMW send the already-reviewed report automatically; the browser never receives
+the report text or screenshots. **Open browser** reopens the current check.
+**Cancel**, editing or closing invalidates the local request and stops polling;
+the saved draft remains. Verification expires after ten minutes, and a changed
+internet connection requires starting a fresh check. The app never follows network
+redirects or forwards verification credentials to another address.
+
 Only a matching accepted receipt is shown as success. Retries use the same ID and
 payload; R2 conditional writes serialize delivery, and ambiguous GitHub failures
 are reconciled against existing issues before creating another. Pending deliveries
@@ -101,11 +130,13 @@ draft requires completing the new action/source selections before recollection.
 Evidence is inaccessible after 90 days and R2 removes it through the lifecycle rule.
 Private issue summaries remain until the maintainer removes them.
 
-## Spam controls in the private pilot
+## Spam controls
 
-- A valid private test key is required to submit a report or call GitHub. Evidence
-  downloads require that report's own access key; the intake key cannot read them.
-- At most **10 new report admissions per UTC day** across the service, **5 per
+- A live Turnstile check is validated on the server against its hostname, action,
+  challenge nonce and timestamp. A signed ten-minute ticket is tied to one report
+  ID, its exact body hash and the app's internet connection. Another body or report
+  cannot reuse it. The ticket, site key and legacy test key cannot read evidence.
+- **100 new report admissions per UTC day** across the public service, **5 per
   internet connection per UTC day**, and a **two-minute gap** between new reports
   from that connection. Shared networks share this allowance.
 - A two-second global gap bounds writes to the admission object. One conditional
@@ -116,33 +147,42 @@ Private issue summaries remain until the maintainer removes them.
 - Matching descriptions from the same connection on the same day are rejected even
   with a new ID, changed timestamps or different collected evidence. Exact accepted
   retries return the original receipt and remain available after quota exhaustion.
-- Early per-Worker-instance burst limits (40 requests per connection/minute and
-  120 total/minute) reduce repeated body reads. These are best-effort; the persistent
+- Browser verification has separate persistent limits of **500 approvals/day** and
+  **20 per connection/day**, with a two-second global reservation gap. Starting a
+  check is stateless; it does not write storage or call GitHub. Successful approval
+  records contain only ticket hashes, report IDs and expiry times, and are unusable
+  after ten minutes. Provider retries reuse a validation key only for the same token.
+- Early per-Worker-instance burst limits (90 requests per connection/minute and
+  600 total/minute) reduce repeated body reads. These are best-effort; the persistent
   admission limits provide the cross-instance enforcement.
 
 The bounded ledger lives at `reports/_admission-v1.json` in the existing private
-bucket and stores only the current UTC day, report IDs, description hashes,
+bucket. `reports/_verification-admission-v1.json` holds the approval ledger, and
+`reports/_verification/` holds approval records. Ledgers store the current UTC day,
+report IDs or challenge nonces, description hashes,
 timestamps and daily HMAC network identifiers. Raw IP addresses are not stored in
 reports, issues or the ledger. Cloudflare supplies the connection IP; client IDs and
 forwarding headers cannot choose the quota key. A new day replaces the ledger's old
 entries. The existing `reports/` lifecycle also removes an inactive ledger after
-90 days. The Worker uses the existing bucket/secrets; no additional service or paid
-upgrade is needed. R2 consistency/conditional writes and its single-key write rate
+90 days. Expired approval records also fall under this lifecycle. R2 consistency,
+conditional writes and its single-key write rate
 are described in the [Workers API](https://developers.cloudflare.com/r2/api/workers/workers-api-reference/)
 and [R2 limits](https://developers.cloudflare.com/r2/platform/limits/).
 
+Legacy receiver-only private mode retains its 10 report/day and 40/120 burst limits.
+
 These controls bound report creation and storage; they do not guarantee zero
 request costs or prevent an attacker from consuming the day's allowance. VPNs can
-change the per-connection identity, while the global cap still applies. Anonymous
-public intake needs a real human-verification/moderation flow before release.
+change the per-connection identity, while the global cap still applies.
+Maintainer review is still needed; human verification cannot prevent all abuse.
 
 ## Maintenance and validation
 
 The canonical dependency-free Worker source is `worker.mjs`. Deploy it through the
-Cloudflare editor using the **Latest** version, retaining both encrypted secrets and
+Cloudflare editor using the **Latest** version, retaining encrypted secrets and
 the `REPORTS` bucket binding. Refresh settings before applying changes; a stale
 dashboard version can overwrite newer bindings. No paid Workers plan, custom domain,
-Queues, D1, R2 API token or email service is required for this test.
+Queues, D1, R2 API token or email service is required for this setup.
 The account's `workers.dev` subdomain is `cdmw-workbench`. If it is renamed again,
 update the app endpoint and existing issue evidence links; the old hostname stops
 routing. Changing the hostname does not change evidence keys or report contents.
@@ -152,10 +192,11 @@ node --test tools/problem_report_receiver/worker.test.mjs
 .\.venv\Scripts\python.exe -m pytest tests/test_problem_reporting.py -p no:cacheprovider --basetemp="$env:TEMP\cdmw-problem-report-tests"
 ```
 
-Before a public rollout, replace the shared private test key with a user-appropriate
-verification and abuse-control flow, decide moderation/contact handling, and review
-request/storage budgets and retention. Do not embed the test key into a released EXE.
+Before releasing the client, verify the live browser-to-app flow and private inbox
+delivery with a synthetic report. Never test with real game payloads or post evidence
+to the public source repository. Review request/storage budgets, retention and
+translations. Do not embed any service secret into a released EXE.
 The service has no paid-plan upgrade or hard billing cap; R2 bills usage above its
-free allowance. Size limits and private test access reduce usage but do not guarantee
-a zero bill. See [Workers pricing](https://developers.cloudflare.com/workers/platform/pricing/)
+free allowance. Size limits, verification and admission caps reduce usage but do not
+guarantee a zero bill. See [Workers pricing](https://developers.cloudflare.com/workers/platform/pricing/)
 and [R2 pricing](https://developers.cloudflare.com/r2/pricing/).

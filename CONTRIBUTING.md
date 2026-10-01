@@ -6,12 +6,13 @@ Thanks for helping improve Crimson Desert Mod Workbench.
 
 - Use the latest release or beta build first.
 - Check the [CHANGELOG.md](CHANGELOG.md) to see if the problem was already fixed.
-- In source test builds, use `Help > Report a Problem...` to complete the required
-  fields and review a redacted local draft. Direct sending is limited to the private
-  maintainer test setup; see [receiver setup](tools/problem_report_receiver/README.md).
+- Use `Help > Report a Problem...` to complete the required fields and review a
+  redacted local draft. Sending opens a browser verification check and delivers to
+  the separate private CDMW inbox; no GitHub account is needed. See
+  [reporting setup and privacy](tools/problem_report_receiver/README.md).
 - If the issue is a crash or preview failure, you can also use `Help > Export Diagnostics...`
-  and attach the ZIP, or use `Help > Copy Latest Problem Summary` and paste it
-  into the issue.
+  for manual sharing, or use `Help > Copy Latest Problem Summary`. Review these
+  before sharing; public GitHub issues and their attachments are visible to everyone.
 
 ## Good Bug Reports
 

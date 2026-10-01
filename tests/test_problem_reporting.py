@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import dataclasses
 import io
+import hashlib
 import json
 import os
 import stat
@@ -29,6 +30,7 @@ from cdmw.services.problem_report_service import (
     MAX_LAYOUT_ENTRIES, ProblemDetails, ProblemReportRequest, ProblemSnapshot, ReportRedactor,
     _folder_layout, _is_link, collect_problem_report, load_problem_report, parse_report_receipt,
     report_delivery_failure, validate_details,
+    parse_report_verification, parse_report_verification_status, report_verification_request,
 )
 from cdmw.ui.shell.menus import ShellMenusMixin
 from cdmw.ui.shell.problem_report_dialog import ProblemReportDialog
@@ -64,6 +66,39 @@ def wait_until(predicate, timeout: float = 5) -> None:
     while not predicate():
         assert time.monotonic() - start < timeout
         QTest.qWait(10)
+
+
+@pytest.fixture(autouse=True)
+def keep_verification_browsers_in_tests(monkeypatch):
+    monkeypatch.setattr("cdmw.ui.shell.problem_report_dialog.QDesktopServices.openUrl", lambda url: True)
+
+
+class VerifiedReportReceiver(BaseHTTPRequestHandler):
+    """Real Qt HTTP handoff; the human check is simulated only by this local server."""
+
+    def handle_verification_start(self):
+        if self.path != "/verification/start":
+            return False
+        data = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        self.server.verification = data
+        ticket = data["report_id"] + ".synthetic_signature"
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(json.dumps({"status": "verification_required", "report_id": data["report_id"],
+            "ticket": ticket, "verification_url": f"http://127.0.0.1:{self.server.server_port}/verify#{ticket}",
+            "expires_in": 600}).encode())
+        return True
+
+    def do_GET(self):
+        assert self.path == "/verification/status"
+        data = self.server.verification
+        assert self.headers["Authorization"] == "Bearer " + data["report_id"] + ".synthetic_signature"
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(json.dumps({"status": "pending" if getattr(self.server,"verification_pending",False) else "verified",
+            "report_id": data["report_id"]}).encode())
 
 
 def fill_form(dialog: ProblemReportDialog) -> None:
@@ -284,25 +319,40 @@ def test_application_shutdown_requests_nonblocking_collection_cancellation(tmp_p
         release.set(); wait_until(lambda:job not in _active_collections); dialog.close()
 
 
-def test_upload_does_not_follow_redirects_or_forward_its_access_key(tmp_path,monkeypatch):
+@pytest.mark.parametrize("phase", ["start", "status", "upload"])
+def test_upload_does_not_follow_redirects_or_forward_its_access_key(tmp_path,monkeypatch,phase):
     app(); monkeypatch.setenv("CDMW_REPORT_TEST_TOKEN","synthetic-key")
-    requests = []
-    class Receiver(BaseHTTPRequestHandler):
+    requests = []; authorization = []
+    redirect_path = {"start":"/verification/start", "status":"/verification/status", "upload":"/reports"}[phase]
+    class Receiver(VerifiedReportReceiver):
         def log_message(self,*args): pass
-        def do_POST(self):
-            requests.append(self.path)
-            self.rfile.read(int(self.headers["Content-Length"]))
+        def redirect(self):
             self.send_response(307)
             self.send_header("Location",f"http://127.0.0.1:{self.server.server_port}/unexpected-destination")
             self.send_header("Content-Length","0"); self.end_headers()
+        def do_POST(self):
+            requests.append(self.path)
+            authorization.append(self.headers.get("Authorization"))
+            if self.path != redirect_path and self.handle_verification_start(): return
+            self.rfile.read(int(self.headers["Content-Length"]))
+            self.redirect()
+        def do_GET(self):
+            requests.append(self.path)
+            authorization.append(self.headers.get("Authorization"))
+            if self.path == redirect_path: self.redirect()
+            else: super().do_GET()
     server=ThreadingHTTPServer(("127.0.0.1",0),Receiver)
     thread=threading.Thread(target=server.serve_forever,daemon=True); thread.start()
     monkeypatch.setattr("cdmw.ui.shell.problem_report_dialog.REPORT_ENDPOINT",f"http://127.0.0.1:{server.server_port}/reports")
-    dialog=ProblemReportDialog(snapshot(tmp_path))
+    dialog=ProblemReportDialog(snapshot(tmp_path)); dialog._verification_poll.setInterval(10)
     try:
         fill_form(dialog); dialog._collect(); wait_until(lambda:dialog._collection is None)
-        dialog.consent.setChecked(True); dialog._send(); wait_until(lambda:dialog._reply is None)
-        assert requests == ["/reports"] and not dialog._sent
+        dialog.consent.setChecked(True); dialog._send(); wait_until(lambda:not dialog._network_stage)
+        expected_paths = ["/verification/start"] + (["/verification/status"] if phase != "start" else [])
+        if phase == "upload": expected_paths.append("/reports")
+        assert requests == expected_paths and not dialog._sent
+        assert authorization[0] is None and all(value != "Bearer synthetic-key" for value in authorization)
+        if phase != "start": assert authorization[-1].startswith("Bearer " + dialog._reviewed.report_id)
         assert "not confirmed" in dialog.status.text()
     finally:
         dialog.close(); server.shutdown(); server.server_close(); thread.join(2)
@@ -311,9 +361,10 @@ def test_upload_does_not_follow_redirects_or_forward_its_access_key(tmp_path,mon
 def test_async_upload_preserves_same_draft_on_failure_and_accepts_only_a_receipt(tmp_path,monkeypatch):
     app(); monkeypatch.setenv("CDMW_REPORT_TEST_TOKEN","synthetic-key")
     received = []
-    class Receiver(BaseHTTPRequestHandler):
+    class Receiver(VerifiedReportReceiver):
         def log_message(self,*args): pass
         def do_POST(self):
+            if self.handle_verification_start(): return
             body=self.rfile.read(int(self.headers["Content-Length"]))
             received.append((body,self.headers.get("Authorization")))
             payload=json.loads(body)
@@ -324,21 +375,23 @@ def test_async_upload_preserves_same_draft_on_failure_and_accepts_only_a_receipt
     thread=threading.Thread(target=server.serve_forever,daemon=True); thread.start()
     monkeypatch.setattr("cdmw.ui.shell.problem_report_dialog.REPORT_ENDPOINT",f"http://127.0.0.1:{server.server_port}/reports")
     dialog=ProblemReportDialog(snapshot(tmp_path))
+    dialog._verification_poll.setInterval(10)
     try:
         fill_form(dialog); dialog._collect(); wait_until(lambda:dialog._collection is None)
         reviewed=dialog._reviewed
         dialog.consent.setChecked(True); dialog._send()
-        wait_until(lambda:dialog._reply is None)
+        wait_until(lambda:not dialog._network_stage)
         assert "not confirmed" in dialog.status.text() and not dialog._sent
         assert reviewed.draft_path.read_bytes() == reviewed.body
-        dialog._send(); wait_until(lambda:dialog._reply is None)
+        dialog._send(); wait_until(lambda:not dialog._network_stage)
         assert dialog._sent and "Report received: CDMW-2" in dialog.status.text()
         assert dialog.tabs.currentIndex() == dialog._RECEIPT_PAGE
         assert dialog.receipt_reference.text() == "CDMW-2"
         assert dialog.receipt_summary.text() == details().summary
         assert dialog.send_button.isHidden() and dialog.status.isHidden()
         assert len(received) == 2 and received[0] == received[1]
-        assert received[0][1] == "Bearer synthetic-key"
+        assert received[0][1] == "Bearer " + reviewed.report_id + ".synthetic_signature"
+        assert server.verification == {"report_id":reviewed.report_id,"report_sha256":hashlib.sha256(reviewed.body).hexdigest()}
     finally:
         dialog.close(); server.shutdown(); server.server_close(); thread.join(2)
 
@@ -346,9 +399,10 @@ def test_async_upload_preserves_same_draft_on_failure_and_accepts_only_a_receipt
 def test_matched_duplicate_opens_receipt_without_claiming_the_new_draft_was_sent(tmp_path,monkeypatch):
     app(); monkeypatch.setenv("CDMW_REPORT_TEST_TOKEN","synthetic-key")
     received=[]
-    class Receiver(BaseHTTPRequestHandler):
+    class Receiver(VerifiedReportReceiver):
         def log_message(self,*args): pass
         def do_POST(self):
+            if self.handle_verification_start(): return
             payload=json.loads(self.rfile.read(int(self.headers["Content-Length"])))
             received.append(payload["report_id"])
             self.send_response(409)
@@ -358,9 +412,10 @@ def test_matched_duplicate_opens_receipt_without_claiming_the_new_draft_was_sent
     thread=threading.Thread(target=server.serve_forever,daemon=True); thread.start()
     monkeypatch.setattr("cdmw.ui.shell.problem_report_dialog.REPORT_ENDPOINT",f"http://127.0.0.1:{server.server_port}/reports")
     dialog=ProblemReportDialog(snapshot(tmp_path))
+    dialog._verification_poll.setInterval(10)
     try:
         fill_form(dialog); dialog._collect(); wait_until(lambda:dialog._collection is None)
-        dialog.consent.setChecked(True); dialog._send(); wait_until(lambda:dialog._reply is None)
+        dialog.consent.setChecked(True); dialog._send(); wait_until(lambda:not dialog._network_stage)
         assert dialog._sent and dialog.tabs.currentIndex() == dialog._RECEIPT_PAGE
         assert dialog.receipt_title.text() == "Already reported"
         assert dialog.receipt_reference.text() == "CDMW-3"
@@ -447,7 +502,7 @@ def test_reporting_explains_repository_access_and_per_report_evidence_links(tmp_
     app()
     dialog = ProblemReportDialog(snapshot(tmp_path))
     try:
-        assert REPORT_ENDPOINT == "https://cdmw-reports-test.cdmw-workbench.workers.dev/reports"
+        assert REPORT_ENDPOINT == "https://cdmw-reports.cdmw-workbench.workers.dev/reports"
         assert "Restricted GitHub inbox" in dialog.destination.text()
         assert dialog.destination.toolTip() == REPORT_DESTINATION
         assert "maintainer and invited repository collaborators" in REPORT_DESTINATION
@@ -745,9 +800,10 @@ def test_saved_screenshots_preserve_reviewed_image_and_cannot_hide_extra_data(tm
 def test_server_cooldown_blocks_repeated_send_and_retries_the_same_draft(tmp_path,monkeypatch):
     app(); monkeypatch.setenv("CDMW_REPORT_TEST_TOKEN","synthetic-key")
     received=[]
-    class Receiver(BaseHTTPRequestHandler):
+    class Receiver(VerifiedReportReceiver):
         def log_message(self,*args): pass
         def do_POST(self):
+            if self.handle_verification_start(): return
             body=self.rfile.read(int(self.headers["Content-Length"])); received.append(body)
             self.send_response(429 if len(received)==1 else 201)
             self.send_header("Content-Type","application/json")
@@ -759,15 +815,117 @@ def test_server_cooldown_blocks_repeated_send_and_retries_the_same_draft(tmp_pat
     thread=threading.Thread(target=server.serve_forever,daemon=True); thread.start()
     monkeypatch.setattr("cdmw.ui.shell.problem_report_dialog.REPORT_ENDPOINT",f"http://127.0.0.1:{server.server_port}/reports")
     dialog=ProblemReportDialog(snapshot(tmp_path))
+    dialog._verification_poll.setInterval(10)
     try:
         fill_form(dialog); dialog._collect(); wait_until(lambda:dialog._collection is None)
-        dialog.consent.setChecked(True); dialog._send(); wait_until(lambda:dialog._reply is None)
+        dialog.consent.setChecked(True); dialog._send(); wait_until(lambda:not dialog._network_stage)
         assert not dialog.send_button.isEnabled() and "Retry in" in dialog.send_button.text()
         dialog._send(); assert len(received)==1
         wait_until(dialog.send_button.isEnabled,3)
-        dialog._send(); wait_until(lambda:dialog._reply is None)
+        dialog._send(); wait_until(lambda:not dialog._network_stage)
         assert dialog._sent and received[0] == received[1]
         dialog.copy_receipt_button.click()
         assert "CDMW-4" in QApplication.clipboard().text()
     finally:
         dialog.close(); server.shutdown(); server.server_close(); thread.join(2)
+
+
+def test_verification_metadata_has_no_report_text_and_rejects_other_destinations(tmp_path):
+    reviewed = collect_problem_report(ProblemReportRequest(details(),snapshot(tmp_path)))
+    metadata = json.loads(report_verification_request(reviewed))
+    assert metadata == {"report_id":reviewed.report_id,"report_sha256":hashlib.sha256(reviewed.body).hexdigest()}
+    endpoint = "https://reports.example/reports"
+    response = {"status":"verification_required","report_id":reviewed.report_id,"ticket":"signed.ticket",
+        "verification_url":"https://reports.example/verify#signed.ticket","expires_in":600}
+    check = parse_report_verification(json.dumps(response).encode(),report_id=reviewed.report_id,endpoint=endpoint)
+    assert check.url == response["verification_url"]
+    for changed in ({"report_id":"different"},{"ticket":"a"},{"expires_in":601},{"expires_in":True},
+        {"verification_url":"https://attacker.example/verify#signed.ticket"},
+        {"verification_url":"http://reports.example/verify#signed.ticket"},
+        {"verification_url":"https://reports.example/verify?key=signed.ticket#signed.ticket"},
+        {"verification_url":"https://reports.example/verify#different"}):
+        with pytest.raises(ValueError):
+            parse_report_verification(json.dumps({**response,**changed}).encode(),report_id=reviewed.report_id,endpoint=endpoint)
+    assert parse_report_verification_status(json.dumps({"status":"verified","report_id":reviewed.report_id}).encode(),report_id=reviewed.report_id)
+    assert not parse_report_verification_status(json.dumps({"status":"pending","report_id":reviewed.report_id}).encode(),report_id=reviewed.report_id)
+    with pytest.raises(ValueError):
+        parse_report_verification_status(b'{"status":"verified","report_id":"other"}',report_id=reviewed.report_id)
+
+
+@pytest.mark.parametrize("phase",["start","status"])
+@pytest.mark.parametrize("action",["cancel","edit","close"])
+def test_cancel_edit_or_close_during_verification_never_uploads_a_report(tmp_path,monkeypatch,phase,action):
+    app(); monkeypatch.delenv("CDMW_REPORT_TEST_TOKEN",raising=False)
+    entered=threading.Event(); release=threading.Event(); uploads=[]
+    class Receiver(VerifiedReportReceiver):
+        def log_message(self,*args): pass
+        def do_POST(self):
+            try:
+                if self.path == "/verification/start":
+                    if phase == "start": entered.set(); release.wait(5)
+                    self.handle_verification_start()
+                else:
+                    uploads.append(self.path)
+                    self.send_response(500); self.end_headers()
+            except (BrokenPipeError,ConnectionResetError): pass
+        def do_GET(self):
+            try:
+                if phase == "status": entered.set(); release.wait(5)
+                super().do_GET()
+            except (BrokenPipeError,ConnectionResetError): pass
+    server=ThreadingHTTPServer(("127.0.0.1",0),Receiver)
+    thread=threading.Thread(target=server.serve_forever,daemon=True); thread.start()
+    monkeypatch.setattr("cdmw.ui.shell.problem_report_dialog.REPORT_ENDPOINT",f"http://127.0.0.1:{server.server_port}/reports")
+    dialog=ProblemReportDialog(snapshot(tmp_path)); dialog._verification_poll.setInterval(10)
+    try:
+        fill_form(dialog); dialog._collect(); wait_until(lambda:dialog._collection is None)
+        reviewed=dialog._reviewed
+        dialog.consent.setChecked(True)
+        assert dialog.send_button.isEnabled()
+        dialog._send(); wait_until(entered.is_set)
+        start=time.monotonic()
+        if action == "cancel": dialog.verification_cancel_button.click()
+        elif action == "edit": dialog.summary.setText("A different problem invalidates verification")
+        else: dialog.close()
+        assert time.monotonic()-start < .1
+        assert not dialog._verification_poll.isActive() and not dialog._network_stage
+        release.set(); QTest.qWait(40)
+        assert uploads == [] and not dialog._sent
+        assert reviewed.draft_path.read_bytes() == reviewed.body
+    finally:
+        release.set()
+        if not dialog._closed: dialog.close()
+        server.shutdown(); server.server_close(); thread.join(2)
+
+
+def test_browser_failure_and_expiry_leave_the_reviewed_draft_available(tmp_path,monkeypatch):
+    from cdmw.ui.themes import build_app_stylesheet
+    application=app(); previous_stylesheet=application.styleSheet()
+    monkeypatch.delenv("CDMW_REPORT_TEST_TOKEN",raising=False)
+    monkeypatch.setattr("cdmw.ui.shell.problem_report_dialog.QDesktopServices.openUrl",lambda url:False)
+    class Receiver(VerifiedReportReceiver):
+        def log_message(self,*args): pass
+        def do_POST(self): assert self.handle_verification_start()
+    server=ThreadingHTTPServer(("127.0.0.1",0),Receiver)
+    thread=threading.Thread(target=server.serve_forever,daemon=True); thread.start()
+    monkeypatch.setattr("cdmw.ui.shell.problem_report_dialog.REPORT_ENDPOINT",f"http://127.0.0.1:{server.server_port}/reports")
+    dialog=ProblemReportDialog(snapshot(tmp_path)); dialog._verification_poll.setInterval(60000)
+    try:
+        fill_form(dialog); dialog._collect(); wait_until(lambda:dialog._collection is None)
+        reviewed=dialog._reviewed
+        dialog.consent.setChecked(True); dialog._send(); wait_until(lambda:dialog._network_stage == "waiting")
+        assert "Could not open" in dialog.status.text()
+        assert not dialog.verification_open_button.isHidden() and not dialog.send_button.isEnabled()
+        application.setStyleSheet(build_app_stylesheet("graphite"))
+        dialog.resize(460,440); dialog.show(); QTest.qWait(10)
+        assert dialog.width() == 460
+        for button in (dialog.verification_open_button,dialog.verification_cancel_button,dialog.close_button):
+            assert button.width() >= button.sizeHint().width()
+        dialog._verification_deadline=time.monotonic()-1
+        dialog._poll_verification()
+        assert "expired" in dialog.status.text() and dialog.send_button.isEnabled()
+        assert dialog._reviewed is reviewed and not dialog._verification_poll.isActive()
+        assert not dialog._verification_ticket
+    finally:
+        dialog.close(); server.shutdown(); server.server_close(); thread.join(2)
+        application.setStyleSheet(previous_stylesheet)

@@ -176,16 +176,17 @@ summary, full report details and fitted screenshots with a full-size option.
 Review it before sharing; screenshots can still contain visible personal
 information. It does not upload game file contents.
 
-Direct submission currently uses a private test inbox and requires maintainer test
-access. After explicit review and consent, reports go through Cloudflare to private
-GitHub issues in a separate inbox restricted to the maintainer and invited
-collaborators. CDMW Full's public source repository does not make reports public.
+After explicit review and consent, **Send report** opens a browser check, then CDMW
+sends the reviewed draft. No GitHub account or private access key is needed. Reports
+go through Cloudflare to private GitHub issues in a separate inbox restricted to
+the maintainer and invited collaborators. CDMW Full's public source repository does
+not make reports public.
 Anyone with a complete evidence link can read that one report without signing in;
 keep those links in the restricted inbox. Cloud evidence expires after 90 days;
 issue summaries and local drafts remain until removed. A failed upload keeps the
-draft for retry; **Open draft…**
-reopens it after restarting. The private receiver rejects duplicate problems
-and limits new submissions. CDMW shows a countdown when it must wait before retrying.
+draft for retry; **Open draft…** reopens it after restarting. The receiver checks
+that the inbox is private, rejects duplicate problems and limits new submissions.
+CDMW shows a countdown when it must wait before retrying.
 
 **Help > Export Diagnostics...** and **Help > Copy Latest Problem Summary** remain
 available for manual reporting. Review diagnostic bundles before sharing them.

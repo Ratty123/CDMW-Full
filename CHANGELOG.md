@@ -9,7 +9,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Added
 
-- Report a Problem uses a five-step guided form with tool/action menus, relevant input and setup choices, stall questions and optional **?** help. It includes a readable review, fitted screenshots, redacted evidence, a receipt screen and saved drafts for retry. Private test delivery explains who can read reports and evidence links, with duplicate protection, submission limits and retry guidance.
+- Report a Problem uses a five-step guided form with tool/action menus, relevant input and setup choices, stall questions and optional **?** help. It includes a readable review, fitted screenshots, redacted evidence, a receipt screen and saved drafts for retry. Public clients use a browser verification check without shared access keys; reports go to a separate private GitHub inbox with duplicate protection, submission limits and retry guidance.
 
 ### Changed
 

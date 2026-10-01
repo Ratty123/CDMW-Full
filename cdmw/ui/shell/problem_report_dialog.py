@@ -10,7 +10,7 @@ from dataclasses import asdict
 from html import escape
 
 from PySide6.QtCore import QByteArray, QPoint, QSignalBlocker, QTimer, QUrl, Qt, Slot
-from PySide6.QtGui import QImage, QPainter, QPalette, QPen, QPixmap
+from PySide6.QtGui import QDesktopServices, QImage, QPainter, QPalette, QPen, QPixmap
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 from PySide6.QtWidgets import (
     QApplication, QBoxLayout, QCheckBox, QComboBox, QDialog, QFileDialog, QFrame, QHBoxLayout, QLabel,
@@ -23,7 +23,8 @@ from cdmw.services.problem_report_service import (
     CLEAN_TESTS, DETAIL_RULES, FREQUENCIES, LAST_WORKING, PLATFORMS, PROBLEM_GUIDANCE, PROBLEM_TYPES,
     REPORT_DESTINATION, REPORT_ENDPOINT,
     ProblemDetails, ProblemReportRequest, ProblemSnapshot, ReviewedProblemReport,
-    detail_errors, parse_report_receipt, report_delivery_failure, report_test_token,
+    detail_errors, parse_report_receipt, parse_report_verification, parse_report_verification_status,
+    report_delivery_failure, report_verification_request,
 )
 from cdmw.workers.problem_report_workers import ProblemReportCollection
 from cdmw.ui.shell.problem_report_catalog import (
@@ -142,7 +143,7 @@ class ProblemReportDialog(QDialog):
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self.setObjectName("ProblemReportDialog")
-        self.setWindowTitle("Report a Problem — private test")
+        self.setWindowTitle("Report a Problem")
         self.resize(900, 760)
         self.setMinimumSize(460, 440)
         self._snapshot = snapshot
@@ -151,6 +152,10 @@ class ProblemReportDialog(QDialog):
         self._collection = None
         self._reviewed = None
         self._reply = None
+        self._network_stage = ""
+        self._verification_ticket = ""
+        self._verification_url = ""
+        self._verification_deadline = 0.0
         self._sent = False
         self._receipt = ""
         self._retry_until = 0.0
@@ -161,6 +166,10 @@ class ProblemReportDialog(QDialog):
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
         self._timer.timeout.connect(self._timeout)
+        self._verification_poll = QTimer(self)
+        self._verification_poll.setSingleShot(True)
+        self._verification_poll.setInterval(2000)
+        self._verification_poll.timeout.connect(self._poll_verification)
         self._retry_timer = QTimer(self)
         self._retry_timer.setInterval(1000)
         self._retry_timer.timeout.connect(self._update_buttons)
@@ -182,7 +191,7 @@ class ProblemReportDialog(QDialog):
         title_layout.addWidget(title)
         title_layout.addWidget(self._muted_label("One problem per report."))
         header_layout.addLayout(title_layout, 1)
-        badge = self._muted_label("Private test")
+        badge = self._muted_label("Private inbox")
         badge.setToolTip(REPORT_DESTINATION)
         header_layout.addWidget(badge, 0, Qt.AlignmentFlag.AlignTop)
         layout.addWidget(header)
@@ -392,6 +401,7 @@ class ProblemReportDialog(QDialog):
         self.destination = self._muted_label("Restricted GitHub inbox · evidence kept for 90 days")
         self.destination.setToolTip(REPORT_DESTINATION)
         self._privacy_help = self._add_field(review_layout, "", self.destination, REPORT_DESTINATION)
+        review_layout.addWidget(self._muted_label("Sending opens a browser check. No GitHub account needed."))
         self.consent = _ReportCheckBox()
         self.consent.setText("I reviewed this report and agree to send it")
         self.consent.setEnabled(False)
@@ -439,6 +449,10 @@ class ProblemReportDialog(QDialog):
         self.send_button = QPushButton("Send report")
         self.send_button.clicked.connect(self._send)
         self.send_button.setObjectName("EditorPrimaryButton")
+        self.verification_open_button = QPushButton("Open browser")
+        self.verification_open_button.clicked.connect(self._open_verification)
+        self.verification_cancel_button = QPushButton("Cancel")
+        self.verification_cancel_button.clicked.connect(self._cancel_verification)
         self.copy_receipt_button = QPushButton("Copy receipt")
         self.copy_receipt_button.clicked.connect(lambda: QApplication.clipboard().setText(self._receipt))
         self.close_button = QPushButton("Close")
@@ -447,6 +461,8 @@ class ProblemReportDialog(QDialog):
         buttons.addWidget(self.next_button)
         buttons.addWidget(self.collect_button)
         buttons.addWidget(self.send_button)
+        buttons.addWidget(self.verification_open_button)
+        buttons.addWidget(self.verification_cancel_button)
         buttons.addWidget(self.copy_receipt_button)
         buttons.addWidget(self.close_button)
         layout.addWidget(footer)
@@ -867,6 +883,9 @@ class ProblemReportDialog(QDialog):
         if self._restoring_form:
             return
         self._generation += 1
+        if self._network_stage:
+            self._stop_verification()
+            self._set_form_enabled(True)
         self._reviewed = None
         self.consent.setChecked(False)
         self.consent.setEnabled(False)
@@ -968,7 +987,7 @@ class ProblemReportDialog(QDialog):
         self.fit_images.setVisible(self.image_tabs.count() > 0)
         self.consent.setEnabled(True)
         self.tabs.setCurrentIndex(self._REVIEW_PAGE)
-        self.status.setText("Draft saved locally." if report_test_token() else "Draft saved. Private test sending is unavailable.")
+        self.status.setText("Draft saved locally.")
         self.status.setToolTip(str(result.draft_path))
         self._update_buttons()
 
@@ -991,24 +1010,26 @@ class ProblemReportDialog(QDialog):
 
     @Slot()
     def _update_buttons(self) -> None:
-        busy = self._collection is not None or self._reply is not None
+        busy = self._collection is not None or self._reply is not None or bool(self._network_stage)
         index = self.tabs.currentIndex()
         seconds = max(0, math.ceil(self._retry_until - time.monotonic()))
-        self.back_button.setVisible(index > 0 and not self._sent)
+        self.back_button.setVisible(index > 0 and not self._sent and not self._network_stage)
         self.back_button.setEnabled(not busy)
         self.next_button.setVisible(index < 3 and not self._sent)
         self.next_button.setEnabled(not busy)
         self.collect_button.setVisible(index == 3 and not self._sent)
         self.load_button.setEnabled(not busy and not self._sent)
-        self.load_button.setVisible(not self._sent)
+        self.load_button.setVisible(not self._sent and not self._network_stage)
         self.copy_receipt_button.setVisible(bool(self._receipt))
-        self.send_button.setVisible(index == self._REVIEW_PAGE and not self._sent)
+        self.send_button.setVisible(index == self._REVIEW_PAGE and not self._sent and not self._network_stage)
         self.send_button.setText(f"Retry in {seconds // 60}:{seconds % 60:02d}" if seconds else "Send report")
         if not seconds:
             self._retry_timer.stop()
         self.collect_button.setEnabled(not busy and not self._sent)
-        self.send_button.setEnabled(bool(self._reviewed and self.consent.isChecked() and report_test_token()
+        self.send_button.setEnabled(bool(self._reviewed and self.consent.isChecked()
                                          and not busy and not self._sent and not seconds))
+        self.verification_open_button.setVisible(bool(self._verification_url) and self._network_stage != "upload")
+        self.verification_cancel_button.setVisible(self._network_stage in ("start", "waiting", "status"))
         for page, button in enumerate(self._step_buttons):
             with QSignalBlocker(button):
                 button.setChecked(page == min(index, self._REVIEW_PAGE))
@@ -1020,7 +1041,7 @@ class ProblemReportDialog(QDialog):
         self.close_button.setText("Done" if self._sent else "Close")
         for button, active in ((self.next_button, index < 3 and not self._sent),
                                (self.collect_button, index == 3 and not self._sent),
-                               (self.send_button, index == self._REVIEW_PAGE and not self._sent),
+                               (self.send_button, index == self._REVIEW_PAGE and not self._sent and not self._network_stage),
                                (self.close_button, self._sent)):
             button.setDefault(active)
         self.status.setVisible(bool(self.status.text()) and not self._sent)
@@ -1029,20 +1050,112 @@ class ProblemReportDialog(QDialog):
     def _send(self) -> None:
         if not self.send_button.isEnabled() or self._reviewed is None:
             return
-        request = QNetworkRequest(QUrl(REPORT_ENDPOINT))
+        self._set_form_enabled(False)
+        self.consent.setEnabled(False)
+        self.status.setText("Starting the browser check…")
+        self._request_report_network("/verification/start", "start", report_verification_request(self._reviewed))
+
+    def _request_report_network(self, path: str, stage: str, body: bytes | None = None) -> None:
+        request = QNetworkRequest(QUrl(REPORT_ENDPOINT.rsplit("/", 1)[0] + path))
         request.setHeader(QNetworkRequest.KnownHeaders.ContentTypeHeader, "application/json")
-        request.setRawHeader(b"Authorization", f"Bearer {report_test_token()}".encode("utf-8"))
+        if self._verification_ticket:
+            request.setRawHeader(b"Authorization", f"Bearer {self._verification_ticket}".encode("ascii"))
         # Never forward the access key or evidence to a redirect target.
         request.setAttribute(QNetworkRequest.Attribute.RedirectPolicyAttribute,
                              QNetworkRequest.RedirectPolicy.ManualRedirectPolicy)
         request.setTransferTimeout(45000)
-        self._reply = self._network.post(request, QByteArray(self._reviewed.body))
-        self._reply.finished.connect(self._upload_finished)
+        self._network_stage = stage
+        reply = self._network.get(request) if body is None else self._network.post(request, QByteArray(body))
+        self._reply = reply
+        reply.finished.connect(lambda target=reply, generation=self._generation, step=stage:
+                               self._report_network_finished(target, generation, step))
         self._timer.start(45000)
-        self._set_form_enabled(False)
-        self.consent.setEnabled(False)
-        self.status.setText("Sending the reviewed report…")
         self._update_buttons()
+
+    def _report_network_finished(self, reply: QNetworkReply, generation: int, stage: str) -> None:
+        if self._closed or generation != self._generation or reply is not self._reply or self._reviewed is None:
+            reply.deleteLater()
+            return
+        if stage == "upload":
+            self._clear_verification_state()
+            self._upload_finished()
+            return
+        self._reply = None
+        self._timer.stop()
+        try:
+            status = int(reply.attribute(QNetworkRequest.Attribute.HttpStatusCodeAttribute) or 0)
+            body = bytes(reply.readAll())
+            if reply.error() != QNetworkReply.NetworkError.NoError or status != 200:
+                failure = report_delivery_failure(body, status, bytes(reply.rawHeader("Retry-After")).decode("ascii", errors="ignore"),
+                                                  report_id=self._reviewed.report_id)
+                if failure.retry_seconds:
+                    self._retry_until = time.monotonic() + failure.retry_seconds
+                    self._retry_timer.start()
+                raise ValueError(failure.message)
+            if stage == "start":
+                check = parse_report_verification(body, report_id=self._reviewed.report_id, endpoint=REPORT_ENDPOINT)
+                self._verification_ticket = check.ticket
+                self._verification_url = check.url
+                self._verification_deadline = time.monotonic() + check.expires_in
+                self._network_stage = "waiting"
+                self._open_verification()
+                self._verification_poll.start()
+            elif parse_report_verification_status(body, report_id=self._reviewed.report_id):
+                self.status.setText("Sending the reviewed report…")
+                self._request_report_network("/reports", "upload", self._reviewed.body)
+            else:
+                self._network_stage = "waiting"
+                self._verification_poll.start()
+        except ValueError as error:
+            self._verification_failed(str(error))
+        finally:
+            reply.deleteLater()
+        self._update_buttons()
+
+    @Slot()
+    def _open_verification(self) -> None:
+        if not self._verification_url:
+            return
+        opened = QDesktopServices.openUrl(QUrl(self._verification_url))
+        self.status.setText("Complete the browser check. CDMW will send this report automatically." if opened else
+                            "Could not open the browser. Use Open browser, or cancel the check.")
+
+    @Slot()
+    def _poll_verification(self) -> None:
+        if self._closed or not self._verification_ticket or self._reply is not None:
+            return
+        if time.monotonic() >= self._verification_deadline:
+            self._verification_failed("The browser check expired. Send the saved draft again.")
+            return
+        self._request_report_network("/verification/status", "status")
+
+    def _clear_verification_state(self) -> None:
+        self._verification_poll.stop()
+        self._timer.stop()
+        self._network_stage = ""
+        self._verification_ticket = ""
+        self._verification_url = ""
+        self._verification_deadline = 0.0
+
+    def _stop_verification(self) -> None:
+        reply = self._reply
+        self._reply = None
+        self._clear_verification_state()
+        if reply is not None:
+            reply.abort()
+
+    def _verification_failed(self, message: str) -> None:
+        self._stop_verification()
+        self.status.setText(message)
+        self._set_form_enabled(True)
+        self.consent.setEnabled(self._reviewed is not None)
+        self._update_buttons()
+
+    @Slot()
+    def _cancel_verification(self) -> None:
+        self._generation += 1
+        self._verification_failed("Browser check cancelled. Your draft is kept.")
+        self.consent.setChecked(False)
 
     @Slot()
     def _timeout(self) -> None:
@@ -1090,9 +1203,7 @@ class ProblemReportDialog(QDialog):
         self._generation += 1
         if self._collection is not None:
             self._collection.cancel()
-        if self._reply is not None:
-            self._reply.abort()
-        self._timer.stop()
+        self._stop_verification()
         self._retry_timer.stop()
 
     def resizeEvent(self, event) -> None:

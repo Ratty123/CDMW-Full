@@ -1671,7 +1671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 424,
+          "line": 434,
           "sink": "_muted_label"
         }
       ]
@@ -2491,7 +2491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 625,
+          "line": 641,
           "sink": "setPlaceholderText"
         }
       ]
@@ -2521,7 +2521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 261,
+          "line": 270,
           "sink": "_text"
         }
       ]
@@ -3731,17 +3731,17 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 342,
+          "line": 351,
           "sink": "_add_field"
         },
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 657,
+          "line": 673,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 658,
+          "line": 674,
           "sink": "setToolTip"
         }
       ]
@@ -4116,7 +4116,7 @@
       "origins": [
         {
           "path": "cdmw/services/problem_report_service.py",
-          "line": 271,
+          "line": 318,
           "sink": "ValueError"
         }
       ]
@@ -5286,7 +5286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 268,
+          "line": 277,
           "sink": "_add_field"
         }
       ]
@@ -6451,7 +6451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 234,
+          "line": 243,
           "sink": "_add_field"
         }
       ]
@@ -7666,7 +7666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 858,
+          "line": 874,
           "sink": "setText"
         }
       ]
@@ -13111,7 +13111,7 @@
       "origins": [
         {
           "path": "cdmw/services/problem_report_service.py",
-          "line": 281,
+          "line": 328,
           "sink": "ValueError"
         }
       ]
@@ -14626,7 +14626,7 @@
         },
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 431,
+          "line": 441,
           "sink": "QPushButton"
         },
         {
@@ -16456,7 +16456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 242,
+          "line": 251,
           "sink": "_line"
         }
       ]
@@ -16868,6 +16868,36 @@
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
           "line": 120,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Browser check cancelled. Your draft is kept.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 1157,
+          "sink": "_verification_failed"
+        }
+      ]
+    },
+    {
+      "key": "Browser verification could not be started. Keep the saved draft and retry.",
+      "origins": [
+        {
+          "path": "cdmw/services/problem_report_service.py",
+          "line": 168,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Browser verification was not confirmed. Keep the saved draft and retry.",
+      "origins": [
+        {
+          "path": "cdmw/services/problem_report_service.py",
+          "line": 180,
+          "sink": "ValueError"
         }
       ]
     },
@@ -18961,7 +18991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 924,
+          "line": 943,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -18971,7 +19001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 924,
+          "line": 943,
           "sink": "getOpenFileName"
         }
       ]
@@ -19021,7 +19051,7 @@
       "origins": [
         {
           "path": "cdmw/services/problem_report_service.py",
-          "line": 434,
+          "line": 477,
           "sink": "python-return:parse_report_receipt"
         }
       ]
@@ -19967,6 +19997,11 @@
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
           "line": 805,
+          "sink": "QPushButton"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 454,
           "sink": "QPushButton"
         },
         {
@@ -22166,7 +22201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 362,
+          "line": 371,
           "sink": "_page"
         }
       ]
@@ -22986,7 +23021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 283,
+          "line": 292,
           "sink": "_add_field"
         }
       ]
@@ -22996,7 +23031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 313,
+          "line": 322,
           "sink": "_add_field"
         }
       ]
@@ -23036,7 +23071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 357,
+          "line": 366,
           "sink": "_add_field"
         }
       ]
@@ -23296,7 +23331,7 @@
       "origins": [
         {
           "path": "cdmw/services/problem_report_service.py",
-          "line": 263,
+          "line": 310,
           "sink": "ValueError"
         }
       ]
@@ -24156,7 +24191,7 @@
       "origins": [
         {
           "path": "cdmw/services/problem_report_service.py",
-          "line": 381,
+          "line": 428,
           "sink": "ValueError"
         }
       ]
@@ -24251,7 +24286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 892,
+          "line": 911,
           "sink": "setText"
         }
       ]
@@ -24401,7 +24436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 348,
+          "line": 357,
           "sink": "QPushButton"
         }
       ]
@@ -24576,7 +24611,7 @@
       "origins": [
         {
           "path": "cdmw/services/problem_report_service.py",
-          "line": 260,
+          "line": 307,
           "sink": "ValueError"
         }
       ]
@@ -24801,7 +24836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 234,
+          "line": 243,
           "sink": "_add_field"
         }
       ]
@@ -24846,7 +24881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 251,
+          "line": 260,
           "sink": "_add_field"
         }
       ]
@@ -24866,7 +24901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 226,
+          "line": 235,
           "sink": "_page"
         }
       ]
@@ -24906,7 +24941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 887,
+          "line": 906,
           "sink": "getOpenFileNames"
         }
       ]
@@ -24946,7 +24981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 333,
+          "line": 342,
           "sink": "_page"
         }
       ]
@@ -24956,7 +24991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 310,
+          "line": 319,
           "sink": "_add_field"
         }
       ]
@@ -24966,7 +25001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 320,
+          "line": 329,
           "sink": "_add_field"
         }
       ]
@@ -24976,7 +25011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 230,
+          "line": 239,
           "sink": "_add_field"
         }
       ]
@@ -25046,22 +25081,22 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 570,
+          "line": 586,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 581,
+          "line": 597,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 588,
+          "line": 604,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 646,
+          "line": 662,
           "sink": "addItem"
         }
       ]
@@ -26386,12 +26421,12 @@
         },
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 444,
+          "line": 458,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 1020,
+          "line": 1041,
           "sink": "setText"
         },
         {
@@ -27977,6 +28012,16 @@
       ]
     },
     {
+      "key": "Complete the browser check. CDMW will send this report automatically.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 1120,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Completed",
       "origins": [
         {
@@ -28721,7 +28766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 329,
+          "line": 338,
           "sink": "_add_field"
         }
       ]
@@ -28926,7 +28971,7 @@
         },
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 433,
+          "line": 443,
           "sink": "QPushButton"
         },
         {
@@ -29666,7 +29711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 442,
+          "line": 456,
           "sink": "QPushButton"
         }
       ]
@@ -29756,7 +29801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 268,
+          "line": 277,
           "sink": "_add_field"
         }
       ]
@@ -30328,6 +30373,16 @@
           "path": "cdmw/ui/archive_browser/hkx_document_actions.py",
           "line": 595,
           "sink": "set_status_message"
+        }
+      ]
+    },
+    {
+      "key": "Could not open the browser. Use Open browser, or cancel the check.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 1120,
+          "sink": "setText"
         }
       ]
     },
@@ -34151,7 +34206,7 @@
       "origins": [
         {
           "path": "cdmw/services/problem_report_service.py",
-          "line": 433,
+          "line": 476,
           "sink": "ValueError"
         }
       ]
@@ -34961,7 +35016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 323,
+          "line": 332,
           "sink": "_add_field"
         }
       ]
@@ -36051,7 +36106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 1020,
+          "line": 1041,
           "sink": "setText"
         }
       ]
@@ -36556,17 +36611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 971,
-          "sink": "setText"
-        }
-      ]
-    },
-    {
-      "key": "Draft saved. Private test sending is unavailable.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 971,
+          "line": 990,
           "sink": "setText"
         }
       ]
@@ -41136,7 +41181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 266,
+          "line": 275,
           "sink": "_add_field"
         }
       ]
@@ -46811,7 +46856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 387,
+          "line": 396,
           "sink": "setText"
         }
       ]
@@ -47391,7 +47436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 340,
+          "line": 349,
           "sink": "setText"
         }
       ]
@@ -48591,7 +48636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 372,
+          "line": 381,
           "sink": "setText"
         }
       ]
@@ -48946,7 +48991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 344,
+          "line": 353,
           "sink": "_muted_label"
         }
       ]
@@ -48956,7 +49001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 283,
+          "line": 292,
           "sink": "_add_field"
         }
       ]
@@ -49036,7 +49081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 291,
+          "line": 300,
           "sink": "_add_field"
         }
       ]
@@ -49116,7 +49161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 300,
+          "line": 309,
           "sink": "_add_field"
         }
       ]
@@ -49691,7 +49736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 262,
+          "line": 271,
           "sink": "_add_field"
         }
       ]
@@ -52326,7 +52371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 247,
+          "line": 256,
           "sink": "_page"
         }
       ]
@@ -52346,7 +52391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 544,
+          "line": 560,
           "sink": "setAccessibleName"
         }
       ]
@@ -53041,7 +53086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 273,
+          "line": 282,
           "sink": "_add_field"
         }
       ]
@@ -53121,7 +53166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 278,
+          "line": 287,
           "sink": "_add_field"
         }
       ]
@@ -53246,7 +53291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 620,
+          "line": 636,
           "sink": "setText"
         }
       ]
@@ -53256,12 +53301,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 259,
+          "line": 268,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 620,
+          "line": 636,
           "sink": "setText"
         }
       ]
@@ -53271,7 +53316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 396,
+          "line": 406,
           "sink": "setText"
         }
       ]
@@ -55601,7 +55646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 329,
+          "line": 338,
           "sink": "_add_field"
         }
       ]
@@ -55726,7 +55771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 337,
+          "line": 346,
           "sink": "_add_field"
         }
       ]
@@ -55786,12 +55831,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 247,
+          "line": 256,
           "sink": "_page"
         },
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 627,
+          "line": 643,
           "sink": "setText"
         }
       ]
@@ -55981,7 +56026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 591,
+          "line": 607,
           "sink": "addItem"
         }
       ]
@@ -56636,7 +56681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 251,
+          "line": 260,
           "sink": "_add_field"
         }
       ]
@@ -57046,7 +57091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 313,
+          "line": 322,
           "sink": "_add_field"
         }
       ]
@@ -57226,7 +57271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 303,
+          "line": 312,
           "sink": "_add_field"
         }
       ]
@@ -59151,7 +59196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 254,
+          "line": 263,
           "sink": "_add_field"
         }
       ]
@@ -59171,7 +59216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 253,
+          "line": 262,
           "sink": "_line"
         }
       ]
@@ -59896,7 +59941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 401,
+          "line": 411,
           "sink": "_page"
         }
       ]
@@ -64236,7 +64281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 310,
+          "line": 319,
           "sink": "_add_field"
         }
       ]
@@ -66021,7 +66066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 325,
+          "line": 334,
           "sink": "_add_field"
         }
       ]
@@ -73541,7 +73586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 316,
+          "line": 325,
           "sink": "_add_field"
         }
       ]
@@ -74886,7 +74931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 328,
+          "line": 337,
           "sink": "_line"
         }
       ]
@@ -78126,12 +78171,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 352,
+          "line": 361,
           "sink": "_muted_label"
         },
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 902,
+          "line": 921,
           "sink": "setText"
         }
       ]
@@ -79471,12 +79516,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 657,
+          "line": 673,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 658,
+          "line": 674,
           "sink": "setToolTip"
         }
       ]
@@ -80601,7 +80646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 183,
+          "line": 192,
           "sink": "_muted_label"
         }
       ]
@@ -80621,7 +80666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 243,
+          "line": 252,
           "sink": "_add_field"
         }
       ]
@@ -81716,7 +81761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 924,
+          "line": 943,
           "sink": "getOpenFileName"
         }
       ]
@@ -81837,6 +81882,16 @@
       ]
     },
     {
+      "key": "Open browser",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 452,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Open chaiNNer Download Page",
       "origins": [
         {
@@ -81851,7 +81906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 426,
+          "line": 436,
           "sink": "QPushButton"
         }
       ]
@@ -83501,7 +83556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 337,
+          "line": 346,
           "sink": "_add_field"
         }
       ]
@@ -84351,7 +84406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 237,
+          "line": 246,
           "sink": "_add_field"
         }
       ]
@@ -88221,7 +88276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 359,
+          "line": 368,
           "sink": "_muted_label"
         }
       ]
@@ -91646,7 +91701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 938,
+          "line": 957,
           "sink": "setText"
         }
       ]
@@ -96312,11 +96367,11 @@
       ]
     },
     {
-      "key": "Private test",
+      "key": "Private inbox",
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 185,
+          "line": 194,
           "sink": "_muted_label"
         }
       ]
@@ -96836,7 +96891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 275,
+          "line": 284,
           "sink": "_add_field"
         }
       ]
@@ -100041,7 +100096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 325,
+          "line": 334,
           "sink": "_add_field"
         }
       ]
@@ -100071,7 +100126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 335,
+          "line": 344,
           "sink": "setText"
         }
       ]
@@ -102331,7 +102386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 315,
+          "line": 324,
           "sink": "_text"
         }
       ]
@@ -102341,12 +102396,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 316,
+          "line": 325,
           "sink": "_add_field"
         },
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 641,
+          "line": 657,
           "sink": "setText"
         }
       ]
@@ -102356,7 +102411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 641,
+          "line": 657,
           "sink": "setText"
         }
       ]
@@ -102536,7 +102591,7 @@
         },
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 350,
+          "line": 359,
           "sink": "QPushButton"
         },
         {
@@ -104287,11 +104342,11 @@
       ]
     },
     {
-      "key": "Report a Problem — private test",
+      "key": "Report a Problem",
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 145,
+          "line": 146,
           "sink": "setWindowTitle"
         }
       ]
@@ -104311,7 +104366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 176,
+          "line": 185,
           "sink": "QLabel"
         }
       ]
@@ -104321,7 +104376,7 @@
       "origins": [
         {
           "path": "cdmw/services/problem_report_service.py",
-          "line": 315,
+          "line": 362,
           "sink": "ValueError"
         }
       ]
@@ -104331,12 +104386,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 401,
+          "line": 411,
           "sink": "_page"
         },
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 858,
+          "line": 874,
           "sink": "setText"
         }
       ]
@@ -104346,7 +104401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 1077,
+          "line": 1190,
           "sink": "setText"
         }
       ]
@@ -104356,7 +104411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 215,
+          "line": 224,
           "sink": "setAccessibleName"
         }
       ]
@@ -107136,17 +107191,17 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 392,
+          "line": 401,
           "sink": "_muted_label"
         },
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 411,
+          "line": 421,
           "sink": "_muted_label"
         },
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 862,
+          "line": 878,
           "sink": "setText"
         }
       ]
@@ -107521,7 +107576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 1006,
+          "line": 1025,
           "sink": "setText"
         }
       ]
@@ -108141,7 +108196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 208,
+          "line": 217,
           "sink": "_muted_label"
         }
       ]
@@ -108231,7 +108286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 436,
+          "line": 446,
           "sink": "QPushButton"
         }
       ]
@@ -108281,7 +108336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 362,
+          "line": 371,
           "sink": "_page"
         }
       ]
@@ -110631,7 +110686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 958,
+          "line": 977,
           "sink": "setToolTip"
         }
       ]
@@ -111656,7 +111711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 887,
+          "line": 906,
           "sink": "getOpenFileNames:filter-label"
         }
       ]
@@ -111666,7 +111721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 887,
+          "line": 906,
           "sink": "getOpenFileNames"
         }
       ]
@@ -111676,7 +111731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 357,
+          "line": 366,
           "sink": "_add_field"
         }
       ]
@@ -111686,7 +111741,7 @@
       "origins": [
         {
           "path": "cdmw/services/problem_report_service.py",
-          "line": 258,
+          "line": 305,
           "sink": "ValueError"
         }
       ]
@@ -117211,12 +117266,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 439,
+          "line": 449,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 1006,
+          "line": 1025,
           "sink": "setText"
         }
       ]
@@ -117242,11 +117297,21 @@
       ]
     },
     {
+      "key": "Sending opens a browser check. No GitHub account needed.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 404,
+          "sink": "_muted_label"
+        }
+      ]
+    },
+    {
       "key": "Sending the reviewed report…",
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 1044,
+          "line": 1104,
           "sink": "setText"
         }
       ]
@@ -117906,7 +117971,7 @@
         },
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 281,
+          "line": 290,
           "sink": "_page"
         },
         {
@@ -124192,6 +124257,16 @@
       ]
     },
     {
+      "key": "Starting the browser check…",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 1055,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Starting worker-side archive text search.",
       "origins": [
         {
@@ -124876,7 +124951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 262,
+          "line": 271,
           "sink": "_add_field"
         }
       ]
@@ -125696,7 +125771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 243,
+          "line": 252,
           "sink": "_add_field"
         }
       ]
@@ -125836,7 +125911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 333,
+          "line": 342,
           "sink": "_page"
         }
       ]
@@ -127656,7 +127731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 320,
+          "line": 329,
           "sink": "_add_field"
         }
       ]
@@ -129992,6 +130067,16 @@
       ]
     },
     {
+      "key": "The browser check expired. Send the saved draft again.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 1128,
+          "sink": "_verification_failed"
+        }
+      ]
+    },
+    {
       "key": "The capture came back empty.",
       "origins": [
         {
@@ -131886,7 +131971,7 @@
       "origins": [
         {
           "path": "cdmw/services/problem_report_service.py",
-          "line": 430,
+          "line": 473,
           "sink": "ValueError"
         }
       ]
@@ -132066,7 +132151,7 @@
       "origins": [
         {
           "path": "cdmw/services/problem_report_service.py",
-          "line": 343,
+          "line": 390,
           "sink": "ValueError"
         }
       ]
@@ -134836,7 +134921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 230,
+          "line": 239,
           "sink": "_add_field"
         }
       ]
@@ -134991,7 +135076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 236,
+          "line": 245,
           "sink": "_line"
         }
       ]
@@ -136201,7 +136286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 240,
+          "line": 249,
           "sink": "_add_field"
         }
       ]
@@ -136671,12 +136756,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 657,
+          "line": 673,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 658,
+          "line": 674,
           "sink": "setToolTip"
         }
       ]
@@ -137171,7 +137256,7 @@
         },
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 297,
+          "line": 306,
           "sink": "setText"
         },
         {
@@ -137241,7 +137326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 281,
+          "line": 290,
           "sink": "_page"
         }
       ]
@@ -138276,7 +138361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 324,
+          "line": 333,
           "sink": "_text"
         }
       ]
@@ -139201,7 +139286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 254,
+          "line": 263,
           "sink": "_add_field"
         }
       ]
@@ -139721,7 +139806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 300,
+          "line": 309,
           "sink": "_add_field"
         }
       ]
@@ -140906,7 +140991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 295,
+          "line": 304,
           "sink": "_line"
         }
       ]
@@ -143146,7 +143231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 267,
+          "line": 276,
           "sink": "_text"
         }
       ]
@@ -143241,7 +143326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 265,
+          "line": 274,
           "sink": "_text"
         }
       ]
@@ -143351,7 +143436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 226,
+          "line": 235,
           "sink": "_page"
         }
       ]
@@ -168721,7 +168806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 623,
+          "line": 639,
           "sink": "setText"
         }
       ]
@@ -171386,7 +171471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 957,
+          "line": 976,
           "sink": "setText"
         }
       ]
@@ -171396,7 +171481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 896,
+          "line": 915,
           "sink": "setText"
         }
       ]
@@ -172426,7 +172511,7 @@
         },
         {
           "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 627,
+          "line": 643,
           "sink": "setText"
         },
         {

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import io
 import json
 import os
@@ -14,13 +15,14 @@ import threading
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from urllib.parse import urlsplit
 from uuid import UUID, uuid4
 
 from cdmw.constants import APP_VERSION
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.services.atomic_file_service import atomic_write_bytes
 
-REPORT_ENDPOINT = "https://cdmw-reports-test.cdmw-workbench.workers.dev/reports"
+REPORT_ENDPOINT = "https://cdmw-reports.cdmw-workbench.workers.dev/reports"
 REPORT_DESTINATION = (
     "Sent through Cloudflare to Ratty123/CDMW-Reports, a private GitHub repository.\n"
     "The maintainer and invited repository collaborators can read issue summaries.\n"
@@ -131,6 +133,51 @@ class ReviewedProblemReport:
     body: bytes
     preview: str
     draft_path: Path
+
+
+@dataclass(frozen=True)
+class ReportVerification:
+    ticket: str
+    url: str
+    expires_in: int
+
+
+def report_verification_request(report: ReviewedProblemReport) -> bytes:
+    """Only a reference and exact body hash leave CDMW before browser verification."""
+    return json.dumps({"report_id": report.report_id, "report_sha256": hashlib.sha256(report.body).hexdigest()}).encode("utf-8")
+
+
+def parse_report_verification(body: bytes, *, report_id: str, endpoint: str) -> ReportVerification:
+    try:
+        if len(body) > 8192:
+            raise ValueError()
+        data = json.loads(body)
+        ticket = data["ticket"]
+        expiry = data["expires_in"]
+        url = urlsplit(data["verification_url"])
+        expected = urlsplit(endpoint)
+        if (data["status"] != "verification_required" or data["report_id"] != report_id
+                or not isinstance(ticket, str) or len(ticket) > 2048
+                or not re.fullmatch(r"[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+", ticket)
+                or type(expiry) is not int or not 1 <= expiry <= 600
+                or url.scheme != expected.scheme or url.netloc != expected.netloc
+                or url.path != "/verify" or url.query or url.fragment != ticket):
+            raise ValueError()
+        return ReportVerification(ticket, data["verification_url"], expiry)
+    except (KeyError, TypeError, ValueError, UnicodeError):
+        raise ValueError("Browser verification could not be started. Keep the saved draft and retry.") from None
+
+
+def parse_report_verification_status(body: bytes, *, report_id: str) -> bool:
+    try:
+        if len(body) > 8192:
+            raise ValueError()
+        data = json.loads(body)
+        if data["report_id"] != report_id or data["status"] not in ("pending", "verified"):
+            raise ValueError()
+        return data["status"] == "verified"
+    except (KeyError, TypeError, ValueError, UnicodeError):
+        raise ValueError("Browser verification was not confirmed. Keep the saved draft and retry.") from None
 
 
 class ReportRedactor:
@@ -412,14 +459,10 @@ def report_delivery_failure(body: bytes, status: int, retry_after: str = "", *, 
                 f"A matching problem was already reported as CDMW-{number}. This new draft was not sent. Keep the original receipt for follow-up.",
                 duplicate_receipt=f"CDMW-{number}")
     if status == 401:
-        return ReportDeliveryFailure("Private test access is missing or expired. Keep the local draft and ask the maintainer to restore test access.")
+        return ReportDeliveryFailure("Browser verification is missing or expired. Send the saved draft again to verify it.")
     if status == 400:
         return ReportDeliveryFailure("The service could not validate this report. Check the required details and collect a new draft.")
     return ReportDeliveryFailure("Delivery is not confirmed. The local draft is safe; retry this report when the service is available.")
-
-
-def report_test_token() -> str:
-    return os.environ.get("CDMW_REPORT_TEST_TOKEN", "").strip()
 
 
 def parse_report_receipt(body: bytes, *, report_id: str) -> str:

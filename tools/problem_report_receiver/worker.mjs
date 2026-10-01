@@ -1,4 +1,5 @@
-// Private test receiver. Credentials belong in Worker secrets, never in CDMW.
+// Private GitHub inbox, with browser verification for public CDMW clients.
+// Credentials belong in Worker secrets, never in CDMW.
 const REPOSITORY = "Ratty123/CDMW-Reports";
 const MAX_BYTES = 8 * 1024 * 1024;
 const LOCK_MS = 120000;
@@ -6,6 +7,11 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{1
 const encoder = new TextEncoder();
 const ADMISSION_KEY = "reports/_admission-v1.json";
 const DAILY_REPORTS = 10;
+const PUBLIC_DAILY_REPORTS = 100;
+const VERIFICATION_MS = 10 * 60000;
+const VERIFICATION_LEDGER = "reports/_verification-admission-v1.json";
+const DAILY_VERIFICATIONS = 500;
+const VERIFICATIONS_PER_NETWORK = 20;
 const DAILY_PER_NETWORK = 5;
 const NETWORK_COOLDOWN_MS = 120000;
 const GLOBAL_COOLDOWN_MS = 2000;
@@ -35,13 +41,13 @@ async function sameSecret(a, b) {
 }
 function readToken(request) {
   const value = request.headers.get("Authorization") || "";
-  return value.startsWith("Bearer ") && value.length <= 256 ? value.slice(7) : "";
+  return value.startsWith("Bearer ") && value.length <= 2055 ? value.slice(7) : "";
 }
 
-async function boundedBody(request) {
+async function boundedBody(request, limit = MAX_BYTES) {
   if (!/^application\/json(?:;|$)/i.test(request.headers.get("Content-Type") || ""))
     throw new ReportError(415, "Send a JSON report.");
-  if (Number(request.headers.get("Content-Length")) > MAX_BYTES)
+  if (Number(request.headers.get("Content-Length")) > limit)
     throw new ReportError(413, "Report exceeds 8 MB.");
   const reader = request.body?.getReader();
   if (!reader) throw new ReportError(400, "Report is empty.");
@@ -51,7 +57,7 @@ async function boundedBody(request) {
     const { value, done } = await reader.read();
     if (done) break;
     size += value.length;
-    if (size > MAX_BYTES) { await reader.cancel(); throw new ReportError(413, "Report exceeds 8 MB."); }
+    if (size > limit) { await reader.cancel(); throw new ReportError(413, "Request is too large."); }
     chunks.push(value);
   }
   const bytes = new Uint8Array(size);
@@ -117,7 +123,7 @@ async function networkSubject(request, env, day) {
   const ip = request.headers.get("CF-Connecting-IP");
   if (!ip || ip.length > 64 || !/^[0-9a-fA-F:.]+$/.test(ip))
     throw new ReportError(503,"The receiver cannot verify the request network. Keep the draft and retry.");
-  const key = await crypto.subtle.importKey("raw",encoder.encode(env.REPORT_TEST_TOKEN),
+  const key = await crypto.subtle.importKey("raw",encoder.encode(publicIntake(env) ? env.TURNSTILE_SECRET_KEY : env.REPORT_TEST_TOKEN),
     {name:"HMAC",hash:"SHA-256"},false,["sign"]);
   const signature = await crypto.subtle.sign("HMAC",key,encoder.encode(`cdmw-network:${day}:${ip}`));
   return [...new Uint8Array(signature)].map(x=>x.toString(16).padStart(2,"0")).join("");
@@ -133,7 +139,8 @@ async function checkBurst(request, env) {
   if (minute !== burstMinute) { burstCounts.clear(); burstTotal = 0; burstMinute = minute; }
   const subject = await networkSubject(request,env,new Date(now).toISOString().slice(0,10));
   const count = burstCounts.get(subject) || 0;
-  if (count >= 40 || burstTotal >= 120) throw rateLimit(60-now%60000/1000,"request_burst");
+  if (count >= (publicIntake(env) ? 90 : 40) || burstTotal >= (publicIntake(env) ? 600 : 120))
+    throw rateLimit(60-now%60000/1000,"request_burst");
   burstCounts.set(subject,count+1); burstTotal++;
   // Best-effort early rejection only. R2 admission remains authoritative across isolates.
 }
@@ -150,7 +157,7 @@ async function admitReport(request, env, report) {
   const stored = await env.REPORTS.get(ADMISSION_KEY);
   const previous = stored ? await stored.json() : null;
   if (stored && (!previous || previous.version !== 1 || !/^\d{4}-\d{2}-\d{2}$/.test(previous.day || "") ||
-      !Array.isArray(previous.entries) || previous.entries.length > DAILY_REPORTS || previous.entries.some(entry=>
+      !Array.isArray(previous.entries) || previous.entries.length > PUBLIC_DAILY_REPORTS || previous.entries.some(entry=>
         !entry || !UUID.test(entry.report_id || "") || !/^[0-9a-f]{64}$/.test(entry.subject || "") ||
         !/^[0-9a-f]{64}$/.test(entry.fingerprint || "") || !Number.isFinite(entry.at) || entry.at < 1)))
     throw new ReportError(503,"Report protection needs maintenance. Keep the draft and retry.");
@@ -165,7 +172,8 @@ async function admitReport(request, env, report) {
     throw rateLimit(120,"matching_report_pending");
   }
   const midnight = Date.parse(`${day}T00:00:00Z`) + 86400000;
-  if (entries.length >= DAILY_REPORTS) throw rateLimit((midnight-now)/1000,"daily_report_limit");
+  if (entries.length >= (publicIntake(env) ? PUBLIC_DAILY_REPORTS : DAILY_REPORTS))
+    throw rateLimit((midnight-now)/1000,"daily_report_limit");
   const network = entries.filter(entry=>entry.subject === subject);
   if (network.length >= DAILY_PER_NETWORK) throw rateLimit((midnight-now)/1000,"network_daily_limit");
   const lastNetwork = Math.max(0,...network.map(entry=>entry.at));
@@ -181,6 +189,168 @@ async function admitReport(request, env, report) {
     throw rateLimit(10,"protection_busy");
   }
   if (!saved) throw rateLimit(10,"protection_busy");
+}
+
+function publicIntake(env) { return env.PUBLIC_REPORTS === "1"; }
+function publicConfigured(env) {
+  const sitekey = env.TURNSTILE_SITE_KEY || "", secret = env.TURNSTILE_SECRET_KEY || "";
+  // Cloudflare's published dummy keys must never enable a public receiver.
+  return Boolean(env.REPORTS && env.GITHUB_TOKEN && /^[A-Za-z0-9_-]{16,128}$/.test(sitekey) &&
+    typeof secret === "string" && secret.length >= 16 && secret.length <= 128 &&
+    !/^[123]x0{10}/.test(sitekey) && !/^[123]x0{10}/.test(secret));
+}
+function requirePublic(env) {
+  if (!publicIntake(env) || !publicConfigured(env))
+    throw new ReportError(503,"Online reporting is not configured. Keep the saved draft.");
+}
+function base64url(bytes) {
+  return btoa(String.fromCharCode(...bytes)).replaceAll("+","-").replaceAll("/","_").replace(/=+$/,"");
+}
+function unbase64url(text) {
+  if (!/^[A-Za-z0-9_-]+$/.test(text)) throw Error("Invalid encoding");
+  const value = text.replaceAll("-","+").replaceAll("_","/");
+  return Uint8Array.from(atob(value+"=".repeat((4-value.length%4)%4)),x=>x.charCodeAt(0));
+}
+async function ticketKey(env) {
+  return crypto.subtle.importKey("raw",encoder.encode(env.TURNSTILE_SECRET_KEY),
+    {name:"HMAC",hash:"SHA-256"},false,["sign","verify"]);
+}
+async function makeTicket(value,env) {
+  const data = base64url(encoder.encode(JSON.stringify(value)));
+  const signature = await crypto.subtle.sign("HMAC",await ticketKey(env),encoder.encode("cdmw-verification-v1:"+data));
+  return data+"."+base64url(new Uint8Array(signature));
+}
+async function readTicket(token,env) {
+  try {
+    if (typeof token !== "string" || token.length > 2048) throw Error("Invalid ticket");
+    const parts = token.split(".");
+    if (parts.length !== 2 || !await crypto.subtle.verify("HMAC",await ticketKey(env),unbase64url(parts[1]),
+        encoder.encode("cdmw-verification-v1:"+parts[0]))) throw Error("Invalid signature");
+    const value = JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(unbase64url(parts[0])));
+    if (value.version !== 1 || !UUID.test(value.nonce || "") || !UUID.test(value.report_id || "") ||
+        !/^[0-9a-f]{64}$/.test(value.report_sha256 || "") || !/^[0-9a-f]{64}$/.test(value.subject || "") ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(value.day || "") || !Number.isFinite(value.expires_at) ||
+        value.expires_at <= Date.now() || value.expires_at > Date.now()+VERIFICATION_MS)
+      throw Error("Invalid or expired ticket");
+    return value;
+  } catch {
+    throw new ReportError(401,"Browser verification is missing or expired. Send the saved draft again.","verification_required");
+  }
+}
+function verificationKey(ticket) { return `reports/_verification/${ticket.nonce}.json`; }
+async function approval(ticket,token,env) {
+  const object = await env.REPORTS.get(verificationKey(ticket));
+  const value = object && await object.json();
+  return value?.version === 1 && value.report_id === ticket.report_id &&
+    value.ticket_sha256 === await digest(token) && value.expires_at === ticket.expires_at;
+}
+async function reserveVerification(ticket,env) {
+  const now = Date.now(), day = new Date(now).toISOString().slice(0,10);
+  const stored = await env.REPORTS.get(VERIFICATION_LEDGER);
+  const previous = stored ? await stored.json() : null;
+  if (stored && (previous?.version !== 1 || !/^\d{4}-\d{2}-\d{2}$/.test(previous.day || "") ||
+      !Array.isArray(previous.entries) || previous.entries.length > DAILY_VERIFICATIONS || previous.entries.some(entry=>
+        !UUID.test(entry?.nonce || "") || !/^[0-9a-f]{64}$/.test(entry?.subject || "") ||
+        !Number.isFinite(entry?.at) || entry.at < 1)))
+    throw new ReportError(503,"Verification protection needs maintenance. Keep the draft.");
+  const entries = previous?.day === day ? previous.entries : [];
+  if (entries.some(entry=>entry.nonce === ticket.nonce)) return;
+  const midnight = Date.parse(day)+86400000;
+  if (entries.length >= DAILY_VERIFICATIONS) throw rateLimit((midnight-now)/1000,"verification_daily_limit");
+  if (entries.filter(entry=>entry.subject === ticket.subject).length >= VERIFICATIONS_PER_NETWORK)
+    throw rateLimit((midnight-now)/1000,"verification_network_limit");
+  const last = Math.max(0,...entries.map(entry=>entry.at));
+  if (last && now-last < GLOBAL_COOLDOWN_MS) throw rateLimit((last+GLOBAL_COOLDOWN_MS-now)/1000,"verification_busy");
+  const state = {version:1,day,entries:[...entries,{nonce:ticket.nonce,subject:ticket.subject,at:now}]};
+  let saved;
+  try {
+    saved = await env.REPORTS.put(VERIFICATION_LEDGER,JSON.stringify(state),{onlyIf:stored ?
+      {etagMatches:stored.etag} : {etagDoesNotMatch:"*"}});
+  } catch { throw rateLimit(10,"verification_busy"); }
+  if (!saved) throw rateLimit(2,"verification_busy");
+}
+async function verification(request,env,url) {
+  requirePublic(env);
+  await checkBurst(request,env);
+  if (request.method === "POST" && url.pathname === "/verification/start") {
+    const {report:data} = await boundedBody(request,4096);
+    if (!UUID.test(data?.report_id || "") || !/^[0-9a-f]{64}$/.test(data?.report_sha256 || ""))
+      throw new ReportError(400,"The saved report reference is invalid.");
+    const day = new Date(Date.now()).toISOString().slice(0,10);
+    const value = {version:1,nonce:crypto.randomUUID(),report_id:data.report_id,report_sha256:data.report_sha256,
+      day,subject:await networkSubject(request,env,day),expires_at:Date.now()+VERIFICATION_MS};
+    const token = await makeTicket(value,env);
+    return response(200,{status:"verification_required",report_id:value.report_id,ticket:token,
+      verification_url:url.origin+"/verify#"+token,expires_in:VERIFICATION_MS/1000});
+  }
+  if (request.method === "GET" && url.pathname === "/verification/status") {
+    const token = readToken(request), ticket = await readTicket(token,env);
+    if (!await sameSecret(ticket.subject,await networkSubject(request,env,ticket.day)))
+      throw new ReportError(401,"Restart verification on this internet connection.","verification_required");
+    return response(200,{status:await approval(ticket,token,env) ? "verified" : "pending",report_id:ticket.report_id});
+  }
+  if (request.method === "POST" && url.pathname === "/verification/complete") {
+    const {report:data} = await boundedBody(request,4096);
+    const ticket = await readTicket(data?.ticket,env);
+    if (await approval(ticket,data.ticket,env)) return response(200,{status:"verified"});
+    if (typeof data.turnstile_token !== "string" || data.turnstile_token.length < 1 || data.turnstile_token.length > 2048)
+      throw new ReportError(400,"Complete the browser check.");
+    let result;
+    try {
+      // Retry the same token safely; a fresh challenge must not reuse a failed validation.
+      const retryId = await digest(ticket.nonce+":"+data.turnstile_token);
+      const retryKey = `${retryId.slice(0,8)}-${retryId.slice(8,12)}-4${retryId.slice(13,16)}-8${retryId.slice(17,20)}-${retryId.slice(20,32)}`;
+      const checked = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify",{
+        method:"POST",headers:{"Content-Type":"application/json"},signal:AbortSignal.timeout(10000),
+        body:JSON.stringify({secret:env.TURNSTILE_SECRET_KEY,response:data.turnstile_token,
+          remoteip:request.headers.get("CF-Connecting-IP"),idempotency_key:retryKey})});
+      if (!checked.ok) throw Error("Validation unavailable");
+      result = await checked.json();
+    } catch { throw new ReportError(503,"The browser check could not be confirmed. Retry the check."); }
+    const timestamp = Date.parse(result.challenge_ts);
+    if (result.success !== true || result.hostname !== url.hostname || result.action !== "cdmw_report" ||
+        result.cdata !== ticket.nonce || !Number.isFinite(timestamp) || timestamp < Date.now()-300000 || timestamp > Date.now()+60000)
+      throw new ReportError(400,"The browser check was not accepted. Retry the check.");
+    await reserveVerification(ticket,env);
+    const saved = await env.REPORTS.put(verificationKey(ticket),JSON.stringify({version:1,
+      report_id:ticket.report_id,ticket_sha256:await digest(data.ticket),expires_at:ticket.expires_at}),
+      {onlyIf:{etagDoesNotMatch:"*"}});
+    if (!saved && !await approval(ticket,data.ticket,env))
+      throw new ReportError(503,"Verification could not be saved. Retry the check.");
+    return response(200,{status:"verified"});
+  }
+  return response(404,{error:"Not found."});
+}
+function verificationPage(env) {
+  requirePublic(env);
+  const nonce = crypto.randomUUID();
+  const html = `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<title>Verify your CDMW report</title><style>body{font:16px system-ui;background:#13181e;color:#e5eaf0;margin:0;padding:48px 20px}main{max-width:540px;margin:auto;padding:32px;border:1px solid #35424f;border-radius:12px}h1{font-size:26px;margin:0 0 12px}p{line-height:1.5;color:#b8c3ce}#challenge{margin:24px 0}button{padding:10px 16px;font:inherit;cursor:pointer}small{color:#96a5b4}</style>
+<main><h1>Verify your report</h1><p>Complete this check, then return to CDMW. Your reviewed report will send automatically.</p><div id="challenge"></div><p id="status" role="status"></p><button id="retry" hidden>Retry check</button><small>Private CDMW inbox · no GitHub account needed</small></main>
+<script nonce="${nonce}">
+const ticket=location.hash.slice(1);history.replaceState(null,'',location.pathname);
+const status=document.getElementById('status'),retry=document.getElementById('retry');
+let widget;
+function problem(text){status.textContent=text;retry.hidden=false}
+window.cdmwCheck=()=>{
+  try{
+    if(!/^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$/.test(ticket)||ticket.length>2048)throw Error('Open this check from CDMW by selecting Send report.');
+    const encoded=ticket.split('.')[0].replaceAll('-','+').replaceAll('_','/');
+    const data=JSON.parse(atob(encoded+'='.repeat((4-encoded.length%4)%4)));
+    widget=turnstile.render('#challenge',{sitekey:${JSON.stringify(env.TURNSTILE_SITE_KEY)},action:'cdmw_report',cData:data.nonce,theme:'dark',
+      callback:async token=>{status.textContent='Confirming…';retry.hidden=true;try{
+        const r=await fetch('/verification/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ticket,turnstile_token:token})});
+        const result=await r.json();if(!r.ok||result.status!=='verified')throw Error(result.error||'Retry the check.');
+        status.textContent='Verified. Return to CDMW.';
+      }catch(e){problem(e.message)}},'error-callback':()=>problem('The check could not finish. Retry or send again from CDMW.'),
+      'expired-callback':()=>problem('The check expired. Retry the check.')});
+  }catch(e){status.textContent=e.message}
+};
+retry.onclick=()=>{retry.hidden=true;status.textContent='';turnstile.reset(widget)};
+</script><script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=cdmwCheck&render=explicit" async defer></script></html>`;
+  return new Response(html,{headers:{"Content-Type":"text/html; charset=utf-8","Cache-Control":"no-store",
+    "Referrer-Policy":"no-referrer","X-Content-Type-Options":"nosniff","X-Robots-Tag":"noindex, nofollow, noarchive",
+    "Content-Security-Policy":`default-src 'none'; script-src 'nonce-${nonce}' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; connect-src 'self' https://challenges.cloudflare.com; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'`}});
 }
 
 function plain(text) {
@@ -207,7 +377,7 @@ function issueBody(report, url, downloadKey) {
 async function github(env, path, options = {}) {
   const result = await fetch(`https://api.github.com${path}`, { ...options, headers: {
     "Authorization": `Bearer ${env.GITHUB_TOKEN}`, "Accept": "application/vnd.github+json",
-    "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "CDMW-private-report-test",
+    "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "CDMW-problem-reports",
     "Content-Type": "application/json",
   }, signal: AbortSignal.timeout(15000) });
   if (!result.ok) throw new ReportError(503, "The private inbox is unavailable. Keep the draft and retry.");
@@ -222,18 +392,29 @@ async function findExistingIssue(env, reportId) {
     if (match) return match;
     if (issues.length < 100) return null;
   }
-  throw new ReportError(503, "The test inbox needs maintenance before accepting more reports.");
+  throw new ReportError(503, "The report inbox needs maintenance before accepting more reports.");
 }
 
 async function submit(request, env, url) {
-  if (!env.REPORTS || !env.GITHUB_TOKEN || !env.REPORT_TEST_TOKEN)
-    throw new ReportError(503, "The private test receiver is not configured.");
-  if (!await sameSecret(readToken(request), env.REPORT_TEST_TOKEN))
-    throw new ReportError(401, "A private test access key is required.");
+  let ticket;
+  if (publicIntake(env)) {
+    requirePublic(env);
+    ticket = await readTicket(readToken(request),env);
+    if (!await sameSecret(ticket.subject,await networkSubject(request,env,ticket.day)))
+      throw new ReportError(401,"Restart verification on this internet connection.","verification_required");
+  } else {
+    if (!env.REPORTS || !env.GITHUB_TOKEN || !env.REPORT_TEST_TOKEN)
+      throw new ReportError(503, "The private test receiver is not configured.");
+    if (!await sameSecret(readToken(request), env.REPORT_TEST_TOKEN))
+      throw new ReportError(401, "A private test access key is required.");
+  }
   await checkBurst(request,env);
   const {raw,report:input} = await boundedBody(request);
   const report = validateReport(input);
   const sha256 = await digest(raw);
+  if (ticket && (ticket.report_id !== report.report_id || ticket.report_sha256 !== sha256 ||
+      !await approval(ticket,readToken(request),env)))
+    throw new ReportError(401,"This exact report needs browser verification. Send the saved draft again.","verification_required");
   const objectKey = `reports/${report.report_id}.json`;
   let stored = await env.REPORTS.get(objectKey);
   let record, lock;
@@ -261,7 +442,7 @@ async function submit(request, env, url) {
       throw new ReportError(503, "The receiver requires its private inbox. Delivery stopped.");
     const existing = await findExistingIssue(env, report.report_id);
     const issue = existing || await github(env, `/repos/${REPOSITORY}/issues`, {method:"POST",body:JSON.stringify({
-      title:`[CDMW test] ${plain(report.details.summary)} (${report.report_id})`,
+      title:`[CDMW${publicIntake(env) ? "" : " test"}] ${plain(report.details.summary)} (${report.report_id})`,
       body:issueBody(report,url,record.download_key),
     })});
     if (!Number.isInteger(issue.number) || issue.number < 1)
@@ -319,7 +500,11 @@ export default {
     try {
       const url = new URL(request.url);
       if (request.method === "GET" && url.pathname === "/health")
-        return response(200,{service:"CDMW private reporting test",configured:Boolean(env.REPORTS && env.GITHUB_TOKEN && env.REPORT_TEST_TOKEN),schema_version:1,max_bytes:MAX_BYTES});
+        return response(200,{service:"CDMW problem reports",configured:publicIntake(env) ? publicConfigured(env) :
+          Boolean(env.REPORTS && env.GITHUB_TOKEN && env.REPORT_TEST_TOKEN),
+          verification:publicIntake(env) ? "browser" : "private-test",schema_version:1,max_bytes:MAX_BYTES});
+      if (request.method === "GET" && url.pathname === "/verify") return verificationPage(env);
+      if (url.pathname.startsWith("/verification/")) return await verification(request,env,url);
       if (request.method === "POST" && url.pathname === "/reports") return await submit(request,env,url);
       const match = /^\/reports\/([0-9a-f-]+)(\/download)?$/.exec(url.pathname);
       if (request.method === "GET" && match && UUID.test(match[1])) {

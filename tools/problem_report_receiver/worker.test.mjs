@@ -35,12 +35,12 @@ function request(data = report(), token = "private-test-key") {
   return new Request("https://reports.example/reports",{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${token}`,
     "CF-Connecting-IP":"198.51.100.10"},body:JSON.stringify(data)});
 }
-function githubMock({privateRepo = true, failCreate = false, acceptedButTimedOut = false} = {}) {
+function githubMock({privateRepo = true, repositoryName = "Ratty123/CDMW-Reports", failCreate = false, acceptedButTimedOut = false} = {}) {
   const issues = [];
   let creates = 0;
   globalThis.fetch = async (url, options) => {
     assert.match(options.headers.Authorization,/^Bearer server-only$/);
-    if (url.endsWith("/CDMW-Reports")) return Response.json({private:privateRepo,full_name:"Ratty123/CDMW-Reports"});
+    if (url.endsWith("/CDMW-Reports")) return Response.json({private:privateRepo,full_name:repositoryName});
     if (options.method === "POST") {
       creates++;
       if (failCreate) return new Response("failed",{status:500});
@@ -341,4 +341,167 @@ test("earlier pilot record format retains accepted receipts and downloads", asyn
   const downloaded=await worker.fetch(new Request(`https://reports.example/reports/${report().report_id}/download`,{
     headers:{Authorization:`Bearer ${stored.download_key}`}}),env);
   assert.deepEqual(await downloaded.json(),report());
+});
+
+function publicEnvironment() {
+  return {...environment(),PUBLIC_REPORTS:"1",TURNSTILE_SITE_KEY:"mock-live-site-key-123456789",
+    TURNSTILE_SECRET_KEY:"mock-live-server-secret-123456789"};
+}
+function publicRequest(path,body,token="",ip="198.51.100.10") {
+  return new Request("https://reports.example"+path,{method:body === undefined ? "GET" : "POST",
+    headers:{"Content-Type":"application/json","CF-Connecting-IP":ip,...(token ? {Authorization:`Bearer ${token}`} : {})},
+    ...(body === undefined ? {} : {body:typeof body === "string" ? body : JSON.stringify(body)})});
+}
+async function sha(text) {
+  return [...new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(text)))].map(x=>x.toString(16).padStart(2,"0")).join("");
+}
+function publicMock(options={}) {
+  const mock=githubMock(options), githubFetch=globalThis.fetch, checks=[];
+  globalThis.fetch=async (url,request)=>{
+    if(url !== "https://challenges.cloudflare.com/turnstile/v0/siteverify") return githubFetch(url,request);
+    const data=JSON.parse(request.body); checks.push(data);
+    assert.equal(data.secret,"mock-live-server-secret-123456789");
+    return Response.json({success:data.response.startsWith("valid-turnstile-token."),hostname:"reports.example",action:"cdmw_report",
+      cdata:data.response.split(".")[1],challenge_ts:new Date(Date.now()).toISOString(),...options.validation});
+  };
+  return {...mock,checks};
+}
+async function startPublic(env,raw=JSON.stringify(report()),ip="198.51.100.10") {
+  const result=await worker.fetch(publicRequest("/verification/start",{
+    report_id:JSON.parse(raw).report_id,report_sha256:await sha(raw)},"",ip),env);
+  assert.equal(result.status,200);
+  return result.json();
+}
+async function approvePublic(env,check,token) {
+  const ticket=JSON.parse(Buffer.from(check.ticket.split('.')[0],"base64url").toString());
+  token ??= "valid-turnstile-token."+ticket.nonce;
+  return worker.fetch(publicRequest("/verification/complete",{ticket:check.ticket,turnstile_token:token}),env);
+}
+
+test("public intake requires configured live verification and never accepts the private test key",async()=>{
+  const env=publicEnvironment(); const mock=publicMock();
+  assert.equal((await worker.fetch(request(),env)).status,401);
+  assert.equal(env.REPORTS.values.size,0);
+  const check=await startPublic(env);
+  assert.equal(env.REPORTS.values.size,0);
+  assert.equal(mock.checks.length,0);
+  assert.equal(mock.creates(),0);
+  assert.equal(check.verification_url,"https://reports.example/verify#"+check.ticket);
+  assert.equal(JSON.stringify(check).includes(env.TURNSTILE_SECRET_KEY),false);
+  const status=await worker.fetch(publicRequest("/verification/status",undefined,check.ticket),env);
+  assert.deepEqual(await status.json(),{status:"pending",report_id:report().report_id});
+  assert.equal((await worker.fetch(publicRequest("/reports",JSON.stringify(report()),check.ticket),env)).status,401);
+  assert.equal(env.REPORTS.values.size,0);
+  for(const patch of [{TURNSTILE_SECRET_KEY:""},{TURNSTILE_SITE_KEY:"1x00000000000000000000AA"},
+      {TURNSTILE_SECRET_KEY:"1x0000000000000000000000000000000AA"}]) {
+    const invalid={...env,...patch};
+    assert.equal((await worker.fetch(publicRequest("/verification/start",{report_id:report().report_id,report_sha256:"a".repeat(64)}),invalid)).status,503);
+    assert.equal((await (await worker.fetch(publicRequest("/health"),invalid)).json()).configured,false);
+  }
+});
+
+test("public browser approval sends only the exact reviewed bytes to the private inbox",async()=>{
+  const env=publicEnvironment(), mock=publicMock();
+  const raw=JSON.stringify(report(),null,2).replace('"created_at": 1','"created_at": 1790840000000000100');
+  const check=await startPublic(env,raw);
+  assert.equal((await approvePublic(env,check)).status,200);
+  assert.equal(mock.checks.length,1);
+  assert.deepEqual(await (await worker.fetch(publicRequest("/verification/status",undefined,check.ticket),env)).json(),
+    {status:"verified",report_id:report().report_id});
+  assert.equal((await worker.fetch(publicRequest("/reports",raw,check.ticket),env)).status,201);
+  const record=await (await env.REPORTS.get(`reports/${report().report_id}.json`)).json();
+  assert.equal(record.report_json,raw);
+  assert.match(mock.issues[0].title,/^\[CDMW\] /);
+  assert.equal((await worker.fetch(publicRequest("/reports",raw,check.ticket),env)).status,200);
+  assert.equal(mock.creates(),1);
+  assert.equal((await approvePublic(env,check)).status,200);
+  assert.equal(mock.checks.length,1);
+  assert.equal((await worker.fetch(publicRequest(`/reports/${report().report_id}/download`,undefined,check.ticket),env)).status,404);
+  const altered=raw.replace('1790840000000000100','1790840000000000101');
+  assert.equal((await worker.fetch(publicRequest("/reports",altered,check.ticket),env)).status,401);
+  const different={...report(),report_id:freshReport(901).report_id};
+  assert.equal((await worker.fetch(publicRequest("/reports",different,check.ticket),env)).status,401);
+  assert.equal(mock.creates(),1);
+});
+
+test("public verification rejects forged tickets, other networks, expiry and wrong provider claims",async()=>{
+  const env=publicEnvironment(); publicMock(); const check=await startPublic(env);
+  assert.equal((await worker.fetch(publicRequest("/verification/status",undefined,check.ticket+"x"),env)).status,401);
+  assert.equal((await worker.fetch(publicRequest("/verification/status",undefined,check.ticket,"198.51.100.99"),env)).status,401);
+  for(const validation of [{success:false},{hostname:"attacker.example"},{action:"other"},{cdata:"other"},
+      {challenge_ts:new Date(Date.now()-301000).toISOString()}]) {
+    publicMock({validation});
+    assert.equal((await approvePublic(env,check)).status,400);
+    assert.equal(env.REPORTS.values.size,0);
+  }
+  const now=Date.now(); Date.now=()=>now+600001;
+  assert.equal((await approvePublic(env,check)).status,401);
+});
+
+test("a public client cannot post reports to a public or substituted GitHub inbox",async()=>{
+  for(const options of [{privateRepo:false},{repositoryName:"Ratty123/CDMW-Full"}]) {
+    const env=publicEnvironment(), mock=publicMock(options);
+    const check=await startPublic(env);
+    assert.equal((await approvePublic(env,check)).status,200);
+    assert.equal((await worker.fetch(publicRequest("/reports",report(),check.ticket),env)).status,503);
+    assert.equal(mock.creates(),0);
+  }
+});
+
+test("fresh browser challenges do not reuse failed provider validation keys",async()=>{
+  const env=publicEnvironment(), mock=publicMock({validation:{success:false}}), check=await startPublic(env);
+  for(const token of ["failed-token-one","failed-token-one","failed-token-two"])
+    assert.equal((await approvePublic(env,check,token)).status,400);
+  const keys=mock.checks.map(value=>value.idempotency_key);
+  assert.match(keys[0],/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-8[0-9a-f]{3}-[0-9a-f]{12}$/);
+  assert.equal(keys[0],keys[1]);
+  assert.notEqual(keys[0],keys[2]);
+  assert.equal(env.REPORTS.values.size,0);
+});
+
+test("public verification reservations enforce persistent budgets and fail closed",async()=>{
+  const advance=clock(15), env=publicEnvironment(); publicMock();
+  const check=await startPublic(env), ticket=JSON.parse(Buffer.from(check.ticket.split('.')[0],"base64url").toString());
+  const day=new Date(Date.now()).toISOString().slice(0,10);
+  const entries=Array.from({length:20},(_,index)=>({nonce:freshReport(800+index).report_id,subject:ticket.subject,at:Date.now()-3000}));
+  await env.REPORTS.put("reports/_verification-admission-v1.json",JSON.stringify({version:1,day,entries}));
+  const blocked=await approvePublic(env,check);
+  assert.equal(blocked.status,429);
+  assert.equal((await blocked.json()).code,"verification_network_limit");
+  assert.equal(env.REPORTS.values.size,1);
+  entries.length=0;
+  for(let index=0;index<500;index++) entries.push({nonce:freshReport(1000+index).report_id,subject:"a".repeat(64),at:Date.now()-3000});
+  await env.REPORTS.put("reports/_verification-admission-v1.json",JSON.stringify({version:1,day,entries}));
+  assert.equal((await approvePublic(env,check)).status,429);
+  await env.REPORTS.put("reports/_verification-admission-v1.json",JSON.stringify({version:1,day,entries:[{nonce:"bad"}]}));
+  assert.equal((await approvePublic(env,check)).status,503);
+  advance(86400000);
+  const next=await startPublic(env);
+  // Corrupt protection is not silently replaced at midnight.
+  assert.equal((await approvePublic(env,next)).status,503);
+});
+
+test("concurrent public verifications cannot overrun persistent reservations",async()=>{
+  clock(16);const env=publicEnvironment();publicMock();
+  const first=await startPublic(env),second=await startPublic(env);
+  const results=await Promise.all([approvePublic(env,first),approvePublic(env,second)]);
+  assert.deepEqual(results.map(r=>r.status).sort(),[200,429]);
+  const ledger=await (await env.REPORTS.get("reports/_verification-admission-v1.json")).json();
+  assert.equal(ledger.entries.length,1);
+  assert.equal([...env.REPORTS.values.keys()].filter(key=>key.startsWith("reports/_verification/")).length,1);
+});
+
+test("verification page exposes only the public widget key and keeps credentials out of URLs",async()=>{
+  const env=publicEnvironment();
+  const page=await worker.fetch(publicRequest("/verify"),env), html=await page.text();
+  assert.equal(page.status,200);
+  assert.match(html,/location.hash.slice/);
+  assert.match(html,/history.replaceState/);
+  assert.match(html,/cData:data.nonce/);
+  assert.match(html,/send automatically/);
+  assert.equal(html.includes(env.TURNSTILE_SECRET_KEY),false);
+  assert.equal(html.includes(env.GITHUB_TOKEN),false);
+  assert.equal(html.includes(env.REPORT_TEST_TOKEN),false);
+  assert.match(page.headers.get("Content-Security-Policy"),/frame-src https:\/\/challenges.cloudflare.com/);
+  assert.equal(page.headers.get("Referrer-Policy"),"no-referrer");
 });
