@@ -9,26 +9,27 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Changed
 
-- Resident archive lookups reuse decoded paths and package ownership while retaining mount priority and source validation.
-- Create New Item keeps effects catalogue discovery separate from export source tracking; selected authoring dependencies still receive stale-source checks.
-- Effects catalogue parsing reuses bounded immutable schemas and collects metadata in one traversal, preserving full authoring decoding and validation.
-- Archive Browser always uses the standalone archive backend. The retired scanner, shadow comparison and session fallback are removed; obsolete `CDMW_ARCHIVE_BACKEND` overrides are ignored with a log notice. Existing user caches remain in place.
-- Item Finder shows categories and subcategories with item counts in a persistent list on the left, the item grid in the middle and details on the right. Saved pane widths follow their respective panes. The archive extension picker button is named Select Extension.
+- Faster repeated archive browsing, effects-library discovery and effect metadata loading.
+- Archive Browser uses the standalone backend exclusively; legacy `CDMW_ARCHIVE_BACKEND` overrides are ignored.
+- Item Finder places categories and item counts on the left, results in the centre and details on the right, with remembered pane widths.
 
 ### Fixed
 
-- FBX imports retain all bone influences and active vertex colors with the correct color space. The Python FBX writer accepts mixed integer/decimal vertex attributes.
-- Cross-format mesh returns recover missing UV sets and texture bindings, restore local coordinates and bounds, and keep parts and material bindings aligned after Blender renames or reorders objects. Recovered maps reach the import and preview paths. Split OBJ companions retain source, rig, scene and existing clip metadata.
-- Mesh exchange retains authored PBR maps and values, extra UV sets, vertex colors, resolved rigs and morph targets. GLB embeds textures and retains existing animation clips; OBJ/FBX carry portable texture copies and explicit format-limit reports. Editable companions preserve game metadata and reject ambiguous vertex or joint identities. FBX import uses the selected Blender with cancellation and atomic conversion, and no-UV source meshes round-trip without requiring an unwrap.
-- Item Finder keeps category names, item captions and detail actions readable at narrow widths and larger fonts. Long details wrap without changing copied text, the grid uses its available width, and the empty details view shows a compact selection prompt.
-- Selecting an archive extension closes the picker, including on double-click. The picker becomes available when archive rows appear and receives extension counts ahead of background catalogue warmups.
-- Unavailable hairstyles can be selected to inspect their preview and compatibility reason without enabling Start or losing the selection when other checks finish. Hairstyles using separate base and tail meshes remain unsupported by Hair Tools.
-- Temporary archive-worker and item-indexing failures receive one cancellable retry. Stalled work shows its stage and elapsed time, then stops after five minutes without progress. Persistent failures offer targeted Retry, Copy error report and Details; background item-name failures leave archive browsing available. Reports preserve error codes and redact local folder prefixes.
-- Generated material caches and transient preview, Effects and model-import folders track ownership and live use. Later launches safely reclaim abandoned marked data, retry failed cleanup and report preserved leftovers; recovery backups, baselines and export history remain protected. Effects shutdown removes its empty parent after the builder and preview stop.
-- Archive scans skip backup vaults instead of treating their indexes as live game archives, preventing extraction failures from missing backup PAZ files. Existing catalogues containing backup sources rebuild automatically when reopened.
-- Ready ZIP exports retain the complete mod folder name, including dots and manager suffixes, so separate exports cannot overwrite an unrelated shortened ZIP.
-- Repackage Mods selects available dotted filenames without looping indefinitely and can cancel during filename selection.
-- Model Library retains checked models when sorting or refreshing matching rows; removed rows no longer remain in batch selections.
+- Mesh interchange preserves supported material maps and values, UV sets, vertex colours, skin weights, rigs, morph targets and existing animation clips. Export packages include portable textures, game metadata and format-limit reports.
+- Meshes returned from Blender retain part/material assignments, local coordinates and bounds after renaming or reordering. Companions recover missing UV sets and textures; geometry-only meshes can return without unwrapping.
+- FBX import uses the selected Blender, supports cancellation and retains all bone influences and correct vertex colours. FBX export accepts mixed numeric vertex data.
+- Item Finder keeps category names, item captions and actions readable at narrow widths and larger fonts; long details wrap without changing copied text.
+- Select Extension closes reliably after selection and becomes available with extension counts as archive rows load.
+- Hair Tools lets users preview unavailable hairstyles and read their compatibility reason while keeping Start disabled. Styles with separate base and tail meshes remain unsupported.
+- Archive loading and item indexing retry temporary failures once. Stalled work stops after five minutes without progress and offers retry and error details; item-name failures leave archive browsing available.
+- Later launches reclaim abandoned temporary data while preserving active sessions, recovery backups and export history.
+- Archive scans exclude backup vaults, preventing extraction failures from missing backup files. Existing affected catalogues rebuild automatically.
+- ZIP exports retain complete mod folder names, including dots and manager suffixes. Repackage Mods avoids filename-selection loops and remains cancellable.
+- Model Library keeps checked models through sorting and refreshes, and removes missing models from batch selections.
+
+### Docs
+
+- Reorganized feature guides for clearer navigation while retaining detailed workflows and compatibility limits.
 
 ## [0.11.0-alpha.22] - 2026-09-29
 
