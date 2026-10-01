@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import logging
 import signal
 import subprocess
 import threading
@@ -30,6 +31,12 @@ class ProcessTimeoutExpired(RuntimeError):
         self.stderr = stderr
         command_label = self.cmd[0] if self.cmd else "process"
         super().__init__(f"{command_label} timed out after {self.timeout_seconds:.0f}s")
+        try:
+            logging.getLogger(__name__).error("External helper timed out: %s", Path(command_label).name,
+                extra={"diagnostic_context": {"program": command_label, "timeout_seconds": self.timeout_seconds,
+                                              "stderr": str(stderr)[-4000:]}})
+        except Exception:
+            pass
 
 
 def read_file_bytes_cancellable(
@@ -469,6 +476,14 @@ def run_process_with_cancellation(
                 stdout, stderr = proc.communicate(timeout=0.2)
                 if on_poll:
                     on_poll()
+                if proc.returncode:
+                    try:
+                        logging.getLogger(__name__).error("External helper exited %s: %s", proc.returncode, Path(str(cmd[0])).name,
+                            extra={"diagnostic_context": {"program": str(cmd[0]), "exit_code": proc.returncode,
+                                "process_pid": proc.pid, "elapsed_seconds": round(time.monotonic() - start_time, 3),
+                                "stderr": (stderr or "")[-4000:]}})
+                    except Exception:
+                        pass
                 return proc.returncode, stdout or "", stderr or ""
             except subprocess.TimeoutExpired:
                 continue

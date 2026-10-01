@@ -18,6 +18,7 @@ from cdmw.modding.mesh_native_payloads import _i32_range_report_values
 from cdmw.modding.mesh_native_preview_payloads import _native_preview_triangle_group, _native_preview_vertex_update_group
 from cdmw.modding.mesh_native_report_application import _refresh_mesh_totals
 from cdmw.modding.mesh_native_report_edits import _apply_mesh_edit_report
+from cdmw.modding.mesh_native_dispatch import _note_native_job_failure
 from cdmw.modding.mesh_native_session_payloads import _native_mesh_editor_selection_payload
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 
@@ -90,14 +91,21 @@ def native_mesh_editor_session_command(
     stop_event: threading.Event | None = None,
     timeout_seconds: float = 5.0,
 ) -> dict[str, object] | None:
+    diagnostic_payload = {"command": command, "session_id": session_id}
     if os.environ.get("CDMW_DISABLE_NATIVE_MESH_CORE", "").strip():
+        _note_native_job_failure("mesh-editor-session-json", "Native mesh core disabled by environment.", payload=diagnostic_payload)
         return None
     binary = find_native_mesh_core_binary()
-    if binary is None or not _native_mesh_core_service_enabled(stop_event=stop_event):
+    if binary is None:
+        _note_native_job_failure("mesh-editor-session-json", "Native mesh core executable unavailable.", payload=diagnostic_payload)
+        return None
+    if not _native_mesh_core_service_enabled(stop_event=stop_event):
+        _note_native_job_failure("mesh-editor-session-json", "Resident native mesh service unavailable.", binary=binary, payload=diagnostic_payload)
         return None
     session_text = str(session_id or "").strip()
     command_text = str(command or "").strip().lower()
     if not session_text or not command_text:
+        _note_native_job_failure("mesh-editor-session-json", "Missing native command or session ID.", binary=binary, payload=diagnostic_payload)
         return None
     request: dict[str, object] = dict(payload or {})
     request.update(
@@ -641,14 +649,15 @@ def _morph_runtime_snapshot_sha256(path: Path) -> str:
 
 def _validated_morph_runtime_snapshot_descriptor(
     value: object,
+    *, raise_on_error: bool = False,
 ) -> dict[str, object] | None:
-    if not isinstance(value, Mapping):
-        return None
     try:
+        if not isinstance(value, Mapping):
+            raise ValueError("Snapshot descriptor is not an object.")
         if str(value.get("schema") or "") != _MORPH_RUNTIME_SNAPSHOT_SCHEMA:
-            return None
+            raise ValueError("Snapshot descriptor schema mismatch.")
         if int(value.get("version") or 0) != 1:
-            return None
+            raise ValueError("Unsupported snapshot descriptor version.")
         snapshot_id = str(value.get("snapshot_id") or "").strip()
         source_session_id = str(value.get("source_session_id") or "").strip()
         raw_path = str(value.get("path") or "").strip()
@@ -657,26 +666,28 @@ def _validated_morph_runtime_snapshot_descriptor(
         byte_length = int(value.get("byte_length") or 0)
         retained_bytes = int(value.get("retained_bytes") or 0)
         if not snapshot_id or len(snapshot_id) > 128 or not source_session_id:
-            return None
+            raise ValueError("Snapshot identity or source session is missing or invalid.")
         if len(sha256) != 64 or any(ch not in "0123456789abcdef" for ch in sha256):
-            return None
+            raise ValueError("Snapshot checksum is missing or invalid.")
         if len(topology_digest) != 64 or any(ch not in "0123456789abcdef" for ch in topology_digest):
-            return None
+            raise ValueError("Snapshot topology digest is missing or invalid.")
         if not 0 < retained_bytes <= byte_length <= _MORPH_RUNTIME_SNAPSHOT_MAX_BYTES:
-            return None
+            raise ValueError("Snapshot retained bytes or file length is outside the allowed bounds.")
         path = Path(raw_path).resolve(strict=True)
         temp_root = Path(tempfile.gettempdir()).resolve(strict=True)
         if path.parent != temp_root:
-            return None
+            raise ValueError("Snapshot is outside the app-owned temporary location.")
         if not path.name.startswith("cdmw_mesh_preview_delta_") or not path.name.endswith(
             _MORPH_RUNTIME_SNAPSHOT_SUFFIX
         ):
-            return None
+            raise ValueError("Snapshot filename is not an app-owned runtime snapshot.")
         if not path.is_file() or path.stat().st_size != byte_length:
-            return None
+            raise ValueError("Snapshot file length differs from its descriptor or is not a file.")
         if _morph_runtime_snapshot_sha256(path) != sha256:
-            return None
-    except (OSError, OverflowError, TypeError, ValueError):
+            raise ValueError("Snapshot file checksum differs from its descriptor.")
+    except (OSError, OverflowError, TypeError, ValueError) as exc:
+        if raise_on_error:
+            raise ValueError(f"{type(exc).__name__}: {exc}") from exc
         return None
     return {
         "schema": _MORPH_RUNTIME_SNAPSHOT_SCHEMA,
@@ -739,9 +750,16 @@ def restore_native_mesh_editor_morph_runtime_snapshot(
 ) -> dict[str, object] | None:
     """Restore runtime state directly; resident geometry is intentionally untouched."""
 
-    descriptor = _validated_morph_runtime_snapshot_descriptor(snapshot)
     session_text = str(session_id or "").strip()
-    if descriptor is None or not session_text:
+    try:
+        descriptor = _validated_morph_runtime_snapshot_descriptor(snapshot, raise_on_error=True)
+        if not session_text:
+            raise ValueError("Restore target session ID is missing.")
+    except ValueError as exc:
+        context = {"command": "morph_snapshot_restore", "session_id": session_text}
+        if isinstance(snapshot, Mapping):
+            context.update({key: snapshot.get(key) for key in ("snapshot_id", "source_session_id", "topology_digest")})
+        _note_native_job_failure("mesh-editor-session-json", f"Snapshot restore validation failed: {exc}", payload=context, exc_info=True)
         return None
     return native_mesh_editor_session_command(
         "morph_snapshot_restore",

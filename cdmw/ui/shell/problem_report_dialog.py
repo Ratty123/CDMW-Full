@@ -931,6 +931,9 @@ class ProblemReportDialog(QDialog):
             self._show_field_error(*errors[0])
             return
         self._invalidate()
+        snapshot_provider = getattr(self.parent(), "_problem_report_snapshot", None)
+        if callable(snapshot_provider):
+            self._snapshot = snapshot_provider()
         request = ProblemReportRequest(details, self._snapshot, self.include_logs.isChecked(),
                                        self.include_layout.isChecked() and self.include_layout.isEnabled(), self._screenshots)
         self._loading_draft = False

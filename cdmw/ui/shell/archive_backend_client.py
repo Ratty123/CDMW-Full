@@ -6,6 +6,7 @@ from collections import deque
 from dataclasses import dataclass
 from enum import Enum
 import json
+import logging
 from pathlib import Path
 from typing import Callable, Mapping, Sequence
 from uuid import uuid4
@@ -640,7 +641,18 @@ class ArchiveBackendClient(QObject):
         )
 
     def _fail_request(self, request_id: str, error: ArchiveBackendError) -> None:
-        if self._pending.pop(request_id, None) is not None:
+        pending = self._pending.pop(request_id, None)
+        if pending is not None:
+            context = {"request_id": request_id, "operation": pending.envelope.operation.value,
+                       "ui_generation": pending.envelope.ui_generation,
+                       "session_id": pending.expected_session_id, "process_generation": self._process_generation,
+                       "error_code": error.code, "detail": error.detail or self.diagnostics_tail[-4000:]}
+            try:
+                logging.getLogger(__name__).log(logging.INFO if error.code == "cancelled" else logging.ERROR,
+                    "Archive backend request failed: %s: %s", error.code, error.message,
+                    extra={"diagnostic_context": context})
+            except Exception:
+                pass
             self._remove_queued_request(request_id)
             self.request_failed.emit(request_id, error)
 

@@ -32,6 +32,7 @@ from cdmw.modding.mesh_native_core import (
     _native_preview_delta_output_dir,
     create_native_mesh_editor_morph_runtime_snapshot,
     dispose_native_mesh_editor_morph_runtime_snapshot,
+    last_native_mesh_core_job_error,
     native_mesh_core_available,
     native_mesh_editor_session_command,
     native_mesh_editor_session_preview_triangle_groups,
@@ -349,7 +350,13 @@ class MeshMorphServiceMixin:
                 or str(report.get("status") or "").strip().lower() != "ok"
                 or report.get("geometry_recomposed") is not False
             ):
-                raise RuntimeError("Resident C++ Morph & Refit runtime snapshot restore failed.")
+                if isinstance(report, Mapping):
+                    reason = str(report.get("error") or report.get("message") or report.get("reason") or
+                                 f"Unexpected restore response: status={report.get('status')!r}, "
+                                 f"geometry_recomposed={report.get('geometry_recomposed')!r}")
+                else:
+                    reason = last_native_mesh_core_job_error() or "Native restore returned no report or rejection reason."
+                raise RuntimeError(f"Resident C++ Morph & Refit runtime snapshot restore failed. {reason}")
         except Exception:
             if previous_cache is None:
                 self._morph_sessions.pop(session.session_id, None)

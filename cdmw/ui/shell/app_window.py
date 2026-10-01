@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import platform
 import sys
@@ -14,6 +15,7 @@ from typing import Dict, Optional
 from cdmw.domain.mesh.validation import mesh_import_mode_availability
 from cdmw.services.diagnostics_service import (
     RuntimeEventRecorder,
+    RuntimeDiagnosticLogHandler,
     add_persisted_crash_breadcrumbs as _add_persisted_crash_breadcrumbs_service,
     check_previous_unclean_exit as _check_previous_unclean_exit_service,
     cleanup_native_fault_log_on_exit as _cleanup_native_fault_log_file,
@@ -155,6 +157,8 @@ def run_gui() -> int:
     _runtime_event_recorder = RuntimeEventRecorder(
         _runtime_event_log_path, session_id=_session_id, memory_snapshot=_windows_process_memory_snapshot
     )
+    _diagnostic_log_handler = RuntimeDiagnosticLogHandler(_runtime_event_recorder)
+    logging.getLogger().addHandler(_diagnostic_log_handler)
     _last_active_operation: Dict[str, object] = {
         "operation": "startup", "timestamp": time.time(), "pid": os.getpid(), "session_id": _session_id,
     }
@@ -179,6 +183,11 @@ def run_gui() -> int:
         _last_active_operation = _record_runtime_event(
             "last_active_operation", operation=str(operation or "operation"), **fields
         )
+        if _active_main_window is not None:
+            try:
+                _active_main_window._last_active_operation = dict(_last_active_operation)
+            except Exception:
+                pass
 
     def _add_persisted_crash_breadcrumbs(context: Dict[str, object]) -> None:
         _add_persisted_crash_breadcrumbs_service(
@@ -434,6 +443,7 @@ def run_gui() -> int:
                 write_heartbeat=_write_heartbeat,
             )
             self._initialize_window_runtime_state()
+            self._runtime_event_tail = _runtime_event_recorder.tail
             self.archive._initialize_archive_runtime_state()
             self._initialize_tool_window_state()
             pump_startup_splash("Preparing workspace...")
@@ -558,5 +568,7 @@ def run_gui() -> int:
         if normal_exit:
             _write_heartbeat("closed", clean_shutdown=True)
         _cleanup_native_fault_log_on_exit(clean_exit=bool(normal_exit))
+        logging.getLogger().removeHandler(_diagnostic_log_handler)
+        _diagnostic_log_handler.close()
 
 __all__ = ["MainWindow", "mesh_import_mode_availability", "run_gui"]

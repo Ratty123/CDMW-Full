@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import threading
+import logging
 from typing import Callable
 
 from PySide6.QtCore import QObject, Signal, Slot
@@ -44,6 +45,13 @@ class UtilityWorker(QObject):
                 result = self.task(self.log_message.emit)
             self.completed.emit(result)
         except Exception as exc:
+            from cdmw.models import RunCancelled
+
+            if not isinstance(exc, RunCancelled):
+                try:
+                    logging.getLogger(__name__).exception("Background utility task failed: %s", exc)
+                except Exception:
+                    pass
             self.error.emit(str(exc))
         finally:
             self.finished.emit()

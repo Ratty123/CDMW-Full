@@ -170,8 +170,11 @@ reproduction, setup, evidence, then review. Select the tool and affected action;
 the input choices, examples and setup questions follow that selection. Stalls ask
 about wait time and progress; app-only issues can skip game and mod questions.
 Short prompts keep the form compact; **?** buttons provide targeted help. It prepares a
-local draft with redacted paths and common credentials, recent log excerpts, a
-bounded folder listing and optional screenshots. The review screen has a readable
+local draft with redacted paths and common credentials, recent tool logs and
+activity, detailed worker/helper errors, recent crash or hang reports, application
+and helper fingerprints, a bounded folder listing and optional screenshots.
+Collection refreshes when you prepare the draft and identifies missing, unreadable
+or truncated evidence. Log evidence can be excluded. The review screen has a readable
 summary, full report details and fitted screenshots with a full-size option.
 Review it before sharing; screenshots can still contain visible personal
 information. It does not upload game file contents.

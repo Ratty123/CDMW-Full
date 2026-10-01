@@ -143,6 +143,19 @@ def append_compact_activity(
     from cdmw.ui.texture_workflow.job import TEXTURE_TOOL_ALIASES
     if tool_key in TEXTURE_TOOL_ALIASES:
         tool_key = "textures"
+    recorder = getattr(owner.shell, "_record_runtime_event", None)
+    if callable(recorder):
+        try:
+            # Some tools prefix errors in their log without setting severity.
+            import re
+
+            marker = re.match(r"^\s*(?:\[[^\]]+\]\s*)?(ERROR|FAIL(?:ED)?|WARN(?:ING)?)\b", str(message), re.I)
+            level = severity
+            if marker and severity == "info":
+                level = "warning" if marker[1].lower().startswith("warn") else "error"
+            recorder("tool_activity", tool_key=tool_key, source=source, severity=level, message=message)
+        except Exception:
+            pass
     workspace = getattr(owner.shell, "compact_workspace", None)
     if isinstance(workspace, CompactWorkspace):
         workspace.append_activity(

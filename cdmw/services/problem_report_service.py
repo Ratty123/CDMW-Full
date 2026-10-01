@@ -6,6 +6,7 @@ import base64
 import hashlib
 import io
 import json
+import math
 import os
 import platform
 import re
@@ -115,6 +116,10 @@ class ProblemSnapshot:
     live_log: str = ""
     archive_log: str = ""
     captured_at: float = 0
+    recent_events_json: str = "[]"
+    mesh_diagnostics_json: str = "{}"
+    native_log: str = ""
+    tool_logs_json: str = "{}"
 
 
 @dataclass(frozen=True)
@@ -209,6 +214,8 @@ class ReportRedactor:
     def value(self, value: object, *, depth: int = 0) -> object:
         if depth > 8:
             return "<TRUNCATED>"
+        if isinstance(value, float) and not math.isfinite(value):
+            return str(value)
         if isinstance(value, dict):
             return {self.text(str(key)): ("<REDACTED>" if re.search(
                 r"(?i)password|secret|token|api.?key|authorization", str(key))
@@ -273,30 +280,6 @@ def _folder_layout(root: str, stop_event: threading.Event | None) -> dict:
         return {"status": "unavailable", "entries": entries}
 
 
-def _event_tail(snapshot: ProblemSnapshot) -> list:
-    if not snapshot.event_log:
-        return []
-    try:
-        with Path(snapshot.event_log).open("rb") as handle:
-            size = handle.seek(0, os.SEEK_END)
-            offset = max(0, size - 64 * 1024)
-            handle.seek(offset)
-            data = handle.read(64 * 1024)
-        if offset:
-            _, _, data = data.partition(b"\n")
-        events = []
-        for line in data.decode("utf-8", errors="replace").splitlines()[-80:]:
-            try:
-                event = json.loads(line)
-                if isinstance(event, dict) and float(event.get("timestamp", 0)) <= snapshot.captured_at:
-                    events.append(event)
-            except (ValueError, TypeError):
-                continue
-        return events[-40:]
-    except OSError:
-        return []
-
-
 def _screenshot(path: str, index: int) -> dict:
     from PIL import Image
 
@@ -334,6 +317,9 @@ def collect_problem_report(request: ProblemReportRequest, *, stop_event: threadi
                 "environment": {"cdmw_version": APP_VERSION, "os": platform.system(),
                                 "os_release": platform.release(), "architecture": platform.machine(),
                                 "python": platform.python_version(), "packaged": bool(getattr(sys, "frozen", False))}}
+    from cdmw.services.problem_report_diagnostics import collect_report_build_identity, collect_report_logs
+
+    evidence["environment"]["build_identity"] = collect_report_build_identity(stop_event=stop_event)
     selected = context.get("selected_archive_package", "")
     if selected:
         try:
@@ -343,8 +329,9 @@ def collect_problem_report(request: ProblemReportRequest, *, stop_event: threadi
         except OSError:
             evidence["selected_archive_source"] = {"path": selected, "exists": False}
     if request.include_logs:
-        evidence["logs"] = {"live": snapshot.live_log[-32000:], "archive": snapshot.archive_log[-32000:],
-                            "runtime_events": _event_tail(snapshot), "scope": "recent excerpts at report time"}
+        evidence["logs"] = collect_report_logs(snapshot, stop_event=stop_event)
+    evidence["collection_options"] = {"logs": "included" if request.include_logs else "omitted by user",
+                                       "folder_layout": "included" if request.include_layout else "omitted by user"}
     if request.include_layout:
         evidence["folder_layout"] = {"archive_root": _folder_layout(snapshot.archive_root, stop_event),
                                      "game_root": _folder_layout(_game_root(snapshot.archive_root), stop_event),

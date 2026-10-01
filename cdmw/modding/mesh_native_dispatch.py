@@ -5,6 +5,7 @@ import ctypes
 import dataclasses
 from importlib import import_module
 import json
+import logging
 import math
 import os
 import queue
@@ -72,6 +73,10 @@ def _run_native_mesh_core_service_job(
             stop_event=stop_event,
             timeout_seconds=timeout_seconds,
         )
+    def note_failure(reason: str, *, exc_info: bool = False) -> None:
+        _note_native_job_failure(command, reason, binary=binary, payload=payload,
+                                 timeout_seconds=timeout_seconds, exc_info=exc_info)
+
     job_root = Path(tempfile.mkdtemp(prefix="cdmw_mesh_core_service_"))
     job_path = job_root / "job.json"
     report_path = job_root / "report.json"
@@ -90,17 +95,27 @@ def _run_native_mesh_core_service_job(
             **service_kwargs,
         )
         if not report_path.is_file():
+            note_failure("resident helper wrote no report")
             return None
         try:
             report = json.loads(report_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+        except (OSError, json.JSONDecodeError) as exc:
+            note_failure(f"report unreadable: {type(exc).__name__}: {exc}", exc_info=True)
             return None
-        if not isinstance(report, dict) or str(report.get("status") or "").lower() != "ok":
+        if not isinstance(report, dict):
+            note_failure(f"report was {type(report).__name__}, not an object")
             return None
+        status = str(report.get("status") or "").lower()
+        if status != "ok":
+            detail = str(report.get("error") or report.get("message") or report.get("reason") or "").strip()
+            note_failure(f"resident status {status or 'missing'}: {detail or 'no message'}")
+            return None
+        _LAST_NATIVE_JOB_ERROR[0] = ""
         return report
     except RunCancelled:
         raise
-    except Exception:
+    except Exception as exc:
+        note_failure(f"resident {type(exc).__name__}: {exc}", exc_info=True)
         shutdown_native_mesh_core_service()
         return None
     finally:
@@ -115,6 +130,10 @@ def _run_native_mesh_core_service_inline_job(
     timeout_seconds: float,
 ) -> dict[str, object] | None:
     _LAST_NATIVE_JOB_REJECTION[0] = ""
+    def note_failure(reason: str, *, exc_info: bool = False) -> None:
+        _note_native_job_failure(command, reason, binary=binary, payload=payload,
+                                 timeout_seconds=timeout_seconds, exc_info=exc_info)
+
     try:
         response = _get_native_mesh_core_service(binary).run_inline_job(
             command,
@@ -128,8 +147,7 @@ def _run_native_mesh_core_service_inline_job(
             # with no account of itself: a refused stroke reported "native
             # apply returned no report" with nothing behind it, because the
             # instrumentation sat on the other runner.
-            _note_native_job_failure(
-                command,
+            note_failure(
                 f"inline response carried {type(report).__name__} instead of a report; "
                 f"keys={sorted(str(key) for key in response)[:8]}",
             )
@@ -144,8 +162,7 @@ def _run_native_mesh_core_service_inline_job(
             # the session down as lost.
             if detail:
                 _LAST_NATIVE_JOB_REJECTION[0] = detail
-            _note_native_job_failure(
-                command,
+            note_failure(
                 f"inline status {status or 'missing'}" + (f": {detail}" if detail else " with no message"),
             )
             return None
@@ -154,7 +171,7 @@ def _run_native_mesh_core_service_inline_job(
     except RunCancelled:
         raise
     except Exception as exc:
-        _note_native_job_failure(command, f"inline {type(exc).__name__}: {exc}")
+        note_failure(f"inline {type(exc).__name__}: {exc}", exc_info=True)
         shutdown_native_mesh_core_service()
         return None
 
@@ -189,8 +206,32 @@ def last_native_mesh_core_job_rejection() -> str:
     return _LAST_NATIVE_JOB_REJECTION[0]
 
 
-def _note_native_job_failure(command: str, reason: str) -> None:
+def _note_native_job_failure(
+    command: str, reason: str, *, binary: Path | None = None,
+    payload: Mapping[str, object] | None = None, timeout_seconds: float | None = None,
+    stderr: str = "", exc_info: bool = False,
+) -> None:
     _LAST_NATIVE_JOB_ERROR[0] = f"{command}: {reason}"
+    # A later successful cleanup may clear the compatibility slot. Retain the
+    # failure in the shared diagnostic log with only request metadata, never
+    # geometry, textures, or other input payloads.
+    context = {key: value for key, value in (payload or {}).items() if key in {
+        "command", "session_id", "backend", "protocol", "version", "revision",
+        "expected_revision", "snapshot_id", "snapshot_byte_length", "snapshot_sha256",
+        "source_session_id", "topology_digest",
+    } and isinstance(value, (str, int, float, bool))}
+    context["job_command"] = command
+    if binary is not None:
+        context.update(binary=str(binary), binary_name=binary.name)
+    if timeout_seconds is not None:
+        context["timeout_seconds"] = timeout_seconds
+    if stderr:
+        context["stderr"] = str(stderr)[-4000:]
+    try:
+        logging.getLogger(__name__).error("Native helper failed: %s", _LAST_NATIVE_JOB_ERROR[0],
+                                         extra={"diagnostic_context": context}, exc_info=exc_info)
+    except Exception:
+        pass
 
 
 def _run_native_mesh_core_job(
@@ -201,6 +242,10 @@ def _run_native_mesh_core_job(
     stop_event: threading.Event | None = None,
     timeout_seconds: float,
 ) -> dict[str, object] | None:
+    def note_failure(reason: str, *, stderr: str = "", exc_info: bool = False) -> None:
+        _note_native_job_failure(command, reason, binary=binary, payload=payload,
+                                 timeout_seconds=timeout_seconds, stderr=stderr, exc_info=exc_info)
+
     job_root = Path(tempfile.mkdtemp(prefix="cdmw_mesh_core_"))
     job_path = job_root / "job.json"
     report_path = job_root / "report.json"
@@ -210,6 +255,7 @@ def _run_native_mesh_core_job(
             encoding="utf-8",
         )
         returncode = 0
+        _stderr = ""
         use_service = _native_mesh_core_service_enabled(stop_event=stop_event)
         if use_service:
             try:
@@ -240,18 +286,18 @@ def _run_native_mesh_core_job(
                 timeout_seconds=max(0.5, float(timeout_seconds)),
             )
         if returncode != 0:
-            _note_native_job_failure(command, f"native process exited {returncode}")
+            note_failure(f"native process exited {returncode}", stderr=_stderr)
             return None
         if not report_path.is_file():
-            _note_native_job_failure(command, "native process wrote no report")
+            note_failure("native process wrote no report", stderr=_stderr)
             return None
         try:
             report = json.loads(report_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
-            _note_native_job_failure(command, f"report unreadable: {type(exc).__name__}: {exc}")
+            note_failure(f"report unreadable: {type(exc).__name__}: {exc}", exc_info=True)
             return None
         if not isinstance(report, dict):
-            _note_native_job_failure(command, f"report was {type(report).__name__}, not an object")
+            note_failure(f"report was {type(report).__name__}, not an object")
             return None
         status = str(report.get("status") or "").lower()
         if status != "ok":
@@ -259,8 +305,7 @@ def _run_native_mesh_core_job(
             # the only place that text exists. Discarding it is what left a
             # refused stroke describable only as "something native failed".
             detail = str(report.get("error") or report.get("message") or report.get("reason") or "").strip()
-            _note_native_job_failure(
-                command,
+            note_failure(
                 f"native status {status or 'missing'}" + (f": {detail}" if detail else " with no message"),
             )
             return None
@@ -269,7 +314,7 @@ def _run_native_mesh_core_job(
     except RunCancelled:
         raise
     except Exception as exc:
-        _note_native_job_failure(command, f"{type(exc).__name__}: {exc}")
+        note_failure(f"{type(exc).__name__}: {exc}", exc_info=True)
         return None
     finally:
         shutil.rmtree(job_root, ignore_errors=True)

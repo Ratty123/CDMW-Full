@@ -4,6 +4,7 @@ import ctypes
 import faulthandler
 import hashlib
 import json
+import logging
 import os
 import platform
 import re
@@ -52,7 +53,7 @@ _CRASH_REPORT_HEADER_KEYS = {
 def _normalize_traceback_path(path: str) -> str:
     normalized = str(path or "").replace("\\", "/")
     lowered = normalized.lower()
-    for marker in ("/cdmw/", "cdmw/", "/cdmw_app.py", "cdmw_app.py"):
+    for marker in ("/cdmw/", "cdmw/", "/cdmw_app.py", "cdmw_app.py", "/tools/", "tools/"):
         index = lowered.rfind(marker)
         if index >= 0:
             return normalized[index + (1 if marker.startswith("/") else 0) :]
@@ -327,7 +328,10 @@ def sanitize_runtime_event_value(value: object, *, depth: int = 0) -> object:
             if index >= 40:
                 sanitized["..."] = f"{len(value) - index} more"
                 break
-            sanitized[str(key)[:80]] = sanitize_runtime_event_value(item, depth=depth + 1)
+            if str(key) in {"stderr", "stderr_tail"} and isinstance(item, str):
+                sanitized[str(key)] = item[-4000:]
+            else:
+                sanitized[str(key)[:80]] = sanitize_runtime_event_value(item, depth=depth + 1)
         return sanitized
     if isinstance(value, (list, tuple, set)):
         items = list(value)
@@ -438,6 +442,7 @@ class RuntimeEventRecorder:
         self.persist_event_fn = persist_event_fn
         self._verbose_persistence = False
         self._runtime_event_ring = deque(maxlen=max(1, int(ring_size)))
+        self._lock = threading.RLock()
 
     def set_verbose_persistence(self, enabled: bool) -> None:
         self._verbose_persistence = bool(enabled)
@@ -452,43 +457,79 @@ class RuntimeEventRecorder:
             "session_id": self.session_id,
             "event": str(event or "event"),
         }
-        process_memory = dict(self.memory_snapshot(current_pid)) if self.memory_snapshot is not None else {}
+        sample_memory = str(event) != "tool_activity" or str(fields.get("severity", "info")).lower() in {"warning", "error", "critical"}
+        try:
+            process_memory = dict(self.memory_snapshot(current_pid)) if sample_memory and self.memory_snapshot is not None else {}
+        except Exception:
+            process_memory = {}
         if process_memory:
             payload["process_memory"] = process_memory
-        child_memory = runtime_event_child_memory(
-            fields,
-            current_pid=current_pid,
-            memory_snapshot=self.memory_snapshot,
-        )
+        try:
+            child_memory = runtime_event_child_memory(fields, current_pid=current_pid,
+                memory_snapshot=self.memory_snapshot if sample_memory else None)
+        except Exception:
+            child_memory = {}
         if child_memory:
             payload["child_process_memory"] = child_memory
         try:
-            payload["memory_total_private_bytes"] = int(process_memory.get("private_bytes", 0) or 0) + sum(
-                int(snapshot.get("private_bytes", 0) or 0)
-                for snapshot in child_memory.values()
-            )
+            if process_memory or child_memory:
+                payload["memory_total_private_bytes"] = int(process_memory.get("private_bytes", 0) or 0) + sum(
+                    int(snapshot.get("private_bytes", 0) or 0) for snapshot in child_memory.values())
         except Exception:
             pass
         for key, value in fields.items():
-            payload[str(key)] = sanitize_runtime_event_value(value)
-        self._runtime_event_ring.append(payload)
+            # Keep the final exception and its caller chain, rather than only
+            # the first few frames of a long worker traceback.
+            if key in {"traceback", "traceback_text"} and isinstance(value, str):
+                payload[str(key)] = value if len(value) <= 16000 else "<earlier frames truncated>\n" + value[-16000:]
+            else:
+                payload[str(key)] = sanitize_runtime_event_value(value)
         try:
             persist = self._verbose_persistence or bool(self.persist_event_fn(str(payload["event"])))
         except Exception:
             persist = True
-        if persist:
-            append_runtime_event_log(self.log_path, payload)
+        persist = persist or str(fields.get("severity", "")).lower() in {"warning", "error", "critical"}
+        with self._lock:
+            self._runtime_event_ring.append(payload)
+            if persist:
+                append_runtime_event_log(self.log_path, payload)
         return payload
 
     def tail(self, *, limit: int = 120) -> list[dict[str, object]]:
-        return list(self._runtime_event_ring)[-max(1, int(limit)) :]
+        with self._lock:
+            return list(self._runtime_event_ring)[-max(1, int(limit)) :]
+
+
+class RuntimeDiagnosticLogHandler(logging.Handler):
+    """Retain handled errors from any tool alongside the app's runtime events."""
+
+    def __init__(self, recorder: RuntimeEventRecorder) -> None:
+        super().__init__(logging.WARNING)
+        self.recorder = recorder
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            fields: dict[str, object] = {
+                "severity": record.levelname.lower(), "component": record.name,
+                "message": record.getMessage(), "source_file": _normalize_traceback_path(record.pathname),
+                "source_line": record.lineno, "function": record.funcName,
+            }
+            context = getattr(record, "diagnostic_context", None)
+            if isinstance(context, Mapping):
+                fields["diagnostic_context"] = context
+            if record.exc_info:
+                formatted = "".join(traceback.format_exception(*record.exc_info))
+                fields["traceback"] = re.sub(r'File "([^"]+)"',
+                    lambda match: f'File "{_normalize_traceback_path(match[1])}"', formatted)
+            self.recorder.record(f"logging_{record.levelname.lower()}", **fields)
+        except Exception:
+            # A diagnostic failure must not replace the operation's exception.
+            pass
 
 
 def read_jsonl_tail(path: Path, *, limit: int = 80) -> list[dict[str, object]]:
     try:
-        if not path.is_file():
-            return []
-        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()[-max(1, int(limit)) :]
+        lines = read_text_tail(path, limit=limit, max_bytes=256 * 1024)
     except Exception:
         return []
     payloads: list[dict[str, object]] = []
@@ -511,7 +552,7 @@ def read_text_tail(path: Path, *, limit: int = 40, max_bytes: int = 64 * 1024) -
             size = stream.seek(0, os.SEEK_END)
             offset = max(0, size - max(1, int(max_bytes)))
             stream.seek(offset)
-            payload = stream.read()
+            payload = stream.read(max(1, int(max_bytes)))
         if offset > 0:
             _, _, payload = payload.partition(b"\n")
         return payload.decode("utf-8", errors="replace").splitlines()[-max(1, int(limit)) :]
@@ -1078,6 +1119,7 @@ __all__ = [
     "CRASH_REPORT_CAPTURE_DEFAULT_KINDS",
     "DiagnosticsService",
     "RuntimeEventRecorder",
+    "RuntimeDiagnosticLogHandler",
     "add_persisted_crash_breadcrumbs",
     "append_runtime_event_log",
     "crash_report_context_from_text",

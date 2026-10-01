@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+import logging
 import traceback
 from collections.abc import Callable
 from typing import TypeVar
@@ -15,6 +16,13 @@ def run_worker_task(task: Callable[[], T]) -> WorkerSuccess[T] | WorkerFailure:
     try:
         value = task()
     except Exception as exc:
+        from cdmw.domain.cancellation import RunCancelled
+
+        if not isinstance(exc, RunCancelled):
+            try:
+                logging.getLogger(__name__).exception("Background task failed: %s", exc)
+            except Exception:
+                pass
         return WorkerFailure(
             message=str(exc),
             exception_type=type(exc).__name__,

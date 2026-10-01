@@ -13,6 +13,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Changed
 
+- Problem reports collect recent activity and logs across tools, detailed worker and helper failures, crash or hang evidence and build fingerprints. Evidence refreshes when preparing a draft, with missing or truncated sources identified in the reviewed report.
 - Faster repeated archive browsing, effects-library discovery and effect metadata loading.
 - Archive Browser uses the standalone backend exclusively; legacy `CDMW_ARCHIVE_BACKEND` overrides are ignored.
 - Item Finder places categories and item counts on the left, results in the centre and details on the right, with remembered pane widths.

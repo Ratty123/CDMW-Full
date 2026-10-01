@@ -17,6 +17,7 @@ import threading
 import time
 from collections import deque
 from collections.abc import Callable, Mapping
+from itertools import islice
 from pathlib import Path
 
 
@@ -30,8 +31,34 @@ def _recent_event_summary(row: Mapping[str, object]) -> dict[str, object]:
 
     summary: dict[str, object] = {}
     for key, value in row.items():
-        if value is None or isinstance(value, (bool, int, float, str)):
+        if key in {"args", "params", "diagnostic_context"} and isinstance(value, Mapping):
+            # Retain small command options (include/compare, part, mode,
+            # revision) even when the writer is still queued or unavailable.
+            options = {}
+            for name, option in islice(value.items(), 40):
+                if option is None or isinstance(option, (bool, int, float)):
+                    options[str(name)] = option
+                elif isinstance(option, str) and name in {
+                    "action", "mode", "compare_mode", "source_role", "target_role", "axis",
+                    "command", "session_id", "source_session_id", "backend", "protocol",
+                    "snapshot_id", "snapshot_sha256", "topology_digest", "binary_name",
+                    "reason", "error", "message", "stderr",
+                }:
+                    options[str(name)] = option[:1000]
+                elif isinstance(option, (list, tuple)) and name in {"part_ids", "submesh_ids", "part_indices", "submesh_indices"}:
+                    options[str(name)] = [item[:128] if isinstance(item, str) else item
+                                          for item in option[:40] if isinstance(item, (str, int))]
+                else:
+                    options[str(name)] = {"value_type": type(option).__name__,
+                                          "item_count": len(option) if hasattr(option, "__len__") else 0}
+            summary[str(key)] = options
+        elif value is None or isinstance(value, (bool, int, float)):
             summary[str(key)] = value
+        elif isinstance(value, str):
+            if key in {"data", "payload", "mesh", "scene", "scene_json", "content"} or str(key).endswith(("_base64", "_bytes")):
+                summary[str(key)] = {"value_type": "str", "item_count": len(value)}
+            else:
+                summary[str(key)] = value[:1000]
         elif isinstance(value, Mapping):
             summary[str(key)] = {
                 "value_type": "mapping",

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import os
 import threading
 import time
 from pathlib import Path
@@ -523,6 +524,8 @@ class ProfileControllerMixin:
 
     def _problem_report_snapshot(self):
         from cdmw.services.problem_report_service import ProblemSnapshot
+        from cdmw.services.mesh_interaction_diagnostics import mesh_interaction_diagnostics_snapshot
+        from cdmw.ui.shell.compact.activity import tool_log_adapter_for
 
         context = self._diagnostic_context_snapshot()
         context["archive_cache_health"] = {
@@ -531,13 +534,29 @@ class ProfileControllerMixin:
             "scope": "metadata cache only; not a clean-install verification",
         }
         root = Path(self.settings_file_path).parent / "workspace"
+        log_root = Path(getattr(self, "crash_reports_dir", root / "logs"))
+        tail = getattr(self, "_runtime_event_tail", None)
+        events = tail(limit=120) if callable(tail) else []
+        tool_logs = {}
+        for key in list(getattr(self, "_tool_widgets_by_key", {}))[:40]:
+            try:
+                adapter = tool_log_adapter_for(self, key)
+                if adapter.document is not None:
+                    tool_logs[key] = adapter.document.toPlainText()[-12000:]
+            except (AttributeError, RuntimeError):
+                continue
+        mesh_json = json.dumps(mesh_interaction_diagnostics_snapshot(), default=str)
         return ProblemSnapshot(
             context_json=json.dumps(context, default=str),
             archive_root=self.archive.archive_package_root_edit.text().strip(),
             workspace_root=str(root),
-            event_log=str(root / "logs" / "diagnostics_current.jsonl"),
+            event_log=str(log_root / "diagnostics_current.jsonl"),
             live_log=self.textures.log_view.toPlainText()[-32000:],
             archive_log=self.archive.archive_log_view.toPlainText()[-32000:],
+            recent_events_json=json.dumps(events, default=str),
+            mesh_diagnostics_json=mesh_json,
+            native_log=str(os.environ.get("CDMW_NATIVE_DIAGNOSTIC_LOG", "") or ""),
+            tool_logs_json=json.dumps(tool_logs, default=str),
             captured_at=time.time(),
         )
 
@@ -621,6 +640,17 @@ class ProfileControllerMixin:
             context["last_active_operation"] = dict(getattr(self, "_last_active_operation", {}) or {})
         except Exception:
             pass
+        context["session_id"] = str(getattr(self, "_session_id", ""))
+        context["previous_session_unclean"] = bool(getattr(self, "_previous_session_unclean", False))
+        context["theme"] = str(getattr(self, "current_theme_key", ""))
+        context["language"] = str(getattr(getattr(self, "ui_localizer", None), "language_code", ""))
+        for name in ("worker_thread", "archive_preview_thread", "archive_scan_thread"):
+            owner = self if name == "worker_thread" else self.archive
+            thread = getattr(owner, name, None)
+            try:
+                context[name] = "running" if thread is not None and thread.isRunning() else "idle"
+            except RuntimeError:
+                context[name] = "deleted"
         return context
 
     def _handle_diagnostic_bundle_complete(self, request_id: int, result: object) -> None:
