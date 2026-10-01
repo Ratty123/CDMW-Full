@@ -324,6 +324,11 @@ require layer composition retain level-zero pixels and receive a complete mip ch
 stable filtering and lower rendering cost when zoomed out. Archive Browser defaults to
 geometry-only.
 
+Exact PAC colour layers retain their authored opacity, including full-strength detail
+colours and channel-specific grime blending. Layered garments without a global
+base-colour texture use their first visible texture beneath the masks, as Mesh Editor
+does. Older cached previews are regenerated with this material handling.
+
 Its **Load textures** checkbox saves the existing `archive/model_use_textures`
 preference and keeps that choice across model selections and application restarts. Asset
 Family and referenced-file export choices are resolved independently of that checkbox.

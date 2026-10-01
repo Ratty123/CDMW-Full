@@ -67,6 +67,19 @@ def _raw_cache_entry(cache_root: Path, key: str) -> Path:
 
 
 class NativePreviewPackageCacheConcurrencyTests(unittest.TestCase):
+    def test_rejects_packages_with_legacy_muted_colour_layers(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            entry_dir = _raw_cache_entry(root, "legacy-materials")
+            metadata_path = entry_dir / "cache_entry.json"
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            metadata["schema"] = 3
+            metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+
+            self.assertIsNone(lookup_native_preview_package_cache(
+                root, "legacy-materials", validate_package=_validate,
+            ))
+
     def test_parallel_publishers_can_prune_without_waiting_on_each_others_locks(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

@@ -450,6 +450,61 @@ static void run_exact_layer_owner_stack_contract_self_test() {
     }
 }
 
+static void run_layered_garment_colour_contract_self_test() {
+    NativeSubmesh mesh;
+    mesh.name = "CD_PHW_00_Hand_0137_00";
+    mesh.material = mesh.name;
+    mesh.source_model_path = "character/model/1_pc/2_phw/armor/9_upperbody/cd_phw_00_ub_00_0137.pac";
+    mesh.source_local_submesh_index = 0;
+    const auto parameters = extract_material_parameters(
+        "<MaterialParameterByte4 _name=\"_dyeingGlobalOpacity\" _value=\"16777215\"/>"
+        "<MaterialParameterByte4 _name=\"_dyeingPropertyBlend\" _value=\"0\"/>"
+        "<MaterialParameterByte4 _name=\"_grimeBlendingParameterR\" _value=\"2147483648\"/>"
+        "<MaterialParameterByte4 _name=\"_grimeBlendingOpacityParameter1\" _value=\"0\"/>"
+        "<MaterialParameterByte4 _name=\"_grimeBlendingOpacityParameter\" _value=\"4278255360\"/>"
+        "<MaterialParameterBitFlag32 _name=\"_colorBlendingFlag\" _value=\"4095\"/>");
+    std::vector<TextureBinding> bindings{
+        exact_layer_contract_binding("base", "_baseColorTexture", "cloth_base.dds", "base", "r", "standard_v2", 0),
+        exact_layer_contract_binding("detail", "_detailMaskTexture", "cloth_detail_mask.dds", "detail", "b", "standard_v2", 0),
+        exact_layer_contract_binding("material", "_colorBlendingMaskTexture", "cloth_selector.dds", "material_response", "b", "standard_v2", 0),
+        exact_layer_contract_binding("base", "_grimeDiffuseTextureR", "grime_diffuse_r.dds", "grime", "r", "standard_v2", 0),
+        exact_layer_contract_binding("base", "_detailDiffuseMaskR", "detail_diffuse_r.dds", "detail", "r", "standard_v2", 0),
+    };
+    for (auto& binding : bindings) {
+        binding.sidecar_path = "character/modelproperty/1_pc/2_phw/armor/9_upperbody/cd_phw_00_ub_00_0137.pac_xml";
+        binding.material_name = mesh.material;
+        binding.material_parameters = parameters;
+        binding.dds_width = binding.dds_height = 256;
+    }
+    bindings[0].dds_width = bindings[0].dds_height = 4096;
+    std::vector<const TextureBinding*> refs;
+    for (const auto& binding : bindings) refs.push_back(&binding);
+    const std::vector<const TextureBinding*> layered_refs(refs.begin() + 1, refs.end());
+    NativeMaterialHints hints;
+    for (const bool has_base : {false, true}) {
+        const auto layers = compile_material_layers(has_base ? refs : layered_refs, mesh, has_base ? &bindings[0] : nullptr,
+            nullptr, nullptr, nullptr, nullptr, hints, "mesh_base_first");
+        require_material_contract(layers.size() == 3,
+            ("layered garment lost an authored colour layer: " + std::to_string(layers.size())).c_str());
+        require_material_contract(
+            std::abs(layers[1].weight - 128.0f / 255.0f) < 0.0001f
+                && std::abs(layers[2].weight - 1.0f) < 0.0001f,
+            "authored garment opacity was capped, scaled by property blend, or reduced by texture resolution");
+    }
+    bindings[4].material_parameters = extract_material_parameters(
+        "<MaterialParameterByte4 _name=\"_dyeingGlobalOpacity\" _value=\"16777215\"/>"
+        "<MaterialParameterBitFlag32 _name=\"_colorBlendingFlag\" _value=\"0\"/>");
+    const auto disabled = compile_material_layers(layered_refs, mesh, nullptr, nullptr, nullptr,
+        nullptr, nullptr, hints, "mesh_base_first");
+    require_material_contract(disabled.size() == 3 && disabled[2].weight == 0.0f,
+        "disabled authored garment layer became visible");
+    MaterialLayer inferred;
+    inferred.weight = 1.0f;
+    apply_layer_weight_and_tint_policy(inferred, false, false, false);
+    require_material_contract(std::abs(inferred.weight - 0.22f) < 0.0001f,
+        "inferred accent layers lost their conservative opacity policy");
+}
+
 static void run_cloth_normal_support_contract_self_test() {
     NativeSubmesh mesh;
     mesh.name = "CD_PTM_01_UB_0001";
@@ -765,5 +820,6 @@ static void run_material_contract_self_test() {
     run_layer_selector_surface_authority_contract_self_test();
     run_skin_detail_support_contract_self_test();
     run_exact_layer_owner_stack_contract_self_test();
+    run_layered_garment_colour_contract_self_test();
     run_cloth_normal_support_contract_self_test();
 }

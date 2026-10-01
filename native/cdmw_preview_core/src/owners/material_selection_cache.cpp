@@ -277,9 +277,50 @@ static std::string layer_role_from_parameter(const std::string& parameter_name, 
 static float layer_weight_from_parameters(
     const std::vector<MaterialParameterRecord>& parameters,
     const std::string& layer_role,
-    const std::string& channel
+    const std::string& channel,
+    bool authored_color_layer = false,
+    bool has_base = true
 ) {
     const int channel_index = layer_channel_index(channel);
+    if (authored_color_layer) {
+        const auto exact_parameter = [&parameters](const std::string& name) -> const MaterialParameterRecord* {
+            const std::string wanted = normalized_key(name);
+            for (const auto& parameter : parameters) {
+                if (normalized_key(parameter.name) == wanted) return &parameter;
+            }
+            return nullptr;
+        };
+        const MaterialParameterRecord* flag = exact_parameter("colorBlendingFlag");
+        if (flag != nullptr && flag->has_integer) {
+            try {
+                const auto value = std::stoull(flag->integer_value, nullptr, 0);
+                const auto enabled_bits = (1ull << channel_index)
+                    | (1ull << (channel_index + 4)) | (1ull << (channel_index + 8));
+                if (value == 0 || (value & enabled_bits) == 0) return 0.0f;
+            } catch (const std::exception&) {
+                // An unreadable optional flag cannot replace the authored opacity.
+            }
+        }
+        if (layer_role == "detail") {
+            const MaterialParameterRecord* opacity = exact_parameter("dyeingGlobalOpacity");
+            const float value = opacity == nullptr ? 0.42f : byte4_channels(opacity->value)[channel_index];
+            // Property blend controls surface response, not colour opacity.
+            return std::clamp(value, 0.04f, 1.0f);
+        }
+        if (layer_role == "grime") {
+            const std::string parameter = "grimeBlendingParameter" + channel;
+            const MaterialParameterRecord* opacity = exact_parameter(parameter);
+            float value = opacity == nullptr ? 0.35f : byte4_channels(opacity->value)[3];
+            const MaterialParameterRecord* ranges = exact_parameter(
+                channel == "b" ? "grimeBlendingOpacityParameter1" : "grimeBlendingOpacityParameter");
+            if (ranges != nullptr) {
+                const auto bounds = byte4_channels(ranges->value);
+                const int offset = channel == "g" ? 2 : 0;
+                value *= std::max(0.10f, bounds[offset + 1] - bounds[offset]);
+            }
+            return std::clamp(value, 0.03f, has_base ? 0.70f : 1.0f);
+        }
+    }
     if (layer_role == "base") return 1.0f;
     if (layer_role == "overlay") return 0.24f;
     if (layer_role == "grime") {

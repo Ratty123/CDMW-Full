@@ -1130,7 +1130,18 @@ fn compose_base_color(
             "Preview Core material graph is missing its base layer".to_owned(),
         )
     })?;
-    let mut target = if let Some(reference) = base_layer.diffuse.as_ref() {
+    // Layer-authored PAC garments can deliberately omit a global base map.
+    // Match authoring's first visible source as the surface beneath the masks,
+    // rather than introducing grey into selector gaps and partial coverage.
+    let seed = base_layer.diffuse.as_ref().or_else(|| {
+        material
+            .layers
+            .iter()
+            .skip(1)
+            .filter(|layer| layer.layer_role != "color_seed")
+            .find_map(|layer| layer.diffuse.as_ref())
+    });
+    let mut target = if let Some(reference) = seed {
         cache.resized(reference, width, height)?.to_vec()
     } else {
         let color = [

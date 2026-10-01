@@ -761,9 +761,21 @@ static void append_bound_texture_layers(
             mesh_has_crimson_weapon_surface(mesh)
             && lower_copy(layer.layer_role).find("detail") != std::string::npos
             && tint_color_is_visible(layer.tint);
-        apply_layer_weight_and_tint_policy(
-            layer, weapon_layer_stack, weapon_tinted_detail_layer, selected_base_layer);
-        if (base != nullptr && base->dds_width > 0 && base->dds_height > 0 && binding->dds_width > 0 && binding->dds_height > 0) {
+        const bool authored_color_layer = exact_authored_layer_stack
+            && binding->sidecar_kind == ".pac_xml"
+            && !binding->material_parameters.empty()
+            && (layer.layer_role == "detail" || layer.layer_role == "grime");
+        if (authored_color_layer) {
+            // Exact PAC layers own their colour opacity. The legacy accent
+            // cap and resolution attenuation must not mute an authored finish.
+            layer.weight = layer_weight_from_parameters(
+                binding->material_parameters, layer.layer_role, layer.layer_channel,
+                true, base != nullptr || material_layers_have_color_seed(layers));
+        } else {
+            apply_layer_weight_and_tint_policy(
+                layer, weapon_layer_stack, weapon_tinted_detail_layer, selected_base_layer);
+        }
+        if (!authored_color_layer && base != nullptr && base->dds_width > 0 && base->dds_height > 0 && binding->dds_width > 0 && binding->dds_height > 0) {
             const int base_largest_dimension = std::max(base->dds_width, base->dds_height);
             const int layer_largest_dimension = std::max(binding->dds_width, binding->dds_height);
             if (weapon_layer_stack || weapon_tinted_detail_layer) {

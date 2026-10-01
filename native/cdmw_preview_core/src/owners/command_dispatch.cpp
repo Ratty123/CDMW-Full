@@ -2,6 +2,11 @@ int run_cli(int argc, char** argv) {
     CommonArgs common_args = parse_common_args(argc, argv);
     cdmw_native_diag::init("cdmw-preview-core", common_args.crash_dir, common_args.diagnostic_log);
     try {
+        if (argc == 2 && std::string(argv[1]) == "self-test-materials") {
+            run_material_contract_self_test();
+            std::cout << "{\"event\":\"self_test_materials\",\"ok\":true,\"material_contracts\":true}\n";
+            return 0;
+        }
         if (argc == 2 && std::string(argv[1]) == "self-test-pbd") {
             run_pbd_profile_decoding_self_test();
             std::cout << "{\"event\":\"self_test_pbd\",\"ok\":true}\n";
@@ -40,7 +45,7 @@ int run_cli(int argc, char** argv) {
                 argc >= 6 ? utf8_path(argv[5]) : fs::path()
             );
         }
-        std::cerr << "usage: cdmw-preview-core self-test | --service | preview-job <job.json> <report.json> | mesh-audit-job <input> <report.json> [filename] | mesh-parse-job <input> <report.json> [filename] | mesh-rebuild-job <job.json> <output.bin> <report.json> | name-index-job <input.tsv> <output.bin> <report.json> [progress.json]\n";
+        std::cerr << "usage: cdmw-preview-core self-test | self-test-materials | --service | preview-job <job.json> <report.json> | mesh-audit-job <input> <report.json> [filename] | mesh-parse-job <input> <report.json> [filename] | mesh-rebuild-job <job.json> <output.bin> <report.json> | name-index-job <input.tsv> <output.bin> <report.json> [progress.json]\n";
         return 1;
     } catch (const std::exception& exc) {
         std::cerr << exc.what() << "\n";

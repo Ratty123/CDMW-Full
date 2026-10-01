@@ -78,6 +78,11 @@ Exact ordered PAC wrappers keep their own parameter tables when several parts
 reuse a detail-mask DDS or material name. Shared texture resources do not merge
 different wrappers' dyes and layers into each part's material graph.
 
+Exact PAC detail and grime colour layers keep their authored channel opacity instead
+of the conservative accent cap or texture-resolution attenuation. Property blending
+does not reduce colour opacity. `self-test-materials` runs the focused ownership and
+material contracts, including layered garments, without the archive/path self-tests.
+
 ## Implementation owners
 
 `src/main.cpp` is only the executable adapter. Ordered protocol, archive,

@@ -91,7 +91,7 @@ def _write_dds(path: Path, image: QImage, *, srgb: bool) -> Path:
     return path
 
 
-def _oracle_albedo(root: Path) -> QImage:
+def _oracle_albedo(root: Path, *, with_base: bool = True) -> QImage:
     base = _write_png(
         root / "grip_base.png",
         ((158, 158, 158, 255),) * 8,
@@ -102,7 +102,12 @@ def _oracle_albedo(root: Path) -> QImage:
     )
     selector = _write_png(
         root / "grip_selector.png",
-        ((255, 0, 0, 255),) * 4 + ((0, 255, 0, 255),) * 4,
+        (
+            ((255, 0, 0, 255),) * 4 + ((0, 255, 0, 255),) * 4
+            if with_base
+            else ((255, 0, 0, 255),) * 2 + ((128, 0, 0, 255),) * 2
+            + ((0, 255, 0, 255),) * 2 + ((0, 0, 0, 255),) * 2
+        ),
     )
     parameters = (
         PreviewMaterialParameterInput(
@@ -207,6 +212,8 @@ def _oracle_albedo(root: Path) -> QImage:
             disposition="layer_only",
         ),
     )
+    if not with_base:
+        inputs = inputs[1:]
     combined = combine_preview_material(
         SimpleNamespace(
             material_name="CD_PHM_02_Grip_0009",
@@ -390,8 +397,9 @@ def _run_capture(manifest: Path, output: Path) -> QImage:
     return image
 
 
+@pytest.mark.parametrize("with_base", [True, False], ids=["base-map", "layered-garment"])
 def test_native_graph_full_rust_pixels_match_python_material_oracle(
-    tmp_path: Path,
+    tmp_path: Path, with_base: bool,
 ) -> None:
     if not NATIVE_PREVIEW_CORE.is_file():
         pytest.skip("Release Native Preview Core helper is unavailable")
@@ -401,7 +409,7 @@ def test_native_graph_full_rust_pixels_match_python_material_oracle(
     # The compiled native owner/parameter/channel self-test is the source-side
     # guard; the pixel comparison below is the independent composition guard.
     native = subprocess.run(
-        [str(NATIVE_PREVIEW_CORE), "self-test"],
+        [str(NATIVE_PREVIEW_CORE), "self-test-materials"],
         cwd=ROOT,
         capture_output=True,
         text=True,
@@ -409,8 +417,9 @@ def test_native_graph_full_rust_pixels_match_python_material_oracle(
         check=False,
     )
     assert native.returncode == 0, native.stderr or native.stdout
+    assert json.loads(native.stdout)["material_contracts"] is True
 
-    oracle = _oracle_albedo(tmp_path)
+    oracle = _oracle_albedo(tmp_path, with_base=with_base)
     source_textures = tmp_path / "source-textures"
     source_textures.mkdir()
     base_image = QImage(str(tmp_path / "grip_base.png"))
@@ -427,7 +436,7 @@ def test_native_graph_full_rust_pixels_match_python_material_oracle(
             _layer(
                 role="base",
                 source_parameter="_baseColorTexture",
-                diffuse_source="textures/grip_base.dds",
+                diffuse_source="textures/grip_base.dds" if with_base else "",
             ),
             _layer(
                 role="detail",
@@ -478,8 +487,8 @@ def test_native_graph_full_rust_pixels_match_python_material_oracle(
     )
     graph = production_manifest["preview_core_material_graph"]
     assert graph["quality"] == "full"
-    assert graph["source_edge_count"] == 5
-    assert graph["unique_resource_count"] == 3
+    assert graph["source_edge_count"] == (5 if with_base else 4)
+    assert graph["unique_resource_count"] == (3 if with_base else 2)
     assert {
         layer["owner_wrapper_item_id"] for layer in graph["materials"][0]["layers"]
     } == {OWNER_WRAPPER_ITEM_ID}
