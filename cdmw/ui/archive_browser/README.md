@@ -80,6 +80,12 @@ not clear or replace the current scene. Archive Browser publishes the path,
 basename, extension, dependency, and native package indexes reused by Model
 Library, Mesh Editor, and Create New Item.
 
+Textured previews capture the matching archive session's catalogue path with the
+bounded dependency snapshot. Preview Core reuses that catalogue for shader defaults
+absent from the snapshot, reading the selected material family and shared parameter
+definitions instead of decoding every material on the first model load. Catalogue
+file access remains on the preview worker; this adds no persistent cache files.
+
 **Select Extension** opens a grouped, searchable extension list. Select a leaf
 and confirm, or double-click it, to close the picker and update the filter. The
 picker is available as soon as archive rows are published; extension counts load

@@ -561,6 +561,9 @@ def test_v2_preview_flush_uses_only_remote_dependency_maps() -> None:
         },
     )
     harness = _PreviewHarness(snapshot)
+    harness.archive_remote_bridge.current_session = SimpleNamespace(
+        session_id=snapshot.session_id, index_path="C:/cache/g/current/archive.ali"
+    )
 
     harness._flush_scheduled_archive_preview_request()
 
@@ -573,6 +576,20 @@ def test_v2_preview_flush_uses_only_remote_dependency_maps() -> None:
     assert harness.started["sidecar_entries_by_texture_basename"] == {}
     assert harness.started["native_preview_dependency_entries"] is snapshot.entries
     assert harness.started["native_preview_dependency_entries_complete"] is True
+    assert harness.started["native_preview_archive_index_path"] == Path("C:/cache/g/current/archive.ali")
+
+
+def test_v2_preview_does_not_pass_a_different_sessions_index() -> None:
+    snapshot = ArchivePreviewDependencySet.from_dtos(
+        _dto(7, "character/sword.pac"), (), total_candidates=0, truncated=False,
+        prepared={7: _prepared(_dto(7, "character/sword.pac"))},
+    )
+    harness = _PreviewHarness(snapshot)
+    harness.archive_remote_bridge.current_session = SimpleNamespace(
+        session_id="other-session", index_path="C:/cache/g/other/archive.ali"
+    )
+    harness._flush_scheduled_archive_preview_request()
+    assert harness.started["native_preview_archive_index_path"] is None
 
 
 def test_v2_preview_flush_waits_for_remote_dependencies_without_starting_worker() -> None:

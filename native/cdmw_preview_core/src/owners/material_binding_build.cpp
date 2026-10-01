@@ -672,13 +672,11 @@ static bool process_sidecar_texture_ref(
         resolve_sidecar_texture_candidate(
             state.job, state.index, sidecar, ref, technique_parameter);
     if (!selected.has_value() && !state.job.package_root.empty()) {
-        // Most declared DDS paths resolve without a package-wide technique
-        // scan. Load the authoritative global declarations only when a source
-        // is actually absent, then keep them resident for the service's later
-        // jobs. This preserves source defaults without taxing ordinary/Rhett
-        // first-use latency.
+        // Most declared DDS paths need no shader-definition lookup. A missing
+        // source loads the exact family and shared groups from the catalogue;
+        // unavailable indexes retain the established package-scan route.
         const TechniqueIndex& package_techniques = cached_package_technique_index(
-            state.job, state.index);
+            state.job, state.index, shader_family);
         technique_parameter = technique_parameter_for_name(
             package_techniques, ref.parameter_name, shader_family);
         selected = resolve_sidecar_texture_candidate(

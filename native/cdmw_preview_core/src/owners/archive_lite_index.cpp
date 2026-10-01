@@ -66,6 +66,30 @@ public:
         return result;
     }
 
+    std::vector<ArchiveEntryRef> material_parameter_sources() {
+        // FAI3 paths are sorted by the same ASCII fold used for catalogue path
+        // lookups. Seek to material/ rather than reading every archive entry.
+        const std::string prefix = "material/";
+        std::uint64_t low = 0, high = entry_count_;
+        while (paths_sorted_ && low < high) {
+            const auto middle = low + (high - low) / 2;
+            if (lower_copy(read_entry_path(middle)) < prefix) low = middle + 1;
+            else high = middle;
+        }
+        std::vector<ArchiveEntryRef> result;
+        for (auto entry_id = low; entry_id < entry_count_; ++entry_id) {
+            const auto path = lower_copy(read_entry_path(entry_id));
+            if (!path.starts_with(prefix)) {
+                if (paths_sorted_) break;
+                continue;
+            }
+            if (!path.ends_with(".xml")) continue;
+            if (result.size() >= 64) throw std::runtime_error("material parameter source limit exceeded");
+            result.push_back(read_entry(entry_id));
+        }
+        return result;
+    }
+
     std::uint64_t entry_count() const { return entry_count_; }
 
 private:
@@ -77,6 +101,7 @@ private:
     std::uint64_t records_offset_ = 0;
     std::uint64_t strings_offset_ = 0;
     std::uint64_t strings_size_ = 0;
+    bool paths_sorted_ = false;
 
     static std::uint64_t file_size_checked(const fs::path& path) {
         std::error_code ec;
@@ -98,23 +123,38 @@ private:
     void load_basename_index() {
         std::ifstream input(native_file_path(basename_index_path_), std::ios::binary);
         if (!input) throw std::runtime_error("could not open Archive Lite basename index");
-        std::array<unsigned char, 64> header{};
-        read_exact(input, reinterpret_cast<char*>(header.data()), header.size(), "Archive Lite basename index header");
-        if (std::memcmp(header.data(), "CDMWABI1", 8) != 0
+        std::array<unsigned char, 80> header{};
+        read_exact(input, reinterpret_cast<char*>(header.data()), 64, "Archive basename index header");
+        const bool full_catalogue = std::memcmp(header.data(), "CDMWADI1", 8) == 0;
+        const size_t header_size = full_catalogue ? 80 : 64;
+        if (full_catalogue) {
+            read_exact(input, reinterpret_cast<char*>(header.data() + 64), 16, "Archive dependency index header");
+        }
+        if ((!full_catalogue && std::memcmp(header.data(), "CDMWABI1", 8) != 0)
             || archive_lite_read_u32(header.data() + 8) != 1
             || archive_lite_read_u32(header.data() + 12) != 16) {
             throw std::runtime_error("Archive Lite basename index header is unsupported");
         }
         const std::uint64_t record_count = archive_lite_read_u64(header.data() + 16);
         const std::uint64_t records_offset = archive_lite_read_u64(header.data() + 24);
-        const std::uint64_t source_entry_count = archive_lite_read_u64(header.data() + 32);
-        const std::uint64_t source_file_size = archive_lite_read_u64(header.data() + 40);
+        const std::uint64_t source_entry_count = archive_lite_read_u64(header.data() + (full_catalogue ? 56 : 32));
+        const std::uint64_t source_file_size = archive_lite_read_u64(header.data() + (full_catalogue ? 64 : 40));
         const std::uint64_t index_size = file_size_checked(basename_index_path_);
         if (record_count != source_entry_count
             || source_file_size != file_size_checked(archive_index_path_)
-            || records_offset < header.size()
+            || records_offset < header_size
             || record_count > (index_size - std::min(index_size, records_offset)) / 16) {
             throw std::runtime_error("Archive Lite basename index ranges are invalid");
+        }
+        if (full_catalogue) {
+            const auto stem_offset = archive_lite_read_u64(header.data() + 32);
+            const auto facets_offset = archive_lite_read_u64(header.data() + 40);
+            const auto facets_size = archive_lite_read_u64(header.data() + 48);
+            if (records_offset != header_size || stem_offset != records_offset + record_count * 16
+                || facets_offset != stem_offset + record_count * 16
+                || facets_offset > index_size || facets_size != index_size - facets_offset) {
+                throw std::runtime_error("Archive dependency index ranges are invalid");
+            }
         }
         input.seekg(static_cast<std::streamoff>(records_offset), std::ios::beg);
         if (!input) throw std::runtime_error("could not seek Archive Lite basename index records");
@@ -141,8 +181,10 @@ private:
         if (!archive_) throw std::runtime_error("could not open Archive Lite archive index");
         std::array<unsigned char, 64> header{};
         read_exact(archive_, reinterpret_cast<char*>(header.data()), header.size(), "Archive Lite archive index header");
-        if (std::memcmp(header.data(), "CDMWALI1", 8) != 0
-            || archive_lite_read_u32(header.data() + 8) != 1
+        const bool full_catalogue = std::memcmp(header.data(), "CDMWFAI3", 8) == 0;
+        paths_sorted_ = full_catalogue;
+        if ((!full_catalogue && std::memcmp(header.data(), "CDMWALI1", 8) != 0)
+            || archive_lite_read_u32(header.data() + 8) != (full_catalogue ? 3u : 1u)
             || archive_lite_read_u32(header.data() + 12) != 80) {
             throw std::runtime_error("Archive Lite archive index header is unsupported");
         }
@@ -172,6 +214,18 @@ private:
         if (!archive_) throw std::runtime_error("could not seek Archive Lite archive index string");
         read_exact(archive_, value.data(), value.size(), "Archive Lite archive index string");
         return value;
+    }
+
+    std::string read_entry_path(std::uint64_t entry_id) {
+        if (entry_id >= entry_count_) throw std::runtime_error("Archive entry id is out of range");
+        std::array<unsigned char, 80> row{};
+        archive_.clear();
+        archive_.seekg(static_cast<std::streamoff>(records_offset_ + entry_id * 80), std::ios::beg);
+        if (!archive_) throw std::runtime_error("could not seek Archive index record");
+        read_exact(archive_, reinterpret_cast<char*>(row.data()), row.size(), "Archive index record");
+        std::string path = read_string(archive_lite_read_u64(row.data()), archive_lite_read_u32(row.data() + 48));
+        std::replace(path.begin(), path.end(), '\\', '/');
+        return path;
     }
 
     ArchiveEntryRef read_entry(std::uint64_t entry_id) {

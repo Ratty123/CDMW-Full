@@ -393,6 +393,15 @@ class ArchivePreviewWorkerMixin:
 
         loose_search_roots = self._collect_archive_preview_loose_roots()
         dependency_entries = remote_dependencies.entries if remote_dependencies is not None else ()
+        remote_session = getattr(getattr(self, "archive_remote_bridge", None), "current_session", None)
+        index_path = str(getattr(remote_session, "index_path", "") or "")
+        native_archive_index_path = (
+            Path(index_path)
+            if remote_dependencies is not None
+            and getattr(remote_session, "session_id", "") == remote_dependencies.session_id
+            and index_path
+            else None
+        )
         cache_key = self._archive_preview_cache_key(
             entry,
             loose_search_roots,
@@ -512,6 +521,7 @@ class ArchivePreviewWorkerMixin:
             ),
             native_preview_dependency_entries=dependency_entries,
             native_preview_dependency_entries_complete=remote_dependencies is not None,
+            native_preview_archive_index_path=native_archive_index_path,
         )
 
     def _handle_archive_remote_preview_dependencies_ready(
@@ -631,6 +641,7 @@ class ArchivePreviewWorkerMixin:
         sidecar_entries_by_texture_basename: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
         native_preview_dependency_entries: Sequence[ArchiveEntry] = (),
         native_preview_dependency_entries_complete: bool = False,
+        native_preview_archive_index_path: Optional[Path] = None,
     ) -> None:
         if companion_entry is None:
             companion_entry = self._find_archive_preview_companion_entry(
@@ -708,6 +719,7 @@ class ArchivePreviewWorkerMixin:
             ),
             native_preview_dependency_entries=native_preview_dependency_entries,
             native_preview_dependency_entries_complete=native_preview_dependency_entries_complete,
+            native_preview_archive_index_path=native_preview_archive_index_path,
             enabled_prefab_component_paths=enabled_prefab_component_paths,
             preview_context_components=preview_context_components,
             native_preview_package_cache_key=native_package_cache_key,

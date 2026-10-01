@@ -78,8 +78,48 @@ static void run_archive_path_io_self_test() {
 
 static const TechniqueIndex& cached_package_technique_index(
     const EntryJob& job,
-    const PamtIndex& primary_index
+    const PamtIndex& primary_index,
+    const std::string& material_family
 ) {
+    if (auto* catalogue = cached_archive_lite_lookup_index(job)) {
+        const std::string family_key = exact_material_family_key(material_family);
+        auto& cache = resident_package_technique_index_cache();
+        std::string request_definitions;
+        for (const auto& source : primary_index.material_sidecars) {
+            if (source.extension == ".material" || source.extension == ".technique" || source.extension == ".xml") {
+                request_definitions += archive_ref_identity(source) + "\n";
+            }
+        }
+        const std::string key = path_utf8(job.archive_index_path) + "|family:" + family_key
+            + "|request:" + hex64(fnv1a64(request_definitions));
+        auto found = cache.find(key);
+        if (found != cache.end()) return found->second;
+        try {
+            PamtIndex selected;
+            selected.pamt_path = primary_index.pamt_path;
+            std::set<std::string> seen;
+            auto add_source = [&](const ArchiveEntryRef& source) {
+                const std::string identity = lower_copy(path_utf8(source.pamt_path)) + "|"
+                    + lower_copy(native_archive_path(source.path));
+                if (seen.insert(identity).second) selected.material_sidecars.push_back(source);
+            };
+            // Keep request-owned prepared definitions ahead of catalogue copies.
+            for (const auto& source : primary_index.material_sidecars) add_source(source);
+            for (const auto& suffix : {std::string(".material"), std::string(".technique")}) {
+                std::vector<ArchiveEntryRef> definitions;
+                lookup_archive_lite_basename(job, family_key + suffix, 64, definitions);
+                for (const auto& source : definitions) add_source(source);
+            }
+            const auto parameters = catalogue->material_parameter_sources();
+            for (const auto& source : parameters) add_source(source);
+            TechniqueIndex combined = build_technique_index_for_pamt(selected);
+            return cache.emplace(key, std::move(combined)).first->second;
+        } catch (const std::exception&) {
+            // An unavailable or damaged derived index retains the established
+            // archive lookup route; it must never suppress a source default.
+            release_resident_archive_lite_lookup();
+        }
+    }
     if (job.package_root.empty()) {
         return cached_technique_index(primary_index);
     }

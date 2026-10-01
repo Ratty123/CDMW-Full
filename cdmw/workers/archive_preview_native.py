@@ -293,6 +293,7 @@ class ArchivePreviewNativeMixin:
             dependency_entries_complete=bool(
                 getattr(self, "native_preview_dependency_entries_complete", False)
             ),
+            archive_index_path=getattr(self, "native_preview_archive_index_path", None),
             enabled_prefab_component_paths=getattr(self, "enabled_prefab_component_paths", ()),
             model_property_indices=model_property_indices,
             package_root=self.native_preview_core_package_root,

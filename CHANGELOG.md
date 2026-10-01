@@ -14,7 +14,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 ### Changed
 
 - Problem reports collect recent activity and logs across tools, detailed worker and helper failures, crash or hang evidence and build fingerprints. Evidence refreshes when preparing a draft, with missing or truncated sources identified in the reviewed report.
-- Faster archive browsing, effects-library discovery and effect metadata loading. Browse Archives and Mesh Editor prepare model geometry and textures faster on the first load after restarting. Layered model textures decode in parallel, and Mesh Editor texture follow-ups reuse unchanged prepared dependencies.
+- Faster archive browsing, effects-library discovery and effect metadata loading. Browse Archives and Mesh Editor prepare model geometry and textures faster on the first load after restarting. Browse Archives reuses the existing catalogue for shared shader defaults, avoiding the initial scan of unrelated materials. Layered model textures decode in parallel, and Mesh Editor texture follow-ups reuse unchanged prepared dependencies.
 - Archive Browser uses the standalone backend exclusively; legacy `CDMW_ARCHIVE_BACKEND` overrides are ignored.
 - Item Finder places categories and item counts on the left, results in the centre and details on the right, with remembered pane widths.
 

@@ -54,6 +54,16 @@ helper with false matches and genuine parts, including parts unique to one LOD.
 
 ## Archive indexing
 
+Archive-v2 previews pass the current generation's existing `archive.ali` and
+`archive.adi` to Preview Core. When a declared DDS is missing, the core looks up
+the exact shader family's material/technique documents and the shared material
+parameter XMLs, preserving named-group ownership and source defaults without
+decoding every material definition or building every PAMT index. The derived
+index headers and source sizes are checked; unavailable indexes retain the
+existing package-scan route. Request-owned prepared definitions take precedence
+over catalogue copies, and their identities scope the resident family cache.
+No additional disk cache or format is created.
+
 Cold PAMT scans classify entries before constructing archive paths, retain only
 the same preview-relevant records, and reuse each PAZ path within a table. XML
 classification still uses the complete directory path. These allocation savings
@@ -118,10 +128,12 @@ cdmw-preview-core.exe name-index-job input.tsv output.bin report.json [progress.
 entries it returns `status=ok` and a package path. Unsupported or unsafe inputs produce
 an explicit error/fallback reason; callers decide how to surface that result. Full-CDMW
 archive-v2 callers also send an authoritative, bounded `archive_dependency_entries`
-snapshot. The native core resolves cross-PAMT basenames and paths from that snapshot and
-reads its prepared files; legacy callers retain the Archive Lite basename-index and
-package-scan fallback. Prepared entries may carry `prepared_size` (actual worker output
-bytes), independently of the original archive `orig_size`.
+snapshot. The native core resolves declared cross-PAMT basenames and paths from
+that snapshot and reads its prepared files. Shared shader defaults discovered
+afterwards use the generation's optional catalogue indexes; legacy callers retain
+the Archive Lite basename-index and package-scan route. Prepared entries may carry
+`prepared_size` (actual worker output bytes), independently of the original
+archive `orig_size`.
 
 Omitted or negative values retain the legacy original-size check. Static PAM versions
 `0x1802` and `0x01001806` use a single LZ4 geometry block with a plain prefix and

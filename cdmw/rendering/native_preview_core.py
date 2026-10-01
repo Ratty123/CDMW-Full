@@ -939,6 +939,7 @@ def build_native_preview_core_job(
     companion_entry: Optional[ArchiveEntry] = None,
     dependency_entries: Sequence[ArchiveEntry] = (),
     dependency_entries_complete: bool = False,
+    archive_index_path: Optional[Path] = None,
     enabled_prefab_component_paths: Sequence[str] = (),
     model_property_indices: Optional[Mapping[str, int]] = None,
     preview_context_components: Sequence[NativePreviewContextComponent] = (),
@@ -979,6 +980,10 @@ def build_native_preview_core_job(
             for dependency in dependency_entries
         ],
         "archive_dependency_entries_complete": bool(dependency_entries_complete),
+        "archive_index_path": str(archive_index_path or ""),
+        "archive_basename_index_path": (
+            str(archive_index_path.with_name("archive.adi")) if archive_index_path else ""
+        ),
         "enabled_prefab_component_paths": list(enabled_prefab_component_paths),
         "model_property_indices": [
             {"path": path, "index": index}
@@ -1014,6 +1019,7 @@ def run_native_preview_core_preview_job(
     companion_entry: Optional[ArchiveEntry] = None,
     dependency_entries: Sequence[ArchiveEntry] = (),
     dependency_entries_complete: bool = False,
+    archive_index_path: Optional[Path] = None,
     enabled_prefab_component_paths: Sequence[str] = (),
     model_property_indices: Optional[Mapping[str, int]] = None,
     preview_context_components: Sequence[NativePreviewContextComponent] = (),
@@ -1069,6 +1075,7 @@ def run_native_preview_core_preview_job(
             companion_entry=companion_entry,
             dependency_entries=dependency_entries,
             dependency_entries_complete=dependency_entries_complete,
+            archive_index_path=archive_index_path,
             enabled_prefab_component_paths=enabled_prefab_component_paths,
             model_property_indices=model_property_indices,
             preview_context_components=preview_context_components,
