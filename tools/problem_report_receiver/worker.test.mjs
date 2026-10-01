@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
+import { runInNewContext } from "node:vm";
 import worker from "./worker.mjs";
 
 const originalFetch = globalThis.fetch;
@@ -82,6 +83,8 @@ test("creates one private issue, stores evidence and returns a matching receipt"
   assert.equal(mock.creates(),1);
   assert.match(mock.issues[0].body,/Steps to reproduce/);
   assert.match(mock.issues[0].body,/\/reports\/[0-9a-f-]+#[0-9a-f]{64}/);
+  assert.match(mock.issues[0].body,/maintainer and invited collaborators of this private GitHub repository/);
+  assert.match(mock.issues[0].body,/Anyone with the complete evidence link can read this report without a GitHub account/);
   assert.equal(JSON.stringify(receipt).includes("download_key"),false);
   assert.equal(JSON.stringify(receipt).includes("server-only"),false);
 });
@@ -139,6 +142,8 @@ test("download requires its own report key, expires and never accepts the intake
   const good = new Request(url,{headers:{Authorization:`Bearer ${record.download_key}`}});
   const download = await worker.fetch(good,env);
   assert.equal(download.status,200);
+  assert.equal(download.headers.get("Cache-Control"),"no-store");
+  assert.match(download.headers.get("X-Robots-Tag"),/noindex/);
   assert.deepEqual(await download.json(),report());
   record.created_at = Date.now() - 91 * 86400000;
   await env.REPORTS.put(objectKey,JSON.stringify(record));
@@ -161,7 +166,38 @@ test("viewer uses a fragment key and renders report content as text", async () =
   assert.match(html,/location.hash.slice/);
   assert.match(html,/history.replaceState/);
   assert.match(html,/pre.textContent/);
+  assert.match(html,/<h1>CDMW report evidence<\/h1>/);
+  assert.match(html,/Anyone with the complete evidence link can read this report/);
+  assert.equal(html.includes("Private CDMW report"),false);
+  assert.match(viewer.headers.get("X-Robots-Tag"),/noindex/);
   assert.match(viewer.headers.get("Content-Security-Policy"),/frame-ancestors 'none'/);
+});
+
+test("viewer disables access without a complete key and only sends the key in an authorization header", async () => {
+  const result = await worker.fetch(new Request(`https://reports.example/reports/${report().report_id}`),{});
+  const script = (await result.text()).match(/<script nonce="[^"]+">([\s\S]*?)<\/script>/)[1];
+  for (const key of ["", "partial-key", "a".repeat(64)]) {
+    const elements = {load:{disabled:true},status:{textContent:""}};
+    const requests = [], replaced = [];
+    const location = {hash:key ? `#${key}` : "",pathname:`/reports/${report().report_id}`};
+    runInNewContext(script,{
+      location,history:{replaceState:(...args)=>replaced.push(args)},
+      document:{getElementById:id=>elements[id]},
+      fetch:async (...args)=>{requests.push(args);return new Response("",{status:404})},
+    });
+    assert.deepEqual(replaced,[[null,"",location.pathname]]);
+    assert.equal(requests.length,0);
+    assert.equal(elements.load.disabled,key.length !== 64);
+    await elements.load.onclick();
+    if (key.length !== 64) {
+      assert.match(elements.status.textContent,/Access key missing.*complete evidence link/);
+      assert.equal(requests.length,0);
+    } else {
+      assert.equal(requests[0][0],location.pathname+"/download");
+      assert.equal(requests[0][1].headers.Authorization,`Bearer ${key}`);
+      assert.match(elements.status.textContent,/unavailable, expired, or access key incorrect/);
+    }
+  }
 });
 
 function clock(day) {

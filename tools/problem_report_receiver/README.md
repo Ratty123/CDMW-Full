@@ -6,8 +6,8 @@ This is a private submission test, not an anonymous public intake service.
 ## Installed test resources
 
 - Worker: `cdmw-reports-test`, on the Workers Free plan.
-- Intake: `https://cdmw-reports-test.fredriccarlberg.workers.dev/reports`.
-- Health: `https://cdmw-reports-test.fredriccarlberg.workers.dev/health`.
+- Intake: `https://cdmw-reports-test.cdmw-workbench.workers.dev/reports`.
+- Health: `https://cdmw-reports-test.cdmw-workbench.workers.dev/health`.
 - Private GitHub inbox: `Ratty123/CDMW-Reports`.
 - Private Standard R2 bucket: `cdmw-reports-test`, bound as `REPORTS`.
 - Object lifecycle: delete `reports/` objects after 90 days.
@@ -24,6 +24,13 @@ screenshots, public builds and shared reports. Starting CDMW normally leaves sen
 disabled; collecting a local draft still works.
 
 ## Reports and privacy
+
+CDMW Full's source repository is public. Reports go to the separate private
+`Ratty123/CDMW-Reports` repository, visible to its maintainer and invited repository
+collaborators. A reporter receives a reference, not a link to the private issue.
+The app's Review and receipt screens explain these access limits through **?** help.
+The public app and a private support inbox are independent; the current intake
+still requires private test access and is not yet enabled for all public users.
 
 The five guided steps are Problem, Reproduce, Setup, Evidence and Review. Choose
 the tool from the current CDMW tool list, then an affected action/panel. For example,
@@ -67,8 +74,12 @@ New reports retain the exact reviewed JSON text in storage and downloads; large
 integer timestamps cannot be rounded during delivery. Earlier prototype records
 retain their original format and accepted receipts.
 It creates a private issue containing the human description and an evidence link.
-The link grants access to that report only, so do not repost it. Its key is carried
-in the URL fragment and then an Authorization header, not a server URL query.
+Anyone with that complete link can read that one report without a GitHub account;
+keep it in the restricted inbox. Its random access key is carried in the URL fragment
+and then an Authorization header, not a server URL query. The bare URL only opens
+a generic viewer with its Review button disabled; it does not return report data.
+Missing, incorrect and expired keys return 404 on download. Pages and downloads
+use no-store and noindex headers. These headers do not replace access control.
 The evidence viewer renders descriptions as text and uses no third-party assets.
 Cloudflare still processes network/request metadata as the hosting provider.
 
@@ -92,7 +103,8 @@ Private issue summaries remain until the maintainer removes them.
 
 ## Spam controls in the private pilot
 
-- A valid private test key is required before reading evidence or calling GitHub.
+- A valid private test key is required to submit a report or call GitHub. Evidence
+  downloads require that report's own access key; the intake key cannot read them.
 - At most **10 new report admissions per UTC day** across the service, **5 per
   internet connection per UTC day**, and a **two-minute gap** between new reports
   from that connection. Shared networks share this allowance.
@@ -131,6 +143,9 @@ Cloudflare editor using the **Latest** version, retaining both encrypted secrets
 the `REPORTS` bucket binding. Refresh settings before applying changes; a stale
 dashboard version can overwrite newer bindings. No paid Workers plan, custom domain,
 Queues, D1, R2 API token or email service is required for this test.
+The account's `workers.dev` subdomain is `cdmw-workbench`. If it is renamed again,
+update the app endpoint and existing issue evidence links; the old hostname stops
+routing. Changing the hostname does not change evidence keys or report contents.
 
 ```powershell
 node --test tools/problem_report_receiver/worker.test.mjs

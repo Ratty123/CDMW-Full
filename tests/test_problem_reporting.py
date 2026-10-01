@@ -441,6 +441,31 @@ def test_guided_navigation_validates_skipped_steps_and_recollects_after_edit(tmp
         dialog.close()
 
 
+def test_reporting_explains_repository_access_and_per_report_evidence_links(tmp_path):
+    from cdmw.services.problem_report_service import REPORT_DESTINATION, REPORT_ENDPOINT
+
+    app()
+    dialog = ProblemReportDialog(snapshot(tmp_path))
+    try:
+        assert REPORT_ENDPOINT == "https://cdmw-reports-test.cdmw-workbench.workers.dev/reports"
+        assert "Restricted GitHub inbox" in dialog.destination.text()
+        assert dialog.destination.toolTip() == REPORT_DESTINATION
+        assert "maintainer and invited repository collaborators" in REPORT_DESTINATION
+        assert "Anyone with the complete evidence link" in REPORT_DESTINATION
+        dialog._privacy_help.click()
+        assert QToolTip.text() == REPORT_DESTINATION
+        QToolTip.hideText()
+        fill_form(dialog)
+        dialog._collect()
+        wait_until(lambda:dialog._collection is None)
+        dialog._receipt = "Report reference 123"
+        dialog._show_receipt()
+        assert "Restricted GitHub inbox" in dialog.receipt_detail.text()
+        assert dialog.receipt_detail.toolTip() == REPORT_DESTINATION
+    finally:
+        dialog.close()
+
+
 def test_guided_review_escapes_report_text_and_provides_fitted_screenshots(tmp_path):
     from PIL import Image
     app()

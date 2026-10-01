@@ -178,8 +178,12 @@ information. It does not upload game file contents.
 
 Direct submission currently uses a private test inbox and requires maintainer test
 access. After explicit review and consent, reports go through Cloudflare to private
-GitHub issues. Cloud evidence expires after 90 days; issue summaries and local
-drafts remain until removed. A failed upload keeps the draft for retry; **Open draft…**
+GitHub issues in a separate inbox restricted to the maintainer and invited
+collaborators. CDMW Full's public source repository does not make reports public.
+Anyone with a complete evidence link can read that one report without signing in;
+keep those links in the restricted inbox. Cloud evidence expires after 90 days;
+issue summaries and local drafts remain until removed. A failed upload keeps the
+draft for retry; **Open draft…**
 reopens it after restarting. The private receiver rejects duplicate problems
 and limits new submissions. CDMW shows a countdown when it must wait before retrying.
 

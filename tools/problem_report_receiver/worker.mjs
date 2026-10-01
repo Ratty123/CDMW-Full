@@ -21,7 +21,8 @@ class ReportError extends Error {
 function response(status, payload, headers = {}, raw = false) {
   return new Response(raw ? payload : JSON.stringify(payload), { status, headers: {
     "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store",
-    "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer", ...headers,
+    "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer",
+    "X-Robots-Tag": "noindex, nofollow, noarchive", ...headers,
   }});
 }
 async function digest(text) {
@@ -192,12 +193,14 @@ function issueBody(report, url, downloadKey) {
     ["Recent changes",d.changes || "Not provided"],
     ["Mods and manager",d.mod_setup],["Contact (optional)",d.contact || "Not provided"]]
     .map(([name,value]) => `### ${name}\n\n\`\`\`text\n${plain(value)}\n\`\`\``).join("\n\n");
-  return `Private CDMW test report. Report ID: ${report.report_id}\n\n` +
+  return `CDMW support report. Report ID: ${report.report_id}\n\n` +
+    `This issue is visible to the maintainer and invited collaborators of this private GitHub repository.\n\n` +
     `Type: ${plain(d.problem_type || "Other / unsure")}\nTool: ${plain(d.tool)}\nFrequency: ${plain(d.frequency)}\nGame: ${plain(d.game_platform)} / ${plain(d.game_version)}\n` +
     `Worked before: ${plain(d.last_working || "Not sure")}\n` +
     `Without mods: ${plain(d.clean_test)}\nCDMW: ${plain(report.evidence.environment?.cdmw_version || "Unknown")}\n\n` +
     `${sections}\n\n[Review evidence and download the report](${url.origin}/reports/${report.report_id}#${downloadKey})\n\n` +
-    `Evidence expires after 90 days. This private link grants access to this report: do not repost it publicly.\n\n` +
+    `Anyone with the complete evidence link can read this report without a GitHub account. Do not share it publicly. ` +
+    `Evidence expires after 90 days; this issue summary remains until removed.\n\n` +
     `<!-- cdmw-report:${report.report_id} -->`;
 }
 
@@ -279,12 +282,36 @@ async function submit(request, env, url) {
 function viewer() {
   const nonce = crypto.randomUUID();
   const html = `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width">
-<title>Private CDMW report</title><style>body{font:16px system-ui;max-width:1000px;margin:36px auto;padding:0 20px;background:#13181e;color:#e5eaf0}button{padding:12px;font:inherit;cursor:pointer}pre{white-space:pre-wrap;overflow-wrap:anywhere;border:1px solid #405060;padding:16px}img{max-width:100%;margin:16px 0}a{color:#86c6ff}</style>
-<h1>Private CDMW report</h1><p>Evidence expires after 90 days. Keep this link private.</p><button id="load">Review report</button><p id="status"></p><div id="content"></div>
-<script nonce="${nonce}">const key=location.hash.slice(1);history.replaceState(null,'',location.pathname);document.getElementById('load').onclick=async()=>{const status=document.getElementById('status');status.textContent='Loading…';try{const r=await fetch(location.pathname+'/download',{headers:{Authorization:'Bearer '+key}});if(!r.ok)throw Error('Report unavailable, expired, or access key missing.');const raw=await r.text();const data=JSON.parse(raw);const content=document.getElementById('content');content.replaceChildren();const a=document.createElement('a');a.textContent='Download report JSON';a.download='cdmw-report-'+data.report_id+'.json';a.href=URL.createObjectURL(new Blob([raw],{type:'application/json'}));content.append(a);const pre=document.createElement('pre');const text={...data,screenshots:data.screenshots.map(({data,...rest})=>rest)};pre.textContent=JSON.stringify(text,null,2);content.append(pre);for(const shot of data.screenshots){const img=document.createElement('img');img.alt=shot.name;img.src='data:image/jpeg;base64,'+shot.data;content.append(img)}status.textContent='Report loaded.'}catch(e){status.textContent=e.message}};</script></html>`;
+<title>CDMW report evidence</title><style>body{font:16px system-ui;max-width:1000px;margin:36px auto;padding:0 20px;background:#13181e;color:#e5eaf0}button{padding:12px;font:inherit;cursor:pointer}button:disabled{cursor:default;opacity:.5}pre{white-space:pre-wrap;overflow-wrap:anywhere;border:1px solid #405060;padding:16px}img{max-width:100%;margin:16px 0}a{color:#86c6ff}</style>
+<h1>CDMW report evidence</h1><p>Anyone with the complete evidence link can read this report. Do not share it publicly.<br>Evidence expires after 90 days.</p><button id="load" disabled>Review report</button><p id="status" role="status"></p><div id="content"></div>
+<script nonce="${nonce}">
+const key=location.hash.slice(1);
+history.replaceState(null,'',location.pathname);
+const load=document.getElementById('load');
+const status=document.getElementById('status');
+load.disabled=!/^[0-9a-f]{64}$/.test(key);
+if(load.disabled)status.textContent='Access key missing. Open the complete evidence link from the GitHub inbox.';
+load.onclick=async()=>{
+  if(load.disabled)return;
+  status.textContent='Loading…';
+  try{
+    const r=await fetch(location.pathname+'/download',{headers:{Authorization:'Bearer '+key}});
+    if(!r.ok)throw Error('Report unavailable, expired, or access key incorrect.');
+    const raw=await r.text();const data=JSON.parse(raw);
+    const content=document.getElementById('content');content.replaceChildren();
+    const a=document.createElement('a');a.textContent='Download report JSON';a.download='cdmw-report-'+data.report_id+'.json';
+    a.href=URL.createObjectURL(new Blob([raw],{type:'application/json'}));content.append(a);
+    const pre=document.createElement('pre');const text={...data,screenshots:data.screenshots.map(({data,...rest})=>rest)};
+    pre.textContent=JSON.stringify(text,null,2);content.append(pre);
+    for(const shot of data.screenshots){const img=document.createElement('img');img.alt=shot.name;img.src='data:image/jpeg;base64,'+shot.data;content.append(img)}
+    status.textContent='Report loaded.';
+  }catch(e){status.textContent=e.message}
+};
+</script></html>`;
   return new Response(html, {headers:{"Content-Type":"text/html; charset=utf-8","Cache-Control":"no-store",
     "Content-Security-Policy":`default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline'; img-src data:; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'`,
-    "Referrer-Policy":"no-referrer","X-Content-Type-Options":"nosniff"}});
+    "Referrer-Policy":"no-referrer","X-Content-Type-Options":"nosniff",
+    "X-Robots-Tag":"noindex, nofollow, noarchive"}});
 }
 
 export default {

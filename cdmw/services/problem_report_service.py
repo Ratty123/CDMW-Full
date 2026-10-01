@@ -20,8 +20,14 @@ from cdmw.constants import APP_VERSION
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.services.atomic_file_service import atomic_write_bytes
 
-REPORT_ENDPOINT = "https://cdmw-reports-test.fredriccarlberg.workers.dev/reports"
-REPORT_DESTINATION = "Ratty123's private CDMW-Reports inbox (Cloudflare and GitHub)"
+REPORT_ENDPOINT = "https://cdmw-reports-test.cdmw-workbench.workers.dev/reports"
+REPORT_DESTINATION = (
+    "Sent through Cloudflare to Ratty123/CDMW-Reports, a private GitHub repository.\n"
+    "The maintainer and invited repository collaborators can read issue summaries.\n"
+    "Anyone with the complete evidence link can read that one report, without a GitHub account. "
+    "Evidence expires after 90 days.\n"
+    "Issue summaries and local drafts remain until removed."
+)
 MAX_REPORT_BYTES = 8 * 1024 * 1024
 MAX_SCREENSHOTS = 3
 MAX_SCREENSHOT_BYTES = 2 * 1024 * 1024
