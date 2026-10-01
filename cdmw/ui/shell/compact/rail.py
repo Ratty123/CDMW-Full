@@ -193,6 +193,16 @@ class CompactWorkspaceRail(QFrame):
         self.support_button.setMinimumHeight(31)
         layout.addWidget(self.support_button)
 
+        self.report_problem_button = QToolButton()
+        self.report_problem_button.setObjectName("CompactReportProblemButton")
+        self.report_problem_button.setProperty("compactFooterRow", True)
+        self.report_problem_button.setDefaultAction(owner.shell.report_problem_action)
+        self.report_problem_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.report_problem_button.setFocusPolicy(Qt.StrongFocus)
+        self.report_problem_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.report_problem_button.setMinimumHeight(31)
+        layout.addWidget(self.report_problem_button)
+
         self.overflow_button = QToolButton()
         self.overflow_button.setObjectName("CompactOverflowButton")
         self.overflow_button.setProperty("compactFooterRow", True)
@@ -207,7 +217,6 @@ class CompactWorkspaceRail(QFrame):
         overflow_menu.addAction(owner.shell.profile_menu.menuAction())
         overflow_menu.addAction(owner.shell.window_menu.menuAction())
         overflow_menu.addSeparator()
-        overflow_menu.addAction(owner.shell.report_problem_action)
         overflow_menu.addAction(owner.shell.export_diagnostics_action)
         overflow_menu.addSeparator()
         overflow_menu.addAction(owner.shell.open_about_action)
@@ -268,6 +277,7 @@ class CompactWorkspaceRail(QFrame):
             header._refresh_icon()
         self.settings_button.setIcon(compact_line_icon("mesh", palette))
         self.help_button.setIcon(compact_line_icon("book", palette))
+        self._owner.shell.report_problem_action.setIcon(compact_line_icon("bug", palette))
         self.overflow_button.setIcon(compact_line_icon("more", palette))
 
     def sizeHint(self):

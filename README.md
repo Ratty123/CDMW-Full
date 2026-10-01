@@ -165,8 +165,9 @@ Archive and editing workflows use local files. Optional online features, includi
 model catalogues and AI translation, connect to external services. Crash reports
 and diagnostic bundles stay local unless you share them.
 
-**Help > Report a Problem...** (also under **More**) uses five steps: problem,
-reproduction, setup, evidence, then review. Select the tool and affected action;
+**Report a Problem...** sits below **Support Me** in the sidebar and is also
+available under **Help**. Its five steps cover problem, reproduction, setup,
+evidence, then review. Select the tool and affected action;
 the input choices, examples and setup questions follow that selection. Stalls ask
 about wait time and progress; app-only issues can skip game and mod questions.
 Short prompts keep the form compact; **?** buttons provide targeted help. It prepares a

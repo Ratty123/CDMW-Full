@@ -135,6 +135,20 @@ def _paint_icon(painter: QPainter, name: str, palette: QPalette, extent: int) ->
     elif key == "search":
         painter.drawEllipse(QRectF(2.5, 2.5, 9.5, 9.5))
         _line(painter, (11, 11), (16, 16))
+    elif key == "bug":
+        head = QPainterPath(QPointF(6.5, 6))
+        head.cubicTo(6.5, 2.5, 11.5, 2.5, 11.5, 6)
+        painter.drawPath(head)
+        painter.drawRoundedRect(QRectF(5, 6, 8, 10), 2.5, 2.5)
+        _line(painter, (7.2, 3.9), (5.5, 2))
+        _line(painter, (10.8, 3.9), (12.5, 2))
+        _line(painter, (9, 8), (9, 15.5))
+        _line(painter, (5, 8), (3.5, 6.5), (2, 6.5))
+        _line(painter, (13, 8), (14.5, 6.5), (16, 6.5))
+        _line(painter, (5, 11), (2, 11))
+        _line(painter, (13, 11), (16, 11))
+        _line(painter, (5.5, 14), (3.5, 15.5), (2, 15.5))
+        _line(painter, (12.5, 14), (14.5, 15.5), (16, 15.5))
     elif key in {"chevron_down", "chevron_up"}:
         points = ((4, 6), (9, 11), (14, 6)) if key.endswith("down") else ((4, 12), (9, 7), (14, 12))
         _line(painter, *points)

@@ -515,7 +515,14 @@ def test_compact_workspace_executes_rail_footer_status_and_drawer_contracts(tmp_
     assert workspace.rail.support_button is owner.support_corner_button
     assert owner.profile_menu.menuAction() in workspace.rail.overflow_menu.actions()
     assert owner.window_menu.menuAction() in workspace.rail.overflow_menu.actions()
-    assert owner.report_problem_action in workspace.rail.overflow_menu.actions()
+    assert owner.report_problem_action not in workspace.rail.overflow_menu.actions()
+    assert workspace.rail.report_problem_button.defaultAction() is owner.report_problem_action
+    assert owner.report_problem_action in owner.help_menu.actions()
+    assert not workspace.rail.report_problem_button.icon().pixmap(18, 18).isNull()
+    report_requests = []
+    owner.report_problem_action.triggered.connect(lambda checked=False: report_requests.append(checked))
+    QTest.mouseClick(workspace.rail.report_problem_button, Qt.LeftButton)
+    assert report_requests == [False]
     assert owner.mod_package_tool_action not in workspace.rail.overflow_menu.actions()
     assert workspace.status_strip.ready_label is owner.archive_scan_progress_label
     assert workspace.status_strip.progress_bar is owner.archive_scan_progress_bar
@@ -526,12 +533,16 @@ def test_compact_workspace_executes_rail_footer_status_and_drawer_contracts(tmp_
     assert workspace.rail.support_button.isFlat()
     footer = workspace.rail.settings_button.parentWidget()
     assert footer is not None
-    assert footer.height() <= 131
+    assert footer.height() <= 162
+    assert footer.layout().indexOf(workspace.rail.report_problem_button) == (
+        footer.layout().indexOf(workspace.rail.support_button) + 1
+    )
     shell_buttons = [
         *workspace.rail.tool_buttons.values(),
         workspace.rail.settings_button,
         workspace.rail.help_button,
         workspace.rail.support_button,
+        workspace.rail.report_problem_button,
         workspace.rail.overflow_button,
         workspace.status_strip.activity_button,
     ]
