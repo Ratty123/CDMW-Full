@@ -1104,9 +1104,12 @@ def test_incremental_protocol_acknowledges_without_document_and_finish_keeps_the
                         "reuse": reuse, "base_hair_revision": old["revision"]}}
     for field in ("scalp", "references", "collisions", *reuse): value["hair"].pop(field, None)
     request = _fixtures._request(session, "transaction_request", 903)
+    request["label"] = "Rename hairstyle"
     request["candidate"] = _atomic_write_payload(session.root, "candidate-903-hair.json", value,
         data_type="mesh_candidate_json", element_count=0, expected_root_identity=session.root_identity)
     ack = session.apply_candidate(request)
     assert ack["hair_ack"] == old["revision"] + 1 and "document" not in ack and "history_cursor" in ack
+    assert len(ack["history_entries"]) == ack["undo_count"] + ack["redo_count"]
+    assert ack["history_entries"][-1]["label"] == "Rename hairstyle"
     session.finish(_fixtures._request(session, "finish_request", 904))
     assert authority._session(session.authoritative_session_id).hair_state.payload["style_name"] == "Finished name"

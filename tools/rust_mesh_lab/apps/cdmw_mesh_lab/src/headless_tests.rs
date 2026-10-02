@@ -1,4 +1,6 @@
 use super::*;
+
+mod history_navigation_tests;
 use cdmw_formats::{MeshDocument, MeshFormat, MeshLod, SourceRange, Submesh, decode_mesh};
 use cdmw_interaction::{OperatorState, ProjectedHandle};
 use sha2::{Digest, Sha256};

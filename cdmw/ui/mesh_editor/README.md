@@ -1369,6 +1369,21 @@ sizes.
 
 ### Local gestures and history
 
+**Inspector > Action History** lists confirmed actions in order. Click a row to
+select it without changing the model, then right-click **Undo from here** to undo
+that action and every later action. Undone entries remain in the list with hollow
+markers and dimmed labels. Right-click **Restore through here** on an undone entry
+to restore the intervening actions, including that entry. Numbers distinguish
+repeated action names. A new edit after undoing replaces the redo branch, just as
+with the existing Undo/Redo buttons.
+
+History navigation waits for each confirmed Undo/Redo result before continuing.
+Controls are disabled while edits are pending, and a failed restore or expired
+history entry stops at the last confirmed state. These controls use the current
+editing session's retained history; they do not replay or remove isolated edits
+out of order. `cdmw_history.rs` owns the list and traversal; the existing host
+history still restores geometry, selection, profiles and other editor state.
+
 Select, Move, Rotate, Scale, Grab, Smooth, Inflate, and Pinch execute locally in Rust.
 Selection is acknowledged with a selection-only command; it never sends geometry
 channels. Geometry candidates preserve original channel values when their Rust `f32`

@@ -4,6 +4,7 @@
 mod camera;
 mod cdmw_cloth;
 mod cdmw_hair;
+mod cdmw_history;
 mod cdmw_jiggle;
 mod cdmw_preview;
 mod cdmw_rig;
@@ -1468,6 +1469,7 @@ enum UiAction {
     InsetFaces,
     Undo,
     Redo,
+    CdmwHistoryCursor { cursor: usize, revision: u64 },
     ExportObj,
     ChooseCdmwImportPackage,
     ChooseCdmwFreeEdit,
@@ -2067,6 +2069,7 @@ struct LabApplication {
     cdmw_rig: cdmw_rig::RigView,
     cdmw_cloth: cdmw_cloth::ClothView,
     cdmw_jiggle: cdmw_jiggle::JiggleView,
+    cdmw_history: cdmw_history::HistoryView,
     source_label: String,
     status: String,
     history: History,
@@ -2239,6 +2242,7 @@ impl LabApplication {
             cdmw_rig: cdmw_rig::RigView::default(),
             cdmw_cloth: cdmw_cloth::ClothView::default(),
             cdmw_jiggle: cdmw_jiggle::JiggleView::default(),
+            cdmw_history: cdmw_history::HistoryView::default(),
             source_label: "No asset loaded".to_owned(),
             status,
             history: History::new(HISTORY_BUDGET_BYTES),
@@ -2855,6 +2859,7 @@ impl LabApplication {
                 "undo_count",
                 "redo_count",
                 "history_cursor",
+                "history_entries",
             ] {
                 self.cdmw_state[key] = payload[key].clone();
             }
@@ -2891,6 +2896,7 @@ impl LabApplication {
         if !ok {
             self.status = format!("{label} rejected: {}", error.trim());
             self.remember_cdmw_page_feedback(origin.as_ref());
+            self.finish_cdmw_history_step(request_id, false);
             return;
         }
         if matches!(
@@ -2923,6 +2929,7 @@ impl LabApplication {
                 format!("{label} completed · {diagnostic} · shadow revision {base_revision}");
         }
         self.remember_cdmw_page_feedback(origin.as_ref());
+        self.finish_cdmw_history_step(request_id, true);
     }
 
     fn remember_cdmw_page_feedback(&mut self, origin: Option<&CdmwRequestOrigin>) {
@@ -4631,6 +4638,7 @@ impl LabApplication {
                         });
                     }
                 }
+                UiAction::CdmwHistoryCursor { cursor, revision } => self.start_cdmw_history(cursor, revision),
                 UiAction::Undo => {
                     if self.cdmw_mode() {
                         if !self.defer_hair_history(false) {

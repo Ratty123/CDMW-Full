@@ -3978,7 +3978,7 @@ impl LabApplication {
                         crate::localization::collapsing("Parts")
                             .show(ui, |ui| self.draw_hair_parts(ui, actions));
                         crate::localization::collapsing("Action History")
-                            .show(ui, |ui| self.draw_cdmw_history(ui));
+                            .show(ui, |ui| self.draw_cdmw_history(ui, actions));
                         return;
                     }
                     ui.add_enabled_ui(!busy, |ui| {
@@ -3999,7 +3999,7 @@ impl LabApplication {
                         egui::Frame::group(ui.style()).show(ui, |ui| {
                             ui.set_width(ui.available_width());
                             cdmw_section(ui, "cdmw-history", "Action History", None, |ui| {
-                                self.draw_cdmw_history(ui);
+                                self.draw_cdmw_history(ui, actions);
                             });
                         });
                     });
@@ -4541,36 +4541,6 @@ impl LabApplication {
         });
         if free_edit {
             ui.small(crate::localization::tr("Copy Selection → Paste New Layer"));
-        }
-    }
-
-    fn draw_cdmw_history(&self, ui: &mut egui::Ui) {
-        let entries = self
-            .cdmw_state
-            .get("history_entries")
-            .and_then(Value::as_array)
-            .cloned()
-            .unwrap_or_default();
-        let cursor = state_u64(&self.cdmw_state, "history_cursor") as usize;
-        if entries.is_empty() {
-            ui.label(RichText::new(crate::localization::tr("No confirmed Mesh Editor actions yet")).italics());
-        }
-        for (index, entry) in entries.iter().enumerate() {
-            let label = entry
-                .as_str()
-                .map(ToOwned::to_owned)
-                .or_else(|| {
-                    entry
-                        .get("label")
-                        .and_then(Value::as_str)
-                        .map(ToOwned::to_owned)
-                })
-                .unwrap_or_else(|| format!("Action {}", index + 1));
-            ui.label(crate::localization::tr(if index < cursor {
-                format!("● {label}")
-            } else {
-                format!("○ {label}")
-            }));
         }
     }
 
