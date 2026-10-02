@@ -53,9 +53,9 @@ def write_resident_index(root, entries, generation, *, override_flags=(), sort_r
 
 def write_dependency_index(source, entries, *, basename_hash=_basename_hash):
     """The ADI1 basename records and BinaryWriter facet payload used by .NET."""
-    records = sorted((basename_hash(entry.basename.lower()), row) for row, entry in enumerate(entries))
+    records = sorted((basename_hash(entry.basename), row) for row, entry in enumerate(entries))
     names = b''.join(struct.pack('<QQ', *record) for record in records)
-    stem_records = sorted((basename_hash(entry.basename.rsplit('.', 1)[0].lower()), row)
+    stem_records = sorted((basename_hash(entry.basename.rsplit('.', 1)[0]), row)
                           for row, entry in enumerate(entries))
     stems = b''.join(struct.pack('<QQ', *record) for record in stem_records)
     # Four empty facet tables are

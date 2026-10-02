@@ -210,6 +210,42 @@ def test_nonadjacent_unicode_duplicates_keep_the_global_mount_winner(catalogue, 
     assert len(index.by_path) == 2
 
 
+def test_unicode_ascii_casing_aliases_keep_lookup_filters_and_mount_priority(catalogue, tmp_path):
+    from cdmw.core.papgt_format import PAPGT_DEFAULT_FLAGS, PapgtDirectory, serialize_papgt
+    root, entries, _source = catalogue
+    other_pamt = root / '0010' / '0.pamt'
+    other_pamt.parent.mkdir()
+    other_pamt.write_bytes(b'owned overlay fixture')
+    first = replace(entries[0], path='model/ksword.pac')
+    between = replace(first, path='model/zsword.pac')
+    winner = replace(first, path='model/\u212asword.pac', pamt_path=other_pamt)
+    (root / 'meta' / '0.papgt').write_bytes(serialize_papgt([
+        PapgtDirectory('0010', PAPGT_DEFAULT_FLAGS, 0), PapgtDirectory('0009', PAPGT_DEFAULT_FLAGS, 0),
+    ]))
+    index = write_resident_index(root, [winner, between, first], tmp_path / 'unicode-ascii-alias').open()
+    assert list(index.by_path[first.path]) == [first, winner]
+    assert list(index.by_basename[first.basename]) == [first, winner]
+    assert index.active_entry(first.path) == winner
+    assert list(index.matching(('.pac',), contains='ksword')) == [winner]
+    assert list(index.by_path) == [first.path, between.path]
+    assert list(index.by_basename.candidate_keys(contains='k', suffix='.pac')) == [first.basename]
+
+
+def test_unicode_extension_casing_keeps_the_full_name_context(catalogue, tmp_path, monkeypatch):
+    root, entries, _source = catalogue
+    row = replace(entries[0], path='model/A.\u03a3')
+    index = write_resident_index(root, [row], tmp_path / 'unicode-extension').open()
+    expected = '.' + row.path.lower().rsplit('.', 1)[-1]
+    assert list(index.by_extension[expected]) == [row]
+    assert list(index.by_extension) == [expected]
+    # Also exercise the streaming-key branch when the extension-key budget is
+    # exhausted, so iterating groups and querying them use the same casing.
+    monkeypatch.setattr('cdmw.core.archive_resident_index._EXTENSION_CACHE_SIZE', 0)
+    streamed = write_resident_index(root, [row], tmp_path / 'unicode-extension-streamed').open()
+    assert list(streamed.by_extension) == [expected]
+    assert list(streamed.by_extension[expected]) == [row]
+
+
 @pytest.mark.parametrize('filtered', [False, True])
 def test_skeleton_search_filters_names_before_decoding_records(catalogue, tmp_path, monkeypatch, filtered):
     from cdmw.core.skeleton_resolver import _all_indexed_pab_candidates, _descriptor_candidates_for_model

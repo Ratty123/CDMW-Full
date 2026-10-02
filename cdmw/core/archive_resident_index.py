@@ -144,6 +144,7 @@ class ResidentArchiveIndex(Sequence[ArchiveEntry]):
             self._source_packages = OrderedDict()
             self._extensions = None
             self._dependency_check_at = 0.
+            self._ascii_case_alias = None
             self._mounts = None
             mount_path = root / "meta" / "0.papgt"
             if mount_path.is_file():
@@ -274,8 +275,20 @@ class ResidentArchiveIndex(Sequence[ArchiveEntry]):
                     mapping.close()
                 return None
 
+    def _needs_unicode_scan(self, key):
+        # Kelvin sign is the only non-ASCII character whose Python lowercase
+        # is entirely ASCII. A native ASCII-folded search cannot find its 'k'
+        # alias. Check the mapped pool once, without decoding a name catalogue.
+        if "k" not in key:
+            return False
+        with self._lookup_lock:
+            if self._ascii_case_alias is None:
+                self._ascii_case_alias = self._mapping.find(
+                    b"\xe2\x84\xaa", self._strings, self._strings + self._strings_size) >= 0
+            return self._ascii_case_alias
+
     def _path_rows(self, key):
-        if not key.isascii():
+        if not key.isascii() or self._needs_unicode_scan(key):
             # FAI3 sorts ASCII-folded UTF-8; retain Python's Unicode lowercase
             # lookup semantics without applying a different binary-search order.
             return array("Q", (row for row in self._scan_rows()
@@ -295,7 +308,7 @@ class ResidentArchiveIndex(Sequence[ArchiveEntry]):
         return rows
 
     def _basename_rows(self, key):
-        data = self._dependency_index() if key.isascii() else None
+        data = self._dependency_index() if key.isascii() and not self._needs_unicode_scan(key) else None
         if data is None:
             return array("Q", (row for row in self._scan_rows()
                 if self._path_bytes(row).decode("utf-8").lower().rsplit("/", 1)[-1] == key))
@@ -332,7 +345,11 @@ class ResidentArchiveIndex(Sequence[ArchiveEntry]):
     def _extension(self, row):
         basename = self._path_bytes(row).rsplit(b"/", 1)[-1]
         dot = basename.rfind(b".")
-        return basename[dot:].decode("utf-8").lower() if dot >= 0 else ""
+        if dot < 0:
+            return ""
+        if basename.isascii():
+            return basename[dot:].decode("utf-8").lower()
+        return "." + basename.decode("utf-8").lower().rsplit(".", 1)[-1]
 
     def _prepare_extensions(self, stop_event=None):
         stop_event = _stop_token(stop_event)
@@ -441,7 +458,8 @@ class ResidentArchiveIndex(Sequence[ArchiveEntry]):
                 key = self._path_bytes(row).decode("utf-8").lower()
                 if contains and contains not in key:
                     continue
-                if active_only and not key.isascii() and row not in self._active_rows(self._group_rows("path", key)):
+                if (active_only and (not key.isascii() or self._needs_unicode_scan(key))
+                        and row not in self._active_rows(self._group_rows("path", key))):
                     # Unicode case-equivalent paths need not be adjacent in
                     # FAI3's ASCII-folded order. Select their global mount winner.
                     continue
@@ -467,20 +485,17 @@ class ResidentArchiveIndex(Sequence[ArchiveEntry]):
         needle = contains.encode("utf-8") if contains.isascii() else None
         ending = suffix.encode("utf-8") if suffix.isascii() else None
         for row in self._scan_rows():
-            raw = self._path_bytes(row).lower()
+            raw = (self._extension(row).encode("utf-8") if kind == "extension"
+                   else self._path_bytes(row).lower())
             if kind == "basename":
                 raw = raw.rsplit(b"/", 1)[-1]
-            elif kind == "extension":
-                raw = raw.rsplit(b"/", 1)[-1]
-                dot = raw.rfind(b".")
-                raw = raw[dot:] if dot >= 0 else b""
-            if (needle is not None and needle not in raw
+            if raw.isascii() and (needle is not None and needle not in raw
                     or ending is not None and not raw.endswith(ending)):
                 continue
             key = raw.decode("utf-8").lower()
             if contains not in key or not key.endswith(suffix):
                 continue
-            if kind == "path" and key.isascii():
+            if kind == "path" and key.isascii() and not self._needs_unicode_scan(key):
                 if key == previous:
                     continue
                 previous = key
