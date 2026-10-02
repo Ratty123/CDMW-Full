@@ -31,17 +31,12 @@ fn resample_draw_points(points: &[[f32; 3]], count: usize, root_span: f32) -> Ve
 }
 
 fn smooth_draw_points(points: &[[f32; 3]], smoothing: f32, width: f32) -> Vec<[f32; 3]> {
-    let mut points = resample_draw_points(points, points.len().clamp(2, 256), 0.0);
+    let length: f32 = points.windows(2).map(|p| Vec3::from(p[0]).distance(Vec3::from(p[1]))).sum();
+    let count = ((length / (width * 0.15).max(0.0001)).ceil() as usize + 1).clamp(32, 512);
+    let points = resample_draw_points(points, count, 0.0);
     // Symmetric spatial filtering keeps the tip under the pointer; a temporal
     // trailing filter would make drawing feel delayed and depend on frame rate.
-    for _ in 0..3 {
-        let before = points.clone();
-        for i in 1..points.len() - 1 {
-            points[i] = Vec3::from(before[i]).lerp(
-                (Vec3::from(before[i - 1]) + Vec3::from(before[i + 1])) * 0.5,
-                smoothing * 0.5).to_array();
-        }
-    }
+    let points = hair::smooth_guide_points(&points, (width * smoothing).min(length * 0.1));
     resample_draw_points(&points, hair::MAX_POINTS, width * 2.0)
 }
 
@@ -68,6 +63,23 @@ fn hair_spatial_smoothing_reduces_jitter_without_trailing_the_pointer() {
     assert!(jitter(&smooth) < jitter(&raw) * 0.7);
     assert_eq!(smooth[0], path[0]);
     assert_eq!(smooth.last(), path.last());
+}
+
+#[test]
+fn hair_draw_smoothing_is_independent_of_pointer_sample_density() {
+    let sparse: Vec<_> = (0..41).map(|i| [i as f32 * 0.004, 0.2, (i as f32 * 1.7).sin() * 0.002]).collect();
+    let mut dense = vec![sparse[0]];
+    for pair in sparse.windows(2) {
+        for i in 1..=12 {
+            dense.push(Vec3::from(pair[0]).lerp(Vec3::from(pair[1]), i as f32 / 12.0).to_array());
+        }
+    }
+    let a = smooth_draw_points(&sparse, 0.8, 0.012);
+    let b = smooth_draw_points(&dense, 0.8, 0.012);
+    let error = a.iter().zip(&b).map(|(p, q)| Vec3::from(*p).distance(Vec3::from(*q))).fold(0.0_f32, f32::max);
+    assert!(error < 0.00001, "mouse sample density changed smoothing by {error}");
+    assert_eq!(a[0], sparse[0]);
+    assert_eq!(a.last(), sparse.last());
 }
 
 impl LabApplication {
@@ -557,6 +569,13 @@ impl LabApplication {
         let previous = self.hair.last_pointer.replace(pointer).unwrap_or(pointer);
         let distance = pointer.distance(previous);
         let tool = self.hair.tool.unwrap_or(HairTool::Select);
+        // Measure from the last accepted draw sample. Updating this anchor on
+        // every subpixel event used to discard slow/high-frequency strokes forever.
+        if matches!(tool, HairTool::Guide | HairTool::Paint) && !self.hair.drawing.is_empty() && distance < 0.5 {
+            self.hair.last_pointer = Some(previous);
+            self.hair.stroke = Some(state);
+            return;
+        }
         let hit = self.lock_at(pointer, rect);
         let result: Result<(), String> = (|| {
             if tool == HairTool::Physics {
@@ -1054,7 +1073,7 @@ impl LabApplication {
                 HairTool::Clump => Groom::Clump,
                 _ => Groom::Comb,
             };
-            if matches!(tool, HairTool::Smooth | HairTool::Curl | HairTool::Clump) {
+            if matches!(tool, HairTool::Smooth | HairTool::Curl | HairTool::Clump | HairTool::Lengthen) {
                 // Evaluate the rest shape at cumulative stroke distance. Splitting
                 // the same stroke into more mouse events cannot amplify the tool.
                 let mut affected: BTreeSet<_> = guides.iter().copied().collect();
@@ -1067,12 +1086,14 @@ impl LabApplication {
                         *self.hair.stroke_distances.entry(gi).or_default() += distance;
                     }
                 }
+                let total = affected.iter().map(|g| self.hair.stroke_distances[g]).fold(0.0_f32, f32::max);
+                let direction = if tool == HairTool::Lengthen { delta * (total / distance) } else { delta };
                 hair::groom(
                     &mut state,
                     &guides,
                     groom,
                     1.0,
-                    delta.to_array(),
+                    direction.to_array(),
                     self.hair.symmetry,
                 )
                 .map_err(|e| e.to_string())?;
@@ -1080,7 +1101,9 @@ impl LabApplication {
                 // lock must not reset the strength of locks already being groomed.
                 if let Some(before) = &self.hair.state {
                     for gi in affected {
-                        let strength = 1.0 - (-self.hair.stroke_distances[&gi] * self.hair.strength / 40.0).exp();
+                        let strength = if tool == HairTool::Lengthen {
+                            self.hair.strength * self.hair.stroke_distances[&gi] / total
+                        } else { 1.0 - (-self.hair.stroke_distances[&gi] * self.hair.strength / 40.0).exp() };
                         for (point, old) in state.guides[gi].points.iter_mut().zip(&before.guides[gi].points) {
                             *point = Vec3::from(*old).lerp(Vec3::from(*point), strength).to_array();
                         }

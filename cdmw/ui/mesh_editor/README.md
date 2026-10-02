@@ -349,7 +349,9 @@ empty space for a marquee. **Move reach** sets how much of the lock follows the 
 point, with a smooth falloff and fixed roots. **Draw** offers **Freehand**,
 **Straight**, **Arc** and **Circle**. Drag the endpoints of a line or arc, or the
 diameter of a circle. **Bend** adjusts an arc's direction and depth; **Stroke
-smoothing** reduces freehand jitter without trailing behind the pointer.
+smoothing** reduces freehand jitter without trailing behind the pointer. It uses the
+same physical smoothing distance at different mouse sampling rates. Slow, small pointer
+movements accumulate into a continuous stroke instead of repeatedly being discarded.
 
 Drawn cards follow smooth curves with up to three sections per guide segment and
 continuous shading through bends, including during grooming and motion. Extra card
@@ -372,7 +374,11 @@ their saved shape and need redrawing.
 **Erase** removes visible locks under the brush; Delete removes selected geometry.
 **Cut** trims every visible lock inside the brush at the point nearest the brush centre.
 Click for one cut or drag across several locks; the completed stroke is one Undo step.
-**Lengthen** extends the tips of every brushed lock without moving roots. Comb, Smooth,
+**Lengthen** extends the tips of every brushed lock without moving roots, spreading the
+extension gradually through the tail instead of stretching one final segment. **Smooth**
+rounds jagged bends while keeping both the root and tip in place. **Curl** wraps around
+each lock's direction. Grooming falloff follows distance along the lock, so closely
+spaced root points do not introduce abrupt changes. Comb, Smooth,
 Curl and Clump also affect every visible lock inside the brush, even when another lock
 is selected. **Move** continues to act on selected locks. Grooming works with hair drawn
 with **Follow scalp** either on or off.

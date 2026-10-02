@@ -2222,7 +2222,7 @@ fn hair_draw_follows_curved_scalp_and_ctrl_lifts_away_without_entering_it() {
 }
 
 #[test]
-fn hair_shaping_tools_change_rendered_hair_keep_roots_and_lengthen_only_tips() {
+fn hair_shaping_tools_change_rendered_hair_keep_roots_and_lengthen_with_a_smooth_tail() {
     for tool in [
         HairTool::Lengthen,
         HairTool::Smooth,
@@ -2274,10 +2274,17 @@ fn hair_shaping_tools_change_rendered_hair_keep_roots_and_lengthen_only_tips() {
                 .guide
                 .unwrap() as usize;
             let count = before.guides[gi].points.len();
-            assert_eq!(
-                stroke.guides[gi].points[..count - 1],
-                before.guides[gi].points[..count - 1]
-            );
+            let total: f32 = before.guides[gi].points.windows(2)
+                .map(|p| Vec3::from(p[0]).distance(Vec3::from(p[1]))).sum();
+            let mut along = 0.0;
+            for i in 1..count {
+                along += Vec3::from(before.guides[gi].points[i - 1]).distance(Vec3::from(before.guides[gi].points[i]));
+                if along <= total * 0.5 {
+                    assert_eq!(stroke.guides[gi].points[i], before.guides[gi].points[i]);
+                }
+            }
+            assert!(stroke.guides[gi].points[..count - 1].iter().zip(&before.guides[gi].points)
+                .any(|(p, q)| p != q), "extension must be shared by the tail, not one terminal segment");
             assert_ne!(
                 stroke.guides[gi].points[count - 1],
                 before.guides[gi].points[count - 1]
@@ -3232,7 +3239,7 @@ fn hair_width_and_density_change_only_selected_visible_locks() {
 
 #[test]
 fn hair_brush_strength_depends_on_stroke_distance_not_event_count() {
-    for tool in [HairTool::Smooth, HairTool::Curl, HairTool::Clump] {
+    for tool in [HairTool::Smooth, HairTool::Curl, HairTool::Clump, HairTool::Lengthen] {
         let stroke = |steps: u32| {
             let (mut app, rect) = ready_hair_app();
             let (point, id) = visible_lock(&app, rect);
@@ -3277,6 +3284,117 @@ fn hair_brush_strength_depends_on_stroke_distance_not_event_count() {
             "{tool:?} event frequency changed the stroke by {error}"
         );
     }
+}
+
+#[test]
+fn hair_draw_subpixel_pointer_events_accumulate_into_a_continuous_stroke() {
+    let (mut app, rect, _) = drawn_brush_app();
+    app.run_hair_action(HairAction::Empty);
+    await_hair(&mut app);
+    app.hair.tool = Some(HairTool::Guide);
+    app.hair.draw_shape = DrawShape::Freehand;
+    let start = app.camera.project(Vec3::new(-0.06, 0.2, 0.0), rect).unwrap().screen;
+    app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryPressed(start), rect, false, false, false);
+    for i in 1..=400 {
+        app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryMoved(start + Vec2::X * (i as f32 * 0.2)), rect, false, false, false);
+    }
+    let end = start + Vec2::X * 80.0;
+    app.render_hair();
+    let stroke = app.hair.stroke.as_ref().unwrap();
+    assert_eq!(stroke.guides[0].points.len(), hair::MAX_POINTS);
+    let tip = app.camera.project(Vec3::from(*stroke.guides[0].points.last().unwrap()), rect).unwrap().screen;
+    assert!(tip.distance(end) < 1.0, "slow drawing stalled: {tip:?} versus {end:?}");
+    app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryReleased(end), rect, false, false, false);
+    await_hair(&mut app);
+    app.hair.state.as_ref().unwrap().validate().unwrap();
+    assert_eq!(app.hair.state.as_ref().unwrap().guides.len(), 1);
+}
+
+#[test]
+#[ignore = "synthetic D3D12 hair drawing and grooming capture; no game assets"]
+fn hair_smooth_drawing_and_editing_render_capture() {
+    use winit::application::ApplicationHandler;
+    use winit::event::WindowEvent;
+    use winit::event_loop::{ActiveEventLoop, EventLoop};
+    use winit::platform::windows::EventLoopBuilderExtWindows;
+    use winit::window::{Window, WindowId};
+    #[derive(Default)]
+    struct Probe(Option<anyhow::Result<()>>);
+    impl ApplicationHandler for Probe {
+        fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+            self.0 = Some(run(event_loop));
+            event_loop.exit();
+        }
+        fn window_event(&mut self, _: &ActiveEventLoop, _: WindowId, _: WindowEvent) {}
+    }
+    fn capture(renderer: &mut WindowRenderer, app: &LabApplication, name: &str) -> anyhow::Result<()> {
+        renderer.set_snapshot(&app.hair.scene.as_ref().unwrap().frame)?;
+        let pixels = renderer.capture_frame(1024, 512, None)?.read_rgba()?;
+        assert!(pixels.chunks_exact(4).filter(|p| p[..3] != [0, 0, 0]).count() > 1000,
+            "the authored hair must actually render");
+        if let Ok(root) = std::env::var("CDMW_HAIR_PROBE_OUTPUT") {
+            std::fs::create_dir_all(&root)?;
+            let file = std::fs::File::create(std::path::Path::new(&root).join(format!("{name}.png")))?;
+            let mut encoder = png::Encoder::new(file, 1024, 512);
+            encoder.set_color(png::ColorType::Rgba);
+            encoder.set_depth(png::BitDepth::Eight);
+            encoder.write_header()?.write_image_data(&pixels)?;
+        }
+        Ok(())
+    }
+    fn run(event_loop: &ActiveEventLoop) -> anyhow::Result<()> {
+        let window = std::sync::Arc::new(event_loop.create_window(Window::default_attributes()
+            .with_visible(false).with_inner_size(winit::dpi::PhysicalSize::new(1024, 512)))?);
+        let mut renderer = pollster::block_on(WindowRenderer::new(window))?;
+        renderer.set_clear_colour([0.0, 0.0, 0.0, 1.0]);
+        renderer.set_view_mode(ViewMode::Solid);
+        let mut view = None;
+        for smoothing in [0.0, 0.8] {
+            let (mut app, rect, _) = drawn_brush_app();
+            app.run_hair_action(HairAction::Empty);
+            await_hair(&mut app);
+            app.hair.tool = Some(HairTool::Guide);
+            app.hair.draw_shape = DrawShape::Freehand;
+            app.hair.draw_smoothing = smoothing;
+            app.hair.show_reference = false;
+            app.render_hair();
+            let start = app.camera.project(Vec3::new(-0.06, 0.2, 0.0), rect).unwrap().screen;
+            app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryPressed(start), rect, false, false, false);
+            let mut end = start;
+            for i in 1..=60 {
+                end = start + Vec2::new(i as f32 * 4.0, (i as f32 * 1.7).sin() * 5.0);
+                app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryMoved(end), rect, false, false, false);
+            }
+            app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryReleased(end), rect, false, false, false);
+            await_hair(&mut app);
+            let points = &app.hair.state.as_ref().unwrap().guides[0].points;
+            let root = Vec3::from(points[0]);
+            let tip = Vec3::from(*points.last().unwrap());
+            let centre = (root + tip) * 0.5;
+            let span = root.distance(tip) * 0.65;
+            let camera = *view.get_or_insert_with(|| glam::Mat4::orthographic_rh(-span, span, -span * 0.5, span * 0.5, 0.01, 4.0)
+                * glam::Mat4::look_at_rh(centre + Vec3::Y, centre, Vec3::NEG_Z));
+            renderer.set_camera(camera);
+            capture(&mut renderer, &app, if smoothing == 0.0 { "raw-draw" } else { "smooth-draw" })?;
+            if smoothing == 0.0 {
+                app.hair.tool = Some(HairTool::Smooth);
+                app.hair.strength = 1.0;
+                let point = start.lerp(end, 0.5);
+                app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryPressed(point), rect, false, false, false);
+                for i in 0..8 {
+                    app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryMoved(point + Vec2::X * if i % 2 == 0 { 15.0 } else { 0.0 }), rect, false, false, false);
+                }
+                app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryReleased(point), rect, false, false, false);
+                await_hair(&mut app);
+                capture(&mut renderer, &app, "smooth-edit")?;
+            }
+        }
+        Ok(())
+    }
+    let event_loop = EventLoop::builder().with_any_thread(true).build().unwrap();
+    let mut probe = Probe::default();
+    event_loop.run_app(&mut probe).unwrap();
+    probe.0.expect("probe ran").expect("drawn and groomed cards render");
 }
 
 #[test]

@@ -545,6 +545,51 @@ pub enum Groom {
     Clump,
 }
 
+fn guide_distances(points: &[[f32; 3]]) -> Vec<f32> {
+    let mut distances = Vec::with_capacity(points.len());
+    let mut distance = 0.0;
+    distances.push(distance);
+    for pair in points.windows(2) {
+        distance += Vec3::from(pair[0]).distance(Vec3::from(pair[1]));
+        distances.push(distance);
+    }
+    distances
+}
+
+/// Spatial smoothing for drawn and edited guides. Samples use physical distance,
+/// so dense root points or extra pointer events cannot change the filter width.
+/// Symmetric neighborhoods preserve straight sections; both endpoints stay fixed.
+pub fn smooth_guide_points(points: &[[f32; 3]], radius: f32) -> Vec<[f32; 3]> {
+    let mut result = points.to_vec();
+    if points.len() < 3 || !radius.is_finite() || radius <= 0.0 { return result; }
+    let distances = guide_distances(points);
+    let total = *distances.last().unwrap();
+    let sample = |i: usize, distance: f32| {
+        let t = ((distance - distances[i]) / (distances[i + 1] - distances[i]).max(1e-12)).clamp(0.0, 1.0);
+        Vec3::from(points[i]).lerp(Vec3::from(points[i + 1]), t)
+    };
+    let kernel = [0.25_f32, 0.5, 0.75, 1.0].map(|t| (t, (-2.0 * t * t).exp()));
+    for i in 1..points.len() - 1 {
+        let reach = radius.min(distances[i]).min(total - distances[i]);
+        let mut sum = Vec3::from(points[i]);
+        let mut weight = 1.0;
+        let mut left = i - 1;
+        let mut right = i;
+        // The samples move outward in order. Reuse their segment brackets
+        // instead of starting another search for every filter tap.
+        for (t, w) in kernel {
+            let a = distances[i] - reach * t;
+            let b = distances[i] + reach * t;
+            while left > 0 && distances[left] >= a { left -= 1; }
+            while right + 2 < points.len() && distances[right + 1] < b { right += 1; }
+            sum += (sample(left, a) + sample(right, b)) * w;
+            weight += 2.0 * w;
+        }
+        result[i] = (sum / weight).to_array();
+    }
+    result
+}
+
 pub fn groom(
     state: &mut HairState,
     guides: &[usize],
@@ -599,10 +644,14 @@ pub fn groom(
             continue;
         }
         let root = Vec3::from(old[0]);
-        let length: f32 = old
-            .windows(2)
-            .map(|s| Vec3::from(s[0]).distance(Vec3::from(s[1])))
-            .sum();
+        let distances = guide_distances(old);
+        let length = distances.last().copied().unwrap_or(0.0).max(1e-8);
+        let smooth = (operation == Groom::Smooth).then(|| smooth_guide_points(old, length * 0.1));
+        let tip = Vec3::from(*old.last().unwrap());
+        let extension = (tip - Vec3::from(old[old.len() - 2])).normalize_or_zero()
+            * Vec3::from(direction).length() * strength;
+        let (curl_side, curl_up, _) = segment_frame(root,
+            if tip.distance_squared(root) > 1e-12 { tip } else { Vec3::from(old[1]) });
         let sign = if paired.contains(&(index as u32)) && (root.x < 0.0) != primary_left {
             -1.0
         } else {
@@ -611,27 +660,20 @@ pub fn groom(
         let delta = Vec3::from(direction) * Vec3::new(sign, 1.0, 1.0);
         for i in 1..old.len() {
             let p = Vec3::from(old[i]);
-            let t = i as f32 / (old.len() - 1) as f32;
+            let t = distances[i] / length;
             let next = match operation {
                 Groom::Comb => p + delta * strength * t,
                 Groom::Smooth => {
-                    let previous = Vec3::from(old[i - 1]);
-                    let next = Vec3::from(old[(i + 1).min(old.len() - 1)]);
-                    p.lerp((previous + next) * 0.5, strength * 0.6)
+                    p.lerp(Vec3::from(smooth.as_ref().unwrap()[i]), strength)
                 }
                 Groom::Cut => p,
                 Groom::Lengthen => {
-                    if i + 1 == old.len() {
-                        p + (p - Vec3::from(old[i - 1])).normalize_or_zero()
-                            * Vec3::from(direction).length()
-                            * strength
-                    } else {
-                        p
-                    }
+                    let tail = ((t - 0.5) * 2.0).clamp(0.0, 1.0);
+                    p + extension * (tail * tail * (3.0 - 2.0 * tail))
                 }
                 Groom::Curl => {
                     let angle = t * std::f32::consts::TAU * 2.0;
-                    p + Vec3::new(angle.sin(), 0.0, angle.cos() - 1.0)
+                    p + (curl_side * angle.sin() + curl_up * (angle.cos() - 1.0))
                         * length
                         * strength
                         * 0.15
@@ -1588,6 +1630,66 @@ mod tests {
             assert_ne!(s.guides[0].points, before.guides[0].points);
             s.validate().unwrap();
         }
+    }
+
+    #[test]
+    fn hair_groom_falloff_follows_distance_instead_of_uneven_point_numbers() {
+        for operation in [Groom::Comb, Groom::Curl, Groom::Clump] {
+            let mut a = planted();
+            let root = Vec3::from(a.guides[0].points[0]);
+            a.guides[0].points = [0.0, 0.01, 0.08, 0.2].map(|d| (root + Vec3::Y * d).to_array()).to_vec();
+            let mut b = a.clone();
+            b.guides[0].points.insert(1, (root + Vec3::Y * 0.001).to_array());
+            groom(&mut a, &[0], operation, 0.6, [0.04, 0.01, 0.0], false).unwrap();
+            groom(&mut b, &[0], operation, 0.6, [0.04, 0.01, 0.0], false).unwrap();
+            for (i, j) in [(0, 0), (1, 2), (2, 3), (3, 4)] {
+                assert!(Vec3::from(a.guides[0].points[i]).distance(Vec3::from(b.guides[0].points[j])) < 1e-6,
+                    "{operation:?} changed because the root had another sample");
+            }
+        }
+    }
+
+    #[test]
+    fn hair_groom_smooth_preserves_tip_and_reduces_jagged_bends() {
+        let mut state = planted();
+        let root = Vec3::from(state.guides[0].points[0]);
+        state.guides[0].points = (0..64).map(|i| (root + Vec3::new(i as f32 * 0.002, 0.0,
+            if i == 0 || i == 63 { 0.0 } else { (i as f32 * 1.7).sin() * 0.003 })).to_array()).collect();
+        let before = state.guides[0].points.clone();
+        let roughness = |points: &[[f32; 3]]| points.windows(3).map(|p|
+            (Vec3::from(p[0]) - Vec3::from(p[1]) * 2.0 + Vec3::from(p[2])).length()).sum::<f32>();
+        groom(&mut state, &[0], Groom::Smooth, 1.0, [0.0; 3], false).unwrap();
+        let after = &state.guides[0].points;
+        assert_eq!(after[0], before[0]);
+        assert_eq!(after.last(), before.last(), "Smooth must not shorten the tip");
+        assert!(roughness(after) < roughness(&before) * 0.4);
+    }
+
+    #[test]
+    fn hair_groom_lengthen_distributes_extension_without_a_stretched_tip_segment() {
+        let mut state = planted();
+        let before = state.guides[0].points.clone();
+        groom(&mut state, &[0], Groom::Lengthen, 1.0, [0.2, 0.0, 0.0], false).unwrap();
+        let after = &state.guides[0].points;
+        assert_eq!(after[0], before[0]);
+        assert_eq!(after.len(), before.len());
+        assert!(Vec3::from(*after.last().unwrap()).distance(Vec3::from(*before.last().unwrap())) > 0.19);
+        let lengths: Vec<_> = after.windows(2).map(|p| Vec3::from(p[0]).distance(Vec3::from(p[1]))).collect();
+        let mean = lengths.iter().sum::<f32>() / lengths.len() as f32;
+        assert!(lengths.iter().all(|d| *d < mean * 3.0), "Lengthen left a stretched final segment: {lengths:?}");
+    }
+
+    #[test]
+    fn hair_groom_curl_follows_the_lock_direction_without_axial_kinks() {
+        let mut state = planted();
+        let root = Vec3::from(state.guides[0].points[0]);
+        state.guides[0].points = (0..64).map(|i| (root + Vec3::X * (i as f32 * 0.004)).to_array()).collect();
+        let before = state.guides[0].points.clone();
+        groom(&mut state, &[0], Groom::Curl, 1.0, [0.0; 3], false).unwrap();
+        for (p, q) in state.guides[0].points.iter().zip(&before) {
+            assert!((p[0] - q[0]).abs() < 1e-6, "Curl pushed a horizontal lock backwards along itself");
+        }
+        assert_ne!(state.guides[0].points, before);
     }
     #[test]
     fn hair_generated_cards_bind_and_deform_without_changing_uvs() {
