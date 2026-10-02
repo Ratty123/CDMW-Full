@@ -226,12 +226,16 @@ class RemoteItemFinderWarmupController(QObject):
             self._setting("ui/item_finder_category"),
             self._setting("ui/item_finder_group"),
         )
+        try:
+            page_start = max(0, int(self._setting("ui/item_finder_page_start") or 0))
+        except ValueError:
+            page_start = 0
         return ItemCatalogSearchRequest(
             session_id,
             query=self._setting("ui/item_finder_search_text"),
             category=category,
             group=group,
-            page_start=0,
+            page_start=page_start,
             page_size=_INITIAL_PAGE_SIZE,
         )
 

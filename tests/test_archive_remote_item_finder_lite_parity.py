@@ -168,11 +168,13 @@ def test_full_item_finder_matches_lite_card_detail_and_scope_flow() -> None:
     _drain()
     assert dialog.result() == QDialog.Accepted
     assert window.archive_remote_bridge.scopes == [((3, 8), "Item Finder: Item 7")]
-    dialog.close()
     assert "ui/item_finder_geometry" in settings.values
     assert settings.values["ui/item_finder_search_text"] == "sword"
     assert settings.values["ui/item_finder_category"] == ""
     assert settings.values["ui/item_finder_group"] == ""
+    assert settings.values["ui/item_finder_selected_item_id"] == 7
+    assert dialog._closing
+    dialog.close()
 
 
 def test_name_only_item_remains_visible_with_asset_actions_disabled() -> None:

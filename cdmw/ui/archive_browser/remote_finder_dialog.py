@@ -201,6 +201,19 @@ class RemoteArchiveFinderDialog(QDialog):
         self._facets_ready = False
         self._settings = getattr(window.shell, "settings", None)
         self._warmup = getattr(window.archive, "archive_item_finder_warmup_controller", None)
+        self._page_start = max(0, self._read_int_setting("ui/item_finder_page_start"))
+        self._preferred_item_id = self._read_int_setting("ui/item_finder_selected_item_id")
+        self._preferred_scroll_value = max(0, self._read_int_setting("ui/item_finder_scroll_value"))
+        self._preferred_category_scroll = max(0, self._read_int_setting("ui/item_finder_category_scroll_value"))
+        self._preferred_detail_scroll = max(0, self._read_int_setting("ui/item_finder_detail_scroll_value"))
+        self._restore_pending = True
+        try:
+            expanded = self._settings.value("ui/item_finder_expanded_categories", []) if self._settings else []
+        except Exception:
+            expanded = []
+        self._expanded_categories = {
+            value for value in expanded if isinstance(value, str)
+        } if isinstance(expanded, (list, tuple)) else set()
         self._preferred_category = self._read_setting("ui/item_finder_category")
         self._preferred_group = self._read_setting("ui/item_finder_group")
         self._preferred_category, self._preferred_group = migrate_legacy_item_catalogue_filter(
@@ -213,6 +226,7 @@ class RemoteArchiveFinderDialog(QDialog):
         self._build_ui()
         self._restore_geometry()
         self._connect_service()
+        self.finished.connect(self._finish_close)
         QTimer.singleShot(0, self._start_search)
 
     def _read_setting(self, key: str, default: object = "") -> str:
@@ -222,6 +236,12 @@ class RemoteArchiveFinderDialog(QDialog):
             return str(self._settings.value(key, default) or "")
         except Exception:
             return str(default or "")
+
+    def _read_int_setting(self, key: str) -> int:
+        try:
+            return int(self._read_setting(key) or 0)
+        except ValueError:
+            return 0
 
     def _restore_geometry(self) -> None:
         if self._settings is None:
@@ -297,6 +317,10 @@ class RemoteArchiveFinderDialog(QDialog):
         self._visible_icon_timer.timeout.connect(self._request_visible_icons)
         self._item_grid.verticalScrollBar().valueChanged.connect(lambda _value: self._visible_icon_timer.start())
         self._item_grid.itemSelectionChanged.connect(self._update_selected_item_detail)
+        self._item_grid.itemClicked.connect(self._discard_browse_restore)
+        for view in (self._item_grid, self._category_tree, self._detail_scroll):
+            view.verticalScrollBar().sliderPressed.connect(self._discard_browse_restore)
+            view.verticalScrollBar().actionTriggered.connect(self._discard_browse_restore)
         self._item_grid.itemDoubleClicked.connect(lambda _item: self._scope_selected(include_related=False))
         self._previous_button.clicked.connect(self._previous_page)
         self._next_button.clicked.connect(self._next_page)
@@ -308,7 +332,11 @@ class RemoteArchiveFinderDialog(QDialog):
         close_button.clicked.connect(self.reject)
         restored_query = self._read_setting("ui/item_finder_search_text")
         if restored_query:
-            self._search_edit.setText(restored_query)
+            blocked = self._search_edit.blockSignals(True)
+            try:
+                self._search_edit.setText(restored_query)
+            finally:
+                self._search_edit.blockSignals(blocked)
         localizer = getattr(self._window, "ui_localizer", None)
         if localizer is not None and callable(getattr(localizer, "apply", None)):
             localizer.apply(self)
@@ -347,6 +375,7 @@ class RemoteArchiveFinderDialog(QDialog):
         detail_layout.setContentsMargins(8, 8, 8, 8)
 
         detail_scroll = QScrollArea()
+        self._detail_scroll = detail_scroll
         detail_scroll.setWidgetResizable(True)
         detail_scroll.setFrameShape(QFrame.NoFrame)
         detail_body = QWidget()
@@ -546,8 +575,12 @@ class RemoteArchiveFinderDialog(QDialog):
         self._update_buttons()
 
     def _queue_first_page(self) -> None:
+        self._restore_pending = False
         self._page_start = 0
         self._search_timer.start()
+
+    def _discard_browse_restore(self) -> None:
+        self._restore_pending = False
 
     def _clear_filters(self) -> None:
         self._search_timer.stop()
@@ -565,6 +598,7 @@ class RemoteArchiveFinderDialog(QDialog):
         # results that were still restricted.
         self._preferred_category = ""
         self._preferred_group = ""
+        self._restore_pending = False
         self._page_start = 0
         self._start_search()
 
@@ -705,9 +739,17 @@ class RemoteArchiveFinderDialog(QDialog):
         self._update_buttons()
 
     def _publish_search(self, result: ItemCatalogSearchResult) -> None:
-        if not self._session_is_current() or result.session_id != self._session_id:
+        if self._closing or not self._session_is_current() or result.session_id != self._session_id:
+            return
+        if result.page_start > 0 and result.page_start >= result.total_matches:
+            # A refreshed catalogue may have fewer matches than the saved page.
+            self._page_start = max(0, result.total_matches - 1) // self._page_size * self._page_size
+            self._start_search()
             return
         previous_selection = self._selected_item_ids()
+        selected_id = previous_selection[0] if previous_selection else (
+            self._preferred_item_id if self._restore_pending else 0
+        )
         self._total_matches = result.total_matches
         self._page_start = result.page_start
         self._rows = {row.item_id: row for row in result.items}
@@ -729,8 +771,10 @@ class RemoteArchiveFinderDialog(QDialog):
             self._populate_facets(result)
         self._item_grid._update_grid_layout()
         self._facets_ready = True
-        if previous_selection and previous_selection[0] in self._tree_items:
-            self._item_grid.setCurrentItem(self._tree_items[previous_selection[0]])
+        if selected_id in self._tree_items:
+            self._item_grid.setCurrentItem(self._tree_items[selected_id])
+        if self._restore_pending:
+            self._preferred_item_id = selected_id if selected_id in self._tree_items else 0
         self._update_selected_item_detail()
         shown_end = min(result.total_matches, result.page_start + len(result.items))
         if result.warning:
@@ -746,7 +790,31 @@ class RemoteArchiveFinderDialog(QDialog):
         self._item_grid.setEnabled(True)
         self._update_buttons()
         self._apply_cached_warmup_icons(tuple(self._tree_items))
+        if self._restore_pending:
+            generation = self._icon_generation
+            QTimer.singleShot(0, lambda: self._restore_browse_position(generation))
         QTimer.singleShot(0, self._request_visible_icons)
+
+    def _restore_browse_position(self, generation: int) -> None:
+        if self._closing or not self._restore_pending or generation != self._icon_generation:
+            return
+        self._item_grid.doItemsLayout()
+        self._category_tree.doItemsLayout()
+        self._detail_content.layout().activate()
+        self._detail_scroll.widget().layout().activate()
+        # Height-for-width updates resize the detail content on the next event turn.
+        QTimer.singleShot(0, lambda: self._apply_browse_scroll_positions(generation))
+
+    def _apply_browse_scroll_positions(self, generation: int) -> None:
+        if self._closing or not self._restore_pending or generation != self._icon_generation:
+            return
+        self._restore_pending = False
+        expected_selection = (self._preferred_item_id,) if self._preferred_item_id else ()
+        if self._selected_item_ids() != expected_selection:
+            return
+        self._item_grid.verticalScrollBar().setValue(self._preferred_scroll_value)
+        self._category_tree.verticalScrollBar().setValue(self._preferred_category_scroll)
+        self._detail_scroll.verticalScrollBar().setValue(self._preferred_detail_scroll)
 
     def _fallback_icon(self, row: ItemCatalogRow) -> QIcon:
         builder = getattr(self._window, "_build_archive_asset_catalog_icon", None)
@@ -856,7 +924,6 @@ class RemoteArchiveFinderDialog(QDialog):
                 if parent is None:
                     parent = QTreeWidgetItem(self._category_tree, [facet.category, ""])
                     parent.setData(0, Qt.UserRole, (facet.category, None))
-                    parent.setExpanded(True)
                     categories[facet.category] = parent
                     if category_value == (facet.category, None):
                         selected = parent
@@ -868,18 +935,24 @@ class RemoteArchiveFinderDialog(QDialog):
                 if category_value == (facet.category, facet.group):
                     selected = item
             self._category_tree.setCurrentItem(selected)
-            self._category_tree.scrollToItem(selected)
+            for category, parent in categories.items():
+                parent.setExpanded(category in self._expanded_categories)
+            parent = selected.parent()
+            visible_selected = parent if parent is not None and not parent.isExpanded() else selected
+            self._category_tree.scrollToItem(visible_selected)
         finally:
             self._category_tree.blockSignals(blocked)
         self._preferred_category = ""
         self._preferred_group = ""
 
     def _previous_page(self) -> None:
+        self._restore_pending = False
         self._page_start = max(0, self._page_start - self._page_size)
         self._start_search()
 
     def _next_page(self) -> None:
         if self._page_start + self._page_size < self._total_matches:
+            self._restore_pending = False
             self._page_start += self._page_size
             self._start_search()
 
@@ -1108,6 +1181,12 @@ class RemoteArchiveFinderDialog(QDialog):
         self.accept()
 
     def closeEvent(self, event: object) -> None:
+        self._finish_close()
+        super().closeEvent(event)  # type: ignore[arg-type]
+
+    def _finish_close(self) -> None:
+        if self._closing:
+            return
         self._save_settings()
         self._closing = True
         self._clear_failure()
@@ -1118,7 +1197,6 @@ class RemoteArchiveFinderDialog(QDialog):
         self._cancel_icon_loading()
         self._disconnect_service()
         self._release_if_finished()
-        super().closeEvent(event)  # type: ignore[arg-type]
 
     def _save_settings(self) -> None:
         if self._settings is None:
@@ -1134,6 +1212,34 @@ class RemoteArchiveFinderDialog(QDialog):
             self._settings.setValue("ui/item_finder_search_text", self._search_edit.text())
             self._settings.setValue("ui/item_finder_category", category or "")
             self._settings.setValue("ui/item_finder_group", group or "")
+            self._settings.setValue("ui/item_finder_page_start", self._page_start)
+            if self._facets_ready:
+                self._expanded_categories = {
+                    str(item.data(0, Qt.UserRole)[0])
+                    for index in range(1, self._category_tree.topLevelItemCount())
+                    if (item := self._category_tree.topLevelItem(index)).isExpanded()
+                }
+            self._settings.setValue("ui/item_finder_expanded_categories", sorted(self._expanded_categories))
+            selected = self._selected_item_ids()
+            expected_selection = (self._preferred_item_id,) if self._preferred_item_id else ()
+            if self._restore_pending and (not self._facets_ready or selected == expected_selection):
+                selected_id = self._preferred_item_id
+                scroll_value = self._preferred_scroll_value
+                detail_scroll = self._preferred_detail_scroll
+            elif self._search_request_id is not None or self._search_timer.isActive():
+                # The visible rows still belong to the previous search.
+                selected_id, scroll_value, detail_scroll = 0, 0, 0
+            else:
+                selected_id = selected[0] if selected else 0
+                scroll_value = self._item_grid.verticalScrollBar().value()
+                detail_scroll = self._detail_scroll.verticalScrollBar().value()
+            self._settings.setValue("ui/item_finder_selected_item_id", selected_id)
+            self._settings.setValue("ui/item_finder_scroll_value", scroll_value)
+            self._settings.setValue("ui/item_finder_detail_scroll_value", detail_scroll)
+            self._settings.setValue("ui/item_finder_category_scroll_value", (
+                self._preferred_category_scroll if self._restore_pending or not self._facets_ready
+                else self._category_tree.verticalScrollBar().value()
+            ))
         except Exception:
             pass
 
@@ -1163,7 +1269,6 @@ def show_remote_archive_finder(window: object) -> None:
         setattr(window, "_remote_archive_finder_dialogs", retained)
     retained.add(dialog)
     dialog.exec()
-    dialog._closing = True
     dialog.close()
     dialog._release_if_finished()
 

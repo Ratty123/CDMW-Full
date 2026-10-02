@@ -4,6 +4,8 @@ from dataclasses import replace
 import os
 import time
 
+import pytest
+
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QObject, QThread, Signal
@@ -152,10 +154,13 @@ def test_regular_refresh_restarts_warmup_but_recovery_retains_the_owned_operatio
     controller.request_shutdown()
 
 
-def test_startup_builds_catalogue_and_caches_the_restored_first_page() -> None:
+@pytest.mark.parametrize("saved_page", [0, 144, "invalid", -20])
+def test_startup_builds_catalogue_and_caches_the_restored_first_page(saved_page) -> None:
     _app()
     service = _Service()
-    controller = RemoteItemFinderWarmupController(service, _Settings())
+    settings = _Settings()
+    settings.values["ui/item_finder_page_start"] = saved_page
+    controller = RemoteItemFinderWarmupController(service, settings)
 
     controller.start(_session(), ui_generation=7)
     _drain()
@@ -173,10 +178,11 @@ def test_startup_builds_catalogue_and_caches_the_restored_first_page() -> None:
         query="sword",
         category=None,
         group=None,
-        page_start=0,
+        page_start=144 if saved_page == 144 else 0,
         page_size=72,
     )
-    result = ItemCatalogSearchResult("session-a", 1, 0, 72, (_row(7, with_icon=False),), ())
+    result = ItemCatalogSearchResult("session-a", request.page_start + 1, request.page_start, 72,
+        (_row(7, with_icon=False),), ())
     service.result_ready.emit("search-1", "search_item_catalog", result)
 
     assert controller.cached_search(request) is result

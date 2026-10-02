@@ -92,7 +92,7 @@ picker is available as soon as archive rows are published; extension counts load
 ahead of catalogue warmups and update an already-open picker without losing its
 search. Apply **Search** to refresh the archive results.
 
-Item Finder shows its categories and subcategories in an expanded list on the
+Item Finder shows its categories and subcategories in a collapsible list on the
 left, with item counts. The item grid is in the middle and item details and asset
 actions are on the right. Select a category for all its groups, or a subcategory
 to narrow the results. Category names and grid captions wrap for larger fonts;
@@ -100,8 +100,11 @@ the grid uses the available width. Detail actions wrap onto more rows when
 needed, and long names and paths wrap while retaining their original copied
 text. Additional window width goes to the grid; the details pane keeps its
 chosen width and shows only a selection prompt until an item is selected.
-Saved category filters and pane widths restore on reopening; older two-pane
-layouts gain the category pane without adding a new setting.
+Categories start collapsed on the first visit. Reopening restores expanded
+categories, search and category filters, the result page, selected item, scroll
+positions and pane widths. Closing while the initial results are loading keeps
+the saved browsing position. Older two-pane layouts gain the category pane
+without adding a new layout setting.
 
 ## Scanner failures and recovery
 

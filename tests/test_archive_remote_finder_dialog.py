@@ -7,9 +7,10 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QObject, QRect, Signal, Qt
+from PySide6.QtCore import QObject, QRect, QSettings, Signal, Qt
 from PySide6.QtGui import QFont, QImage
-from PySide6.QtWidgets import QApplication, QScrollArea, QStyle, QStyleOptionViewItem, QWidget
+from PySide6.QtWidgets import QAbstractSlider, QApplication, QPushButton, QScrollArea, QStyle, QStyleOptionViewItem, QWidget
+from PySide6.QtTest import QTest
 
 from cdmw.domain.archives.catalogue import ArchiveSessionHandle
 from cdmw.domain.archives.item_catalogue import (
@@ -378,7 +379,9 @@ def test_category_list_is_on_the_left_and_filters_categories_or_groups() -> None
     assert tree.textElideMode() == Qt.ElideNone
     assert tree.topLevelItem(0).text(1) == "89"
     weapon = tree.topLevelItem(1)
-    assert weapon.text(0) == "Weapon" and weapon.text(1) == "85" and weapon.isExpanded()
+    assert weapon.text(0) == "Weapon" and weapon.text(1) == "85" and not weapon.isExpanded()
+    assert all(not tree.topLevelItem(index).isExpanded() for index in range(tree.topLevelItemCount()))
+    weapon.setExpanded(True)
     shield = weapon.child(1)
     assert shield.text(0) == "Shield" and shield.text(1) == "5"
     assert shield.toolTip(0) == "Weapon / Shield"
@@ -436,6 +439,236 @@ def test_saved_category_and_pane_widths_restore_into_the_category_list(saved_siz
         reopened.close()
 
 
+@pytest.mark.parametrize("exit_method", ["close", "reject", "accept", "escape", "button"])
+def test_finder_reopens_at_the_saved_category_page_item_and_scroll_positions(tmp_path, exit_method) -> None:
+    _app()
+    settings_path = str(tmp_path / "finder.cfg")
+    window = _Window()
+    window.settings = QSettings(settings_path, QSettings.IniFormat)
+    dialog = RemoteArchiveFinderDialog(window)
+    service = window.archive_catalogue_service
+    facets = (ItemCatalogCategoryFacet("Weapon", "Sword", 216),
+              *(ItemCatalogCategoryFacet("Weapon", f"Group {index}", 1) for index in range(45)),
+              ItemCatalogCategoryFacet("Armor", "Head", 4),
+              ItemCatalogCategoryFacet("Material", "Raw", 3))
+    first_rows = tuple(_row(index) for index in range(1, 73))
+    page_rows = tuple(replace(_row(index), description="\n".join(f"Detail {line}" for line in range(80)))
+                      for index in range(73, 145))
+    dialog.show()
+    _drain()
+    service.result_ready.emit("search-1", "search_item_catalog",
+        ItemCatalogSearchResult("session-a", 216, 0, 72, first_rows, facets))
+    _drain()
+    weapon = dialog._category_tree.topLevelItem(1)
+    armor = dialog._category_tree.topLevelItem(2)
+    weapon.setExpanded(True)
+    armor.setExpanded(True)
+    dialog._category_tree.setCurrentItem(weapon.child(0))
+    dialog._search_edit.setText("item")
+    dialog._start_search()
+    service.result_ready.emit("search-2", "search_item_catalog",
+        ItemCatalogSearchResult("session-a", 216, 0, 72, first_rows, facets))
+    dialog._next_button.click()
+    service.result_ready.emit("search-3", "search_item_catalog",
+        ItemCatalogSearchResult("session-a", 216, 72, 72, page_rows, facets))
+    dialog._item_grid.setCurrentRow(42)
+    _drain()
+    scrollbars = (dialog._item_grid.verticalScrollBar(), dialog._category_tree.verticalScrollBar(),
+                  dialog._detail_scroll.verticalScrollBar())
+    for scrollbar in scrollbars:
+        scrollbar.setValue(min(140, scrollbar.maximum()))
+    expected_scroll = tuple(scrollbar.value() for scrollbar in scrollbars)
+    assert all(value > 0 for value in expected_scroll)
+    selected_id = dialog._selected_item_ids()[0]
+    if exit_method == "escape":
+        QTest.keyClick(dialog, Qt.Key_Escape)
+    elif exit_method == "button":
+        next(button for button in dialog.findChildren(QPushButton)
+             if button.text() == "Close" and button.parentWidget() is dialog).click()
+    else:
+        getattr(dialog, exit_method)()
+    assert dialog._closing
+    window.settings.sync()
+
+    reopened_window = _Window()
+    reopened_window.settings = QSettings(settings_path, QSettings.IniFormat)
+    reopened = RemoteArchiveFinderDialog(reopened_window)
+    reopened.show()
+    _drain()
+    reopened_service = reopened_window.archive_catalogue_service
+    request = reopened_service.searches[0]
+    assert (request.query, request.category, request.group, request.page_start) == ("item", "Weapon", "Sword", 72)
+    reopened_service.result_ready.emit("search-1", "search_item_catalog",
+        ItemCatalogSearchResult("session-a", 216, 72, 72, page_rows, facets))
+    _drain()
+    assert reopened._selected_item_ids() == (selected_id,)
+    assert reopened._detail_title.text() == f"Item {selected_id}"
+    assert reopened._category_tree.currentItem().data(0, Qt.UserRole) == ("Weapon", "Sword")
+    assert [reopened._category_tree.topLevelItem(index).isExpanded() for index in (1, 2, 3)] == [True, True, False]
+    assert tuple(scrollbar.value() for scrollbar in (reopened._item_grid.verticalScrollBar(),
+        reopened._category_tree.verticalScrollBar(), reopened._detail_scroll.verticalScrollBar())) == expected_scroll
+    assert len(reopened_service.searches) == 1 and not reopened._search_timer.isActive()
+    reopened.close()
+    window.close()
+    reopened_window.close()
+
+
+@pytest.mark.parametrize("publish_before_close", [False, True])
+def test_closing_during_initial_restore_preserves_saved_state_and_ignores_late_results(tmp_path, publish_before_close) -> None:
+    _app()
+    window = _Window()
+    window.settings = QSettings(str(tmp_path / "finder.cfg"), QSettings.IniFormat)
+    saved = {"ui/item_finder_search_text": "saved",
+             "ui/item_finder_category": "Weapon", "ui/item_finder_group": "Sword",
+             "ui/item_finder_page_start": 72, "ui/item_finder_selected_item_id": 88,
+             "ui/item_finder_expanded_categories": ["Weapon"],
+             "ui/item_finder_scroll_value": 240, "ui/item_finder_category_scroll_value": 100,
+             "ui/item_finder_detail_scroll_value": 60}
+    for key, value in saved.items():
+        window.settings.setValue(key, value)
+    dialog = RemoteArchiveFinderDialog(window)
+    _drain()
+    service = window.archive_catalogue_service
+    result = ItemCatalogSearchResult("session-a", 144, 72, 72, (_row(88),),
+        (ItemCatalogCategoryFacet("Weapon", "Sword", 144),))
+    if publish_before_close:
+        service.result_ready.emit("search-1", "search_item_catalog", result)
+    dialog.reject()
+    service.result_ready.emit("search-1", "search_item_catalog", result)
+    _drain()
+    assert {key: window.settings.value(key) for key in saved} == saved
+    assert dialog._tree.topLevelItemCount() == (1 if publish_before_close else 0)
+    if publish_before_close:
+        assert not service.cancelled
+    else:
+        assert "search-1" in service.cancelled
+    assert not dialog._search_timer.isActive() and not dialog._visible_icon_timer.isActive()
+    window.close()
+
+
+def test_new_filter_before_loading_drops_the_previous_page_and_item_restore(tmp_path) -> None:
+    _app()
+    window = _Window()
+    window.settings = QSettings(str(tmp_path / "finder.cfg"), QSettings.IniFormat)
+    window.settings.setValue("ui/item_finder_page_start", 72)
+    window.settings.setValue("ui/item_finder_selected_item_id", 88)
+    window.settings.setValue("ui/item_finder_scroll_value", 240)
+    dialog = RemoteArchiveFinderDialog(window)
+    dialog._search_edit.setText("new search")
+    dialog.reject()
+    _drain()
+    assert window.settings.value("ui/item_finder_search_text") == "new search"
+    assert window.settings.value("ui/item_finder_page_start") == 0
+    assert window.settings.value("ui/item_finder_selected_item_id") == 0
+    assert window.settings.value("ui/item_finder_scroll_value") == 0
+    assert not window.archive_catalogue_service.searches
+    window.close()
+
+
+def test_collapsing_the_selected_group_parent_stays_collapsed_on_reopen(tmp_path) -> None:
+    _app()
+    window = _Window()
+    window.settings = QSettings(str(tmp_path / "finder.cfg"), QSettings.IniFormat)
+    window.settings.setValue("ui/item_finder_category", "Weapon")
+    window.settings.setValue("ui/item_finder_group", "Sword")
+    window.settings.setValue("ui/item_finder_expanded_categories", ["Weapon"])
+    result = ItemCatalogSearchResult("session-a", 1, 0, 72, (_row(1),),
+        (ItemCatalogCategoryFacet("Weapon", "Sword", 1),))
+    dialog = RemoteArchiveFinderDialog(window)
+    _drain()
+    service = window.archive_catalogue_service
+    service.result_ready.emit("search-1", "search_item_catalog", result)
+    _drain()
+    weapon = dialog._category_tree.topLevelItem(1)
+    assert weapon.isExpanded()
+    weapon.setExpanded(False)
+    saved_filter = dialog._selected_filters()
+    dialog.reject()
+    assert window.settings.value("ui/item_finder_expanded_categories") == []
+    reopened = RemoteArchiveFinderDialog(window)
+    _drain()
+    service.result_ready.emit("search-2", "search_item_catalog", result)
+    _drain()
+    assert reopened._selected_filters() == saved_filter
+    assert not reopened._category_tree.topLevelItem(1).isExpanded()
+    reopened.close()
+    window.close()
+
+
+def test_changing_search_while_restore_is_queued_ignores_the_old_scroll_position(tmp_path) -> None:
+    _app()
+    window = _Window()
+    window.settings = QSettings(str(tmp_path / "finder.cfg"), QSettings.IniFormat)
+    window.settings.setValue("ui/item_finder_selected_item_id", 88)
+    window.settings.setValue("ui/item_finder_scroll_value", 240)
+    dialog = RemoteArchiveFinderDialog(window)
+    dialog.show()
+    _drain()
+    service = window.archive_catalogue_service
+    service.result_ready.emit("search-1", "search_item_catalog",
+        ItemCatalogSearchResult("session-a", 1, 0, 72, (_row(88),), ()))
+    dialog._search_edit.setText("different")
+    dialog._start_search()
+    service.result_ready.emit("search-2", "search_item_catalog",
+        ItemCatalogSearchResult("session-a", 72, 0, 72, tuple(_row(index) for index in range(1, 73)), ()))
+    _drain()
+    assert dialog._selected_item_ids() == ()
+    assert dialog._item_grid.verticalScrollBar().maximum() > 240
+    assert dialog._item_grid.verticalScrollBar().value() == 0
+    dialog.close()
+    window.close()
+
+
+@pytest.mark.parametrize("user_action", ["select", "scroll"])
+def test_an_action_before_restore_finishes_is_saved_when_immediately_closed(tmp_path, user_action) -> None:
+    _app()
+    window = _Window()
+    window.settings = QSettings(str(tmp_path / "finder.cfg"), QSettings.IniFormat)
+    window.settings.setValue("ui/item_finder_selected_item_id", 88)
+    window.settings.setValue("ui/item_finder_scroll_value", 240)
+    dialog = RemoteArchiveFinderDialog(window)
+    dialog.show()
+    _drain()
+    window.archive_catalogue_service.result_ready.emit("search-1", "search_item_catalog",
+        ItemCatalogSearchResult("session-a", 72, 0, 72, tuple(_row(index) for index in range(88, 160)), ()))
+    dialog._item_grid.doItemsLayout()
+    scrollbar = dialog._item_grid.verticalScrollBar()
+    if user_action == "select":
+        dialog._item_grid.setCurrentRow(1)
+    else:
+        scrollbar.triggerAction(QAbstractSlider.SliderPageStepAdd)
+        assert scrollbar.value() > 0
+    selected_id, scroll_value = dialog._selected_item_ids()[0], scrollbar.value()
+    dialog.reject()
+    _drain()
+    assert window.settings.value("ui/item_finder_selected_item_id") == selected_id
+    assert window.settings.value("ui/item_finder_scroll_value") == scroll_value
+    window.close()
+
+
+def test_saved_page_past_the_current_results_returns_to_the_last_available_page(tmp_path) -> None:
+    _app()
+    window = _Window()
+    window.settings = QSettings(str(tmp_path / "finder.cfg"), QSettings.IniFormat)
+    window.settings.setValue("ui/item_finder_page_start", 216)
+    window.settings.setValue("ui/item_finder_selected_item_id", 999)
+    dialog = RemoteArchiveFinderDialog(window)
+    _drain()
+    service = window.archive_catalogue_service
+    assert service.searches[0].page_start == 216
+    service.result_ready.emit("search-1", "search_item_catalog",
+        ItemCatalogSearchResult("session-a", 80, 216, 72, (), ()))
+    assert service.searches[1].page_start == 72
+    service.result_ready.emit("search-2", "search_item_catalog",
+        ItemCatalogSearchResult("session-a", 80, 72, 72, (_row(79), _row(80)), ()))
+    _drain()
+    assert dialog._page_start == 72 and dialog._item_grid.count() == 2
+    assert dialog._selected_item_ids() == ()
+    assert not dialog._next_button.isEnabled() and dialog._previous_button.isEnabled()
+    dialog.close()
+    window.close()
+
+
 @pytest.mark.parametrize(
     ("width", "height", "font_size", "density"),
     [(940, 640, 10, "compact"), (1240, 800, 10, "compact"), (1960, 1160, 10, "compact"),
@@ -486,6 +719,8 @@ def test_finder_layout_keeps_text_and_actions_visible(width, height, font_size, 
                    for index, first in enumerate(buttons) for second in buttons[index + 1:])
 
         tree = dialog._category_tree
+        tree.expandAll()
+        _drain()
         for top_index in range(tree.topLevelItemCount()):
             parent = tree.topLevelItem(top_index)
             for item in (parent, *(parent.child(index) for index in range(parent.childCount()))):
