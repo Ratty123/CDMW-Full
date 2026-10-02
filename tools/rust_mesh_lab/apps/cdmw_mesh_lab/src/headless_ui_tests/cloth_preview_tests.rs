@@ -739,7 +739,8 @@ fn standalone_spline_play_pause_disable_and_reset_keep_authored_mesh_unchanged()
     ui.click("Collision sources")?;
     let actions = ui.actions_from_click("Choose body PABV…")?;
     assert!(!actions.iter().any(|action| matches!(action, UiAction::ChooseClothCollisionInput { .. })));
-    assert!(ui.actions_from_click("Choose weapon PAC…")?.iter().any(|action|
+    ui.click("Choose weapon PAC…")?;
+    assert!(ui.actions_from_click("External file…")?.iter().any(|action|
         matches!(action, UiAction::ChooseClothCollisionInput { role: "weapon" })));
     ui.application.cdmw_state["jiggle"]["decoded"]["cloth"]["spline_available"] = json!(false);
     ui.frame(Vec::new());
@@ -1127,16 +1128,27 @@ fn collision_input_controls_choose_roles_clear_and_observe_model_precedence() ->
     let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
     ui.click("Collision sources")?;
     for (role, suffix) in [("body", "PABV"), ("head", "PABV"), ("weapon", "PAC")] {
-        assert!(ui.actions_from_click(&format!("Choose {role} {suffix}…"))?.iter().any(
+        ui.click(&format!("Choose {role} {suffix}…"))?;
+        assert!(ui.actions_from_click("External file…")?.iter().any(
             |action| matches!(action, UiAction::ChooseClothCollisionInput { role: selected } if *selected == role)
         ));
+        ui.frame(Vec::new());
+        ui.click(&format!("Choose {role} {suffix}…"))?;
+        let actions = ui.actions_from_click("Game archives…")?;
+        assert!(actions.iter().any(|action| matches!(action,
+            UiAction::CdmwCommand { command: "cloth_collision_input", arguments, .. }
+            if arguments == &json!({"role": role, "source": "archive"})
+        )));
+        ui.application.cdmw_pending_request = None;
+        ui.frame(Vec::new());
     }
     ui.application.cdmw_state["jiggle"]["collision_inputs"] = json!({"body": "chosen.pabv"});
     ui.application.cdmw_state["jiggle"]["decoded"]["cloth"]["body_collider_source"] = json!("pac_model");
     ui.frame(Vec::new());
     assert!(ui.label_rect("Body volumes: chosen.pabv").is_some());
     assert!(ui.actions_from_click("Choose body PABV…")?.is_empty());
-    assert!(ui.actions_from_click("Choose weapon PAC…")?.iter().any(|action|
+    ui.click("Choose weapon PAC…")?;
+    assert!(ui.actions_from_click("External file…")?.iter().any(|action|
         matches!(action, UiAction::ChooseClothCollisionInput { role: "weapon" })));
     let actions = ui.actions_from_click("Clear collision inputs")?;
     assert!(actions.iter().any(|action| matches!(action,
@@ -1198,27 +1210,31 @@ fn weapon_collision_preview_and_overlay_follow_centring_without_authoring_edits(
     ui.click("Weapon collisions")?;
     assert!(ui.application.cdmw_jiggle.preview.cloth_settings.weapon_collisions);
     assert!(!ui.application.cdmw_jiggle.preview.cloth_settings.body_collisions);
-    ui.click("Play preview")?;
+    ui.click("Show collision shapes")?;
     wait(&mut ui)?;
+    assert!(!ui.application.cdmw_jiggle.preview.playing);
+    assert_eq!(ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.positions, authored.positions);
+    assert!(!ui.application.jiggle_collider_lines().is_empty());
+    ui.click("Resume preview")?;
     advance(&mut ui)?;
     let scene = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap();
     assert_ne!(scene.frame.positions[1], without.positions[1]);
     assert_eq!(scene.frame.positions[0], without.positions[0]);
-    let centred = ui.application.jiggle_weapon_lines();
+    let centred = ui.application.jiggle_collider_lines();
     assert_eq!(centred.len(), 200);
     ui.click("Keep model centred")?;
     advance(&mut ui)?;
     let scene = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap();
     let offset = Vec3::from(scene.frame.positions[0]) - Vec3::from(authored.positions[0]);
-    let moving = ui.application.jiggle_weapon_lines();
+    let moving = ui.application.jiggle_collider_lines();
     assert!(offset.length() > 0.);
     for (a, b) in centred.iter().zip(&moving) {
         let expected = Vec3::from(a.position) + offset;
         assert!((Vec3::from(b.position) - expected).length() < 1e-5);
         assert_eq!(a.colour, [1., 0.7, 0.15, 1.]);
     }
-    ui.click("Show weapon colliders")?;
-    assert!(ui.application.jiggle_weapon_lines().is_empty());
+    ui.click("Show collision shapes")?;
+    assert!(ui.application.jiggle_collider_lines().is_empty());
     ui.click("Pause preview")?;
     assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
     assert_eq!(std::fs::read(root.path().join("jiggle-rig.json"))?, payload);
@@ -1226,6 +1242,55 @@ fn weapon_collision_preview_and_overlay_follow_centring_without_authoring_edits(
     ui.application.cdmw_state["jiggle"]["decoded"]["cloth"]["weapon_collider_count"] = json!(0);
     ui.frame(Vec::new());
     assert!(!ui.application.cdmw_jiggle.preview.cloth_settings.weapon_collisions);
+    Ok(())
+}
+
+#[test]
+fn cloak_collision_shapes_prepare_without_playback_and_show_both_sources() -> TestResult {
+    let (root, mut ui, payload) = fixture()?;
+    let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
+    let mut payload: Value = serde_json::from_slice(&payload)?;
+    payload["cloth"]["body_colliders"] = json!([
+        {"kind": 1, "center1": [0., 0., 0.], "center2": [0., 0., 0.], "radius": 0.1, "bone_index": 0, "source_ordinal": 0},
+        {"kind": 3, "center1": [0., 0., 0.], "center2": [0., 0.5, 0.], "radius": 0.1, "bone_index": 0, "source_ordinal": 1},
+        {"kind": 5, "center1": [0., 0., 0.], "center2": [0., 0.5, 0.], "radius": 0.1, "bone_index": 0, "source_ordinal": 2}
+    ]);
+    payload["cloth"]["weapon_colliders"] = json!([
+        {"kind": 5, "center1": [0.2, 0., 0.], "center2": [0.2, 0.5, 0.], "radius": 0.1, "bone_index": 0, "source_ordinal": 0}
+    ]);
+    let payload = serde_json::to_vec(&payload)?;
+    std::fs::write(root.path().join("jiggle-rig.json"), &payload)?;
+    let state = &mut ui.application.cdmw_state["jiggle"]["decoded"];
+    state["file"]["byte_length"] = json!(payload.len());
+    state["file"]["sha256"] = json!(format!("{:X}", Sha256::digest(&payload)));
+    state["cloth"]["body_collider_count"] = json!(3);
+    state["cloth"]["body_collider_source"] = json!("pac_model");
+    state["cloth"]["weapon_collider_count"] = json!(1);
+    ui.click("Cloth preview settings")?;
+    assert!(ui.label_rect("Collision shapes: 3 body · 1 weapon").is_some());
+    ui.click("Show collision shapes")?;
+    wait(&mut ui)?;
+    assert!(!ui.application.cdmw_jiggle.preview.playing);
+    advance(&mut ui)?;
+    let scene = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap();
+    assert_eq!(scene.frame.positions, authored.positions);
+    let lines = ui.application.jiggle_collider_lines();
+    assert_eq!(lines.len(), 672);
+    assert!(lines.iter().all(|v| Vec3::from(v.position).is_finite()));
+    assert_eq!(lines.iter().filter(|v| v.colour == [0.2, 0.85, 1., 1.]).count(), 472);
+    assert_eq!(lines.iter().filter(|v| v.colour == [1., 0.7, 0.15, 1.]).count(), 200);
+    ui.click("Turning")?;
+    wait(&mut ui)?;
+    assert!(!ui.application.cdmw_jiggle.preview.playing);
+    assert_eq!(ui.application.jiggle_collider_lines().len(), 672);
+    ui.click("Body collisions")?;
+    ui.click("Weapon collisions")?;
+    assert!(ui.application.cdmw_jiggle.preview.cloth_settings.body_collisions);
+    assert!(ui.application.cdmw_jiggle.preview.cloth_settings.weapon_collisions);
+    ui.click("Reset preview")?;
+    assert!(ui.application.jiggle_collider_lines().is_empty());
+    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
+    assert_eq!(std::fs::read(root.path().join("jiggle-rig.json"))?, payload);
     Ok(())
 }
 

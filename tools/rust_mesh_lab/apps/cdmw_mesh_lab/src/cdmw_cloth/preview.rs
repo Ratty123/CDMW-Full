@@ -96,12 +96,14 @@ impl Simulation {
         self.core.positions()
     }
 
-    pub fn weapon_lines(&self, centred: bool) -> Vec<cdmw_render_wgpu::EffectLineVertex> {
+    pub fn collider_lines(&self, centred: bool) -> Vec<cdmw_render_wgpu::EffectLineVertex> {
         let transform = if centred { glam::Mat4::IDENTITY } else { self.motion_transform };
         let mut lines = Vec::new();
-        for collider in self.core.weapon_colliders() {
+        for (colliders, colour) in [(self.core.body_colliders(), [0.2, 0.85, 1., 1.]),
+                                   (self.core.weapon_colliders(), [1., 0.7, 0.15, 1.])] {
+        for collider in colliders {
             let a = Vec3::from(collider.center1.map(|v| v as f32));
-            let b = Vec3::from(collider.center2.map(|v| v as f32));
+            let b = if collider.kind == 1 { a } else { Vec3::from(collider.center2.map(|v| v as f32)) };
             let radius = collider.radius as f32;
             let axis = (b - a).try_normalize().unwrap_or(Vec3::Y);
             let seed = if axis.x.abs() < 0.9 { Vec3::X } else { Vec3::Z };
@@ -110,7 +112,7 @@ impl Simulation {
             let mut line = |from: Vec3, to: Vec3| {
                 for point in [from, to] {
                     lines.push(cdmw_render_wgpu::EffectLineVertex {
-                        position: transform.transform_point3(point).to_array(), colour: [1., 0.7, 0.15, 1.],
+                        position: transform.transform_point3(point).to_array(), colour,
                     });
                 }
             };
@@ -124,6 +126,7 @@ impl Simulation {
             }
             for radial in [x, z, -x, -z] {
                 line(a + radial * radius, b + radial * radius);
+                if collider.kind == 3 { continue; }
                 for (center, direction) in [(a, -axis), (b, axis)] {
                     for i in 0..8 {
                         let p = std::f32::consts::FRAC_PI_2 * i as f32 / 8.;
@@ -133,6 +136,7 @@ impl Simulation {
                     }
                 }
             }
+        }
         }
         lines
     }

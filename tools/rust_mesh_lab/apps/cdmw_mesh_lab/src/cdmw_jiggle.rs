@@ -84,6 +84,7 @@ pub(super) struct Preview {
     pub playing: bool,
     pub scene: Option<Scene>,
     pub pending: Option<u64>,
+    play_when_ready: bool,
     solver: Solver,
     native_settings: native::Settings,
     pub(super) cloth_settings: cdmw_mesh::cloth::Settings,
@@ -95,7 +96,7 @@ pub(super) struct Preview {
     last_tick: Instant,
     pub manual_drag: Option<(Vec2, Vec3)>,
     keep_centred: bool,
-    show_weapon_colliders: bool,
+    show_colliders: bool,
 }
 
 impl Default for Preview {
@@ -104,6 +105,7 @@ impl Default for Preview {
             playing: false,
             scene: None,
             pending: None,
+            play_when_ready: true,
             solver: Solver::default(),
             native_settings: native::Settings::default(),
             cloth_settings: cdmw_mesh::cloth::Settings::default(),
@@ -115,7 +117,7 @@ impl Default for Preview {
             last_tick: Instant::now(),
             manual_drag: None,
             keep_centred: true,
-            show_weapon_colliders: true,
+            show_colliders: false,
         }
     }
 }
@@ -123,6 +125,7 @@ impl Default for Preview {
 impl Preview {
     pub fn invalidate(&mut self) {
         self.playing = false;
+        self.show_colliders = false;
         self.scene = None;
         self.pending = None;
         self.feedback.clear();
@@ -194,8 +197,8 @@ impl Simulation {
         match self { Self::Approximate(s) => s.motion_transform(),
             Self::Decoded(s) => s.motion_transform, Self::Cloth(s) => s.motion_transform }
     }
-    fn weapon_lines(&self, centred: bool) -> Vec<cdmw_render_wgpu::EffectLineVertex> {
-        match self { Self::Cloth(simulation) => simulation.weapon_lines(centred), _ => Vec::new() }
+    fn collider_lines(&self, centred: bool) -> Vec<cdmw_render_wgpu::EffectLineVertex> {
+        match self { Self::Cloth(simulation) => simulation.collider_lines(centred), _ => Vec::new() }
     }
 }
 
@@ -210,6 +213,23 @@ fn surface_normals(snapshot: &DrawSnapshot, sums: &mut [Vec3]) {
             sums[i] += normal;
         }
     }
+}
+
+fn collision_source_choice(ui: &mut egui::Ui, available: bool, role: &'static str, actions: &mut Vec<UiAction>) {
+    let label = match role { "weapon" => "Choose weapon PAC…", "body" => "Choose body PABV…", _ => "Choose head PABV…" };
+    ui.add_enabled_ui(available, |ui| {
+        ui.menu_button(label, |ui| {
+            if ui.button("External file…").clicked() {
+                actions.push(UiAction::ChooseClothCollisionInput { role });
+                ui.close();
+            }
+            if ui.button("Game archives…").clicked() {
+                actions.push(UiAction::CdmwCommand { command: "cloth_collision_input",
+                    arguments: json!({"role": role, "source": "archive"}), label: "Load collision input" });
+                ui.close();
+            }
+        });
+    });
 }
 
 impl LabApplication {
@@ -397,14 +417,10 @@ impl LabApplication {
             if model_owned { ui.small("This model's embedded volumes take precedence over appearance inputs."); }
             for (role, label, default) in [("body", "Body volumes", "Rig defaults"), ("head", "Head volumes", "No head override")] {
                 ui.label(format!("{label}: {}", inputs[role].as_str().unwrap_or(default)));
-                if ui.add_enabled(available, egui::Button::new(format!("Choose {role} PABV…"))).clicked() {
-                    actions.push(UiAction::ChooseClothCollisionInput { role });
-                }
+                collision_source_choice(ui, available, role, actions);
             }
             ui.label(format!("Weapon volumes: {}", inputs["weapon"].as_str().unwrap_or("Current rigid weapon parts")));
-            if ui.add_enabled(weapon_available, egui::Button::new("Choose weapon PAC…")).clicked() {
-                actions.push(UiAction::ChooseClothCollisionInput { role: "weapon" });
-            }
+            collision_source_choice(ui, weapon_available, "weapon", actions);
             if inputs["weapon"].is_string() {
                 let placement = &jiggle["weapon_placement"];
                 let mut offset: [f64; 3] = std::array::from_fn(|i| placement["offset"][i].as_f64().unwrap_or(0.));
@@ -472,9 +488,13 @@ impl LabApplication {
             self.publish_mesh_snapshot();
             self.cdmw_jiggle.preview.parts = ids;
         }
-        let was_playing = self.cdmw_jiggle.preview.playing || self.cdmw_jiggle.preview.pending.is_some();
+        let was_playing = self.cdmw_jiggle.preview.playing
+            || (self.cdmw_jiggle.preview.pending.is_some() && self.cdmw_jiggle.preview.play_when_ready);
+        let was_inspecting = cloth && self.cdmw_jiggle.preview.show_colliders;
         let can_author = !self.cdmw_busy() && state_bool(&self.cdmw_state, "authoring_enabled");
+        let can_choose_weapon = !self.cdmw_busy() && state_bool(&self.cdmw_state["jiggle"]["decoded"]["cloth"], "available");
         let mut changed = false;
+        let mut show_shapes_changed = false;
         let preview = &mut self.cdmw_jiggle.preview;
         if !cloth { ui.horizontal_wrapped(|ui| {
             for (solver, label) in [(Solver::Decoded, "Decoded bones"), (Solver::Approximate, "Approximate vertices")] {
@@ -591,6 +611,8 @@ impl LabApplication {
             if !body_available { preview.cloth_settings.body_collisions = false; }
             let weapon_available = cloth_state["weapon_collider_count"].as_u64().is_some_and(|count| count > 0);
             if !weapon_available { preview.cloth_settings.weapon_collisions = false; }
+            let shapes_available = body_available || weapon_available;
+            if !shapes_available { preview.show_colliders = false; }
             ui.collapsing(if preview.cloth_settings.spline { "Spline preview settings" } else { "Cloth preview settings" }, |ui| {
                 let settings = &mut preview.cloth_settings;
                 // Keep the displayed sign consistent with raw profile XML.
@@ -617,8 +639,11 @@ impl LabApplication {
                 ui.add_enabled(body_available, egui::Checkbox::new(&mut settings.body_collisions, "Body collisions"));
                 ui.add_enabled(weapon_available, egui::Checkbox::new(&mut settings.weapon_collisions, "Weapon collisions"))
                     .on_hover_text("Uses fitted capsules around rigid weapon parts. This switch affects the preview; Create weapon colliders saves shapes for the mod.");
-                ui.add_enabled(weapon_available, egui::Checkbox::new(&mut preview.show_weapon_colliders, "Show weapon colliders"))
-                    .on_hover_text("Shows the fitted collision shapes during playback or pause. Use them to position a weapon reference.");
+                show_shapes_changed = ui.add_enabled(shapes_available, egui::Checkbox::new(&mut preview.show_colliders, "Show collision shapes"))
+                    .on_hover_text("Shows body shapes in blue and weapon shapes in gold, before playback or while paused.").changed();
+                ui.small(format!("Collision shapes: {} body · {} weapon",
+                    cloth_state["body_collider_count"].as_u64().unwrap_or(0),
+                    cloth_state["weapon_collider_count"].as_u64().unwrap_or(0)));
                 if body_available {
                     if body_source == Some("pac_model") {
                         ui.small("Uses this model's authored collision volumes.");
@@ -632,8 +657,9 @@ impl LabApplication {
                         .on_hover_text(cloth_state["body_collider_reason"].as_str().unwrap_or("No authored body volumes available."));
                 }
                 if !weapon_available {
-                    ui.small("Weapon collisions need supported rigid weapon parts.")
+                    ui.small("Load a weapon reference to test collisions with this cloth.")
                         .on_hover_text(cloth_state["weapon_collider_reason"].as_str().unwrap_or("No weapon colliders available."));
+                    collision_source_choice(ui, can_choose_weapon, "weapon", actions);
                 }
                 if settings.body_collisions || settings.weapon_collisions {
                     ui.add(crate::cdmw_ui::numeric::slider(&mut settings.collision_margin, 0.0..=0.1).text("Collision margin"));
@@ -669,8 +695,16 @@ impl LabApplication {
             if was_playing {
                 self.cdmw_jiggle.preview.playing = false;
                 if let Err(error) = self.start_jiggle_preview(parts) { self.cdmw_jiggle.preview.feedback = error.to_string(); }
+            } else if was_inspecting {
+                if let Err(error) = self.prepare_jiggle_preview(parts, false) { self.cdmw_jiggle.preview.feedback = error.to_string(); }
             } else {
                 self.publish_mesh_snapshot();
+            }
+        }
+        if show_shapes_changed && self.cdmw_jiggle.preview.show_colliders
+            && self.cdmw_jiggle.preview.scene.is_none() && self.cdmw_jiggle.preview.pending.is_none() {
+            if let Err(error) = self.prepare_jiggle_preview(parts, false) {
+                self.cdmw_jiggle.preview.feedback = error.to_string();
             }
         }
         let reason = if self.cdmw_busy() {
@@ -769,6 +803,11 @@ impl LabApplication {
     }
 
     fn start_jiggle_preview(&mut self, parts: &[Value]) -> Result<()> {
+        self.prepare_jiggle_preview(parts, true)
+    }
+
+    fn prepare_jiggle_preview(&mut self, parts: &[Value], play: bool) -> Result<()> {
+        self.cdmw_jiggle.preview.play_when_ready = play;
         if self.cdmw_jiggle.preview.solver == Solver::Decoded
             && self.cdmw_state["jiggle"]["decoded"]["rig_mode"] == "rigid_attachment" {
             bail!("Decoded bone motion needs a matching fixed-layout PAB skeleton.");
@@ -909,7 +948,7 @@ impl LabApplication {
             moving,
         };
         self.cdmw_jiggle.preview.scene = Some(scene);
-        self.cdmw_jiggle.preview.playing = true;
+        self.cdmw_jiggle.preview.playing = play;
         self.cdmw_jiggle.preview.feedback.clear();
         self.cdmw_jiggle.preview.last_tick = Instant::now();
         Ok(())
@@ -996,12 +1035,12 @@ impl LabApplication {
             .as_secs_f64();
         self.cdmw_jiggle.preview.last_tick = now;
         let result = self.advance_jiggle_preview(seconds).and_then(|()| {
-            let lines = self.jiggle_weapon_lines();
+            let lines = self.jiggle_collider_lines();
             if let (Some(renderer), Some(scene)) =
                 (&mut self.renderer, &self.cdmw_jiggle.preview.scene)
             {
                 renderer.set_face_selection(&[], [0.0; 4])?;
-                renderer.set_preview_lines(&lines)?;
+                renderer.set_collision_lines(&lines)?;
                 if let Some(colours) = &self.cdmw_jiggle.region_colours {
                     renderer.set_snapshot_with_vertex_colours(&scene.frame, colours)?;
                 } else {
@@ -1021,10 +1060,10 @@ impl LabApplication {
         }
     }
 
-    pub(super) fn jiggle_weapon_lines(&self) -> Vec<cdmw_render_wgpu::EffectLineVertex> {
+    pub(super) fn jiggle_collider_lines(&self) -> Vec<cdmw_render_wgpu::EffectLineVertex> {
         let preview = &self.cdmw_jiggle.preview;
-        if !preview.show_weapon_colliders { return Vec::new(); }
-        preview.scene.as_ref().map(|scene| scene.simulation.weapon_lines(preview.keep_centred)).unwrap_or_default()
+        if !preview.show_colliders { return Vec::new(); }
+        preview.scene.as_ref().map(|scene| scene.simulation.collider_lines(preview.keep_centred)).unwrap_or_default()
     }
 
     pub(super) fn cancel_pending_jiggle(&mut self) {
@@ -1046,7 +1085,7 @@ impl LabApplication {
                 self.cdmw_jiggle.preview.scene = Some(Scene { motion_scale: motion_scale(&prepared.rest), frame: prepared.rest.clone(), rest: prepared.rest,
                     simulation: prepared.simulation, normal_sums: vec![Vec3::ZERO; count],
                     rest_surface_normals: prepared.rest_surface_normals, tick: 0, moving: prepared.moving, centred: false });
-                self.cdmw_jiggle.preview.playing = true;
+                self.cdmw_jiggle.preview.playing = self.cdmw_jiggle.preview.play_when_ready;
                 self.cdmw_jiggle.preview.feedback.clear();
                 self.cdmw_jiggle.preview.last_tick = Instant::now();
             }

@@ -533,6 +533,18 @@ class MeshEditorRustProcessMixin:
             ):
                 QTimer.singleShot(0, self._start_next_rust_protocol_worker)
                 return
+        if event.get("command") == "cloth_collision_input" and dict(event.get("arguments") or {}).get("source") == "archive":
+            from cdmw.ui.mesh_editor.cloth_collision_flow import prepare_cloth_collision_event
+            self._archive_refit_picker_active = True
+            try:
+                event = prepare_cloth_collision_event(self, session, event)
+            except Exception as exc:
+                preparation_error = str(exc) or type(exc).__name__
+            finally:
+                self._archive_refit_picker_active = False
+            if self.standalone_rust_authoring_session is not session or self.standalone_rust_closing:
+                QTimer.singleShot(0, self._start_next_rust_protocol_worker)
+                return
         self.standalone_rust_protocol_request_id += 1
         worker_request_id = self.standalone_rust_protocol_request_id
         worker_type = getattr(
@@ -918,6 +930,9 @@ class MeshEditorRustProcessMixin:
         picker = getattr(self, "_archive_refit_picker", None)
         if picker is not None:
             picker.request_shutdown()
+        collision_picker = getattr(self, "_cloth_collision_picker", None)
+        if collision_picker is not None:
+            collision_picker.reject()
         hair_picker = getattr(self, "_hair_picker", None)
         if hair_picker is not None:
             hair_picker.request_shutdown()

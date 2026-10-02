@@ -753,8 +753,10 @@ render vertices retain their existing behavior.
 
 Undecoded model metadata, missing or ambiguous bone bindings, and unsupported volumes
 disable this option while leaving ordinary cloth playback available. They do not
-silently substitute rig defaults. **Collision sources** accepts explicit body/head PABV
-inputs for the current preview. With an empty model set, the body input replaces rig
+silently substitute rig defaults. **Collision sources** accepts body/head PABV inputs
+from **External file…** or **Game archives…** for the current preview. Archive search
+shows only the requested file type and loads only the selected file. With an empty model
+set, the body input replaces rig
 defaults and the head input replaces the first matching head volume. Standalone inputs
 must use bone hashes; unsupported shapes or bindings are rejected. Model volumes retain
 precedence and disable these choosers. **Clear collision inputs** restores the defaults.
@@ -767,11 +769,17 @@ automatically and game collision activation remains unverified.
 
 **Weapon collisions** is a separate preview switch for supported single-root weapon
 PACs. Capsules are fitted around included rigid parts; guide-bound ribbons are excluded.
-It can run together with **Body collisions**. **Show weapon colliders** draws the fitted
-shapes during playback or pause, following **Keep model centred**.
+It can run together with **Body collisions**. **Show collision shapes** draws body shapes
+in blue and weapon shapes in gold, through the mesh, following **Keep model centred**.
+It prepares a paused view before playback, so volumes inside a cloak can be inspected
+without starting the simulation. The panel shows how many shapes are available; Reset
+clears the inspection view.
 
 For character cloth, **Collision sources > Choose weapon PAC…** loads a separate weapon
-reference, such as Rhett's Longsword (`cd_phm_02_sword_0009.pac`). Position and rotation
+reference from **External file…** or **Game archives…**, such as Rhett's Longsword
+(`cd_phm_02_sword_0009.pac`). A cloak does not provide its own rigid weapon parts: load a
+weapon reference to enable **Weapon collisions**. The same chooser appears beside the
+unavailable switch. Position and rotation
 controls place its shapes in the model's coordinates. This reference uses the preview's
 rigid test motion; game sockets and weapon animation are not loaded. Loading and placing
 it changes only the current preview. Clear, failed-load and cancellation behavior match

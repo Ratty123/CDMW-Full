@@ -233,6 +233,37 @@ fn hair_bust_toggle_renders_empty_and_populated_scenes() {
             assert!(pixels.chunks_exact(4).any(|p| p[1] > 0), "guides remain visible");
         }
         renderer.set_preview_lines(&[])?;
+        // A collision inside a solid garment must be visible in inspection,
+        // while ordinary preview guides retain their depth-tested behavior.
+        let mut occluder = empty.clone();
+        occluder.draw_revision = occluder.draw_revision.wrapping_add(1);
+        occluder.positions = vec![[-0.5, -0.5, 0.], [0.5, -0.5, 0.], [0.5, 0.5, 0.], [-0.5, 0.5, 0.]];
+        occluder.normals = vec![[0., 0., 1.]; 4];
+        occluder.uvs = vec![[0., 0.]; 4];
+        occluder.shader_masks = vec![[0.; 3]; 4];
+        occluder.indices = vec![0, 1, 2, 0, 2, 3];
+        occluder.triangle_materials = vec![0; 2];
+        renderer.set_snapshot(&occluder)?;
+        renderer.set_overlays(false, false);
+        renderer.set_view_mode(ViewMode::TexturedSolid);
+        renderer.set_camera(glam::Mat4::orthographic_rh(-1., 1., -1., 1., 0.1, 3.)
+            * glam::Mat4::look_at_rh(Vec3::new(0., 0., 2.), Vec3::ZERO, Vec3::Y));
+        let hidden_line = [
+            EffectLineVertex { position: [-0.2, 0., -0.5], colour: [0., 1., 0., 1.] },
+            EffectLineVertex { position: [0.2, 0., -0.5], colour: [0., 1., 0., 1.] },
+        ];
+        // Thin lines share multisample pixels with the solid surface beneath.
+        let green = |pixels: &[u8]| pixels.chunks_exact(4)
+            .filter(|p| u16::from(p[1]) > u16::from(p[0]) + 40
+                && u16::from(p[1]) > u16::from(p[2]) + 40).count();
+        renderer.set_preview_lines(&hidden_line)?;
+        assert_eq!(green(&renderer.capture_frame(96, 96, None)?.read_rgba()?), 0);
+        renderer.set_collision_lines(&hidden_line)?;
+        assert!(green(&renderer.capture_frame(96, 96, None)?.read_rgba()?) > 0);
+        renderer.set_preview_lines(&hidden_line)?;
+        assert_eq!(green(&renderer.capture_frame(96, 96, None)?.read_rgba()?), 0);
+        renderer.set_preview_lines(&[])?;
+        renderer.set_snapshot(&empty)?;
         // A retained highlight must not bind the empty mesh for its depth pass.
         renderer.set_face_selection(&document.lods[0].submeshes[0].positions, [1.0; 4])?;
         renderer.set_view_mode(ViewMode::Wireframe);

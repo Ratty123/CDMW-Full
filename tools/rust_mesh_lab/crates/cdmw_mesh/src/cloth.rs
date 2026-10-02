@@ -371,6 +371,9 @@ impl Simulation {
     pub fn weapon_colliders(&self) -> &[BodyCollider] {
         &self.snapshot.weapon_colliders
     }
+    pub fn body_colliders(&self) -> &[BodyCollider] {
+        &self.snapshot.body_colliders
+    }
 
     /// One bounded preview substep. Work is transactional: invalid input or an
     /// unstable projection leaves the previous complete simulation/draw state.

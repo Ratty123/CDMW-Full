@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import hashlib
 import math
 from pathlib import Path
 import struct
@@ -261,14 +262,16 @@ def set_cloth_collision_input(authoring, args, stop_event):
     from cdmw.services.mesh_rust_replacement import replacement_ui_state
 
     clear = args == {"clear": True} and type(args["clear"]) is bool
+    archive_input = set(args) == {"role", "_archive_entry", "_archive_prepared"}
     placement = args.get("weapon_placement") if set(args) == {"weapon_placement"} else None
     if placement is not None and (not isinstance(placement, dict) or set(placement) != {"offset", "rotation"}
             or any(not isinstance(placement[key], (list, tuple)) or len(placement[key]) != 3
                    or any(type(v) not in (int, float) or not math.isfinite(v) or abs(v) > limit for v in placement[key])
                    for key, limit in (("offset", 100), ("rotation", 360)))):
         raise ValueError("Weapon preview placement needs finite position and rotation values.")
-    if not clear and placement is None and (set(args) != {"role", "path"} or args.get("role") not in ("body", "head", "weapon")
-                      or not isinstance(args.get("path"), str) or not args["path"]):
+    if not clear and placement is None and (args.get("role") not in ("body", "head", "weapon")
+                      or (not archive_input and (set(args) != {"role", "path"}
+                          or not isinstance(args.get("path"), str) or not args["path"]))):
         raise ValueError("Choose a body/head PABV or weapon PAC, or clear the preview inputs.")
     candidate = {} if clear else dict(authoring.cloth_collision_inputs)
     session = authoring.shadow_service._session(authoring.shadow_session_id)
@@ -287,10 +290,25 @@ def set_cloth_collision_input(authoring, args, stop_event):
             name, reference = candidate["weapon"]
             candidate["weapon"] = (name, {**reference, **{key: tuple(value) for key, value in placement.items()}})
         else:
-            path = Path(args["path"])
-            if not path.is_absolute() or path.suffix.lower() != (".pac" if weapon else ".pabv"):
+            prepared = None
+            if archive_input:
+                from cdmw.domain.archives.catalogue import ArchiveEntryDto
+                from cdmw.domain.archives.catalogue_operations import PrepareEntryResult
+                entry, prepared = args["_archive_entry"], args["_archive_prepared"]
+                if (not isinstance(entry, ArchiveEntryDto) or not isinstance(prepared, PrepareEntryResult)
+                        or prepared.entry.session_id != entry.session_id or prepared.entry.entry_id != entry.entry_id
+                        or prepared.entry.identity != entry.identity or prepared.entry.display_path != entry.path
+                        or entry.extension.lower() != (".pac" if weapon else ".pabv")):
+                    raise ValueError("Choose the collision input through the game archive picker.")
+                path, name = Path(prepared.prepared_path), entry.path
+            else:
+                path = Path(args["path"])
+                name = path.name
+            if not path.is_absolute() or (not archive_input and path.suffix.lower() != (".pac" if weapon else ".pabv")):
                 raise ValueError("Choose an absolute path to a weapon PAC or body/head PABV file.")
             limit = (32 if weapon else 8) * 1024 * 1024
+            if prepared is not None and not 0 < prepared.size <= limit:
+                raise ValueError("The selected archive input exceeds the preview size limit.")
             authoring._raise_if_cancelled(stop_event)
             with path.open("rb") as source:
                 data = source.read(limit + 1)
@@ -298,6 +316,8 @@ def set_cloth_collision_input(authoring, args, stop_event):
                 raise ValueError("Weapon collision preview inputs must be at most 32 MiB." if weapon
                                  else "Collision preview inputs must be at most 8 MiB.")
             authoring._raise_if_cancelled(stop_event)
+            if prepared is not None and (len(data) != prepared.size or hashlib.sha256(data).hexdigest() != prepared.sha256.lower()):
+                raise ValueError("The prepared collision input changed; choose it from the archives again.")
             if weapon:
                 from cdmw.modding.pac_weapon_collisions import preview_weapon_colliders
                 value = {"colliders": tuple(preview_weapon_colliders(data,
@@ -305,7 +325,7 @@ def set_cloth_collision_input(authoring, args, stop_event):
                          "offset": (0., 0., 0.), "rotation": (0., 0., 0.)}
             else:
                 value = decode_pabv(data)
-            candidate[args["role"]] = (path.name, value)
+            candidate[args["role"]] = (name, value)
     authoring._raise_if_cancelled(stop_event)
     if candidate == authoring.cloth_collision_inputs:
         return {"changed": False}

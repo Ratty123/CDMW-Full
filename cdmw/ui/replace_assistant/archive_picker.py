@@ -25,7 +25,7 @@ from cdmw.domain.archives.catalogue import (
     ArchiveSortField,
     ArchiveViewMode,
 )
-from cdmw.domain.archives.catalogue_operations import FetchPageRequest
+from cdmw.domain.archives.catalogue_operations import FetchPageRequest, PrepareEntryRequest, PrepareEntryResult
 from cdmw.services.archive_catalogue_service import ArchiveCatalogueService
 
 
@@ -41,6 +41,11 @@ class RemoteArchiveOriginalDialog(QDialog):
         *,
         initial_filter: str,
         parent: QWidget | None = None,
+        extensions: tuple[str, ...] = (".dds",),
+        title: str = "Choose archive original DDS",
+        hint: str | None = None,
+        prepare_selection: bool = False,
+        maximum_bytes: int = 32 * 1024 * 1024,
     ) -> None:
         super().__init__(parent)
         self._service = service
@@ -48,17 +53,21 @@ class RemoteArchiveOriginalDialog(QDialog):
         self._generation = 0
         self._requests: dict[str, tuple[str, int]] = {}
         self._closed = False
+        self._extensions = extensions
+        self._prepare_selection = prepare_selection
+        self._maximum_bytes = maximum_bytes
+        self._preparing = False
         self.selected_entry: ArchiveEntryDto | None = None
+        self.selected_prepared: PrepareEntryResult | None = None
 
-        self.setWindowTitle("Choose archive original DDS")
+        self.setWindowTitle(title)
         self.resize(900, 620)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)
 
-        hint = QLabel(
-            "Filter the standalone archive catalogue, then choose the original that matches the edited texture."
-        )
+        hint = QLabel(hint if hint is not None else
+            "Filter the standalone archive catalogue, then choose the original that matches the edited texture.")
         hint.setWordWrap(True)
         layout.addWidget(hint)
 
@@ -111,13 +120,15 @@ class RemoteArchiveOriginalDialog(QDialog):
         self._generation += 1
         generation = self._generation
         self._cancel_requests()
+        self._preparing = False
+        self.selected_entry = self.selected_prepared = None
         self.results_list.clear()
         self.choose_button.setEnabled(False)
         self.status_label.setText("Querying archive catalogue...")
         query = ArchiveQuery(
             session_id=self._session.session_id,
             include_text=self.filter_edit.text().strip() or None,
-            extensions=(".dds",),
+            extensions=self._extensions,
             view_mode=ArchiveViewMode.FLAT,
             sort_field=ArchiveSortField.PATH,
             sort_active=True,
@@ -134,6 +145,18 @@ class RemoteArchiveOriginalDialog(QDialog):
         if tracked is None or tracked[1] != self._generation:
             return
         kind, generation = tracked
+        if kind == "prepare" and operation == "prepare_entry" and isinstance(payload, PrepareEntryResult):
+            selected = self.selected_entry
+            if (selected is None or payload.entry.session_id != self._session.session_id
+                    or payload.entry.entry_id != selected.entry_id or payload.entry.identity != selected.identity
+                    or not 0 < payload.size <= self._maximum_bytes):
+                self._preparing = False
+                self.status_label.setText("The selected archive input changed or exceeds the preview size limit.")
+                self._update_choose_button()
+                return
+            self.selected_prepared = payload
+            self.accept()
+            return
         if kind == "query" and operation == "create_query" and isinstance(payload, ArchiveQueryHandle):
             try:
                 page_request_id = self._service.fetch_page(
@@ -155,28 +178,55 @@ class RemoteArchiveOriginalDialog(QDialog):
             self.results_list.setCurrentRow(0)
         visible = len(payload.rows)
         suffix = " Narrow the filter to see omitted matches." if payload.total_matches > visible else ""
-        self.status_label.setText(
-            f"Showing {visible:,} of {payload.total_matches:,} matching DDS entr{'y' if payload.total_matches == 1 else 'ies'}.{suffix}"
-        )
+        if self._extensions == (".dds",):
+            self.status_label.setText(
+                f"Showing {visible:,} of {payload.total_matches:,} matching DDS entr{'y' if payload.total_matches == 1 else 'ies'}.{suffix}"
+            )
+        else:
+            self.status_label.setText(f"Showing {visible:,} of {payload.total_matches:,} matching archive files.{suffix}")
         self._update_choose_button()
 
     def _handle_failure(self, request_id: str, error: object) -> None:
         if self._requests.pop(request_id, None) is None:
             return
+        self._preparing = False
+        self._update_choose_button()
         self.status_label.setText(str(getattr(error, "message", "") or error or "Archive query failed."))
 
     def _handle_cancelled(self, request_id: str) -> None:
-        self._requests.pop(request_id, None)
+        request = self._requests.pop(request_id, None)
+        if request is not None and request[0] == "prepare":
+            self._preparing = False
+            self._update_choose_button()
 
     def _update_choose_button(self) -> None:
-        self.choose_button.setEnabled(self.results_list.currentItem() is not None)
+        self.results_list.setEnabled(not self._preparing)
+        self.choose_button.setEnabled(self.results_list.currentItem() is not None and not self._preparing)
 
     def _accept_current(self) -> None:
         current = self.results_list.currentItem()
         selected = current.data(Qt.UserRole) if current is not None else None
-        if not isinstance(selected, ArchiveEntryDto):
+        if not isinstance(selected, ArchiveEntryDto) or self._preparing:
+            return
+        if selected.extension.lower() not in self._extensions:
             return
         self.selected_entry = selected
+        if self._prepare_selection:
+            if selected.original_size > self._maximum_bytes:
+                self.status_label.setText("The selected archive input exceeds the preview size limit.")
+                return
+            try:
+                request_id = self._service.prepare_entry(
+                    PrepareEntryRequest(self._session.session_id, selected.entry_id), ui_generation=self._generation,
+                )
+            except Exception as exc:
+                self.status_label.setText(str(exc))
+                return
+            self._requests[request_id] = ("prepare", self._generation)
+            self._preparing = True
+            self.status_label.setText("Preparing collision input…")
+            self._update_choose_button()
+            return
         self.accept()
 
     def done(self, result: int) -> None:

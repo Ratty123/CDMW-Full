@@ -2811,6 +2811,7 @@ pub struct WindowRenderer {
     mesh: Option<GpuMeshBuffers>,
     skeleton_lines: Option<GpuOverlayLines>,
     preview_lines: Option<GpuOverlayLines>,
+    preview_lines_xray: bool,
     effect_lines: Option<GpuOverlayLines>,
     egui_renderer: egui_wgpu::Renderer,
     texture_bind_group_layout: wgpu::BindGroupLayout,
@@ -3202,6 +3203,7 @@ impl WindowRenderer {
             mesh: None,
             skeleton_lines: None,
             preview_lines: None,
+            preview_lines_xray: false,
             effect_lines: None,
             egui_renderer,
             texture_bind_group_layout,
@@ -3518,6 +3520,17 @@ impl WindowRenderer {
     /// reference wire. Mesh depth occludes these lines instead of painting them
     /// through the solid item.
     pub fn set_preview_lines(&mut self, vertices: &[EffectLineVertex]) -> Result<(), RenderError> {
+        self.preview_lines_xray = false;
+        self.update_preview_lines(vertices)
+    }
+
+    /// Collision inspection must also reveal shapes inside a solid cloak/body.
+    pub fn set_collision_lines(&mut self, vertices: &[EffectLineVertex]) -> Result<(), RenderError> {
+        self.preview_lines_xray = true;
+        self.update_preview_lines(vertices)
+    }
+
+    fn update_preview_lines(&mut self, vertices: &[EffectLineVertex]) -> Result<(), RenderError> {
         let signature = effect_line_signature(vertices);
         if self
             .preview_lines
@@ -3956,7 +3969,7 @@ impl WindowRenderer {
                     &self.normal_pipeline,
                     &self.bounds_pipeline,
                     &self.bone_pipeline,
-                    &self.guide_pipeline,
+                    if self.preview_lines_xray { &self.effect_pipeline } else { &self.guide_pipeline },
                     &self.effect_pipeline,
                     self.skeleton_lines.as_ref(),
                     self.preview_lines.as_ref(),
