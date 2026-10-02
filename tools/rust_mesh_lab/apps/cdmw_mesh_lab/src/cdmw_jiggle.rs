@@ -525,7 +525,7 @@ impl LabApplication {
                 let has_cloth = parts.iter().any(|part| detected.and_then(|rows|
                     rows.iter().find(|row| row["index"] == part["index"]))
                     .is_some_and(|row| row["kind"] == "cloth"));
-                preview.cloth_settings.spline = !has_cloth && (standalone
+                let spline = !has_cloth && (standalone
                     || (!parts.is_empty()
                         && parts.iter().all(|part| {
                             detected
@@ -534,6 +534,9 @@ impl LabApplication {
                                 })
                                 .is_some_and(|row| row["kind"] == "spline")
                         })));
+                if preview.cloth_settings.spline != spline {
+                    preview.cloth_settings = crate::cdmw_cloth::preview::default_settings(spline);
+                }
             }
             let rotation_available = if preview.cloth_settings.spline {
                 spline_available
@@ -595,7 +598,7 @@ impl LabApplication {
                     ui.horizontal(|ui| { ui.label("Floor height (Y)"); ui.add(crate::cdmw_ui::numeric::value(height).speed(0.01)); });
                 }
                 if ui.button("Reset cloth preview settings").clicked() {
-                    *settings = cdmw_mesh::cloth::Settings::default();
+                    *settings = crate::cdmw_cloth::preview::default_settings(settings.spline);
                     self.cdmw_cloth.profiles.clear_loaded();
                 }
             });

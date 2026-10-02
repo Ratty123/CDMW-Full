@@ -787,6 +787,11 @@ the standalone spline still offers an optional preview floor.
 vertex-alpha blending and guide rotation. **Spring-back response** pulls the chain
 toward its animated source directions; zero disables that angular restoration.
 Spline rotation follows adjacent chain guides rather than cloth triangles.
+Entering spline mode or resetting its settings starts with free bending, zero
+spring-back, authored vertex-alpha blending and guide rotation. Tune those
+preview values or explicitly load an authored profile for different starting
+settings. Spline bend and spring-back account for the duration of each small
+simulation step, so substeps do not artificially hold a ribbon straight.
 These controls are temporary preview settings. The chain projection, fixed preview
 clock, absent wind/water and runtime overrides are not game-equivalent physics.
 

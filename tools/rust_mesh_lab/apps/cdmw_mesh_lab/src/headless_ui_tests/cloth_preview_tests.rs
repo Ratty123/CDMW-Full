@@ -56,7 +56,7 @@ mod profiles {
         ui.frame(Vec::new());
         assert_eq!(ui.application.cdmw_jiggle.preview.cloth_settings.restore_angle, 0.3);
         ui.click("Restore manual preview settings")?;
-        assert_eq!(ui.application.cdmw_jiggle.preview.cloth_settings.restore_angle, 0.025);
+        assert_eq!(ui.application.cdmw_jiggle.preview.cloth_settings.restore_angle, 0.0);
         Ok(())
     }
 
@@ -684,6 +684,34 @@ fn spline_fixture() -> Result<(tempfile::TempDir, HeadlessUi, Vec<u8>), Box<dyn 
     state["file"]["sha256"] = json!(format!("{:X}", Sha256::digest(&bytes)));
     ui.frame(Vec::new());
     Ok((root, ui, bytes))
+}
+
+#[test]
+fn standalone_spline_starts_flexible_retains_tuning_and_resets_to_spline_settings() -> TestResult {
+    let (_root, mut ui, _) = spline_fixture()?;
+    let settings = ui.application.cdmw_jiggle.preview.cloth_settings;
+    assert!(settings.spline);
+    assert_eq!(settings.bend, 0.);
+    assert_eq!(settings.restore_angle, 0.);
+    assert!(settings.rotate_guides && settings.single_edge_rotation && settings.use_vertex_alpha);
+    ui.application.cdmw_jiggle.preview.cloth_settings.bend = 0.4;
+    ui.application.cdmw_jiggle.preview.cloth_settings.restore_angle = 0.3;
+    ui.frame(Vec::new());
+    assert_eq!(ui.application.cdmw_jiggle.preview.cloth_settings.bend, 0.4);
+    assert_eq!(ui.application.cdmw_jiggle.preview.cloth_settings.restore_angle, 0.3);
+    ui.click("Spline preview settings")?;
+    ui.click("Reset cloth preview settings")?;
+    let reset = ui.application.cdmw_jiggle.preview.cloth_settings;
+    assert!(reset.spline);
+    assert_eq!(reset.bend, 0.);
+    assert_eq!(reset.restore_angle, 0.);
+    assert!(reset.rotate_guides && reset.single_edge_rotation && reset.use_vertex_alpha);
+    ui.application.cdmw_state["physics"] = json!({"parts": [{"index": 0, "kind": "cloth"}]});
+    ui.frame(Vec::new());
+    let cloth = ui.application.cdmw_jiggle.preview.cloth_settings;
+    assert!(!cloth.spline);
+    assert_eq!(cloth.bend, cdmw_mesh::cloth::Settings::default().bend);
+    Ok(())
 }
 
 #[test]

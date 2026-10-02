@@ -9,7 +9,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Added
 
-- Mesh Editor offers experimental playback and tuning for supported spline physics, including angular spring-back. Verified rigid attachments can preview without a character skeleton, and saved profile edits refresh the loaded preview.
+- Mesh Editor offers experimental spline playback with flexible starting settings, guide rotation and adjustable spring-back. Verified rigid attachments can preview without a character skeleton, and saved profile edits refresh the loaded preview.
 - Report a Problem is available below Support Me in the sidebar with a bug icon. Its five-step guided form has tool/action menus, relevant input and setup choices, stall questions and optional **?** help. It includes a readable review, fitted screenshots, redacted evidence, a receipt screen and saved drafts for retry. Public clients use a browser verification check without shared access keys; reports go to a separate private GitHub repository with duplicate protection, submission limits and retry guidance. Destination and privacy details are available through optional help.
 
 ### Changed

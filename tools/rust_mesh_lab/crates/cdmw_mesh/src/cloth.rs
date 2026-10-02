@@ -52,7 +52,8 @@ pub struct Settings {
     pub stretch: f64,
     pub bend: f64,
     pub spline: bool,
-    /// Controlled angular spring-back coefficient, converted from raw XML.
+    /// Converted angular spring-back at a controlled 60 Hz reference; spline
+    /// projection scales its compliance to the actual simulation timestep.
     pub restore_angle: f64,
     pub iterations: u32,
     pub speed_limit: f64,
@@ -477,6 +478,7 @@ impl Simulation {
                     &animation,
                     &masses,
                     settings,
+                    dt,
                     &mut corrections,
                     &mut counts,
                 );

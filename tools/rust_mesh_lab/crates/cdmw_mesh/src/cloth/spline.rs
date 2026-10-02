@@ -62,9 +62,12 @@ pub(super) fn project(
     animation: &[DVec3],
     masses: &[f64],
     settings: Settings,
+    dt: f64,
     corrections: &mut [DVec3],
     counts: &mut [u32],
 ) {
+    let restore = angular_response(settings.restore_angle, dt);
+    let bend = angular_response(settings.bend, dt);
     for chain in chains {
         for i in 1..chain.len() {
             let (a, b) = (chain[i - 1], chain[i]);
@@ -78,18 +81,18 @@ pub(super) fn project(
             let reference = reference.normalize();
             let mut correction = DVec3::ZERO;
             let mut active = false;
-            if settings.restore_angle > 0.0 {
-                correction += (reference * length - edge) * settings.restore_angle;
+            if restore > 0.0 {
+                correction += (reference * length - edge) * restore;
                 active = true;
             }
-            if i > 1 && settings.bend > 0.0 {
+            if i > 1 && bend > 0.0 {
                 let parent = chain[i - 2];
                 let old = animation[a] - animation[parent];
                 let current = positions[a] - positions[parent];
                 if old.length_squared() > 1e-16 && current.length_squared() > 1e-16 {
                     let direction =
                         DQuat::from_rotation_arc(old.normalize(), current.normalize()) * reference;
-                    correction += (direction * length - edge) * settings.bend;
+                    correction += (direction * length - edge) * bend;
                     active = true;
                 }
             }
@@ -101,4 +104,16 @@ pub(super) fn project(
             }
         }
     }
+}
+
+fn angular_response(stiffness: f64, dt: f64) -> f64 {
+    if stiffness == 0.0 || stiffness == 1.0 {
+        return stiffness;
+    }
+    // Controlled 60 Hz calibration, not a recovered game timestep. Interpret
+    // the reference response as compliance, then scale it by dt squared.
+    // Repeating the full response at 480 Hz made soft ribbons act like rods.
+    let step_ratio = dt * 60.0;
+    let scaled_step = step_ratio * step_ratio;
+    scaled_step / ((1.0 - stiffness) / stiffness + scaled_step)
 }
