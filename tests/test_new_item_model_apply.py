@@ -105,6 +105,65 @@ def test_apply_button_publishes_selected_variant_and_unblocks_plan(studio, monke
     assert controller.has_current_plan
 
 
+def test_apply_placement_collects_gui_cycles_without_stopping_worker(studio, monkeypatch):
+    import gc
+    from PySide6.QtCore import QObject, Qt
+    from shiboken6 import delete, isValid
+    from cdmw.ui.shell.garbage_collection import ensure_app_garbage_collector
+
+    app, tab = studio
+    _import(tab)
+    controller, panel = tab.controller, tab.model_panel
+    previous = getattr(app, "_cdmw_garbage_collector", None)
+    collector = ensure_app_garbage_collector(app)
+    interval, thresholds = collector._timer.interval(), gc.get_threshold()
+    gui_thread = threading.get_ident()
+    collections, destroyed, ran = set(), [], []
+    built = ModelFiles(b"placement under allocation pressure")
+
+    def observed(phase, _info):
+        if phase == "start":
+            collections.add(threading.get_ident())
+
+    def destroyed_here():
+        destroyed.append((threading.get_ident(), controller.busy))
+
+    def build(*_args, **_kwargs):
+        ran.append(threading.get_ident())
+        for _ in range(200):
+            for _ in range(64):
+                cycle = []
+                cycle.append(cycle)
+            time.sleep(.002)
+        return built
+
+    monkeypatch.setattr("cdmw.ui.new_item.controller.build_placed_import", build)
+    try:
+        collector._timer.setInterval(10)
+        gc.set_threshold(32, 1, 1)
+        gc.callbacks.append(observed)
+        doomed = QObject()
+        doomed.cycle = doomed
+        doomed.destroyed.connect(destroyed_here, Qt.DirectConnection)
+        del doomed
+        panel.apply_button.click()
+        _finish(app, controller)
+        assert ran and ran[0] != gui_thread
+        assert collections == {gui_thread}
+        assert destroyed == [(gui_thread, True)]
+        assert controller.model_result is built
+        assert panel.apply_button.isEnabled()
+        assert "Applied:" in panel.apply_status.plain_text()
+    finally:
+        gc.callbacks.remove(observed)
+        gc.set_threshold(*thresholds)
+        collector._timer.setInterval(interval)
+        if collector is not previous:
+            assert not controller.busy
+            if isValid(collector):
+                delete(collector)
+
+
 def test_apply_failure_stays_visible_through_preview_refresh_and_can_be_retried(studio, monkeypatch):
     app, tab = studio
     _import(tab)

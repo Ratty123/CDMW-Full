@@ -95,6 +95,15 @@ The shell remains visible with a closing status while that barrier is held, then
 closes normally or reaches the final cutoff. The game is explicitly allowed to
 outlive CDMW. See `docs/runbooks/worker-lifecycle.md` for the ownership contract.
 
+Shell startup also installs one application-owned cyclic garbage collector before
+constructing tool widgets or starting their workers. Automatic Python collection
+is disabled while Qt is alive: allocation in a worker must not destroy GUI-owned
+Qt wrappers on that worker's thread. A GUI-thread timer checks allocation pressure
+once per second, using generation thresholds or incremental collection on early
+Python 3.14. Reference-count cleanup and explicit worker `deleteLater()` ownership are
+unchanged. The previous automatic-GC state is restored when Qt destroys the
+collector during application teardown, not at `aboutToQuit`.
+
 ## Ownership boundaries
 
 Keep this package focused on application frame behavior. Feature tabs belong in
@@ -160,3 +169,8 @@ production widgets at its supported sizes.
 
 Related tests: `tests/test_shell_*.py`, architecture guards, and shell entries
 under `tests/`.
+
+`tests/test_shell_garbage_collection.py` checks native Qt cleanup under worker
+allocation pressure, startup ownership, teardown and generation scheduling.
+`tests/test_new_item_model_apply.py::test_apply_placement_collects_gui_cycles_without_stopping_worker`
+covers the same ownership rule through Apply placement and its real Qt worker.

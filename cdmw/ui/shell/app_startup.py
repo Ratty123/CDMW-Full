@@ -17,6 +17,7 @@ from cdmw.services.settings_service import create_settings
 from cdmw.ui.app_icon import load_app_icon
 from cdmw.ui.combo_popup_limiter import ensure_app_combo_popup_limiter
 from cdmw.ui.display_scaling import ensure_app_display_scaling
+from cdmw.ui.shell.garbage_collection import ensure_app_garbage_collector
 from cdmw.ui.shell.icon_controller import AppWindowIconEventFilter
 from cdmw.ui.shell.compact.config import active_shell_theme_key
 from cdmw.ui.shell.responsiveness_controller import AutoTreeColumnWidthEventFilter
@@ -41,6 +42,7 @@ def read_shell_startup_theme_key(settings: QSettings) -> str:
 def prepare_shell_application(
     app: QApplication, *, settings_file_path: Path | None = None
 ) -> ShellApplicationStartup:
+    ensure_app_garbage_collector(app)
     app.setOrganizationName(APP_ORGANIZATION)
     app.setApplicationName(APP_NAME)
     app.setStyle("Fusion")
