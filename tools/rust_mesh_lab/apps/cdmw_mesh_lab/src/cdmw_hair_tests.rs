@@ -2254,9 +2254,7 @@ fn hair_shaping_tools_change_rendered_hair_keep_roots_and_lengthen_only_tips() {
             false,
             false,
         );
-        if tool == HairTool::Lengthen {
-            assert_eq!(app.hair.selected, HashSet::from([id as usize]));
-        }
+        assert!(app.hair.selected.is_empty(), "brushes do not acquire a selection");
         app.render_hair();
         assert_ne!(
             app.hair.scene.as_ref().unwrap().frame.positions,
@@ -2435,7 +2433,7 @@ fn hair_physics_brush_paints_partial_rows_and_keeps_fixed_cards_still() {
     await_hair(&mut app);
     assert!(app.hair.state.as_ref().unwrap().guides[guide_index].pinned.iter().all(|p| !p));
     let cut = prepare(painted.clone(), app.hair.preview.clone().unwrap(), "Cut painted lock".into(),
-        Preparation::Cut(id, 6, 0.5, false), &AtomicBool::new(false)).unwrap();
+        Preparation::Cut(vec![(id, 6, 0.5)], false), &AtomicBool::new(false)).unwrap();
     let cut_guide = cut.state.locks.iter().find(|lock| lock.id == id).unwrap().guide.unwrap() as usize;
     assert_eq!(cut.state.guides[cut_guide].pinned, guide.pinned[..8]);
     assert_eq!(cut.state.guides[cut_guide].points.len(), 8);
@@ -2464,7 +2462,7 @@ fn hair_new_styles_start_empty_and_collision_body_is_not_a_visible_reference() {
 #[test]
 fn hair_groom_brush_reaches_drawn_locks_inside_its_radius() {
     for follow_scalp in [true, false] {
-        for tool in [HairTool::Comb, HairTool::Smooth, HairTool::Curl, HairTool::Clump] {
+        for tool in [HairTool::Lengthen, HairTool::Comb, HairTool::Smooth, HairTool::Curl, HairTool::Clump] {
             let (mut state, document) = fixture();
             for p in &mut state.scalp.positions {
                 p[1] = (0.25_f32.powi(2) - p[0] * p[0] - p[2] * p[2]).sqrt();
@@ -2539,6 +2537,233 @@ fn hair_groom_brush_reaches_drawn_locks_inside_its_radius() {
             assert!(!app.hair.preparing());
             assert_eq!(app.hair.state.as_ref().unwrap().revision, covered.revision);
         }
+    }
+}
+
+fn drawn_brush_app() -> (LabApplication, egui::Rect, Vec2) {
+    let (mut state, document) = fixture();
+    state.collisions.clear();
+    let mut app = LabApplication::new(None, None);
+    app.document = Some(document);
+    app.cdmw_state = json!({"hair":{"available":true,"materials_ready":true},
+        "replacement":{"comparison":"edit"}});
+    app.hydrate_hair(Some(state));
+    app.hair.pending_preset = false;
+    let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1200.0, 900.0));
+    app.viewport_rect = Some(rect);
+    app.camera.set_standard_view(crate::camera::StandardView::Top);
+    app.camera.frame_positions_in_viewport(
+        app.hair.state.as_ref().unwrap().scalp.positions.iter().copied().map(Vec3::from), rect);
+    app.run_hair_action(HairAction::Empty);
+    await_hair(&mut app);
+    app.hair.tool = Some(HairTool::Guide);
+    app.hair.draw_shape = DrawShape::Arc;
+    app.hair.draw_follow_scalp = false;
+    let origin = app.camera.project(Vec3::new(-0.04, 0.2, -0.04), rect).unwrap().screen;
+    for x in [-28.0, 28.0, 220.0] {
+        let start = origin + Vec2::X * x;
+        let end = start + Vec2::Y * 90.0;
+        for event in [ViewportPointerEvent::PrimaryPressed(start),
+            ViewportPointerEvent::PrimaryMoved(end), ViewportPointerEvent::PrimaryReleased(end)] {
+            app.dispatch_hair_pointer(event, rect, false, false, false);
+        }
+        await_hair(&mut app);
+    }
+    assert_eq!(app.hair.state.as_ref().unwrap().locks.len(), 3);
+    app.hair.radius = 70.0;
+    (app, rect, origin + Vec2::Y * 45.0)
+}
+
+#[test]
+fn hair_area_brush_grooms_every_drawn_lock_under_circle_despite_selection() {
+    for tool in [HairTool::Lengthen, HairTool::Comb, HairTool::Smooth, HairTool::Curl, HairTool::Clump] {
+        let (mut app, rect, point) = drawn_brush_app();
+        let before = app.hair.state.clone().unwrap();
+        let selected = app.hair.selected.clone();
+        assert_eq!(selected, HashSet::from([before.locks[2].id as usize]));
+        assert!(app.lock_at(point, rect).is_none(), "the centre falls between the drawn locks");
+        app.hair.tool = Some(tool);
+        app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryPressed(point), rect, false, false, false);
+        app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryMoved(point + Vec2::X * 4.0), rect, false, false, false);
+        let stroke = app.hair.stroke.as_ref().expect("area brushes can start between locks");
+        for (i, lock) in before.locks.iter().enumerate() {
+            let gi = lock.guide.unwrap() as usize;
+            if i < 2 {
+                assert_ne!(stroke.guides[gi], before.guides[gi], "{tool:?} missed covered lock {i}");
+                assert_eq!(stroke.guides[gi].points[0], before.guides[gi].points[0]);
+            } else {
+                assert_eq!(stroke.guides[gi], before.guides[gi], "{tool:?} changed a lock outside the brush");
+            }
+        }
+        assert_eq!(app.hair.selected, selected);
+        app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryReleased(point + Vec2::X * 4.0), rect, false, false, false);
+        await_hair(&mut app);
+        assert_eq!(app.hair.state.as_ref().unwrap().revision, before.revision + 1);
+        app.hair.state.as_ref().unwrap().validate().unwrap();
+    }
+}
+
+#[test]
+fn hair_area_brush_cuts_every_drawn_lock_under_circle_as_one_edit() {
+    let (mut app, rect, point) = drawn_brush_app();
+    let before = app.hair.state.clone().unwrap();
+    app.hair.tool = Some(HairTool::Cut);
+    app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryPressed(point), rect, false, false, false);
+    app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryReleased(point), rect, false, false, false);
+    await_hair(&mut app);
+    let after = app.hair.state.as_ref().unwrap();
+    for (i, lock) in before.locks.iter().enumerate() {
+        let gi = lock.guide.unwrap() as usize;
+        if i < 2 {
+            assert!(after.guides[gi].points.len() < before.guides[gi].points.len(), "Cut missed covered lock {i}");
+            assert_eq!(after.guides[gi].points[0], before.guides[gi].points[0]);
+        } else {
+            assert_eq!(after.guides[gi], before.guides[gi]);
+        }
+    }
+    assert_eq!(after.revision, before.revision + 1);
+    after.validate().unwrap();
+}
+
+#[test]
+fn hair_area_brush_sweeps_between_pointer_events() {
+    for tool in [HairTool::Comb, HairTool::Cut, HairTool::Erase] {
+        let (mut app, rect, point) = drawn_brush_app();
+        let before = app.hair.state.clone().unwrap();
+        app.hair.radius = 18.0;
+        app.hair.tool = Some(tool);
+        let start = point - Vec2::X * 120.0;
+        let end = point + Vec2::X * 120.0;
+        app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryPressed(start), rect, false, false, false);
+        // The only move event jumps past both locks; neither endpoint covers them.
+        app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryMoved(end), rect, false, false, false);
+        app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryReleased(end), rect, false, false, false);
+        await_hair(&mut app);
+        let after = app.hair.state.as_ref().unwrap();
+        for (i, old) in before.locks.iter().enumerate() {
+            let current = after.locks.iter().find(|l| l.id == old.id);
+            if tool == HairTool::Erase && i < 2 {
+                assert!(current.is_none(), "Erase skipped a lock between pointer events");
+                continue;
+            }
+            let guide = &after.guides[current.unwrap().guide.unwrap() as usize];
+            let original = &before.guides[old.guide.unwrap() as usize];
+            if i < 2 { assert_ne!(guide, original, "{tool:?} skipped covered lock {i}"); }
+            else { assert_eq!(guide, original, "{tool:?} escaped the swept brush"); }
+        }
+        assert_eq!(after.revision, before.revision + 1);
+        after.validate().unwrap();
+    }
+}
+
+#[test]
+fn hair_area_brush_entering_lock_does_not_reset_existing_groom_strength() {
+    for tool in [HairTool::Smooth, HairTool::Curl] {
+        let (mut app, rect, point) = drawn_brush_app();
+        app.hair.radius = 35.0;
+        app.hair.tool = Some(tool);
+        let before = app.hair.state.clone().unwrap();
+        let first = before.locks[0].guide.unwrap() as usize;
+        let second = before.locks[1].guide.unwrap() as usize;
+        app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryPressed(point - Vec2::X * 50.0), rect, false, false, false);
+        for i in 0..12 {
+            let x = if i % 2 == 0 { 40.0 } else { 50.0 };
+            app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryMoved(point - Vec2::X * x), rect, false, false, false);
+        }
+        let stroke = app.hair.stroke.as_ref().unwrap();
+        assert_eq!(stroke.guides[second], before.guides[second]);
+        let offset = |guide: &hair::Guide| guide.points.iter().zip(&before.guides[first].points)
+            .map(|(p, q)| Vec3::from(*p).distance(Vec3::from(*q))).sum::<f32>();
+        let previous_offset = offset(&stroke.guides[first]);
+        assert!(previous_offset > 1e-6);
+        app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryMoved(point), rect, false, false, false);
+        let stroke = app.hair.stroke.as_ref().unwrap();
+        assert_ne!(stroke.guides[second], before.guides[second]);
+        assert!(offset(&stroke.guides[first]) >= previous_offset - 1e-6,
+            "{tool:?} snapped an already groomed lock back when another entered the brush");
+        assert!(app.cancel_hair_stroke());
+    }
+}
+
+#[test]
+fn hair_area_brush_cut_cancel_preserves_scene_and_publishes_nothing() {
+    let (mut app, rect, point) = drawn_brush_app();
+    let before = app.hair.state.clone();
+    let document = app.hair.preview.clone();
+    app.hair.tool = Some(HairTool::Cut);
+    app.hair.playing = true;
+    app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryPressed(point), rect, false, false, false);
+    assert_eq!(app.hair.cuts.len(), 2);
+    assert!(!app.hair.playing);
+    assert!(app.cancel_hair_stroke());
+    app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryReleased(point), rect, false, false, false);
+    assert!(app.hair.cuts.is_empty());
+    assert!(app.hair.playing);
+    assert!(!app.hair.preparing());
+    assert_eq!(app.hair.state, before);
+    assert_eq!(app.hair.preview, document);
+}
+
+#[test]
+fn hair_area_brush_cut_resolves_symmetry_before_shortening_locks() {
+    let (app, _, _) = drawn_brush_app();
+    let mut before = app.hair.state.clone().unwrap();
+    let a = before.locks[0].id;
+    let b = before.locks[1].id;
+    before.locks[0].mirrored = Some(b);
+    before.locks[1].mirrored = Some(a);
+    let cuts = vec![(a, 40, 0.5), (b, 30, 0.25)];
+    let after = prepare(before.clone(), app.hair.preview.clone().unwrap(), "Cut hair".into(),
+        Preparation::Cut(cuts.clone(), true), &AtomicBool::new(false)).unwrap();
+    for (id, segment, t) in cuts {
+        let gi = before.locks.iter().find(|l| l.id == id).unwrap().guide.unwrap() as usize;
+        assert_eq!(after.state.guides[gi].points.len(), segment as usize + 2);
+        assert_eq!(*after.state.guides[gi].points.last().unwrap(),
+            locks::curve_point(&before.guides[gi].points, segment as usize, t));
+    }
+    after.state.validate().unwrap();
+}
+
+#[test]
+fn hair_area_brush_cut_controls_show_radius_and_circle() {
+    let (mut app, rect, point) = drawn_brush_app();
+    app.hair.tool = Some(HairTool::Cut);
+    let ctx = egui::Context::default();
+    let mut output = ctx.run_ui(egui::RawInput {
+        screen_rect: Some(rect),
+        events: vec![egui::Event::PointerMoved(egui::pos2(point.x, point.y))],
+        ..Default::default()
+    }, |ui| {
+        app.draw_hair_controls(ui, &mut vec![]);
+        app.paint_hair_guides(ui, rect);
+    });
+    output.textures_delta.clear();
+    assert!(output.shapes.iter().any(|s| matches!(&s.shape, egui::Shape::Text(t)
+        if t.galley.job.text == "Brush size")));
+    assert!(!output.shapes.iter().any(|s| matches!(&s.shape, egui::Shape::Text(t)
+        if t.galley.job.text == "Strength")));
+    assert!(output.shapes.iter().any(|s| matches!(&s.shape, egui::Shape::Circle(c)
+        if (c.radius - app.hair.radius).abs() < 0.001)));
+}
+
+#[test]
+fn hair_area_brush_cut_and_erase_do_not_reach_through_reference() {
+    for tool in [HairTool::Cut, HairTool::Erase] {
+        let (mut app, rect, point) = drawn_brush_app();
+        let mut state = app.hair.state.clone().unwrap();
+        let mut cover = state.scalp.clone();
+        cover.identity = "head:brush-occluder".into();
+        for p in &mut cover.positions { p[1] += 0.05; }
+        state.references.push(cover);
+        app.document = app.hair.preview.clone();
+        app.hydrate_hair(Some(state.clone()));
+        app.hair.pending_preset = false;
+        app.render_hair();
+        app.hair.tool = Some(tool);
+        app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryPressed(point), rect, false, false, false);
+        app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryReleased(point), rect, false, false, false);
+        assert_eq!(app.hair.state.as_ref().unwrap(), &state);
+        assert!(!app.hair.preparing());
     }
 }
 

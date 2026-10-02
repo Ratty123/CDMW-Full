@@ -369,15 +369,18 @@ their saved shape and need redrawing.
 
 #### Erasing and cutting
 
-**Erase** and Delete remove the selected geometry; **Cut** removes the pointed distal
-section. **Lengthen** acquires a clicked lock like Move, respects an existing selection
-and extends tips without moving roots. Empty, rigid and unresolved selections explain
-what is required. Comb, Smooth, Curl and Clump use the highlighted brush region,
-restricted to the selection when one exists. They work with hair drawn with **Follow
-scalp** either on or off.
+**Erase** removes visible locks under the brush; Delete removes selected geometry.
+**Cut** trims every visible lock inside the brush at the point nearest the brush centre.
+Click for one cut or drag across several locks; the completed stroke is one Undo step.
+**Lengthen** extends the tips of every brushed lock without moving roots. Comb, Smooth,
+Curl and Clump also affect every visible lock inside the brush, even when another lock
+is selected. **Move** continues to act on selected locks. Grooming works with hair drawn
+with **Follow scalp** either on or off.
 
-Short and thin locks anywhere inside the brush circle can be groomed; the character
-reference and nearer hair still block edits to hidden locks. **Physics** paints regions
+Short and thin locks anywhere inside the brush circle can be groomed, including between
+pointer events during fast strokes. Entering another lock does not reset the strength
+already applied to covered locks. The character reference and nearer hair still block
+edits to hidden locks. **Physics** paints regions
 along locks with **Static** or **Physical**. Blue marks fixed rows and orange marks
 moving rows. Roots always remain fixed. The brush affects visible hair without needing a
 selection, even when other locks are selected. Enable **Selected locks only** to

@@ -26172,16 +26172,6 @@
       ]
     },
     {
-      "key": "Click a hair lock and drag to extend its tip. An existing selection stays selected.",
-      "origins": [
-        {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
-          "line": 1008,
-          "sink": "rust-presentation"
-        }
-      ]
-    },
-    {
       "key": "Click a socket in the viewport to hang the selected item there.",
       "origins": [
         {
@@ -26217,6 +26207,16 @@
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
           "line": 1006,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Click or drag to cut every visible lock inside the brush. Each lock is cut nearest the brush centre. Escape cancels.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
+          "line": 1007,
           "sink": "rust-presentation"
         }
       ]
@@ -36932,16 +36932,6 @@
       ]
     },
     {
-      "key": "Drag over highlighted hair. Only selected or brushed locks change.",
-      "origins": [
-        {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
-          "line": 1011,
-          "sink": "rust-presentation"
-        }
-      ]
-    },
-    {
       "key": "Drag the canvas to pan, use the mouse wheel to zoom, and hover or select a line for its parameter name.",
       "origins": [
         {
@@ -36978,6 +36968,26 @@
           "path": "tools/placement_studio/window_editing.py",
           "line": 101,
           "sink": "setItemData"
+        }
+      ]
+    },
+    {
+      "key": "Drag to extend the tips of every visible lock inside the brush. Roots stay fixed.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
+          "line": 1008,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Drag to groom every visible lock inside the brush. Selection does not restrict the brush.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
+          "line": 1011,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -90923,16 +90933,6 @@
           "path": "tools/placement_studio/window_animation.py",
           "line": 57,
           "sink": "QGroupBox"
-        }
-      ]
-    },
-    {
-      "key": "Point at a lock and click to remove hair beyond the cut marker.",
-      "origins": [
-        {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
-          "line": 1007,
-          "sink": "rust-presentation"
         }
       ]
     },

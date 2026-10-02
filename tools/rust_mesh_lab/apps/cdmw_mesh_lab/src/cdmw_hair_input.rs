@@ -150,14 +150,17 @@ impl LabApplication {
     }
 
     fn brush_locks(&self, point: Vec2, rect: egui::Rect) -> Vec<u64> {
-        self.brushed_hair_rows(point, rect, false).into_iter().map(|(id, _)| id).collect()
+        self.brushed_hair_hits(point, rect, false).into_iter().map(|(id, _, _)| id).collect()
     }
 
-    fn brushed_hair_rows(&self, point: Vec2, rect: egui::Rect, all_rows: bool) -> Vec<(u64, usize)> {
+    fn brushed_hair_hits(&self, point: Vec2, rect: egui::Rect, all_rows: bool) -> Vec<(u64, u32, f32)> {
         let Some(scene) = &self.hair.scene else {
             return vec![];
         };
+        let nearest = self.hair.tool == Some(HairTool::Cut);
+        let mut candidates = Vec::new();
         let mut ids = BTreeSet::new();
+        let mut hits = Vec::new();
         let radius = self.hair.radius;
         let view = self.camera.view_projection(rect);
         let ndc = Vec2::new(
@@ -181,9 +184,7 @@ impl LabApplication {
             let Some(id) = scene.vertex_locks[face[0] as usize] else {
                 return;
             };
-            if !all_rows && ids.range((id, 0)..=(id, usize::MAX)).next().is_some() {
-                return;
-            }
+            if !nearest && !all_rows && ids.contains(&(id, 0)) { return; }
             // Physics paint follows the brush unless selection masking is
             // explicitly enabled; a leftover grooming selection is not a mask.
             if all_rows && self.hair.physics_selected_only && !self.hair.selected.contains(&(id as usize)) {
@@ -227,11 +228,24 @@ impl LabApplication {
             // Nudge off shared triangle edges before the depth test. The same
             // resident scene preserves scalp occlusion and part visibility.
             let sample = closest.lerp((a + b + c) / 3.0, 0.0001);
-            if let Some(hit) = self.lock_at(sample, rect).filter(|hit| hit.0 == id) {
-                ids.insert((id, hit.1 as usize + usize::from(hit.2 >= 0.5)));
+            if nearest {
+                candidates.push((closest.distance_squared(point), id, sample));
+            } else if let Some(hit) = self.lock_at(sample, rect).filter(|hit| hit.0 == id) {
+                let row = if all_rows { hit.1 as usize + usize::from(hit.2 >= 0.5) } else { 0 };
+                if ids.insert((id, row)) { hits.push(hit); }
             }
         });
-        ids.into_iter().collect()
+        // Only Cut needs the position nearest the brush centre on each lock.
+        // Other brushes stop projecting a lock as soon as a visible hit is found.
+        candidates.sort_by(|a, b| a.0.total_cmp(&b.0));
+        for (_, id, sample) in candidates {
+            if !all_rows && ids.contains(&(id, 0)) { continue; }
+            if let Some(hit) = self.lock_at(sample, rect).filter(|hit| hit.0 == id) {
+                let row = if all_rows { hit.1 as usize + usize::from(hit.2 >= 0.5) } else { 0 };
+                if ids.insert((id, row)) { hits.push(hit); }
+            }
+        }
+        hits
     }
 
     pub(crate) fn handle_hair_input(&mut self, ui: &egui::Ui, rect: egui::Rect) -> bool {
@@ -255,9 +269,6 @@ impl LabApplication {
             .map(|p| Vec2::new(p.x, p.y));
         let hit = pointer.and_then(|p| self.lock_at(p, rect));
         self.hair.hover = hit.map(|h| h.0);
-        if self.hair.stroke_start.is_none() {
-            self.hair.cut_preview = hit;
-        }
         let events: Vec<_> = self.pointer_events.drain().collect();
         for (index, event) in events.iter().enumerate() {
             let endpoint_tool = self.hair.tool == Some(HairTool::Move)
@@ -333,6 +344,7 @@ impl LabApplication {
                     Some((along, Vec3::from(points[i]).lerp(Vec3::from(points[i + 1]), t)))
                 });
                 self.hair.stroke_distances.clear();
+                self.hair.cuts.clear();
                 self.hair.stroke_start = Some(point);
                 self.hair.last_pointer = Some(point);
                 self.hair.stroke_changed = false;
@@ -351,7 +363,7 @@ impl LabApplication {
                     }
                     return;
                 }
-                if matches!(self.hair.tool, Some(HairTool::Move | HairTool::Lengthen)) {
+                if self.hair.tool == Some(HairTool::Move) {
                     if let Some((id, _, _)) = hit {
                         if !self.hair.selected.contains(&(id as usize)) {
                             self.hair.selected = HashSet::from([id as usize]);
@@ -364,9 +376,9 @@ impl LabApplication {
                     }
                 }
                 if self.hair.tool == Some(HairTool::Cut) {
-                    self.hair.cut_preview = hit;
                     self.hair.restart_after_stroke |= self.hair.playing;
                     self.hair.playing = false;
+                    self.hair_stroke_point(rect, point, false);
                     return;
                 }
                 self.hair.restart_after_stroke |= self.hair.playing;
@@ -397,14 +409,14 @@ impl LabApplication {
                         }
                     }
                 } else if self.hair.tool == Some(HairTool::Cut) {
-                    if let (Some((id, segment, t)), Some(mut state)) =
-                        (self.hair.cut_preview, self.hair.state.clone())
-                    {
+                    self.hair_stroke_point(rect, point, false);
+                    let cuts = std::mem::take(&mut self.hair.cuts);
+                    if let Some(mut state) = self.hair.state.as_ref().filter(|_| !cuts.is_empty()).cloned() {
                         state.revision += 1;
                         self.queue_hair(
                             state,
                             "Cut hair",
-                            Preparation::Cut(id, segment, t, self.hair.symmetry),
+                            Preparation::Cut(cuts.into_iter().map(|(id, (segment, t))| (id, segment, t)).collect(), self.hair.symmetry),
                         );
                     }
                 } else {
@@ -472,6 +484,7 @@ impl LabApplication {
         self.hair.drawing_samples.clear();
         self.hair.last_pointer = None;
         self.hair.move_anchor = None;
+        self.hair.cuts.clear();
         self.hair.scene = None;
         if editing { self.hair.playing = self.hair.restart_after_stroke; }
         self.hair.restart_after_stroke = false;
@@ -514,6 +527,30 @@ impl LabApplication {
     }
 
     fn hair_stroke_point(&mut self, rect: egui::Rect, pointer: Vec2, follow_scalp: bool) {
+        let previous = self.hair.last_pointer.unwrap_or(pointer);
+        let steps = if matches!(self.hair.tool, Some(HairTool::Cut | HairTool::Erase | HairTool::Lengthen
+            | HairTool::Comb | HairTool::Smooth | HairTool::Curl | HairTool::Clump)) {
+            (pointer.distance(previous) / (self.hair.radius * 0.5).max(1.0)).ceil().clamp(1.0, 256.0) as usize
+        } else { 1 };
+        for sample in 1..=steps {
+            self.hair_stroke_sample(rect, previous.lerp(pointer, sample as f32 / steps as f32), follow_scalp);
+        }
+    }
+
+    fn hair_stroke_sample(&mut self, rect: egui::Rect, pointer: Vec2, follow_scalp: bool) {
+        if self.hair.tool == Some(HairTool::Cut) {
+            self.hair.last_pointer = Some(pointer);
+            for (id, segment, t) in self.brushed_hair_hits(pointer, rect, false) {
+                let Some(lock) = self.hair.state.as_ref().and_then(|s| s.locks.iter().find(|l| l.id == id)) else { continue; };
+                if lock.guide.is_none() {
+                    self.hair.feedback = "Correct this lock's root before cutting".into();
+                    continue;
+                }
+                let cut = self.hair.cuts.entry(id).or_insert((segment, t));
+                if segment as f32 + t < cut.0 as f32 + cut.1 { *cut = (segment, t); }
+            }
+            return;
+        }
         let Some(mut state) = self.hair.stroke.take() else {
             return;
         };
@@ -526,7 +563,8 @@ impl LabApplication {
                 let steps = (distance / (self.hair.radius * 0.5).max(1.0)).ceil().clamp(1.0, 256.0) as usize;
                 let mut rows = BTreeSet::new();
                 for sample in 1..=steps {
-                    rows.extend(self.brushed_hair_rows(previous.lerp(pointer, sample as f32 / steps as f32), rect, true));
+                    rows.extend(self.brushed_hair_hits(previous.lerp(pointer, sample as f32 / steps as f32), rect, true)
+                        .into_iter().map(|(id, segment, t)| (id, segment as usize + usize::from(t >= 0.5))));
                 }
                 for (id, row) in rows {
                     let Some(lock) = state.locks.iter().find(|lock| lock.id == id) else { continue; };
@@ -919,17 +957,10 @@ impl LabApplication {
             if distance < 0.001 {
                 return Ok(());
             }
-            let ids: Vec<_> = if tool == HairTool::Move || tool == HairTool::Lengthen {
+            let ids: HashSet<_> = if tool == HairTool::Move {
                 self.hair.selected.iter().map(|i| *i as u64).collect()
             } else {
-                let brushed = self.brush_locks(pointer, rect);
-                brushed
-                    .into_iter()
-                    .filter(|id| {
-                        self.hair.selected.is_empty()
-                            || self.hair.selected.contains(&(*id as usize))
-                    })
-                    .collect()
+                self.brush_locks(pointer, rect).into_iter().collect()
             };
             let mut guides: Vec<_> = state
                 .locks
@@ -1036,20 +1067,25 @@ impl LabApplication {
                         *self.hair.stroke_distances.entry(gi).or_default() += distance;
                     }
                 }
-                let total = affected
-                    .iter()
-                    .map(|g| self.hair.stroke_distances[g])
-                    .fold(f32::INFINITY, f32::min);
-                let strength = 1.0 - (-total * self.hair.strength / 40.0).exp();
                 hair::groom(
                     &mut state,
                     &guides,
                     groom,
-                    strength,
+                    1.0,
                     delta.to_array(),
                     self.hair.symmetry,
                 )
                 .map_err(|e| e.to_string())?;
+                // Each lock keeps its own travelled distance. A newly covered
+                // lock must not reset the strength of locks already being groomed.
+                if let Some(before) = &self.hair.state {
+                    for gi in affected {
+                        let strength = 1.0 - (-self.hair.stroke_distances[&gi] * self.hair.strength / 40.0).exp();
+                        for (point, old) in state.guides[gi].points.iter_mut().zip(&before.guides[gi].points) {
+                            *point = Vec3::from(*old).lerp(Vec3::from(*point), strength).to_array();
+                        }
+                    }
+                }
             } else {
                 hair::groom(
                     &mut state,
@@ -1250,7 +1286,7 @@ impl LabApplication {
             .input(|i| i.pointer.hover_pos())
             .filter(|p| rect.contains(*p))
         {
-            if self.hair.tool == Some(HairTool::Cut) && self.hair.cut_preview.is_some() {
+            if self.hair.tool == Some(HairTool::Cut) && (self.hair.hover.is_some() || !self.hair.cuts.is_empty()) {
                 ui.painter().line_segment(
                     [
                         pointer - egui::vec2(8.0, 0.0),
@@ -1258,7 +1294,8 @@ impl LabApplication {
                     ],
                     egui::Stroke::new(2.0, Color32::RED),
                 );
-            } else if !matches!(
+            }
+            if !matches!(
                 self.hair.tool,
                 Some(HairTool::Select | HairTool::Move | HairTool::Guide | HairTool::Root)
             ) {

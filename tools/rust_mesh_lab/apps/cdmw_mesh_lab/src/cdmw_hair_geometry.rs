@@ -157,35 +157,25 @@ pub(super) fn prepare(
     if let Preparation::Delete(ref ids) = operation {
         delete_locks(&mut state, &mut document, ids)?;
     }
-    if let Preparation::Cut(id, segment, t, symmetry) = operation {
-        let lock = state
-            .locks
-            .iter()
-            .find(|l| l.id == id)
-            .ok_or("Point at a hair lock to cut")?;
-        let pair = if symmetry { lock.mirrored } else { None };
-        let source_points = lock
-            .guide
-            .map(|g| state.guides[g as usize].points.len())
-            .unwrap_or(2);
-        let fraction = (segment as f32 + t) / (source_points - 1) as f32;
-        cut_lock(&mut state, &mut document, id, segment, t)?;
-        if let Some(pair) = pair {
-            if let Some(guide) = state
-                .locks
-                .iter()
-                .find(|l| l.id == pair)
-                .and_then(|l| l.guide)
-            {
-                let along = fraction * (state.guides[guide as usize].points.len() - 1) as f32;
-                cut_lock(
-                    &mut state,
-                    &mut document,
-                    pair,
-                    along.floor() as u32,
-                    along.fract(),
-                )?;
+    if let Preparation::Cut(ref cuts, symmetry) = operation {
+        let mut targets: BTreeMap<_, _> = cuts.iter().map(|&(id, segment, t)| (id, (segment, t))).collect();
+        if symmetry {
+            // Resolve pairs against the original lengths and cut each lock once,
+            // even when both sides of a symmetry pair are inside the brush.
+            for &(id, segment, t) in cuts {
+                let lock = state.locks.iter().find(|l| l.id == id).ok_or("Point at a hair lock to cut")?;
+                if let (Some(gi), Some(pair)) = (lock.guide, lock.mirrored) {
+                    if let Some(other) = state.locks.iter().find(|l| l.id == pair).and_then(|l| l.guide) {
+                        let fraction = (segment as f32 + t) / (state.guides[gi as usize].points.len() - 1) as f32;
+                        let along = fraction * (state.guides[other as usize].points.len() - 1) as f32;
+                        targets.entry(pair).or_insert((along.floor() as u32, along.fract()));
+                    }
+                }
             }
+        }
+        for (id, (segment, t)) in targets {
+            check()?;
+            cut_lock(&mut state, &mut document, id, segment, t)?;
         }
     }
     if matches!(operation, Preparation::Empty) {

@@ -569,15 +569,18 @@ pub fn groom(
     if symmetry {
         locks::extend_mirrored_guides(state, &mut selected);
     }
-    let before = state.guides.clone();
-    let primary_left = before[guides[0]].points[0][0] < 0.0;
-    for index in selected.iter().copied() {
-        let paired = state
-            .locks
-            .iter()
-            .any(|l| l.guide == Some(index as u32) && l.mirrored.is_some());
+    let primary_left = state.guides[guides[0]].points[0][0] < 0.0;
+    let before: Vec<_> = selected.iter().map(|&i| (i, state.guides[i].clone())).collect();
+    let paired: BTreeSet<_> = if symmetry {
+        state.locks.iter().filter(|l| l.mirrored.is_some()).filter_map(|l| l.guide).collect()
+    } else { BTreeSet::new() };
+    let tip_mean = if operation == Groom::Clump {
+        before.iter().map(|(_, g)| Vec3::from(*g.points.last().unwrap())).sum::<Vec3>() / before.len() as f32
+    } else { Vec3::ZERO };
+    for (index, original) in &before {
+        let index = *index;
         let guide = &mut state.guides[index];
-        let old = &before[index].points;
+        let old = &original.points;
         if operation == Groom::Cut {
             let last = ((old.len() - 1) as f32 * (1.0 - strength * 0.8)).max(1.0);
             let segment = last.floor() as usize;
@@ -590,7 +593,7 @@ pub fn groom(
                         .to_array(),
                 );
                 if !guide.pinned.is_empty() {
-                    guide.pinned.push(before[index].is_pinned(segment + usize::from(last.fract() >= 0.5)));
+                    guide.pinned.push(original.is_pinned(segment + usize::from(last.fract() >= 0.5)));
                 }
             }
             continue;
@@ -600,18 +603,12 @@ pub fn groom(
             .windows(2)
             .map(|s| Vec3::from(s[0]).distance(Vec3::from(s[1])))
             .sum();
-        let sign = if symmetry && paired && (root.x < 0.0) != primary_left {
+        let sign = if paired.contains(&(index as u32)) && (root.x < 0.0) != primary_left {
             -1.0
         } else {
             1.0
         };
         let delta = Vec3::from(direction) * Vec3::new(sign, 1.0, 1.0);
-        let tip_mean = selected
-            .iter()
-            .map(|i| &before[*i])
-            .fold((Vec3::ZERO, 0usize), |(sum, n), g| {
-                (sum + Vec3::from(*g.points.last().unwrap()), n + 1)
-            });
         for i in 1..old.len() {
             let p = Vec3::from(old[i]);
             let t = i as f32 / (old.len() - 1) as f32;
@@ -641,7 +638,7 @@ pub fn groom(
                         * t
                 }
                 Groom::Clump => p.lerp(
-                    root.lerp(tip_mean.0 / tip_mean.1.max(1) as f32, t),
+                    root.lerp(tip_mean, t),
                     strength * t * 0.6,
                 ),
             };

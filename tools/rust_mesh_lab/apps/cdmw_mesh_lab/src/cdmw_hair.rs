@@ -4,7 +4,7 @@ use cdmw_mesh::hair::locks::{self, LockKind};
 use cdmw_mesh::hair::{
     self, Attachment, Groom, GroupMode, HairState, MotionSettings, Simulation,
 };
-use std::collections::{BTreeSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::thread;
@@ -50,7 +50,7 @@ enum Preparation {
     Analyze,
     Deform,
     Delete(Vec<u64>),
-    Cut(u64, u32, f32, bool),
+    Cut(Vec<(u64, u32, f32)>, bool),
     Empty,
     Draw,
     Generate,
@@ -113,7 +113,7 @@ pub(super) struct HairEditor {
     pub requested_preset: Option<String>,
     pub pending_finish: bool,
     pending_history: VecDeque<bool>,
-    cut_preview: Option<(u64, u32, f32)>,
+    cuts: BTreeMap<u64, (u32, f32)>,
     motion_validated_revision: Option<u64>,
     readiness_cache: Option<(u64, bool, Option<String>)>,
     generation: u64,
@@ -177,7 +177,7 @@ impl Default for HairEditor {
             pending_preset: false,
             requested_preset: None,
             pending_finish: false,
-            cut_preview: None,
+            cuts: BTreeMap::new(),
             motion_validated_revision: None,
             readiness_cache: None,
             pending_history: VecDeque::new(),
@@ -1004,11 +1004,11 @@ impl LabApplication {
                 Some(HairTool::Move)=>"Drag the part of a lock you want to shape. Move reach controls how much nearby hair follows. The root stays attached.",
                 Some(HairTool::Guide)=>"Start on the scalp, then drag to shape the lock. Escape cancels.",
                 Some(HairTool::Erase)=>"Click or brush across visible locks to remove their geometry.",
-                Some(HairTool::Cut)=>"Point at a lock and click to remove hair beyond the cut marker.",
-                Some(HairTool::Lengthen)=>"Click a hair lock and drag to extend its tip. An existing selection stays selected.",
+                Some(HairTool::Cut)=>"Click or drag to cut every visible lock inside the brush. Each lock is cut nearest the brush centre. Escape cancels.",
+                Some(HairTool::Lengthen)=>"Drag to extend the tips of every visible lock inside the brush. Roots stay fixed.",
                 Some(HairTool::Root)=>"Click the scalp to attach the selected sections as one lock. Select sections sharing a material.",
                 Some(HairTool::Physics)=>"Paint Static or Physical directly on visible hair. No selection is needed. Roots stay fixed.",
-                _=>"Drag over highlighted hair. Only selected or brushed locks change."
+                _=>"Drag to groom every visible lock inside the brush. Selection does not restrict the brush."
             };ui.label(crate::localization::tr(help));
             if self.hair.tool == Some(HairTool::Physics) {
                 ui.horizontal_wrapped(|ui| {
@@ -1047,9 +1047,9 @@ impl LabApplication {
             if self.hair.tool == Some(HairTool::Move) {
                 ui.add(crate::cdmw_ui::numeric::slider(&mut self.hair.move_reach, 0.05..=1.0).text(crate::localization::tr("Move reach")));
             }
-            if !matches!(self.hair.tool,Some(HairTool::Select|HairTool::Move|HairTool::Cut|HairTool::Guide|HairTool::Root)) {
+            if !matches!(self.hair.tool,Some(HairTool::Select|HairTool::Move|HairTool::Guide|HairTool::Root)) {
                 ui.add(crate::cdmw_ui::numeric::slider(&mut self.hair.radius,5.0..=160.0).text(crate::localization::tr("Brush size")));
-                if self.hair.tool != Some(HairTool::Physics) { ui.add(crate::cdmw_ui::numeric::slider(&mut self.hair.strength,0.01..=1.0).text(crate::localization::tr("Strength"))); }
+                if !matches!(self.hair.tool, Some(HairTool::Physics | HairTool::Cut)) { ui.add(crate::cdmw_ui::numeric::slider(&mut self.hair.strength,0.01..=1.0).text(crate::localization::tr("Strength"))); }
             }
             ui.checkbox(&mut self.hair.symmetry,crate::localization::tr("Symmetry"));
             if self.hair.tool==Some(HairTool::Select) {ui.checkbox(&mut self.hair.select_through,crate::localization::tr("Select through"));}
