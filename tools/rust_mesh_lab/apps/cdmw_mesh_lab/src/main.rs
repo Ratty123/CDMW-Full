@@ -5225,6 +5225,7 @@ impl LabApplication {
         self.selected_counts_cache.set(None);
         if let Some(renderer) = &mut self.renderer {
             let _ = renderer.set_face_selection(&[], [0.0; 4]);
+            let _ = renderer.set_preview_lines(&[]);
         }
         self.projection = None;
         self.ensure_deformation_reference();

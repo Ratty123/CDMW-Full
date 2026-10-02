@@ -139,6 +139,8 @@ def test_host_caches_guide_transport_with_the_rig_without_changing_pac_or_existi
         'spline_available': False, 'chain_count': 0,
         'body_collider_count': 0, 'body_collider_source': '',
         'body_collider_reason': 'Embedded volumes require a fixed-layout PAB with the known PAR 1/5 header.',
+        'weapon_collider_count': 0, 'weapon_collider_source': '',
+        'weapon_collider_reason': 'Embedded model volumes require the known PAC 3/9 header.',
     }
     payload = read_owned_payload_reference(host.root, state['file'])
     assert payload['cloth']['fixed'] == [True, False, False]

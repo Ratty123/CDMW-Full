@@ -72,7 +72,7 @@ def _decoded_preview_state(authoring, session, metadata, appearance, eligible):
                 try:
                     if skeleton is None:
                         raise ValueError("Standalone rigid attachment has no matched body collision rig.")
-                    inputs = {role: value[1] for role, value in authoring.cloth_collision_inputs.items()}
+                    inputs = {role: value[1] for role, value in authoring.cloth_collision_inputs.items() if role in ("body", "head")}
                     volumes, collider_source = select_cloth_body_volumes(session.original_data, skeleton, **inputs)
                     cloth["body_colliders"] = build_cloth_body_collider_snapshot(skeleton, rig_payload, volumes=volumes)
                 except (ValueError, OverflowError, struct.error) as exc:
@@ -93,6 +93,20 @@ def _decoded_preview_state(authoring, session, metadata, appearance, eligible):
                 metadata["decoded_cloth"] = (None, {"available": False, "reason": str(exc)})
         else:
             rig_payload = rig_cached[1]
+        cloth, cloth_state = metadata["decoded_cloth"]
+        if cloth is not None:
+            from cdmw.modding.pac_weapon_collisions import combined_preview_colliders
+            cloth, cloth_state = dict(cloth), dict(cloth_state)
+            original = authoring.replacement_comparison == "original"
+            state = session.replacement_state
+            included = None if original or state is None else {p.target_index for p in state.parts if p.included}
+            weapon = authoring.cloth_collision_inputs.get("weapon")
+            cloth["weapon_colliders"], weapon_reason, weapon_source = combined_preview_colliders(
+                cloth_data, parts=None if original else session.working_mesh.submeshes, included=included,
+                reference=weapon[1] if weapon else None)
+            cloth_state.update(weapon_collider_count=len(cloth["weapon_colliders"]), weapon_collider_reason=weapon_reason,
+                               weapon_collider_source=weapon_source)
+            metadata["decoded_cloth"] = (cloth, cloth_state)
         parts = []
         for index, original, current in eligible:
             count = len(current.vertices)
@@ -229,6 +243,8 @@ def jiggle_ui_state(authoring, replacement):
     return {"available": not reason, "reason": reason, "parts": parts,
             "overlay_parts": overlay_parts, "lod_count": metadata["lod_count"],
             "collision_inputs": {role: value[0] for role, value in authoring.cloth_collision_inputs.items()},
+            "weapon_placement": ({key: authoring.cloth_collision_inputs["weapon"][1][key] for key in ("offset", "rotation")}
+                                 if "weapon" in authoring.cloth_collision_inputs else None),
             "decoded": ({"available": False, "reason": generated_error} if generated_error else
                         _decoded_preview_state(authoring, session, metadata, appearance, eligible))}
 
@@ -245,52 +261,87 @@ def set_cloth_collision_input(authoring, args, stop_event):
     from cdmw.services.mesh_rust_replacement import replacement_ui_state
 
     clear = args == {"clear": True} and type(args["clear"]) is bool
-    if not clear and (set(args) != {"role", "path"} or args.get("role") not in ("body", "head")
+    placement = args.get("weapon_placement") if set(args) == {"weapon_placement"} else None
+    if placement is not None and (not isinstance(placement, dict) or set(placement) != {"offset", "rotation"}
+            or any(not isinstance(placement[key], (list, tuple)) or len(placement[key]) != 3
+                   or any(type(v) not in (int, float) or not math.isfinite(v) or abs(v) > limit for v in placement[key])
+                   for key, limit in (("offset", 100), ("rotation", 360)))):
+        raise ValueError("Weapon preview placement needs finite position and rotation values.")
+    if not clear and placement is None and (set(args) != {"role", "path"} or args.get("role") not in ("body", "head", "weapon")
                       or not isinstance(args.get("path"), str) or not args["path"]):
-        raise ValueError("Choose a body or head PABV input, or clear the preview inputs.")
+        raise ValueError("Choose a body/head PABV or weapon PAC, or clear the preview inputs.")
     candidate = {} if clear else dict(authoring.cloth_collision_inputs)
     session = authoring.shadow_service._session(authoring.shadow_session_id)
     ui = jiggle_ui_state(authoring, replacement_ui_state(authoring))
     decoded = ui.get("decoded", {})
     cloth_state = decoded.get("cloth", {})
     if not clear:
-        if not decoded.get("available") or not cloth_state.get("available") or session.skeleton is None:
-            raise ValueError("Collision inputs need a decoded cloth preview and matching rig.")
-        if cloth_state.get("body_collider_source") == "pac_model":
+        weapon = args.get("role") == "weapon" or placement is not None
+        if not decoded.get("available") or not cloth_state.get("available") or (not weapon and session.skeleton is None):
+            raise ValueError("Collision inputs need a decoded cloth preview; body/head inputs also need a matching rig.")
+        if not weapon and cloth_state.get("body_collider_source") == "pac_model":
             raise ValueError("This model's embedded collision volumes take precedence over appearance inputs.")
-        path = Path(args["path"])
-        if not path.is_absolute() or path.suffix.lower() != ".pabv":
-            raise ValueError("Choose an absolute path to a PABV file.")
-        authoring._raise_if_cancelled(stop_event)
-        with path.open("rb") as source:
-            data = source.read(8 * 1024 * 1024 + 1)
-        if len(data) > 8 * 1024 * 1024:
-            raise ValueError("Collision preview inputs must be at most 8 MiB.")
-        authoring._raise_if_cancelled(stop_event)
-        candidate[args["role"]] = (path.name, decode_pabv(data))
+        if placement is not None:
+            if "weapon" not in candidate:
+                raise ValueError("Choose a weapon PAC before changing its preview placement.")
+            name, reference = candidate["weapon"]
+            candidate["weapon"] = (name, {**reference, **{key: tuple(value) for key, value in placement.items()}})
+        else:
+            path = Path(args["path"])
+            if not path.is_absolute() or path.suffix.lower() != (".pac" if weapon else ".pabv"):
+                raise ValueError("Choose an absolute path to a weapon PAC or body/head PABV file.")
+            limit = (32 if weapon else 8) * 1024 * 1024
+            authoring._raise_if_cancelled(stop_event)
+            with path.open("rb") as source:
+                data = source.read(limit + 1)
+            if len(data) > limit:
+                raise ValueError("Weapon collision preview inputs must be at most 32 MiB." if weapon
+                                 else "Collision preview inputs must be at most 8 MiB.")
+            authoring._raise_if_cancelled(stop_event)
+            if weapon:
+                from cdmw.modding.pac_weapon_collisions import preview_weapon_colliders
+                value = {"colliders": tuple(preview_weapon_colliders(data,
+                    check_cancelled=lambda: authoring._raise_if_cancelled(stop_event))),
+                         "offset": (0., 0., 0.), "rotation": (0., 0., 0.)}
+            else:
+                value = decode_pabv(data)
+            candidate[args["role"]] = (path.name, value)
     authoring._raise_if_cancelled(stop_event)
     if candidate == authoring.cloth_collision_inputs:
         return {"changed": False}
     cached = authoring.jiggle_source_cache
     updated = None
-    if decoded.get("available") and cloth_state.get("available") and session.skeleton is not None:
+    if decoded.get("available") and cloth_state.get("available"):
         metadata = dict(cached[2])
         rig = metadata["decoded_rig"][1]
         source_name, reason = "", ""
         try:
+            if session.skeleton is None:
+                raise ValueError("Standalone rigid attachment has no matched body collision rig.")
             volumes, source_name = select_cloth_body_volumes(
-                session.original_data, session.skeleton, **{role: value[1] for role, value in candidate.items()})
-            if not clear and source_name == "pac_model":
+                session.original_data, session.skeleton, **{role: value[1] for role, value in candidate.items() if role in ("body", "head")})
+            if not clear and args.get("role") in ("body", "head") and source_name == "pac_model":
                 raise ValueError("This model's embedded collision volumes take precedence over appearance inputs.")
             colliders = build_cloth_body_collider_snapshot(session.skeleton, rig, volumes=volumes)
         except (ValueError, OverflowError, struct.error) as exc:
-            if not clear:
+            if not clear and args.get("role") in ("body", "head"):
                 raise
             # Clearing also works when the default source has no supported contacts.
             colliders, reason = [], str(exc)
         cloth = {**metadata["decoded_cloth"][0], "body_colliders": colliders}
         state = {**cloth_state, "body_collider_count": len(colliders),
                  "body_collider_source": source_name, "body_collider_reason": reason}
+        from cdmw.modding.pac_weapon_collisions import combined_preview_colliders
+        original = authoring.replacement_comparison == "original"
+        replacement = session.replacement_state
+        included = None if original or replacement is None else {p.target_index for p in replacement.parts if p.included}
+        source_data = metadata["decoded_rig"][2]
+        reference_weapon = candidate.get("weapon")
+        cloth["weapon_colliders"], reason, source_name = combined_preview_colliders(
+            source_data, parts=None if original else session.working_mesh.submeshes, included=included,
+            reference=reference_weapon[1] if reference_weapon else None)
+        state.update(weapon_collider_count=len(cloth["weapon_colliders"]), weapon_collider_reason=reason,
+                     weapon_collider_source=source_name)
         payload = {**metadata["decoded_file"][0], "cloth": cloth}
         authoring._raise_if_cancelled(stop_event)
         reference = _atomic_write_payload(authoring.root, "jiggle-rig.json", payload,

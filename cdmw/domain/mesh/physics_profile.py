@@ -16,6 +16,7 @@ PROFILE_VALUE_RANGES = {
     "IsCloak": (0, 1), "UseBackStopCollision": (0, 1),
     "UseInputPositionCollision": (0, 1), "ShrinkWhenShieldIsInSocket": (0, 1),
     "UseLraConstraint": (0, 1),
+    "SkipSelfMeshCollidable": (0, 1),
 }
 
 
@@ -32,7 +33,7 @@ def validate_profile_values(values):
         if (type(value) not in (float, int) or not low <= value <= high or not math.isfinite(value)
                 or (key in {"SolverIterationCount", "UseVertexAlphaPositionBlending", "UseRotationCorrection",
                             "IsCloak", "UseBackStopCollision", "UseInputPositionCollision",
-                            "ShrinkWhenShieldIsInSocket", "UseLraConstraint"}
+                            "ShrinkWhenShieldIsInSocket", "UseLraConstraint", "SkipSelfMeshCollidable"}
                     and value != int(value))):
             raise ValueError("Invalid physics profile settings.")
 

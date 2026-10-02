@@ -763,6 +763,33 @@ Failed or cancelled loads preserve the previous inputs. Inputs are held for this
 only and do not change mesh Undo, drafts or exported PACs. Outfit files are not selected
 automatically and game collision activation remains unverified.
 
+#### Weapon collisions
+
+**Weapon collisions** is a separate preview switch for supported single-root weapon
+PACs. Capsules are fitted around included rigid parts; guide-bound ribbons are excluded.
+It can run together with **Body collisions**. **Show weapon colliders** draws the fitted
+shapes during playback or pause, following **Keep model centred**.
+
+For character cloth, **Collision sources > Choose weapon PAC…** loads a separate weapon
+reference, such as Rhett's Longsword (`cd_phm_02_sword_0009.pac`). Position and rotation
+controls place its shapes in the model's coordinates. This reference uses the preview's
+rigid test motion; game sockets and weapon animation are not loaded. Loading and placing
+it changes only the current preview. Clear, failed-load and cancellation behavior match
+the body/head inputs above.
+
+**Weapon colliders (experimental) > Create weapon colliders** adds capsules to the
+weapon's exported PAC through the normal Undo, draft and Build PAC/Mod workflow.
+**Restore source colliders** removes this authoring choice and retains original volumes.
+The writer currently supports verified, rigid, single weapon roots and preserves all
+render LOD geometry. Unsupported layouts or attachments are rejected with a reason.
+
+For a weapon's own ribbon, **Authored physics profile > Edit profile for mod > Collision
+and attachment overrides > Skip own model collisions** exposes the stored
+`SkipSelfMeshCollidable` flag. Explicitly overriding it to disabled exports `0` to that
+weapon's cloned profile. This does not change the shared source profile. These exported
+shapes and flags are experimental: live collider registration and collision eligibility
+remain unverified, so preview contact does not establish in-game contact.
+
 #### Required decoded inputs
 
 Cloth playback requires decoded PAC guide data, a matching fixed-layout PAB rig, and
@@ -781,7 +808,7 @@ the editor can preview the spline without a PAB. **Standalone rigid attachment**
 means controlled model-root motion, not identification of an in-game socket.
 Edited or multiple skeletal attachments retain the matching-rig requirement.
 Body/appearance collision inputs and decoded bone jiggle require a matching rig;
-the standalone spline still offers an optional preview floor.
+the standalone spline still offers an optional preview floor and weapon contacts.
 
 **Spline preview settings** provides gravity, damping, stretch, bend, iterations,
 vertex-alpha blending and guide rotation. **Spring-back response** pulls the chain

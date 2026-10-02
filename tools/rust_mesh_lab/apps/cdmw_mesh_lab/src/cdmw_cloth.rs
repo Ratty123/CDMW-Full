@@ -257,6 +257,7 @@ pub(super) mod profiles {
                 ("UseInputPositionCollision", "Input-position collisions"),
                 ("ShrinkWhenShieldIsInSocket", "Shrink around sheathed shield"),
                 ("UseLraConstraint", "Long-range attachments"),
+                ("SkipSelfMeshCollidable", "Skip own model collisions"),
             ] {
                 ui.push_id(key, |ui| {
                     ui.horizontal_wrapped(|ui| {
@@ -686,6 +687,7 @@ impl LabApplication {
     }
 
     pub(super) fn draw_cdmw_cloth_page(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
+        self.draw_weapon_collision_authoring(ui, actions);
         let cloth = self.cdmw_state["cloth"].clone();
         let inspected = if self.cdmw_cloth.selected_only { self.selected_part_indices() } else {
             cloth["parts"].as_array().into_iter().flatten()
@@ -808,5 +810,29 @@ impl LabApplication {
         ui.small(crate::localization::tr("Saved with Build PAC and drafts. Preview simulation remains approximate."));
         self.draw_cloth_preview_controls(ui, &parts, actions);
         self.draw_cloth_collision_inputs(ui, actions);
+    }
+
+    fn draw_weapon_collision_authoring(&self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
+        let state = &self.cdmw_state["weapon_collisions"];
+        let available = state_bool(state, "available") && !self.cdmw_busy();
+        let active = state_bool(state, "active");
+        crate::localization::collapsing("Weapon colliders (experimental)").show(ui, |ui| {
+            ui.small(crate::localization::tr("Fits capsules to included rigid weapon parts; cloth parts are excluded."));
+            if !state_bool(state, "available") {
+                ui.small(crate::localization::tr(state["reason"].as_str().unwrap_or("No supported weapon collision geometry.")));
+            }
+            ui.horizontal_wrapped(|ui| {
+                if ui.add_enabled(available && !active, egui::Button::new(crate::localization::tr("Create weapon colliders"))).clicked() {
+                    actions.push(UiAction::CdmwCommand { command: "replacement_weapon_collisions",
+                        arguments: json!({"enabled": true}), label: "Create weapon colliders" });
+                }
+                if ui.add_enabled(active && !self.cdmw_busy(), egui::Button::new(crate::localization::tr("Restore source colliders"))).clicked() {
+                    actions.push(UiAction::CdmwCommand { command: "replacement_weapon_collisions",
+                        arguments: json!({"enabled": false}), label: "Restore source colliders" });
+                }
+            });
+            ui.small(crate::localization::tr("Saved with Build PAC and drafts. In-game collision activation remains unverified."));
+            ui.small(crate::localization::tr("To test a weapon's own ribbon, override Skip own model collisions and turn Enabled off."));
+        });
     }
 }

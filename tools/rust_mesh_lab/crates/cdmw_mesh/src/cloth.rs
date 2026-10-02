@@ -32,6 +32,8 @@ pub struct Snapshot {
     pub spline_chains: Vec<Vec<usize>>,
     #[serde(default)]
     pub body_colliders: Vec<BodyCollider>,
+    #[serde(default)]
+    pub weapon_colliders: Vec<BodyCollider>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -63,6 +65,7 @@ pub struct Settings {
     pub single_edge_rotation: bool,
     pub ground_height: Option<f64>,
     pub body_collisions: bool,
+    pub weapon_collisions: bool,
     pub collision_margin: f64,
 }
 
@@ -83,6 +86,7 @@ impl Default for Settings {
             single_edge_rotation: false,
             ground_height: None,
             body_collisions: false,
+            weapon_collisions: false,
             collision_margin: 0.01,
         }
     }
@@ -233,6 +237,12 @@ impl Simulation {
         {
             return Err("Cloth body colliders have invalid geometry or source bindings.");
         }
+        if snapshot.weapon_colliders.len() > 128
+            || snapshot.weapon_colliders.iter().any(|c| !c.valid(rig.parents.len()))
+            || snapshot.weapon_colliders.windows(2).any(|rows| rows[0].source_ordinal >= rows[1].source_ordinal)
+        {
+            return Err("Cloth weapon colliders have invalid geometry or source bindings.");
+        }
         let mut areas = 0;
         for constraint in &snapshot.constraints {
             let (indices, value): (&[usize], f64) = match constraint {
@@ -358,6 +368,9 @@ impl Simulation {
     pub fn guide_count(&self) -> usize {
         self.positions.len()
     }
+    pub fn weapon_colliders(&self) -> &[BodyCollider] {
+        &self.snapshot.weapon_colliders
+    }
 
     /// One bounded preview substep. Work is transactional: invalid input or an
     /// unstable projection leaves the previous complete simulation/draw state.
@@ -396,12 +409,18 @@ impl Simulation {
         if settings.body_collisions && self.snapshot.body_colliders.is_empty() {
             return Err("No authored body colliders are available for this preview.");
         }
+        if settings.weapon_collisions && self.snapshot.weapon_colliders.is_empty() {
+            return Err("No weapon colliders are available for this preview.");
+        }
         let colliders =
-            if settings.body_collisions && self.bindings.iter().any(|b| b.skeletal_blend < 1.0) {
+            if (settings.body_collisions || settings.weapon_collisions) && self.bindings.iter().any(|b| b.skeletal_blend < 1.0) {
                 self.snapshot
                     .body_colliders
                     .iter()
-                    .map(|c| c.in_motion(motion))
+                    .filter(|_| settings.body_collisions)
+                    .map(|c| (c.in_motion(motion), false))
+                    .chain(self.snapshot.weapon_colliders.iter().filter(|_| settings.weapon_collisions)
+                        .map(|c| (c.in_motion(motion), true)))
                     .collect::<Vec<_>>()
             } else {
                 Vec::new()
@@ -504,9 +523,10 @@ impl Simulation {
             };
             let mut contacts = Vec::new();
             if !self.snapshot.fixed[i] {
-                for collider in &colliders {
+                for (collider, weapon) in &colliders {
                     if let Some((point, normal)) =
-                        collider.project(positions[i], settings.collision_margin)?
+                        if *weapon { collider.project_weapon(positions[i], self.positions[i], settings.collision_margin)? }
+                        else { collider.project(positions[i], settings.collision_margin)? }
                     {
                         positions[i] = point;
                         let body_velocity = (point - to_previous_body.transform_point3(point)) / dt;
@@ -825,6 +845,7 @@ mod tests {
             alpha_blends: vec![1.0, 0.5, 0.0],
             orientation_neighbors: Vec::new(),
             body_colliders: Vec::new(),
+            weapon_colliders: Vec::new(),
             spline_chains: Vec::new(),
             constraints: vec![Constraint::Pair {
                 indices: [0, 1],
@@ -1110,6 +1131,55 @@ mod tests {
                 assert_eq!(sim.positions()[0], [0.0, 1.0, 0.0]);
             }
         }
+    }
+
+    #[test]
+    fn weapon_axis_contacts_settle_without_launching_pins_or_disabled_vertices() {
+        for dt in [1.0 / 60.0, 1.0 / 480.0] {
+            let mut sim = simulation([0, 0, 63]);
+            sim.snapshot.weapon_colliders.push(BodyCollider {
+                kind: 5, center1: [0., -1., 0.], center2: [0., 2., 0.], radius: 0.5,
+                bone_index: 0, source_ordinal: 0,
+            });
+            let settings = Settings {
+                gravity: 0., damping: 0., stretch: 0., bend: 0., weapon_collisions: true,
+                ..Settings::default()
+            };
+            for _ in 0..16 {
+                sim.step(dt, DMat4::IDENTITY.to_cols_array_2d(), settings).unwrap();
+                close(sim.positions()[1], -DVec3::Z * 0.51);
+                assert!(sim.velocities[1].length() < 1e-10);
+                assert_eq!(sim.positions()[0], [0., 1., 0.]);
+                assert_eq!(sim.positions()[2], [1., 0., 0.]);
+            }
+        }
+    }
+
+    #[test]
+    fn weapon_and_body_contacts_are_independently_enabled_and_can_run_together() {
+        for (body, weapon) in [(false, false), (false, true), (true, false), (true, true)] {
+            let mut sim = simulation([0; 3]);
+            sim.snapshot.weapon_colliders.push(BodyCollider {
+                kind: 5, center1: [0., -1., 0.], center2: [0., 2., 0.], radius: 0.5,
+                bone_index: 0, source_ordinal: 0,
+            });
+            sim.snapshot.body_colliders.push(BodyCollider {
+                kind: 5, center1: [1.25, -1., 0.], center2: [1.25, 2., 0.], radius: 0.5,
+                bone_index: 0, source_ordinal: 0,
+            });
+            sim.step(0.02, DMat4::IDENTITY.to_cols_array_2d(), Settings {
+                gravity: 0., damping: 0., stretch: 0., bend: 0.,
+                body_collisions: body, weapon_collisions: weapon, ..Settings::default()
+            }).unwrap();
+            close(sim.positions()[1], if weapon { -DVec3::Z * 0.51 } else { DVec3::ZERO });
+            close(sim.positions()[2], DVec3::X * if body { 0.74 } else { 1. });
+        }
+        let mut missing = simulation([0; 3]);
+        let rest = missing.positions().to_vec();
+        assert!(missing.step(0.02, DMat4::IDENTITY.to_cols_array_2d(), Settings {
+            weapon_collisions: true, ..Settings::default()
+        }).is_err());
+        assert_eq!(missing.positions(), rest);
     }
 
     #[test]
@@ -1586,6 +1656,24 @@ mod collision {
     }
 
     impl PlacedCollider {
+        pub(super) fn project_weapon(&self, point: DVec3, previous: DVec3, margin: f64) -> Result<Option<(DVec3, DVec3)>> {
+            match self.project(point, margin) {
+                Err(_) if matches!(self.kind, 1 | 5) => {
+                    // A fitted weapon can start exactly on a guide's axis.
+                    // Prefer its previous side; resolve an exact tie consistently.
+                    let edge = self.b - self.a;
+                    let axis = edge.try_normalize().unwrap_or(DVec3::Y);
+                    let center = self.a + axis * (point - self.a).dot(axis).clamp(0., edge.length());
+                    let radial = previous - center;
+                    let radial = radial - axis * radial.dot(axis);
+                    let seed = if axis.x.abs() < 0.9 { DVec3::X } else { DVec3::Z };
+                    let normal = radial.try_normalize().unwrap_or_else(|| axis.cross(seed).normalize());
+                    Ok(Some((center + (self.radius + margin) * normal, normal)))
+                }
+                result => result,
+            }
+        }
+
         /// Only points inside the expanded primitive are admitted by this preview.
         /// Fixed guides are excluded by the caller. A contact returns its projected
         /// position and normal; the caller resolves velocity relative to the body.

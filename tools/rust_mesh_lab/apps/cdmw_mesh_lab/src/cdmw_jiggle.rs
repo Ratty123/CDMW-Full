@@ -95,6 +95,7 @@ pub(super) struct Preview {
     last_tick: Instant,
     pub manual_drag: Option<(Vec2, Vec3)>,
     keep_centred: bool,
+    show_weapon_colliders: bool,
 }
 
 impl Default for Preview {
@@ -114,6 +115,7 @@ impl Default for Preview {
             last_tick: Instant::now(),
             manual_drag: None,
             keep_centred: true,
+            show_weapon_colliders: true,
         }
     }
 }
@@ -191,6 +193,9 @@ impl Simulation {
     fn motion_transform(&self) -> glam::Mat4 {
         match self { Self::Approximate(s) => s.motion_transform(),
             Self::Decoded(s) => s.motion_transform, Self::Cloth(s) => s.motion_transform }
+    }
+    fn weapon_lines(&self, centred: bool) -> Vec<cdmw_render_wgpu::EffectLineVertex> {
+        match self { Self::Cloth(simulation) => simulation.weapon_lines(centred), _ => Vec::new() }
     }
 }
 
@@ -386,14 +391,42 @@ impl LabApplication {
         let available = !self.cdmw_busy()
             && jiggle["decoded"]["rig_mode"] != "rigid_attachment"
             && jiggle["decoded"]["cloth"]["available"].as_bool() == Some(true) && !model_owned;
+        let weapon_available = !self.cdmw_busy() && jiggle["decoded"]["cloth"]["available"].as_bool() == Some(true);
         ui.collapsing("Collision sources", |ui| {
-            ui.small("Choose body/head PABV files for this preview. Inputs are not saved to the model or draft.");
+            ui.small("Choose body/head PABV files or a weapon PAC for this preview. Inputs are not saved to the model or draft.");
             if model_owned { ui.small("This model's embedded volumes take precedence over appearance inputs."); }
             for (role, label, default) in [("body", "Body volumes", "Rig defaults"), ("head", "Head volumes", "No head override")] {
                 ui.label(format!("{label}: {}", inputs[role].as_str().unwrap_or(default)));
                 if ui.add_enabled(available, egui::Button::new(format!("Choose {role} PABV…"))).clicked() {
                     actions.push(UiAction::ChooseClothCollisionInput { role });
                 }
+            }
+            ui.label(format!("Weapon volumes: {}", inputs["weapon"].as_str().unwrap_or("Current rigid weapon parts")));
+            if ui.add_enabled(weapon_available, egui::Button::new("Choose weapon PAC…")).clicked() {
+                actions.push(UiAction::ChooseClothCollisionInput { role: "weapon" });
+            }
+            if inputs["weapon"].is_string() {
+                let placement = &jiggle["weapon_placement"];
+                let mut offset: [f64; 3] = std::array::from_fn(|i| placement["offset"][i].as_f64().unwrap_or(0.));
+                let mut rotation: [f64; 3] = std::array::from_fn(|i| placement["rotation"][i].as_f64().unwrap_or(0.));
+                let mut changed = false;
+                ui.add_enabled_ui(weapon_available, |ui| {
+                    ui.label("Weapon preview position");
+                    ui.horizontal_wrapped(|ui| { for (i, axis) in ["X", "Y", "Z"].iter().enumerate() {
+                        ui.label(*axis);
+                        changed |= ui.add(crate::cdmw_ui::numeric::value(&mut offset[i]).speed(0.01).range(-100.0..=100.0)).changed();
+                    }});
+                    ui.label("Weapon preview rotation");
+                    ui.horizontal_wrapped(|ui| { for (i, axis) in ["X", "Y", "Z"].iter().enumerate() {
+                        ui.label(*axis);
+                        changed |= ui.add(crate::cdmw_ui::numeric::value(&mut rotation[i]).speed(1.0).range(-360.0..=360.0).suffix("°")).changed();
+                    }});
+                });
+                if changed {
+                    actions.push(UiAction::CdmwCommand { command: "cloth_collision_input",
+                        arguments: json!({"weapon_placement": {"offset": offset, "rotation": rotation}}), label: "Place weapon preview" });
+                }
+                ui.small("Place the weapon in model space. In-game sockets and weapon animation are not loaded.");
             }
             let has_inputs = inputs.as_object().is_some_and(|values| !values.is_empty());
             if ui.add_enabled(!self.cdmw_busy() && has_inputs, egui::Button::new("Clear collision inputs")).clicked() {
@@ -406,7 +439,10 @@ impl LabApplication {
 
     pub(super) fn choose_cloth_collision_input(&mut self, role: &'static str) {
         if self.cdmw_busy() { return; }
-        let Some(path) = self.cdmw_file_dialog().add_filter("Skeleton volumes", &["pabv"]).pick_file() else { return; };
+        let dialog = self.cdmw_file_dialog();
+        let dialog = if role == "weapon" { dialog.add_filter("Weapon model", &["pac"]) }
+            else { dialog.add_filter("Skeleton volumes", &["pabv"]) };
+        let Some(path) = dialog.pick_file() else { return; };
         self.submit_cdmw_command("cloth_collision_input", json!({"role": role, "path": path.to_string_lossy()}), "Load collision input");
     }
 
@@ -553,6 +589,8 @@ impl LabApplication {
             let body_available = cloth_state["body_collider_count"].as_u64().is_some_and(|count| count > 0)
                 && matches!(body_source, Some("pab_primary" | "pac_model" | "appearance"));
             if !body_available { preview.cloth_settings.body_collisions = false; }
+            let weapon_available = cloth_state["weapon_collider_count"].as_u64().is_some_and(|count| count > 0);
+            if !weapon_available { preview.cloth_settings.weapon_collisions = false; }
             ui.collapsing(if preview.cloth_settings.spline { "Spline preview settings" } else { "Cloth preview settings" }, |ui| {
                 let settings = &mut preview.cloth_settings;
                 // Keep the displayed sign consistent with raw profile XML.
@@ -577,10 +615,11 @@ impl LabApplication {
                 }
                 if !rotation_available { ui.small("Guide rotation needs known orientation neighbors."); }
                 ui.add_enabled(body_available, egui::Checkbox::new(&mut settings.body_collisions, "Body collisions"));
+                ui.add_enabled(weapon_available, egui::Checkbox::new(&mut settings.weapon_collisions, "Weapon collisions"))
+                    .on_hover_text("Uses fitted capsules around rigid weapon parts. This switch affects the preview; Create weapon colliders saves shapes for the mod.");
+                ui.add_enabled(weapon_available, egui::Checkbox::new(&mut preview.show_weapon_colliders, "Show weapon colliders"))
+                    .on_hover_text("Shows the fitted collision shapes during playback or pause. Use them to position a weapon reference.");
                 if body_available {
-                    if settings.body_collisions {
-                        ui.add(crate::cdmw_ui::numeric::slider(&mut settings.collision_margin, 0.0..=0.1).text("Collision margin"));
-                    }
                     if body_source == Some("pac_model") {
                         ui.small("Uses this model's authored collision volumes.");
                     } else if body_source == Some("appearance") {
@@ -591,6 +630,13 @@ impl LabApplication {
                 } else {
                     ui.small("Body collisions need supported model or rig volumes.")
                         .on_hover_text(cloth_state["body_collider_reason"].as_str().unwrap_or("No authored body volumes available."));
+                }
+                if !weapon_available {
+                    ui.small("Weapon collisions need supported rigid weapon parts.")
+                        .on_hover_text(cloth_state["weapon_collider_reason"].as_str().unwrap_or("No weapon colliders available."));
+                }
+                if settings.body_collisions || settings.weapon_collisions {
+                    ui.add(crate::cdmw_ui::numeric::slider(&mut settings.collision_margin, 0.0..=0.1).text("Collision margin"));
                 }
                 let mut floor = settings.ground_height.is_some();
                 if ui.checkbox(&mut floor, "Preview floor").changed() { settings.ground_height = floor.then_some(0.0); }
@@ -950,10 +996,12 @@ impl LabApplication {
             .as_secs_f64();
         self.cdmw_jiggle.preview.last_tick = now;
         let result = self.advance_jiggle_preview(seconds).and_then(|()| {
+            let lines = self.jiggle_weapon_lines();
             if let (Some(renderer), Some(scene)) =
                 (&mut self.renderer, &self.cdmw_jiggle.preview.scene)
             {
                 renderer.set_face_selection(&[], [0.0; 4])?;
+                renderer.set_preview_lines(&lines)?;
                 if let Some(colours) = &self.cdmw_jiggle.region_colours {
                     renderer.set_snapshot_with_vertex_colours(&scene.frame, colours)?;
                 } else {
@@ -971,6 +1019,12 @@ impl LabApplication {
         {
             window.request_redraw();
         }
+    }
+
+    pub(super) fn jiggle_weapon_lines(&self) -> Vec<cdmw_render_wgpu::EffectLineVertex> {
+        let preview = &self.cdmw_jiggle.preview;
+        if !preview.show_weapon_colliders { return Vec::new(); }
+        preview.scene.as_ref().map(|scene| scene.simulation.weapon_lines(preview.keep_centred)).unwrap_or_default()
     }
 
     pub(super) fn cancel_pending_jiggle(&mut self) {

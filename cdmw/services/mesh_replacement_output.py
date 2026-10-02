@@ -331,6 +331,9 @@ def prepare_replacement_output(snapshot) -> MeshReplacementOutput:
             raise ValueError("Reversible island exclusion requires an original PAC mesh.")
         from cdmw.modding.mesh_islands import apply_pac_island_exclusions
         data = apply_pac_island_exclusions(data, snapshot.original_data, island_exclusions)
+    if state.weapon_collisions:
+        from cdmw.modding.pac_weapon_collisions import create_weapon_colliders
+        data = create_weapon_colliders(data)
     parsed = parse_mesh(data, state.target_path)
     if not parsed.submeshes or len(parsed.submeshes) != len(original.submeshes):
         raise ValueError("Replacement writer changed the required target section layout.")

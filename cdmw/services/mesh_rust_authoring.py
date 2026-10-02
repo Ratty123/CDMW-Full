@@ -8289,6 +8289,8 @@ class RustMeshAuthoringSession:
         state["cloth"] = cloth_ui_state(self, state["replacement"])
         from cdmw.services.mesh_rust_cloth_guides import guide_authoring_ui_state
         state["cloth_guides"] = guide_authoring_ui_state(self, state["replacement"])
+        from cdmw.services.mesh_rust_weapon_collisions import weapon_collision_ui_state
+        state["weapon_collisions"] = weapon_collision_ui_state(self, state["replacement"])
         from cdmw.services.mesh_rust_physics_profiles import physics_profiles_ui_state
         state["physics_profiles"] = physics_profiles_ui_state(self, state["replacement"])
         from cdmw.services.mesh_rust_jiggle import jiggle_ui_state

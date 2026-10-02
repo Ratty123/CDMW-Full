@@ -76,7 +76,7 @@ def run_replacement_command(authoring, command, args, stop_event):
     snapshot = service.capture_export_snapshot(session_id, stop_event=stop_event)
     entry = args.get("_archive_entry")
     dependencies = ()
-    if snapshot.replacement_state is None and command in {"replacement_choose", "replacement_include", "replacement_islands", "replacement_cloth", "replacement_guides", "replacement_jiggle", "replacement_physics_profile", "replacement_translucency", "replacement_emission", "replacement_shader_controls"}:
+    if snapshot.replacement_state is None and command in {"replacement_choose", "replacement_include", "replacement_islands", "replacement_cloth", "replacement_guides", "replacement_weapon_collisions", "replacement_jiggle", "replacement_physics_profile", "replacement_translucency", "replacement_emission", "replacement_shader_controls"}:
         from cdmw.services.mesh_replacement_materials import capture_replacement_dependencies
         dependencies = capture_replacement_dependencies(entry, args.get("_archive_dependencies"), stop_event)
         if authoring.neutral_appearance is not None:
@@ -127,6 +127,10 @@ def run_replacement_command(authoring, command, args, stop_event):
         from cdmw.services.mesh_rust_cloth_guides import set_guide_rule
         result = set_guide_rule(authoring, snapshot, args, entry=entry,
                                dependencies=dependencies, stop_event=stop_event)
+    elif command == "replacement_weapon_collisions":
+        from cdmw.services.mesh_rust_weapon_collisions import set_weapon_collisions
+        result = set_weapon_collisions(authoring, snapshot, args, entry=entry,
+                                      dependencies=dependencies, stop_event=stop_event)
     elif command == "replacement_shader_controls":
         from cdmw.services.mesh_shader_controls import set_shader_controls
         result = set_shader_controls(authoring, snapshot, args, entry=entry, dependencies=dependencies, stop_event=stop_event)

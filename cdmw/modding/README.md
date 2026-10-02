@@ -437,7 +437,11 @@ do not establish the final appearance override or runtime collision activation.
 
 `decode_pac_embedded_volumes` locates the model's own volume set in decompressed PAC
 `3/9` metadata with guide layouts 0, 3 or 7. After descriptors and any guide data,
-metadata bit `0x2000` adds 24 bytes of auxiliary bounds and two ushort-counted arrays
+metadata bit `0x40` can carry a uint32-counted fixed-layout bone table and the verified
+footer byte `1`, before the ushort-counted palette. The bones retain their hashes and
+bind matrices. Combined `0x40`/`0x2000` layouts remain unsupported until their ordering
+is verified.
+Metadata bit `0x2000` adds 24 bytes of auxiliary bounds and two ushort-counted arrays
 with strides 16 and 24. The ushort-counted bone-hash palette and 24-byte model bounds
 follow; bit `0x4` adds another 24-byte bounds block. The volume count and shared records
 come next. Every PAC volume has a flags word, independently of bit `0x4`. Later metadata
@@ -460,6 +464,23 @@ model sets.
 This does not establish runtime activation or a cause for differing jiggle.
 `tests/test_pac_embedded_volumes.py` checks metadata boundaries, all three supported
 guide layouts, mandatory flags, truncation and immutable raw keys.
+
+`pac_weapon_collisions` fits conservative capsules to wholly rigid LOD0 parts of a
+verified single `B_Weapon_` root with a matching one-bone palette. Bind transforms must
+be rigid mutual inverses; guide-bound parts and excluded parts are omitted. Export
+appends missing definitions with flags `0` and `1` for the decoded other-PAC and
+same-PAC candidate paths, preserving original volume bytes and relocating the metadata
+size and every LOD offset. Unknown metadata trailers are rejected. Render sections
+remain byte-identical when no mesh edits were made. Rhett's Longsword
+(`cd_phm_02_sword_0009.pac`) and the ribbon sword `cd_phm_01_sword_0039.pac` provide
+read-only reference layouts with explicit empty source sets.
+
+The authoring intent is saved in replacement draft version `14`; drafts without that
+choice keep their previous version. Preview contacts have a separate switch, optionally
+combine with body contacts, and accept a session-only weapon reference with manual
+position/rotation. Fitted guides are drawn through the existing preview-line renderer
+using the same centring transform as the mesh. This does not recover game socket motion
+or ensure runtime registration, global/scene flags or material collision admission.
 
 The mapped producer `0x142D3F550` passes each raw record key to the skeleton's sorted
 hash lookup `0x140466840`, and supplies that skeleton to definition preparation
@@ -1753,7 +1774,7 @@ GPU stiffness coefficients. Supported raw fields are stretching/bending stiffnes
 damping, gravity, solver iteration count, vertex-alpha blending and guide rotation.
 The same binary-value validation and lossless writer support `IsCloak`,
 `UseBackStopCollision`, `UseInputPositionCollision`,
-`ShrinkWhenShieldIsInSocket` and `UseLraConstraint`. They are exposed under
+`ShrinkWhenShieldIsInSocket`, `UseLraConstraint` and `SkipSelfMeshCollidable`. They are exposed under
 **Collision and attachment overrides**, retained through history/drafts and
 exported only to the cloned parent profile. Separate `AttachedCloth` values
 remain unchanged. These raw switches do not alter the preview's manual contact

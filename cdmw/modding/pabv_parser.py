@@ -14,7 +14,7 @@ import math
 import struct
 
 from ._pbd_numeric import f32
-from .skeleton_parser import Skeleton
+from .skeleton_parser import Bone, Skeleton
 
 
 _HEADER = b"PAR \x36\x01" + bytes(range(10))
@@ -87,6 +87,7 @@ class PacEmbeddedVolumes:
     file_end: int
     # Raw authored keys: do not silently reinterpret them as PAB indices.
     volumes: tuple[PabvVolume, ...]
+    model_bones: tuple[Bone, ...] = ()
 
 
 def decode_pabv(data: bytes) -> PabvVolumes:
@@ -268,6 +269,26 @@ def decode_pac_embedded_volumes(data: bytes) -> PacEmbeddedVolumes:
         count, = struct.unpack("<H", take(2, name + " count"))
         return take(count * stride, name)
 
+    model_bones = []
+    if flags & 0x40:
+        # Rigid weapon metadata retains its own fixed PAB bone records before
+        # the palette. Reading their count as a palette produced invalid bounds.
+        from .skeleton_parser import _read_fixed_pab_bone
+        if flags & 0x2000:
+            raise ValueError("Combined embedded model bones and auxiliary metadata are not decoded.")
+        count, = struct.unpack("<I", take(4, "embedded bone count"))
+        if not 1 <= count <= 1024:
+            raise ValueError("PAC embedded bone count is invalid.")
+        for index in range(count):
+            bone, cursor = _read_fixed_pab_bone(data[:end], cursor, index)
+            if (not -1 <= bone.parent_index < index or not bone.name
+                    or not all(math.isfinite(v) for values in (bone.bind_matrix, bone.inv_bind_matrix,
+                        bone.local_bind_matrix, bone.inv_local_bind_matrix, bone.scale, bone.rotation, bone.position)
+                        for v in values)):
+                raise ValueError("PAC embedded bone transform or parent is invalid.")
+            model_bones.append(bone)
+        if bytes(take(1, "embedded bone footer")) != b"\x01":
+            raise ValueError("PAC embedded bone footer is not decoded.")
     if flags & 0x2000:
         take(24, "auxiliary bounds")
         array(16, "auxiliary records A")
@@ -281,7 +302,7 @@ def decode_pac_embedded_volumes(data: bytes) -> PacEmbeddedVolumes:
     offset = cursor
     # Bound the shared record reader to metadata, never the following geometry.
     records, cursor = _decode_volume_records(data[:end], cursor, 2)
-    return PacEmbeddedVolumes(flags, palette, bounds, offset, cursor, records.volumes)
+    return PacEmbeddedVolumes(flags, palette, bounds, offset, cursor, records.volumes, tuple(model_bones))
 
 
 def resolve_pabv_bones(volumes: PabvVolumes, skeleton: Skeleton) -> tuple[int, ...]:

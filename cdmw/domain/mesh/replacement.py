@@ -63,6 +63,12 @@ class MeshReplacementState:
     # display transform; the shadow edits neutral coordinates, Finish stores source.
     neutral_appearance: NeutralMeshAppearance | None = None
     neutral_coordinates: bool = False
+    # Explicit experimental cloth-contact capsules on rigid weapon parts.
+    weapon_collisions: bool = False
+
+    def __post_init__(self):
+        if type(self.weapon_collisions) is not bool:
+            raise ValueError("Weapon collision authoring must be explicitly enabled or disabled.")
 
 
 PART_ID_ATTRIBUTE = "_cdmw_replacement_part_id"

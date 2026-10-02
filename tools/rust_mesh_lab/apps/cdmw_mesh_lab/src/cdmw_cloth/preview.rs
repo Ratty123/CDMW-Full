@@ -96,6 +96,47 @@ impl Simulation {
         self.core.positions()
     }
 
+    pub fn weapon_lines(&self, centred: bool) -> Vec<cdmw_render_wgpu::EffectLineVertex> {
+        let transform = if centred { glam::Mat4::IDENTITY } else { self.motion_transform };
+        let mut lines = Vec::new();
+        for collider in self.core.weapon_colliders() {
+            let a = Vec3::from(collider.center1.map(|v| v as f32));
+            let b = Vec3::from(collider.center2.map(|v| v as f32));
+            let radius = collider.radius as f32;
+            let axis = (b - a).try_normalize().unwrap_or(Vec3::Y);
+            let seed = if axis.x.abs() < 0.9 { Vec3::X } else { Vec3::Z };
+            let x = axis.cross(seed).normalize();
+            let z = axis.cross(x);
+            let mut line = |from: Vec3, to: Vec3| {
+                for point in [from, to] {
+                    lines.push(cdmw_render_wgpu::EffectLineVertex {
+                        position: transform.transform_point3(point).to_array(), colour: [1., 0.7, 0.15, 1.],
+                    });
+                }
+            };
+            for center in [a, b] {
+                for i in 0..16 {
+                    let p = std::f32::consts::TAU * i as f32 / 16.;
+                    let q = std::f32::consts::TAU * (i + 1) as f32 / 16.;
+                    line(center + radius * (x * p.cos() + z * p.sin()),
+                         center + radius * (x * q.cos() + z * q.sin()));
+                }
+            }
+            for radial in [x, z, -x, -z] {
+                line(a + radial * radius, b + radial * radius);
+                for (center, direction) in [(a, -axis), (b, axis)] {
+                    for i in 0..8 {
+                        let p = std::f32::consts::FRAC_PI_2 * i as f32 / 8.;
+                        let q = std::f32::consts::FRAC_PI_2 * (i + 1) as f32 / 8.;
+                        line(center + radius * (radial * p.cos() + direction * p.sin()),
+                             center + radius * (radial * q.cos() + direction * q.sin()));
+                    }
+                }
+            }
+        }
+        lines
+    }
+
     pub fn advance(
         &mut self,
         seconds: f64,
@@ -176,6 +217,7 @@ mod tests {
             alpha_blends: vec![1., 0., 0., 0., 0., 0.],
             orientation_neighbors: Vec::new(),
             body_colliders: Vec::new(),
+            weapon_colliders: Vec::new(),
             spline_chains: vec![vec![0, 1, 2, 3, 4, 5]],
             constraints: (1..6).map(|i| cloth::Constraint::Pair { indices: [i - 1, i], rest: 0.16 }).collect(),
         };
@@ -318,6 +360,7 @@ mod tests {
             alpha_blends: vec![0.0; 24],
             orientation_neighbors: Vec::new(),
             body_colliders: Vec::new(),
+            weapon_colliders: Vec::new(),
             spline_chains: Vec::new(),
             constraints: (1..24)
                 .map(|i| cloth::Constraint::Pair {
@@ -402,6 +445,7 @@ mod tests {
             alpha_blends: vec![0.5, 1.0],
             orientation_neighbors: Vec::new(),
             body_colliders: Vec::new(),
+            weapon_colliders: Vec::new(),
             spline_chains: Vec::new(),
             constraints: vec![],
         };

@@ -20,7 +20,7 @@ PROFILE = ('<?xml version="1.0" encoding="utf-16"?>\r\n<SimulationParameters unk
            '<AttachedCloth><Damping>2</Damping></AttachedCloth></SimulationParameters>')
 
 COLLISION_FIELDS = ('IsCloak', 'UseBackStopCollision', 'UseInputPositionCollision',
-                    'ShrinkWhenShieldIsInSocket', 'UseLraConstraint')
+                    'ShrinkWhenShieldIsInSocket', 'UseLraConstraint', 'SkipSelfMeshCollidable')
 
 
 @pytest.mark.parametrize('encoding', ['utf-8', 'utf-8-sig', 'utf-16', 'utf-16-be'])

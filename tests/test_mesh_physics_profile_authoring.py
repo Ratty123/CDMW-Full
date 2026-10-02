@@ -61,7 +61,8 @@ def output(host):
 @pytest.mark.parametrize('collision_values', [(), (
     ('IsCloak', 1), ('UseBackStopCollision', 0), ('UseInputPositionCollision', 1),
     ('ShrinkWhenShieldIsInSocket', 1), ('UseLraConstraint', 0),
-), (('RestoreAngleStiffness', .025),)], ids=['mechanics', 'collision-and-attachments', 'spline-spring-back'])
+), (('RestoreAngleStiffness', .025),), (('SkipSelfMeshCollidable', 0),)],
+                         ids=['mechanics', 'collision-and-attachments', 'spline-spring-back', 'weapon-self-collision'])
 def test_apply_restore_history_finish_draft_reopen_without_archive_and_build_mod(profile_host, tmp_path, collision_values):
     from cdmw.workers.mesh_editor_workers import MeshDirectOutputWorker
 
