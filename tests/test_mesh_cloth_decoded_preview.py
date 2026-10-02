@@ -136,6 +136,7 @@ def test_host_caches_guide_transport_with_the_rig_without_changing_pac_or_existi
     assert state['available'] and state['cloth'] == {
         'available': True, 'reason': '', 'guide_count': 3, 'fixed_count': 1, 'area_constraint_count': 0,
         'rotation_available': True,
+        'spline_available': False, 'chain_count': 0,
         'body_collider_count': 0, 'body_collider_source': '',
         'body_collider_reason': 'Embedded volumes require a fixed-layout PAB with the known PAR 1/5 header.',
     }

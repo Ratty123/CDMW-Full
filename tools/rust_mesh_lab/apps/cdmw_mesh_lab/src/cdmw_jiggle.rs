@@ -384,6 +384,7 @@ impl LabApplication {
         let inputs = &jiggle["collision_inputs"];
         let model_owned = jiggle["decoded"]["cloth"]["body_collider_source"] == "pac_model";
         let available = !self.cdmw_busy()
+            && jiggle["decoded"]["rig_mode"] != "rigid_attachment"
             && jiggle["decoded"]["cloth"]["available"].as_bool() == Some(true) && !model_owned;
         ui.collapsing("Collision sources", |ui| {
             ui.small("Choose body/head PABV files for this preview. Inputs are not saved to the model or draft.");
@@ -516,14 +517,40 @@ impl LabApplication {
             });
             ui.small("Decoded solver with a procedural pose test and model bounds. Live game activation is not reproduced.");
         } else if cloth {
-            let rotation_available = self.cdmw_state["jiggle"]["decoded"]["cloth"]["rotation_available"].as_bool() == Some(true);
-            if !rotation_available { preview.cloth_settings.rotate_guides = false; }
             let cloth_state = &self.cdmw_state["jiggle"]["decoded"]["cloth"];
+            let standalone = self.cdmw_state["jiggle"]["decoded"]["rig_mode"] == "rigid_attachment";
+            let spline_available = cloth_state["spline_available"].as_bool() == Some(true);
+            if !self.cdmw_cloth.profiles.has_loaded() {
+                let detected = self.cdmw_state["physics"]["parts"].as_array();
+                let has_cloth = parts.iter().any(|part| detected.and_then(|rows|
+                    rows.iter().find(|row| row["index"] == part["index"]))
+                    .is_some_and(|row| row["kind"] == "cloth"));
+                preview.cloth_settings.spline = !has_cloth && (standalone
+                    || (!parts.is_empty()
+                        && parts.iter().all(|part| {
+                            detected
+                                .and_then(|rows| {
+                                    rows.iter().find(|row| row["index"] == part["index"])
+                                })
+                                .is_some_and(|row| row["kind"] == "spline")
+                        })));
+            }
+            let rotation_available = if preview.cloth_settings.spline {
+                spline_available
+            } else {
+                cloth_state["rotation_available"].as_bool() == Some(true)
+            };
+            if !rotation_available {
+                preview.cloth_settings.rotate_guides = false;
+            }
+            if standalone {
+                ui.small("Standalone rigid attachment: motion drives the model root.");
+            }
             let body_source = cloth_state["body_collider_source"].as_str();
             let body_available = cloth_state["body_collider_count"].as_u64().is_some_and(|count| count > 0)
                 && matches!(body_source, Some("pab_primary" | "pac_model" | "appearance"));
             if !body_available { preview.cloth_settings.body_collisions = false; }
-            ui.collapsing("Cloth preview settings", |ui| {
+            ui.collapsing(if preview.cloth_settings.spline { "Spline preview settings" } else { "Cloth preview settings" }, |ui| {
                 let settings = &mut preview.cloth_settings;
                 // Keep the displayed sign consistent with raw profile XML.
                 let mut gravity = -settings.gravity;
@@ -533,12 +560,18 @@ impl LabApplication {
                 }
                 ui.add(crate::cdmw_ui::numeric::slider(&mut settings.stretch, 0.0..=1.0).text("Stretch response"));
                 ui.add(crate::cdmw_ui::numeric::slider(&mut settings.bend, 0.0..=1.0).text("Bend response"));
+                if settings.spline {
+                    ui.add(crate::cdmw_ui::numeric::slider(&mut settings.restore_angle, 0.0..=1.0).text("Spring-back response"))
+                        .on_hover_text("Pulls the tail toward its original direction. Zero lets it hang freely; higher values make it return more strongly after a shake.");
+                }
                 ui.add(crate::cdmw_ui::numeric::slider(&mut settings.damping, 0.0..=10.0).text("Preview damping"));
                 ui.add(crate::cdmw_ui::numeric::slider(&mut settings.iterations, 1..=8).text("Solver iterations"));
                 ui.checkbox(&mut settings.use_vertex_alpha, "Use authored vertex alpha");
                 ui.add_enabled(rotation_available, egui::Checkbox::new(&mut settings.rotate_guides, "Guide rotation correction"));
-                ui.add_enabled(rotation_available && settings.rotate_guides,
+                if !settings.spline {
+                    ui.add_enabled(rotation_available && settings.rotate_guides,
                     egui::Checkbox::new(&mut settings.single_edge_rotation, "Single-edge rotation"));
+                }
                 if !rotation_available { ui.small("Guide rotation needs known orientation neighbors."); }
                 ui.add_enabled(body_available, egui::Checkbox::new(&mut settings.body_collisions, "Body collisions"));
                 if body_available {
@@ -568,8 +601,16 @@ impl LabApplication {
             });
             changed |= crate::cdmw_cloth::profiles::draw(ui, &self.cdmw_state["physics_profiles"], parts,
                 &mut self.cdmw_cloth.profiles, &mut preview.cloth_settings,
-                cloth_state["available"].as_bool() == Some(true), rotation_available, actions, can_author);
-            ui.small("Experimental guide cloth with controlled motion and preview settings.");
+                cloth_state["available"].as_bool() == Some(true), cloth_state["rotation_available"].as_bool() == Some(true),
+                spline_available,
+                actions,
+                can_author,
+            );
+            ui.small(if preview.cloth_settings.spline {
+                "Experimental ordered spline chains with stretch, bend and angular spring-back."
+            } else {
+                "Experimental guide cloth with controlled motion and preview settings."
+            });
         } else {
             ui.add(crate::cdmw_ui::numeric::slider(&mut preview.settings.softness, 0.0..=1.0).text("Preview softness"));
             ui.add(crate::cdmw_ui::numeric::slider(&mut preview.settings.damping, 0.0..=1.0).text("Preview damping"));
@@ -594,6 +635,22 @@ impl LabApplication {
         } else if cloth && self.cdmw_state["jiggle"]["decoded"]["cloth"]["available"].as_bool() != Some(true) {
             self.cdmw_state["jiggle"]["decoded"]["cloth"]["reason"].as_str()
                 .unwrap_or("Cloth preview needs a decoded guide mesh.")
+        } else if !cloth
+            && self.cdmw_jiggle.preview.solver == Solver::Decoded
+            && self.cdmw_state["jiggle"]["decoded"]["rig_mode"] == "rigid_attachment"
+        {
+            "Decoded bone motion needs a matching fixed-layout PAB skeleton."
+        } else if cloth
+            && self.cdmw_jiggle.preview.cloth_settings.spline
+            && self.cdmw_state["jiggle"]["decoded"]["cloth"]["spline_available"].as_bool()
+                != Some(true)
+        {
+            "Spline preview needs complete ordered guide chains with fixed roots."
+        } else if cloth
+            && !self.cdmw_jiggle.preview.cloth_settings.spline
+            && self.cdmw_state["jiggle"]["decoded"]["rig_mode"] == "rigid_attachment"
+        {
+            "Standalone rigid attachment preview requires spline mode."
         } else if self.cdmw_state["replacement"]["comparison"]
             .as_str()
             .unwrap_or("edit")
@@ -663,6 +720,10 @@ impl LabApplication {
     }
 
     fn start_jiggle_preview(&mut self, parts: &[Value]) -> Result<()> {
+        if self.cdmw_jiggle.preview.solver == Solver::Decoded
+            && self.cdmw_state["jiggle"]["decoded"]["rig_mode"] == "rigid_attachment" {
+            bail!("Decoded bone motion needs a matching fixed-layout PAB skeleton.");
+        }
         if self.cdmw_busy()
             || self.hair.active()
             || self.edit_gesture.is_some()

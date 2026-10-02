@@ -75,6 +75,15 @@ def test_profile_scalar_changes_preserve_unknown_bytes_comments_and_attached_own
     assert inserted == source.replace('</SimulationParameters>', '\n\t<UseRotationCorrection>0</UseRotationCorrection></SimulationParameters>').encode(encoding)
 
 
+def test_spline_spring_back_override_preserves_mode_comments_and_unknown_values():
+    source = b'<SimulationParameters><SimulationMode>spline</SimulationMode><!-- keep --><RestoreAngleStiffness>0.025</RestoreAngleStiffness><FutureFlag>7</FutureFlag></SimulationParameters>'
+    edited = edit_profile_values(source, (('RestoreAngleStiffness', .4),))
+    assert edited == source.replace(b'>0.025<', b'>0.4<')
+    for value in (-.1, 1.1, float('nan'), True):
+        with pytest.raises(ValueError):
+            validate_profile_values((('RestoreAngleStiffness', value),))
+
+
 def test_rotation_override_follows_mode_reset_without_rewriting_existing_order():
     data = b'<SimulationParameters><UseRotationCorrection>1</UseRotationCorrection><SimulationMode>cloth</SimulationMode></SimulationParameters>'
     edited = edit_profile_values(data, (('UseRotationCorrection', 0),))

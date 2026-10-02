@@ -6,6 +6,60 @@ mod strain;
 mod profiles {
     use super::*;
 
+    #[test]
+    fn spline_preview_loads_raw_spring_back_edits_and_refreshes_the_saved_assignment() -> TestResult {
+        let (_root, mut ui, _) = spline_fixture()?;
+        editable_profiles(&mut ui);
+        {
+            let state = &mut ui.application.cdmw_state["physics_profiles"];
+            state["sources"][0]["authored"]["restoreanglestiffness"] = json!("0.025");
+            state["profiles"][0]["authored"]["restoreanglestiffness"] = json!("0.025");
+            state["profiles"][0]["preview"]["spline"] = json!(true);
+            state["profiles"][0]["preview"]["restore_angle"] = json!(0.00630950927734375);
+            state["profiles"][0]["preview"]["rotate_guides"] = json!(true);
+            state["profiles"][0]["preview"]["single_edge_rotation"] = json!(true);
+        }
+        ui.frame(Vec::new());
+        ui.click("Authored physics profile")?;
+        ui.click("Variant 0")?;
+        ui.click("Use profile in preview")?;
+        assert!(ui.application.cdmw_jiggle.preview.cloth_settings.spline);
+        assert_eq!(ui.application.cdmw_jiggle.preview.cloth_settings.restore_angle, 0.00630950927734375);
+        ui.click("Play preview")?;
+        wait(&mut ui)?;
+        advance(&mut ui)?;
+        ui.click("Edit profile for mod")?;
+        ui.click("Override Spring-back stiffness")?;
+        let actions = ui.actions_from_click("Apply profile edit")?;
+        let mut rule = profile_command(&actions)["rule"].clone();
+        assert_eq!(rule["values"], json!({"RestoreAngleStiffness": 0.025}));
+        rule["values"]["RestoreAngleStiffness"] = json!(0.8);
+        ui.application.cdmw_pending_request = None;
+        {
+            let state = &mut ui.application.cdmw_state["physics_profiles"];
+            state["groups"][0]["rule"] = rule;
+            let mut edited = state["profiles"][0].clone();
+            edited["path"] = json!("cloned.xml");
+            edited["preview"]["restore_angle"] = json!(0.5);
+            state["profiles"].as_array_mut().unwrap().push(edited);
+            state["parts"][0]["bindings"][0]["path"] = json!("cloned.xml");
+        }
+        ui.frame(Vec::new());
+        assert_eq!(ui.application.cdmw_jiggle.preview.cloth_settings.restore_angle, 0.5);
+        // Authoring commands reset draw-only playback; the saved preset remains.
+        ui.click("Play preview")?;
+        wait(&mut ui)?;
+        assert!(ui.application.cdmw_jiggle.preview.playing);
+        // Unrelated state changes keep temporary adjustments to loaded values.
+        ui.application.cdmw_jiggle.preview.cloth_settings.restore_angle = 0.3;
+        ui.application.cdmw_state["physics_profiles"]["cloth_geometry"]["guide_count"] = json!(4);
+        ui.frame(Vec::new());
+        assert_eq!(ui.application.cdmw_jiggle.preview.cloth_settings.restore_angle, 0.3);
+        ui.click("Restore manual preview settings")?;
+        assert_eq!(ui.application.cdmw_jiggle.preview.cloth_settings.restore_angle, 0.025);
+        Ok(())
+    }
+
     fn source_profiles(ui: &mut HeadlessUi) {
         ui.application.cdmw_state["physics_profiles"] = json!({
             "available": true, "source": "fixture.pac", "sidecar_sha256": "fixture-sidecar",
@@ -71,7 +125,7 @@ mod profiles {
         for (key, _, value) in fields {
             ui.application.cdmw_state["physics_profiles"]["sources"][0]["authored"][key.to_ascii_lowercase()] = json!(value.to_string());
         }
-        ui.click("Authored cloth profile")?;
+        ui.click("Authored physics profile")?;
         ui.click("Variant 0")?;
         ui.click("Edit profile for mod")?;
         ui.click("Collision and attachment overrides")?;
@@ -107,7 +161,7 @@ mod profiles {
     fn collision_overrides_require_an_explicit_choice_for_invalid_source_flags() -> TestResult {
         let (_root, mut ui, _) = fixture()?;
         editable_profiles(&mut ui);
-        ui.click("Authored cloth profile")?;
+        ui.click("Authored physics profile")?;
         ui.click("Variant 0")?;
         ui.click("Edit profile for mod")?;
         ui.click("Collision and attachment overrides")?;
@@ -134,7 +188,7 @@ mod profiles {
         ui.application.cdmw_state["physics_profiles"]["sources"][0]["authored"]["gravity"] =
             json!("20");
         ui.application.cdmw_jiggle.preview.cloth_settings.gravity = 3.0;
-        ui.click("Authored cloth profile")?;
+        ui.click("Authored physics profile")?;
         ui.click("Variant 0")?;
         ui.click("Use profile in preview")?;
         assert_eq!(
@@ -194,7 +248,7 @@ mod profiles {
     {
         let (_root, mut ui, _) = fixture()?;
         editable_profiles(&mut ui);
-        ui.click("Authored cloth profile")?;
+        ui.click("Authored physics profile")?;
         assert!(
             ui.label_rect("Authored cloth guides: 3 (1 fixed)")
                 .is_some()
@@ -236,7 +290,7 @@ mod profiles {
         let (_root, mut ui, _) = fixture()?;
         editable_profiles(&mut ui);
         let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
-        ui.click("Authored cloth profile")?;
+        ui.click("Authored physics profile")?;
         ui.click("Variant 0")?;
         ui.click("Use profile in preview")?;
         assert_eq!(
@@ -285,7 +339,7 @@ mod profiles {
             .as_array_mut()
             .unwrap()
             .push(second);
-        ui.click("Authored cloth profile")?;
+        ui.click("Authored physics profile")?;
         ui.click("Variant 0")?;
         ui.click("Edit profile for mod")?;
         assert!(ui.label_rect("Apply profile edit").is_none());
@@ -312,7 +366,7 @@ mod profiles {
     fn profile_nonfinite_sources_are_displayed_safely_and_never_sent_as_null() -> TestResult {
         let (_root, mut ui, _) = fixture()?;
         editable_profiles(&mut ui);
-        ui.click("Authored cloth profile")?;
+        ui.click("Authored physics profile")?;
         ui.click("Variant 0")?;
         ui.click("Edit profile for mod")?;
         for raw in ["NaN", "inf", "-Infinity", "1e999", "invalid"] {
@@ -349,7 +403,7 @@ mod profiles {
             .preview
             .cloth_settings
             .ground_height = Some(-10.0);
-        ui.click("Authored cloth profile")?;
+        ui.click("Authored physics profile")?;
         assert!(ui.label_rect("Use profile in preview").is_none());
         ui.click("Variant 0")?;
         ui.click("Use profile in preview")?;
@@ -410,17 +464,17 @@ mod profiles {
         let (_root, mut ui, _) = fixture()?;
         source_profiles(&mut ui);
         ui.application.cdmw_jiggle.preview.cloth_settings.gravity = 3.0;
-        ui.click("Authored cloth profile")?;
+        ui.click("Authored physics profile")?;
         ui.click("Variant 0")?;
         ui.click("Use profile in preview")?;
-        ui.click("Authored cloth profile")?;
+        ui.click("Authored physics profile")?;
         ui.application.cdmw_state["physics_profiles"]["parts"][0]["bindings"][0]["profile"] = json!("");
         ui.frame(Vec::new());
         assert_eq!(
             ui.application.cdmw_jiggle.preview.cloth_settings.gravity,
             3.0
         );
-        ui.click("Authored cloth profile")?;
+        ui.click("Authored physics profile")?;
         assert!(ui.label_rect("Use profile in preview").is_none());
         Ok(())
     }
@@ -434,7 +488,7 @@ mod profiles {
         ui.application.cdmw_state["cloth"]["available"] = json!(false);
         ui.application.cdmw_state["cloth"]["reason"] = json!("No cloth bindings.");
         ui.frame(Vec::new());
-        ui.click("Authored cloth profile")?;
+        ui.click("Authored physics profile")?;
         ui.click("Variant 0")?;
         assert!(ui.label_rect("lower.xml").is_some());
         ui.click("Use profile in preview")?; // The visible control is disabled.
@@ -450,7 +504,7 @@ mod profiles {
     fn spline_missing_and_mixed_assignments_never_supply_cloth_settings() -> TestResult {
         let (_root, mut ui, _) = fixture()?;
         source_profiles(&mut ui);
-        ui.click("Authored cloth profile")?;
+        ui.click("Authored physics profile")?;
         ui.click("Variant 0")?;
         ui.application.cdmw_state["physics_profiles"]["profiles"][0]["preview"] = Value::Null;
         ui.application.cdmw_state["physics_profiles"]["profiles"][0]["reason"] =
@@ -504,7 +558,7 @@ fn physics_detection_shows_spline_evidence_without_a_preview_rig() -> TestResult
     ui.reveal("Guides: 6 · fixed anchors: 1")?;
     ui.reveal("Current edit: 0 guide vertices")?;
     ui.reveal("Variant 0: WeaponSpline (spline)")?;
-    ui.reveal("Cloth preview does not reproduce the spline solver.")?;
+    ui.reveal("Controlled spline preview approximates game motion.")?;
     assert!(ui.label_rect("Spline").is_some()); // The Parts row has a badge too.
     ui.application.cdmw_state["physics"]["parts"][0]["jiggle_counts"] = json!([12, 6, 3, 1]);
     ui.settle_layout();
@@ -610,6 +664,68 @@ fn fixture() -> Result<(tempfile::TempDir, HeadlessUi, Vec<u8>), Box<dyn std::er
             "max_y": 1.0, "rule": null}]});
     ui.click_tool_button("Cloth")?;
     Ok((root, ui, payload))
+}
+
+fn spline_fixture() -> Result<(tempfile::TempDir, HeadlessUi, Vec<u8>), Box<dyn std::error::Error>> {
+    let (root, mut ui, bytes) = fixture()?;
+    let mut payload: Value = serde_json::from_slice(&bytes)?;
+    let a = payload["cloth"]["source_positions"][1].as_array().unwrap();
+    let b = payload["cloth"]["source_positions"][2].as_array().unwrap();
+    let distance = (0..3).map(|i| (a[i].as_f64().unwrap() - b[i].as_f64().unwrap()).powi(2)).sum::<f64>().sqrt();
+    payload["cloth"]["constraints"].as_array_mut().unwrap().push(json!({"kind": "pair", "indices": [1, 2], "rest": distance}));
+    payload["cloth"]["spline_chains"] = json!([[0, 1, 2]]);
+    payload["cloth"]["alpha_blends"] = json!([1.0, 0.0, 0.0]);
+    let bytes = serde_json::to_vec(&payload)?;
+    std::fs::write(root.path().join("jiggle-rig.json"), &bytes)?;
+    let state = &mut ui.application.cdmw_state["jiggle"]["decoded"];
+    state["rig_mode"] = json!("rigid_attachment");
+    state["cloth"]["spline_available"] = json!(true);
+    state["file"]["byte_length"] = json!(bytes.len());
+    state["file"]["sha256"] = json!(format!("{:X}", Sha256::digest(&bytes)));
+    ui.frame(Vec::new());
+    Ok((root, ui, bytes))
+}
+
+#[test]
+fn standalone_spline_play_pause_disable_and_reset_keep_authored_mesh_unchanged() -> TestResult {
+    let (_root, mut ui, _) = spline_fixture()?;
+    let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
+    ui.click("Spline preview settings")?;
+    assert!(ui.reveal("Spring-back response").is_ok());
+    ui.click("Play preview")?;
+    wait(&mut ui)?;
+    advance(&mut ui)?;
+    assert!(ui.application.cdmw_jiggle.preview.playing);
+    assert_ne!(ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.positions, authored.positions);
+    ui.click("Pause preview")?;
+    assert!(!ui.application.cdmw_jiggle.preview.playing);
+    ui.click("Resume preview")?;
+    ui.click("All disabled")?;
+    wait(&mut ui)?;
+    advance(&mut ui)?;
+    assert_eq!(ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.positions, authored.positions);
+    ui.click("Reset preview")?;
+    assert!(ui.application.cdmw_jiggle.preview.scene.is_none());
+    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
+    ui.click("Collision sources")?;
+    let actions = ui.actions_from_click("Choose body PABV…")?;
+    assert!(!actions.iter().any(|action| matches!(action, UiAction::ChooseClothCollisionInput { .. })));
+    ui.application.cdmw_state["jiggle"]["decoded"]["cloth"]["spline_available"] = json!(false);
+    ui.frame(Vec::new());
+    ui.click("Play preview")?;
+    assert!(ui.application.cdmw_jiggle.preview.pending.is_none());
+    Ok(())
+}
+
+#[test]
+fn standalone_spline_does_not_override_an_explicit_cloth_assignment() -> TestResult {
+    let (_root, mut ui, _) = spline_fixture()?;
+    ui.application.cdmw_state["physics"] = json!({"parts": [{"index": 0, "kind": "cloth"}]});
+    ui.frame(Vec::new());
+    assert!(!ui.application.cdmw_jiggle.preview.cloth_settings.spline);
+    ui.click("Play preview")?;
+    assert!(ui.application.cdmw_jiggle.preview.pending.is_none());
+    Ok(())
 }
 
 #[test]

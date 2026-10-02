@@ -25,14 +25,13 @@ def _decoded_preview_state(authoring, session, metadata, appearance, eligible):
     from cdmw.modding.mesh_skinning import pack_pac_skin_weights
     from cdmw.modding.pac_cloth_preview import (
         build_cloth_body_collider_snapshot, build_cloth_preview_snapshot, select_cloth_body_volumes,
+        rigid_attachment_preview_rig,
     )
     from cdmw.modding.pac_jiggle_rig import prepare_jiggle_rig
     from cdmw.services.mesh_rust_authoring import _atomic_write_payload
     from cdmw.services.mesh_rust_cloth_guides import authored_cloth_source
 
     skeleton = session.skeleton
-    if skeleton is None:
-        return {"available": False, "reason": "Decoded motion needs a matching fixed-layout PAB skeleton."}
     revision = authoring.shadow_service.session_view(authoring.shadow_session_id).revision
     part_key = (authoring.replacement_comparison, tuple(index for index, _, _ in eligible))
     cached = metadata.get("decoded_cache")
@@ -43,20 +42,36 @@ def _decoded_preview_state(authoring, session, metadata, appearance, eligible):
         if not eligible or sum(len(current.vertices) for _, _, current in eligible) > 100_000:
             raise ValueError("Decoded motion needs retained PAC geometry within 100,000 vertices.")
         rig_cached = metadata.get("decoded_rig")
+        if skeleton is None:
+            if appearance is not None:
+                raise ValueError("Standalone spline preview needs the source model's rigid attachment frame.")
+            try:
+                profile_cache = authoring.physics_profile_cache
+                modes = {profile.get("authored", {}).get("simulationmode", "").casefold()
+                         for profile in profile_cache[3].get("profiles", ())} if profile_cache else set()
+                rigid_payload = rigid_attachment_preview_rig(cloth_data, [current for _, _, current in eligible],
+                                                             spline_profile="spline" in modes)
+            except ValueError as exc:
+                raise ValueError("Decoded motion needs a matching fixed-layout PAB skeleton. " + str(exc)) from exc
         if rig_cached is None or rig_cached[0] is not skeleton or rig_cached[2] is not cloth_data:
-            palette = resolve_pac_bone_palette(session.original_data, skeleton)
-            rig = prepare_jiggle_rig(skeleton, palette, appearance=appearance)
-            rows = lambda matrices: [[list(matrix[i:i + 4]) for i in range(0, 16, 4)] for matrix in matrices]
-            rig_payload = {"bone_palette": list(rig.bone_palette), "parents": list(rig.parents),
-                           "inverse_bind_matrices": rows(rig.inverse_bind_matrices),
-                           "neutral_global_matrices": rows(rig.neutral_global_matrices),
-                           "neutral_local_matrices": rows(rig.neutral_local_matrices)}
+            if skeleton is None:
+                rig_payload = rigid_payload
+            else:
+                palette = resolve_pac_bone_palette(session.original_data, skeleton)
+                rig = prepare_jiggle_rig(skeleton, palette, appearance=appearance)
+                rows = lambda matrices: [[list(matrix[i:i + 4]) for i in range(0, 16, 4)] for matrix in matrices]
+                rig_payload = {"bone_palette": list(rig.bone_palette), "parents": list(rig.parents),
+                               "inverse_bind_matrices": rows(rig.inverse_bind_matrices),
+                               "neutral_global_matrices": rows(rig.neutral_global_matrices),
+                               "neutral_local_matrices": rows(rig.neutral_local_matrices)}
             metadata["decoded_rig"] = (skeleton, rig_payload, cloth_data)
             try:
                 cloth = build_cloth_preview_snapshot(cloth_data, rig_payload)
                 collider_reason = ""
                 collider_source = ""
                 try:
+                    if skeleton is None:
+                        raise ValueError("Standalone rigid attachment has no matched body collision rig.")
                     inputs = {role: value[1] for role, value in authoring.cloth_collision_inputs.items()}
                     volumes, collider_source = select_cloth_body_volumes(session.original_data, skeleton, **inputs)
                     cloth["body_colliders"] = build_cloth_body_collider_snapshot(skeleton, rig_payload, volumes=volumes)
@@ -68,6 +83,8 @@ def _decoded_preview_state(authoring, session, metadata, appearance, eligible):
                     "fixed_count": sum(cloth["fixed"]),
                     "area_constraint_count": sum(row["kind"] == "triangle" for row in cloth["constraints"]),
                     "rotation_available": all(row is not None for row in cloth["orientation_neighbors"]),
+                    "spline_available": bool(cloth["spline_chains"]),
+                    "chain_count": len(cloth["spline_chains"]),
                     "body_collider_count": len(cloth["body_colliders"]),
                     "body_collider_source": collider_source,
                     "body_collider_reason": collider_reason,
@@ -111,7 +128,8 @@ def _decoded_preview_state(authoring, session, metadata, appearance, eligible):
                 authoring.root, "jiggle-rig.json", payload, data_type="jiggle_rig_json",
                 element_count=len(parts), expected_root_identity=authoring.root_identity)
             metadata["decoded_file"] = (payload, reference)
-        result = {"available": True, "reason": "", "file": dict(metadata["decoded_file"][1]), "cloth": cloth_state}
+        result = {"available": True, "reason": "", "file": dict(metadata["decoded_file"][1]), "cloth": cloth_state,
+                  "rig_mode": "rigid_attachment" if skeleton is None else "skeleton"}
     except ValueError as exc:
         result = {"available": False, "reason": str(exc)}
     metadata["decoded_cache"] = (skeleton, revision, part_key, result)
@@ -236,7 +254,7 @@ def set_cloth_collision_input(authoring, args, stop_event):
     decoded = ui.get("decoded", {})
     cloth_state = decoded.get("cloth", {})
     if not clear:
-        if not decoded.get("available") or not cloth_state.get("available"):
+        if not decoded.get("available") or not cloth_state.get("available") or session.skeleton is None:
             raise ValueError("Collision inputs need a decoded cloth preview and matching rig.")
         if cloth_state.get("body_collider_source") == "pac_model":
             raise ValueError("This model's embedded collision volumes take precedence over appearance inputs.")
@@ -255,7 +273,7 @@ def set_cloth_collision_input(authoring, args, stop_event):
         return {"changed": False}
     cached = authoring.jiggle_source_cache
     updated = None
-    if decoded.get("available") and cloth_state.get("available"):
+    if decoded.get("available") and cloth_state.get("available") and session.skeleton is not None:
         metadata = dict(cached[2])
         rig = metadata["decoded_rig"][1]
         source_name, reason = "", ""

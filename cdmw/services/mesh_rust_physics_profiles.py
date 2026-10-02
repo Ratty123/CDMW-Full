@@ -35,16 +35,20 @@ def _profile_preview(document):
     items = _material_scalar_items(root) if root is not None else ()
     values = {key: value for key, value in items if key in _SCALARS}
     result["authored"] = values
-    if values.get("simulationmode", "").casefold() != "cloth":
-        result["reason"] = "Only an explicit cloth profile can supply guide-cloth preview settings."
+    mode = values.get("simulationmode", "").casefold()
+    if mode not in ("cloth", "spline"):
+        result["reason"] = "Only an explicit cloth or spline profile can supply guide preview settings."
         return result
     required = ("stretchingstiffness", "bendingstiffness", "damping", "gravity", "solveriterationcount")
+    if mode == "spline":
+        required += ("restoreanglestiffness",)
     if any(key not in values for key in required):
         result["reason"] = "The profile does not explicitly supply all supported preview coefficients."
         return result
     try:
         stretch, bend, damping, gravity = (f32(float(values[key])) for key in required[:4])
-        if not all(math.isfinite(value) for value in (stretch, bend, damping, gravity)):
+        restore = f32(float(values.get("restoreanglestiffness", "0"))) if mode == "spline" else 0.
+        if not all(math.isfinite(value) for value in (stretch, bend, damping, gravity, restore)) or not 0 <= restore <= 1:
             raise ValueError
         iterations = int(values["solveriterationcount"])
         # The CPU material parser rounds odd XML counts upward. This preview
@@ -70,8 +74,8 @@ def _profile_preview(document):
         # Recovered initialization globals, never presented as captured live
         # settings. Read the packed half coefficients actually supplied to GPU.
         frame = update_cloth_frame_stiffness(
-            bytes(100), simulation_mode=1, stretching_stiffness=stretch,
-            bending_stiffness=bend, area_stiffness=0, restore_angle_stiffness=0,
+            bytes(100), simulation_mode=2 if mode == "spline" else 1, stretching_stiffness=stretch,
+            bending_stiffness=bend, area_stiffness=0, restore_angle_stiffness=restore,
             underwater_restore_angle_stiffness=-1, stiffness_denominator=4,
             scale_factors=(5, 1, 1, 1), limits=(.6, .06, .6, .06),
             bend_uses_unit_denominator=True,
@@ -82,6 +86,9 @@ def _profile_preview(document):
             "stretch": modified_stretch, "bend": max(0., modified_bend),
             "iterations": iterations, "use_vertex_alpha": alpha, "rotate_guides": rotation,
         }
+        if mode == "spline":
+            result["preview"].update(spline=True, restore_angle=max(0., struct.unpack_from("<e", frame, 72)[0]),
+                                     single_edge_rotation=True)
     except (ValueError, OverflowError):
         result["reason"] = "The profile contains invalid or unsupported preview values."
     return result

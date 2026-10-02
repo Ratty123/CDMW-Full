@@ -9,6 +9,7 @@ import re
 
 PROFILE_VALUE_RANGES = {
     "StretchingStiffness": (0., 1.), "BendingStiffness": (0., 1.),
+    "RestoreAngleStiffness": (0., 1.),
     "Damping": (0., 10.), "Gravity": (-100., 100.),
     "SolverIterationCount": (1, 64), "UseVertexAlphaPositionBlending": (0, 1),
     "UseRotationCorrection": (0, 1),

@@ -107,6 +107,10 @@ pub(super) mod profiles {
         pub(crate) fn clear_loaded(&mut self) {
             self.loaded = None;
         }
+
+        pub(crate) fn has_loaded(&self) -> bool {
+            self.loaded.is_some()
+        }
     }
 
     #[derive(Clone, Copy, Deserialize)]
@@ -118,6 +122,12 @@ pub(super) mod profiles {
         iterations: u32,
         use_vertex_alpha: bool,
         rotate_guides: bool,
+        #[serde(default)]
+        spline: bool,
+        #[serde(default)]
+        restore_angle: f64,
+        #[serde(default)]
+        single_edge_rotation: bool,
     }
 
     impl Preset {
@@ -127,6 +137,7 @@ pub(super) mod profiles {
                 && (0.0..=10.0).contains(&result.damping)
                 && (0.0..=1.0).contains(&result.stretch)
                 && (0.0..=1.0).contains(&result.bend)
+                && (0.0..=1.0).contains(&result.restore_angle)
                 && (1..=8).contains(&result.iterations))
             .then_some(result)
         }
@@ -136,6 +147,9 @@ pub(super) mod profiles {
             settings.damping = self.damping;
             settings.stretch = self.stretch;
             settings.bend = self.bend;
+            settings.spline = self.spline;
+            settings.restore_angle = self.restore_angle;
+            settings.single_edge_rotation = self.single_edge_rotation;
             settings.iterations = self.iterations;
             settings.use_vertex_alpha = self.use_vertex_alpha;
             settings.rotate_guides = self.rotate_guides && rotation_available;
@@ -152,6 +166,9 @@ pub(super) mod profiles {
                 iterations: settings.iterations,
                 use_vertex_alpha: settings.use_vertex_alpha,
                 rotate_guides: settings.rotate_guides,
+                spline: settings.spline,
+                restore_angle: settings.restore_angle,
+                single_edge_rotation: settings.single_edge_rotation,
             }
         }
     }
@@ -219,9 +236,10 @@ pub(super) mod profiles {
         view: &mut ProfileView,
         settings: &mut Settings,
         rotation_available: bool,
+        spline_available: bool,
     ) -> bool {
         if let Some((_, manual)) = view.loaded.take() {
-            Preset::from(manual).apply(settings, rotation_available);
+            Preset::from(manual).apply(settings, if manual.spline { spline_available } else { rotation_available });
             return true;
         }
         false
@@ -337,6 +355,7 @@ pub(super) mod profiles {
                 for (key, label, low, high, integer) in [
                     ("StretchingStiffness", "Stretch stiffness", 0.0, 1.0, false),
                     ("BendingStiffness", "Bend stiffness", 0.0, 1.0, false),
+                    ("RestoreAngleStiffness", "Spring-back stiffness", 0.0, 1.0, false),
                     ("Damping", "Damping", 0.0, 10.0, false),
                     ("Gravity", "Gravity", -100.0, 100.0, false),
                     ("SolverIterationCount", "Iterations", 1.0, 64.0, true),
@@ -400,6 +419,7 @@ pub(super) mod profiles {
         settings: &mut Settings,
         can_apply: bool,
         rotation_available: bool,
+        spline_available: bool,
         actions: &mut Vec<UiAction>,
         can_author: bool,
     ) -> bool {
@@ -422,14 +442,35 @@ pub(super) mod profiles {
                 variant
             ])
         };
-        if view
-            .loaded
-            .as_ref()
-            .is_some_and(|(key, _)| *key != selection_key(&view.variant))
+        let key = selection_key(&view.variant);
+        if let Some((previous, manual)) =
+            view.loaded.clone().filter(|(previous, _)| *previous != key)
         {
-            changed |= restore_manual(view, settings, rotation_available);
+            // A saved edit to the same selected assignment refreshes the preset.
+            // A different model, part selection or variant restores manual values.
+            let preset = (previous[1] == key[1]
+                && previous[2] == key[2]
+                && state["available"].as_bool() == Some(true)
+                && state["reason"].as_str().is_none_or(str::is_empty)
+                && previous[0]["source"] == state["source"]
+                && previous[0]["sidecar_sha256"] == state["sidecar_sha256"])
+                .then(|| assigned_profile(state, parts, view.variant.as_deref()).ok())
+                .flatten()
+                .and_then(|profile| Preset::read(&profile["preview"]))
+                .filter(|preset| !preset.spline || spline_available);
+            if let Some(preset) = preset {
+                let current = assigned_profile(state, parts, view.variant.as_deref()).ok();
+                let old = assigned_profile(&previous[0], parts, view.variant.as_deref()).ok();
+                if current != old {
+                    preset.apply(settings, if preset.spline { spline_available } else { rotation_available });
+                    changed = true;
+                }
+                view.loaded = Some((key, manual));
+            } else {
+                changed |= restore_manual(view, settings, rotation_available, spline_available);
+            }
         }
-        crate::localization::collapsing("Authored cloth profile").show(ui, |ui| {
+        crate::localization::collapsing("Authored physics profile").show(ui, |ui| {
             if state["available"].as_bool() != Some(true) {
                 ui.small(crate::localization::tr(state["reason"].as_str().unwrap_or("Exact physics profiles are unavailable.")));
                 return;
@@ -457,7 +498,7 @@ pub(super) mod profiles {
                     let label = if variant.is_empty() { "Default variant".to_owned() } else { format!("Variant {variant}") };
                     if ui.add(egui::Button::new(crate::localization::tr(label)).selected(view.variant.as_deref() == Some(variant))).clicked()
                         && view.variant.as_deref() != Some(variant) {
-                        changed |= restore_manual(view, settings, rotation_available);
+                        changed |= restore_manual(view, settings, rotation_available, spline_available);
                         view.variant = Some(variant.to_owned());
                     }
                 }
@@ -488,22 +529,29 @@ pub(super) mod profiles {
             ui.small(crate::localization::tr(format!("Stretch {} → {:.4} · bend {} → {:.4}",
                 profile["authored"]["stretchingstiffness"].as_str().unwrap_or("?"), preset.stretch,
                 profile["authored"]["bendingstiffness"].as_str().unwrap_or("?"), preset.bend)));
-            if ui.add_enabled(can_apply, egui::Button::new(crate::localization::tr("Use profile in preview"))).clicked() {
+            if preset.spline {
+                ui.small(crate::localization::tr(format!("Spring-back {} → {:.4}",
+                    profile["authored"]["restoreanglestiffness"].as_str().unwrap_or("?"), preset.restore_angle)));
+                if !spline_available {
+                    ui.small(crate::localization::tr("Spline preview needs complete ordered guide chains with fixed roots."));
+                }
+            }
+            if ui.add_enabled(can_apply && (!preset.spline || spline_available), egui::Button::new(crate::localization::tr("Use profile in preview"))).clicked() {
                 let manual = view.loaded.as_ref().map(|(_, manual)| *manual).unwrap_or(*settings);
                 view.loaded = Some((selection_key(&view.variant), manual));
-                preset.apply(settings, rotation_available);
+                preset.apply(settings, if preset.spline { spline_available } else { rotation_available });
                 changed = true;
             }
             if view.loaded.is_some() {
                 ui.small(crate::localization::tr("Profile starting values loaded. Preview sliders can adjust them."));
                 if ui.button(crate::localization::tr("Restore manual preview settings")).clicked() {
-                    changed |= restore_manual(view, settings, rotation_available);
+                    changed |= restore_manual(view, settings, rotation_available, spline_available);
                 }
             }
-            if preset.rotate_guides && !rotation_available {
+            if preset.rotate_guides && !(if preset.spline { spline_available } else { rotation_available }) {
                 ui.small(crate::localization::tr("Guide rotation cannot be applied without orientation neighbors."));
             }
-            ui.small(crate::localization::tr("Loads gravity, damping, stretch, bend, iterations, vertex alpha and supported guide rotation only."));
+            ui.small(crate::localization::tr("Loads gravity, damping, stretch, bend, spline spring-back, iterations, vertex alpha and supported guide rotation. Saved edits refresh a loaded profile."));
             ui.small(crate::localization::tr("Uses decoded initial stiffness conversion and a fixed preview clock. Other profile settings and live game activation are not reproduced. Changes are preview-only."));
         });
         changed
@@ -589,7 +637,7 @@ pub(super) fn physics_lines(part: &Value) -> Vec<String> {
                 "profile_assignment_empty" => crate::localization::tr("No named physics profile is assigned for these variants."),
                 "profile_modes_mixed" => crate::localization::tr("Physics mode varies by variant."),
                 "profile_mode_unsupported" => crate::localization::tr("The assigned profile does not select cloth or spline simulation."),
-                "spline_preview_approximate" => crate::localization::tr("Cloth preview does not reproduce the spline solver."),
+                "spline_preview_approximate" => crate::localization::tr("Controlled spline preview approximates game motion."),
                 _ => crate::localization::tr(reason),
             });
         }
@@ -651,7 +699,7 @@ impl LabApplication {
             let parts = self.cdmw_state["replacement"]["parts"].as_array().cloned().unwrap_or_default();
             let can_author = !self.cdmw_busy() && state_bool(&self.cdmw_state, "authoring_enabled");
             profiles::draw(ui, &self.cdmw_state["physics_profiles"], &parts,
-                &mut self.cdmw_cloth.profiles, &mut self.cdmw_jiggle.preview.cloth_settings, false, false, actions, can_author);
+                &mut self.cdmw_cloth.profiles, &mut self.cdmw_jiggle.preview.cloth_settings, false, false, false, actions, can_author);
             return;
         }
         ui.checkbox(&mut self.cdmw_cloth.selected_only, crate::localization::tr("Selected parts only"));

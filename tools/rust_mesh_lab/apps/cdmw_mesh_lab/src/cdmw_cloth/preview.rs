@@ -192,6 +192,7 @@ mod tests {
             alpha_blends: vec![0.0; 24],
             orientation_neighbors: Vec::new(),
             body_colliders: Vec::new(),
+            spline_chains: Vec::new(),
             constraints: (1..24)
                 .map(|i| cloth::Constraint::Pair {
                     indices: [i - 1, i],
@@ -275,6 +276,7 @@ mod tests {
             alpha_blends: vec![0.5, 1.0],
             orientation_neighbors: Vec::new(),
             body_colliders: Vec::new(),
+            spline_chains: Vec::new(),
             constraints: vec![],
         };
         let rig = RigSnapshot {

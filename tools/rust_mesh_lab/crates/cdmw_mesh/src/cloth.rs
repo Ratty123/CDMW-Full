@@ -13,6 +13,7 @@ use glam::{DMat4, DVec3};
 use serde::{Deserialize, Serialize};
 
 mod rotation;
+mod spline;
 pub use collision::BodyCollider;
 
 type Result<T> = std::result::Result<T, &'static str>;
@@ -27,6 +28,8 @@ pub struct Snapshot {
     #[serde(default)]
     pub orientation_neighbors: Vec<Option<[u16; 2]>>,
     pub constraints: Vec<Constraint>,
+    #[serde(default)]
+    pub spline_chains: Vec<Vec<usize>>,
     #[serde(default)]
     pub body_colliders: Vec<BodyCollider>,
 }
@@ -48,6 +51,9 @@ pub struct Settings {
     /// Explicit modified per-iteration coefficients, not raw material XML.
     pub stretch: f64,
     pub bend: f64,
+    pub spline: bool,
+    /// Controlled angular spring-back coefficient, converted from raw XML.
+    pub restore_angle: f64,
     pub iterations: u32,
     pub speed_limit: f64,
     pub use_vertex_alpha: bool,
@@ -67,6 +73,8 @@ impl Default for Settings {
             damping: 0.5,
             stretch: 0.8,
             bend: 0.1,
+            spline: false,
+            restore_angle: 0.025,
             iterations: 4,
             speed_limit: 50.0,
             use_vertex_alpha: false,
@@ -89,6 +97,8 @@ impl Settings {
             && (0.0..=1.0).contains(&self.stretch)
             && self.bend.is_finite()
             && (0.0..=1.0).contains(&self.bend)
+            && self.restore_angle.is_finite()
+            && (0.0..=1.0).contains(&self.restore_angle)
             && (1..=8).contains(&self.iterations)
             && self.speed_limit.is_finite()
             && (0.001..=1000.0).contains(&self.speed_limit)
@@ -243,6 +253,7 @@ impl Simulation {
                 return Err("Cloth constraint has invalid geometry or guide indices.");
             }
         }
+        spline::validate(&snapshot)?;
         let frames = snapshot
             .animation_frames
             .iter()
@@ -360,6 +371,9 @@ impl Simulation {
             return Err("Invalid cloth preview time, motion or settings.");
         }
         let motion = DMat4::from_cols_array_2d(&motion);
+        if settings.spline && self.snapshot.spline_chains.is_empty() {
+            return Err("Spline preview needs complete ordered guide chains with fixed roots.");
+        }
         let axes = [
             motion.x_axis.truncate(),
             motion.y_axis.truncate(),
@@ -439,7 +453,7 @@ impl Simulation {
                         counts[*a] += 1;
                         counts[*b] += 1;
                     }
-                    Constraint::Hinge { indices, rest } if settings.bend > 0.0 => {
+                    Constraint::Hinge { indices, rest } if settings.bend > 0.0 && !settings.spline => {
                         let values = angle_corrections(
                             indices.map(|i| positions[i]),
                             indices.map(|i| masses[i]),
@@ -455,6 +469,17 @@ impl Simulation {
                     // correction count. Area is explicitly inactive here.
                     _ => {}
                 }
+            }
+            if settings.spline {
+                spline::project(
+                    &self.snapshot.spline_chains,
+                    &positions,
+                    &animation,
+                    &masses,
+                    settings,
+                    &mut corrections,
+                    &mut counts,
+                );
             }
             for i in 0..positions.len() {
                 if !self.snapshot.fixed[i] && counts[i] != 0 {
@@ -514,14 +539,18 @@ impl Simulation {
             .collect::<Vec<_>>();
         let rotated =
             if settings.rotate_guides && self.bindings.iter().any(|b| b.skeletal_blend < 1.0) {
-                if self.snapshot.orientation_neighbors.len() != positions.len() {
+                let spline_neighbors = settings.spline.then(||
+                    spline::neighbors(&self.snapshot.spline_chains, positions.len()));
+                let neighbors = spline_neighbors.as_ref().unwrap_or(&self.snapshot.orientation_neighbors);
+                if neighbors.len() != positions.len() {
                     return Err("Guide rotation needs known orientation neighbors.");
                 }
                 let mut deltas = Vec::with_capacity(positions.len());
                 for i in 0..positions.len() {
-                    let neighbors = self.snapshot.orientation_neighbors[i]
+                    let neighbors =
+                        neighbors[i]
                         .ok_or("Guide rotation needs known orientation neighbors.")?;
-                    let correction = if settings.single_edge_rotation {
+                    let correction = if settings.single_edge_rotation || settings.spline {
                         // This controlled preview displays the current step directly.
                         rotation::single_edge(i, neighbors, &animation, &positions, &positions)?
                     } else {
@@ -794,10 +823,161 @@ mod tests {
             alpha_blends: vec![1.0, 0.5, 0.0],
             orientation_neighbors: Vec::new(),
             body_colliders: Vec::new(),
+            spline_chains: Vec::new(),
             constraints: vec![Constraint::Pair {
                 indices: [0, 1],
                 rest: 1.0,
             }],
+        }
+    }
+
+    fn spline_simulation(contributions: [u8; 3]) -> Simulation {
+        let mut source = snapshot();
+        source.source_positions = vec![[0.0; 3], [0.0, 0.0, 0.5], [0.0, 0.0, 1.0]];
+        source.animation_frames = source
+            .source_positions
+            .iter()
+            .map(|p| DMat4::from_translation(DVec3::from(*p)).to_cols_array_2d())
+            .collect();
+        source.alpha_blends = vec![1.0, 0.0, 0.0];
+        source.spline_chains = vec![vec![0, 1, 2]];
+        source.constraints = vec![
+            Constraint::Pair {
+                indices: [0, 1],
+                rest: 0.5,
+            },
+            Constraint::Pair {
+                indices: [1, 2],
+                rest: 0.5,
+            },
+        ];
+        let rest = source
+            .source_positions
+            .iter()
+            .map(|p| [0.1, p[1] as f32, p[2] as f32])
+            .collect::<Vec<_>>();
+        Simulation::new(source, &rig(), &rest, &records(), &contributions, &|| false).unwrap()
+    }
+
+    #[test]
+    fn spline_preview_plays_rotates_and_preserves_fixed_and_disabled_vertices() {
+        let settings = Settings {
+            spline: true,
+            rotate_guides: true,
+            ..Settings::default()
+        };
+        let mut moving = spline_simulation([63, 0, 0]);
+        let mut disabled = spline_simulation([63; 3]);
+        let original = disabled.positions().to_vec();
+        for _ in 0..120 {
+            moving
+                .step(1.0 / 60.0, DMat4::IDENTITY.to_cols_array_2d(), settings)
+                .unwrap();
+            disabled
+                .step(1.0 / 60.0, DMat4::IDENTITY.to_cols_array_2d(), settings)
+                .unwrap();
+        }
+        assert_eq!(moving.guide_positions()[0], [0.0; 3]);
+        assert_eq!(moving.positions()[0], original[0]);
+        assert_ne!(moving.positions()[2], original[2]);
+        assert_eq!(disabled.positions(), original);
+        assert!(moving.positions().iter().flatten().all(|x| x.is_finite()));
+        let before = moving.positions().to_vec();
+        assert!(
+            moving
+                .step(
+                    1.0 / 60.0,
+                    DMat4::IDENTITY.to_cols_array_2d(),
+                    Settings {
+                        restore_angle: f64::NAN,
+                        ..settings
+                    }
+                )
+                .is_err()
+        );
+        assert_eq!(moving.positions(), before);
+    }
+
+    #[test]
+    fn spline_preview_controls_change_the_result_and_spring_back_restores_direction() {
+        let baseline = Settings {
+            spline: true,
+            bend: 0.0,
+            restore_angle: 0.0,
+            ..Settings::default()
+        };
+        let run = |settings| {
+            let mut simulation = spline_simulation([0; 3]);
+            for _ in 0..60 {
+                simulation
+                    .step(1.0 / 60.0, DMat4::IDENTITY.to_cols_array_2d(), settings)
+                    .unwrap();
+            }
+            DVec3::from(simulation.guide_positions()[2])
+        };
+        let base = run(baseline);
+        for settings in [
+            Settings {
+                gravity: 0.0,
+                ..baseline
+            },
+            Settings {
+                damping: 3.0,
+                ..baseline
+            },
+            Settings {
+                stretch: 0.1,
+                ..baseline
+            },
+            Settings {
+                bend: 0.8,
+                ..baseline
+            },
+            Settings {
+                iterations: 8,
+                ..baseline
+            },
+            Settings {
+                restore_angle: 0.8,
+                ..baseline
+            },
+        ] {
+            assert!(
+                run(settings).distance(base) > 1e-5,
+                "control did not affect spline: {settings:?}"
+            );
+        }
+        let restored = run(Settings {
+            restore_angle: 0.8,
+            ..baseline
+        });
+        assert!(restored.distance(DVec3::Z) < base.distance(DVec3::Z));
+    }
+
+    #[test]
+    fn spline_preview_rejects_missing_or_ambiguous_chain_topology() {
+        let mut simulation = simulation([0; 3]);
+        assert!(
+            simulation
+                .step(
+                    1.0 / 60.0,
+                    DMat4::IDENTITY.to_cols_array_2d(),
+                    Settings {
+                        spline: true,
+                        ..Settings::default()
+                    }
+                )
+                .is_err()
+        );
+        let mut source = snapshot();
+        for chains in [
+            vec![vec![0, 1]],
+            vec![vec![0, 1, 1]],
+            vec![vec![1, 2, 0]],
+            vec![vec![0, 1, 2]],
+        ] {
+            source.spline_chains = chains;
+            assert!(spline::validate(&source).is_err());
         }
     }
 

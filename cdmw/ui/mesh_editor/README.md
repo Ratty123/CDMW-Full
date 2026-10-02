@@ -688,8 +688,9 @@ explicit. An empty variant assignment is retained. Detection works without a
 preview skeleton and does not change the mesh or its output.
 
 For example, a weapon ribbon can use **Spline** physics through its retained
-guides. Its influence controls remain available, but Cloth preview does not
-reproduce the spline solver. Detected source bindings and profiles describe
+guides. Supported ordered chains can play in a controlled spline preview, with
+stretch, bend and angular spring-back. This approximates game motion; it does
+not reproduce the game's spline solver. Detected source bindings and profiles describe
 authored data; they do not establish active in-game simulation, ordinary bone
 animation or runtime overrides. **No guide or jiggle bindings** therefore does
 not claim that a part can never move.
@@ -773,8 +774,24 @@ runtime profiles or layer/world collisions. Body contacts use an explicit previe
 admission rule and frictionless response. Area records are retained but inactive in the
 decoded normal-step path.
 
+Spline playback additionally requires complete, disjoint ordered guide chains,
+fixed roots and retained pair constraints on every chain edge. When every guide
+and render vertex across every stored LOD uses one rigid skeletal attachment,
+the editor can preview the spline without a PAB. **Standalone rigid attachment**
+means controlled model-root motion, not identification of an in-game socket.
+Edited or multiple skeletal attachments retain the matching-rig requirement.
+Body/appearance collision inputs and decoded bone jiggle require a matching rig;
+the standalone spline still offers an optional preview floor.
+
+**Spline preview settings** provides gravity, damping, stretch, bend, iterations,
+vertex-alpha blending and guide rotation. **Spring-back response** pulls the chain
+toward its animated source directions; zero disables that angular restoration.
+Spline rotation follows adjacent chain guides rather than cloth triangles.
+These controls are temporary preview settings. The chain projection, fixed preview
+clock, absent wind/water and runtime overrides are not game-equivalent physics.
+
 Initial overlap is corrected without adding launch velocity; moving bodies still
-transfer normal contact speed. Optional guide rotation uses its two-edge branch; this
+transfer normal contact speed. Optional cloth guide rotation uses its two-edge branch; this
 does not establish which branch the game selects. Headless controls and synthetic
 playback are tested. Packaged visual checks have exercised a Damiane body and two
 garments; game behavior and complete material fidelity remain unverified.
@@ -971,11 +988,16 @@ structure and preservation, not in-game activation, appearance or solver parity.
 
 ### Authored physics profiles
 
-In **Mesh Data > Cloth**, expand **Authored cloth profile** and choose a variant.
+In **Mesh Data > Cloth**, expand **Authored physics profile** and choose a variant.
 Assignments come from the exact captured PAC sidecar and profile catalogue,
 including explicit empty variants. The active in-game variant is not inferred.
 **Use profile in preview** loads supported settings after decoded stiffness
 conversion. Motion tests and preview sliders remain preview-only.
+Explicit spline profiles also load their simulation mode and converted
+`RestoreAngleStiffness`. Applying or restoring a saved edit refreshes a loaded
+profile for the same selected parts and variant. Changing selection or variant
+restores the previous manual preview values. Profile edits reset playback; press
+**Play preview** again to run with the updated values.
 Both the preview gravity control and raw profile gravity use negative values for
 downward acceleration and positive values for upward acceleration, from -100 to
 100. Loading a profile preserves that direction; restoring manual settings
@@ -996,7 +1018,7 @@ Expand **Edit profile for mod**, choose the shared assignment group if there is
 more than one, and choose a captured source profile. Each group lists every
 affected part; a shared owner changes as one unit. Empty variants can receive
 an explicit assignment through their existing owner. Tick the raw XML values to
-override: stretching/bending stiffness, damping, gravity, iteration count,
+override: stretching/bending stiffness, spring-back stiffness (`RestoreAngleStiffness`), damping, gravity, iteration count,
 vertex-alpha blending or guide rotation. Unticked values retain the source.
 Models whose variants are all empty do not provide a captured source template;
 profile authoring remains unavailable for those models.

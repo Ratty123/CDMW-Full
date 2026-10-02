@@ -13697,22 +13697,22 @@
       ]
     },
     {
-      "key": "Authored cloth profile",
-      "origins": [
-        {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs",
-          "line": 432,
-          "sink": "rust-presentation"
-        }
-      ]
-    },
-    {
       "key": "Authored cloth profiles",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 331,
           "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
+      "key": "Authored physics profile",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs",
+          "line": 473,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -26727,16 +26727,6 @@
       ]
     },
     {
-      "key": "Cloth preview does not reproduce the spline solver.",
-      "origins": [
-        {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs",
-          "line": 592,
-          "sink": "rust-presentation"
-        }
-      ]
-    },
-    {
       "key": "Cloth preview needs a decoded guide mesh.",
       "origins": [
         {
@@ -29083,6 +29073,16 @@
           "path": "cdmw/ui/settings_tab.py",
           "line": 700,
           "sink": "addRow"
+        }
+      ]
+    },
+    {
+      "key": "Controlled spline preview approximates game motion.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs",
+          "line": 640,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -33292,6 +33292,21 @@
       ]
     },
     {
+      "key": "Decoded bone motion needs a matching fixed-layout PAB skeleton.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 644,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 727,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Decoded bones",
       "origins": [
         {
@@ -33405,14 +33420,19 @@
       "key": "Decoded motion needs a matching fixed-layout PAB skeleton.",
       "origins": [
         {
-          "path": "cdmw/services/mesh_rust_jiggle.py",
-          "line": 35,
-          "sink": "python-return:_decoded_preview_state"
-        },
-        {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
-          "line": 593,
+          "line": 636,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Decoded motion needs a matching fixed-layout PAB skeleton. {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_jiggle.py",
+          "line": 55,
+          "sink": "ValueError"
         }
       ]
     },
@@ -41352,6 +41372,16 @@
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
           "line": 212,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Experimental ordered spline chains with stretch, bend and angular spring-back.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 610,
           "sink": "rust-presentation"
         }
       ]
@@ -63392,11 +63422,11 @@
       ]
     },
     {
-      "key": "Loads gravity, damping, stretch, bend, iterations, vertex alpha and supported guide rotation only.",
+      "key": "Loads gravity, damping, stretch, bend, spline spring-back, iterations, vertex alpha and supported guide rotation. Saved edits refresh a loaded profile.",
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs",
-          "line": 506,
+          "line": 554,
           "sink": "rust-presentation"
         }
       ]
@@ -97612,6 +97642,16 @@
       ]
     },
     {
+      "key": "Pulls the tail toward its original direction. Zero lets it hang freely; higher values make it return more strongly after a shake.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 565,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Pulse floor",
       "origins": [
         {
@@ -107288,6 +107328,16 @@
           "path": "cdmw/ui/new_item/panels_stats.py",
           "line": 133,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "RestoreAngleStiffness",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs",
+          "line": 358,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -123677,6 +123727,31 @@
       ]
     },
     {
+      "key": "Spline preview needs complete ordered guide chains with fixed roots.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs",
+          "line": 536,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 650,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Spline preview settings",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 553,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Split",
       "origins": [
         {
@@ -123703,6 +123778,36 @@
           "path": "cdmw/ui/archive_browser/static_replacement_mesh_edit_topology.py",
           "line": 291,
           "sink": "_mesh_edit_start_topology_worker"
+        }
+      ]
+    },
+    {
+      "key": "Spring-back response",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 564,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Spring-back stiffness",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs",
+          "line": 358,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Spring-back {value_0} → {value_1}",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs",
+          "line": 533,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -123928,6 +124033,46 @@
           "path": "cdmw/ui/archive_browser/extraction.py",
           "line": 408,
           "sink": "append_archive_log"
+        }
+      ]
+    },
+    {
+      "key": "Standalone rigid attachment has no matched body collision rig.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_jiggle.py",
+          "line": 74,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Standalone rigid attachment preview requires spline mode.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 655,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Standalone rigid attachment: motion drives the model root.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 547,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Standalone spline preview needs the source model's rigid attachment frame.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_jiggle.py",
+          "line": 47,
+          "sink": "ValueError"
         }
       ]
     },

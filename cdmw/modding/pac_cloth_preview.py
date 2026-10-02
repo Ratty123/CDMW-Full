@@ -14,6 +14,76 @@ from .pac_jiggle_skinning import prepare_jiggle_bone_skinning
 from .pac_cloth_preparation import prepare_guide_cloth_attachments
 
 
+def _spline_chains(guides):
+    """Admit complete, disjoint authored chains with a fixed first particle.
+
+    This is a controlled preview prerequisite, not recovered game admission.
+    A cloth's arbitrary groups must never be guessed into a spline topology.
+    """
+    chains = [list(group) for group in guides.groups_a if group]
+    pairs = {frozenset((a, b)) for a, b, c, d, tag in guides.constraint_records
+             if c == d == 0 and tag & 255 == 0}
+    seen = set()
+    for chain in chains:
+        if (len(chain) < 2 or any(index >= len(guides.vertices) for index in chain)
+                or len(set(chain)) != len(chain) or seen.intersection(chain)
+                or guides.channel_b[chain[0]] != 255):
+            return []
+        seen.update(chain)
+        if any(math.dist(guides.vertices[a], guides.vertices[b]) <= 1e-8
+               or frozenset((a, b)) not in pairs for a, b in zip(chain, chain[1:])):
+            return []
+    return chains if len(seen) == len(guides.vertices) else []
+
+
+def rigid_attachment_preview_rig(data: bytes, current_parts=(), *, spline_profile=False) -> dict:
+    """Explicit model-root motion for proven single-slot rigid spline sources.
+
+    Every stored render LOD and guide must use the same weighted palette slot.
+    Identity here is the user-controlled model frame, never a substitute PAB.
+    Unweighted source lanes still need a bounded palette for native decoding.
+    """
+    from .pac_cloth import pac_cloth_lods
+
+    guides = decode_pac_cloth_guides(data)
+    if guides is None or not _spline_chains(guides):
+        raise ValueError("Standalone spline preview needs complete ordered guides with fixed roots.")
+    if not guides.metadata_flags & 0x8000 and not spline_profile:
+        raise ValueError("Standalone preview requires a spline source or an explicit spline profile.")
+    weighted_slots, maximum_slot = set(), 0
+
+    def inspect(slots, weights):
+        nonlocal maximum_slot
+        if sum(weights) != 255:
+            raise ValueError("Standalone spline preview needs complete rigid skeletal weights.")
+        maximum_slot = max(maximum_slot, *slots)
+        weighted_slots.update(slot for slot, weight in zip(slots, weights) if weight)
+
+    for slots, weights in zip(guides.bone_indices, guides.bone_weight_bytes, strict=True):
+        inspect(slots, weights)
+    for level in pac_cloth_lods(data):
+        for part in level.submeshes:
+            for offset in part.source_vertex_offsets:
+                count = 6 if data[offset + 39] & 63 == 63 else 4
+                groups = struct.unpack_from("<2I", data, offset + 20)
+                slots = [(groups[i // 3] >> (10 * (i % 3))) & 1023 for i in range(count)]
+                inspect(slots, data[offset + 28:offset + 28 + count])
+    if len(weighted_slots) != 1:
+        raise ValueError("Standalone spline preview requires one rigid skeletal attachment across every LOD.")
+    slot = next(iter(weighted_slots))
+    for part in current_parts:
+        for slots, weights in zip(part.bone_indices, part.bone_weights, strict=True):
+            if (len(slots) != len(weights) or not slots or not any(weights)
+                    or any(not math.isfinite(weight) or weight < 0 for weight in weights)
+                    or any(type(index) is not int or not 0 <= index <= maximum_slot
+                           or (weight > 0 and index != slot) for index, weight in zip(slots, weights))):
+                raise ValueError("Standalone spline preview cannot use edited skeletal attachments.")
+    identity = [[float(i == j) for j in range(4)] for i in range(4)]
+    return {"bone_palette": [0] * (maximum_slot + 1), "parents": [-1],
+            "inverse_bind_matrices": [identity], "neutral_global_matrices": [identity],
+            "neutral_local_matrices": [identity]}
+
+
 def select_cloth_body_volumes(data: bytes, skeleton, *, body=None, head=None):
     """Prefer decoded model volumes; only an empty set permits rig defaults.
 
@@ -102,7 +172,8 @@ def build_cloth_body_collider_snapshot(skeleton, rig: dict, *, volumes=None) -> 
 def build_cloth_preview_snapshot(data: bytes, rig: dict) -> dict:
     """Retain decoded anchors/constraints in the resolved neutral rig's space.
 
-    The host must supply its validated matching PAB/PAC palette snapshot. Guide
+    The host supplies a matching PAB/PAC snapshot or a verified, explicitly
+    controlled rigid-attachment frame. Guide
     animation uses byte weights /255; CPU rest geometry uses normalized weights
     and its distinct full-16-bit positions. The native preview chooses its own
     clock, forces and iteration schedule; no active game material is inferred.
@@ -147,10 +218,15 @@ def build_cloth_preview_snapshot(data: bytes, rig: dict) -> dict:
     prepared = prepare_guide_cloth_attachments(
         guides, separate_components=True, use_vertex_alpha_position_blending=True,
         auto_weighting_enabled=False, particle_positions=cpu_positions)
+    chains = _spline_chains(guides)
+    posed_edges = {frozenset(row["indices"]) for row in constraints if row["kind"] == "pair" and row["rest"] > 0}
+    if any(frozenset((a, b)) not in posed_edges for chain in chains for a, b in zip(chain, chain[1:])):
+        chains = []  # Unsupported spline preparation must not reject ordinary cloth.
     return {
         "version": 1, "source_positions": [list(v) for v in guides.vertices],
         "animation_frames": frames, "fixed": [b == 255 for b in guides.channel_b],
         "alpha_blends": initial["position_blend_with_vertex_alpha"],
         "orientation_neighbors": prepared["orientation_neighbor_indices"],
         "constraints": constraints,
+        "spline_chains": chains,
     }

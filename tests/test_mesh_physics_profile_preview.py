@@ -49,6 +49,21 @@ def test_authored_coefficients_use_decoded_initial_conversion_and_packing(physic
     assert disabled["preview"]["stretch"] == disabled["preview"]["bend"] == 0
 
 
+def test_spline_profile_converts_spring_back_without_mutating_raw_xml(physics_inputs):
+    source, *_ = physics_inputs
+    document = _document(source, SimulationMode="spline", StretchingStiffness=".9",
+                         BendingStiffness="0", RestoreAngleStiffness=".025", UseRotationCorrection="1")
+    result = _profile_preview(document)
+    assert result['preview']['spline'] and result['preview']['single_edge_rotation']
+    assert result['preview']['rotate_guides']
+    assert 0 < result['preview']['restore_angle'] < .025
+    assert result['preview']['stretch'] > .5  # Spline avoids the cloth input cap.
+    assert result['authored']['restoreanglestiffness'] == '.025'
+    assert document.sha256 == hashlib.sha256(document.data).hexdigest()
+    for value in ('nan', '-.1', '1.1'):
+        assert _profile_preview(_document(source, SimulationMode='spline', RestoreAngleStiffness=value))['preview'] is None
+
+
 @pytest.mark.parametrize("overrides", [
     {"SimulationMode": "spline"}, {"SimulationMode": None}, {"Gravity": None},
     {"Gravity": "100.1"}, {"Gravity": "-100.1"}, {"Gravity": "nan"}, {"Gravity": "inf"},
