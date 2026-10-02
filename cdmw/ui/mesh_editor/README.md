@@ -876,6 +876,23 @@ Values are quantized; a weak source may have only one useful step.
 100% retains the source and 0% removes the byte-derived contribution. This cannot
 create bindings, amplify motion, or override runtime bone masks.
 
+With a matching source skeleton, the region selector lists its named bones. Choose
+a bone and use the same **Retain original %**, **Apply contribution** and
+**Disable jiggle** controls to change that region independently. All PAC palette
+slots belonging to that bone are handled together. Each vertex blends the regional
+amounts through its exported skin weights, including any weight reduction required
+by generated cloth guides. Mixed vertices can still receive contribution from
+other bones when one region is set to zero.
+
+**Use whole-part contribution** removes only the selected region's override. Existing
+whole-part height limits still apply to regional edits. Selecting **Whole selected
+parts** and applying an amount replaces the selected parts' regional overrides;
+**Restore original jiggle** there clears every contribution rule on those parts.
+Regional editing needs a matching skeleton to resolve bone names, while saved
+regional amounts can still export after draft recovery without that skeleton.
+Recovered drafts can also use the whole-part controls and restore their source
+contribution without reopening the original archive.
+
 **Disable jiggle** sets only the low four bits of zero-based byte 38 (`0x26`) to 15 in
 validated 40-byte PAC records. The upper four bits, colours, the separate cloth gate at
 byte 39, skinning, geometry and other bytes are retained. **Restore original jiggle**
@@ -885,8 +902,9 @@ lost before the source PAC was opened. Layouts without proven record ownership a
 LOD are rejected.
 
 Jiggle drafts use project/generation v7 and replacement payload v5 for disable-only
-rules or v6 for relative contributions; older drafts remain readable. Repeated
-adjustments start from the source, not the last result.
+rules, v6 for relative contributions or v15 for independent regional contributions;
+older drafts remain readable. Repeated adjustments start from the source, not the
+last result.
 
 #### Reported game evidence
 
@@ -930,10 +948,18 @@ remain available during playback.
 **Decoded bones** is the default and requires a matching fixed-layout PAB rig. It drives
 the recovered bone solver through the original hierarchy and retained PAC skinning
 records. **Bone solver settings** exposes linear/angular response, damping, speed limits
-and offset limits; Reset restores the decoded initialization values. Hover a setting for
-an explanation and a simple example. Higher decoded damping values retain more velocity
+and offset limits. Hover a setting for an explanation and a simple example.
+Higher decoded damping values retain more velocity
 (less braking); speed and offset limits only affect motion that reaches the limit.
 Angular settings are easiest to compare with Turning.
+
+The same region selector also scopes these eight settings. With a named bone
+selected, changes affect that bone while other bones keep their settings; **Reset
+bone settings** returns the selected bone to the shared preview values. With
+**Whole selected parts** selected, the controls change the shared defaults for the
+rig, keeping regional overrides. Reset there restores the decoded initialization
+values and clears all regional preview overrides. Changing the selected parts still
+controls which mesh parts are drawn; it does not remove bones from the solver.
 
 All eight settings take effect on the next simulation step, without reloading the rig.
 These are preview-only parameters, separate from byte 38. Rig reading and vertex
@@ -987,8 +1013,8 @@ clothing or the visible underlying body. Include the game build, exact input and
 output hashes, selected part and height with any regression report.
 
 `mesh_rust_jiggle.py` owns the command/state handoff, `domain/mesh/jiggle.py` the
-height rule, and `modding/pac_jiggle.py` the byte patch. The shared PAC LOD reader
-validates record ownership without requiring cloth bindings.
+height and weighted region rules, and `modding/pac_jiggle.py` the byte patch. The
+shared PAC LOD reader validates record ownership without requiring cloth bindings.
 
 ### Creating cloth guides on existing bones
 

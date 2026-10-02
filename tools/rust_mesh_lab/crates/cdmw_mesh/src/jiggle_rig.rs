@@ -230,7 +230,22 @@ impl Rig {
         previous: Option<&FrameOutput>,
         input: FrameInput<'_>,
     ) -> Result<FrameOutput> {
+        self.step_with_settings(previous, input, &BTreeMap::new())
+    }
+
+    /// Tool-side normal-profile overrides by original bone ordinal. The
+    /// unmodified step entry point retains the decoded shared-profile path.
+    pub fn step_with_settings(
+        &self,
+        previous: Option<&FrameOutput>,
+        input: FrameInput<'_>,
+        settings: &BTreeMap<u32, [f32; 8]>,
+    ) -> Result<FrameOutput> {
         let count = self.bone_count();
+        if settings.iter().any(|(index, values)| *index as usize >= count
+            || values.iter().any(|value| !value.is_finite() || *value < 0.0)) {
+            return Err("Jiggle settings require valid original bone indices and finite nonnegative values.");
+        }
         if input.character_space_scales.len() != count
             || previous
                 .is_some_and(|p| p.rig_identity != self.identity || p.bone_states.len() != count)
@@ -250,10 +265,16 @@ impl Rig {
         };
         for (index, pose) in poses.iter().enumerate() {
             let (animation, rounded) = packed_pose(pose)?;
+            let mut shader = *input.shader_data;
+            if let Some(values) = settings.get(&(index as u32)) {
+                for (i, value) in values.iter().enumerate() {
+                    shader[32 + i * 4..36 + i * 4].copy_from_slice(&value.to_le_bytes());
+                }
+            }
             let solved = jiggle_bones::step(jiggle_bones::StepInput {
                 previous_bone: previous.map(|states| &states.bone_states[index]),
                 command_bone: input.commands.get(&(index as u32)).unwrap_or(&[0; 116]),
-                shader_data: input.shader_data,
+                shader_data: &shader,
                 animation_matrix: &animation,
                 character_transform: input.character_transform,
                 view_position: input.view_position,

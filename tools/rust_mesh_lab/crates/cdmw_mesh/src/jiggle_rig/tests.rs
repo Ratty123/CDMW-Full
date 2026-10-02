@@ -54,6 +54,17 @@ fn run(
     commands: &BTreeMap<u32, [u8; 116]>,
     poses: &BTreeMap<u32, Matrix>,
 ) -> Result<FrameOutput> {
+    run_with_settings(rig, previous, frame, commands, poses, &BTreeMap::new())
+}
+
+fn run_with_settings(
+    rig: &Rig,
+    previous: Option<&FrameOutput>,
+    frame: u32,
+    commands: &BTreeMap<u32, [u8; 116]>,
+    poses: &BTreeMap<u32, Matrix>,
+    settings: &BTreeMap<u32, [f32; 8]>,
+) -> Result<FrameOutput> {
     let shader = packed(&[0.0, 1.0, 100.0, 100.0, 0.0, 1.0, 100.0, 100.0], 32);
     let identity: [u8; 64] = packed(
         &IDENTITY
@@ -66,7 +77,7 @@ fn run(
     let mut character = [0; 272];
     character[..64].copy_from_slice(&identity);
     character[192..256].copy_from_slice(&identity);
-    rig.step(
+    rig.step_with_settings(
         previous,
         FrameInput {
             shader_data: &shader,
@@ -81,7 +92,34 @@ fn run(
             local_pose_overrides: poses,
             commands,
         },
+        settings,
     )
+}
+
+#[test]
+fn regional_settings_change_only_the_requested_original_bone() {
+    let snapshot = snapshot();
+    let root = snapshot.neutral_local_matrices[0];
+    let rig = Rig::new(snapshot).unwrap();
+    let commands = BTreeMap::new();
+    let mut baseline = None;
+    let mut changed = None;
+    let overrides = BTreeMap::from([(1, [2.0, 0.7, 0.1, 0.01, 2.0, 0.7, 0.1, 0.01])]);
+    let mut differs = false;
+    for frame in 1..40 {
+        let poses = BTreeMap::from([(0, translated(root, 10.0, 20.0 + (f64::from(frame) * 0.4).sin()))]);
+        let original = run(&rig, baseline.as_ref(), frame, &commands, &poses).unwrap();
+        let adjusted = run_with_settings(&rig, changed.as_ref(), frame, &commands, &poses, &overrides).unwrap();
+        assert_eq!(original.bone_states[0], adjusted.bone_states[0]);
+        assert_eq!(original.skeletal_matrices, adjusted.skeletal_matrices);
+        differs |= original.bone_states[1] != adjusted.bone_states[1];
+        baseline = Some(original);
+        changed = Some(adjusted);
+    }
+    assert!(differs);
+    for settings in [BTreeMap::from([(99, [1.0; 8])]), BTreeMap::from([(1, [f32::NAN; 8])])] {
+        assert!(run_with_settings(&rig, baseline.as_ref(), 40, &commands, &BTreeMap::new(), &settings).is_err());
+    }
 }
 
 fn impulse() -> [u8; 116] {

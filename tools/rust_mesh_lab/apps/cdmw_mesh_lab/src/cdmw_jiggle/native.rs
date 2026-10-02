@@ -123,6 +123,25 @@ mod tests {
     }
 
     #[test]
+    fn decoded_jiggle_regional_overrides_match_the_shared_solver_and_can_be_cleared() {
+        let mut shared = simulation(true, vec![255, 240, 240]);
+        let mut regional = simulation(true, vec![255, 240, 240]);
+        let mut settings = Settings::default();
+        settings.values = [30.0, 0.25, 0.5, 0.02, 25.0, 0.4, 0.2, 0.01];
+        regional.bone_settings.insert(0, settings.values);
+        for step in 0..80 {
+            if step == 40 {
+                regional.bone_settings.clear();
+                settings = Settings::default();
+            }
+            shared.advance(STEP, jiggle::Motion::Turn, settings).unwrap();
+            regional.advance(STEP, jiggle::Motion::Turn, Settings::default()).unwrap();
+            assert_eq!(regional.positions, shared.positions);
+            assert_eq!(regional.frame.as_ref().unwrap().bone_states, shared.frame.as_ref().unwrap().bone_states);
+        }
+    }
+
+    #[test]
     fn decoded_jiggle_motion_uses_packed_contribution_and_changes_only_the_draw_copy() {
         let mut original = simulation(true, vec![240; 3]);
         let mut current = simulation(true, vec![255, 247, 240]);
@@ -439,6 +458,7 @@ pub(crate) fn prepare(
 
 #[derive(Debug)]
 pub(crate) struct Simulation {
+    pub bone_settings: BTreeMap<u32, [f32; 8]>,
     rig: Rig,
     binding: VertexBinding,
     roots: Vec<(u32, Matrix)>,
@@ -513,6 +533,7 @@ impl Simulation {
         put_floats(&mut character, 144, &max.to_array());
         let scales = vec![[1.0; 3]; rig.bone_count()];
         let mut result = Self {
+            bone_settings: BTreeMap::new(),
             rig,
             binding,
             roots,
@@ -625,7 +646,7 @@ impl Simulation {
         put_floats(&mut shader, 32, &settings.values);
         let frame = self
             .rig
-            .step(
+            .step_with_settings(
                 self.frame.as_ref(),
                 FrameInput {
                     shader_data: &shader,
@@ -640,6 +661,7 @@ impl Simulation {
                     local_pose_overrides: &poses,
                     commands: &BTreeMap::new(),
                 },
+                &self.bone_settings,
             )
             .map_err(anyhow::Error::msg)?;
         let wind_active = self.enabled && settings.wind.enabled;

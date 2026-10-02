@@ -151,6 +151,49 @@ def _decoded_preview_state(authoring, session, metadata, appearance, eligible):
     return dict(result)
 
 
+def _jiggle_bone_regions(session, metadata):
+    """Name exact source PAC slots; never mistake slot numbers for PAB bones."""
+    from cdmw.modding.mesh_parser import resolve_pac_bone_palette
+    skeleton = session.skeleton
+    cached = metadata.get("region_bones")
+    if cached is not None and cached[0] is skeleton:
+        return cached[1]
+    regions = []
+    if skeleton is not None and skeleton.parser_mode == "fixed":
+        try:
+            palette = resolve_pac_bone_palette(session.original_data, skeleton)
+        except ValueError:
+            palette = ()
+        grouped = {}
+        for slot, ordinal in enumerate(palette):
+            if slot > 1023:
+                grouped.clear()
+                break
+            if not 0 <= ordinal < len(skeleton.bones):
+                grouped.clear()
+                break
+            grouped.setdefault(ordinal, []).append(slot)
+        regions = [{"bone": ordinal, "name": skeleton.bones[ordinal].name, "slots": slots}
+                   for ordinal, slots in grouped.items()]
+    metadata["region_bones"] = (skeleton, regions)
+    return regions
+
+
+def _regional_preview_amount(rule, amounts, data, original, current, vertex, part_index):
+    """Use the same quantized skin weights that the PAC writer will publish."""
+    if (tuple(original.bone_indices[vertex]) == tuple(current.bone_indices[vertex])
+            and tuple(original.bone_weights[vertex]) == tuple(current.bone_weights[vertex])):
+        slots, weights = original.bone_indices[vertex], original.bone_weights[vertex]
+    else:
+        from cdmw.modding.mesh_skinning import patch_pac_vertex_skin
+        from cdmw.modding.mesh_parser import _decode_pac_skin_influences
+        offset = original.source_vertex_offsets[vertex]
+        record = bytearray(data[offset:offset + 40])
+        patch_pac_vertex_skin(record, current, vertex, part_index)
+        slots, weights = _decode_pac_skin_influences(record, 0)
+    return rule.contribution(slots, weights, amounts=amounts)
+
+
 def jiggle_ui_state(authoring, replacement):
     session = authoring.shadow_service._session(authoring.shadow_session_id)
     state = session.replacement_state
@@ -215,18 +258,27 @@ def jiggle_ui_state(authoring, replacement):
                 and current.source_vertex_offsets == original.source_vertex_offsets
                 and current.faces == original.faces):
             original_bytes = [data[offset + PAC_JIGGLE_OFFSET] for offset in original.source_vertex_offsets]
-            current_bytes = [reduce_pac_jiggle_byte(value, rule.retained)
+            generated = generated_parts[index] if generated_parts is not None else None
+            if generated is not None and (len(generated.vertices) != len(current.vertices) or generated.faces != current.faces):
+                overlay_parts.append({"index": part["index"], "preview": {"available": False}})
+                continue
+            amounts = dict(rule.bone_retained) if rule else {}
+            if amounts and (len(current.bone_indices) != len(current.vertices)
+                            or len(current.bone_weights) != len(current.vertices)):
+                raise ValueError("Regional jiggle requires complete retained skin weights.")
+            # Guide creation may reduce skin influences. Its composed output already
+            # includes jiggle rules evaluated against the final, quantized weights.
+            current_bytes = ([generated_data[offset + PAC_JIGGLE_OFFSET] for offset in generated.source_vertex_offsets]
+                             if generated is not None else [reduce_pac_jiggle_byte(value,
+                                _regional_preview_amount(rule, amounts, data, original, current, i, part["index"])
+                                if amounts else rule.retained)
                              if rule and (rule.below_y is None or current.vertices[i][1] < rule.below_y)
-                             else value for i, value in enumerate(original_bytes)]
+                             else value for i, value in enumerate(original_bytes)])
             candidates = [i for i, value in enumerate(original_bytes) if value & PAC_JIGGLE_MASK != PAC_JIGGLE_MASK]
             active = [i for i, value in enumerate(current_bytes) if value & PAC_JIGGLE_MASK != PAC_JIGGLE_MASK]
             original_cloth = [data[offset + 39] & 63 for offset in original.source_vertex_offsets]
             authored_cloth = original_cloth
-            if generated_parts is not None:
-                generated = generated_parts[index]
-                if len(generated.vertices) != len(current.vertices) or generated.faces != current.faces:
-                    overlay_parts.append({"index": part["index"], "preview": {"available": False}})
-                    continue
+            if generated is not None:
                 authored_cloth = [generated_data[offset + 39] & 63 for offset in generated.source_vertex_offsets]
             cloth_rule = binding.cloth if binding else None
             current_cloth = [cloth_rule.blend(value, metadata["source_heights"][index][i]) if cloth_rule else value
@@ -242,6 +294,7 @@ def jiggle_ui_state(authoring, replacement):
         parts.append({**part, **source, "rule": rule.to_dict() if rule else None, "preview": preview})
     reason = metadata["reason"] or ("This PAC has zero vertex jiggle contribution on every vertex." if not parts else "")
     return {"available": not reason, "reason": reason, "parts": parts,
+            "bone_regions": _jiggle_bone_regions(session, metadata),
             "overlay_parts": overlay_parts, "lod_count": metadata["lod_count"],
             "collision_inputs": {role: value[0] for role, value in authoring.cloth_collision_inputs.items()},
             "weapon_placement": ({key: authoring.cloth_collision_inputs["weapon"][1][key] for key in ("offset", "rotation")}
@@ -398,12 +451,39 @@ def set_jiggle_rule(authoring, snapshot, args, *, entry, dependencies, stop_even
     if not set(keys) <= available:
         raise ValueError("Choose included parts with editable jiggle data.")
     rule = None if reset else PacJiggleRule.from_dict(args.get("rule"))
+    slots = args.get("bone_slots")
+    if rule is not None and rule.bone_retained:
+        raise ValueError("Choose a named bone region before setting regional jiggle.")
+    if slots is not None:
+        available_slots = {slot for region in ui["bone_regions"] for slot in region["slots"]}
+        if (not isinstance(slots, (list, tuple)) or not slots or len(slots) > 4096
+                or any(type(slot) is not int or slot not in available_slots for slot in slots)
+                or len(set(slots)) != len(slots)):
+            raise ValueError("Choose a bone region from the matching source skeleton.")
+        if rule is not None and rule.below_y is not None:
+            raise ValueError("Regional edits keep the existing whole-part height limit.")
     state = snapshot.replacement_state or initial_replacement_state(snapshot, entry, dependencies)
-    parts = tuple(replace(part, jiggle=rule) if part.part_id in keys else part for part in state.parts)
+    def updated(part):
+        if part.part_id not in keys:
+            return part
+        if slots is None:
+            return replace(part, jiggle=rule)
+        base = part.jiggle or PacJiggleRule(None, 1.0)
+        amounts = dict(base.bone_retained)
+        for slot in slots:
+            if reset or rule.retained == base.retained:
+                amounts.pop(slot, None)
+            else:
+                amounts[slot] = rule.retained
+        result = replace(base, bone_retained=tuple(sorted(amounts.items())))
+        if result.retained == 1 and not result.bone_retained:
+            result = None
+        return replace(part, jiggle=result)
+    parts = tuple(updated(part) for part in state.parts)
     if parts == state.parts:
         return authoring.shadow_service.session_view(authoring.shadow_session_id)
     state = replace(state, parts=parts, revision=state.revision + 1)
     mesh = mesh_with_part_ids(snapshot, state)
+    label = ("Restore regional contribution" if slots is not None else "Restore original jiggle") if reset else "Set jiggle contribution"
     return commit_replacement(authoring.shadow_service, snapshot, mesh, state,
-                              label="Restore original jiggle" if reset else "Set jiggle contribution",
-                              stop_event=stop_event)
+                              label=label, stop_event=stop_event)

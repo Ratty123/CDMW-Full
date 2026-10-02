@@ -3,7 +3,7 @@ pub(crate) mod native;
 use super::*;
 use crate::cdmw_ui::{state_bool, state_str, state_u64};
 use cdmw_mesh::{Provenance, jiggle};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 const REGION_LOW: [f32; 4] = [0.05, 0.30, 0.85, 0.88];
 const REGION_HIGH: [f32; 4] = [1.00, 0.55, 0.05, 0.88];
@@ -44,6 +44,7 @@ pub(super) struct JiggleView {
     pub use_height: bool,
     pub height: f64,
     pub retained_percent: f64,
+    pub region_bone: Option<u32>,
     key: Value,
     pub preview: Preview,
 }
@@ -58,6 +59,7 @@ impl Default for JiggleView {
             use_height: true,
             height: 0.0,
             retained_percent: 50.0,
+            region_bone: None,
             key: Value::Null,
             preview: Preview::default(),
         }
@@ -87,6 +89,7 @@ pub(super) struct Preview {
     play_when_ready: bool,
     solver: Solver,
     native_settings: native::Settings,
+    pub(super) native_bone_settings: BTreeMap<u32, [f32; 8]>,
     pub(super) cloth_settings: cdmw_mesh::cloth::Settings,
     motion: jiggle::Motion,
     comparison: Comparison,
@@ -108,6 +111,7 @@ impl Default for Preview {
             play_when_ready: true,
             solver: Solver::default(),
             native_settings: native::Settings::default(),
+            native_bone_settings: BTreeMap::new(),
             cloth_settings: cdmw_mesh::cloth::Settings::default(),
             motion: jiggle::Motion::default(),
             comparison: Comparison::default(),
@@ -175,10 +179,13 @@ impl Simulation {
         match self { Self::Approximate(s) => s.elapsed, Self::Decoded(s) => s.elapsed, Self::Cloth(s) => s.elapsed }
     }
     fn advance(&mut self, seconds: f64, motion: jiggle::Motion, settings: jiggle::Settings, native: native::Settings,
-               cloth: cdmw_mesh::cloth::Settings) -> Result<()> {
+               cloth: cdmw_mesh::cloth::Settings, bone_settings: &BTreeMap<u32, [f32; 8]>) -> Result<()> {
         match self {
             Self::Approximate(s) => s.advance(seconds, motion, settings).map_err(anyhow::Error::msg),
-            Self::Decoded(s) => s.advance(seconds, motion, native),
+            Self::Decoded(s) => {
+                if &s.bone_settings != bone_settings { s.bone_settings.clone_from(bone_settings); }
+                s.advance(seconds, motion, native)
+            },
             Self::Cloth(s) => s.advance(seconds, motion, cloth),
         }
     }
@@ -287,8 +294,35 @@ impl LabApplication {
             return;
         }
         let ids: Vec<&str> = parts.iter().filter_map(|part| part["id"].as_str()).collect();
-        let key = json!([ids, parts.iter().map(|part| &part["rule"]).collect::<Vec<_>>()]);
-        let mixed = parts.iter().any(|part| part["rule"] != parts[0]["rule"]);
+        let regions = jiggle["bone_regions"].as_array().map(Vec::as_slice).unwrap_or(&[]);
+        if self.cdmw_jiggle.region_bone.is_some_and(|bone| !regions.iter().any(|r| r["bone"].as_u64() == Some(u64::from(bone)))) {
+            self.cdmw_jiggle.region_bone = None;
+        }
+        egui::ComboBox::from_id_salt("jiggle-contribution-region")
+            .selected_text(self.cdmw_jiggle.region_bone.and_then(|bone| regions.iter().find(|r| r["bone"].as_u64() == Some(u64::from(bone))))
+                .and_then(|r| r["name"].as_str()).map(str::to_owned)
+                .unwrap_or_else(|| crate::localization::tr("Whole selected parts")))
+            .show_ui(ui, |ui| {
+                ui.selectable_value(&mut self.cdmw_jiggle.region_bone, None, crate::localization::tr("Whole selected parts"));
+                for region in regions {
+                    if let (Some(bone), Some(name)) = (region["bone"].as_u64().and_then(|v| u32::try_from(v).ok()), region["name"].as_str()) {
+                        ui.selectable_value(&mut self.cdmw_jiggle.region_bone, Some(bone), name);
+                    }
+                }
+            }).response.on_hover_text(crate::localization::tr("Choose a bone to adjust its weighted region independently. Mixed skin weights blend neighbouring contributions smoothly."));
+        if regions.is_empty() {
+            ui.small(crate::localization::tr("Named regions need a matching source skeleton. Whole-part and height controls remain available."));
+        }
+        let slots = self.cdmw_jiggle.region_bone.and_then(|bone| regions.iter().find(|r| r["bone"].as_u64() == Some(u64::from(bone))))
+            .and_then(|r| r["slots"].as_array());
+        let region_values: Vec<f64> = slots.into_iter().flatten().flat_map(|slot| parts.iter().map(move |part| {
+            let rule = &part["rule"];
+            rule["bone_retained"].as_array().and_then(|rows| rows.iter().find(|row| row[0] == *slot))
+                .and_then(|row| row[1].as_f64()).unwrap_or_else(|| if rule.is_null() { 1.0 } else { rule["retained"].as_f64().unwrap_or(0.0) })
+        })).collect();
+        let key = json!([ids, parts.iter().map(|part| &part["rule"]).collect::<Vec<_>>(), self.cdmw_jiggle.region_bone]);
+        let mixed = if slots.is_some() { region_values.iter().any(|v| *v != region_values[0]) }
+            else { parts.iter().any(|part| part["rule"] != parts[0]["rule"]) };
         let min_y = parts.iter().filter_map(|part| part["min_y"].as_f64()).fold(f64::INFINITY, f64::min);
         let max_y = parts.iter().filter_map(|part| part["max_y"].as_f64()).fold(f64::NEG_INFINITY, f64::max);
         if key != self.cdmw_jiggle.key {
@@ -296,15 +330,22 @@ impl LabApplication {
             let rule = if mixed { &Value::Null } else { &parts[0]["rule"] };
             self.cdmw_jiggle.use_height = rule.is_null() || rule["below_y"].as_f64().is_some();
             self.cdmw_jiggle.height = rule["below_y"].as_f64().unwrap_or((min_y + max_y) * 0.5);
-            self.cdmw_jiggle.retained_percent = if rule.is_null() { 50.0 }
+            self.cdmw_jiggle.retained_percent = if slots.is_some() && !mixed { region_values.first().copied().unwrap_or(1.0) * 100.0 }
+                else if rule.is_null() { 50.0 }
                 else { rule["retained"].as_f64().unwrap_or(0.0) * 100.0 };
         }
         ui.small(format!("{} parts · applies to all {} LODs", parts.len(), state_u64(&jiggle, "lod_count")));
         if mixed {
-            ui.small("Mixed saved settings. Applying a change replaces them for these parts.");
+            ui.small(crate::localization::tr(if slots.is_some() {
+                "Mixed regional amounts. Applying a change replaces only this bone's contribution on these parts."
+            } else { "Mixed saved settings. Applying a change replaces them for these parts." }));
         }
-        ui.checkbox(&mut self.cdmw_jiggle.use_height, "Only below height");
-        if self.cdmw_jiggle.use_height {
+        if slots.is_some() {
+            ui.small(crate::localization::tr("Adjusts this bone's region while keeping other regional settings. Existing whole-part height limits still apply."));
+        } else {
+            ui.checkbox(&mut self.cdmw_jiggle.use_height, "Only below height");
+        }
+        if self.cdmw_jiggle.use_height && slots.is_none() {
             ui.horizontal(|ui| {
                 ui.label("Below Y");
                 ui.add(crate::cdmw_ui::numeric::value(&mut self.cdmw_jiggle.height).speed(0.01));
@@ -315,7 +356,16 @@ impl LabApplication {
         let relative_available = parts.iter().all(|part| state_bool(part, "relative_available"));
         ui.add_enabled(relative_available, crate::cdmw_ui::numeric::slider(&mut self.cdmw_jiggle.retained_percent, 0.0..=100.0)
             .text("Retain original %"));
-        ui.small("Rounded to available byte steps. 100% keeps the source; 0% removes the vertex contribution.");
+        ui.small(crate::localization::tr(if slots.is_some() {
+            "Rounded to available byte steps. 0% removes this bone's share; other bones can still contribute."
+        } else { "Rounded to available byte steps. 100% keeps the source; 0% removes the vertex contribution." }));
+        if slots.is_none() && parts.iter().any(|p| p["rule"]["bone_retained"].as_array().is_some_and(|r| !r.is_empty())) {
+            ui.small(crate::localization::tr("Regional contributions are saved. Applying a whole-part amount replaces those regional settings."));
+        }
+        let regional_arguments = |mut arguments: Value| {
+            if let Some(slots) = slots { arguments["bone_slots"] = json!(slots); }
+            arguments
+        };
         if !relative_available {
             ui.small("This source encoding supports Disable / Restore only.");
         }
@@ -323,27 +373,28 @@ impl LabApplication {
             if ui.add_enabled(relative_available, egui::Button::new("Apply contribution")).clicked() {
                 actions.push(UiAction::CdmwCommand {
                     command: "replacement_jiggle",
-                    arguments: json!({"part_ids": ids, "rule": {
-                        "below_y": self.cdmw_jiggle.use_height.then_some(self.cdmw_jiggle.height),
+                    arguments: regional_arguments(json!({"part_ids": ids, "rule": {
+                        "below_y": (slots.is_none() && self.cdmw_jiggle.use_height).then_some(self.cdmw_jiggle.height),
                         "retained": self.cdmw_jiggle.retained_percent / 100.0
-                    }}),
+                    }})),
                     label: "Set jiggle contribution",
                 });
             }
             if ui.button("Disable jiggle").clicked() {
                 actions.push(UiAction::CdmwCommand {
                     command: "replacement_jiggle",
-                    arguments: json!({"part_ids": ids, "rule": {
-                        "below_y": self.cdmw_jiggle.use_height.then_some(self.cdmw_jiggle.height)
-                    }}),
+                    arguments: regional_arguments(json!({"part_ids": ids, "rule": {
+                        "below_y": (slots.is_none() && self.cdmw_jiggle.use_height).then_some(self.cdmw_jiggle.height)
+                    }})),
                     label: "Disable jiggle",
                 });
             }
-            if ui.add_enabled(parts.iter().any(|part| !part["rule"].is_null()), egui::Button::new("Restore original jiggle")).clicked() {
+            if ui.add_enabled(parts.iter().any(|part| !part["rule"].is_null()), egui::Button::new(
+                if slots.is_some() { crate::localization::tr("Use whole-part contribution") } else { crate::localization::tr("Restore original jiggle") })).clicked() {
                 actions.push(UiAction::CdmwCommand {
                     command: "replacement_jiggle",
-                    arguments: json!({"part_ids": ids, "reset": true}),
-                    label: "Restore original jiggle",
+                    arguments: regional_arguments(json!({"part_ids": ids, "reset": true})),
+                    label: if slots.is_some() { "Restore regional contribution" } else { "Restore original jiggle" },
                 });
             }
         });
@@ -496,6 +547,11 @@ impl LabApplication {
         let mut changed = false;
         let mut show_shapes_changed = false;
         let preview = &mut self.cdmw_jiggle.preview;
+        // Bone ordinals are meaningful only in the currently resolved rig.
+        if !cloth {
+            preview.native_bone_settings.retain(|bone, _| self.cdmw_state["jiggle"]["bone_regions"].as_array()
+                .is_some_and(|regions| regions.iter().any(|r| r["bone"].as_u64() == Some(u64::from(*bone)))));
+        }
         if !cloth { ui.horizontal_wrapped(|ui| {
             for (solver, label) in [(Solver::Decoded, "Decoded bones"), (Solver::Approximate, "Approximate vertices")] {
                 if ui.add(egui::Button::new(label).selected(preview.solver == solver)).clicked() && preview.solver != solver {
@@ -548,11 +604,35 @@ impl LabApplication {
         });
         if preview.solver == Solver::Decoded {
             ui.collapsing("Bone solver settings", |ui| {
-                for (index, (label, max, help)) in BONE_SETTINGS.into_iter().enumerate() {
-                    ui.add(crate::cdmw_ui::numeric::slider(&mut preview.native_settings.values[index], 0.0..=max).text(label))
-                        .on_hover_text(crate::localization::tr(help));
+                let bone = self.cdmw_jiggle.region_bone;
+                ui.small(crate::localization::tr(if bone.is_some() {
+                    "Preview settings for the selected bone region. Other bones keep their own settings. These values are not exported."
+                } else {
+                    "Shared preview settings. Regional overrides are retained; Reset bone settings clears them. These values are not exported."
+                }));
+                if !preview.native_bone_settings.is_empty() {
+                    ui.small(crate::localization::tr(format!("{} bones have independent preview settings.", preview.native_bone_settings.len())));
                 }
-                if ui.button("Reset bone settings").clicked() { preview.native_settings.values = native::Settings::default().values; }
+                let mut values = bone.and_then(|index| preview.native_bone_settings.get(&index).copied())
+                    .unwrap_or(preview.native_settings.values);
+                let mut edited = false;
+                for (index, (label, max, help)) in BONE_SETTINGS.into_iter().enumerate() {
+                    edited |= ui.add(crate::cdmw_ui::numeric::slider(&mut values[index], 0.0..=max).text(label))
+                        .on_hover_text(crate::localization::tr(help)).changed();
+                }
+                if edited {
+                    if let Some(bone) = bone {
+                        if values == preview.native_settings.values { preview.native_bone_settings.remove(&bone); }
+                        else { preview.native_bone_settings.insert(bone, values); }
+                    } else { preview.native_settings.values = values; }
+                }
+                if ui.button("Reset bone settings").clicked() {
+                    if let Some(bone) = bone { preview.native_bone_settings.remove(&bone); }
+                    else {
+                        preview.native_settings.values = native::Settings::default().values;
+                        preview.native_bone_settings.clear();
+                    }
+                }
             });
             ui.collapsing("Wind preview", |ui| {
                 let wind = &mut preview.native_settings.wind;
@@ -991,7 +1071,7 @@ impl LabApplication {
         if preview.playing {
             scene
                 .simulation
-                .advance(seconds, preview.motion, preview.settings, preview.native_settings, preview.cloth_settings)?;
+                .advance(seconds, preview.motion, preview.settings, preview.native_settings, preview.cloth_settings, &preview.native_bone_settings)?;
         }
         // Pausing/camera movement does not need a new geometry upload.
         if scene.tick > 0 && scene.simulation.elapsed() == before && scene.centred == preview.keep_centred {

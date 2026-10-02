@@ -42,12 +42,18 @@ def apply_pac_jiggle_rules(data: bytes, rules: Mapping[int, PacJiggleRule], *, a
         displayed = appearance.to_neutral(level) if appearance is not None else level
         for index, rule in rules.items():
             part = level.submeshes[index]
-            for position, offset in zip(displayed.submeshes[index].vertices,
-                                        part.source_vertex_offsets, strict=True):
+            amounts = dict(rule.bone_retained)
+            if rule.bone_retained and (len(part.bone_indices) != len(part.vertices)
+                                      or len(part.bone_weights) != len(part.vertices)):
+                raise ValueError("Regional jiggle requires complete skin weights at every LOD.")
+            for vertex, (position, offset) in enumerate(zip(displayed.submeshes[index].vertices,
+                                        part.source_vertex_offsets, strict=True)):
                 if not math.isfinite(position[1]):
                     raise ValueError("Jiggle selection requires finite vertex heights.")
                 if rule.below_y is None or position[1] < rule.below_y:
                     result[offset + PAC_JIGGLE_OFFSET] = reduce_pac_jiggle_byte(
-                        data[offset + PAC_JIGGLE_OFFSET], rule.retained,
+                        data[offset + PAC_JIGGLE_OFFSET],
+                        rule.contribution(part.bone_indices[vertex], part.bone_weights[vertex], amounts=amounts)
+                        if rule.bone_retained else rule.retained,
                     )
     return bytes(result)

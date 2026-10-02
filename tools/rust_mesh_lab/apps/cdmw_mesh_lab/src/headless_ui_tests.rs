@@ -4397,6 +4397,46 @@ fn integrated_cloth_controls_apply_boundary_disable_and_restore() -> TestResult 
 }
 
 #[test]
+fn integrated_jiggle_independent_regions_reuse_contribution_and_solver_controls() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?, egui::vec2(1440.0, 1800.0));
+    ui.application.cdmw_state["jiggle"] = json!({
+        "available": true, "reason": "", "lod_count": 4,
+        "bone_regions": [{"bone": 3, "name": "Chest_L", "slots": [0, 2]},
+                         {"bone": 7, "name": "Chest_R", "slots": [1, 3]}],
+        "parts": [{"index": 0, "id": "body:0", "included": true, "relative_available": true,
+            "min_y": 0.0, "max_y": 2.0, "rule": {"below_y": null, "retained": 1.0,
+                "bone_retained": [[0, 0.25], [2, 0.25], [1, 0.75], [3, 0.75]]}}]
+    });
+    ui.click_tool_button("Jiggle")?;
+    ui.click("Selected parts")?;
+    ui.click("Whole selected parts")?;
+    ui.click("Chest_L")?;
+    ui.settle_layout();
+    assert_eq!(ui.application.cdmw_jiggle.retained_percent, 25.0);
+    assert!(ui.label_rect("Only below height").is_none());
+    let actions = ui.actions_from_click("Apply contribution")?;
+    assert!(actions.iter().any(|a| matches!(a, UiAction::CdmwCommand { command: "replacement_jiggle", arguments, .. }
+        if arguments == &json!({"part_ids": ["body:0"], "bone_slots": [0, 2], "rule": {"below_y": null, "retained": 0.25}}))));
+    let actions = ui.actions_from_click("Use whole-part contribution")?;
+    assert!(actions.iter().any(|a| matches!(a, UiAction::CdmwCommand { command: "replacement_jiggle", arguments, .. }
+        if arguments == &json!({"part_ids": ["body:0"], "bone_slots": [0, 2], "reset": true}))));
+    ui.click("Bone solver settings")?;
+    ui.type_number_in_row("Linear response", 680.0, "30")?;
+    assert_eq!(ui.application.cdmw_jiggle.preview.native_bone_settings[&3][0], 30.0);
+    ui.click("Chest_L")?;
+    ui.click("Chest_R")?;
+    ui.settle_layout();
+    assert_eq!(ui.application.cdmw_jiggle.retained_percent, 75.0);
+    ui.type_number_in_row("Linear response", 680.0, "50")?;
+    assert_eq!(ui.application.cdmw_jiggle.preview.native_bone_settings[&7][0], 50.0);
+    ui.click("Reset bone settings")?;
+    assert!(!ui.application.cdmw_jiggle.preview.native_bone_settings.contains_key(&7));
+    assert_eq!(ui.application.cdmw_jiggle.preview.native_bone_settings[&3][0], 30.0);
+    Ok(())
+}
+
+#[test]
 fn integrated_jiggle_controls_limit_height_disable_and_restore_without_cloth() -> TestResult {
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
         triangle_application()?,

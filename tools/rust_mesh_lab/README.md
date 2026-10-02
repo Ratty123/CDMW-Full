@@ -323,7 +323,13 @@ bindings.
 Results carry a request generation and geometry revision; source changes/reset cancel
 preparation, and failures preserve the previous usable frame. Playback has no file or
 Python work. Eight preview-only solver parameters control linear/angular response,
-damping and limits, starting at decoded initialization values. A repeatable 60 Hz
+damping and limits, starting at decoded initialization values. The preview
+can use independent settings for each original bone ordinal through the
+existing Jiggle region selector; the same eight controls edit either the selected
+bone or the shared defaults. Regional preview overrides stay in memory and do not
+enter PAC output, drafts or Undo/Redo. The separate contribution percentage uses
+verified PAC palette slots, blends through final skin weights, and is retained in
+replacement draft v15 when regional overrides exist. A repeatable 60 Hz
 root-pose test supplies up/down, start/stop and turning motion. The default **Keep model
 centred** view removes only the rigid test transform from draw positions and normals;
 the solver retains the full motion. Freehand and guide cloth use the same display

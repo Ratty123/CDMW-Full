@@ -46,6 +46,7 @@ def save_replacement_state(state, project_root, generation_dir, stop_event=None)
         return {"path": file.path, "data": blob(file.data), "archive_location": file.archive_location}
 
     relative_jiggle = any(part.jiggle is not None and part.jiggle.retained for part in state.parts)
+    regional_jiggle = any(part.jiggle is not None and part.jiggle.bone_retained for part in state.parts)
     physics_profiles = any(part.physics_profiles for part in state.parts)
     translucent = any(part.translucency is not None for part in state.parts)
     guides = any(part.cloth_guides is not None for part in state.parts)
@@ -53,7 +54,7 @@ def save_replacement_state(state, project_root, generation_dir, stop_event=None)
     if sum(len(part.excluded_island_faces) for part in state.parts) > 4_000_000:
         raise ValueError("Replacement draft island masks exceed the face limit.")
     return {
-        "version": (14 if state.weapon_collisions else 13 if islands else 12 if any(part.shader_controls is not None for part in state.parts) else 11 if any(part.emission is not None for part in state.parts) else 10 if any(part.translucency_surface is not None for part in state.parts) else 9 if guides else 8 if translucent else
+        "version": (15 if regional_jiggle else 14 if state.weapon_collisions else 13 if islands else 12 if any(part.shader_controls is not None for part in state.parts) else 11 if any(part.emission is not None for part in state.parts) else 10 if any(part.translucency_surface is not None for part in state.parts) else 9 if guides else 8 if translucent else
                     7 if physics_profiles else 6 if relative_jiggle else
                     5 if any(part.jiggle is not None for part in state.parts) else
                     4 if any(part.cloth is not None for part in state.parts) else
@@ -78,7 +79,7 @@ def save_replacement_state(state, project_root, generation_dir, stop_event=None)
                    **({"excluded_island_faces": list(part.excluded_island_faces)} if part.excluded_island_faces else {}),
                    **({"translucency_surface": list(part.translucency_surface)} if part.translucency_surface is not None else {}),
                    **({"jiggle": {**part.jiggle.to_dict(),
-                                  **({"retained": part.jiggle.retained} if state.weapon_collisions or islands or relative_jiggle or physics_profiles or translucent or guides or any(p.emission is not None or p.shader_controls is not None for p in state.parts) else {})}}
+                                  **({"retained": part.jiggle.retained} if regional_jiggle or state.weapon_collisions or islands or relative_jiggle or physics_profiles or translucent or guides or any(p.emission is not None or p.shader_controls is not None for p in state.parts) else {})}}
                       if part.jiggle is not None else {})}
                   for part in state.parts],
         "dependencies": [file_payload(file) for file in state.dependencies],
@@ -97,7 +98,7 @@ def load_replacement_state(payload, project_root):
 def _load_replacement_state(payload, project_root):
     if payload is None:
         return None
-    if (not isinstance(payload, dict) or payload.get("version") not in {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14}
+    if (not isinstance(payload, dict) or payload.get("version") not in {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
             or (payload["version"] < 3 and ("neutral_appearance" in payload or "neutral_coordinates" in payload))):
         raise ValueError("Unsupported replacement draft state.")
     weapon_collisions = payload.get("weapon_collisions", False)
@@ -165,6 +166,8 @@ def _load_replacement_state(payload, project_root):
         if surface is not None and translucency is None:
             raise ValueError("Surface overrides require translucency on the same part.")
         jiggle = PacJiggleRule.from_dict(value["jiggle"]) if "jiggle" in value else None
+        if payload["version"] < 15 and jiggle is not None and jiggle.bone_retained:
+            raise ValueError("Regional jiggle settings require replacement draft version 15.")
         profiles = value.get("physics_profiles", [])
         if (not isinstance(profiles, list) or len(profiles) > 256
                 or ("physics_profiles" in value and payload["version"] < 7)):
@@ -209,6 +212,8 @@ def _load_replacement_state(payload, project_root):
         parts.append(ReplacementPart(str(value["part_id"]), int(value["target_index"]),
             tuple(str(v) for v in value["source_part_ids"]), value["included"],
             value["material_choice"], str(value["source_label"]), positions, normals, cloth, jiggle, profiles, translucency, guides, surface, emission, controls, tuple(excluded_faces)))
+    if payload["version"] == 15 and not any(part.jiggle is not None and part.jiggle.bone_retained for part in parts):
+        raise ValueError("Regional jiggle draft has no regional contribution settings.")
     if payload["version"] == 13 and not any(part.excluded_island_faces for part in parts):
         raise ValueError("Island draft has no excluded faces.")
     if payload["version"] == 12 and not any(part.shader_controls is not None for part in parts):
