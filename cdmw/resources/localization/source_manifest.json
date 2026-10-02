@@ -40567,6 +40567,26 @@
       ]
     },
     {
+      "key": "Evidence kept for 90 days",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 398,
+          "sink": "_muted_label"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 418,
+          "sink": "_muted_label"
+        },
+        {
+          "path": "cdmw/ui/shell/problem_report_dialog.py",
+          "line": 875,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Evidence: {value_0}",
       "origins": [
         {
@@ -96377,16 +96397,6 @@
       ]
     },
     {
-      "key": "Private inbox",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 194,
-          "sink": "_muted_label"
-        }
-      ]
-    },
-    {
       "key": "Probe texture",
       "origins": [
         {
@@ -107193,26 +107203,6 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
           "line": 1019,
           "sink": "rust-presentation"
-        }
-      ]
-    },
-    {
-      "key": "Restricted GitHub inbox · evidence kept for 90 days",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 401,
-          "sink": "_muted_label"
-        },
-        {
-          "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 421,
-          "sink": "_muted_label"
-        },
-        {
-          "path": "cdmw/ui/shell/problem_report_dialog.py",
-          "line": 878,
-          "sink": "setText"
         }
       ]
     },

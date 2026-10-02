@@ -22,7 +22,7 @@ from PySide6.QtCore import QPoint, QSignalBlocker, QUrl, Qt
 from PySide6.QtGui import QIcon
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import (
-    QApplication, QComboBox, QMainWindow, QStyle, QStyleFactory, QStyleOptionComboBox, QToolTip,
+    QApplication, QComboBox, QLabel, QMainWindow, QStyle, QStyleFactory, QStyleOptionComboBox, QToolTip,
 )
 
 from cdmw.domain.cancellation import RunCancelled
@@ -503,19 +503,18 @@ def test_reporting_explains_repository_access_and_per_report_evidence_links(tmp_
     dialog = ProblemReportDialog(snapshot(tmp_path))
     try:
         assert REPORT_ENDPOINT == "https://cdmw-reports.cdmw-workbench.workers.dev/reports"
-        assert "Restricted GitHub inbox" in dialog.destination.text()
+        assert not any("inbox" in label.text().casefold() for label in dialog.findChildren(QLabel))
+        assert dialog.destination.text() == "Evidence kept for 90 days"
         assert dialog.destination.toolTip() == REPORT_DESTINATION
         assert "maintainer and invited repository collaborators" in REPORT_DESTINATION
         assert "Anyone with the complete evidence link" in REPORT_DESTINATION
         dialog._privacy_help.click()
         assert QToolTip.text() == REPORT_DESTINATION
         QToolTip.hideText()
-        fill_form(dialog)
-        dialog._collect()
-        wait_until(lambda:dialog._collection is None)
+        dialog._reviewed = collect_problem_report(ProblemReportRequest(details(), snapshot(tmp_path)))
         dialog._receipt = "Report reference 123"
         dialog._show_receipt()
-        assert "Restricted GitHub inbox" in dialog.receipt_detail.text()
+        assert dialog.receipt_detail.text() == "Evidence kept for 90 days"
         assert dialog.receipt_detail.toolTip() == REPORT_DESTINATION
     finally:
         dialog.close()
