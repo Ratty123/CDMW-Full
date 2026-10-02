@@ -482,6 +482,63 @@ mod profiles {
     }
 }
 
+#[test]
+fn physics_detection_shows_spline_evidence_without_a_preview_rig() -> TestResult {
+    let (_root, mut ui, _) = fixture()?;
+    let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
+    ui.application.cdmw_state["physics"] = json!({"parts": [{
+        "index": 0, "name": "Sword tail", "kind": "spline", "mode_source": "profile",
+        "guide_counts": [330, 120, 40, 10], "vertex_counts": [870, 300, 100, 30],
+        "jiggle_counts": [0, 0, 0, 0], "current_guide_count": 0,
+        "guides": {"status": "available", "guide_count": 6, "fixed_count": 1},
+        "profiles": [{"variant": "0", "profile": "WeaponSpline", "mode": "spline"}],
+        "preview_reason": "spline_preview_approximate"
+    }]});
+    ui.application.cdmw_state["jiggle"]["decoded"] = json!({"available": false, "reason": "No matching rig."});
+    ui.application.handle_actions(vec![UiAction::SetPartSelection(vec![0])]);
+    ui.application.cdmw_pending_request = None; // Selection itself sends a host command.
+    ui.settle_layout();
+    ui.reveal("Physics: Spline")?;
+    ui.reveal("330 / 870 source vertices use guides")?;
+    ui.reveal("Guide vertices by LOD: 330 / 120 / 40 / 10")?;
+    ui.reveal("Guides: 6 · fixed anchors: 1")?;
+    ui.reveal("Current edit: 0 guide vertices")?;
+    ui.reveal("Variant 0: WeaponSpline (spline)")?;
+    ui.reveal("Cloth preview does not reproduce the spline solver.")?;
+    assert!(ui.label_rect("Spline").is_some()); // The Parts row has a badge too.
+    ui.application.cdmw_state["physics"]["parts"][0]["jiggle_counts"] = json!([12, 6, 3, 1]);
+    ui.settle_layout();
+    ui.reveal("Physics: Spline + jiggle")?;
+    ui.reveal("12 / 870 source vertices have jiggle contribution")?;
+    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
+    assert!(ui.application.cdmw_jiggle.preview.scene.is_none());
+    assert!(ui.application.cdmw_pending_request.is_none());
+    Ok(())
+}
+
+#[test]
+fn physics_detection_keeps_unknown_guides_distinct_from_no_bindings() -> TestResult {
+    let (_root, mut ui, _) = fixture()?;
+    ui.application.cdmw_state["physics"] = json!({"parts": [{
+        "index": 0, "name": "Tail", "kind": "guide", "guide_counts": [2, 2, 2, 2],
+        "vertex_counts": [3, 3, 3, 3], "jiggle_counts": [0, 0, 0, 0],
+        "guides": {"status": "unsupported"}, "reason": "Unknown guide layout"
+    }]});
+    ui.application.handle_actions(vec![UiAction::SetPartSelection(vec![0])]);
+    ui.settle_layout();
+    ui.reveal("Physics: Guide bindings")?;
+    ui.reveal("Unknown guide layout")?;
+    assert!(ui.label_rect("Physics: Spline").is_none());
+    ui.application.cdmw_state["physics"]["parts"][0]["kind"] = json!("none");
+    ui.application.cdmw_state["physics"]["parts"][0]["guide_counts"] = json!([0, 0, 0, 0]);
+    ui.application.cdmw_state["physics"]["parts"][0]["reason"] = json!("");
+    ui.settle_layout();
+    ui.reveal("Physics: No guide or jiggle bindings")?;
+    assert!(ui.label_rect("Physics: Guide bindings").is_none());
+    assert!(ui.label_rect("Unknown guide layout").is_none());
+    Ok(())
+}
+
 fn fixture() -> Result<(tempfile::TempDir, HeadlessUi, Vec<u8>), Box<dyn std::error::Error>> {
     let root = tempdir()?;
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(

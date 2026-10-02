@@ -4209,10 +4209,21 @@ impl LabApplication {
                                 }
                         }
                         let active = selected.contains(index);
+                        let physics = self.cdmw_state["physics"]["parts"].as_array()
+                            .and_then(|rows| rows.iter().find(|part| part["index"].as_u64() == Some(u64::from(*index))));
+                        let mut help = crate::localization::tr(format!("{index}: {name}\nMaterial: {material}"));
+                        if let Some(physics) = physics {
+                            let evidence = crate::cdmw_cloth::physics_lines(physics).join("\n");
+                            help.push('\n');
+                            help.push_str(&evidence);
+                            if physics["kind"] != "none" {
+                                ui.weak(crate::cdmw_cloth::physics_badge(physics)).on_hover_text(&evidence);
+                            }
+                        }
                         let row = ui.add_enabled(shown && in_visible_layer,
                             Button::selectable(active, crate::localization::tr(format!("{index}: {name}"))).truncate());
-                        if row.on_hover_text(crate::localization::tr(format!("{index}: {name}\nMaterial: {material}")))
-                            .on_disabled_hover_text(crate::localization::tr(format!("{index}: {name}\nMaterial: {material}\nShow this part to select it")))
+                        if row.on_hover_text(&help)
+                            .on_disabled_hover_text(format!("{}\n{}", help, crate::localization::tr("Show this part to select it")))
                             .clicked() {
                             let mut updated = selected.clone();
                             if active { updated.retain(|value| value != index); }
@@ -4243,6 +4254,7 @@ impl LabApplication {
                 }
             });
         });
+        self.draw_cdmw_physics_detection(ui, &selected);
         if busy {
             ui.small(crate::localization::tr("Updating parts…"));
         } else if state_str(&self.cdmw_state, "output_policy") != Some("free_edit_rebuild") {

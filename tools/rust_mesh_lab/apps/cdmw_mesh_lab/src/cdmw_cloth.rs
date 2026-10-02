@@ -513,6 +513,90 @@ pub(super) mod profiles {
 use super::*;
 use crate::cdmw_ui::{state_bool, state_str, state_u64};
 
+pub(super) fn physics_badge(part: &Value) -> String {
+    let label = match part["kind"].as_str() {
+        Some("spline") => crate::localization::tr("Spline"),
+        Some("cloth") => crate::localization::tr("Cloth"),
+        Some("guide") => crate::localization::tr("Guide bindings"),
+        Some("jiggle") => crate::localization::tr("Jiggle contribution"),
+        Some("none") => crate::localization::tr("No guide or jiggle bindings"),
+        _ => crate::localization::tr("Unknown physics"),
+    };
+    if part["kind"] != "jiggle"
+        && part["jiggle_counts"].as_array().is_some_and(|counts| {
+            counts.iter().any(|count| count.as_u64().is_some_and(|value| value > 0))
+        })
+    {
+        crate::localization::tr(format!("{} + jiggle", label))
+    } else {
+        label
+    }
+}
+
+pub(super) fn physics_lines(part: &Value) -> Vec<String> {
+    let mut lines = vec![crate::localization::tr(format!("Physics: {}", physics_badge(part)))];
+    let guides = part["guide_counts"].as_array();
+    let vertices = part["vertex_counts"][0].as_u64().unwrap_or(0);
+    let source_guides = part["guide_counts"][0].as_u64().unwrap_or(0);
+    if guides.is_some_and(|counts| counts.iter().any(|count| count.as_u64().is_some_and(|value| value > 0))) {
+        lines.push(crate::localization::tr(format!("{} / {} source vertices use guides", source_guides, vertices)));
+        if let Some(counts) = guides.filter(|counts| counts.len() > 1) {
+            let counts = counts.iter().map(|count| count.as_u64().unwrap_or(0).to_string()).collect::<Vec<_>>().join(" / ");
+            lines.push(crate::localization::tr(format!("Guide vertices by LOD: {}", counts)));
+        }
+        if part["guides"]["status"] == "available" {
+            lines.push(crate::localization::tr(format!("Guides: {} · fixed anchors: {}",
+                state_u64(&part["guides"], "guide_count"), state_u64(&part["guides"], "fixed_count"))));
+        }
+        if let Some(current) = part["current_guide_count"].as_u64()
+            && current != source_guides
+        {
+            lines.push(crate::localization::tr(format!("Current edit: {} guide vertices", current)));
+        }
+    }
+    let source_jiggle = part["jiggle_counts"][0].as_u64().unwrap_or(0);
+    if source_jiggle > 0 {
+        lines.push(crate::localization::tr(format!("{} / {} source vertices have jiggle contribution", source_jiggle, vertices)));
+        if let Some(current) = part["current_jiggle_count"].as_u64()
+            && current != source_jiggle
+        {
+            lines.push(crate::localization::tr(format!("Current edit: {} jiggle vertices", current)));
+        }
+    }
+    if part["mode_source"] == "pac_default" {
+        lines.push(crate::localization::tr("Mode comes from the PAC default; the exact profile assignment is unknown."));
+    }
+    if let Some(profiles) = part["profiles"].as_array() {
+        for profile in profiles {
+            let variant = state_str(profile, "variant").unwrap_or("?");
+            let name = state_str(profile, "profile").unwrap_or_default();
+            lines.push(if name.is_empty() {
+                crate::localization::tr(format!("Variant {}: no profile assigned", variant))
+            } else {
+                let mode = state_str(profile, "mode").filter(|mode| !mode.is_empty())
+                    .map(crate::localization::tr).unwrap_or_else(|| crate::localization::tr("Unresolved"));
+                crate::localization::tr(format!("Variant {}: {} ({})", variant, name, mode))
+            });
+        }
+    }
+    for key in ["reason", "preview_reason"] {
+        if let Some(reason) = state_str(part, key).filter(|reason| !reason.is_empty()) {
+            lines.push(match reason {
+                "guide_mesh_missing" => crate::localization::tr("Render guide bindings exist, but their guide mesh is missing."),
+                "guide_indices_out_of_range" => crate::localization::tr("Render guide bindings refer outside the decoded guide mesh."),
+                "profile_assignment_missing" => crate::localization::tr("No exact profile assignment is available; this is the PAC default."),
+                "profile_assignment_unresolved" => crate::localization::tr("The assigned physics profile is unresolved or ambiguous."),
+                "profile_assignment_empty" => crate::localization::tr("No named physics profile is assigned for these variants."),
+                "profile_modes_mixed" => crate::localization::tr("Physics mode varies by variant."),
+                "profile_mode_unsupported" => crate::localization::tr("The assigned profile does not select cloth or spline simulation."),
+                "spline_preview_approximate" => crate::localization::tr("Cloth preview does not reproduce the spline solver."),
+                _ => crate::localization::tr(reason),
+            });
+        }
+    }
+    lines
+}
+
 pub(super) struct ClothView {
     pub selected_only: bool,
     pub amount_percent: f64,
@@ -540,8 +624,26 @@ impl Default for ClothView {
 }
 
 impl LabApplication {
+    pub(super) fn draw_cdmw_physics_detection(&self, ui: &mut egui::Ui, indices: &[u32]) {
+        let rows: Vec<_> = self.cdmw_state["physics"]["parts"].as_array().into_iter().flatten()
+            .filter(|part| indices.contains(&(state_u64(part, "index") as u32))).collect();
+        if rows.is_empty() { return; }
+        crate::localization::collapsing("Detected physics")
+            .id_salt(ui.id().with("detected-physics")).default_open(true).show(ui, |ui| {
+                for part in &rows {
+                    if rows.len() > 1 { ui.strong(state_str(part, "name").unwrap_or_default()); }
+                    for line in physics_lines(part) { ui.small(line); }
+                }
+            });
+    }
+
     pub(super) fn draw_cdmw_cloth_page(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
         let cloth = self.cdmw_state["cloth"].clone();
+        let inspected = if self.cdmw_cloth.selected_only { self.selected_part_indices() } else {
+            cloth["parts"].as_array().into_iter().flatten()
+                .filter(|part| state_bool(part, "included")).map(|part| state_u64(part, "index") as u32).collect()
+        };
+        self.draw_cdmw_physics_detection(ui, &inspected);
         self.draw_cdmw_guide_authoring(ui, actions);
         ui.small(crate::localization::tr("Fixed vertices follow the skeleton. Cloth amount edits retained bindings."));
         if !state_bool(&cloth, "available") {

@@ -1,5 +1,23 @@
 [
   {
+    "path": "cdmw/services/mesh_rust_cloth.py",
+    "symbol": "cloth_ui_state",
+    "source": "available",
+    "reason": "Guide resource status in the host protocol; the physics panel displays separate translated labels."
+  },
+  {
+    "path": "cdmw/services/mesh_rust_cloth.py",
+    "symbol": "cloth_ui_state",
+    "source": "absent",
+    "reason": "Guide resource status in the host protocol; the physics panel displays separate translated labels."
+  },
+  {
+    "path": "cdmw/services/mesh_rust_cloth.py",
+    "symbol": "cloth_ui_state",
+    "source": "unsupported",
+    "reason": "Guide resource status in the host protocol; the physics panel displays separate translated labels."
+  },
+  {
     "path": "cdmw/ui/character_finder/dialog.py",
     "symbol": "_set_filter",
     "source": "humanoid",

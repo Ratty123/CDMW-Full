@@ -8285,7 +8285,7 @@ class RustMeshAuthoringSession:
         state["emission"] = emission_ui_state(self, state["replacement"])
         from cdmw.services.mesh_shader_controls import shader_controls_ui_state
         state["shader_controls"] = shader_controls_ui_state(self, state["replacement"])
-        from cdmw.services.mesh_rust_cloth import cloth_ui_state
+        from cdmw.services.mesh_rust_cloth import cloth_ui_state, physics_detection_ui_state
         state["cloth"] = cloth_ui_state(self, state["replacement"])
         from cdmw.services.mesh_rust_cloth_guides import guide_authoring_ui_state
         state["cloth_guides"] = guide_authoring_ui_state(self, state["replacement"])
@@ -8293,6 +8293,8 @@ class RustMeshAuthoringSession:
         state["physics_profiles"] = physics_profiles_ui_state(self, state["replacement"])
         from cdmw.services.mesh_rust_jiggle import jiggle_ui_state
         state["jiggle"] = jiggle_ui_state(self, state["replacement"])
+        state["physics"] = physics_detection_ui_state(
+            state["replacement"], state["cloth"], state["jiggle"], state["physics_profiles"])
         from cdmw.services.mesh_rust_hair import hair_ui_state
         state["hair"] = hair_ui_state(self)
         if self.replacement_comparison != "edit":

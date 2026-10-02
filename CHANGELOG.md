@@ -20,6 +20,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- Mesh Editor identifies cloth and spline physics per part, shows retained guide and jiggle influence, and explains missing data or preview limits.
 - Mesh Editor no longer rejects Finish Edit Mesh when Windows uses a redirected temporary folder.
 - Rapid tool switching pauses inactive tool preparation, list updates and automatic previews. Recently used previews resume without recreating their renderer, and embedded-window focus and resizing avoid unnecessary work during navigation.
 - Completed problem-report browser checks keep their success message when the used verification token expires.

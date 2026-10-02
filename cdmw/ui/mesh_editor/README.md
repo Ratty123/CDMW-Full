@@ -672,6 +672,28 @@ bounds expand them and re-encode lower LOD positions within the new quantization
 precision. Draft recovery uses the same exact record-map checks before accepting these
 edits.
 
+### Detected physics
+
+The **Parts** list marks parts with cloth, spline or jiggle influence. Select a
+part to expand **Detected physics** in the Inspector or Cloth page. It shows
+retained source vertex counts, the guide mesh and its fixed anchors, exact
+profile assignments by variant, and current disabled contributions where the
+editor can still prove vertex ownership. Hover over a part for the same evidence.
+
+Detection combines render bindings with validated guide indices and resources.
+Part names, fabric appearance and a shared physics profile alone do not identify
+cloth. Exact profile modes take precedence over the PAC default; a default is
+identified as such, and unresolved, mixed, absent or unsupported data stays
+explicit. An empty variant assignment is retained. Detection works without a
+preview skeleton and does not change the mesh or its output.
+
+For example, a weapon ribbon can use **Spline** physics through its retained
+guides. Its influence controls remain available, but Cloth preview does not
+reproduce the spline solver. Detected source bindings and profiles describe
+authored data; they do not establish active in-game simulation, ordinary bone
+animation or runtime overrides. **No guide or jiggle bindings** therefore does
+not claim that a part can never move.
+
 ### Influence and profile boundaries
 
 These influence controls edit render-vertex cloth influence. Profile authoring
