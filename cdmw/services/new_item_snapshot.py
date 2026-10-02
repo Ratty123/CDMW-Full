@@ -473,7 +473,7 @@ def build_snapshot(
     entries = tuple(entries) if resident_catalogue is None else resident_catalogue
     try:
         sources = resolve_item_data_sources(
-            resident_catalogue.item_metadata() if resident_catalogue is not None else entries,
+            resident_catalogue.item_metadata(stop_event=stop_event) if resident_catalogue is not None else entries,
             pamt_paths=(path for path in resident_catalogue.source_paths if path.suffix.lower() == ".pamt")
             if resident_catalogue is not None else (),
         )

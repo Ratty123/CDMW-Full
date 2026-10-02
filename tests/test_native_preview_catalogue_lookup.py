@@ -77,7 +77,7 @@ def _catalogue(tmp_path: Path, *, legacy=False, distractors=24):
     rows.sort(key=lambda row: row.path.lower())
     if legacy:
         rows.reverse()  # The older format does not promise sorted paths.
-    source = write_resident_index(tmp_path, rows, tmp_path / "catalogue")
+    source = write_resident_index(tmp_path, rows, tmp_path / "catalogue", sort_records=not legacy)
     index = Path(source.index_path)
     count, size = len(rows), index.stat().st_size
     basename_rows = sorted((_basename_hash(Path(row.path).name), i) for i, row in enumerate(rows))

@@ -14,7 +14,7 @@ from cdmw.domain.archives.catalogue import ArchiveSessionHandle
 from cdmw.models import RunCancelled
 from cdmw.services.new_item_service import NewItemService
 from cdmw.workers.new_item_workers import snapshot_task
-from tests.archive_resident_index_fixtures import write_resident_index
+from tests.archive_resident_index_fixtures import write_dependency_index, write_resident_index
 from tests.test_new_item_service import TEMPLATE, _read, build_package, synthetic_files
 
 
@@ -25,7 +25,7 @@ def catalogue(tmp_path):
     files.update({f"unrelated/textures/image_{index}.dds": b"x" for index in range(1000)})
     files["character/model/1_pc/1_phm/armor/15_vest/fixture.pac"] = b"synthetic wearable"
     files["character/motion/1_pc/1_phm/idle.paa"] = b"synthetic clip"
-    entries = tuple(parse_archive_pamt(build_package(root, files)))
+    entries = tuple(sorted(parse_archive_pamt(build_package(root, files)), key=lambda entry: entry.path.encode().lower()))
     return root, entries, write_resident_index(root, entries, tmp_path / "generation")
 
 
@@ -43,15 +43,171 @@ def test_resident_index_reads_exact_locations_and_reuses_generation(catalogue):
         assert list(index.by_basename[entry.basename.lower()]) == [entry]
 
 
-def test_row_paths_and_package_ownership_are_reused_without_string_decode(catalogue, monkeypatch):
+def test_recent_row_paths_and_source_paths_are_reused_in_a_bounded_cache(catalogue, monkeypatch):
     _root, entries, source = catalogue
     index = source.open()
     expected = tuple((entry.path, str(entry.pamt_path.parent).replace("\\", "/").casefold()) for entry in entries)
     tuple(index)  # Prime each archive payload file path, which remains decoded on demand.
     monkeypatch.setattr(index, "_string", lambda *args: pytest.fail("resident path or owner decoded again"))
-    for row, (path, package) in enumerate(expected):
+    monkeypatch.setattr(index, "_path_bytes", lambda *args: pytest.fail("recent row path decoded again"))
+    assert len(index._row_paths) <= 256
+    for row in range(len(entries) - 10, len(entries)):
+        path, package = expected[row]
         assert index._package_for_row(row) == package
         assert index[row].path == path
+
+
+def test_open_does_not_visit_rows_and_exact_lookups_use_the_mapped_indexes(catalogue, monkeypatch):
+    _root, entries, source = catalogue
+    with patch.object(ResidentArchiveIndex, '_path_bytes', side_effect=AssertionError('enumerated at open')):
+        index = source.open()
+    assert not index._row_paths and not index._lookups and index._extensions is None
+    # Truthiness is used repeatedly during snapshot construction. It must not
+    # count every distinct path or basename before an exact lookup can start.
+    with patch.object(index, '_scan_rows', side_effect=AssertionError('enumerated for lookup')):
+        assert index.by_path and index.by_basename and index.by_extension
+        expected = entries[-1]
+        assert list(index.by_path[expected.path.lower()]) == [expected]
+        assert list(index.by_basename[expected.basename.lower()]) == [expected]
+        assert index.active_entry(expected.path.upper().replace('/', '\\')) == expected
+    assert index._dependency_mapping is not None
+
+
+def test_query_caches_remain_bounded_after_many_models_and_textures(catalogue):
+    _root, entries, source = catalogue
+    index = source.open()
+    for entry in entries:
+        assert index.by_path[entry.path.lower()][0] == entry
+        assert index.by_basename[entry.basename.lower()][0] == entry
+    assert len(index._lookups) <= 256
+    assert len(index._row_paths) <= 256
+    assert len(index._source_paths) <= 256
+
+
+def test_large_extension_groups_stream_and_support_sequence_operations(catalogue, tmp_path, monkeypatch):
+    monkeypatch.setattr('cdmw.core.archive_resident_index._CACHED_EXTENSION_ROWS', 1024)
+    root, entries, _source = catalogue
+    rows = [replace(entries[0], path=f'texture/image_{row:05}.dds') for row in range(5000)]
+    index = write_resident_index(root, rows, tmp_path / 'large-extension').open()
+    group = index.by_extension['.dds']
+    assert len(group) == len(rows)
+    assert list(group[:3]) == rows[:3]
+    assert group[-1] == rows[-1]
+    assert list(group[20:2:-3]) == rows[20:2:-3]
+    assert list(group[::-997]) == rows[::-997]
+    assert index._extensions['.dds'][1] is None
+    assert list(index.by_extension.get('.missing', ())) == []
+    assert len(index._row_paths) <= 256
+
+
+def test_extension_row_cache_has_a_shared_budget(catalogue, tmp_path, monkeypatch):
+    monkeypatch.setattr('cdmw.core.archive_resident_index._EXTENSION_ROW_BUDGET', 100)
+    root, entries, _source = catalogue
+    rows = [replace(entries[0], path=f'asset/{row:03}.ext{kind}')
+            for kind in range(5) for row in range(40)]
+    index = write_resident_index(root, rows, tmp_path / 'extension-budget').open()
+    assert {entry.path for entry in index.by_extension['.ext3']} == {
+        entry.path for entry in rows if entry.extension == '.ext3'}
+    assert sum(len(group[1]) for group in index._extensions.values() if group[1] is not None) <= 100
+
+
+@pytest.mark.parametrize('derived_state', ['missing', 'truncated', 'stale'])
+def test_basename_queries_stream_without_valid_derived_data_then_adopt_publication(catalogue, monkeypatch, derived_state):
+    _root, entries, source = catalogue
+    derived = Path(source.index_path).with_suffix('.adi')
+    if derived_state == 'missing':
+        derived.unlink()
+    elif derived_state == 'truncated':
+        derived.write_bytes(b'CDMWADI1')
+    else:
+        import struct
+        data = bytearray(derived.read_bytes())
+        struct.pack_into('<Q', data, 64, 1)  # Wrong source-index size.
+        derived.write_bytes(data)
+    now = [1.]
+    monkeypatch.setattr('cdmw.core.archive_resident_index.time.monotonic', lambda: now[0])
+    index = source.open()
+    expected = entries[-1]
+    assert list(index.by_basename[expected.basename.lower()]) == [expected]
+    assert index._dependency_mapping is None
+    assert list(index.by_basename.candidate_keys(suffix='.pac')) == list(dict.fromkeys(
+        entry.basename.lower() for entry in entries if entry.extension == '.pac'))
+    write_dependency_index(source, entries)
+    now[0] += 2
+    another = entries[-2]
+    with patch.object(index, '_scan_rows', side_effect=AssertionError('did not adopt derived index')):
+        assert list(index.by_basename[another.basename.lower()]) == [another]
+    assert index._dependency_mapping is not None
+
+
+def test_basename_hash_collisions_do_not_return_unrelated_records(catalogue, monkeypatch):
+    _root, entries, source = catalogue
+    write_dependency_index(source, entries, basename_hash=lambda _: 7)
+    monkeypatch.setattr('cdmw.core.archive_resident_index._basename_hash', lambda _: 7)
+    index = source.open()
+    expected = entries[-1]
+    assert list(index.by_basename[expected.basename.lower()]) == [expected]
+    assert index.by_basename.get('absent.dds') is None
+
+
+def test_path_order_and_duplicate_groups_preserve_case_and_override_flags(catalogue, tmp_path):
+    root, entries, _source = catalogue
+    # ASCII folding orders '_' before lowercase letters; uppercase folding does
+    # not. This is the real FAI3 ordering used by its writer and native readers.
+    (root / 'meta' / '0.papgt').unlink()
+    first = replace(entries[0], path='Model/_sword.PAC')
+    duplicate = replace(first, offset=first.offset + 1)
+    later = replace(first, path='model/Asword.pac')
+    unicode = replace(first, path='model/Äsword.pac')
+    index = write_resident_index(root, [later, first, duplicate, unicode], tmp_path / 'path-order',
+                                 override_flags=(0, 2, 3, 0)).open()
+    assert list(index.by_path['model/_sword.pac']) == [first, duplicate]
+    assert index.active_entry('MODEL/_SWORD.PAC') == duplicate
+    assert index.active_entry('model/asword.pac') == later
+    assert index.active_entry('model/äsword.pac') == unicode
+    assert list(index.by_basename['äsword.pac']) == [unicode]
+    assert list(index.matching(('.pac',), contains='_sword')) == [duplicate]
+    assert list(index.matching(('.pac',), contains='_sword', active_only=False)) == [first, duplicate]
+
+
+def test_cancelled_extension_scan_does_not_publish_partial_groups_or_poison_reuse(catalogue, tmp_path):
+    root, entries, _source = catalogue
+    rows = [replace(entries[0], path=f'model/image_{row:05}.pac') for row in range(5000)]
+    source = write_resident_index(root, rows, tmp_path / 'cancelled-extension')
+    index = source.open()
+    checks = []
+
+    def stopped():
+        checks.append(True)
+        return len(checks) >= 3
+
+    with pytest.raises(RunCancelled):
+        list(index.matching(('.pac',), stop_event=stopped))
+    assert index._extensions is None
+    assert list(index.matching(('.pac',))) == rows
+    assert source.open() is index
+    with pytest.raises(RunCancelled):
+        list(index.matching(('.pac',), stop_event=lambda: True))
+    assert index.active_entry(rows[-1].path) == rows[-1]
+
+
+def test_nonadjacent_unicode_duplicates_keep_the_global_mount_winner(catalogue, tmp_path):
+    from cdmw.core.papgt_format import PAPGT_DEFAULT_FLAGS, PapgtDirectory, serialize_papgt
+    root, entries, _source = catalogue
+    other_pamt = root / '0010' / '0.pamt'
+    other_pamt.parent.mkdir()
+    other_pamt.write_bytes(b'owned overlay fixture')
+    first = replace(entries[0], path='model/Äsword.pac')
+    between = replace(first, path='model/Åsword.pac')
+    winner = replace(first, path='model/äsword.pac', pamt_path=other_pamt)
+    (root / 'meta' / '0.papgt').write_bytes(serialize_papgt([
+        PapgtDirectory('0010', PAPGT_DEFAULT_FLAGS, 0), PapgtDirectory('0009', PAPGT_DEFAULT_FLAGS, 0),
+    ]))
+    index = write_resident_index(root, [first, between, winner], tmp_path / 'unicode-mounts').open()
+    assert index.active_entry(first.path) == winner
+    assert list(index.matching(('.pac',))) == [between, winner]
+    assert list(index.by_path) == ['model/äsword.pac', 'model/åsword.pac']
+    assert len(index.by_path) == 2
 
 
 @pytest.mark.parametrize('filtered', [False, True])

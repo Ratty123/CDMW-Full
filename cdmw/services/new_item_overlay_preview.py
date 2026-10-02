@@ -43,7 +43,7 @@ def overlay_item_preview_models(snapshot, package_root, directory, item_key, *, 
     elif catalogue is not None:
         from cdmw.core.item_sources import resolve_item_data_sources
 
-        sources = resolve_item_data_sources(catalogue.item_metadata(), pamt_paths=(
+        sources = resolve_item_data_sources(catalogue.item_metadata(stop_event=stop_event), pamt_paths=(
             path for path in catalogue.source_paths if path.suffix.lower() == '.pamt'))
         entries = catalogue.selected_paths(sources)
         by_path, by_basename = catalogue.index_maps(sources)

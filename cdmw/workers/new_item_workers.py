@@ -116,7 +116,7 @@ def snapshot_task(
                 for path in {entry.pamt_path for entry in listed} | {entry.paz_file for entry in listed}
             ))
             if catalogue is not None:
-                warmup.offer(catalogue.matching((".pac",)))
+                warmup.offer(catalogue.matching((".pac",), stop_event=stop_event))
             elif not listed or stale_listing:
                 if package_root is None:
                     raise ValueError("The archive list is empty and no package root was given.")

@@ -181,7 +181,7 @@ def _scan_wearables(game_root, *, should_stop=None, resident_catalogue=None):
     meshes: Dict[str, object] = {}
     if resident_catalogue is not None:
         entries = ((entry.pamt_path.parent.name, entry) for entry in
-                   resident_catalogue.matching((".pac", ".xml", ".prefab", ".paac")))
+                   resident_catalogue.matching((".pac", ".xml", ".prefab", ".paac"), stop_event=should_stop))
     elif (Path(game_root) / 'meta/0.papgt').exists():
         from .relationships import active_entries
         entries = active_entries(game_root, cancelled=should_stop or (lambda: False))

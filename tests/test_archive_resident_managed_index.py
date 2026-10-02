@@ -9,7 +9,7 @@ from uuid import uuid4
 import pytest
 
 from cdmw.core.archive_format import parse_archive_pamt
-from cdmw.core.archive_resident_index import ResidentArchiveSource
+from cdmw.core.archive_resident_index import ResidentArchiveIndex, ResidentArchiveSource
 from cdmw.domain.archives.catalogue import ArchiveSessionHandle
 from tests.test_new_item_service import build_package, synthetic_files
 
@@ -48,6 +48,20 @@ def test_reads_managed_worker_generation(tmp_path):
         index = source.open()
         assert sorted(index, key=lambda row: row.path) == sorted(expected, key=lambda row: row.path)
         assert all(index.active_entry(row.path) == row for row in expected)
+        for row in expected:
+            assert list(index.by_basename[row.basename.lower()]) == [row]
+        if Path(session.index_path).with_suffix('.adi').is_file():
+            # A fresh reader has no retry delay if ADI1 arrived during the first
+            # queries. Exercise its mapped basename records, not cached answers.
+            mapped = ResidentArchiveIndex(source)
+            try:
+                assert mapped._dependency_index() is not None
+                for row in expected:
+                    assert list(mapped.by_basename[row.basename.lower()]) == [row]
+            finally:
+                mapped._mapping.close()
+                if mapped._dependency_mapping is not None:
+                    mapped._dependency_mapping.close()
     finally:
         process.stdin.close()
         try:

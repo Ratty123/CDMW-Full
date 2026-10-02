@@ -254,8 +254,9 @@ preparation worker, before the data read starts. Automatic preparation waits for
 Archives to publish its cached catalogue; it does not start a second full archive scan
 if the window paints first.
 
-Shared lookup construction yields in small batches so input stays responsive after the
-archive list appears. Opening the tab reuses the loaded tables or the read already in
+Opening the shared catalogue does not duplicate every archive path in Python. File-type
+scans yield in small batches so input stays responsive after the archive list appears.
+Opening the tab reuses the loaded tables or the read already in
 progress, without requiring **Read the archives**. An early click or restoring this tab
 can still show loading until the data is ready. A failed preload keeps its error and
 **Try again** action when the tab is opened, instead of retrying repeatedly. The shared
@@ -489,6 +490,11 @@ With a matching Full archive session, snapshot workers open its generation-bound
 read-only catalogue and materialize only relevant rows. Parsed tables are reused
 within the service while source metadata remains unchanged; each snapshot has
 separate planning caches, and planning/output still checks source provenance.
+Exact paths and filenames use the existing mapped FAI3 and ADI1 indexes with bounded
+working caches. File-type lookups retain at most 131,072 compact row IDs across 128
+groups; larger groups stream from the mapped catalogue. If the derived filename index
+is still being prepared, filename queries scan without retaining a second name catalogue
+and adopt the index when it becomes available. This creates no additional disk cache.
 Older workers and standalone entry lists retain the existing archive-read path.
 The shared preview, identity checks and output actions are available immediately;
 Combat, Perks & Effects and Distribution are built when first requested. Workflow

@@ -246,7 +246,7 @@ def scan_archives(
     failures: List[Path] = []
     catalogue = resident_source.open(should_stop, package_root=root) if resident_source is not None else None
     if catalogue is not None:
-        iterator = ((entry.pamt_path.parent.name, entry) for entry in catalogue.matching((".paa",)))
+        iterator = ((entry.pamt_path.parent.name, entry) for entry in catalogue.matching((".paa",), stop_event=should_stop))
     elif (root / "meta/0.papgt").exists():
         from .relationships import active_entries
         iterator = active_entries(root, cancelled=should_stop or (lambda: False))
