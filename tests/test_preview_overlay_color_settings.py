@@ -1,15 +1,4 @@
-"""Wireframe and vertex colours belong to Preview Settings.
-
-The untextured solid renders blue-grey and the topology overlay drew close
-enough to it that the wire melted into the surface. The colours existed, but
-only inside the Edit Mesh colour buttons, so a reader who was previewing rather
-than editing had no way to reach them.
-
-These pin the whole lane: the field and its normalisation, the panel control,
-both persistence paths, the presentation payload the viewport actually reads,
-and the C# reader plus the precedence that keeps an in-editor choice from being
-overwritten by the next republish.
-"""
+"""Preview overlay colors retain their defaults, settings and payload fields."""
 
 from __future__ import annotations
 
@@ -29,12 +18,6 @@ OVERLAY_COLOR_FIELDS = ("d3d11_wire_color", "d3d11_vertex_color")
 
 def _repo_source(path: str) -> str:
     return (REPO_ROOT / path).read_text(encoding="utf-8")
-
-
-def _dotnet_source(name: str) -> str:
-    return (REPO_ROOT / "tools" / "dotnet_mesh_editor_experiment" / name).read_text(
-        encoding="utf-8"
-    )
 
 
 def test_defaults_match_the_renderer_so_an_unset_preference_changes_nothing() -> None:

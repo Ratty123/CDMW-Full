@@ -12,11 +12,6 @@ from cdmw.ui.model_preview_settings_visibility import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DOTNET = ROOT / "tools" / "dotnet_mesh_editor_experiment"
-
-
-def _source(name: str) -> str:
-    return (DOTNET / name).read_text(encoding="utf-8")
 
 
 def test_archive_preview_modal_exposes_only_resident_camera_input() -> None:

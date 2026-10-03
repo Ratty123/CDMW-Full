@@ -10,7 +10,6 @@ opened it and report a tool the host cannot execute.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication
@@ -19,11 +18,6 @@ from cdmw.ui.mesh_editor.process_io import DOTNET_PROTOCOL_BUFFER_LIMIT
 from cdmw.ui.mesh_editor.tab import MeshEditorTab
 from cdmw.ui.mesh_editor.tab_dotnet_payloads import MeshEditorDotNetPayloadMixin
 
-DOTNET_EDITOR = Path(__file__).resolve().parents[1] / "tools" / "dotnet_mesh_editor_experiment"
-
-
-def dotnet_experiment_source(name: str) -> str:
-    return (DOTNET_EDITOR / name).read_text(encoding="utf-8")
 
 
 class _StdoutProcess:

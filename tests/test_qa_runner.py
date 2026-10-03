@@ -184,3 +184,74 @@ exit 0
 
     assert result.returncode == 0, f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
     assert sentinel.read_text(encoding="utf-8") == "keep"
+
+
+def test_codex_mesh_checks_use_real_game_pac_and_keep_unit_runs_non_visual() -> None:
+    source = (ROOT / "scripts" / "codex_check.ps1").read_text(encoding="utf-8")
+    rust_proof_source = (
+        ROOT / "tools" / "mesh_harness" / "real_rust_preview.py"
+    ).read_text(encoding="utf-8")
+    # The old physical-input harness remains historical compatibility coverage,
+    # but it is no longer the production/default appearance gate.
+    real_proof_source = "\n".join(
+        (ROOT / "tools" / "mesh_harness" / name).read_text(encoding="utf-8")
+        for name in ("real_dotnet.py", "real_dotnet_report.py")
+    )
+    real_input_source = (ROOT / "tools" / "mesh_harness" / "real_dotnet_input.py").read_text(encoding="utf-8")
+
+    assert "real-archive-rust-preview-smoke" in source
+    assert "Running no-window real PAC Rust Archive Preview proof" in source
+    assert "real-archive-mesh-editor-dotnet-edit-smoke" not in source
+    assert "--capture-cdmw-preview-session" in rust_proof_source
+    assert '"desktop_automation_used": False' in rust_proof_source
+    assert '"vortice_used": False' in rust_proof_source
+    assert "test_mesh_editor\\cd_phm_00_nude_10_0001.pac" not in source
+    mesh_unit_start = source.index('"mesh-unit" = @(')
+    mesh_unit_end = source.index("    )", mesh_unit_start)
+    assert "test_mesh_editor_dev_harness.py" not in source[mesh_unit_start:mesh_unit_end]
+    assert "--ignore=tests/test_mesh_editor_dev_harness.py" not in source
+    assert '"mouse_input_backend": "helper_ui_thread_resident_probe"' in real_proof_source
+    assert "request_resident_interaction_probe(" in real_input_source
+    assert '"event": "resident_interaction_probe"' in real_input_source
+    assert "_set_screen_cursor_position" not in real_input_source
+    assert "_send_physical_mouse_message" not in real_input_source
+    assert "SetForegroundWindow" not in real_input_source
+    real_session_source = (
+        ROOT / "tools" / "mesh_harness" / "real_dotnet_session.py"
+    ).read_text(encoding="utf-8")
+    assert "WA_ShowWithoutActivating" in real_session_source
+    assert "WindowDoesNotAcceptFocus" in real_session_source
+    assert ".activateWindow()" not in real_session_source
+    pytest_config = (ROOT / "pytest.ini").read_text(encoding="utf-8")
+    assert 'visual: opens a window' in pytest_config
+    assert 'real_game: reads locally installed game assets' in pytest_config
+    assert 'timing: asserts wall-clock responsiveness' in pytest_config
+    # Three opt-in markers, all excluded by default for the same reason: they
+    # need something the default run cannot promise. A window, the installed
+    # game, or a scheduler the caller controls.
+    assert '-m "not visual and not real_game and not timing"' in pytest_config
+
+
+def test_real_dotnet_harness_has_dedicated_resident_side_by_side_zoom_proof() -> None:
+    source = (ROOT / "tools" / "mesh_harness" / "real_dotnet.py").read_text(encoding="utf-8")
+    input_source = "\n".join(
+        (ROOT / "tools" / "mesh_harness" / name).read_text(encoding="utf-8")
+        for name in ("real_dotnet_input.py", "real_dotnet_zoom_input.py")
+    )
+    # _start_embedded_editor moved to real_dotnet_session; its call site and the
+    # zoom smoke entry point are still in real_dotnet.py.
+    session_source = (ROOT / "tools" / "mesh_harness" / "real_dotnet_session.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert "def run_real_archive_mesh_editor_dotnet_zoom_smoke(" in source
+    assert "_start_embedded_editor(state, side_by_side_camera=True)" in source
+    assert 'lambda: "side_by_side" if side_by_side_camera else "replacement_only"' in session_source
+    assert 'lambda: "placement" if side_by_side_camera else "mesh_edit"' in session_source
+    assert "exercise_side_by_side_wheel_zoom(" in source
+    assert "_send_scoped_mouse_wheel(" in input_source
+    assert "-120" in input_source
+    assert "120" in input_source
+    assert "_set_screen_cursor_position" not in input_source
+    assert '"non_target_camera_unchanged"' in input_source
+    assert '"inverse_camera_restored_exactly"' in input_source

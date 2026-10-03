@@ -466,5 +466,27 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
         self.assertIn('self.shell.settings.setValue("preview/d3d11_lighting_defaults_version", 7)', source)
 
 
+def test_gizmo_preview_settings_normalize_colors_and_sizes() -> None:
+    from cdmw.models import clamp_model_preview_render_settings
+
+    settings = clamp_model_preview_render_settings(
+        ModelPreviewRenderSettings(
+            gizmo_x_axis_color="#abcdef",
+            gizmo_y_axis_color="not-a-color",
+            gizmo_line_thickness_pixels=99.0,
+            gizmo_size_scale=0.01,
+            gizmo_label_size_pixels=100.0,
+            gizmo_handle_size_pixels=-5.0,
+        )
+    )
+
+    assert settings.gizmo_x_axis_color == "#ABCDEF"
+    assert settings.gizmo_y_axis_color == ModelPreviewRenderSettings().gizmo_y_axis_color
+    assert settings.gizmo_line_thickness_pixels == 6.0
+    assert settings.gizmo_size_scale == 0.5
+    assert settings.gizmo_label_size_pixels == 32.0
+    assert settings.gizmo_handle_size_pixels == 4.0
+
+
 if __name__ == "__main__":
     unittest.main()

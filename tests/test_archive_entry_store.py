@@ -81,3 +81,10 @@ def test_entry_store_cancellation_preserves_prior_store(tmp_path: Path) -> None:
 
     with ArchiveEntryStore(target) as store:
         assert len(store) == 5
+
+
+def test_archive_entry_store_reduction_percent_is_deterministic() -> None:
+    from tools.benchmark_archive_entry_store import _reduction_percent
+
+    assert _reduction_percent(100.0, 40.0) == 60.0
+    assert _reduction_percent(0.0, 0.0) == 0.0

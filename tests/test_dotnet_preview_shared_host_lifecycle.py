@@ -525,10 +525,26 @@ def test_serving_prewarm_placeholder_reports_what_the_helper_is_holding(tmp_path
     controller._launch_is_prewarm = False
     assert controller.serving_prewarm_placeholder
 
+    sent = []
+    controller._send_json = lambda payload: sent.append(dict(payload)) or True
+    controller._visible = True
+    controller._applied_package = controller._prewarm_package
+    controller._applied_package_path = str(controller._prewarm_package.package_dir)
+    assert controller.serving_prewarm_placeholder
+    assert not controller._activate_applied()
+    assert sent == []
+
     # A real package applied into that same warm process is a resident scene.
     real_package = _package(tmp_path, "real")
+    controller._applied_package = real_package
     controller._applied_package_path = str(real_package.package_dir)
     assert not controller.serving_prewarm_placeholder
+    assert controller._activate_applied()
+    assert sent[-1]["event"] == "activate_request"
+
+    controller._gpu_failed = True
+    assert not controller._activate_applied()
+    assert len(sent) == 1
 
     controller.shutdown()
     owner.deleteLater()

@@ -13,7 +13,10 @@ from cdmw.ui.archive_browser.static_replacement_dotnet_presentation import (
 )
 from cdmw.ui.archive_browser.static_replacement_dotnet_view_modes import (
     DOTNET_PREVIEW_VIEW_MODE_DEBUG_MODES,
+    DOTNET_PREVIEW_VIEW_MODE_OPTIONS,
     DOTNET_PREVIEW_VIEW_MODES,
+    dotnet_preview_material_debug_mode,
+    normalize_dotnet_preview_view_mode,
 )
 from cdmw.ui.archive_browser.static_replacement_dialog_sections_mesh_geometry_preview_part_01 import (
     _bind_embedded_mesh_editor_preview,
@@ -408,18 +411,30 @@ def test_every_dotnet_view_mode_routes_to_a_supported_shader_output() -> None:
     }
     assert tuple(expected_debug_modes) == DOTNET_PREVIEW_VIEW_MODES
     assert expected_debug_modes == DOTNET_PREVIEW_VIEW_MODE_DEBUG_MODES
+    assert tuple(value for _label, value in DOTNET_PREVIEW_VIEW_MODE_OPTIONS) == DOTNET_PREVIEW_VIEW_MODES
+    assert normalize_dotnet_preview_view_mode("specular") == "lit"
+    assert normalize_dotnet_preview_view_mode("wireframe") == "lit"
+    assert dotnet_preview_material_debug_mode("unsupported") == 0
 
     for view_mode, debug_mode in expected_debug_modes.items():
         state = builder_presentation_state(
             comparison_mode="side_by_side",
             camera=None,
-            render_settings=ModelPreviewRenderSettings(d3d11_view_mode=view_mode),
+            render_settings=ModelPreviewRenderSettings(
+                d3d11_view_mode=view_mode,
+                render_diagnostic_mode="wireframe",
+                use_textures_by_default=True,
+            ),
             grid_visible=True,
             gizmo_visible=True,
             part_pick_enabled=True,
         )
         assert state["display"]["material_debug_mode"] == debug_mode  # type: ignore[index]
         assert state["display"]["quality"]["dotnet_view_mode"] == view_mode  # type: ignore[index]
+        assert state["display"]["mode"] == "untextured_wire"
+        assert state["display"]["quality"]["d3d11_view_mode"] == view_mode
+        assert "render_diagnostic_mode" not in state["display"]["quality"]
+        assert dotnet_preview_material_debug_mode(view_mode) == debug_mode
 
 
 def test_resident_visible_texture_mode_change_reloads_reference_materials_before_return() -> None:
@@ -642,3 +657,21 @@ def test_legacy_diagnostic_mode_does_not_override_the_selected_dotnet_view() -> 
         part_pick_enabled=False,
     )
     assert uv["display"]["material_debug_mode"] == 8  # type: ignore[index]
+
+
+def test_the_builder_really_publishes_textured_beside_a_false_texture_flag() -> None:
+    """A chosen display mode remains authoritative over automatic texture loading."""
+    display = builder_presentation_state(
+        comparison_mode="replacement_only",
+        display_mode="textured",
+        mesh_edit_display_mode="textured",
+        camera={},
+        render_settings=ModelPreviewRenderSettings(),
+        grid_visible=True,
+        gizmo_visible=False,
+        part_pick_enabled=False,
+        mesh_edit_active=True,
+    )["display"]
+
+    assert display["mode"] == "textured"
+    assert display["quality"]["use_textures_by_default"] is False

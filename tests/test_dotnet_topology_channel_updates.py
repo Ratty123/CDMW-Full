@@ -10,15 +10,6 @@ from tools.mesh_editor_dev_harness import _build_two_part_synthetic_mesh
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DOTNET = ROOT / "tools" / "dotnet_mesh_editor_experiment"
-
-
-def _source(name: str) -> str:
-    return (DOTNET / name).read_text(encoding="utf-8")
-
-
-
-
 
 
 def test_whole_part_delete_sends_affected_only_shrink() -> None:

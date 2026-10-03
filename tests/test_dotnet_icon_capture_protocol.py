@@ -13,21 +13,6 @@ from PySide6.QtWidgets import QApplication
 from cdmw.ui.mesh_editor.tab_dotnet_protocol import MeshEditorDotNetProtocolMixin
 
 
-ROOT = Path(__file__).resolve().parents[1]
-DOTNET_EDITOR = ROOT / "tools" / "dotnet_mesh_editor_experiment"
-
-
-def _source(name: str) -> str:
-    return (DOTNET_EDITOR / name).read_text(encoding="utf-8")
-
-
-def _source_family(stem: str) -> str:
-    return "\n".join(
-        path.read_text(encoding="utf-8")
-        for path in sorted(DOTNET_EDITOR.glob(f"{stem}*.cs"))
-    )
-
-
 class _Harness(MeshEditorDotNetProtocolMixin, QObject):
     def __init__(self, output_dir: Path) -> None:
         QObject.__init__(self)

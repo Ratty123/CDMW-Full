@@ -17,13 +17,6 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-HELPER = ROOT / "tools" / "dotnet_mesh_editor_experiment"
-
-
-def _host_state_source() -> str:
-    return (HELPER / "ExperimentForm.HostState.cs").read_text(encoding="utf-8")
-
-
 
 
 def test_the_mesh_editor_tab_publishes_only_its_normalized_drag_shape() -> None:

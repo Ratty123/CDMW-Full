@@ -16,20 +16,12 @@ because the defect was in a runtime widget state, not in the wiring around it.
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
 from cdmw.ui.archive_browser.static_replacement_dotnet_presentation import (
     builder_part_highlight_state,
 )
 from tests.mesh_builder_driver import open_mesh_builder
-
-
-REPO_ROOT = Path(__file__).resolve().parents[1]
-MESH_VIEWPORT_INPUT = (
-    REPO_ROOT / "tools" / "dotnet_mesh_editor_experiment" / "MeshViewport.Input.cs"
-)
 
 
 @pytest.fixture
