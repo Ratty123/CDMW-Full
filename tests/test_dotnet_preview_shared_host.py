@@ -1593,6 +1593,31 @@ def test_authoring_host_cannot_replay_a_second_presentation_owner() -> None:
     host.deleteLater()
 
 
+@pytest.mark.parametrize("setter, arguments", [
+    ("set_highlighted_source_submeshes", {"source_submesh_indices": (2,)}),
+    ("set_highlighted_alignment_submeshes", {"replacement_submesh_indices": (2,), "original_submesh_indices": (1,)}),
+    ("set_hidden_source_submeshes", {"source_submesh_indices": (2,)}),
+])
+def test_highlight_changes_do_not_overwrite_resident_display_settings(setter: str, arguments: dict) -> None:
+    controller = _own(DotNetPreviewSessionController(
+        host_hwnd=lambda: 1,
+        profile=DotNetPreviewProfile.AUTHORING,
+        terminate_on_close=True,
+        process_factory=lambda parent: _FakeProcess(parent),
+    ))
+    host = DotNetPreviewHostFrame(profile=DotNetPreviewProfile.AUTHORING, controller=controller)
+    forwarded = []
+    controller._mesh_editor_shared_dotnet_wired_to = 1
+    controller._mesh_editor_shared_dotnet_presentation_sender = lambda state: forwarded.append(state) or True
+    try:
+        assert getattr(host, setter)(**arguments)
+        assert forwarded
+        assert all("display" not in state for state in forwarded)
+    finally:
+        controller.shutdown()
+        host.deleteLater()
+
+
 def test_shared_authoring_host_routes_scene_transform_through_tab_owner() -> None:
     controller = _own(DotNetPreviewSessionController(
         host_hwnd=lambda: 1,

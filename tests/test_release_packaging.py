@@ -137,6 +137,8 @@ def test_release_builder_keeps_portable_self_contained_defaults_and_smokes_befor
     assert 'function Invoke-RustMeshEditorBuild' in source
     assert '$cargoArguments = @("build", "--locked", "-p", "cdmw_mesh_lab")' in source
     assert 'Assert-RustMeshEditorControlContract -RustContract $contract' in source
+    assert 'Get-DotNetMeshEditorHelperContract' not in source
+    assert not (ROOT / 'tools/dotnet_mesh_editor_experiment/Cdmw.MeshEditorExperiment.csproj').exists()
     assert "function Test-OnedirTextureBackend" in source
     assert "function Test-OnefileTextureBackend" in source
     assert 'Invoke-TextureBackendSelfTest -ExecutablePath $helperPath -Context "packaged onedir"' in source
@@ -486,6 +488,7 @@ def test_codex_check_keeps_smoke_build_free_and_splits_mesh_contracts() -> None:
     assert "test_dotnet_native_mesh_interaction_abi.py" not in source
     assert "$NeedsDotNetHelper" not in source
     assert '$NeedsMeshCore = $Area -in @("mesh-native", "mesh-unit")' in source
+    assert 'cmake --build $MeshCoreBuild --config Release --target cdmw-mesh-core-abi' in source
 
 
 @pytest.mark.skipif(sys.platform != "win32" or POWERSHELL is None, reason="PowerShell behavior test")

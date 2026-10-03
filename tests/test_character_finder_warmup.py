@@ -229,9 +229,10 @@ def test_actual_archive_publication_starts_warmup_and_rescan_invalidates_it(warm
                    "_set_archive_cache_health", "_set_archive_list_status", "_set_archive_warmup_overlay",
                    "_set_archive_load_progress", "set_status_message", "append_archive_log", "set_busy",
                    "_write_heartbeat", "_release_startup_splash", "_record_runtime_event",
+                   "_clear_archive_failure_display", "_publish_archive_game_update_fingerprints",
                    "_rebuild_archive_structure_filter_controls"):
         setattr(archive, method, lambda *_args, **_kwargs: None)
-    bridge = ArchiveRemoteWindowBridge(archive, display_v2=True, shadow=False)
+    bridge = ArchiveRemoteWindowBridge(archive)
     bridge._controller._current_session = session
     bridge._activate_tab_on_publish = False
     bridge.request_structure_children = lambda *_: None

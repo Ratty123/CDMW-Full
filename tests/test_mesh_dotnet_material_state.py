@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from cdmw.models import ModelPreviewData, ModelPreviewMesh
 from cdmw.domain.model_preview_materials import PreviewMaterialTextureInput
 from cdmw.modding.asset_replacement import infer_cd_texture_role_from_path
@@ -953,3 +955,80 @@ def test_color_only_gltf_material_preserves_surface_and_emissive_factors(tmp_pat
     }
     assert payload["submeshes"][0]["shader_family"] == "emissive"
     assert payload["submeshes"][0]["shader_authority"] == "inferred"
+
+
+def test_mesh_material_defaults_use_shared_surface_scalars() -> None:
+    """Unspecified authoring values use the shared material defaults."""
+    from cdmw.rendering.crimson_shader_registry import (
+        PREVIEW_DEFAULT_METALNESS,
+        PREVIEW_DEFAULT_ROUGHNESS,
+    )
+    from cdmw.services.mesh_dotnet_material_channels import (
+        _dotnet_initial_material_parameters,
+    )
+
+    # A material that declares nothing: no overrides, no glTF factors, no maps.
+    class _BareSource:
+        preview_color = ()
+        preview_native_material_overrides: dict[str, object] = {}
+        preview_material_parameters: tuple[object, ...] = ()
+        preview_source_asset_path = ""
+
+    mesh_editor = _dotnet_initial_material_parameters(_BareSource(), {})
+    assert mesh_editor["roughness"] == PREVIEW_DEFAULT_ROUGHNESS
+    assert mesh_editor["metalness"] == PREVIEW_DEFAULT_METALNESS
+
+
+def test_a_declared_surface_value_still_wins_over_the_shared_default() -> None:
+    """The default fills a gap; it never overrides what the asset declares."""
+    from cdmw.services.mesh_dotnet_material_channels import (
+        _dotnet_initial_material_parameters,
+    )
+
+    class _DeclaredSource:
+        preview_color = ()
+        preview_native_material_overrides = {"roughness": 0.82, "metalness": 0.4}
+        preview_material_parameters: tuple[object, ...] = ()
+        preview_source_asset_path = ""
+
+    parameters = _dotnet_initial_material_parameters(_DeclaredSource(), {})
+
+    assert parameters["roughness"] == pytest.approx(0.82)
+    assert parameters["metalness"] == pytest.approx(0.4)
+
+
+def test_gltf_metallic_roughness_maps_use_implicit_identity_factors() -> None:
+    """Omitted glTF factors must not suppress their packed texture channels."""
+    from cdmw.services.mesh_dotnet_material_channels import (
+        _dotnet_initial_material_parameters,
+    )
+
+    class _MappedGltfSource:
+        preview_color = ()
+        preview_material_texture_subtype = "metallic_roughness"
+        preview_material_texture_packed_channels = ("roughness", "metallic")
+        preview_material_texture_inputs: tuple[object, ...] = ()
+        preview_native_material_overrides: dict[str, object] = {}
+        preview_material_parameters: tuple[object, ...] = ()
+        preview_source_asset_path = "helmet.gltf"
+
+    parameters = _dotnet_initial_material_parameters(
+        _MappedGltfSource(),
+        {"roughness": "roughness.png", "metallic": "metallic.png"},
+    )
+
+    assert parameters["roughness_scale"] == pytest.approx(1.0)
+    assert parameters["metalness_scale"] == pytest.approx(1.0)
+
+    explicit_source = _MappedGltfSource()
+    explicit_source.preview_material_parameters = (
+        {"parameter_name": "_roughnessFactor", "numeric_value": 0.72},
+        {"parameter_name": "_metallicFactor", "numeric_value": 0.36},
+    )
+    explicit_parameters = _dotnet_initial_material_parameters(
+        explicit_source,
+        {"roughness": "roughness.png", "metallic": "metallic.png"},
+    )
+
+    assert explicit_parameters["roughness_scale"] == pytest.approx(0.72)
+    assert explicit_parameters["metalness_scale"] == pytest.approx(0.36)

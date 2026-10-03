@@ -4,11 +4,14 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ.setdefault("CDMW_GUI_STARTUP_SMOKE", "1")
 
-from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QElapsedTimer, QThread
+from PySide6.QtTest import QTest
+from PySide6.QtWidgets import QApplication, QComboBox, QSizePolicy
 
 from cdmw.app.events import AppEventBus
 from cdmw.services.service_container import ServiceContainer
@@ -98,6 +101,45 @@ class LazyTextureWorkflowPanelTests(unittest.TestCase):
         self.assertTrue(window.textures.dds_output_section.toggle_button.isChecked())
         self.assertEqual(1024, window.textures.dds_custom_width_spin.value())
         self.assertFalse(window.textures.chainner_section.is_body_built())
+
+        for combo in (
+            window.textures.dds_format_mode_combo,
+            window.textures.dds_size_mode_combo,
+            window.textures.dds_mip_mode_combo,
+            window.textures.dds_custom_format_combo,
+        ):
+            self.assertGreaterEqual(combo.minimumContentsLength(), 18)
+            self.assertEqual(combo.sizeAdjustPolicy(), QComboBox.AdjustToMinimumContentsLengthWithIcon)
+            self.assertEqual(combo.sizePolicy().horizontalPolicy(), QSizePolicy.Expanding)
+
+    def test_openimageio_worker_delivers_its_report_and_releases_the_busy_panel(self) -> None:
+        window, _settings = self._window({})
+        textures = window.textures
+        textures.asset_authoring_section.set_expanded(True)
+        calls = []
+
+        class Service:
+            def run_openimageio_metadata(self, source, configured_paths, **_kwargs):
+                calls.append((source, QThread.currentThread() == _APP.thread()))
+                return {
+                    "status": "ok",
+                    "metadata": {"width": 32, "height": 16, "channel_count": 4, "bit_depth": 8},
+                }
+
+        with patch.object(textures, "_asset_authoring_service", return_value=Service()):
+            textures._start_openimageio_task("metadata", (Path("source.png"),))
+
+        timer = QElapsedTimer()
+        timer.start()
+        while window.shell.worker_thread is not None and timer.elapsed() < 5000:
+            QTest.qWait(10)
+
+        self.assertIsNone(window.shell.worker_thread, "OpenImageIO worker did not finish")
+        self.assertIsNone(window.shell.utility_worker)
+        self.assertEqual(calls, [(Path("source.png"), False)])
+        self.assertEqual(textures.openimageio_status_label.text(), "OpenImageIO metadata complete.")
+        self.assertIn("32 x 16, 4 channel(s), 8-bit", textures.openimageio_report_view.toPlainText())
+        self.assertEqual(textures.current_file_value.text(), "Completed")
 
     def test_editable_filters_and_override_keep_long_values_and_undo(self) -> None:
         filters = "\n".join(f"characters/filter-{index}/*" for index in range(205))

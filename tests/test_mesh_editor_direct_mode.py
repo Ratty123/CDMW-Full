@@ -2202,6 +2202,7 @@ def test_loose_mesh_output_rejects_field_json_without_publishing(tmp_path: Path)
         def capture_export_snapshot(self, _session_id, *, stop_event, expected_mesh_revision):
             assert not stop_event.is_set()
             return SimpleNamespace(
+                hair_state=None,
                 texture_resources=(),
                 material_generation=0,
                 mesh_asset_source_hash="a" * 64,

@@ -281,3 +281,35 @@ def test_a_finished_rebuild_report_survives_an_unrelated_selection_refresh() -> 
 
     tab.deleteLater()
     app.processEvents()
+
+
+def test_the_session_helpers_tolerate_a_host_that_skipped_the_initialiser() -> None:
+    """Composed into a host with no runtime state, the helpers decline quietly.
+
+    Several of these mixins really are composed into hosts that never run the
+    tab's runtime initialiser, so there is no session machine to move. What they
+    must not do is raise, and — since the helpers now arrive by inheritance
+    rather than by whatever else the host happened to compose — the methods
+    themselves are guaranteed to be there.
+    """
+    from cdmw.services.mesh_edit_session_state import MeshEditSessionState as S
+    from cdmw.ui.mesh_editor.tab_dotnet_session_events import (
+        MeshEditorDotNetSessionEventMixin,
+    )
+
+    events: list[str] = []
+
+    class _BareHost(MeshEditorDotNetSessionEventMixin):
+        def _record_mesh_dotnet_event(self, name: str, **_fields: object) -> None:
+            events.append(name)
+
+    host = _BareHost()
+
+    assert host._edit_session_machine() is None
+    assert host._edit_session_generation() == -1
+    assert host._edit_session_transition(S.EDIT_ACTIVE, reason="no_machine") is False
+    assert host._require_edit_session_recovery(reason="no_machine") is False
+    host._observe_edit_session_from_scene_frame()
+    host._record_dotnet_material_publication(None)
+    # Nothing happened, so nothing was recorded as though it had.
+    assert events == []

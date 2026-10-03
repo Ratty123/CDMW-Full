@@ -4,11 +4,32 @@ The `tests/` folder is regression coverage for implementation under `cdmw/`,
 `native/`, and `tools/`, plus repository build, CI, and architecture contracts.
 It is not application runtime code.
 
-Most tests exercise behavior directly. Files named `*_source_guards.py` are
-intentional wiring guards for large PySide UI surfaces where previous regressions
-were caused by missing buttons, callbacks, or fallback paths. They are brittle by
-nature, but they protect user-facing workflows until those surfaces have smaller
-behavior-level harnesses.
+Prefer observable behavior: construct the owning surface, invoke its action,
+and check the resulting state, payload or output. Literal source snippets do not
+prove that a callback runs, and comments can accidentally satisfy them. Keep
+static checks for genuine architecture, packaging and compatibility contracts;
+do not freeze local variable names, statement order or old UI layouts.
+
+The full runner discovers `test_*.py` automatically. A file omitted from the
+short CI list is still used by full QA. Remove a test only when its requirement
+is obsolete or another executable test covers it; a failure or an old filename
+alone is not evidence for removal. Preserve cancellation, rollback, unsafe-output
+refusal and compatibility coverage. Consolidate small related checks with their
+existing owner instead of adding one module per implementation detail.
+
+### Behavior owners
+
+| Contract | Owning tests |
+| --- | --- |
+| Builder construction, parenting and current controls | `test_mesh_builder_construction_invariants.py`, `test_mesh_builder_construction_lifecycle.py`, `test_mesh_builder_runtime_wiring.py` |
+| Preview presentation and acknowledged editor updates | `test_dotnet_preview_shared_host.py`, `test_dotnet_update_queue.py`, `test_mesh_dotnet_stroke_protocol_flow.py` |
+| Camera and material handoffs | `test_mesh_editor_camera_is_not_reset.py`, `test_mesh_editor_textured_view_import.py`, `test_mesh_dotnet_material_state.py` |
+| Editor finish, cancellation and close | `test_mesh_rust_finish_lifecycle.py`, `test_mesh_editor_nonblocking_close.py`, `test_mesh_edit_session_state.py` |
+| Texture panels, saved values and OpenImageIO completion | `test_lazy_texture_workflow_panels.py`, `test_asset_authoring_workers.py` |
+| Current native helper manifest and release routing | `test_native_build_configuration.py`, `test_release_packaging.py` |
+
+The `dotnet_*` filenames in the preview owners include current Rust bridge
+coverage. Check the actual runtime owner before classifying them as retired.
 
 ## Fixtures and private evidence
 

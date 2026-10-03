@@ -1638,26 +1638,20 @@ class MeshEditorActionBarTests(unittest.TestCase):
             "MeshEditorBuildModButton",
             "MeshEditorInstallOverlayButton",
             "MeshEditorRestoreOverlayButton",
-            "MeshEditorCloseSessionButton",
         ):
             output = workspace.findChild(QToolButton, output_name)
-            assert output is not None
+            assert output is not None, output_name
             # High-level output actions are no longer exposed beside the live
             # editor.  The Rust host reveals its revision-pinned result page
-            # only after Finish has been accepted.  Close Session remains a
-            # CDMW-owned escape action outside the embedded child.
-            self.assertEqual(
-                output_name != "MeshEditorCloseSessionButton",
-                output.isHidden(),
-                output_name,
-            )
+            # only after Finish has been accepted.
+            self.assertTrue(output.isHidden(), output_name)
         legacy_dotnet = workspace.findChild(QPushButton, "MeshEditorDotNetExperimentButton")
         assert legacy_dotnet is not None
         self.assertTrue(legacy_dotnet.isHidden())
-        close_session = workspace.findChild(QToolButton, "MeshEditorCloseSessionButton")
+        # The shared tab header owns Close after the workspace hands it over.
+        close_session = tab.findChild(QToolButton, "MeshEditorCloseSessionButton")
         assert close_session is not None
-        self.assertEqual(0, close_session.minimumHeight())
-        self.assertTrue(close_session.autoRaise())
+        self.assertFalse(close_session.isHidden())
 
         button = workspace.findChild(QToolButton, "MeshEditorWorkspaceAction_select_parts")
         brush_button = workspace.findChild(QToolButton, "MeshEditorWorkspaceAction_brush_grab")
@@ -4398,249 +4392,6 @@ class MeshEditorActionBarTests(unittest.TestCase):
         tab.deleteLater()
 
 
-    @unittest.skip("The direct Vortice Mesh Editor prewarm/reuse path is retired.")
-    def test_mesh_editor_tab_never_reuses_a_helper_still_holding_the_prewarm_scene(self) -> None:
-        """A resident helper is only reusable while it holds the cached scene.
-
-        The reuse fast path decided that from the tab's own cached package, which
-        outlives both the dialog that built it and the helper it described. A
-        prewarmed helper is resident but is serving the procedural placeholder --
-        it exists so the process, JIT and D3D device are warm before the click --
-        so that stale cache made the tab activate the placeholder, and the reveal
-        put the warm-up triangle in the pane at full size until the real model
-        replaced it.
-        """
-
-        app = QApplication.instance() or QApplication([])
-        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorEmbeddedDotNetPrewarmReuse"))
-        builder = _EmbeddedMeshBuilder()
-        tab.mount_embedded_builder(builder)
-        mesh = builder.controller.working_mesh(clone=False)
-        signature = mesh_dotnet_material_input_signature(mesh)
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            executable = root / "cdmw-mesh-dotnet-editor.exe"
-            executable.write_bytes(b"helper")
-            cached_package = _dotnet_test_package(
-                root / "cached",
-                material_signature=signature,
-                scene_frame=SimpleNamespace(source_identity=static_scene_source_identity(mesh, None)),
-            )
-            placeholder_package = _dotnet_test_package(root / "prewarm")
-            process = _FakeProcess(tab)
-            process._state = process.Running
-            tab.standalone_dotnet_target_embedded = True
-            tab.standalone_dotnet_target_controller = builder.controller
-            tab.standalone_dotnet_experiment_package = cached_package
-            tab.standalone_dotnet_material_signature = signature
-            controller = _install_shared_dotnet_test_process(
-                tab,
-                process,
-                capabilities=("resident_material_updates_v2",),
-            )
-            # The running helper is the prewarmed one: launched on the procedural
-            # placeholder, and never handed a real package.
-            controller._prewarm_package = placeholder_package
-            controller._applied_package_path = ""
-            rebuilt: list[bool] = []
-
-            with patch.object(tab, "_dotnet_editor_executable_path", return_value=executable), patch.object(
-                tab,
-                "_start_standalone_dotnet_package_worker",
-                lambda _controller, *, embedded, executable: rebuilt.append(bool(embedded)),
-            ):
-                tab._start_dotnet_editor_requested(builder.controller, embedded=True)
-
-            self.assertFalse(
-                any(b'"event":"activate_request"' in write for write in process.stdin_writes),
-                "a helper still holding the prewarm placeholder must never be activated",
-            )
-            self.assertEqual([True], rebuilt)
-        app.processEvents()
-        tab.deleteLater()
-
-    @unittest.skip("The direct Vortice Mesh Editor package-build path is retired.")
-    def test_mesh_editor_tab_leaves_an_in_flight_package_build_alone(self) -> None:
-        """A second start while a package is building must decide nothing.
-
-        The resident-reuse block used to run first, so a re-entrant start
-        evaluated reuse against a scene that was about to be replaced anyway and
-        released it mid-build: the controller's package, its leases and the
-        queued updates were cleared underneath the worker that was still running.
-        """
-
-        app = QApplication.instance() or QApplication([])
-        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorEmbeddedDotNetBuildInFlight"))
-        builder = _EmbeddedMeshBuilder()
-        tab.mount_embedded_builder(builder)
-        mesh = builder.controller.working_mesh(clone=False)
-        signature = mesh_dotnet_material_input_signature(mesh)
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            cached_package = _dotnet_test_package(
-                Path(temp_dir) / "cached",
-                material_signature=signature,
-                scene_frame=SimpleNamespace(source_identity=static_scene_source_identity(mesh, None)),
-            )
-            process = _FakeProcess(tab)
-            process._state = process.Running
-            tab.standalone_dotnet_target_embedded = True
-            tab.standalone_dotnet_target_controller = builder.controller
-            tab.standalone_dotnet_experiment_package = cached_package
-            tab.standalone_dotnet_material_signature = signature
-            controller = _install_shared_dotnet_test_process(
-                tab,
-                process,
-                capabilities=("resident_material_updates_v2",),
-            )
-            controller._applied_package_path = str(cached_package.package_dir)
-            # A build for this very request is already running.
-            tab.standalone_dotnet_package_worker = object()
-
-            tab._start_dotnet_editor_requested(builder.controller, embedded=True)
-
-            self.assertFalse(
-                any(b'"event":"activate_request"' in write for write in process.stdin_writes),
-                "an in-flight build must not be pre-empted by activating the resident scene",
-            )
-            self.assertEqual(
-                str(cached_package.package_dir),
-                controller.applied_package_path,
-                "the resident scene must survive a start that had nothing to do",
-            )
-            tab.standalone_dotnet_package_worker = None
-        app.processEvents()
-        tab.deleteLater()
-
-    @unittest.skip("The direct Vortice Mesh Editor resident-reuse path is retired.")
-    def test_mesh_editor_tab_reuses_a_helper_that_holds_the_cached_scene(self) -> None:
-        """The other half of the contract: a real resident scene is still reused.
-
-        Declining the placeholder must not cost the resident architecture its
-        point. A helper that was never prewarmed, holding the package the tab has
-        cached, is activated in place rather than rebuilt.
-        """
-
-        app = QApplication.instance() or QApplication([])
-        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorEmbeddedDotNetResidentReuse"))
-        builder = _EmbeddedMeshBuilder()
-        tab.mount_embedded_builder(builder)
-        mesh = builder.controller.working_mesh(clone=False)
-        signature = mesh_dotnet_material_input_signature(mesh)
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            cached_package = _dotnet_test_package(
-                Path(temp_dir) / "cached",
-                material_signature=signature,
-                scene_frame=SimpleNamespace(source_identity=static_scene_source_identity(mesh, None)),
-            )
-            process = _FakeProcess(tab)
-            process._state = process.Running
-            tab.standalone_dotnet_target_embedded = True
-            tab.standalone_dotnet_target_controller = builder.controller
-            tab.standalone_dotnet_experiment_package = cached_package
-            tab.standalone_dotnet_material_signature = signature
-            controller = _install_shared_dotnet_test_process(
-                tab,
-                process,
-                capabilities=("resident_material_updates_v2",),
-            )
-            controller._applied_package_path = str(cached_package.package_dir)
-
-            tab._start_dotnet_editor_requested(builder.controller, embedded=True)
-
-            self.assertTrue(
-                any(b'"event":"activate_request"' in write for write in process.stdin_writes),
-                "a helper holding the cached scene must be reused in place",
-            )
-            self.assertIs(process, tab.standalone_dotnet_editor_process)
-        app.processEvents()
-        tab.deleteLater()
-
-    @unittest.skip("latest-wins reopen coverage replaces the Vortice handoff path.")
-    def test_mesh_editor_tab_loads_a_second_mesh_into_a_released_resident_helper(self) -> None:
-        """A second mesh must open in a Mesh Editor that already showed one.
-
-        The resident helper is claimed by the edit session that opens it, and
-        nothing released that claim when the session ended: closing a mesh drops
-        the package, the leases and the viewport but deliberately leaves the
-        process warm for the next one. The warm process therefore stayed bound
-        to a session that no longer existed, the next Modify Original could
-        never bind, and its package was refused with "Close the current editor
-        before opening another mesh" -- about an editor that was already closed.
-        Only shutting the Mesh Editor down entirely, which kills the helper,
-        cleared it, so the second mesh never loaded.
-        """
-
-        app = QApplication.instance() or QApplication([])
-        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorSecondMeshHandoff"))
-        first_builder = _EmbeddedMeshBuilder(session_id="edit-session-a")
-        tab.mount_embedded_builder(first_builder)
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            executable = root / "cdmw-mesh-dotnet-editor.exe"
-            executable.write_bytes(b"helper")
-            first_package = _dotnet_test_package(root / "first")
-            second_package = _dotnet_test_package(root / "second")
-            process = _FakeProcess(tab)
-            process._state = process.Running
-            tab.standalone_dotnet_target_embedded = True
-            tab.standalone_dotnet_target_controller = first_builder.controller
-            controller = _install_shared_dotnet_test_process(
-                tab,
-                process,
-                capabilities=("resident_material_updates_v2", "authoring_session_handoff_v1"),
-                session_id="edit-session-a",
-            )
-
-            with patch.object(tab, "_dotnet_editor_executable_path", return_value=executable):
-                self.assertTrue(tab._launch_standalone_dotnet_editor_package(first_package))
-
-                # The first mesh is closed. `close_standalone_session` is the
-                # path both a new builder and an emptied tab take, and it keeps
-                # the helper warm on purpose.
-                tab.close_standalone_session()
-                self.assertTrue(controller.is_running)
-
-                second_builder = _EmbeddedMeshBuilder(session_id="edit-session-b")
-                tab.mount_embedded_builder(second_builder)
-                tab.standalone_dotnet_target_embedded = True
-                tab.standalone_dotnet_target_controller = second_builder.controller
-
-                statuses: list[tuple[str, bool]] = []
-                tab.status_message_requested.connect(
-                    lambda text, error: statuses.append((str(text), bool(error)))
-                )
-                launched = tab._launch_standalone_dotnet_editor_package(second_package)
-
-            self.assertTrue(
-                launched,
-                "a released resident helper must accept the next mesh's package: "
-                f"{[text for text, error in statuses if error]}",
-            )
-            self.assertEqual(
-                [],
-                [text for text, error in statuses if error],
-                "loading a second mesh must not report an error",
-            )
-            self.assertIs(process, tab.standalone_dotnet_editor_process)
-            rebind = [
-                json.loads(bytes(write).decode("utf-8"))
-                for write in process.stdin_writes
-                if b'"session_release"' in write or b'"session_state"' in write
-            ]
-            self.assertEqual(
-                ["session_release", "session_state"],
-                [str(payload.get("event", "")) for payload in rebind[-2:]],
-                "the helper must be told the old session let go before the new one binds",
-            )
-            self.assertEqual("edit-session-a", rebind[-2].get("session_id"))
-            self.assertEqual("edit-session-b", rebind[-1].get("session_id"))
-        app.processEvents()
-        tab.deleteLater()
-
     def _retired_test_mesh_editor_tab_reactivation_repackages_changed_material_inputs(self) -> None:
         app = QApplication.instance() or QApplication([])
         tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorEmbeddedDotNetMaterialRefresh"))
@@ -4958,55 +4709,6 @@ class MeshEditorActionBarTests(unittest.TestCase):
         tab.update_editor_session_state(controller.session_view(), active_selection_mode=controller.active_selection_mode)
 
         self.assertTrue(tab.action_bar.button_for_key("undo").isEnabled())
-        app.processEvents()
-        tab.deleteLater()
-
-    @unittest.skip("Bundled preflight replaces the retired native/Vortice availability path.")
-    def test_mesh_editor_tab_reports_native_editor_unavailable_and_disables_native_tools(self) -> None:
-        app = QApplication.instance() or QApplication([])
-        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorNativeUnavailable"))
-
-        with patch("cdmw.ui.mesh_editor.tab.native_mesh_core_available", return_value=False) as native_available:
-            tab.open_mesh_session(build_synthetic_mesh(), session_id="native-unavailable-ui", mode="edit")
-            native_available.reset_mock()
-            assert tab.standalone_controller is not None
-            tab.standalone_controller.select(source_indices=(0,))
-            tab.update_editor_session_state(
-                tab.standalone_controller.session_view(),
-                active_selection_mode=tab.standalone_controller.active_selection_mode,
-            )
-            native_available.assert_not_called()
-
-            self.assertIn("Native Mesh Editor unavailable", tab.standalone_status_label.text())
-            self.assertTrue(tab.action_bar.button_for_key("mode_edit").isEnabled())
-            self.assertTrue(tab.action_bar.button_for_key("select_parts").isEnabled())
-            self.assertFalse(tab.action_bar.button_for_key("delete").isEnabled())
-            self.assertFalse(tab.action_bar.button_for_key("subdivide").isEnabled())
-            self.assertFalse(tab.action_bar.button_for_key("brush_grab").isEnabled())
-            self.assertFalse(tab.action_bar.button_for_key("transform_move").isEnabled())
-            self.assertFalse(tab.action_bar.button_for_key("weighted_normals").isEnabled())
-            self.assertFalse(tab.action_bar.button_for_key("uv_transform").isEnabled())
-            self.assertFalse(tab.action_bar.button_for_key("remove_doubles").isEnabled())
-            self.assertIsNone(tab.action_bar.button_for_key("material_assign"))
-            workspace_delete = tab.standalone_workspace.button_for_key("delete")
-            workspace_transform = tab.standalone_workspace.button_for_key("transform_move")
-            workspace_weighted = tab.standalone_workspace.button_for_key("weighted_normals")
-            workspace_select = tab.standalone_workspace.button_for_key("select_parts")
-            assert workspace_delete is not None
-            assert workspace_transform is not None
-            assert workspace_weighted is not None
-            assert workspace_select is not None
-            self.assertFalse(workspace_delete.isEnabled())
-            self.assertFalse(workspace_transform.isEnabled())
-            self.assertFalse(workspace_weighted.isEnabled())
-            self.assertTrue(workspace_select.isEnabled())
-            with patch.object(tab, "_start_standalone_action_worker", side_effect=AssertionError("worker started")):
-                self.assertTrue(tab._run_standalone_action(mesh_editor_actions_by_key()["delete"]))
-                self.assertTrue(tab._run_standalone_action(mesh_editor_actions_by_key()["transform_move"]))
-            self.assertFalse(tab._handle_part_context_action("duplicate", 0))
-            self.assertEqual((0,), tab.standalone_controller.session_view().selection.source_indices)
-            self.assertIn("Native Mesh Editor C++ core is missing", tab.standalone_status_label.text())
-
         app.processEvents()
         tab.deleteLater()
 

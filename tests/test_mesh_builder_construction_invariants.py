@@ -254,3 +254,106 @@ def test_the_builder_opens_under_every_workflow_preset(preset: dict) -> None:
         assert builder.dialog is not None
         for flag in ("full_import_model_replacement", "materials_and_textures_only"):
             assert bool(builder.context.get(flag)) is bool(preset.get(flag, False)), flag
+
+
+def _has_ancestor(widget: QWidget, ancestor: QWidget) -> bool:
+    parent = widget.parentWidget()
+    while parent is not None:
+        if parent is ancestor:
+            return True
+        parent = parent.parentWidget()
+    return False
+
+
+def _section_titled(builder, title: str) -> CollapsibleSection:
+    matches = [
+        section
+        for section in builder.dialog.findChildren(CollapsibleSection)
+        if section.toggle_button.text() == title
+    ]
+    assert matches, f"no section titled {title!r}"
+    return matches[0]
+
+
+def test_material_authority_is_hidden_for_modify_original() -> None:
+    with open_mesh_builder(
+        modify_original_clone_mode=True, dialog_title="Modify Original authority"
+    ) as builder:
+        assert builder.control("material_authority_section").isHidden()
+
+
+def test_expanding_transform_and_parts_requests_the_deferred_mapping() -> None:
+    with open_mesh_builder() as builder:
+        requested = builder.control("mapping_table_build_requested")
+        assert not requested.get("started")
+
+        builder.click(_section_titled(builder, "Transform and Parts").toggle_button)
+
+        assert requested.get("started")
+        builder.control("mapping_table_build_timer").stop()
+
+
+@_MODES
+def test_the_parts_and_routing_tab_is_hidden(
+    modify_original_clone_mode: bool, mode_name: str
+) -> None:
+    with open_mesh_builder(
+        modify_original_clone_mode=modify_original_clone_mode,
+        dialog_title=f"{mode_name} parts tab",
+    ) as builder:
+        tabs = builder.control("control_tabs")
+        parts_tab = builder.control("parts_tab")
+        setup_tab = builder.control("setup_tab")
+
+        assert not tabs.isTabVisible(tabs.indexOf(parts_tab))
+        assert tabs.isTabVisible(tabs.indexOf(setup_tab))
+
+
+def test_options_reads_controls_then_summary_then_notes_then_compatibility() -> None:
+    """The Options section's order, and that it does not say Options twice."""
+    from PySide6.QtWidgets import QGroupBox
+
+    with open_mesh_builder(dialog_title="Options order") as builder:
+        options = _section_titled(builder, "Options")
+        layout = options.body_layout
+        widgets = [layout.itemAt(index).widget() for index in range(layout.count())]
+        widgets = [widget for widget in widgets if widget is not None]
+
+        # The alignment controls come first, and their group carries no title of
+        # its own inside a section that is already called Options.
+        first = widgets[0]
+        assert _has_ancestor(builder.control("alignment_mode_combo"), first) or first is builder.control("alignment_mode_combo").parentWidget()
+        assert isinstance(first, QGroupBox) and first.title() == ""
+
+        titles = []
+        for widget in widgets[1:]:
+            if isinstance(widget, QGroupBox):
+                titles.append(widget.title())
+            elif isinstance(widget, CollapsibleSection):
+                titles.append(widget.toggle_button.text())
+        # Alignment Summary, then (Import Notes when the import produced any),
+        # then the compatibility details.
+        assert titles[0] == "Alignment Summary"
+        assert titles[-1] == "Compatibility Details"
+        if "Import Notes" in titles:
+            assert titles.index("Import Notes") == 1
+
+
+def test_modify_original_writes_material_changes_only_when_something_was_tuned() -> None:
+    """The gate is gone; the build decides from what the reader actually moved."""
+    with open_mesh_builder(
+        modify_original_clone_mode=True, dialog_title="Modify Original tuned"
+    ) as builder:
+        active = builder.context["_modify_original_texture_tuning_active"]
+        assert not active(), "an untouched session keeps the target's own materials"
+
+        controls = builder.control("manual_profile_controls")
+        key, control = next(
+            (name, widget)
+            for name, widget in controls.items()
+            if hasattr(widget, "setValue") and hasattr(widget, "maximum")
+        )
+        control.setValue(control.maximum())
+        builder.pump()
+
+        assert active(), f"moving {key} did not register as tuning"

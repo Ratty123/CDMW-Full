@@ -515,7 +515,7 @@ def test_scope_reaches_real_archive_bridge(finder, monkeypatch, include_related)
     window = _RemoteExportWindow()
     window.archive_clear_asset_scope_button = QPushButton()
     window.archive_scope_banner_label = QLabel()
-    bridge = ArchiveRemoteWindowBridge(window, display_v2=True, shadow=False)
+    bridge = ArchiveRemoteWindowBridge(window)
     bridge.controller._current_session = dialog._bridge.current_session
     queries = []
     monkeypatch.setattr(bridge, "_begin_pending", lambda *a, **kw: None)

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 
 from tests.source_function_map import function_source
 from tests.static_replacement_source_support import static_replacement_ui_implementation_source
-from tests.test_alignment_dialog_source_guards import ROOT
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 class AlignmentDialogResidentProtocolSourceGuardTests(unittest.TestCase):

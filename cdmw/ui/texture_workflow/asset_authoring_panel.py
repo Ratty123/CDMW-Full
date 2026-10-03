@@ -260,7 +260,6 @@ class TextureWorkflowAssetAuthoringPanelMixin:
         self.current_file_value.setText(paths[0].name if paths else operation_text)
         self._set_phase_progress(0, 0, f"Running OpenImageIO {operation_text}...", "Steps")
         self.shell._activate_tool_widget(self.workflow_tab)
-        self.content_tabs.setCurrentIndex(0)
 
         configured_paths = self._openimageio_configured_paths()
         worker = OpenImageIOTaskWorker(

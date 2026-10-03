@@ -15,16 +15,47 @@ from types import SimpleNamespace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PySide6.QtCore import QSettings
+from PySide6.QtWidgets import QApplication
+
 from cdmw.ui.archive_browser.static_replacement_original_texture_preview_state import (
     ORIGINAL_REFERENCE_TEXTURE_REQUEST_ALREADY_LOADED,
     ORIGINAL_REFERENCE_TEXTURE_REQUEST_STARTED,
 )
 from cdmw.ui.mesh_editor import MeshEditorTab
-from tests.test_mesh_editor_action_bar import _FakeProcess
-from tests.test_mesh_editor_textured_view_request_settles import (
-    _display_modes,
-    _mounted_tab,
+from tests.test_mesh_editor_action_bar import (
+    _EmbeddedMeshBuilder,
+    _FakeProcess,
+    _install_shared_dotnet_test_process,
 )
+
+
+def _mounted_tab(name: str, resolver):
+    app = QApplication.instance() or QApplication([])
+    tab = MeshEditorTab(settings=QSettings("CDMWTests", name))
+    builder = _EmbeddedMeshBuilder()
+    setattr(builder, "_mesh_editor_embedded_request_material_resources", resolver)
+    tab.mount_embedded_builder(builder)
+    process = _FakeProcess(tab)
+    process._state = process.Running
+    tab.standalone_dotnet_target_embedded = True
+    tab.standalone_dotnet_target_controller = builder.controller
+    tab._connect_dotnet_protocol(process)
+    _install_shared_dotnet_test_process(
+        tab,
+        process,
+        capabilities=("resident_material_updates_v2", "viewport_display_modes_v1"),
+    )
+    setattr(builder, "_mesh_editor_embedded_dotnet_active", True)
+    return app, tab, builder, process
+
+
+def _display_modes(process: _FakeProcess) -> list[str]:
+    return [
+        str(payload.get("mode"))
+        for payload in (json.loads(raw.decode("utf-8")) for raw in process.stdin_writes)
+        if payload.get("event") == "viewport_display_update"
+    ]
 
 
 def _material_updates(process: _FakeProcess) -> list[dict[str, object]]:

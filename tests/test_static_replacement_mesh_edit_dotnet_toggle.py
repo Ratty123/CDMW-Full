@@ -415,8 +415,7 @@ def test_dotnet_exit_restores_the_textured_preview_through_the_mode_transition()
     # already restores the textured preview, and the second refresh was the
     # flicker on exit. This guard asserted the deleted line, so the shipped fix
     # is what turned it red. Asserting its absence keeps that fix from
-    # regressing, and matches the guard in
-    # test_mesh_edit_responsiveness_source_guards.py, which asserts the same.
+    # regressing. The callback behavior is also exercised below.
     assert "_queue_texture_preview_refresh" not in restore_source
     assert '_state.mesh_edit_preview_model_dirty["value"] = True' in restore_source
     assert "_mesh_edit_refresh_replacement_preview_model" in restore_source
