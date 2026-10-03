@@ -127,6 +127,9 @@ fn all_anchors_present(source: &str, anchors: &str) -> bool {
 // its concrete control/action/command anchor must also exist in the runtime source.
 const CDMW_UI_SOURCE: &str = concat!(
     include_str!("cdmw_ui.rs"),
+    "\n",
+    include_str!("cdmw_history.rs"),
+    "\n",
     include_str!("cdmw_islands.rs"),
     "\n",
     include_str!("cdmw_rig.rs"),
