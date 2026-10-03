@@ -994,22 +994,22 @@ impl LabApplication {
                     (HairTool::Erase,"Erase"),(HairTool::Cut,"Cut"),(HairTool::Lengthen,"Lengthen"),
                     (HairTool::Comb,"Comb"),(HairTool::Smooth,"Smooth"),(HairTool::Curl,"Curl"),(HairTool::Clump,"Clump"),(HairTool::Physics,"Physics")] {
                     let enabled=generated || tool!=HairTool::Guide;
+                    let help = match tool {
+                        HairTool::Select => "Click visible hair. Ctrl-click adds or removes locks. Drag empty space for a marquee.",
+                        HairTool::Move => "Drag the part of a lock you want to shape. Move reach controls how much nearby hair follows. The root stays attached.",
+                        HairTool::Guide => "Start on the scalp, then drag to shape the lock. Escape cancels.",
+                        HairTool::Erase => "Click or brush across visible locks to remove their geometry.",
+                        HairTool::Cut => "Click or drag to cut every visible lock inside the brush. Each lock is cut nearest the brush centre. Escape cancels.",
+                        HairTool::Lengthen => "Drag to extend the tips of every visible lock inside the brush. Roots stay fixed.",
+                        HairTool::Physics => "Paint Static or Physical directly on visible hair. No selection is needed. Roots stay fixed.",
+                        _ => "Drag to groom every visible lock inside the brush. Selection does not restrict the brush.",
+                    };
                     if ui.add_enabled(enabled,egui::Button::new(crate::localization::tr(name)).selected(self.hair.tool==Some(tool)))
+                        .on_hover_text(crate::localization::tr(help))
                         .on_disabled_hover_text(crate::localization::tr("Draw creates new cards in Create hairstyle. Existing hair preserves its original cards and UV layout.")).clicked(){self.hair.tool=Some(tool);self.cdmw_orbit_mode=false;}
                 }
             });
             ui.separator();
-            let help=match self.hair.tool {
-                Some(HairTool::Select)=>"Click visible hair. Ctrl-click adds or removes locks. Drag empty space for a marquee.",
-                Some(HairTool::Move)=>"Drag the part of a lock you want to shape. Move reach controls how much nearby hair follows. The root stays attached.",
-                Some(HairTool::Guide)=>"Start on the scalp, then drag to shape the lock. Escape cancels.",
-                Some(HairTool::Erase)=>"Click or brush across visible locks to remove their geometry.",
-                Some(HairTool::Cut)=>"Click or drag to cut every visible lock inside the brush. Each lock is cut nearest the brush centre. Escape cancels.",
-                Some(HairTool::Lengthen)=>"Drag to extend the tips of every visible lock inside the brush. Roots stay fixed.",
-                Some(HairTool::Root)=>"Click the scalp to attach the selected sections as one lock. Select sections sharing a material.",
-                Some(HairTool::Physics)=>"Paint Static or Physical directly on visible hair. No selection is needed. Roots stay fixed.",
-                _=>"Drag to groom every visible lock inside the brush. Selection does not restrict the brush."
-            };ui.label(crate::localization::tr(help));
             if self.hair.tool == Some(HairTool::Physics) {
                 ui.horizontal_wrapped(|ui| {
                     ui.selectable_value(&mut self.hair.paint_static, true, crate::localization::tr("Static"));
@@ -1027,21 +1027,25 @@ impl LabApplication {
                 ui.horizontal_wrapped(|ui| {
                     for (shape, label) in [(DrawShape::Freehand,"Freehand"), (DrawShape::Straight,"Straight"),
                         (DrawShape::Arc,"Arc"), (DrawShape::Circle,"Circle")] {
-                        if ui.selectable_value(&mut self.hair.draw_shape, shape, crate::localization::tr(label)).changed() {
+                        if ui.selectable_value(&mut self.hair.draw_shape, shape, crate::localization::tr(label))
+                            .on_hover_text(crate::localization::tr(match shape {
+                                DrawShape::Arc => "Drag from the scalp to set the endpoints. Bend controls the curve and its direction.",
+                                DrawShape::Circle => "Drag from the scalp to set the circle diameter. Hold Ctrl to draw in the view plane.",
+                                DrawShape::Straight => "Drag from the scalp to the tip. Enable Follow scalp to fit the line to the head.",
+                                DrawShape::Freehand => "Start on the scalp, then drag to shape the lock. Escape cancels.",
+                            })).changed() {
                             self.hair.draw_follow_scalp = shape == DrawShape::Freehand;
                         }
                     }
                 });
-                ui.checkbox(&mut self.hair.draw_follow_scalp, crate::localization::tr("Follow scalp"));
-                ui.weak(crate::localization::tr("Scalp collision stays active. Hold Ctrl to temporarily draw in the view plane."));
+                ui.checkbox(&mut self.hair.draw_follow_scalp, crate::localization::tr("Follow scalp"))
+                    .on_hover_text(crate::localization::tr("Scalp collision stays active. Hold Ctrl to temporarily draw in the view plane."));
                 match self.hair.draw_shape {
                     DrawShape::Freehand => { ui.add(crate::cdmw_ui::numeric::slider(&mut self.hair.draw_smoothing, 0.0..=1.0).text(crate::localization::tr("Stroke smoothing"))); }
                     DrawShape::Arc => {
-                        ui.label(crate::localization::tr("Drag from the scalp to set the endpoints. Bend controls the curve and its direction."));
                         ui.add(crate::cdmw_ui::numeric::slider(&mut self.hair.arc_bend, -1.5..=1.5).text(crate::localization::tr("Bend")));
                     }
-                    DrawShape::Circle => { ui.label(crate::localization::tr("Drag from the scalp to set the circle diameter. Hold Ctrl to draw in the view plane.")); }
-                    DrawShape::Straight => { ui.label(crate::localization::tr("Drag from the scalp to the tip. Enable Follow scalp to fit the line to the head.")); }
+                    DrawShape::Circle | DrawShape::Straight => {}
                 }
             }
             if self.hair.tool == Some(HairTool::Move) {
@@ -1055,8 +1059,8 @@ impl LabApplication {
             if self.hair.tool==Some(HairTool::Select) {ui.checkbox(&mut self.hair.select_through,crate::localization::tr("Select through"));}
             if ui.add_enabled(!self.hair.selected.is_empty(),egui::Button::new(crate::localization::tr("Delete selected hair"))).clicked() {actions.push(UiAction::Hair(HairAction::DeleteGuides));}
             if unresolved>0 {
-                ui.weak(crate::localization::tr(format!("{unresolved} original sections have no grooming guides")));
-                ui.weak(crate::localization::tr("Unchanged sections can be exported with their original game skinning. Prepare them only for grooming or motion preview."));
+                ui.weak(crate::localization::tr(format!("{unresolved} original sections have no grooming guides")))
+                    .on_hover_text(crate::localization::tr("Unchanged sections can be exported with their original game skinning. Prepare them only for grooming or motion preview."));
             }
             if !generated {
                 crate::localization::collapsing("Prepare sections for grooming").show(ui, |ui| {
@@ -1070,7 +1074,8 @@ impl LabApplication {
                         if ui.button(crate::localization::tr(format!("{label} · {} sections",ids.len()))).clicked(){self.hair.selected=ids.iter().copied().collect();self.hair.tool=Some(HairTool::Select);}
                     }
                 });
-                if ui.add_enabled(!self.hair.selected.is_empty(),egui::Button::new(crate::localization::tr("Set root / group selected sections"))).clicked(){self.hair.tool=Some(HairTool::Root);}
+                if ui.add_enabled(!self.hair.selected.is_empty(),egui::Button::new(crate::localization::tr("Set root / group selected sections")))
+                    .on_hover_text(crate::localization::tr("Click the scalp to attach the selected sections as one lock. Select sections sharing a material.")).clicked(){self.hair.tool=Some(HairTool::Root);}
                 if ui.add_enabled(!self.hair.selected.is_empty(),egui::Button::new(crate::localization::tr("Mark selected scalp sections as rigid"))).clicked(){actions.push(UiAction::Hair(HairAction::Rigid));}
                 });
             }
@@ -1089,10 +1094,10 @@ impl LabApplication {
                 let supported=self.hair.state.as_ref().unwrap().locks.iter().filter(|l|self.hair.selected.contains(&(l.id as usize))).all(|l|l.kind==LockKind::Generated);
                 ui.add_enabled_ui(!self.hair.selected.is_empty(),|ui| {
                     ui.add(crate::cdmw_ui::numeric::slider(&mut self.hair.width,0.0001..=(span*0.2).clamp(0.001,10.0)).text(crate::localization::tr("Lock width")));
-                    ui.add_enabled(supported,crate::cdmw_ui::numeric::slider(&mut self.hair.density,1..=32).text(crate::localization::tr("Follower cards")));
+                    ui.add_enabled(supported,crate::cdmw_ui::numeric::slider(&mut self.hair.density,1..=32).text(crate::localization::tr("Follower cards")))
+                        .on_disabled_hover_text(crate::localization::tr("Existing locks preserve their source cards and UVs; follower density is available for generated locks."));
                     if ui.button(crate::localization::tr("Apply to selected locks")).clicked(){actions.push(UiAction::Hair(HairAction::Settings));}
                 });
-                if !supported {ui.weak(crate::localization::tr("Existing locks preserve their source cards and UVs; follower density is available for generated locks."));}
                 let textures:Vec<_>=self.cdmw_state["hair"]["textures"].as_array().into_iter().flatten().filter_map(|v|v.as_str().map(String::from)).collect();
                 if !textures.is_empty() {
                     self.hair.texture_index=self.hair.texture_index.min(textures.len()-1);
@@ -1108,8 +1113,9 @@ impl LabApplication {
             });
         });
         ui.separator();
-        ui.strong(crate::localization::tr("Motion"));
-        ui.weak(crate::localization::tr("Editor motion preview. Static paint disables cloth in the output; physical areas retain the template's rig and physics."));
+        ui.strong(crate::localization::tr("Motion"))
+            .on_hover_text(crate::localization::tr("Editor motion preview. Static paint disables cloth in the output; physical areas retain the template's rig and physics."))
+            .on_hover_text(crate::localization::tr("Preview motion is approximate. Game physics uses the donor's existing setup."));
         let reason = self.hair_motion_reason().err();
         ui.horizontal(|ui| {
             if ui
@@ -1150,10 +1156,10 @@ impl LabApplication {
             .response
             .labelled_by(movement_label.id);
         crate::localization::collapsing("Advanced").show(ui, |ui| {
-            ui.checkbox(&mut self.hair.show_reference, crate::localization::tr("Show character bust"));
+            ui.checkbox(&mut self.hair.show_reference, crate::localization::tr("Show character bust"))
+                .on_hover_text(crate::localization::tr("Alt-drag orbit · Shift-drag pan · wheel zoom · Escape cancel"));
             ui.checkbox(&mut self.hair.show_guides, crate::localization::tr("Show guides and roots"));
             ui.checkbox(&mut self.hair.show_collisions, crate::localization::tr("Show collision shapes"));
-            ui.weak(crate::localization::tr("Alt-drag orbit · Shift-drag pan · wheel zoom · Escape cancel"));
             ui.add(crate::cdmw_ui::numeric::slider(&mut self.hair.motion.damping, 0.0..=20.0).text(crate::localization::tr("Damping")));
             ui.add(
                 crate::cdmw_ui::numeric::slider(&mut self.hair.motion.bend_compliance, 0.0..=0.005)
@@ -1189,7 +1195,6 @@ impl LabApplication {
             {
                 actions.push(UiAction::Hair(HairAction::Convert));
             }
-            ui.weak(crate::localization::tr("Preview motion is approximate. Game physics uses the donor's existing setup."));
         });
         if self.hair.topology_busy {
             ui.spinner();

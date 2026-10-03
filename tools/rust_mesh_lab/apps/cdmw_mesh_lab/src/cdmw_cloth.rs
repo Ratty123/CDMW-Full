@@ -24,7 +24,6 @@ mod authoring {
                 return;
             }
             crate::localization::collapsing("Create cloth guides (experimental)").show(ui, |ui| {
-                ui.small(crate::localization::tr("Builds a simulation mesh from a stored LOD, using the existing bones."));
                 if !state_bool(&state, "available") {
                     ui.label(crate::localization::tr(state_str(&state, "reason").unwrap_or("Guide creation is unavailable.")));
                     return;
@@ -62,14 +61,15 @@ mod authoring {
                 let vertices: u64 = parts.iter().filter_map(|part| part["lod_vertices"][view.source_lod as usize].as_u64()).sum();
                 ui.small(crate::localization::tr(format!("{vertices} source vertices before welding; maximum 1,024 guides across all parts.")));
                 ui.horizontal(|ui| {
-                    ui.label(crate::localization::tr("Pin guides at or above Y"));
+                    ui.label(crate::localization::tr("Pin guides at or above Y"))
+                        .on_hover_text(crate::localization::tr("Height uses displayed model coordinates. Each disconnected piece needs an anchor."));
                     ui.add(crate::cdmw_ui::numeric::value(&mut view.height).speed(0.01));
                 });
-                ui.small(crate::localization::tr("Height uses displayed model coordinates. Each disconnected piece needs an anchor."));
-                ui.checkbox(&mut view.reduce_skinning, crate::localization::tr("Reduce skinning to four bones"));
-                ui.small(crate::localization::tr("Optional: keeps the four strongest bone weights and normalizes them at every LOD. This changes skeletal deformation."));
+                ui.checkbox(&mut view.reduce_skinning, crate::localization::tr("Reduce skinning to four bones"))
+                    .on_hover_text(crate::localization::tr("Optional: keeps the four strongest bone weights and normalizes them at every LOD. This changes skeletal deformation."));
                 let valid = enabled && view.height.is_finite() && parts.iter().all(|part| state_bool(part, "included"));
-                if ui.add_enabled(valid, egui::Button::new(crate::localization::tr("Create / update guides"))).clicked() {
+                if ui.add_enabled(valid, egui::Button::new(crate::localization::tr("Create / update guides")))
+                    .on_hover_text(crate::localization::tr("Creates bindings at every stored LOD. Saved in drafts and Build Mod; game activation is unverified.")).clicked() {
                     actions.push(UiAction::CdmwCommand { command: "replacement_guides",
                         arguments: json!({"part_ids": ids, "source_lod": view.source_lod, "fixed_above": view.height,
                                           "reduce_skinning": view.reduce_skinning}),
@@ -80,8 +80,7 @@ mod authoring {
                     actions.push(UiAction::CdmwCommand { command: "replacement_guides",
                         arguments: json!({"part_ids": ids, "reset": true}), label: "Restore source guides" });
                 }
-                ui.small(crate::localization::tr("Creates bindings at every stored LOD. Saved in drafts and Build Mod; game activation is unverified."));
-            });
+            }).header_response.on_hover_text(crate::localization::tr("Builds a simulation mesh from a stored LOD, using the existing bones."));
         }
     }
 }
@@ -282,8 +281,7 @@ pub(super) mod profiles {
                     });
                 });
             }
-            ui.small(crate::localization::tr("Exports raw collision and attachment switches. The preview does not reproduce every game collision branch."));
-        });
+        }).header_response.on_hover_text(crate::localization::tr("Exports raw collision and attachment switches. The preview does not reproduce every game collision branch."));
     }
 
     fn draw_authoring(
@@ -406,10 +404,10 @@ pub(super) mod profiles {
                 actions.push(UiAction::CdmwCommand { command: "replacement_physics_profile",
                     arguments: json!({"group_id": group["id"], "reset": true}), label: "Restore physics profile" });
             }
-            ui.small(crate::localization::tr("Raw profile values. Saved with Build Mod and drafts; Apply and Restore support Undo."));
-            ui.small(crate::localization::tr("Gravity: negative pulls down; positive lifts up."));
-            ui.small(crate::localization::tr("Build Mod includes a cloned profile, the profile catalogue and this variant's assignment. Profile edits do not create cloth guides or physics/bone bindings."));
-        });
+        }).header_response
+            .on_hover_text(crate::localization::tr("Raw profile values. Saved with Build Mod and drafts; Apply and Restore support Undo."))
+            .on_hover_text(crate::localization::tr("Gravity: negative pulls down; positive lifts up."))
+            .on_hover_text(crate::localization::tr("Build Mod includes a cloned profile, the profile catalogue and this variant's assignment. Profile edits do not create cloth guides or physics/bone bindings."));
     }
 
     pub(crate) fn draw(
@@ -493,11 +491,12 @@ pub(super) mod profiles {
                 }
                 _ => {}
             }
-            ui.small(crate::localization::tr("Profile variant (preview and mod edit)"));
             ui.horizontal_wrapped(|ui| {
                 for variant in state["variants"].as_array().into_iter().flatten().filter_map(Value::as_str) {
                     let label = if variant.is_empty() { "Default variant".to_owned() } else { format!("Variant {variant}") };
-                    if ui.add(egui::Button::new(crate::localization::tr(label)).selected(view.variant.as_deref() == Some(variant))).clicked()
+                    if ui.add(egui::Button::new(crate::localization::tr(label)).selected(view.variant.as_deref() == Some(variant)))
+                        .on_hover_text(crate::localization::tr("Profile variant (preview and mod edit)"))
+                        .on_hover_text(crate::localization::tr("Choose a preview variant. The active game variant is not known.")).clicked()
                         && view.variant.as_deref() != Some(variant) {
                         changed |= restore_manual(view, settings, rotation_available, spline_available);
                         view.variant = Some(variant.to_owned());
@@ -519,9 +518,13 @@ pub(super) mod profiles {
             draw_authoring(ui, state, view, actions, can_author);
             let profile = match assigned_profile(state, parts, view.variant.as_deref()) {
                 Ok(profile) => profile,
-                Err(reason) => { ui.small(crate::localization::tr(reason)); return; }
+                Err(reason) => {
+                    if view.variant.is_some() { ui.small(crate::localization::tr(reason)); }
+                    return;
+                }
             };
-            ui.small(crate::localization::tr(profile["path"].as_str().unwrap_or_default()))
+            ui.small(profile["path"].as_str().unwrap_or_default().rsplit(['/', '\\']).next().unwrap_or_default())
+                .on_hover_text(profile["path"].as_str().unwrap_or_default())
                 .on_hover_text(crate::localization::tr(format!("SHA-256: {}", profile["sha256"].as_str().unwrap_or_default())));
             let Some(preset) = Preset::read(&profile["preview"]) else {
                 ui.small(crate::localization::tr(profile["reason"].as_str().filter(|reason| !reason.is_empty()).unwrap_or("Profile values are unsupported by the cloth preview.")));
@@ -537,23 +540,23 @@ pub(super) mod profiles {
                     ui.small(crate::localization::tr("Spline preview needs complete ordered guide chains with fixed roots."));
                 }
             }
-            if ui.add_enabled(can_apply && (!preset.spline || spline_available), egui::Button::new(crate::localization::tr("Use profile in preview"))).clicked() {
+            if ui.add_enabled(can_apply && (!preset.spline || spline_available), egui::Button::new(crate::localization::tr("Use profile in preview")))
+                .on_hover_text(crate::localization::tr("Loads gravity, damping, stretch, bend, spline spring-back, iterations, vertex alpha and supported guide rotation. Saved edits refresh a loaded profile."))
+                .on_hover_text(crate::localization::tr("Uses decoded initial stiffness conversion and a fixed preview clock. Other profile settings and live game activation are not reproduced. Changes are preview-only.")).clicked() {
                 let manual = view.loaded.as_ref().map(|(_, manual)| *manual).unwrap_or(*settings);
                 view.loaded = Some((selection_key(&view.variant), manual));
                 preset.apply(settings, if preset.spline { spline_available } else { rotation_available });
                 changed = true;
             }
             if view.loaded.is_some() {
-                ui.small(crate::localization::tr("Profile starting values loaded. Preview sliders can adjust them."));
-                if ui.button(crate::localization::tr("Restore manual preview settings")).clicked() {
+                if ui.button(crate::localization::tr("Restore manual preview settings"))
+                    .on_hover_text(crate::localization::tr("Profile starting values loaded. Preview sliders can adjust them.")).clicked() {
                     changed |= restore_manual(view, settings, rotation_available, spline_available);
                 }
             }
             if preset.rotate_guides && !(if preset.spline { spline_available } else { rotation_available }) {
                 ui.small(crate::localization::tr("Guide rotation cannot be applied without orientation neighbors."));
             }
-            ui.small(crate::localization::tr("Loads gravity, damping, stretch, bend, spline spring-back, iterations, vertex alpha and supported guide rotation. Saved edits refresh a loaded profile."));
-            ui.small(crate::localization::tr("Uses decoded initial stiffness conversion and a fixed preview clock. Other profile settings and live game activation are not reproduced. Changes are preview-only."));
         });
         changed
     }
@@ -695,7 +698,6 @@ impl LabApplication {
         };
         self.draw_cdmw_physics_detection(ui, &inspected);
         self.draw_cdmw_guide_authoring(ui, actions);
-        ui.small(crate::localization::tr("Fixed vertices follow the skeleton. Cloth amount edits retained bindings."));
         if !state_bool(&cloth, "available") {
             ui.label(crate::localization::tr(state_str(&cloth, "reason").unwrap_or("Cloth influence is unavailable.")));
             let parts = self.cdmw_state["replacement"]["parts"].as_array().cloned().unwrap_or_default();
@@ -763,8 +765,9 @@ impl LabApplication {
         ui.add(
             crate::cdmw_ui::numeric::slider(&mut self.cdmw_cloth.amount_percent, 0.0..=100.0)
                 .text(crate::localization::tr("Cloth amount")),
-        );
-        ui.checkbox(&mut self.cdmw_cloth.use_height, crate::localization::tr("Fix vertices above height"));
+        ).on_hover_text(crate::localization::tr("Fixed vertices follow the skeleton. Cloth amount edits retained bindings."));
+        ui.checkbox(&mut self.cdmw_cloth.use_height, crate::localization::tr("Fix vertices above height"))
+            .on_hover_text(crate::localization::tr("Uses displayed model coordinates. Higher vertices stay fixed; lower vertices move."));
         if self.cdmw_cloth.use_height {
             ui.horizontal(|ui| {
                 ui.label(crate::localization::tr("Height (Y)"));
@@ -778,9 +781,9 @@ impl LabApplication {
                         .speed(0.01),
                 );
             });
-            ui.small(crate::localization::tr("Uses displayed model coordinates. Higher vertices stay fixed; lower vertices move."));
         }
-        if ui.button(crate::localization::tr("Apply cloth settings")).clicked() {
+        if ui.button(crate::localization::tr("Apply cloth settings"))
+            .on_hover_text(crate::localization::tr("Saved with Build PAC and drafts. Preview simulation remains approximate.")).clicked() {
             actions.push(UiAction::CdmwCommand {
                 command: "replacement_cloth",
                 arguments: json!({"part_ids": ids, "rule": {
@@ -807,7 +810,6 @@ impl LabApplication {
                 });
             }
         });
-        ui.small(crate::localization::tr("Saved with Build PAC and drafts. Preview simulation remains approximate."));
         self.draw_cloth_preview_controls(ui, &parts, actions);
         self.draw_cloth_collision_inputs(ui, actions);
     }
@@ -816,8 +818,7 @@ impl LabApplication {
         let state = &self.cdmw_state["weapon_collisions"];
         let available = state_bool(state, "available") && !self.cdmw_busy();
         let active = state_bool(state, "active");
-        crate::localization::collapsing("Weapon colliders (experimental)").show(ui, |ui| {
-            ui.small(crate::localization::tr("Fits capsules to included rigid weapon parts; cloth parts are excluded."));
+        crate::localization::collapsing("Weapon colliders").id_salt("Weapon colliders (experimental)").show(ui, |ui| {
             if !state_bool(state, "available") {
                 ui.small(crate::localization::tr(state["reason"].as_str().unwrap_or("No supported weapon collision geometry.")));
             }
@@ -831,8 +832,10 @@ impl LabApplication {
                         arguments: json!({"enabled": false}), label: "Restore source colliders" });
                 }
             });
-            ui.small(crate::localization::tr("Saved with Build PAC and drafts. In-game collision activation remains unverified."));
-            ui.small(crate::localization::tr("To test a weapon's own ribbon, override Skip own model collisions and turn Enabled off."));
-        });
+        }).header_response
+            .on_hover_text(crate::localization::tr("Weapon colliders (experimental)"))
+            .on_hover_text(crate::localization::tr("Fits capsules to included rigid weapon parts; cloth parts are excluded."))
+            .on_hover_text(crate::localization::tr("Saved with Build PAC and drafts. In-game collision activation remains unverified."))
+            .on_hover_text(crate::localization::tr("To test a weapon's own ribbon, override Skip own model collisions and turn Enabled off."));
     }
 }

@@ -6067,16 +6067,6 @@
       ]
     },
     {
-      "key": "Adjust settings, then apply.",
-      "origins": [
-        {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 3910,
-          "sink": "rust-presentation"
-        }
-      ]
-    },
-    {
       "key": "Adjustment opacity",
       "origins": [
         {
@@ -23733,6 +23723,11 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs",
           "line": 182,
           "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs",
+          "line": 499,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -24382,6 +24377,11 @@
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
           "line": 467,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 511,
           "sink": "rust-presentation"
         }
       ]
@@ -29702,16 +29702,6 @@
       ]
     },
     {
-      "key": "Copy Selection → Paste New Layer",
-      "origins": [
-        {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4543,
-          "sink": "rust-presentation"
-        }
-      ]
-    },
-    {
       "key": "Copy Source Normals",
       "origins": [
         {
@@ -32692,16 +32682,6 @@
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 2731,
-          "sink": "rust-presentation"
-        }
-      ]
-    },
-    {
-      "key": "Cyan sampled lines show vertex-normal direction; they are not bones.",
-      "origins": [
-        {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 2330,
           "sink": "rust-presentation"
         }
       ]
@@ -36857,6 +36837,16 @@
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 2317,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 2356,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 2380,
           "sink": "rust-presentation"
         }
       ]
@@ -41473,6 +41463,11 @@
           "path": "cdmw/ui/new_item/panels_stats.py",
           "line": 65,
           "sink": "NoteLabel"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 4030,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -47115,16 +47110,6 @@
       "key": "Fit Size",
       "origins": [],
       "manual": true
-    },
-    {
-      "key": "Fit all bound garments to the current body; body sliders are optional.",
-      "origins": [
-        {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 3848,
-          "sink": "rust-presentation"
-        }
-      ]
     },
     {
       "key": "Fit it to the item",
@@ -57753,6 +57738,11 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
           "line": 877,
           "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 575,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -62603,6 +62593,11 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
           "line": 740,
           "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 773,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -63683,6 +63678,16 @@
           "path": "tools/placement_studio/window_loading.py",
           "line": 142,
           "sink": "showMessage"
+        }
+      ]
+    },
+    {
+      "key": "Loads collision shapes only; the weapon mesh is not shown. Enable Show collision shapes to see and position them.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 239,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -76047,16 +76052,6 @@
       "manual": true
     },
     {
-      "key": "No authored body volumes available.",
-      "origins": [
-        {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
-          "line": 737,
-          "sink": "rust-presentation"
-        }
-      ]
-    },
-    {
       "key": "No authored hair section is included in the hairstyle.",
       "origins": [
         {
@@ -79342,16 +79337,6 @@
       ]
     },
     {
-      "key": "No weapon colliders available.",
-      "origins": [
-        {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
-          "line": 741,
-          "sink": "rust-presentation"
-        }
-      ]
-    },
-    {
       "key": "No weighted influences",
       "origins": [
         {
@@ -80583,16 +80568,6 @@
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
           "line": 248,
           "sink": "QGroupBox"
-        }
-      ]
-    },
-    {
-      "key": "Numeric buttons and viewport gestures commit one undoable shadow transaction.",
-      "origins": [
-        {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 2399,
-          "sink": "rust-presentation"
         }
       ]
     },
@@ -89813,6 +89788,11 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
           "line": 496,
           "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 494,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -93182,16 +93162,6 @@
       ]
     },
     {
-      "key": "Preserve imported size and position · manual placement",
-      "origins": [
-        {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 4073,
-          "sink": "rust-presentation"
-        }
-      ]
-    },
-    {
       "key": "Preserve reason: {value_0}",
       "origins": [
         {
@@ -96052,6 +96022,11 @@
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
           "line": 879,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
+          "line": 853,
           "sink": "rust-presentation"
         }
       ]
@@ -124597,16 +124572,6 @@
       ]
     },
     {
-      "key": "Standalone rigid attachment: motion drives the model root.",
-      "origins": [
-        {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
-          "line": 686,
-          "sink": "rust-presentation"
-        }
-      ]
-    },
-    {
       "key": "Standalone spline preview needs the source model's rigid attachment frame.",
       "origins": [
         {
@@ -124862,6 +124827,11 @@
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
           "line": 1005,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
+          "line": 1035,
           "sink": "rust-presentation"
         }
       ]
@@ -143712,11 +143682,26 @@
       ]
     },
     {
+      "key": "Weapon colliders",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs",
+          "line": 821,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Weapon colliders (experimental)",
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs",
           "line": 819,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs",
+          "line": 836,
           "sink": "rust-presentation"
         }
       ]

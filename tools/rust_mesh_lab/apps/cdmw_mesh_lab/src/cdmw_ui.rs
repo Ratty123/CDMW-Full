@@ -2326,22 +2326,17 @@ impl LabApplication {
         page: CdmwRailPage,
     ) {
         let selected = self.selected_counts().total() > 0;
-        ui.label(crate::localization::tr("Drag a gizmo axis, ring, or center handle in the viewport."));
         match page {
             CdmwRailPage::Rotate => {
                 ui.horizontal(|ui| {
-                    ui.label(crate::localization::tr("Angle °"));
+                    ui.label(crate::localization::tr("Angle °"))
+                        .on_hover_text(crate::localization::tr("Drag a gizmo axis, ring, or center handle in the viewport."));
                     ui.add(
                         crate::cdmw_ui::numeric::value(&mut self.transform_rotate_step)
                             .speed(0.5)
                             .range(-360.0..=360.0),
                     );
                 });
-                if self.show_normals {
-                    ui.small(
-                        crate::localization::tr("Cyan sampled lines show vertex-normal direction; they are not bones."),
-                    );
-                }
                 let degrees = self.transform_rotate_step;
                 ui.horizontal_wrapped(|ui| {
                     for (label, axis) in [
@@ -2357,7 +2352,8 @@ impl LabApplication {
             }
             CdmwRailPage::Scale => {
                 ui.horizontal(|ui| {
-                    ui.label(crate::localization::tr("Factor"));
+                    ui.label(crate::localization::tr("Factor"))
+                        .on_hover_text(crate::localization::tr("Drag a gizmo axis, ring, or center handle in the viewport."));
                     ui.add(
                         crate::cdmw_ui::numeric::value(&mut self.transform_scale_factor)
                             .speed(0.01)
@@ -2380,7 +2376,8 @@ impl LabApplication {
             }
             _ => {
                 ui.horizontal(|ui| {
-                    ui.label(crate::localization::tr("Axis step"));
+                    ui.label(crate::localization::tr("Axis step"))
+                        .on_hover_text(crate::localization::tr("Drag a gizmo axis, ring, or center handle in the viewport."));
                     ui.add(crate::cdmw_ui::numeric::value(&mut self.transform_translate_step).speed(0.001));
                 });
                 let step = self.transform_translate_step;
@@ -2407,15 +2404,18 @@ impl LabApplication {
                 });
             }
         }
-        ui.small(crate::localization::tr(if selected {
-            "Numeric buttons and viewport gestures commit one undoable shadow transaction."
-        } else {
-            "Select vertices, edges, faces, or parts before transforming."
-        }));
+        if !selected {
+            ui.small(crate::localization::tr("Select vertices, edges, faces, or parts before transforming."));
+        }
     }
 
     fn draw_cdmw_brush_page(&mut self, ui: &mut egui::Ui, page: CdmwRailPage) {
-        ui.add(crate::cdmw_ui::numeric::slider(&mut self.brush_radius, 4.0..=240.0).text(crate::localization::tr("Radius px")));
+        ui.add(crate::cdmw_ui::numeric::slider(&mut self.brush_radius, 4.0..=240.0).text(crate::localization::tr("Radius px")))
+            .on_hover_text(crate::localization::tr(if self.selected_counts().total() == 0 {
+                "No selection: the brush affects vertices under its painted area."
+            } else {
+                "Selected: the painted brush area is clipped to the explicit selection."
+            }));
         if page != CdmwRailPage::Grab {
             let range = if page == CdmwRailPage::Inflate {
                 -1.0..=1.0
@@ -2429,13 +2429,13 @@ impl LabApplication {
             } else {
                 egui::SliderClamping::Edits
             };
-            ui.add(
+            let strength = ui.add(
                 crate::cdmw_ui::numeric::slider(&mut self.brush_strength, range)
                     .clamping(clamping)
                     .text(crate::localization::tr("Strength")),
             );
             if page == CdmwRailPage::Inflate {
-                ui.small(crate::localization::tr("Positive inflates; negative deflates along the surface normals."));
+                strength.on_hover_text(crate::localization::tr("Positive inflates; negative deflates along the surface normals."));
             }
         }
         crate::localization::combo("Falloff")
@@ -2460,13 +2460,10 @@ impl LabApplication {
                 ] {
                     ui.selectable_value(&mut self.sculpt_symmetry, symmetry, crate::localization::tr(symmetry.label()));
                 }
-            });
-        if self.sculpt_symmetry != SculptSymmetry::Off {
-            ui.small(crate::localization::tr(format!(
+            }).response.on_hover_text(crate::localization::tr(format!(
                 "{} mirrors in object space; unmatched vertices stay untouched.",
                 self.sculpt_symmetry.label()
             )));
-        }
         if page == CdmwRailPage::Smooth {
             crate::localization::combo("Passes")
                 .selected_text(crate::localization::tr(format_pass_count(self.smooth_iterations)))
@@ -2480,11 +2477,6 @@ impl LabApplication {
                     }
                 });
         }
-        ui.small(crate::localization::tr(if self.selected_counts().total() == 0 {
-            "No selection: the brush affects vertices under its painted area."
-        } else {
-            "Selected: the painted brush area is clipped to the explicit selection."
-        }));
     }
 
     fn draw_cdmw_topology_page(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
@@ -2692,6 +2684,11 @@ impl LabApplication {
             ] {
                 if ui
                     .add_enabled(free_edit, Button::new(crate::localization::tr(label)))
+                    .on_hover_text(crate::localization::tr(if selected {
+                        "Remove Doubles uses selected vertices. Other cleanup actions repair each selected element's owning Part."
+                    } else {
+                        "No selection: cleanup applies to every editable Part."
+                    }))
                     .on_disabled_hover_text(
                         crate::localization::tr("Cleanup that changes topology requires Free Edit output"),
                     )
@@ -2726,13 +2723,6 @@ impl LabApplication {
                 }
             }
         });
-        if free_edit {
-            ui.small(crate::localization::tr(if selected {
-                "Remove Doubles uses selected vertices. Other cleanup actions repair each selected element's owning Part."
-            } else {
-                "No selection: cleanup applies to every editable Part."
-            }));
-        }
     }
 
     fn draw_cdmw_normals_page(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
@@ -2742,9 +2732,6 @@ impl LabApplication {
             .on_hover_text(
                 crate::localization::tr("Cyan sampled lines point away from the surface along the current vertex normals."),
             );
-        ui.small(
-            crate::localization::tr("Selected elements target their owning Part for Recalculate, Weighted, and Tangents. Flip, Sharpen, Soften, and Copy can use element rows. Normal commands enable the direction preview automatically; tangents are recorded but have no line overlay."),
-        );
         ui.horizontal_wrapped(|ui| {
             for (label, action) in [
                 ("Recalculate Normals", "recalculate_normals"),
@@ -2757,6 +2744,11 @@ impl LabApplication {
             ] {
                 let response = ui
                     .add_enabled(selected, Button::new(crate::localization::tr(label)))
+                    .on_hover_text(crate::localization::tr(if action == "copy_normals" {
+                        "Copy Source Normals restores the matching original game-mesh normal rows."
+                    } else {
+                        "Selected elements target their owning Part for Recalculate, Weighted, and Tangents. Flip, Sharpen, Soften, and Copy can use element rows. Normal commands enable the direction preview automatically; tangents are recorded but have no line overlay."
+                    }))
                     .on_disabled_hover_text(crate::localization::tr("Select mesh elements or Parts first"));
                 if response.clicked() {
                     if action != "generate_tangents" {
@@ -2770,7 +2762,6 @@ impl LabApplication {
                 }
             }
         });
-        ui.small(crate::localization::tr("Copy Source Normals restores the matching original game-mesh normal rows."));
         if let Some(feedback) = &self.cdmw_normals_feedback {
             ui.label(RichText::new(crate::localization::tr(format!("Result: {feedback}"))).small());
         }
@@ -2782,10 +2773,10 @@ impl LabApplication {
         let free_edit = state_str(&self.cdmw_state, "output_policy") == Some("free_edit_rebuild");
         ui.label(RichText::new(crate::localization::tr("UV0 Editing")).strong());
         ui.horizontal_wrapped(|ui| {
-            if ui.button(crate::localization::tr("Show UV Checker")).clicked() {
+            if ui.button(crate::localization::tr("Show UV Checker"))
+                .on_hover_text(crate::localization::tr("UV tools move UV0, not the 3D mesh. Use the checker to see the result.")).clicked() {
                 self.view_mode = ViewMode::UvChecker;
             }
-            ui.small(crate::localization::tr("UV tools move UV0, not the 3D mesh. Use the checker to see the result."));
         });
         ui.horizontal(|ui| {
             ui.label(crate::localization::tr("Move step"));
@@ -3857,7 +3848,6 @@ impl LabApplication {
                 }
             }
             ui.separator();
-            ui.weak(crate::localization::tr("Fit all bound garments to the current body; body sliders are optional."));
             if ui.button(crate::localization::tr("Fit to body")).on_hover_text(
                 crate::localization::tr("Preview an outward fit for all bound garments using Surface, 100% intensity, and at least 0.1% clearance. Reset reverts it; Bake keeps it.")
             ).clicked() {
@@ -3918,8 +3908,6 @@ impl LabApplication {
                 }
                 if self.cdmw_refit_settings_dirty {
                     ui.colored_label(REFIT_ARMOR_COLOUR, crate::localization::tr("Changes not applied"));
-                } else {
-                    ui.weak(crate::localization::tr("Adjust settings, then apply."));
                 }
                 if ui
                     .add_enabled(
@@ -4039,7 +4027,8 @@ impl LabApplication {
             .collect();
         ui.add_enabled_ui(!busy, |ui| {
             if replacement["experimental"].as_bool().unwrap_or(false) {
-                ui.small(crate::localization::tr("Experimental: positioning, scale or animation may be wrong in game. Skin weights are transferred from the original part; export reverses its neutral display transform."));
+                ui.colored_label(ui.visuals().warn_fg_color, crate::localization::tr("Experimental"))
+                    .on_hover_text(crate::localization::tr("Experimental: positioning, scale or animation may be wrong in game. Skin weights are transferred from the original part; export reverses its neutral display transform."));
             }
             ui.horizontal_wrapped(|ui| {
                 ui.add_enabled_ui(available && comparison == "edit", |ui| {
@@ -4082,7 +4071,6 @@ impl LabApplication {
                 ui.group(|ui| {
                     ui.label(pending["source"].as_str().map(str::to_owned)
                         .unwrap_or_else(|| crate::localization::tr("Replacement")));
-                    ui.small(crate::localization::tr("Preserve imported size and position · manual placement"));
                     let token = pending["token"].as_str().unwrap_or("");
                     let targets = pending["targets"].as_array().cloned().unwrap_or_default();
                     let sources = pending["sources"].as_array().cloned().unwrap_or_default();
@@ -4482,8 +4470,8 @@ impl LabApplication {
         if !authoring {
             ui.small(crate::localization::tr("Geometry Layers are read-only in this session."));
         } else if archive_refit {
-            ui.colored_label(REFIT_ARMOR_COLOUR, crate::localization::tr("Archive Refit · fixed geometry"));
-            ui.small(crate::localization::tr("Layers organise loaded assets. Adding or removing geometry would prevent saving the original game files."));
+            ui.colored_label(REFIT_ARMOR_COLOUR, crate::localization::tr("Archive Refit · fixed geometry"))
+                .on_hover_text(crate::localization::tr("Layers organise loaded assets. Adding or removing geometry would prevent saving the original game files."));
         } else if !free_edit {
             ui.colored_label(
                 Color32::from_rgb(245, 190, 75),
@@ -4551,9 +4539,6 @@ impl LabApplication {
             ui.label(crate::localization::tr("Layer name"));
             ui.text_edit_singleline(&mut self.cdmw_layer_name);
         });
-        if free_edit {
-            ui.small(crate::localization::tr("Copy Selection → Paste New Layer"));
-        }
     }
 
     fn draw_cdmw_viewport(&mut self, root_ui: &mut egui::Ui) {
@@ -4951,17 +4936,17 @@ impl LabApplication {
                             ui.checkbox(&mut enabled, crate::localization::tr(label))
                                 .on_hover_text(crate::localization::tr("Override this channel on selected parts. Uncheck to keep the source texture."));
                             let mut value = surface[index].unwrap_or(if index == 0 { 0.9 } else { 0.0 });
-                            ui.add_enabled(enabled, crate::cdmw_ui::numeric::slider(&mut value, 0.0..=1.0));
+                            ui.add_enabled(enabled, crate::cdmw_ui::numeric::slider(&mut value, 0.0..=1.0))
+                                .on_hover_text(crate::localization::tr("Higher roughness softens highlights; lower metallic reduces metallic reflections. Some game reflections may remain."));
                             surface[index] = enabled.then_some(value);
                         });
                     }
-                    ui.small(crate::localization::tr("Higher roughness softens highlights; lower metallic reduces metallic reflections. Some game reflections may remain."));
                     crate::localization::collapsing("Advanced").id_salt("translucency_advanced").show(ui, |ui| {
                         for (name, value) in ["Thickness", "Extinction"].into_iter().zip(values.iter_mut()) {
                             ui.add(crate::cdmw_ui::numeric::slider(value, 0.0..=1.0)
                                 .text(crate::localization::tr(name)).fixed_decimals(3));
                         }
-                    });
+                    }).header_response.on_hover_text(crate::localization::tr("Higher values absorb more light. Glow maps and colours are kept. Game refraction and glow brightness may differ from the preview."));
                     ui.horizontal_wrapped(|ui| {
                         if ui.button(crate::localization::tr("Apply translucency")).clicked() {
                             actions.push(UiAction::CdmwCommand {
@@ -4983,7 +4968,6 @@ impl LabApplication {
                 });
                 ui.ctx().data_mut(|data| data.insert_temp(key, values));
                 ui.ctx().data_mut(|data| data.insert_temp(surface_key, surface));
-                ui.small(crate::localization::tr("Higher values absorb more light. Glow maps and colours are kept. Game refraction and glow brightness may differ from the preview."));
             });
     }
 }

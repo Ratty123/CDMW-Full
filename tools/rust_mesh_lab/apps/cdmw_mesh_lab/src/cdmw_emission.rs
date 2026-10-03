@@ -60,12 +60,12 @@ impl LabApplication {
                 for (i, (label, maximum)) in [("Strength", 20.0), ("Scroll U", 10.0), ("Scroll V", 10.0),
                     ("Pulse speed", 10.0), ("Pulse floor", 1.0)].into_iter().enumerate() {
                     ui.add(crate::cdmw_ui::numeric::slider(&mut values[3 + i], 0.0..=maximum)
-                        .text(crate::localization::tr(label)).fixed_decimals(3));
+                        .text(crate::localization::tr(label)).fixed_decimals(3))
+                        .on_hover_text(crate::localization::tr("Zero speed is static. Scroll moves the glow map only; a solid map cannot show movement. Pulse floor is capped by each pixel's glow. Preview timing is approximate."));
                 }
-                ui.small(crate::localization::tr("Zero speed is static. Scroll moves the glow map only; a solid map cannot show movement. Pulse floor is capped by each pixel's glow. Preview timing is approximate."));
-                ui.small(crate::localization::tr("Animated glow cannot share a part with translucency. Unsupported source shaders are reported when applying."));
                 let mut rgb = values[8] > 0.5;
-                ui.checkbox(&mut rgb, crate::localization::tr("Use RGB glow map"));
+                ui.checkbox(&mut rgb, crate::localization::tr("Use RGB glow map"))
+                    .on_hover_text(crate::localization::tr("Requires the source glow map: RGB colours, alpha intensity, red reveal mask. Uses RGB strength. Reveal 0 is off; 1 shows all. Game brightness may differ."));
                 values[8] = if rgb { 1.0 } else { 0.0 };
                 if rgb {
                     for (index, label, minimum) in [(9, "RGB strength", 0.0), (10, "Reveal", 0.0), (11, "Reveal softness", 0.001)] {
@@ -75,10 +75,10 @@ impl LabApplication {
                     let mut inverse = values[12] > 0.5;
                     ui.checkbox(&mut inverse, crate::localization::tr("Invert reveal mask"));
                     values[12] = if inverse { 1.0 } else { 0.0 };
-                    ui.small(crate::localization::tr("Requires the source glow map: RGB colours, alpha intensity, red reveal mask. Uses RGB strength. Reveal 0 is off; 1 shows all. Game brightness may differ."));
                 }
                 ui.horizontal_wrapped(|ui| {
-                    if ui.button(crate::localization::tr("Apply glow")).clicked() {
+                    if ui.button(crate::localization::tr("Apply glow"))
+                        .on_hover_text(crate::localization::tr("Animated glow cannot share a part with translucency. Unsupported source shaders are reported when applying.")).clicked() {
                         actions.push(UiAction::CdmwCommand { command: "replacement_emission",
                             arguments: json!({"part_ids": ids, "emission": {"color": color, "intensity": values[3],
                                 "animation": {"flow_u": values[4], "flow_v": values[5],

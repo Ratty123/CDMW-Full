@@ -1142,10 +1142,11 @@ fn collision_input_controls_choose_roles_clear_and_observe_model_precedence() ->
         ui.application.cdmw_pending_request = None;
         ui.frame(Vec::new());
     }
-    ui.application.cdmw_state["jiggle"]["collision_inputs"] = json!({"body": "chosen.pabv"});
+    ui.application.cdmw_state["jiggle"]["collision_inputs"] = json!({"body": "character/model/body/chosen.pabv"});
     ui.application.cdmw_state["jiggle"]["decoded"]["cloth"]["body_collider_source"] = json!("pac_model");
     ui.frame(Vec::new());
     assert!(ui.label_rect("Body volumes: chosen.pabv").is_some());
+    assert!(ui.label_rect("Body volumes: character/model/body/chosen.pabv").is_none());
     assert!(ui.actions_from_click("Choose body PABV…")?.is_empty());
     ui.click("Choose weapon PAC…")?;
     assert!(ui.actions_from_click("External file…")?.iter().any(|action|
@@ -1165,7 +1166,7 @@ fn weapon_export_controls_work_without_guides_and_restore_when_geometry_is_unava
     ui.application.cdmw_state["cloth"]["available"] = json!(false);
     ui.application.cdmw_state["weapon_collisions"] = json!({"available": true, "active": false});
     ui.frame(Vec::new());
-    ui.click("Weapon colliders (experimental)")?;
+    ui.click("Weapon colliders")?;
     let actions = ui.actions_from_click("Create weapon colliders")?;
     assert!(actions.iter().any(|action| matches!(action,
         UiAction::CdmwCommand { command: "replacement_weapon_collisions", arguments, .. }
@@ -1266,7 +1267,8 @@ fn cloak_collision_shapes_prepare_without_playback_and_show_both_sources() -> Te
     state["cloth"]["body_collider_count"] = json!(3);
     state["cloth"]["body_collider_source"] = json!("pac_model");
     state["cloth"]["weapon_collider_count"] = json!(1);
-    ui.click("Cloth preview settings")?;
+    ui.frame(Vec::new());
+    assert!(ui.label_rect("Body collisions").is_none(), "preview settings stay collapsed");
     assert!(ui.label_rect("Collision shapes: 3 body · 1 weapon").is_some());
     ui.click("Show collision shapes")?;
     wait(&mut ui)?;
@@ -1283,6 +1285,7 @@ fn cloak_collision_shapes_prepare_without_playback_and_show_both_sources() -> Te
     wait(&mut ui)?;
     assert!(!ui.application.cdmw_jiggle.preview.playing);
     assert_eq!(ui.application.jiggle_collider_lines().len(), 672);
+    ui.click("Cloth preview settings")?;
     ui.click("Body collisions")?;
     ui.click("Weapon collisions")?;
     assert!(ui.application.cdmw_jiggle.preview.cloth_settings.body_collisions);
@@ -1320,7 +1323,15 @@ fn check_body_collision_source(source: &str) -> TestResult {
     } else {
         "Uses the matched rig's default volumes."
     };
-    assert!(ui.label_rect(source_label).is_some());
+    assert!(ui.label_rect(source_label).is_none(), "source guidance belongs in hover help");
+    ui.application.egui_context.style_mut_of(ui.application.egui_context.theme(),
+        |style| style.interaction.tooltip_delay = 0.0);
+    ui.reveal("Body collisions")?;
+    for _ in 0..12 { ui.frame(vec![Event::PointerGone]); }
+    let position = ui.label_rect("Body collisions").ok_or("body collisions checkbox")?.center();
+    ui.frame(vec![Event::PointerMoved(position)]);
+    for _ in 0..3 { ui.frame(Vec::new()); }
+    assert!(ui.label_rect(source_label).is_some(), "source guidance remains available on hover");
     ui.click("Play preview")?;
     wait(&mut ui)?;
     advance(&mut ui)?;

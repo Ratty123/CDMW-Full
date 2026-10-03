@@ -43,18 +43,19 @@ impl LabApplication {
                 egui::ComboBox::from_id_salt("shader_experiment_family").selected_text(crate::localization::tr(label)).show_ui(ui, |ui| {
                     for family in &families {
                         ui.selectable_value(&mut shader, family["shader"].as_str().unwrap_or("").to_owned(),
-                                            crate::localization::tr(family["label"].as_str().unwrap_or("")));
+                                            crate::localization::tr(family["label"].as_str().unwrap_or("")))
+                            .on_hover_text(crate::localization::tr(family["note"].as_str().unwrap_or("")));
                     }
-                });
+                }).response.on_hover_text(crate::localization::tr(families.iter().find(|f| f["shader"] == shader)
+                    .and_then(|f| f["note"].as_str()).unwrap_or("")));
                 if shader != before { value = json!({"shader": shader, "values": {}}); }
                 if let Some(family) = families.iter().find(|f| f["shader"] == shader) {
-                    ui.small(crate::localization::tr(family["note"].as_str().unwrap_or("")));
-                    ui.small(crate::localization::tr("Unchecked fields retain authored values. Compatibility is checked when applying."));
                     for field in family["fields"].as_array().into_iter().flatten() {
                         let Some(name) = field["name"].as_str() else { continue; };
                         let mut enabled = !value["values"][name].is_null();
                         ui.vertical(|ui| {
-                            ui.checkbox(&mut enabled, crate::localization::tr(field["label"].as_str().unwrap_or(name)));
+                            ui.checkbox(&mut enabled, crate::localization::tr(field["label"].as_str().unwrap_or(name)))
+                                .on_hover_text(crate::localization::tr("Unchecked fields retain authored values. Compatibility is checked when applying."));
                             let mut numbers = if value["values"][name].is_array() { value["values"][name].clone() } else { field["default"].clone() };
                             ui.add_enabled_ui(enabled, |ui| {
                                 if let Some(values) = numbers.as_array_mut() {
@@ -74,10 +75,10 @@ impl LabApplication {
                             else if let Some(values) = value["values"].as_object_mut() { values.remove(name); }
                         });
                     }
-                    ui.small(crate::localization::tr("These controls preserve the source maps. Game shader activation, shadows and timing still require an in-game test."));
                 }
                 ui.horizontal_wrapped(|ui| {
-                    if ui.button(crate::localization::tr("Apply shader controls")).clicked() {
+                    if ui.button(crate::localization::tr("Apply shader controls"))
+                        .on_hover_text(crate::localization::tr("These controls preserve the source maps. Game shader activation, shadows and timing still require an in-game test.")).clicked() {
                         actions.push(UiAction::CdmwCommand { command: "replacement_shader_controls",
                             arguments: json!({"part_ids": ids, "shader_controls": value}), label: "Edit shader controls" });
                     }

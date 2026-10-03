@@ -5057,7 +5057,15 @@ fn integrated_replacement_experimental_notice_keeps_import_and_inclusion_availab
     });
     ui.settle_layout();
     assert!(ui.label_rect("Try Experimental Replacement").is_none());
-    assert!(ui.label_rect("Experimental: positioning, scale or animation may be wrong in game. Skin weights are transferred from the original part; export reverses its neutral display transform.").is_some());
+    let notice = "Experimental: positioning, scale or animation may be wrong in game. Skin weights are transferred from the original part; export reverses its neutral display transform.";
+    assert!(ui.label_rect(notice).is_none());
+    ui.application.egui_context.style_mut_of(ui.application.egui_context.theme(),
+        |style| style.interaction.tooltip_delay = 0.0);
+    let badge = ui.reveal("Experimental")?;
+    for _ in 0..12 { ui.frame(vec![Event::PointerGone]); }
+    ui.frame(vec![Event::PointerMoved(badge.center())]);
+    for _ in 0..3 { ui.frame(Vec::new()); }
+    assert!(ui.label_rect(notice).is_some(), "the compact badge retains the full warning on hover");
     let actions = ui.actions_from_click("Mod")?;
     assert!(actions.iter().any(|action| matches!(action,
         UiAction::CdmwCommand { command: "replacement_include", arguments, .. }

@@ -235,14 +235,19 @@ fn collision_source_choice(ui: &mut egui::Ui, available: bool, role: &'static st
                     arguments: json!({"role": role, "source": "archive"}), label: "Load collision input" });
                 ui.close();
             }
-        });
+        }).response.on_hover_text(crate::localization::tr(if role == "weapon" {
+            "Loads collision shapes only; the weapon mesh is not shown. Enable Show collision shapes to see and position them."
+        } else {
+            "Choose body/head PABV files or a weapon PAC for this preview. Inputs are not saved to the model or draft."
+        }));
     });
 }
 
 impl LabApplication {
     pub(super) fn draw_cdmw_jiggle_page(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
-        ui.small("Experimental jiggle for body and clothing PAC meshes. Cloth bindings are not required.");
-        if ui.checkbox(&mut self.cdmw_jiggle.show_regions, "Show jiggle regions").changed() {
+        if ui.checkbox(&mut self.cdmw_jiggle.show_regions, "Show jiggle regions")
+            .on_hover_text("Experimental jiggle for body and clothing PAC meshes. Cloth bindings are not required.")
+            .on_hover_text("Current vertex contribution on visible parts. Colours do not prove live physics activation.").changed() {
             if self.cdmw_jiggle.preview.scene.is_some() || self.cdmw_jiggle.preview.pending.is_some() {
                 self.refresh_jiggle_regions();
             } else {
@@ -262,14 +267,12 @@ impl LabApplication {
                 ui.colored_label(egui::Color32::from_rgb(15, 80, 220), "Low weight");
                 ui.colored_label(egui::Color32::from_rgb(255, 140, 15), "High weight");
                 ui.colored_label(egui::Color32::GRAY, "Zero weight");
-                ui.colored_label(egui::Color32::from_rgb(195, 90, 240), "Unknown");
+                ui.colored_label(egui::Color32::from_rgb(195, 90, 240), "Unknown")
+                    .on_hover_text("Unknown: no verified PAC LOD0 bytes for this geometry or comparison view.");
             });
-            ui.small("Current vertex contribution on visible parts. Colours do not prove live physics activation.");
-            ui.small("Unknown: no verified PAC LOD0 bytes for this geometry or comparison view.");
         }
         ui.separator();
         let jiggle = self.cdmw_state["jiggle"].clone();
-        ui.small("Reductions preserve the source gradient. Final motion still needs in-game verification.");
         if !state_bool(&jiggle, "available") {
             if self.cdmw_jiggle.preview.scene.is_some() || self.cdmw_jiggle.preview.pending.is_some() { self.publish_mesh_snapshot(); }
             ui.label(state_str(&jiggle, "reason").unwrap_or("Jiggle editing is unavailable."));
@@ -309,10 +312,12 @@ impl LabApplication {
                         ui.selectable_value(&mut self.cdmw_jiggle.region_bone, Some(bone), name);
                     }
                 }
-            }).response.on_hover_text(crate::localization::tr("Choose a bone to adjust its weighted region independently. Mixed skin weights blend neighbouring contributions smoothly."));
-        if regions.is_empty() {
-            ui.small(crate::localization::tr("Named regions need a matching source skeleton. Whole-part and height controls remain available."));
-        }
+            }).response.on_hover_text(crate::localization::tr("Choose a bone to adjust its weighted region independently. Mixed skin weights blend neighbouring contributions smoothly."))
+                .on_hover_text(crate::localization::tr(if regions.is_empty() {
+                    "Named regions need a matching source skeleton. Whole-part and height controls remain available."
+                } else {
+                    "Adjusts this bone's region while keeping other regional settings. Existing whole-part height limits still apply."
+                }));
         let slots = self.cdmw_jiggle.region_bone.and_then(|bone| regions.iter().find(|r| r["bone"].as_u64() == Some(u64::from(bone))))
             .and_then(|r| r["slots"].as_array());
         let region_values: Vec<f64> = slots.into_iter().flatten().flat_map(|slot| parts.iter().map(move |part| {
@@ -340,10 +345,9 @@ impl LabApplication {
                 "Mixed regional amounts. Applying a change replaces only this bone's contribution on these parts."
             } else { "Mixed saved settings. Applying a change replaces them for these parts." }));
         }
-        if slots.is_some() {
-            ui.small(crate::localization::tr("Adjusts this bone's region while keeping other regional settings. Existing whole-part height limits still apply."));
-        } else {
-            ui.checkbox(&mut self.cdmw_jiggle.use_height, "Only below height");
+        if slots.is_none() {
+            ui.checkbox(&mut self.cdmw_jiggle.use_height, "Only below height")
+                .on_hover_text("Uses displayed model coordinates. Choose the waist height for this model.");
         }
         if self.cdmw_jiggle.use_height && slots.is_none() {
             ui.horizontal(|ui| {
@@ -351,12 +355,12 @@ impl LabApplication {
                 ui.add(crate::cdmw_ui::numeric::value(&mut self.cdmw_jiggle.height).speed(0.01));
             });
             ui.small(format!("Source height range: {min_y:.3} to {max_y:.3}"));
-            ui.small("Uses displayed model coordinates. Choose the waist height for this model.");
         }
         let relative_available = parts.iter().all(|part| state_bool(part, "relative_available"));
         ui.add_enabled(relative_available, crate::cdmw_ui::numeric::slider(&mut self.cdmw_jiggle.retained_percent, 0.0..=100.0)
-            .text("Retain original %"));
-        ui.small(crate::localization::tr(if slots.is_some() {
+            .text("Retain original %"))
+            .on_hover_text("Reductions preserve the source gradient. Final motion still needs in-game verification.")
+            .on_hover_text(crate::localization::tr(if slots.is_some() {
             "Rounded to available byte steps. 0% removes this bone's share; other bones can still contribute."
         } else { "Rounded to available byte steps. 100% keeps the source; 0% removes the vertex contribution." }));
         if slots.is_none() && parts.iter().any(|p| p["rule"]["bone_retained"].as_array().is_some_and(|r| !r.is_empty())) {
@@ -370,7 +374,8 @@ impl LabApplication {
             ui.small("This source encoding supports Disable / Restore only.");
         }
         ui.horizontal_wrapped(|ui| {
-            if ui.add_enabled(relative_available, egui::Button::new("Apply contribution")).clicked() {
+            if ui.add_enabled(relative_available, egui::Button::new("Apply contribution"))
+                .on_hover_text("Contribution edits are saved with Build PAC and drafts.").clicked() {
                 actions.push(UiAction::CdmwCommand {
                     command: "replacement_jiggle",
                     arguments: regional_arguments(json!({"part_ids": ids, "rule": {
@@ -398,7 +403,6 @@ impl LabApplication {
                 });
             }
         });
-        ui.small("Contribution edits are saved with Build PAC and drafts.");
         self.draw_jiggle_preview_controls(ui, &parts);
     }
 
@@ -464,13 +468,15 @@ impl LabApplication {
             && jiggle["decoded"]["cloth"]["available"].as_bool() == Some(true) && !model_owned;
         let weapon_available = !self.cdmw_busy() && jiggle["decoded"]["cloth"]["available"].as_bool() == Some(true);
         ui.collapsing("Collision sources", |ui| {
-            ui.small("Choose body/head PABV files or a weapon PAC for this preview. Inputs are not saved to the model or draft.");
-            if model_owned { ui.small("This model's embedded volumes take precedence over appearance inputs."); }
             for (role, label, default) in [("body", "Body volumes", "Rig defaults"), ("head", "Head volumes", "No head override")] {
-                ui.label(format!("{label}: {}", inputs[role].as_str().unwrap_or(default)));
+                let source = inputs[role].as_str().unwrap_or(default);
+                let filename = source.rsplit(['/', '\\']).next().unwrap_or(source);
+                ui.label(format!("{label}: {filename}")).on_hover_text(source);
                 collision_source_choice(ui, available, role, actions);
             }
-            ui.label(format!("Weapon volumes: {}", inputs["weapon"].as_str().unwrap_or("Current rigid weapon parts")));
+            let source = inputs["weapon"].as_str().unwrap_or("Current rigid weapon parts");
+            let filename = source.rsplit(['/', '\\']).next().unwrap_or(source);
+            ui.label(format!("Weapon volumes: {filename}")).on_hover_text(source);
             collision_source_choice(ui, weapon_available, "weapon", actions);
             if inputs["weapon"].is_string() {
                 let placement = &jiggle["weapon_placement"];
@@ -478,12 +484,14 @@ impl LabApplication {
                 let mut rotation: [f64; 3] = std::array::from_fn(|i| placement["rotation"][i].as_f64().unwrap_or(0.));
                 let mut changed = false;
                 ui.add_enabled_ui(weapon_available, |ui| {
-                    ui.label("Weapon preview position");
+                    ui.label("Weapon preview position")
+                        .on_hover_text("Place the weapon in model space. In-game sockets and weapon animation are not loaded.");
                     ui.horizontal_wrapped(|ui| { for (i, axis) in ["X", "Y", "Z"].iter().enumerate() {
                         ui.label(*axis);
                         changed |= ui.add(crate::cdmw_ui::numeric::value(&mut offset[i]).speed(0.01).range(-100.0..=100.0)).changed();
                     }});
-                    ui.label("Weapon preview rotation");
+                    ui.label("Weapon preview rotation")
+                        .on_hover_text("Place the weapon in model space. In-game sockets and weapon animation are not loaded.");
                     ui.horizontal_wrapped(|ui| { for (i, axis) in ["X", "Y", "Z"].iter().enumerate() {
                         ui.label(*axis);
                         changed |= ui.add(crate::cdmw_ui::numeric::value(&mut rotation[i]).speed(1.0).range(-360.0..=360.0).suffix("°")).changed();
@@ -493,7 +501,6 @@ impl LabApplication {
                     actions.push(UiAction::CdmwCommand { command: "cloth_collision_input",
                         arguments: json!({"weapon_placement": {"offset": offset, "rotation": rotation}}), label: "Place weapon preview" });
                 }
-                ui.small("Place the weapon in model space. In-game sockets and weapon animation are not loaded.");
             }
             let has_inputs = inputs.as_object().is_some_and(|values| !values.is_empty());
             if ui.add_enabled(!self.cdmw_busy() && has_inputs, egui::Button::new("Clear collision inputs")).clicked() {
@@ -501,7 +508,8 @@ impl LabApplication {
                     command: "cloth_collision_input", arguments: json!({"clear": true}), label: "Clear collision inputs",
                 });
             }
-        });
+        }).header_response.on_hover_text("Choose body/head PABV files or a weapon PAC for this preview. Inputs are not saved to the model or draft.")
+            .on_hover_text(if model_owned { "This model's embedded volumes take precedence over appearance inputs." } else { "" });
     }
 
     pub(super) fn choose_cloth_collision_input(&mut self, role: &'static str) {
@@ -526,7 +534,13 @@ impl LabApplication {
 
     fn draw_motion_preview_controls(&mut self, ui: &mut egui::Ui, parts: &[Value], cloth: bool, actions: &mut Vec<UiAction>) {
         ui.separator();
-        ui.label("Motion preview");
+        ui.label("Motion preview")
+            .on_hover_text("Preview settings are not exported. Reset preview to edit the surface.")
+            .on_hover_text(if cloth {
+                "Runtime profile activation and layer/world collisions are not simulated."
+            } else {
+                "Inter-part collisions and guide-cloth simulation are not included in this preview."
+            });
         if (self.cdmw_jiggle.preview.solver == Solver::Cloth) != cloth {
             self.publish_mesh_snapshot();
             self.cdmw_jiggle.preview.solver = if cloth { Solver::Cloth } else { Solver::Decoded };
@@ -554,7 +568,13 @@ impl LabApplication {
         }
         if !cloth { ui.horizontal_wrapped(|ui| {
             for (solver, label) in [(Solver::Decoded, "Decoded bones"), (Solver::Approximate, "Approximate vertices")] {
-                if ui.add(egui::Button::new(label).selected(preview.solver == solver)).clicked() && preview.solver != solver {
+                if ui.add(egui::Button::new(label).selected(preview.solver == solver))
+                    .on_hover_text(if solver == Solver::Decoded {
+                        "Decoded solver with a procedural pose test and model bounds. Live game activation is not reproduced."
+                    } else {
+                        "Inter-part collisions and guide-cloth simulation are not included in this preview."
+                    })
+                    .clicked() && preview.solver != solver {
                     preview.solver = solver;
                     changed = true;
                 }
@@ -572,6 +592,10 @@ impl LabApplication {
                 let selected = std::mem::discriminant(&preview.motion) == std::mem::discriminant(&motion);
                 if ui
                     .add(egui::Button::new(label).selected(selected))
+                    .on_hover_text(if matches!(motion, jiggle::Motion::Freehand(_)) {
+                        "Play, then drag in the viewport to shake the preview. Release to let physics settle."
+                    } else { "" })
+                    .on_hover_text("Right mouse orbits; middle mouse pans. Reset clears the motion.")
                     .clicked()
                     && !selected
                 {
@@ -580,10 +604,6 @@ impl LabApplication {
                 }
             }
         });
-        if matches!(preview.motion, jiggle::Motion::Freehand(_)) {
-            ui.small("Play, then drag in the viewport to shake the preview. Release to let physics settle.");
-            ui.small("Right mouse orbits; middle mouse pans. Reset clears the motion.");
-        }
         ui.checkbox(&mut preview.keep_centred, "Keep model centred")
             .on_hover_text("Keeps the body's position and facing steady while motion still drives physics. For example, an up/down shake shows the jiggle without bouncing the whole model. Uncheck to see the full motion.");
         ui.horizontal_wrapped(|ui| {
@@ -605,11 +625,6 @@ impl LabApplication {
         if preview.solver == Solver::Decoded {
             ui.collapsing("Bone solver settings", |ui| {
                 let bone = self.cdmw_jiggle.region_bone;
-                ui.small(crate::localization::tr(if bone.is_some() {
-                    "Preview settings for the selected bone region. Other bones keep their own settings. These values are not exported."
-                } else {
-                    "Shared preview settings. Regional overrides are retained; Reset bone settings clears them. These values are not exported."
-                }));
                 if !preview.native_bone_settings.is_empty() {
                     ui.small(crate::localization::tr(format!("{} bones have independent preview settings.", preview.native_bone_settings.len())));
                 }
@@ -633,11 +648,16 @@ impl LabApplication {
                         preview.native_bone_settings.clear();
                     }
                 }
-            });
+            }).header_response.on_hover_text(crate::localization::tr(if self.cdmw_jiggle.region_bone.is_some() {
+                "Preview settings for the selected bone region. Other bones keep their own settings. These values are not exported."
+            } else {
+                "Shared preview settings. Regional overrides are retained; Reset bone settings clears them. These values are not exported."
+            }));
             ui.collapsing("Wind preview", |ui| {
                 let wind = &mut preview.native_settings.wind;
                 ui.checkbox(&mut wind.enabled, "Enable wind")
-                    .on_hover_text("Adds wind to the preview. For example, enable it while Freehand is still to see wind-driven movement on its own.");
+                    .on_hover_text("Adds wind to the preview. For example, enable it while Freehand is still to see wind-driven movement on its own.")
+                    .on_hover_text("Preview wind is supplied manually; game weather is not loaded.");
                 ui.add_enabled_ui(wind.enabled, |ui| {
                     ui.add(crate::cdmw_ui::numeric::slider(&mut wind.speed, 0.0..=20.0).text("Wind speed"))
                         .on_hover_text("Strength of the preview wind. For example, zero supplies no wind force; a higher value pushes affected regions more strongly.");
@@ -649,9 +669,7 @@ impl LabApplication {
                         .on_hover_text("How much the wind varies. For example, zero gives steadier wind; a higher value adds stronger gusts and small direction changes.");
                 });
                 if ui.button("Reset wind").clicked() { *wind = native::Wind::default(); }
-                ui.small("Preview wind is supplied manually; game weather is not loaded.");
             });
-            ui.small("Decoded solver with a procedural pose test and model bounds. Live game activation is not reproduced.");
         } else if cloth {
             let cloth_state = &self.cdmw_state["jiggle"]["decoded"]["cloth"];
             let standalone = self.cdmw_state["jiggle"]["decoded"]["rig_mode"] == "rigid_attachment";
@@ -682,9 +700,6 @@ impl LabApplication {
             if !rotation_available {
                 preview.cloth_settings.rotate_guides = false;
             }
-            if standalone {
-                ui.small("Standalone rigid attachment: motion drives the model root.");
-            }
             let body_source = cloth_state["body_collider_source"].as_str();
             let body_available = cloth_state["body_collider_count"].as_u64().is_some_and(|count| count > 0)
                 && matches!(body_source, Some("pab_primary" | "pac_model" | "appearance"));
@@ -710,35 +725,23 @@ impl LabApplication {
                 ui.add(crate::cdmw_ui::numeric::slider(&mut settings.damping, 0.0..=10.0).text("Preview damping"));
                 ui.add(crate::cdmw_ui::numeric::slider(&mut settings.iterations, 1..=8).text("Solver iterations"));
                 ui.checkbox(&mut settings.use_vertex_alpha, "Use authored vertex alpha");
-                ui.add_enabled(rotation_available, egui::Checkbox::new(&mut settings.rotate_guides, "Guide rotation correction"));
+                ui.add_enabled(rotation_available, egui::Checkbox::new(&mut settings.rotate_guides, "Guide rotation correction"))
+                    .on_disabled_hover_text("Guide rotation needs known orientation neighbors.");
                 if !settings.spline {
                     ui.add_enabled(rotation_available && settings.rotate_guides,
                     egui::Checkbox::new(&mut settings.single_edge_rotation, "Single-edge rotation"));
                 }
-                if !rotation_available { ui.small("Guide rotation needs known orientation neighbors."); }
-                ui.add_enabled(body_available, egui::Checkbox::new(&mut settings.body_collisions, "Body collisions"));
+                ui.add_enabled(body_available, egui::Checkbox::new(&mut settings.body_collisions, "Body collisions"))
+                    .on_hover_text(match body_source {
+                        Some("pac_model") => "Uses this model's authored collision volumes.",
+                        Some("appearance") => "Uses the explicitly selected body/head collision inputs.",
+                        _ => "Uses the matched rig's default volumes.",
+                    })
+                    .on_disabled_hover_text(cloth_state["body_collider_reason"].as_str().unwrap_or("Body collisions need supported model or rig volumes."));
                 ui.add_enabled(weapon_available, egui::Checkbox::new(&mut settings.weapon_collisions, "Weapon collisions"))
-                    .on_hover_text("Uses fitted capsules around rigid weapon parts. This switch affects the preview; Create weapon colliders saves shapes for the mod.");
-                show_shapes_changed = ui.add_enabled(shapes_available, egui::Checkbox::new(&mut preview.show_colliders, "Show collision shapes"))
-                    .on_hover_text("Shows body shapes in blue and weapon shapes in gold, before playback or while paused.").changed();
-                ui.small(format!("Collision shapes: {} body · {} weapon",
-                    cloth_state["body_collider_count"].as_u64().unwrap_or(0),
-                    cloth_state["weapon_collider_count"].as_u64().unwrap_or(0)));
-                if body_available {
-                    if body_source == Some("pac_model") {
-                        ui.small("Uses this model's authored collision volumes.");
-                    } else if body_source == Some("appearance") {
-                        ui.small("Uses the explicitly selected body/head collision inputs.");
-                    } else {
-                        ui.small("Uses the matched rig's default volumes.");
-                    }
-                } else {
-                    ui.small("Body collisions need supported model or rig volumes.")
-                        .on_hover_text(cloth_state["body_collider_reason"].as_str().unwrap_or("No authored body volumes available."));
-                }
+                    .on_hover_text("Uses fitted capsules around rigid weapon parts. This switch affects the preview; Create weapon colliders saves shapes for the mod.")
+                    .on_disabled_hover_text(cloth_state["weapon_collider_reason"].as_str().unwrap_or("Load a weapon reference to test collisions with this cloth."));
                 if !weapon_available {
-                    ui.small("Load a weapon reference to test collisions with this cloth.")
-                        .on_hover_text(cloth_state["weapon_collider_reason"].as_str().unwrap_or("No weapon colliders available."));
                     collision_source_choice(ui, can_choose_weapon, "weapon", actions);
                 }
                 if settings.body_collisions || settings.weapon_collisions {
@@ -753,6 +756,10 @@ impl LabApplication {
                     *settings = crate::cdmw_cloth::preview::default_settings(settings.spline);
                     self.cdmw_cloth.profiles.clear_loaded();
                 }
+            }).header_response.on_hover_text(if preview.cloth_settings.spline {
+                "Experimental ordered spline chains with stretch, bend and angular spring-back."
+            } else {
+                "Experimental guide cloth with controlled motion and preview settings."
             });
             changed |= crate::cdmw_cloth::profiles::draw(ui, &self.cdmw_state["physics_profiles"], parts,
                 &mut self.cdmw_cloth.profiles, &mut preview.cloth_settings,
@@ -761,11 +768,14 @@ impl LabApplication {
                 actions,
                 can_author,
             );
-            ui.small(if preview.cloth_settings.spline {
-                "Experimental ordered spline chains with stretch, bend and angular spring-back."
-            } else {
-                "Experimental guide cloth with controlled motion and preview settings."
-            });
+            show_shapes_changed = ui.add_enabled(shapes_available, egui::Checkbox::new(&mut preview.show_colliders, "Show collision shapes"))
+                .on_hover_text("Shows body shapes in blue and weapon shapes in gold, before playback or while paused.")
+                .on_disabled_hover_text("Load a weapon reference to test collisions with this cloth.").changed();
+            if shapes_available {
+                ui.small(format!("Collision shapes: {} body · {} weapon",
+                    cloth_state["body_collider_count"].as_u64().unwrap_or(0),
+                    cloth_state["weapon_collider_count"].as_u64().unwrap_or(0)));
+            }
         } else {
             ui.add(crate::cdmw_ui::numeric::slider(&mut preview.settings.softness, 0.0..=1.0).text("Preview softness"));
             ui.add(crate::cdmw_ui::numeric::slider(&mut preview.settings.damping, 0.0..=1.0).text("Preview damping"));
@@ -840,6 +850,7 @@ impl LabApplication {
             };
             if ui
                 .add_enabled(reason.is_empty(), egui::Button::new(label))
+                .on_hover_text("Preview settings are not exported. Reset preview to edit the surface.")
                 .clicked()
             {
                 if self.cdmw_jiggle.preview.playing {
@@ -871,12 +882,6 @@ impl LabApplication {
         if !self.cdmw_jiggle.preview.feedback.is_empty() {
             ui.small(&self.cdmw_jiggle.preview.feedback);
         }
-        if cloth {
-            ui.small("Runtime profile activation and layer/world collisions are not simulated.");
-        } else {
-            ui.small("Inter-part collisions and guide-cloth simulation are not included in this preview.");
-        }
-        ui.small("Preview settings are not exported. Reset preview to edit the surface.");
         if self.cdmw_jiggle.preview.playing || self.cdmw_jiggle.preview.pending.is_some() {
             ui.ctx().request_repaint();
         }

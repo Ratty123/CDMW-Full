@@ -782,7 +782,8 @@ automatically and game collision activation remains unverified.
 
 **Weapon collisions** is a separate preview switch for supported single-root weapon
 PACs. Capsules are fitted around included rigid parts; guide-bound ribbons are excluded.
-It can run together with **Body collisions**. **Show collision shapes** draws body shapes
+It can run together with **Body collisions**. **Show collision shapes**, directly below
+the preview settings and profile headings, draws body shapes
 in blue and weapon shapes in gold, through the mesh, following **Keep model centred**.
 It prepares a paused view before playback, so volumes inside a cloak can be inspected
 without starting the simulation. The panel shows how many shapes are available; Reset
@@ -791,14 +792,21 @@ clears the inspection view.
 For character cloth, **Collision sources > Choose weapon PAC…** loads a separate weapon
 reference from **External file…** or **Game archives…**, such as Rhett's Longsword
 (`cd_phm_02_sword_0009.pac`). A cloak does not provide its own rigid weapon parts: load a
-weapon reference to enable **Weapon collisions**. The same chooser appears beside the
+weapon reference to enable **Weapon collisions**. The reference supplies collision shapes,
+not a rendered sword mesh. Enable **Show collision shapes** to see its gold outlines;
+enable **Weapon collisions** in the preview settings to use them during playback.
+The same chooser appears beside the
 unavailable switch. Position and rotation
 controls place its shapes in the model's coordinates. This reference uses the preview's
 rigid test motion; game sockets and weapon animation are not loaded. Loading and placing
 it changes only the current preview. Clear, failed-load and cancellation behavior match
 the body/head inputs above.
 
-**Weapon colliders (experimental) > Create weapon colliders** adds capsules to the
+Mesh Editor keeps control labels, live status and actionable errors visible. Instructions
+and preview limitations are available by hovering the relevant control or section heading.
+Collision inputs show filenames in the panel and the complete source path on hover.
+
+**Weapon colliders > Create weapon colliders** experimentally adds capsules to the
 weapon's exported PAC through the normal Undo, draft and Build PAC/Mod workflow.
 **Restore source colliders** removes this authoring choice and retains original volumes.
 The writer currently supports verified, rigid, single weapon roots and preserves all

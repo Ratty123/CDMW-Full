@@ -287,7 +287,6 @@ impl LabApplication {
             && authoring
             && data["token"] == self.vertex_token()
             && self.vertex_inspector.key == self.vertex_key();
-        ui.small(crate::localization::tr("Edit the selection below. Blank fields stay unchanged."));
         for (channel, label) in [
             ("position", "Position"),
             ("uv0", "UV Coordinates"),
@@ -336,7 +335,8 @@ impl LabApplication {
                         .show(ui, |ui| {
                             ui.small(crate::localization::tr("Axis"));
                             ui.small(crate::localization::tr("Current"));
-                            ui.small(crate::localization::tr("New value"));
+                            ui.small(crate::localization::tr("New value"))
+                                .on_hover_text(crate::localization::tr("Edit the selection below. Blank fields stay unchanged."));
                             ui.end_row();
                             for (axis, field) in fields.iter_mut().enumerate() {
                                 let axis_label = if channel == "uv0" {
@@ -410,7 +410,8 @@ impl LabApplication {
                     }));
                 } else {
                     let draft = &mut self.vertex_inspector.draft;
-                    ui.checkbox(&mut draft.weight_enabled, crate::localization::tr("Stage weight change"));
+                    ui.checkbox(&mut draft.weight_enabled, crate::localization::tr("Stage weight change"))
+                        .on_hover_text(crate::localization::tr("Other influences redistribute proportionally. Cloth guide weights are preserved."));
                     ui.add_enabled_ui(draft.weight_enabled, |ui| {
                         ui.label(crate::localization::tr("Operation"));
                         ComboBox::from_id_salt("vertex-weight-mode")
@@ -455,7 +456,6 @@ impl LabApplication {
                                 ui.make_persistent_id("vertex-weight-value"), 136.0,
                                 if draft.weight_mode == 0 { 0.0..=1.0 } else { -1.0..=1.0 }, "Value");
                         }
-                        ui.small(crate::localization::tr("Other influences redistribute proportionally. Cloth guide weights are preserved."));
                     });
                 }
             });
@@ -505,8 +505,8 @@ impl LabApplication {
                             }
                         })
                         .response
-                        .on_hover_text(crate::localization::tr(row_label(selected)));
-                    ui.small(crate::localization::tr("Viewing a row does not change the batch selection."));
+                        .on_hover_text(crate::localization::tr(row_label(selected)))
+                        .on_hover_text(crate::localization::tr("Viewing a row does not change the batch selection."));
                     let row = &rows[self.vertex_inspector.row];
                     ui.label(crate::localization::tr(format!(
                         "Source: {} · part {} · original index {}",
