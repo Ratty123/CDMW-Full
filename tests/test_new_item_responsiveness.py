@@ -77,6 +77,51 @@ def test_mesh_editor_acceptance_prepares_both_caches_on_worker(studio, monkeypat
     assert tab.controller.draft.surface_settings == (retained_surface,)
 
 
+def test_mesh_editor_changes_require_rust_finish_before_acceptance(studio, tmp_path):
+    from cdmw.ui.mesh_editor.controller import MeshEditorController
+    from tests.test_mesh_rust_authoring import RustMeshAuthoringTests, _request, _candidate_reference
+
+    app, tab = studio
+    source = _import(tab)
+    service, session = RustMeshAuthoringTests()._create(tmp_path / "rust-session")
+    controller = MeshEditorController(mesh_service=service)
+    controller.attach_session(session.authoritative_session_id)
+    source.scene.mesh = controller.working_mesh(clone=True)
+    host = SimpleNamespace(standalone_rust_authoring_session=session, standalone_rust_finish_accepted=False)
+    tab._model_part_editor_source = source
+    tab._model_part_editor_widget = host
+    tab._model_part_editor_controller = controller
+    tab._model_part_editor_session_id = controller.active_session_id
+    completed = []
+    tab.controller.model_part_edit_finished.connect(completed.append)
+    try:
+        request = _request(session, "transaction_request", 1)
+        request["candidate"] = _candidate_reference(session, request_id=1, first_x=.75)
+        request["label"] = "Move"
+        session.apply_candidate(request)
+
+        tab.model_panel.use_part_editor_button.click()
+        assert not tab.controller.busy
+        assert not completed and source.mesh_generation == 0
+        assert "Finish Edit Mesh" in tab.model_panel.part_editor_status.plain_text()
+        assert source.scene.mesh.submeshes[0].vertices[0][0] == 0
+
+        assert session.finish(_request(session, "finish_request", 2))["status"] == "accepted"
+        host.standalone_rust_finish_accepted = True
+        # The finished session can still be retained while the helper exits.
+        assert session.closed and host.standalone_rust_authoring_session is session
+        tab.model_panel.use_part_editor_button.click()
+        pump(app, lambda: not tab.controller.busy)
+        assert completed == [source] and source.mesh_generation == 1
+        assert source.scene.mesh.submeshes[0].vertices[0][0] == pytest.approx(.75)
+    finally:
+        pump(app, lambda: not tab.controller.busy)
+        tab._clear_model_part_editor_link()
+        if not session.closed:
+            session.cancel()
+        controller.close_active_session(force_without_saving=True)
+
+
 def test_zip_precheck_yields_and_cancels_before_extraction(studio, tmp_path, monkeypatch):
     app, tab = studio
     archive = tmp_path / "model.zip"

@@ -24,7 +24,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
-- Create New Item avoids a hard crash during Apply placement caused by background work triggering cleanup of UI objects.
+- Create New Item requires Finish Edit Mesh before accepting edited parts, separates Effects layer selection and renaming from visibility, and retains issued item IDs and model names across restarts. Apply placement also avoids a hard crash caused by background cleanup of UI objects.
+- Mesh Editor can apply and restore shader experiments in saved replacement drafts without reopening game archives.
 - Mesh Editor identifies cloth and spline physics per part, shows retained guide and jiggle influence, and explains missing data or preview limits.
 - Mesh Editor no longer rejects Finish Edit Mesh when Windows uses a redirected temporary folder.
 - Rapid tool switching pauses inactive tool preparation, list updates and automatic previews. Recently used previews resume without recreating their renderer, and embedded-window focus and resizing avoid unnecessary work during navigation.

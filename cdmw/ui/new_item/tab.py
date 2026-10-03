@@ -1043,7 +1043,7 @@ class NewItemStudioTab(QWidget):
             self._model_part_editor_controller = editor.standalone_controller
             self._model_part_editor_session_id = view.session_id
             self.model_panel.set_part_editor_state(
-                True, "Brush or select faces, then choose Create Part from Selection. Return here to use the edited parts.")
+                True, "Brush or select faces, then choose Create Part from Selection. Choose Finish Edit Mesh before returning here to use the edited parts.")
             self._activate_model_part_editor()
         self.controller.start_model_editor_session(ready, failed)
 
@@ -1058,6 +1058,11 @@ class NewItemStudioTab(QWidget):
         if str(getattr(mesh_controller, "active_session_id", "") or "") != session_id:
             self._clear_model_part_editor_link()
             self.model_panel.set_part_editor_state(False, "Open this imported model in Mesh Editor first.")
+            return
+        if (getattr(editor, "standalone_rust_authoring_session", None) is not None
+                and not getattr(editor, "standalone_rust_finish_accepted", False)):
+            self.model_panel.set_part_editor_state(
+                True, "Choose Finish Edit Mesh in Mesh Editor, then return here to use the accepted changes.")
             return
         active_worker = getattr(editor, "_standalone_action_worker_active", None)
         if (

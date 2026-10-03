@@ -5,6 +5,8 @@
 part and experiment, then check the fields to override. Unchecked fields retain
 authored values; disabled numbers show defaults, not source readback. Restore
 removes the experiment. Mesh Editor supports Undo/Redo and replacement drafts.
+Saved replacement drafts can apply and restore shader controls using their captured
+dependencies without reopening the game archive.
 Mesh Editor numbers offer sliders as well as typed values. New Item numbers accept
 wheel adjustment when focused. An incompatible choice saved by an older build must
 be restored in Model & Placement → Appearance before Perks & Effects can prepare it.

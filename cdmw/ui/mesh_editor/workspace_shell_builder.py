@@ -220,7 +220,6 @@ class WorkspaceShellBuilderMixin:
     def _install_direct_output_controls(self, parent: QWidget) -> None:
         """Keep compatibility actions constructed while Rust owns the visible surface."""
 
-        controls = self.preview_controls_layout
         direct_buttons = (
             self.run_validation_report_button,
             self.replace_from_archive_button,

@@ -191,7 +191,13 @@ def test_exported_shader_parameters_are_read_back_into_the_renderer(monkeypatch)
     assert authored_translucency(part) is None  # A glass-sounding name is insufficient.
 
 
-def test_captured_draft_command_preparation_does_not_require_a_live_archive(editor):
+@pytest.mark.parametrize("command,arguments", [
+    ("replacement_translucency", {"translucency": [.1, .3]}),
+    ("replacement_emission", {"reset": True}),
+    ("replacement_shader_controls", {"reset": True}),
+    ("replacement_shader_controls", {"shader_controls": {"shader": "SkinnedMeshWing", "values": {}}}),
+])
+def test_captured_draft_command_preparation_does_not_require_a_live_archive(editor, command, arguments):
     from cdmw.ui.mesh_editor.replacement_flow import prepare_replacement_event
     service, sid = editor
     snapshot = service.capture_export_snapshot(sid)
@@ -199,7 +205,7 @@ def test_captured_draft_command_preparation_does_not_require_a_live_archive(edit
     service._session(sid).replacement_state = state
     session = SimpleNamespace(shadow_service=service, shadow_session_id=sid)
     tab = SimpleNamespace(standalone_rust_authoring_session=session, standalone_rust_closing=False)
-    event = {"command": "replacement_translucency", "arguments": {"part_ids": [state.parts[0].part_id], "translucency": [.1, .3]}}
+    event = {"command": command, "arguments": {"part_ids": [state.parts[0].part_id], **arguments}}
     assert prepare_replacement_event(tab, session, event) == event
     tab.standalone_rust_closing = True
     with pytest.raises(ValueError, match="closed"):

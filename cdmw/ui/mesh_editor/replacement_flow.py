@@ -9,7 +9,7 @@ from cdmw.ui.shell.tab_registry import DetachedToolWindow
 def prepare_replacement_event(tab, session, event):
     args = dict(event.get("arguments") or {})
     state = session.shadow_service._session(session.shadow_session_id).replacement_state
-    if event.get("command") in {"replacement_islands", "replacement_physics_profile", "replacement_translucency", "replacement_emission", "replacement_guides", "replacement_cloth", "replacement_weapon_collisions", "replacement_jiggle"} and state is not None:
+    if event.get("command") in {"replacement_islands", "replacement_physics_profile", "replacement_translucency", "replacement_emission", "replacement_shader_controls", "replacement_guides", "replacement_cloth", "replacement_weapon_collisions", "replacement_jiggle"} and state is not None:
         # Drafts retain the original target and exact profile dependencies. They
         # remain editable with no mounted archive or live Archive Browser.
         if tab.standalone_rust_authoring_session is not session or tab.standalone_rust_closing:

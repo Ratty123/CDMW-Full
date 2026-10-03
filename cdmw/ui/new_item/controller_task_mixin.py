@@ -193,8 +193,10 @@ class NewItemTaskControllerMixin:
             peer.issued_keys.update(self.issued_keys)
             peer.issued_stems.update(self.issued_stems)
         try:
-            payload = [{"key": value, "stem": ""} for value in sorted(self.issued_keys)[-200:]]
-            payload += [{"key": 0, "stem": value} for value in sorted(self.issued_stems)[-200:]]
+            # Exported mods can outlive this session and be absent from the archive
+            # snapshot. Forgetting an older reservation would allow it to collide.
+            payload = [{"key": value, "stem": ""} for value in sorted(self.issued_keys)]
+            payload += [{"key": 0, "stem": value} for value in sorted(self.issued_stems)]
             self._settings().setValue(self._ISSUED_SETTING, json.dumps(payload))
         except Exception:  # noqa: BLE001 - remembering is best effort; this session's set still holds
             pass

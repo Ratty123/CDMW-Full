@@ -1026,6 +1026,11 @@ would make. Identifier editors enforce the domain's character and 64-character
 limits, and per-field state icons point at the exact collision or format issue
 reported in the existing Checks box.
 
+Issued item keys and model stems remain reserved across restarts, including after
+more than 200 plans, so older exports absent from the current archive snapshot do
+not lose their reservations. Reservations already discarded by an older build
+cannot be recovered from settings alone.
+
 ### Stats and prices
 
 Stats and gameplay perks are explicitly marked experimental. The Stats page uses
@@ -1252,8 +1257,10 @@ incomplete Qt thread wrapper.
 A single inspector has **Placement**, **Look**, **Layers**, **Emitters** and **Saved**
 tabs, with Apply and Discard pinned below their local scroll areas. Placement and
 Preview options are independently collapsible and start expanded. Layers add up to 16
-effects with independent placement, visibility and appearance. Selecting another layer
-does not itself create a draft edit. The inspector tabs size to their active contents
+effects with independent placement, visibility and appearance. Click a layer's name
+to select or rename it; its separate checkbox changes visibility. Duplicate, Remove
+and movement actions use the selected layer. Selecting another layer does not itself
+create a draft edit. The inspector tabs size to their active contents
 and keep actions together at the top. The preview tools, playback controls and Show
 gizmo share one compact toolbar; Rust uses tool icons with hover labels.
 
@@ -1540,13 +1547,15 @@ An imported source can be opened in the resident Mesh Editor from this step with
 starting a second authoring process. It opens with Faces as the target while retaining
 the neutral camera tool. Faces selected there can be moved from one source part into a
 uniquely named appended submesh with **Create Part from Selection** in the Selection
-panel. **Use Mesh Editor changes** drains pending selection authority, captures a stable
-resident revision in the controller's worker, rebuilds the source's textured preview,
-and invalidates any placement build made from the previous geometry.
+panel. Choose **Finish Edit Mesh** before returning to Create New Item. **Use Mesh
+Editor changes** asks you to finish if editing is still active. It captures the
+accepted revision in the controller's worker, rebuilds
+the source's textured preview, and invalidates any placement build made from the
+previous geometry.
 
-The Mesh Editor session remains open so another revision can be accepted without losing
-its history. New Item exposes the generated submesh name beside the source materials for
-per-part Glow. This is face separation, not a knife/cap tool.
+The Mesh Editor session remains open; reopen editing and finish again to accept another
+revision without losing its history. New Item exposes the generated submesh name beside
+the source materials for per-part Glow. This is face separation, not a knife/cap tool.
 
 ## Mod manager exports
 

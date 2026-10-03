@@ -793,13 +793,13 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self.open_part_editor_button = QPushButton("Open in Mesh Editor")
         self.open_part_editor_button.setToolTip(
             "Open this imported model in Mesh Editor. Select faces with Click, Brush, Rectangle or Lasso, choose Create Part "
-            "from Selection, then return here and choose Use Mesh Editor changes."
+            "from Selection, choose Finish Edit Mesh, then return here and choose Use Mesh Editor changes."
         )
         self.open_part_editor_button.clicked.connect(self.part_editor_open_requested.emit)
         part_editor_buttons.addWidget(self.open_part_editor_button, 0, Qt.AlignmentFlag.AlignLeft)
         self.use_part_editor_button = QPushButton("Use Mesh Editor changes")
         self.use_part_editor_button.setToolTip(
-            "Capture the current Mesh Editor revision, rebuild this textured preview, and make its parts the source for Apply the placement."
+            "After Finish Edit Mesh, capture the accepted revision, rebuild this textured preview, and make its parts the source for Apply the placement."
         )
         self.use_part_editor_button.clicked.connect(self.part_editor_apply_requested.emit)
         part_editor_buttons.addWidget(self.use_part_editor_button, 0, Qt.AlignmentFlag.AlignLeft)

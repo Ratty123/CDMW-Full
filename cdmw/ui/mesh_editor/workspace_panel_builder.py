@@ -850,7 +850,6 @@ class WorkspacePanelBuilderMixin:
         selected_count = len(selected)
         has_parts = bool(self._has_editor_target and summary is not None and part_count)
         has_selection = bool(has_parts and selected_count)
-        has_selected_texture = any(str(part.texture or "").strip() for part in selected)
         native_part_actions_enabled = bool(self._native_editor_available)
         for label_name, value in (
             ("part_selection_summary_label", _part_selection_summary_text(summary)),

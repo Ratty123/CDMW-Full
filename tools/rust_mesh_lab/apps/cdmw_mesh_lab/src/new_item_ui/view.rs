@@ -1693,54 +1693,59 @@ impl PresentationView {
                                     }
                                     if let Ok(control) = serde_json::from_value::<Node>(cell["control"].clone()) {
                                         self.node(ui, &control);
-                                    } else if let Some(check) = cell["check"].as_u64() {
-                                        let mut checked = check == 2;
-                                        let label = cell["text"].as_str().unwrap_or("");
-                                        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Truncate);
-                                        let response = ui.add_enabled(cell["enabled"] != false, egui::Checkbox::new(&mut checked, label));
-                                        if response.changed() {
-                                            self.input(node, "check_cell", json!({"path": row["path"], "column": col, "check": if checked {2} else {0}}));
-                                        }
-                                        let tooltip = cell["tooltip"].as_str().filter(|text| !text.is_empty()).unwrap_or(label);
-                                        response.on_hover_text(tooltip).on_disabled_hover_text(tooltip);
-                                    } else if cell["editable"] == true {
-                                        let key = format!("{}:{}:{}", node.id, row["path"], col);
-                                        let mut text = self.edit_text(&key, node.revision, cell["text"].as_str().unwrap_or(""));
-                                        let background = Color32::from_hex(cell["background"].as_str().unwrap_or(""))
-                                            .unwrap_or(ui.visuals().extreme_bg_color);
-                                        let response = ui.add_sized(Vec2::new(*width, control_height(ui)),
-                                            egui::TextEdit::singleline(&mut text).desired_width(0.0).background_color(background));
-                                        if response.clicked() {
-                                            self.input(node, "select", json!({"path":row["path"],"column":col,"mode":"click"}));
-                                        }
-                                        if response.changed() {
-                                            if let Some(entry) = self.edits.get_mut(&key) { entry.value = text.clone(); }
-                                            self.input(node, "cell", json!({"path": row["path"], "column": col, "text": text}));
-                                        }
-                                        response.on_hover_text(cell["tooltip"].as_str().unwrap_or(""));
                                     } else {
-                                        let mut text = RichText::new(cell["text"].as_str().unwrap_or(""));
-                                        if cell["bold"] == true { text = text.strong(); }
-                                        if cell["italic"] == true { text = text.italics(); }
-                                        if cell["selected"] == true { text = text.color(ui.visuals().selection.stroke.color); }
-                                        else if let Ok(color) = Color32::from_hex(cell["foreground"].as_str().unwrap_or("")) { text = text.color(color); }
-                                        let mut button = egui::Button::selectable(cell["selected"] == true, "").left_text(text).truncate();
-                                        if cell["selected"] != true {
-                                            if let Ok(color) = Color32::from_hex(cell["background"].as_str().unwrap_or("")) { button = button.fill(color); }
+                                        let mut text_width = *width;
+                                        if let Some(check) = cell["check"].as_u64() {
+                                            let mut checked = check == 2;
+                                            let response = ui.add_enabled(cell["enabled"] != false, egui::Checkbox::without_text(&mut checked));
+                                            text_width = (text_width - response.rect.width() - ui.spacing().item_spacing.x).max(0.0);
+                                            if response.changed() {
+                                                self.input(node, "check_cell", json!({"path": row["path"], "column": col, "check": if checked {2} else {0}}));
+                                            }
+                                            let tooltip = cell["tooltip"].as_str().filter(|text| !text.is_empty())
+                                                .unwrap_or(cell["text"].as_str().unwrap_or(""));
+                                            response.on_hover_text(tooltip).on_disabled_hover_text(tooltip);
                                         }
-                                        let response = ui.add_enabled_ui(cell["enabled"] != false,|ui|ui.add_sized(Vec2::new(*width,control_height(ui)),button)).inner;
-                                        if response.clicked() || response.double_clicked() {
-                                            response.request_focus();
-                                            self.table_focus.insert(node.id.clone(),response.id);
-                                            let mode = if response.double_clicked() { "double" } else if ui.input(|i| i.modifiers.shift) { "range" }
-                                                else if ui.input(|i| i.modifiers.command) { "toggle" } else { "click" };
-                                            self.input(node, "select", json!({"path": row["path"], "column": col, "mode": mode}));
+                                        // A checkable item still has an independent selectable/editable name.
+                                        if cell["editable"] == true {
+                                            let key = format!("{}:{}:{}", node.id, row["path"], col);
+                                            let mut text = self.edit_text(&key, node.revision, cell["text"].as_str().unwrap_or(""));
+                                            let background = Color32::from_hex(cell["background"].as_str().unwrap_or(""))
+                                                .unwrap_or(if cell["selected"] == true { ui.visuals().selection.bg_fill } else { ui.visuals().extreme_bg_color });
+                                            let response = ui.add_enabled_ui(cell["enabled"] != false, |ui| ui.add_sized(Vec2::new(text_width, control_height(ui)),
+                                                egui::TextEdit::singleline(&mut text).desired_width(0.0).background_color(background))).inner;
+                                            if response.clicked() {
+                                                self.input(node, "select", json!({"path":row["path"],"column":col,"mode":"click"}));
+                                            }
+                                            if response.changed() {
+                                                if let Some(entry) = self.edits.get_mut(&key) { entry.value = text.clone(); }
+                                                self.input(node, "cell", json!({"path": row["path"], "column": col, "text": text}));
+                                            }
+                                            response.on_hover_text(cell["tooltip"].as_str().unwrap_or(""));
+                                        } else if !cell["text"].as_str().unwrap_or("").is_empty() || cell["check"].is_null() {
+                                            let mut text = RichText::new(cell["text"].as_str().unwrap_or(""));
+                                            if cell["bold"] == true { text = text.strong(); }
+                                            if cell["italic"] == true { text = text.italics(); }
+                                            if cell["selected"] == true { text = text.color(ui.visuals().selection.stroke.color); }
+                                            else if let Ok(color) = Color32::from_hex(cell["foreground"].as_str().unwrap_or("")) { text = text.color(color); }
+                                            let mut button = egui::Button::selectable(cell["selected"] == true, "").left_text(text).truncate();
+                                            if cell["selected"] != true {
+                                                if let Ok(color) = Color32::from_hex(cell["background"].as_str().unwrap_or("")) { button = button.fill(color); }
+                                            }
+                                            let response = ui.add_enabled_ui(cell["enabled"] != false,|ui|ui.add_sized(Vec2::new(text_width,control_height(ui)),button)).inner;
+                                            if response.clicked() || response.double_clicked() {
+                                                response.request_focus();
+                                                self.table_focus.insert(node.id.clone(),response.id);
+                                                let mode = if response.double_clicked() { "double" } else if ui.input(|i| i.modifiers.shift) { "range" }
+                                                    else if ui.input(|i| i.modifiers.command) { "toggle" } else { "click" };
+                                                self.input(node, "select", json!({"path": row["path"], "column": col, "mode": mode}));
+                                            }
+                                            if response.has_focus() { self.table_focus.insert(node.id.clone(),response.id); }
+                                            if response.secondary_clicked() && node.flag("context_menu") {
+                                                self.input(node, "menu", json!({"path": row["path"], "column": col}));
+                                            }
+                                            response.on_hover_text(cell["tooltip"].as_str().unwrap_or(""));
                                         }
-                                        if response.has_focus() { self.table_focus.insert(node.id.clone(),response.id); }
-                                        if response.secondary_clicked() && node.flag("context_menu") {
-                                            self.input(node, "menu", json!({"path": row["path"], "column": col}));
-                                        }
-                                        response.on_hover_text(cell["tooltip"].as_str().unwrap_or(""));
                                     }
                                 });
                             });

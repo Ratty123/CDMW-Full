@@ -510,6 +510,58 @@ fn table_pointer_selection_and_keyboard_navigation_reach_the_original_view() {
 }
 
 #[test]
+fn checkable_table_names_select_rename_and_keep_visibility_independent() {
+    for (editable, enabled) in [(true, true), (false, true), (true, false)] {
+        let context = egui::Context::default();
+        let mut view = PresentationView::default();
+        let state = state(control("layers", "table", "", json!({
+            "columns":[{"index":0,"width":240}],"total":2,"offset":0,
+            "rows":[{"path":[0],"cells":[{"text":"First","check":2,
+                     "editable":editable,"enabled":enabled,"selectable":true,"selected":true}]},
+                    {"path":[1],"cells":[{"text":"Second","check":2,
+                     "editable":editable,"enabled":enabled,"selectable":true,"selected":false}]}]
+        })));
+        apply_theme(&context, &state.theme);
+        let size = egui::vec2(960.0, 720.0);
+        for _ in 0..3 { frame(&context, &mut view, &state, size, vec![]); }
+        let output = context.run_ui(egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+            ..Default::default()
+        }, |ui| view.draw(ui, &state));
+        let text = output.shapes.iter().find_map(|shape| match &shape.shape {
+            egui::epaint::Shape::Text(text) if text.galley.job.text == "Second" => Some(text),
+            _ => None,
+        }).expect("the layer name remains visible beside its checkbox");
+        let y = text.pos.y + text.galley.size().y / 2.0;
+        click(&context, &mut view, &state, egui::pos2(text.pos.x + 80.0, y));
+        if enabled {
+            assert!(view.inputs.iter().any(|input| input.action == "select" && input.value["path"] == json!([1])));
+            assert!(!view.inputs.iter().any(|input| input.action == "check_cell"));
+        } else {
+            assert!(view.inputs.is_empty());
+        }
+        if editable {
+            frame(&context, &mut view, &state, size, vec![egui::Event::Text(" renamed".into())]);
+            if enabled {
+                assert!(view.inputs.iter().any(|input| input.action == "cell"
+                    && input.value["path"] == json!([1])
+                    && input.value["text"].as_str().unwrap_or("").contains("renamed")));
+            } else {
+                assert!(view.inputs.is_empty());
+            }
+        }
+        click(&context, &mut view, &state, egui::pos2(16.0, y));
+        if enabled {
+            assert!(view.inputs.iter().any(|input| input.action == "check_cell"
+                && input.value["path"] == json!([1]) && input.value["check"] == 0));
+            assert!(!view.inputs.iter().any(|input| input.action == "select"));
+        } else {
+            assert!(view.inputs.is_empty());
+        }
+    }
+}
+
+#[test]
 fn template_selection_can_transfer_focus_to_search_without_deadlocking() {
     let context = egui::Context::default();
     let mut view = PresentationView::default();

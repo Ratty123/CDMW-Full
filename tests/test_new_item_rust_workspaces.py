@@ -36,6 +36,41 @@ def test_effects_first_and_combined_experimental_editors_share_the_page(studio):
     assert panel.effects_workspace.library_panel.isVisibleTo(panel)
 
 
+def test_effect_layer_names_select_and_edit_independently_of_visibility(tmp_path):
+    from PySide6.QtWidgets import QPushButton
+    from cdmw.domain.new_item.effect_authoring import EffectLayer
+    from cdmw.ui.new_item.effect_recipe_panel import EffectRecipePanel, EffectUserLibrary
+    from cdmw.ui.new_item.state import EffectWorkspaceState
+
+    app = QApplication.instance() or QApplication([])
+    panel = EffectRecipePanel(EffectUserLibrary(tmp_path / "cache.json"))
+    panel.changed.connect(panel.set_state)
+    panel.set_state(EffectWorkspaceState.from_layers((
+        EffectLayer("first", name="First"), EffectLayer("second", name="Second")), 0))
+    panel.show()
+    app.processEvents()
+    bridge = NewItemPresentationBridge(panel)
+    try:
+        # The native renderer emits selection for the name and check_cell only
+        # for the separate visibility checkbox.
+        _send(bridge, panel.layers, "select", {"path": [1], "column": 0, "mode": "click"})
+        assert panel.state.active_layer == panel.layers.currentRow() == 1
+        assert all(layer.enabled for layer in panel.state.resolved_layers())
+        _send(bridge, panel.layers, "cell", {"path": [1], "column": 0, "text": "Renamed"})
+        assert panel.state.resolved_layers()[1].name == "Renamed"
+        _send(bridge, panel.layers, "check_cell", {"path": [0], "column": 0, "check": 0})
+        assert not panel.state.resolved_layers()[0].enabled
+        assert panel.state.active_layer == 1
+        remove = next(button for button in panel.layers.parentWidget().findChildren(QPushButton) if button.text() == "Remove")
+        _send(bridge, remove, "activate")
+        assert [layer.stem for layer in panel.state.resolved_layers()] == ["first"]
+    finally:
+        bridge.close()
+        panel.close()
+        panel.deleteLater()
+        app.processEvents()
+
+
 def test_tab_corner_refresh_does_not_invalidate_navigation_but_tab_changes_do(studio):
     _, tab, bridge = studio
     tab.show_step(4)

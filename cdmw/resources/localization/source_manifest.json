@@ -6752,6 +6752,16 @@
       ]
     },
     {
+      "key": "After Finish Edit Mesh, capture the accepted revision, rebuild this textured preview, and make its parts the source for Apply the placement.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 801,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "After installing, check in game",
       "origins": [
         {
@@ -7976,7 +7986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 366,
+          "line": 368,
           "sink": "on_error"
         }
       ]
@@ -8566,7 +8576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 220,
+          "line": 222,
           "sink": "emit"
         }
       ]
@@ -16937,7 +16947,7 @@
       "manual": true
     },
     {
-      "key": "Brush or select faces, then choose Create Part from Selection. Return here to use the edited parts.",
+      "key": "Brush or select faces, then choose Create Part from Selection. Choose Finish Edit Mesh before returning here to use the edited parts.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
@@ -17781,12 +17791,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 303,
+          "line": 305,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 323,
+          "line": 325,
           "sink": "emit"
         },
         {
@@ -20276,7 +20286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 432,
+          "line": 434,
           "sink": "emit"
         },
         {
@@ -20483,16 +20493,6 @@
           "path": "cdmw/ui/new_item/panels_model.py",
           "line": 451,
           "sink": "QPushButton"
-        }
-      ]
-    },
-    {
-      "key": "Capture the current Mesh Editor revision, rebuild this textured preview, and make its parts the source for Apply the placement.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 801,
-          "sink": "setToolTip"
         }
       ]
     },
@@ -21566,7 +21566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 312,
+          "line": 311,
           "sink": "QLabel"
         }
       ]
@@ -22813,6 +22813,16 @@
           "path": "cdmw/ui/item_icons/tab.py",
           "line": 247,
           "sink": "getExistingDirectory"
+        }
+      ]
+    },
+    {
+      "key": "Choose Finish Edit Mesh in Mesh Editor, then return here to use the accepted changes.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/tab.py",
+          "line": 1064,
+          "sink": "set_part_editor_state"
         }
       ]
     },
@@ -24181,7 +24191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 242,
+          "line": 244,
           "sink": "emit"
         }
       ]
@@ -26511,12 +26521,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 474,
+          "line": 473,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 475,
+          "line": 474,
           "sink": "setAccessibleName"
         },
         {
@@ -33221,7 +33231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 300,
+          "line": 302,
           "sink": "emit"
         },
         {
@@ -35421,7 +35431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 316,
+          "line": 318,
           "sink": "emit"
         }
       ]
@@ -39506,7 +39516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 463,
+          "line": 462,
           "sink": "setToolTip"
         }
       ]
@@ -40341,7 +40351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1116,
+          "line": 1121,
           "sink": "warning"
         }
       ]
@@ -41811,7 +41821,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 432,
+          "line": 431,
           "sink": "QPushButton"
         },
         {
@@ -43086,7 +43096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 455,
+          "line": 454,
           "sink": "setToolTip"
         }
       ]
@@ -43096,7 +43106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 434,
+          "line": 433,
           "sink": "setToolTip"
         }
       ]
@@ -44656,7 +44666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 460,
+          "line": 459,
           "sink": "QLabel"
         }
       ]
@@ -49113,6 +49123,16 @@
           "path": "cdmw/ui/shell/app_window.py",
           "line": 559,
           "sink": "_write_crash_report"
+        }
+      ]
+    },
+    {
+      "key": "GUI garbage collection must be installed on the GUI thread",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/garbage_collection.py",
+          "line": 53,
+          "sink": "RuntimeError"
         }
       ]
     },
@@ -54406,7 +54426,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 439,
+          "line": 438,
           "sink": "QPushButton"
         },
         {
@@ -54911,7 +54931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 441,
+          "line": 440,
           "sink": "setToolTip"
         }
       ]
@@ -57396,7 +57416,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1122,
+          "line": 1127,
           "sink": "warning"
         }
       ]
@@ -57416,7 +57436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1126,
+          "line": 1131,
           "sink": "question"
         }
       ]
@@ -57466,7 +57486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1126,
+          "line": 1131,
           "sink": "question"
         }
       ]
@@ -67031,7 +67051,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 425,
+          "line": 424,
           "sink": "QPushButton"
         },
         {
@@ -68106,7 +68126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 462,
+          "line": 461,
           "sink": "setAccessibleName"
         }
       ]
@@ -76986,7 +77006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 288,
+          "line": 290,
           "sink": "emit"
         },
         {
@@ -79606,7 +79626,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 350,
+          "line": 349,
           "sink": "_rig_palette_button"
         }
       ]
@@ -79821,7 +79841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 350,
+          "line": 349,
           "sink": "_rig_palette_button"
         }
       ]
@@ -81401,7 +81421,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 446,
+          "line": 445,
           "sink": "QPushButton"
         },
         {
@@ -82016,7 +82036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 317,
+          "line": 316,
           "sink": "_rig_palette_button"
         }
       ]
@@ -82911,7 +82931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 448,
+          "line": 447,
           "sink": "setToolTip"
         }
       ]
@@ -83107,7 +83127,7 @@
       ]
     },
     {
-      "key": "Open this imported model in Mesh Editor. Select faces with Click, Brush, Rectangle or Lasso, choose Create Part from Selection, then return here and choose Use Mesh Editor changes.",
+      "key": "Open this imported model in Mesh Editor. Select faces with Click, Brush, Rectangle or Lasso, choose Create Part from Selection, choose Finish Edit Mesh, then return here and choose Use Mesh Editor changes.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
@@ -83786,12 +83806,12 @@
         },
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 451,
+          "line": 453,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 462,
+          "line": 464,
           "sink": "emit"
         },
         {
@@ -85316,7 +85336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1116,
+          "line": 1121,
           "sink": "warning"
         }
       ]
@@ -87516,7 +87536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 467,
+          "line": 466,
           "sink": "QLabel"
         }
       ]
@@ -91086,7 +91106,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 326,
+          "line": 325,
           "sink": "_rig_palette_button"
         },
         {
@@ -92931,7 +92951,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1076,
+          "line": 1081,
           "sink": "set_part_editor_state"
         }
       ]
@@ -98761,7 +98781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 225,
+          "line": 227,
           "sink": "emit"
         },
         {
@@ -110251,7 +110271,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 232,
+          "line": 231,
           "sink": "setText"
         }
       ]
@@ -121646,7 +121666,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 317,
+          "line": 316,
           "sink": "_rig_palette_button"
         },
         {
@@ -125841,7 +125861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 358,
+          "line": 360,
           "sink": "emit"
         }
       ]
@@ -130581,7 +130601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1122,
+          "line": 1127,
           "sink": "warning"
         },
         {
@@ -131746,7 +131766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 246,
+          "line": 248,
           "sink": "emit"
         },
         {
@@ -132076,7 +132096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 288,
+          "line": 290,
           "sink": "emit"
         }
       ]
@@ -132656,7 +132676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 278,
+          "line": 280,
           "sink": "emit"
         }
       ]
@@ -132771,7 +132791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 427,
+          "line": 426,
           "sink": "setToolTip"
         }
       ]
@@ -135771,7 +135791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 326,
+          "line": 325,
           "sink": "_rig_palette_button"
         }
       ]
@@ -136276,7 +136296,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 338,
+          "line": 337,
           "sink": "_rig_palette_button"
         }
       ]
@@ -136296,7 +136316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 338,
+          "line": 337,
           "sink": "_rig_palette_button"
         }
       ]
@@ -138221,7 +138241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/app_startup.py",
-          "line": 118,
+          "line": 120,
           "sink": "RuntimeError"
         }
       ]
@@ -141171,7 +141191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1083,
+          "line": 1088,
           "sink": "set_part_editor_state"
         }
       ]
@@ -142961,7 +142981,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1067,
+          "line": 1072,
           "sink": "set_part_editor_state"
         }
       ]
@@ -153336,7 +153356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 312,
+          "line": 314,
           "sink": "_run"
         }
       ]
@@ -155611,7 +155631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 331,
+          "line": 333,
           "sink": "_run"
         }
       ]
@@ -160276,12 +160296,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 337,
+          "line": 339,
           "sink": "_run"
         },
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 343,
+          "line": 345,
           "sink": "_run"
         },
         {
@@ -160956,7 +160976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 290,
+          "line": 292,
           "sink": "_run"
         }
       ]

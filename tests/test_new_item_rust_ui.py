@@ -943,6 +943,36 @@ def test_persistent_workspaces_share_allocations_and_refuse_concurrent_plans(stu
         assert first.controller.plan.spec.item_key != second.controller.plan.spec.item_key
 
 
+def test_issued_identities_survive_restart_beyond_200_allocations(tmp_path, monkeypatch):
+    import weakref
+    from PySide6.QtCore import QSettings
+    from cdmw.domain.new_item.allocation import allocate_item_key, suggest_stem
+    from cdmw.ui.new_item.controller import NewItemStudioController
+
+    _app = QApplication.instance() or QApplication([])
+    path = str(tmp_path / "issued.ini")
+    monkeypatch.setattr(NewItemStudioController, "_identity_peers", weakref.WeakSet())
+    monkeypatch.setattr(NewItemStudioController, "_settings", lambda _: QSettings(path, QSettings.IniFormat))
+    first = NewItemStudioController(synchronous=True)
+    try:
+        first.persist_issued_identities()
+        for index in range(201):
+            first.remember_issued_identity(1990000 + index, f"cd_phm_01_sword_{9000 + index}")
+        first._settings().sync()
+    finally:
+        first.shutdown()
+
+    restored = NewItemStudioController(synchronous=True)
+    try:
+        restored.persist_issued_identities()
+        assert restored.issued_keys == set(range(1990000, 1990201))
+        assert restored.issued_stems == {f"cd_phm_01_sword_{9000 + i}" for i in range(201)}
+        assert allocate_item_key(restored.issued_keys) == 1990201
+        assert suggest_stem("cd_phm_01_sword_0000", restored.issued_stems) == "cd_phm_01_sword_9201"
+    finally:
+        restored.shutdown()
+
+
 def test_busy_spinner_and_rich_status_keep_native_semantics(studio):
     _, tab, bridge = studio
     from cdmw.ui.new_item.panels_model import _BusySpinner
