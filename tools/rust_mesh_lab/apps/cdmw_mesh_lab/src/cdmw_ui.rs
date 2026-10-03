@@ -1944,18 +1944,28 @@ impl LabApplication {
         let active = tools
             .iter()
             .any(|(page, _, _)| self.cdmw_rail_page == Some(*page));
+        let direct_selection = tools.len() == 1 && tools[0].0 == CdmwRailPage::Select;
         let group = ui
             .push_id(("cdmw-tool-group-root", heading), |ui| {
+                if direct_selection && busy && !active {
+                    ui.disable();
+                }
                 crate::localization::collapsing(heading)
                     .id_salt(("cdmw-tool-group", heading))
                     .default_open(false)
-                    .open(active.then_some(true))
+                    .open(if direct_selection {
+                        Some(active)
+                    } else {
+                        active.then_some(true)
+                    })
                     .show_unindented(ui, |ui| {
-                        ui.horizontal_wrapped(|ui| {
-                            for &tool in tools {
-                                self.draw_cdmw_tool_tab(ui, tool, busy, authoring, policy_reason);
-                            }
-                        });
+                        if !direct_selection {
+                            ui.horizontal_wrapped(|ui| {
+                                for &tool in tools {
+                                    self.draw_cdmw_tool_tab(ui, tool, busy, authoring, policy_reason);
+                                }
+                            });
+                        }
                         // Keep the navigation together instead of inserting a
                         // settings page between rows of related tool buttons.
                         if let Some(active_page) = tools
@@ -1986,6 +1996,8 @@ impl LabApplication {
             self.cdmw_rail_page = None;
             self.cancel_active_gesture("Tool section collapsed");
             self.cdmw_orbit_mode = true;
+        } else if group.header_response.clicked() && direct_selection && !busy {
+            self.activate_cdmw_rail_page(CdmwRailPage::Select, Some(ViewportTool::Select));
         }
     }
 

@@ -809,7 +809,7 @@ fn integrated_expanded_tool_tabs_fit_labels_and_keep_navigation_above_settings()
         ui.application
             .apply_cdmw_theme_payload(&json!({"font_point_size":font,"density":density}));
         ui.settle_layout();
-        for group in ["Selection", "Transform", "Sculpt", "Mesh Data"] {
+        for group in ["Transform", "Sculpt", "Mesh Data"] {
             ui.click_tool_button(group)?;
         }
         let style = ui
@@ -821,7 +821,6 @@ fn integrated_expanded_tool_tabs_fit_labels_and_keep_navigation_above_settings()
             .egui_context
             .fonts_mut(|fonts| fonts.row_height(&style.text_styles[&egui::TextStyle::Button]));
         for label in [
-            "Select",
             "Move",
             "Rotate",
             "Scale",
@@ -898,7 +897,7 @@ fn integrated_tool_pages_keep_compact_widths_in_all_presentations() -> TestResul
         ui.application
             .apply_cdmw_theme_payload(&json!({"font_point_size":font,"density":density}));
         ui.settle_layout();
-        for section in ["Selection", "Transform", "Sculpt", "Mesh Data"] {
+        for section in ["Transform", "Sculpt", "Mesh Data"] {
             ui.click_tool_button(section)?;
         }
         for presentation in ["expanded", "flyout", "pinned"] {
@@ -931,7 +930,7 @@ fn integrated_tool_pages_keep_compact_widths_in_all_presentations() -> TestResul
                         ui.click_sidebar(&format!("Pin {label} settings"))?;
                     }
                 } else {
-                    ui.click_tool_button(label)?;
+                    ui.click_tool_button(if label == "Select" { "Selection" } else { label })?;
                 }
                 if label == "Vertex Parameters" {
                     seed_vertex_inspection(&mut ui, 156);
@@ -1075,12 +1074,11 @@ fn integrated_theme_button_readability_for_supplied_palettes() -> TestResult {
             .apply_cdmw_theme_payload(&json!({"theme": key, "palette": palette}));
         ui.frame(Vec::new());
         ui.frame(Vec::new());
-        ui.click("Select")?;
+        ui.click_tool_button("Selection")?;
         ui.click("Face")?;
         ui.frame(vec![Event::PointerMoved(egui::pos2(0.0, 0.0))]);
         for label in [
             "Exact",
-            "Select",
             "Face",
             "Visible",
             "Free Edit",
@@ -1096,7 +1094,7 @@ fn integrated_theme_button_readability_for_supplied_palettes() -> TestResult {
                 json!({"theme": key, "control": label, "state": "rest", "contrast": contrast}),
             );
         }
-        for label in ["Clear Selection", "Select"] {
+        for label in ["Clear Selection", "Face"] {
             let center = ui.reveal(label)?.center();
             for (state, events) in [
                 ("hover", vec![Event::PointerMoved(center)]),
@@ -1233,7 +1231,7 @@ impl HeadlessUi {
     // and persistence tests use new_integrated_cdmw to exercise closed defaults.
     fn new_integrated_cdmw_for_controls(application: LabApplication, size: egui::Vec2) -> Self {
         let mut ui = Self::new_integrated_cdmw(application, size);
-        for label in ["Viewport", "Selection", "Transform", "Sculpt", "Mesh Data"] {
+        for label in ["Viewport", "Transform", "Sculpt", "Mesh Data"] {
             ui.click_tool_button(label).expect("open tool section");
         }
         for label in ["Parts", "Geometry Layers", "Action History"] {
@@ -2084,7 +2082,6 @@ fn integrated_cdmw_layout_keeps_product_surfaces_reachable_across_sizes() -> Tes
             "Transform",
             "Sculpt",
             "Mesh Data",
-            "Select",
             "Move",
             "Rotate",
             "Scale",
@@ -2901,7 +2898,7 @@ fn integrated_selection_display_camera_history_and_output_controls_change_real_s
         triangle_application()?,
         egui::vec2(1_440.0, 980.0),
     );
-    ui.click("Select")?;
+    ui.click_tool_button("Selection")?;
 
     for (label, expected) in [
         ("Edge", SelectionDomain::Edge),
@@ -3317,7 +3314,7 @@ fn integrated_every_topology_button_dispatches_a_supported_typed_action() -> Tes
     ui.application.selection_domain = SelectionDomain::Face;
     ui.application
         .handle_actions(vec![UiAction::SelectAllFaces]);
-    ui.click("Select")?;
+    ui.click_tool_button("Selection")?;
     let actions = ui.actions_from_click("Create Part")?;
     assert!(has_topology_action(&actions, "separate"));
     Ok(())
@@ -4047,7 +4044,7 @@ fn integrated_sections_start_closed_and_morph_selection_returns_to_saved_section
         HeadlessUi::new_integrated_cdmw(two_part_application()?, egui::vec2(1440.0, 980.0));
     for hidden in [
         "Display",
-        "Select",
+        "Shape",
         "Move",
         "Visibility",
         "Add as Body...",
@@ -4107,6 +4104,53 @@ fn integrated_sections_start_closed_and_morph_selection_returns_to_saved_section
 }
 
 #[test]
+fn integrated_selection_heading_opens_controls_and_activates_viewport_selection() -> TestResult {
+    for (size, authoring) in [
+        (egui::vec2(1440.0, 980.0), true),
+        (egui::vec2(1000.0, 650.0), false),
+    ] {
+        let mut ui = HeadlessUi::new_integrated_cdmw(triangle_application()?, size);
+        ui.application.cdmw_state["authoring_enabled"] = json!(authoring);
+        ui.frame(Vec::new());
+        assert!(ui.label_rect("Shape").is_none());
+        ui.click_tool_button("Selection")?;
+        assert_eq!(ui.application.cdmw_rail_page, Some(CdmwRailPage::Select));
+        assert_eq!(ui.application.viewport_tool, ViewportTool::Select);
+        assert!(!ui.application.cdmw_orbit_mode);
+        assert!(ui.label_rect("Select").is_none(), "redundant Select button remains");
+        for label in ["Vertex", "Edge", "Face", "Shape", "Operation", "Visible", "X-Ray", "Invert", "Create Part"] {
+            ui.reveal(label)?;
+        }
+        ui.click("Face")?;
+        ui.click("X-Ray")?;
+        let point = ui.projected_point(SelectionDomain::Face)?;
+        ui.click_at(egui::pos2(point.x, point.y));
+        assert_eq!(ui.application.mesh.as_ref().ok_or("mesh")?.selection.faces.len(), 1);
+
+        ui.click_tool_button("Selection")?;
+        assert_eq!(ui.application.cdmw_rail_page, None);
+        assert!(ui.application.cdmw_orbit_mode);
+        assert!(ui.label_rect("Shape").is_none());
+        assert_eq!(ui.application.mesh.as_ref().ok_or("mesh")?.selection.faces.len(), 1);
+        ui.click_tool_button("Selection")?;
+        assert_eq!(ui.application.selection_domain, SelectionDomain::Face);
+        assert!(!ui.application.selection_visible_only);
+        ui.reveal("Shape")?;
+
+        if authoring {
+            ui.click_tool_button("Transform")?;
+            ui.click_tool_button("Move")?;
+            assert_eq!(ui.application.viewport_tool, ViewportTool::Move);
+            assert!(ui.label_rect("Shape").is_none());
+            ui.click_tool_button("Selection")?;
+            assert_eq!(ui.application.viewport_tool, ViewportTool::Select);
+            ui.reveal("Shape")?;
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn integrated_tool_buttons_toggle_and_sections_collapse_without_geometry_changes() -> TestResult {
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
         triangle_application()?,
@@ -4122,7 +4166,7 @@ fn integrated_tool_buttons_toggle_and_sections_collapse_without_geometry_changes
         .collect::<Vec<_>>();
     assert!(ui.label_rect("Rig & Weights").is_none());
     for (label, page) in [
-        ("Select", CdmwRailPage::Select),
+        ("Selection", CdmwRailPage::Select),
         ("Move", CdmwRailPage::Move),
         ("Rotate", CdmwRailPage::Rotate),
         ("Scale", CdmwRailPage::Scale),
@@ -4145,7 +4189,6 @@ fn integrated_tool_buttons_toggle_and_sections_collapse_without_geometry_changes
     }
     for (heading, child) in [
         ("Viewport", "Display"),
-        ("Selection", "Select"),
         ("Transform", "Move"),
         ("Sculpt", "Grab"),
         ("Mesh Data", "Topology"),
@@ -6367,7 +6410,6 @@ fn integrated_panel_scroll_cannot_zoom_or_interrupt_the_next_selection_click() -
         let mut ui =
             HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1_280.0, 900.0));
         ui.click("Selection")?;
-        ui.click("Select")?;
         let viewport = ui.application.viewport_rect.ok_or("viewport")?;
         let point = ui.projected_point(SelectionDomain::Vertex)?;
         let camera_revision = ui.application.camera.revision();
@@ -6409,7 +6451,7 @@ fn integrated_selection_release_keeps_side_text_stable_and_blocks_pending_edits(
         1,
         0,
     ));
-    ui.click("Select")?;
+    ui.click_tool_button("Selection")?;
     let side_text = |ui: &HeadlessUi| {
         ["Viewport", "Parts"].map(|label| {
             ui.output.shapes.iter().find_map(|clipped| {
@@ -6488,7 +6530,7 @@ fn integrated_selection_settles_to_selected_and_inflate_needs_no_selection() -> 
         triangle_application()?,
         egui::vec2(1_280.0, 900.0),
     );
-    selection_ui.click("Select")?;
+    selection_ui.click_tool_button("Selection")?;
     let point = selection_ui.projected_point(SelectionDomain::Vertex)?;
     selection_ui.click_at(egui::pos2(point.x, point.y));
     assert!(
@@ -6810,7 +6852,7 @@ fn integrated_controls_paint_hover_pressed_selected_disabled_progress_and_failur
     ui.application.status = "Slow topology in progress".to_owned();
     ui.frame(Vec::new());
     assert!(ui.label_rect("Slow topology in progress").is_some());
-    let select = ui.reveal("Select")?;
+    let select = ui.reveal("Selection")?;
     ui.click_at(select.center());
     assert_eq!(
         ui.application.cdmw_rail_page,

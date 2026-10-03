@@ -271,6 +271,10 @@ within the available content area after resizing. Expanded tools use compact tab
 size to their labels and wrap into rows. Each group's settings appear below all its
 tabs, keeping related tools together.
 
+**Selection** opens its controls and activates viewport selection directly from the
+section heading. Collapse it to return to Orbit; the selection settings and selected
+mesh elements are retained. The compact rail still provides its **Select** shortcut.
+
 Clicking the active tab retains the existing toggle-to-Orbit behavior. Floating panels
 grow with their contents up to the available editor height and use the full panel width.
 Expanded and pinned panels start narrower; tool rows wrap at larger font sizes, and
