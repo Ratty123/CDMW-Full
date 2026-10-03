@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
+from cdmw.models import ModelPreviewRenderSettings
 from cdmw.ui.archive_browser.static_replacement_preview_status_state import (
     alignment_d3d11_renderer_error_message,
     alignment_preview_camera_button_specs,
@@ -13,6 +16,31 @@ from cdmw.ui.archive_browser.static_replacement_preview_status_state import (
     static_preview_refresh_interval_ms,
     static_preview_refresh_performance_status,
     static_preview_settle_interval_ms,
+)
+from cdmw.ui.archive_browser.static_replacement_preview_mode_state import (
+    alignment_preview_mode_initial_state,
+    alignment_preview_mode_record,
+)
+from cdmw.ui.archive_browser.static_replacement_static_preview_state import static_preview_refresh_route_state
+from cdmw.ui.archive_browser.static_replacement_raw_preview_state import (
+    mesh_edit_raw_preview_initial_state,
+    mesh_edit_raw_preview_record_state,
+)
+from cdmw.ui.archive_browser.static_replacement_preview_batch_state import (
+    static_preview_batch_begin,
+    static_preview_batch_end,
+    static_preview_batch_initial_state,
+    static_preview_batch_queue_request,
+)
+from cdmw.ui.archive_browser.static_replacement_preview_limits import (
+    alignment_preview_background_source_face_limit_for_total,
+    alignment_preview_requested_source_indices,
+    alignment_preview_selected_source_face_limit_for_total,
+    alignment_preview_source_face_total,
+)
+from cdmw.ui.archive_browser.static_replacement_d3d11_state import (
+    alignment_d3d11_mark_loaded_package,
+    alignment_d3d11_package_quality,
 )
 
 
@@ -192,3 +220,220 @@ def test_static_preview_refresh_performance_status_coerces_invalid_timings() -> 
         "prepare 1.0 ms\n"
         "GL upload 2.4 ms"
     )
+
+
+def test_alignment_preview_mode_initial_state_defaults_to_side_by_side() -> None:
+    assert alignment_preview_mode_initial_state(None) == {"current": "side_by_side"}
+    assert alignment_preview_mode_initial_state("replacement_only") == {"current": "replacement_only"}
+
+
+def test_alignment_preview_mode_record_returns_previous_and_current() -> None:
+    state = alignment_preview_mode_initial_state("side_by_side")
+
+    assert alignment_preview_mode_record(state, "replacement_only") == ("side_by_side", "replacement_only")
+    assert state == {"current": "replacement_only"}
+
+    assert alignment_preview_mode_record(state, "") == ("replacement_only", "side_by_side")
+    assert state == {"current": "side_by_side"}
+
+
+def test_static_preview_refresh_route_state_keeps_external_materials_and_tracks_original_readiness() -> None:
+    route = static_preview_refresh_route_state(
+        active_preview_mode="replacement_only",
+        mesh_edit_enabled=False,
+        mesh_edit_tab_active=False,
+        replacement_mesh_available=True,
+        interactive_preview=False,
+        complete_external_swap_enabled=False,
+        needs_original_material_preview=False,
+        preview_controls_ready=True,
+        original_mesh_available=True,
+    )
+
+    assert route.mesh_edit_direct_source_preview is False
+    assert route.replacement_only_direct_source_preview is False
+    assert route.source_owned_direct_source_preview is True
+    assert route.require_original_reference is True
+    assert route.can_build_source_geometry is True
+    assert route.waits_for_original_reference(ready=False) is False
+
+    mesh_edit_route = static_preview_refresh_route_state(
+        active_preview_mode="side_by_side",
+        mesh_edit_enabled=True,
+        mesh_edit_tab_active=True,
+        replacement_mesh_available=True,
+        interactive_preview=True,
+        complete_external_swap_enabled=True,
+        needs_original_material_preview=False,
+        preview_controls_ready=False,
+        original_mesh_available=True,
+    )
+
+    assert mesh_edit_route.mesh_edit_direct_source_preview is False
+    assert mesh_edit_route.replacement_only_direct_source_preview is False
+    assert mesh_edit_route.source_owned_direct_source_preview is True
+    assert mesh_edit_route.require_original_reference is True
+    assert mesh_edit_route.can_build_source_geometry is False
+    assert mesh_edit_route.waits_for_original_reference(ready=False) is True
+    assert mesh_edit_route.waits_for_original_reference(ready=True) is False
+
+
+def test_mesh_edit_raw_preview_initial_state_is_inactive() -> None:
+    assert mesh_edit_raw_preview_initial_state() == {"active": False}
+
+
+def test_mesh_edit_raw_preview_record_state_returns_previous_and_current() -> None:
+    state = mesh_edit_raw_preview_initial_state()
+
+    assert mesh_edit_raw_preview_record_state(state, True) == (False, True)
+    assert state == {"active": True}
+
+    assert mesh_edit_raw_preview_record_state(state, False) == (True, False)
+    assert state == {"active": False}
+
+
+def test_static_preview_batch_initial_state_preserves_flags() -> None:
+    assert static_preview_batch_initial_state() == {
+        "depth": 0,
+        "texture": False,
+        "texture_uv": False,
+        "rebuild": False,
+        "refresh": False,
+    }
+
+
+def test_static_preview_batch_queue_request_only_records_inside_batch() -> None:
+    state: dict[str, object] = {"depth": 0}
+
+    assert static_preview_batch_queue_request(state, "texture_uv") is False
+    assert "texture_uv" not in state
+
+    static_preview_batch_begin(state)
+
+    assert static_preview_batch_queue_request(state, "texture_uv") is True
+    assert state["texture_uv"] is True
+
+
+def test_static_preview_batch_end_returns_outermost_requests_and_resets() -> None:
+    state: dict[str, object] = {"depth": 0}
+
+    static_preview_batch_begin(state)
+    static_preview_batch_begin(state)
+    static_preview_batch_queue_request(state, "texture")
+
+    assert static_preview_batch_end(state) is None
+
+    static_preview_batch_queue_request(state, "rebuild")
+    payload = static_preview_batch_end(state)
+
+    assert payload == {
+        "texture": True,
+        "texture_uv": False,
+        "rebuild": True,
+        "refresh": False,
+    }
+    assert state["depth"] == 0
+    assert state["texture"] is False
+    assert state["texture_uv"] is False
+    assert state["rebuild"] is False
+    assert state["refresh"] is False
+
+
+def test_alignment_preview_requested_source_indices_filters_to_existing_submeshes() -> None:
+    mesh = SimpleNamespace(submeshes=[object(), object(), object()])
+
+    assert alignment_preview_requested_source_indices(mesh, (0, "2", 3, -1, "bad")) == (0, 2)
+    assert alignment_preview_requested_source_indices(SimpleNamespace(submeshes=[]), (0,)) == ()
+
+
+def test_alignment_preview_source_face_total_counts_requested_submeshes() -> None:
+    mesh = SimpleNamespace(
+        submeshes=[
+            SimpleNamespace(faces=[1, 2]),
+            SimpleNamespace(faces=[]),
+            SimpleNamespace(faces=[1, 2, 3]),
+        ]
+    )
+
+    assert alignment_preview_source_face_total(mesh, (0, 2, 9, "bad")) == 5
+
+
+def test_alignment_preview_selected_source_face_limit_thresholds() -> None:
+    assert alignment_preview_selected_source_face_limit_for_total(
+        130_000,
+        selected_requested=True,
+        interactive=True,
+        fallback_limit=7,
+    ) == 18_000
+    assert alignment_preview_selected_source_face_limit_for_total(
+        130_000,
+        selected_requested=False,
+        interactive=True,
+        fallback_limit=7,
+    ) == 8_000
+    assert alignment_preview_selected_source_face_limit_for_total(
+        10_000,
+        selected_requested=False,
+        interactive=False,
+        fallback_limit=7,
+    ) == 7
+
+
+def test_alignment_preview_background_source_face_limit_thresholds() -> None:
+    assert alignment_preview_background_source_face_limit_for_total(
+        130_000,
+        interactive=True,
+        fallback_limit=7,
+    ) == 2_000
+    assert alignment_preview_background_source_face_limit_for_total(
+        45_000,
+        interactive=False,
+        fallback_limit=7,
+    ) == 5_000
+    assert alignment_preview_background_source_face_limit_for_total(
+        10_000,
+        interactive=False,
+        fallback_limit=7,
+    ) == 7
+
+
+def test_alignment_d3d11_package_quality_keeps_loaded_material_frame_during_geometry_rebuild() -> None:
+    settings = ModelPreviewRenderSettings(use_textures_by_default=True, high_quality_by_default=True)
+
+    result_settings, high_quality, material_combiner, package_quality = alignment_d3d11_package_quality(
+        settings,
+        {
+            "fast_geometry_loaded": False,
+            "archive_parity_ready": False,
+            "material_complete_preview_seen": True,
+        },
+        reason="geometry",
+        mesh_edit_raw_preview_active=False,
+    )
+
+    assert result_settings.use_textures_by_default is False
+    assert high_quality is False
+    assert material_combiner is False
+    assert package_quality == "archive_parity"
+
+
+def test_material_complete_frame_authority_survives_active_package_handoff() -> None:
+    settings = ModelPreviewRenderSettings(use_textures_by_default=True, high_quality_by_default=True)
+    state: dict[str, object] = {}
+    alignment_d3d11_mark_loaded_package(state, package_quality="archive_parity")
+    state.update(
+        preview_loaded=False,
+        active_package_quality="",
+        fast_geometry_loaded=False,
+        archive_parity_ready=False,
+    )
+
+    _result_settings, _high_quality, _combiner, quality = alignment_d3d11_package_quality(
+        settings,
+        state,
+        reason="geometry",
+        mesh_edit_raw_preview_active=False,
+    )
+
+    assert state["material_complete_preview_seen"] is True
+    assert quality == "archive_parity"

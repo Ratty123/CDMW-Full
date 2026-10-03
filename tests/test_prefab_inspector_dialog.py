@@ -18,7 +18,6 @@ pytest.importorskip("PySide6.QtWidgets")
 
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
-from cdmw.domain.archives.prefab_glossary import asset_role, describe_field, is_asset_path  # noqa: E402
 from cdmw.domain.archives.prefab_values import Placement, read_placement, write_placement
 from cdmw.ui.archive_browser.prefab_inspector_widgets import PlacementEditDialog
 from cdmw.ui.archive_browser.prefab_inspector_dialog import (  # noqa: E402
@@ -130,34 +129,6 @@ def test_unreadable_payload_reports_instead_of_raising(qt_app: QApplication) -> 
     dialog = PrefabInspectorDialog(b"not a prefab at all")
     assert "could not be read" in dialog.banner.text()
     assert not dialog.apply_button.isEnabled()
-
-
-@pytest.mark.parametrize(
-    ("value", "expected"),
-    [
-        ("character/model/a.pac", True),
-        ("character/descriptors/x.sockets.xml", True),
-        ("Pelvis_R_Socket", False),
-        ("Weapon", False),
-        ("", False),
-    ],
-)
-def test_asset_path_detection(value: str, expected: bool) -> None:
-    assert is_asset_path(value) is expected
-
-
-def test_field_names_are_translated_for_humans() -> None:
-    """Declared names are unfriendly; the dialog must not show them raw."""
-    assert describe_field("_shrinkMaskDistance").label == "Shrink distance"
-    assert describe_field("_skinnedMeshFile").label == "Mesh"
-    # An unknown field still reads sensibly rather than vanishing.
-    assert describe_field("_someUnknownThing").label == "Some unknown thing"
-
-
-def test_asset_roles_name_what_the_file_is() -> None:
-    assert asset_role("a/b/c.pac") == "Model"
-    assert asset_role("a/b/c.sockets.xml") == "Socket data"
-    assert asset_role("a/b/c.pab") == "Skeleton"
 
 
 def test_all_fields_tab_defaults_to_fields_in_use(qt_app: QApplication) -> None:

@@ -91,7 +91,10 @@ def test_asset_roles(path: str, role: str) -> None:
     ("value", "expected"),
     [
         ("character/model/a.pac", True),
+        ("character/descriptors/x.sockets.xml", True),
         ("Pelvis_R_Socket", False),
+        ("Weapon", False),
+        ("", False),
         ("no-slash.pac", False),
         ("has/slash-but-no-dot", False),
     ],

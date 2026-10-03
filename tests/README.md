@@ -11,7 +11,8 @@ static checks for genuine architecture, packaging and compatibility contracts;
 do not freeze local variable names, statement order or old UI layouts.
 
 The full runner discovers `test_*.py` automatically. A file omitted from the
-short CI list is still used by full QA. Remove a test only when its requirement
+short CI list is still selected by full QA; discovery does not establish when
+it last ran or whether it remains valuable. Remove a test only when its requirement
 is obsolete or another executable test covers it; a failure or an old filename
 alone is not evidence for removal. Preserve cancellation, rollback, unsafe-output
 refusal and compatibility coverage. Consolidate small related checks with their
@@ -21,6 +22,11 @@ existing owner instead of adding one module per implementation detail.
 
 | Contract | Owning tests |
 | --- | --- |
+| Research display, notes and layout state | `test_research_state.py` |
+| Research tree population and shared widgets | `test_research_tree_population.py`, `test_research_widgets.py` |
+| Static preview status, modes, routing, batching and limits | `test_static_replacement_preview_status_state.py` |
+| Archive HKX and binary preview ownership, imports and golden outputs | `test_archive_hkx_decomposition.py`, `test_archive_binary_preview_decomposition.py` |
+| Prefab field meanings and path classification | `test_prefab_glossary.py` |
 | Builder construction, parenting and current controls | `test_mesh_builder_construction_invariants.py`, `test_mesh_builder_construction_lifecycle.py`, `test_mesh_builder_runtime_wiring.py` |
 | Preview presentation and acknowledged editor updates | `test_dotnet_preview_shared_host.py`, `test_dotnet_update_queue.py`, `test_mesh_dotnet_stroke_protocol_flow.py` |
 | Preview startup, modes and appearance settings | `test_dotnet_preview_shared_host_lifecycle.py`, `test_static_replacement_dotnet_presentation.py`, `test_model_preview_settings_dialog.py` |
