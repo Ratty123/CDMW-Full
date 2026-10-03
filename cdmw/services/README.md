@@ -144,6 +144,6 @@ must exit without opening a blocking PyInstaller exception dialog.
 
 ## Focused checks
 
-Related tests: `tests/test_services.py`, `tests/test_archive_service_boundaries.py`,
-`tests/test_research_service_boundary.py`, `tests/test_diagnostics_service.py`,
-and service entries under `tests/`.
+Related tests: `tests/test_archive_mutation_service.py`,
+`tests/test_research_analysis_async.py`, `tests/test_diagnostics_service.py`,
+and the focused workflow owners listed in `tests/README.md`.

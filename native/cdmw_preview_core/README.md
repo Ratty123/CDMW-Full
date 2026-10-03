@@ -49,8 +49,8 @@ fixtures, without the archive/path self-tests or game data.
 
 PAC preview rejects trailing descriptor-like metadata only when the retained
 40-byte vertex descriptors exactly fill every present LOD section, matching the
-authoring parser. `tests/test_native_preview_pac_geometry.py` exercises the real
-helper with false matches and genuine parts, including parts unique to one LOD.
+authoring parser. Native preview integration coverage lives in
+`tests/test_native_preview_core.py`.
 
 ## Archive indexing
 

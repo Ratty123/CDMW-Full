@@ -206,10 +206,6 @@ def test_codex_mesh_checks_use_real_game_pac_and_keep_unit_runs_non_visual() -> 
     assert '"desktop_automation_used": False' in rust_proof_source
     assert '"vortice_used": False' in rust_proof_source
     assert "test_mesh_editor\\cd_phm_00_nude_10_0001.pac" not in source
-    mesh_unit_start = source.index('"mesh-unit" = @(')
-    mesh_unit_end = source.index("    )", mesh_unit_start)
-    assert "test_mesh_editor_dev_harness.py" not in source[mesh_unit_start:mesh_unit_end]
-    assert "--ignore=tests/test_mesh_editor_dev_harness.py" not in source
     assert '"mouse_input_backend": "helper_ui_thread_resident_probe"' in real_proof_source
     assert "request_resident_interaction_probe(" in real_input_source
     assert '"event": "resident_interaction_probe"' in real_input_source

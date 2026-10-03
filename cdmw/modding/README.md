@@ -1083,10 +1083,9 @@ these functions do not infer runtime activation or substitute missing resources.
   host basis participates. Frame `0x2` or the same old-radius threshold resets
   history; the old result's owner uint is preserved.
 
-`tests/test_pac_cloth_collider_update.py` checks analytic transforms, shear,
-activation/history branches, custom endpoint shifts, signed tile coordinates
-and a generated-record handoff through moving capsule contact. These are finite
-reference calculations, not GPU rounding, native preview or game parity proof.
+Fine-grained Python collider reference tests are outside the maintained suite.
+Decoded preview coverage lives in `tests/test_mesh_cloth_decoded_preview.py`;
+it does not establish GPU rounding or game parity.
 Authoring collider definitions, resolving bone/LOD resources and connecting the
 native preview remain separate work.
 
@@ -1897,11 +1896,10 @@ remain unverified.
 
 #### Focused guide and profile checks
 
-New-guide coverage: `tests/test_pac_cloth_guide_builder.py`,
-`tests/test_mesh_cloth_guide_authoring.py`, and Rust headless
-`guide_authoring_tests`. These exercise structure, protected bytes, deformation
-references, optional skin conversion, real command/worker dispatch, history,
-draft reopening and Build Mod. They do not establish visible or in-game proof.
+Rust headless `guide_authoring_tests` cover guide construction. The retained Python
+suite covers authored channels and multi-step edits in
+`tests/test_mesh_cloth_retained_channels.py` and `tests/test_mesh_cloth_sequences.py`.
+These checks do not establish visible or in-game proof.
 
 Focused coverage: `tests/test_mesh_physics_profile_authoring.py`,
 `tests/test_mesh_physics_profile_output.py`, and Rust

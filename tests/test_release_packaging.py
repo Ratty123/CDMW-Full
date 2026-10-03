@@ -379,9 +379,8 @@ def test_windows_workflow_runs_only_for_code_events_or_manual_dispatch() -> None
     assert '    tags:\n      - "v*"' in triggers
 
 
-@pytest.mark.parametrize("workflow", (WORKFLOW, CODEQL_WORKFLOW), ids=("windows", "codeql"))
-def test_ci_path_filters_skip_docs_and_templates_but_keep_code(workflow: Path) -> None:
-    source = workflow.read_text(encoding="utf-8")
+def test_ci_path_filters_skip_docs_and_templates_but_keep_code() -> None:
+    source = WORKFLOW.read_text(encoding="utf-8")
     for event in ("push", "pull_request"):
         event_body = source.split(f"  {event}:\n", 1)[1]
         event_body = re.split(r"^  [a-z_]+:", event_body, maxsplit=1, flags=re.MULTILINE)[0]
@@ -409,6 +408,10 @@ def test_ci_path_filters_skip_docs_and_templates_but_keep_code(workflow: Path) -
 
 def test_codeql_workflow_preserves_security_coverage_without_compilation() -> None:
     source = CODEQL_WORKFLOW.read_text(encoding="utf-8")
+    triggers = source.split("\non:\n", 1)[1].split("\npermissions:", 1)[0]
+    assert set(re.findall(r"^  ([a-z_]+):", triggers, flags=re.MULTILINE)) == {
+        "workflow_dispatch", "schedule",
+    }
     assert "language: [actions, c-cpp, csharp, python, rust]" in source
     assert "build-mode: none" in source
     assert "security-events: write" in source
@@ -438,7 +441,7 @@ def test_windows_workflow_defaults_to_focused_checks_and_opt_in_full() -> None:
 
     assert "if: github.event_name != 'workflow_dispatch' || !inputs.exhaustive_tests" in fast_step
     assert "codex_check.ps1 -Area smoke" in fast_step
-    assert "tests/test_release_packaging.py -k codeql --basetemp $ciContractTemp" in fast_step
+    assert 'tests/test_release_packaging.py -k "workflow or smoke_runs or full_discovers or focused_validation" --basetemp $ciContractTemp' in fast_step
     assert "tests/test_character_finder_dialog.py::test_archive_controls_wire_finder_in_classic_and_compact_layouts --basetemp $menuContractTemp" in fast_step
     assert fast_step.rstrip().endswith("if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }")
     assert "codex_check.ps1 -Area mesh-contract" not in fast_step
@@ -492,12 +495,12 @@ def test_codex_check_keeps_smoke_build_free_and_splits_mesh_contracts() -> None:
 
 
 @pytest.mark.skipif(sys.platform != "win32" or POWERSHELL is None, reason="PowerShell behavior test")
-@pytest.mark.parametrize("failure_path", ("", "tests/test_runtime_dependency_smoke.py", "tests/test_paloc_container.py"))
+@pytest.mark.parametrize("failure_path", ("", "tests/test_runtime_dependency_smoke.py", "tests/test_archive_mutation_service.py"))
 def test_smoke_runs_each_module_in_a_fresh_process_and_preserves_failure(tmp_path, failure_path):
     source = (ROOT / "scripts" / "codex_check.ps1").read_text(encoding="utf-8")
     smoke = source.split("    smoke = @(\n", 1)[1].split("    )", 1)[0]
     modules = re.findall(r'"(tests/[^"\n]+\.py)"', smoke)
-    assert "tests/test_paloc_container.py" in modules
+    assert "tests/test_archive_mutation_service.py" in modules
     scripts = tmp_path / "scripts"
     scripts.mkdir()
     (scripts / "codex_check.ps1").write_text(source, encoding="utf-8")

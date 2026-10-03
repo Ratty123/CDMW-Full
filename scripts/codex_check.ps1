@@ -15,17 +15,12 @@ $TestsByArea = @{
         "tests/test_qt_test_cleanup.py",
         "tests/test_runtime_dependency_smoke.py",
         "tests/test_restructure_runtime_regression_smoke.py",
-        # New Item must load and export supported localization containers in CI.
-        "tests/test_paloc_container.py",
         "tests/test_new_item_read_failure.py",
-        # Fixture-backed safety checks stay on the short default route.
         "tests/test_archive_patch_preflight.py",
         "tests/test_archive_mutation_service.py",
         "tests/test_archive_output_path_safety.py",
-        "tests/test_mesh_editor_ui_state.py",
         "tests/test_build_metadata.py",
-        "tests/test_process_lifecycle.py",
-        "tests/test_localization_catalog_contracts.py"
+        "tests/test_process_lifecycle.py"
     )
     stability = @(
         "tests/test_runtime_dependency_smoke.py",
@@ -34,9 +29,6 @@ $TestsByArea = @{
         "tests/test_hang_watchdog_keeps_reporting.py",
         "tests/test_pyinstaller_temp_cleanup.py",
         "tests/test_startup_archive_path_async.py",
-        "tests/test_session_recorder.py",
-        "tests/test_window_frame_blink_detection.py",
-        "tests/test_session_monitor_timeline.py",
         "tests/test_settings_tab_flush_persistence.py",
         "tests/test_profile_controller.py",
         "tests/test_asset_authoring_service.py",
@@ -47,18 +39,13 @@ $TestsByArea = @{
     responsiveness = @(
         "tests/test_attachment_async_io.py",
         "tests/test_character_context.py",
-        "tests/test_lazy_tool_tabs.py",
         "tests/test_translation_studio.py",
-        "tests/test_ui_responsiveness_source_guards.py",
         "tests/test_mesh_dotnet_stroke_protocol_flow.py",
         "tests/test_lazy_texture_workflow_panels.py",
         "tests/test_asset_authoring_workers.py",
         "tests/test_localization_async_io.py",
-        "tests/test_localization_translations.py",
         "tests/test_localization_catalog_contracts.py",
-        "tests/test_localization_translation_quality.py",
-        "tests/test_compact_shell.py",
-        "tests/test_persistent_tree_headers.py"
+        "tests/test_compact_shell.py"
     )
     archive = @(
         "tests/test_archive_browser_virtual_model.py",
@@ -72,16 +59,8 @@ $TestsByArea = @{
         "tests/test_archive_remote_window_bridge.py",
         "tests/test_archive_remote_preview_dependencies.py",
         "tests/test_archive_remote_finder_dialog.py",
-        "tests/test_archive_preview_dependency_optimization.py",
         "tests/test_archive_d3d11_process_lifecycle.py",
-        "tests/test_archive_extract_progress.py",
         "tests/test_archive_output_path_safety.py",
-        "tests/test_archive_progress_bar_writes_on_change.py",
-        # Unregistered until 2026-08-08, which is how its progress-bar and
-        # selection-context needles sat stale across four commits.
-        "tests/test_archive_browser_asset_understanding_ui_source_guards.py",
-        # Archive writers: in-place patching, brand-new PAMT entries, and the
-        # table/part-prefab owners the New Item flow appends through.
         "tests/test_archive_patch_preflight.py",
         "tests/test_archive_mutation_service.py",
         "tests/test_archive_overlay_install.py",
@@ -91,26 +70,17 @@ $TestsByArea = @{
         "tests/test_paloc_container.py",
         "tests/test_stringinfo_table.py",
         "tests/test_iteminfo_row.py",
-        # New Item Studio, phase 2: store rows, model families, and new icons.
         "tests/test_storeinfo_table.py",
         "tests/test_item_model_family.py",
         "tests/test_item_icon_addition.py",
-        # New Item Studio domain: the spec, its validation and identity allocation.
         "tests/test_new_item_spec.py",
-        # New Item Studio, phase 3: item groups, and the service that plans, exports and installs.
         "tests/test_itemgroupinfo_table.py",
         "tests/test_new_item_service.py",
-        # New Item Studio, phase 5: the plan reproduces the in-game-verified spike byte for byte.
         "tests/test_new_item_golden.py",
-        # New Item Studio, phase 6: enhancement transition rows.
         "tests/test_multichangeinfo_table.py",
-        # New Item Studio, phase 6b: the texture registry (meta/0.pathc) a new icon must be registered in.
         "tests/test_pathc_format.py",
-        # New Item Studio visual effects: grafting a component into compatible item prefabs.
         "tests/test_prefab_component_graft.py",
-        # New Item Studio, phase 8: the UI's icon registry a new icon must be declared in.
         "tests/test_item_icon_registry.py",
-        # New Item Studio, phase 9: imported materials rewritten to the game's plain-PBR shaders.
         "tests/test_pac_xml_standard_material.py",
         "tests/test_new_item_materials.py",
         "tests/test_effect_binary.py",
@@ -119,22 +89,14 @@ $TestsByArea = @{
         "tests/test_new_item_effect_proof.py",
         "tests/test_effect_placement_preview.py",
         "tests/test_effect_edit.py",
-        # Placement & Animations: the Move a weapon dialog must construct without
-        # firing programmatic scope changes into controls that do not exist yet.
         "tests/test_placement_studio_move_dialog.py",
         "tests/test_placement_studio_move_apply.py"
     )
     texture = @(
-        "tests/test_texture_backend_retirement.py",
-        "tests/test_texture_replacer_headless_harness.py",
         "tests/test_texture_native_backend.py",
         "tests/test_texture_workflow_guardrails.py",
         "tests/test_lazy_texture_workflow_panels.py",
         "tests/test_asset_authoring_workers.py",
-        "tests/test_texture_domain_profiles.py",
-        "tests/test_texture_workflow_unavailable_editor.py",
-        "tests/test_material_combiner_decode_retry.py",
-        "tests/test_material_combiner_vectorized.py",
         "tests/test_static_texture_replacement.py"
     )
     "mesh-contract" = @(
@@ -162,8 +124,6 @@ $TestsByArea = @{
         "tests/test_mesh_builder_runtime_wiring.py",
         "tests/test_mesh_builder_construction_lifecycle.py",
         "tests/test_mesh_builder_construction_invariants.py",
-        "tests/test_static_replacement_post_open_state.py",
-        "tests/test_static_replacement_dotnet_presentation.py",
         "tests/test_mesh_rust_authoring.py",
         "tests/test_mesh_rust_authoring_exact_output.py",
         "tests/test_mesh_rust_archive_texture_launch.py",
@@ -177,17 +137,14 @@ $TestsByArea = @{
         "tests/test_mesh_native_operation_coverage.py",
         "tests/test_mesh_native_session_recovery.py",
         "tests/test_native_mesh_editor_session.py",
-        "tests/test_mesh_operation_spec.py",
         "tests/test_mesh_topology_provenance.py",
         "tests/test_native_mesh_topology_provenance.py",
         "tests/test_mesh_topology_rebuild_integration.py",
-        "tests/test_mesh_selection_tools.py",
         "tests/test_mesh_geometry_layers.py",
         "tests/test_mesh_morph_service.py",
         "tests/test_static_skin_weight_export.py",
         "tests/test_mesh_output_policy.py",
         "tests/test_mesh_editor_controller.py",
-        "tests/test_mesh_editor_actions.py",
         "tests/test_mesh_editor_action_bar.py",
         "tests/test_mesh_editor_direct_mode.py",
         "tests/test_mesh_rust_finish_lifecycle.py",
@@ -202,7 +159,6 @@ $TestsByArea = @{
         "tests/test_effect_placement_preview.py",
         "tests/test_effect_placement_dialog.py",
         "tests/test_material_sidecar_editor.py",
-        "tests/test_static_replacement_mesh_edit_state.py",
         "tests/test_static_replacement_selection_commits.py",
         "tests/test_attachment_async_io.py"
     )

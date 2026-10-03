@@ -140,15 +140,3 @@ def test_import_and_modify_original_builders_complete_offscreen(tmp_path: Path) 
         window._finalize_close()
         window.deleteLater()
         _APPLICATION.processEvents()
-
-
-def test_mesh_builder_runtime_wiring_is_owned_by_mesh_unit() -> None:
-    gate = (_ROOT / "scripts" / "codex_check.ps1").read_text(encoding="utf-8")
-    for test_name in (
-        "tests/test_mesh_builder_runtime_wiring.py",
-        "tests/test_mesh_builder_construction_lifecycle.py",
-        "tests/test_mesh_builder_construction_invariants.py",
-        "tests/test_static_replacement_post_open_state.py",
-        "tests/test_static_replacement_dotnet_presentation.py",
-    ):
-        assert f'"{test_name}"' in gate

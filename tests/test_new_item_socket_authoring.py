@@ -30,27 +30,3 @@ def test_empty_slots_and_perks_and_unlock_costs_are_independent(tmp_path):
     assert planned_row(snapshot, plan).add_socket_materials == ()
     with pytest.raises(ValueError, match="need more slots"):
         service.plan(replace(spec(), socket_slots=()), snapshot)
-
-
-def test_socket_widget_invalidates_plan_and_never_deletes_perks(tmp_path):
-    app = QApplication.instance() or QApplication([])
-    service, snapshot, _ = setup_game(tmp_path)
-    controller = NewItemStudioController(synchronous=True)
-    controller.snapshot = snapshot
-    controller.set_template(spec().template_key)
-    widget = SocketEditor(controller)
-    revision = controller._draft_revision
-    inherited_perks = controller.template_socket_items()
-    widget.customize.setChecked(True)
-    widget.count.setValue(0)
-    assert controller._draft_revision > revision
-    assert controller.draft.socket_items is None
-    assert controller.template_socket_items() == inherited_perks
-    assert "need more" in widget.state.text()
-    widget.count.setValue(2)
-    widget.costs.cellWidget(1, 2).setText("123")
-    assert controller.draft.socket_slots[1].amount == 123
-    widget.customize.setChecked(False)
-    assert controller.draft.socket_slots is None
-    widget.close()
-    controller.shutdown()

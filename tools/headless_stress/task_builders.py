@@ -372,9 +372,9 @@ def build_profile_tasks(args: argparse.Namespace, output_root: Path, *, cycle: i
                 output_root,
                 "mesh-replacement-pytest",
                 (
-                    "tests/test_static_replacement_preview_models.py",
+                    "tests/test_mesh_builder_runtime_wiring.py",
                     "tests/test_static_replacement_accept_state.py",
-                    "tests/test_static_replacement_build_footer.py",
+                    "tests/test_mesh_builder_construction_lifecycle.py",
                     "tests/test_full_import_model_replacement.py",
                 ),
                 cycle=cycle,

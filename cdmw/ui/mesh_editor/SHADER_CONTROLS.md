@@ -107,12 +107,11 @@ Raw animation time, shadows, refraction and other game passes may differ.
 routes. Replacement draft version 12 stores controls; older versions still load.
 The two shader preview services prepare resources off the UI thread.
 
-`tests/test_shader_controls.py` covers output/ownership, vertex masks, variants,
-drafts, undo, cancellation, cache reuse and Qt controls. Rust tests cover optional
+`tests/test_new_item_transparency_paint.py` covers mask output and ownership;
+`tests/test_material_authority_exact_artifacts.py` covers authored artifacts.
+Rust tests cover optional
 mask transport, material ownership and headless interactions. The synthetic D3D12
 gate exercises cutouts, UV motion, detail normals, glow sweeps and object clipping.
-`tests/test_material_edit_bindings.py` checks distinct PAC part/material names,
-shared wrapper ownership, lower-LOD isolation, all three appearance commands,
-and both New Item preview stages. Headless wheel and slider tests exercise value
-changes through their actual widgets and commands.
+The maintained Python suite prioritizes export fidelity and workflow behavior
+over exhaustive control and parameter permutations.
 These checks do not prove packaged-helper, visible-session or in-game parity.

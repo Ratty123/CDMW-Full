@@ -44,8 +44,7 @@ def detail_text_segments(text: str) -> tuple[str, ...]:
 #: label the interface actually draws — a tab name, or a context-menu action under
 #: Archive Browser. Keyed by extension; the manifest deliberately does not carry
 #: this, because it is a property of the app rather than of the format.
-#: `tests/test_format_explorer.py` checks each segment against the shell sources,
-#: so renaming a tab or an action breaks a test instead of leaving a stale path.
+#: Update these paths when renaming a tool or an action in the interface.
 TOOLS: Mapping[str, str] = {
     ".paloc": "Utilities > Edit Translations",
     ".dds": "Textures",

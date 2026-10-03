@@ -1,8 +1,6 @@
 """Resident editor regressions: the lifecycle half.
 
-Split from test_mesh_resident_editor_regressions to keep both files inside
-the owned-file line cap. Same TestCase shape and the same imports; these are
-the cases about finishing, timing out, and tearing the resident editor down.
+These cases cover finishing, timing out, and tearing the resident editor down.
 """
 
 from __future__ import annotations

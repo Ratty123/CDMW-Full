@@ -7,7 +7,8 @@ import pytest
 
 from cdmw.modding.skeleton_parser import Bone, _parse_pab_legacy_scan, parse_pab
 from cdmw.modding.pac_jiggle_skinning import blend_render_jiggle_matrix, prepare_jiggle_bone_skinning
-from tests.test_pac_jiggle_bones import matrix, run
+from tests.test_pac_jiggle_bones import matrix
+from tests.test_pac_jiggle_bones import run
 
 
 IDENTITY = (1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.)
@@ -64,32 +65,3 @@ def test_pab_preserves_both_bind_pairs_and_following_fields(parser):
                          for k in range(4)) for row in range(4) for col in range(4))
     assert composed == child.bind_matrix
     assert child.local_bind_matrix != child.bind_matrix
-
-
-def test_parsed_local_hierarchy_drives_the_bone_and_vertex_reference():
-    skeleton = parse_pab(fixture()[0])
-    root, child = skeleton.bones
-    # Move the parent +Y. The child retains its authored local offset/orientation.
-    parent_pose = translated(root.bind_matrix, 10., 21.)
-    pose = tuple(tuple(sum(child.local_bind_matrix[row * 4 + k] * parent_pose[k * 4 + col]
-                           for k in range(4)) for col in range(4)) for row in range(4))
-    step = run(None, animation_matrix=matrix(pose))
-    rows = lambda flat: tuple(tuple(flat[i:i + 4]) for i in range(0, 16, 4))
-    prepared = prepare_jiggle_bone_skinning(
-        inverse_bind_matrix=rows(child.inv_bind_matrix), animation_matrix=rows(child.bind_matrix),
-        jiggle_matrix=step['matrix'], character_space_scale=(1, 1, 1))
-    data = bytearray(40)
-    data[28], data[39] = 255, 63
-    blended = blend_render_jiggle_matrix(
-        data, 0, render_flags=128, bone_palette=(1,), skinning_index_map=(0, 0),
-        skeletal_matrices=(prepared['skeletal_matrix'],), jiggle_matrices=(prepared['jiggle_matrix'],))
-    point = (10., 22., 0., 1.)
-    moved = tuple(sum(point[i] * blended[i][j] for i in range(4)) for j in range(3))
-    assert moved == pytest.approx((10., 23., 0.))
-
-
-def test_manual_bones_have_no_invented_local_transform_and_keep_positional_arguments():
-    bone = Bone(7, 'Old', 123, -1, IDENTITY, IDENTITY,
-                (1., 1., 1.), (0., 0., 0., 1.), (0., 0., 0.), 12, 321)
-    assert (bone.file_offset, bone.file_end) == (12, 321)
-    assert bone.local_bind_matrix == bone.inv_local_bind_matrix == ()

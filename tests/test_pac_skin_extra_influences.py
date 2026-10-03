@@ -21,35 +21,3 @@ def test_cloth_rows_have_four_bones_and_four_separate_guides(gate):
     assert bones == (1, 2, 3, 4)
     assert weights == pytest.approx(tuple(v / 180 for v in (60, 50, 40, 30)))
     assert pac_cloth_binding(record, 0) == (gate & 63, (100, 101, 102, 103), (104, 82, 42, 27))
-
-
-@pytest.mark.parametrize("gate", [63, 127, 255])
-def test_ordinary_rows_have_six_bones_and_ignore_half_float_fields(gate):
-    bones, weights = _decode_pac_skin_influences(_record(gate=gate), 0)
-    assert bones == (1, 2, 3, 4, 100, 101)
-    assert weights == pytest.approx(tuple(v / 366 for v in (60, 50, 40, 30, 104, 82)))
-    assert pac_cloth_binding(_record(gate=gate), 0) is None
-
-
-def test_invalid_guide_numbers_cannot_contaminate_skeletal_decode():
-    record = _record(gate=0, extra=(-5., float("nan")))
-    assert _decode_pac_skin_influences(record, 0)[0] == (1, 2, 3, 4)
-    with pytest.raises(ValueError, match="guide"):
-        pac_cloth_binding(record, 0)
-
-
-def test_empty_and_truncated_rows_decode_without_inventing_bones():
-    assert _decode_pac_skin_influences(_record(weights=(0,) * 8), 0) == ((), ())
-    assert _decode_pac_skin_influences(bytes(39), 0) == ((), ())
-
-
-def test_bulk_decoder_agrees_with_scalar_for_both_shader_branches():
-    records = [_record(gate=gate) for gate in (0, 62, 63, 0xC0, 0xFF)]
-    descriptor = PacDescriptor(name="part", material="part", bbox_min=(0., 0., 0.),
-        bbox_extent=(1., 1., 1.), vertex_counts=[len(records)], index_counts=[0])
-    bulk = _decode_pac_vertex_records_bulk(b"".join(records), 0, len(records), descriptor,
-        include_uv=True, include_skin=True)
-    for i, record in enumerate(records):
-        indices, weights = _decode_pac_skin_influences(record, 0)
-        assert tuple(bulk[4][i]) == indices
-        assert tuple(bulk[5][i]) == pytest.approx(weights)

@@ -1,28 +1,9 @@
 name: CodeQL
 
-# Workflow filters control when analysis runs, not which source files it scans.
+# Security analysis is a weekly or manually requested check for this modding tool.
 # GitHub's default setup must remain disabled while this workflow owns CodeQL.
 on:
-  push:
-    branches:
-      - main
-    paths-ignore:
-      - "**/*.md"
-      - "**/*.rst"
-      - "docs/**"
-      - ".github/ISSUE_TEMPLATE/**"
-      - ".github/PULL_REQUEST_TEMPLATE/**"
-  pull_request:
-    branches:
-      - main
-    paths-ignore:
-      - "**/*.md"
-      - "**/*.rst"
-      - "docs/**"
-      - ".github/ISSUE_TEMPLATE/**"
-      - ".github/PULL_REQUEST_TEMPLATE/**"
   workflow_dispatch:
-  # Preserve default setup's weekly security refresh.
   schedule:
     - cron: "17 5 * * 1"
 

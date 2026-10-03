@@ -498,8 +498,6 @@ class ChildSocketFollowTests(unittest.TestCase):
     def test_an_item_with_no_borrowable_child_socket_is_told_to_rotate(self) -> None:
         """When nothing anywhere defines the angle, say so rather than invent one.
 
-        Where another item *does* define it the angle is borrowed instead — covered in
-        `test_placement_studio_orientation`.
         """
 
         harness = _RouteHarness(

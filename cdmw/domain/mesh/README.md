@@ -109,8 +109,7 @@ the same absolute amount, which is not what a Size slider means.
 Generated profiles are fingerprinted over exactly the submeshes their
 definitions touch, matching what `MeshService.activate_morph_profile` checks —
 using the region map's own fingerprint instead makes every region-scoped profile
-fail to activate. `tests/test_mesh_body_region_slider_native.py` drives a
-generated profile through the real service and native core to hold that.
+fail to activate.
 
 `body_region_atlas.py` is the Qt-free presentation model for a region browser:
 grouped rows, a readable summary, warnings worth surfacing, and a stable colour
@@ -126,5 +125,5 @@ Inspect a real body headlessly with `python -m tools.dump_body_region_map`, whic
 prints the per-region report, applies the falloff, and can write a
 region-coloured OBJ. Pass `--falloff 0` for hard edges.
 
-Related tests: `tests/test_mesh_body_regions.py`, plus mesh and static
-replacement entries under `tests/`.
+Related workflow coverage: `tests/test_mesh_morph_service.py` and
+`tests/test_mesh_morph_profiles_v2.py`.

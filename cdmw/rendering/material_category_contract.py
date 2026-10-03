@@ -9,10 +9,8 @@ error, no failing test, just a surface that quietly lost its response.
 
 This module is the single definition. It does not decide which category a batch
 gets; ``native_preview_material_contract._resolved_batch_material_category``
-still owns that. It fixes the vocabulary and the wire codes so the three
-representations cannot drift apart unnoticed, which
-``tests/test_material_category_contract.py`` enforces against the real C# and
-HLSL sources.
+still owns that. Consumers must preserve this vocabulary and these wire codes
+when translating material categories between renderer boundaries.
 
 Codes are a wire format. Renumbering one breaks every prepared package that
 already carries the old number, so append new categories at the end.

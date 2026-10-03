@@ -1728,7 +1728,7 @@ result can still be handed in through the tab's `receive_imported_model`.
 ### Related tests
 
 Related tests: `tests/test_new_item_studio_tab.py`,
-`tests/test_new_item_workflow_header.py`, `tests/test_new_item_effect_workspace.py`,
+`tests/test_new_item_service.py`, `tests/test_new_item_effect_workspace.py`,
 `tests/test_effect_placement_dialog.py`, `tests/test_new_item_effect_targets.py`, and
 `tests/test_new_item_effect_proof.py`. The explicitly invoked real-corpus gate is
 `tools/new_item_effect_proof.py report`; it keeps evidence under system temp and is not

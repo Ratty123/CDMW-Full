@@ -1,10 +1,7 @@
 """The static build refuses options that stopped describing their operation.
 
-`option_operation_disagreements` is tested on its own in
-`tests/test_mesh_builder_operation.py`. What is tested here is the thing a unit
-test of the pure function cannot say: that the build actually consults it, and
-that a disagreement stops it before any bytes are produced rather than being
-reported alongside a successful rebuild.
+The build must consult `option_operation_disagreements` and stop a disagreement
+before producing any bytes.
 """
 
 from __future__ import annotations

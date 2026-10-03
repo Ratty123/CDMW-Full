@@ -21,9 +21,9 @@ current monitor's available area. Generic Qt dialogs need a stable `objectName`;
 widget class/attribute names provide stable pane identities without translated
 labels or runtime control IDs. Native New Item dialogs store logical client
 coordinates, while its columns and splitters share the Qt workflow's settings.
-Regression coverage lives in `test_ui_layout_persistence.py`,
-`test_shell_layout_persistence.py`, `test_new_item_layout_persistence.py` and
-`test_mesh_editor_layout_persistence.py` under `tests/`.
+Saved-data coverage includes `test_settings_tab_flush_persistence.py` and
+`test_profile_controller.py` under `tests/`; detailed layout behavior is checked
+when changing the affected surface.
 
 ## Compact Workspace and navigation
 
@@ -159,18 +159,13 @@ space allows. Near the screen edge, the list can open above to keep choices visi
 This also applies to the reporting form's tool, action and setup menus.
 
 Button text targets at least 4.5:1 contrast in normal, hover, pressed, checked, and
-disabled states. `tests/test_theme_surface_coherence.py` applies every theme to real
-Classic Placement, Mesh Editor, Archive Browser, New Item, and XML-editor surfaces and
-guards new stylesheet/rich-text literals. It also checks painted button text in both
-Classic and Compact. Compact's separate synthetic harness continues to cover the same
-production widgets at its supported sizes.
+disabled states. Theme appearance and layout across sizes require focused visual
+inspection when those surfaces change; they are outside routine CI.
 
 ## Focused checks
 
-Related tests: `tests/test_shell_*.py`, architecture guards, and shell entries
-under `tests/`.
+Related tests: `tests/test_shell_app_startup.py`, `tests/test_shell_close_controller.py`
+and `tests/test_workspace_ownership.py`.
 
-`tests/test_shell_garbage_collection.py` checks native Qt cleanup under worker
-allocation pressure, startup ownership, teardown and generation scheduling.
 `tests/test_new_item_model_apply.py::test_apply_placement_collects_gui_cycles_without_stopping_worker`
-covers the same ownership rule through Apply placement and its real Qt worker.
+covers Qt ownership through Apply placement and its real worker.

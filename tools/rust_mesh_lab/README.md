@@ -266,7 +266,7 @@ or mesh history. Exact source bytes and hashes remain on the host; compact
 `physics_profiles` state contains provenance, assignments and supported scalar values
 only.
 
-Focused coverage: `tests/test_mesh_physics_profile_preview.py` and `cargo test --locked
+Focused Rust coverage: `cargo test --locked
 -p cdmw_mesh_lab cloth_preview_tests::profiles`. Current cloth bytes use the saved rule
 against original neutral source heights, matching PAC output after sculpting. The host
 exposes these verified bytes for cloth parts even when every jiggle flag is disabled.

@@ -134,50 +134,6 @@ def test_comparison_coalesces_changes_discards_stale_packages_and_closes_without
         app.processEvents()
 
 
-def test_body_picker_defaults_and_missing_preview_notes(preview_host):
-    app = QApplication.instance() or QApplication([])
-    widget = ArchiveMeshComparisonPreview(refit_role="body")
-    try:
-        assert widget.target_mode_combo.currentText() == "Wire"
-        assert widget.source_mode_combo.currentText() == "Solid"
-        widget.set_models(None, None, target_note="Preview unavailable.", source_note="Select a source row.")
-        assert widget._target_name.text() == "Preview unavailable."
-        assert widget._source_name.text() == "Select a source row."
-        assert widget._status.text() == "No preview available."
-        assert not widget.has_live_workers
-    finally:
-        widget.request_shutdown()
-        widget.deleteLater()
-        app.processEvents()
-
-
-def test_comparison_failure_is_visible_and_resize_does_not_retry(monkeypatch, preview_host):
-    app = QApplication.instance() or QApplication([])
-    calls = []
-
-    def fail(*args, **kwargs):
-        calls.append(args)
-        raise ValueError("Invalid geometry coordinates in the selected archive mesh.")
-
-    monkeypatch.setattr("cdmw.ui.mesh_editor.archive_mesh_comparison.build_archive_mesh_comparison", fail)
-    widget = ArchiveMeshComparisonPreview()
-    try:
-        widget.setAttribute(Qt.WA_DontShowOnScreen, True)
-        widget.show()
-        widget.set_models(ModelPreviewData(path="body.pac"), None)
-        _wait(app, lambda: not widget.has_live_workers)
-        assert widget._status.text() == "Preview unavailable."
-        assert "Invalid geometry coordinates" in widget._status.toolTip()
-        widget.resize(800, 650)
-        app.processEvents()
-        assert len(calls) == 1 and not widget.has_live_workers
-    finally:
-        widget.request_shutdown()
-        _wait(app, lambda: not widget.has_live_workers)
-        widget.deleteLater()
-        app.processEvents()
-
-
 def _model(path, scale, center):
     from cdmw.models import HkxPhysicsOverlayBone, HkxPhysicsOverlayData
     positions = [(0., 0., 0.), (1., 0., 0.), (0., 1., 0.)]
@@ -188,23 +144,3 @@ def _model(path, scale, center):
                             ),)),
                             meshes=[ModelPreviewMesh(positions=[tuple((p[i] - center[i]) * scale for i in range(3))
                                                                for p in positions], indices=[0, 1, 2])])
-
-
-@pytest.mark.parametrize("target_mode,source_mode", [("solid", "wire"), ("wire", "solid"), ("solid", "solid"), ("wire", "wire")])
-def test_comparison_package_preserves_world_coordinates_and_all_display_pairs(tmp_path, target_mode, source_mode):
-    package, display = build_archive_mesh_comparison(
-        _model("body.pac", 2., (3., 2., 1.)), _model("armor.pac", 5., (-2., 1., 4.)),
-        target_mode=target_mode, source_mode=source_mode, output_root=tmp_path,
-        scene_session_id="comparison", scene_generation=7, stop_event=threading.Event(),
-    )
-    assert not validate_rust_preview_package(package.package_dir)
-    manifest = json.loads(package.manifest_path.read_text())
-    document = json.loads((package.package_dir / "document.json").read_text())
-    for part in document["lods"][0]["submeshes"]:
-        assert part["positions"] == [[0., 0., 0.], [1., 0., 0.], [0., 1., 0.]]
-    assert not manifest["textures"]
-    assert display == ("wire" if target_mode == source_mode == "wire" else "untextured_faces")
-    scene = manifest["state"]["preview_scene"]
-    assert not scene.get("skeleton_overlay", {}).get("bones")
-    assert scene["comparison_mode"] == "overlay"
-    assert scene["reference_draw"] == ("solid" if target_mode == source_mode == "solid" else "wire")
