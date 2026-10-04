@@ -570,22 +570,35 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self.offset_spins = tuple(_spin(-50.0, 50.0, 0.01, 3, " m") for _ in range(3))
         self.rotation_spins = tuple(_spin(-360.0, 360.0, 1.0, 1, "°") for _ in range(3))
         self.scale_spins = tuple(_spin(0.0001, 1000.0, 0.01, 4) for _ in range(3))
-        for axis, title in enumerate(("X", "Y", "Z")):
-            axis_label = QLabel(title)
-            axis_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            numbers.addWidget(axis_label, 0, axis)
         groups = (
             ("Position (m)", self.offset_spins),
             ("Rotation (°)", self.rotation_spins),
             ("Scale", self.scale_spins),
         )
-        for row, (title, spins) in enumerate(groups):
-            numbers.addWidget(QLabel(title), row * 2 + 1, 0, 1, 3)
-            for axis, spin in enumerate(spins):
+        row = 0
+        for title, spins in groups:
+            numbers.addWidget(QLabel(title), row, 0, 1, 3)
+            row += 1
+            if spins is self.scale_spins:
+                for axis, direction in enumerate(("Width", "Height", "Depth")):
+                    numbers.addWidget(QLabel(direction), row, axis)
+                row += 1
+            for axis, (spin, prefix) in enumerate(zip(spins, ("X: ", "Y: ", "Z: "))):
+                spin.setPrefix(prefix)
                 spin.setAccessibleName(f"{title} {'XYZ'[axis]}")
+                if spins is self.scale_spins:
+                    spin.setToolTip(
+                        "Scale along this model axis before rotation. 1.0 is the fitted size; 2.0 doubles it."
+                    )
                 spin.valueChanged.connect(self._numbers_changed)
-                numbers.addWidget(spin, row * 2 + 2, axis)
+                numbers.addWidget(spin, row, axis)
                 numbers.setColumnStretch(axis, 1)
+            row += 1
+        self.uniform_scale = QCheckBox("Uniform scale")
+        self.uniform_scale.setToolTip(
+            "Keep the current proportions when editing a scale value. Doubling X also doubles Y and Z."
+        )
+        numbers.addWidget(self.uniform_scale, row, 0, 1, 3)
         placement_layout.addLayout(numbers)
         quick_turn_content = QWidget()
         quick_turns = QGridLayout(quick_turn_content)

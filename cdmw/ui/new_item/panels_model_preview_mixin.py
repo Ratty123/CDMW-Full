@@ -176,6 +176,21 @@ class ModelPanelPreviewMixin:
     def _numbers_changed(self, _value: float) -> None:
         if self._syncing_numbers or self._controller.draft.template_key is None:
             return
+        changed = self.sender()
+        if self.uniform_scale.isChecked() and changed in self.scale_spins:
+            placement = self._controller.model_placement
+            axis = self.scale_spins.index(changed)
+            previous = placement.scale
+            factor = changed.value() / previous[axis]
+            # Limit the common factor, so reaching a field's limit never stretches
+            # just one axis. Publish once; the controller synchronizes all fields.
+            minimum = max(spin.minimum() / value for spin, value in zip(self.scale_spins, previous))
+            maximum = min(spin.maximum() / value for spin, value in zip(self.scale_spins, previous))
+            factor = max(minimum, min(maximum, factor))
+            self._controller.set_model_placement(
+                placement.with_values(scale=tuple(value * factor for value in previous))
+            )
+            return
         self._controller.set_model_placement(
             ModelPlacement(
                 offset=tuple(spin.value() for spin in self.offset_spins),

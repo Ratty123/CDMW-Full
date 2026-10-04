@@ -1403,6 +1403,13 @@ travels with the shared preview into Template and Identity, keeps the selected t
 stays accessible while using Appearance, Dyes or Icon. Gizmo edits update the Placement
 values; selecting a tool keeps the camera and placement unchanged.
 
+Each placement number includes its X, Y or Z axis. Scale labels identify X as width,
+Y as height and Z as depth, along the model's axes before rotation. Enable **Uniform
+scale** to keep the current proportions when editing any scale number: doubling one
+axis doubles all three. It starts off for independent axis editing; toggling it does
+not resize the model. Linked values stop together at the scale limits. Viewport gizmo
+handles continue to edit their selected axes.
+
 Model selection, import actions, variant selection, display controls, status and icon
 capture share the right inspector with Placement, Appearance, Dyes and Icon. The
 viewport uses the full left column; Apply placement stays fixed beneath the inspector's
