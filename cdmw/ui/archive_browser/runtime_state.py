@@ -123,6 +123,7 @@ class ArchiveRuntimeStateMixin:
         self.archive_mesh_companion_by_identity: Mapping[object, ArchiveEntry] = {}
         self.archive_character_appearance_swap_cache: Dict[object, Tuple[ArchiveEntry, ...]] = {}
         self.archive_extension_counts: Counter[str] = Counter()
+        self.archive_extension_picker_dialog = None
         self.archive_entry_metadata_signature = ""
         self.archive_entry_metadata_sources: Tuple[Tuple[object, object, object], ...] = ()
         self.archive_result_filter_signature: Tuple[object, ...] = ()

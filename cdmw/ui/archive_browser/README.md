@@ -90,8 +90,11 @@ file access remains on the preview worker; this adds no persistent cache files.
 and confirm, or double-click it, to close the picker and update the filter. The
 picker opens while the startup archive index is still loading and fills in as
 extensions become available, preserving anything typed in its search. Extension
-counts load ahead of catalogue warmups. Closing the picker leaves archive loading
-running; a load failure closes it to reveal the browser's retry controls.
+counts reuse the archive index and load ahead of catalogue warmups. Opening the
+picker does not block other tools or rescan archive entries; clicking the button
+again brings the open picker forward. Closing it leaves archive loading running.
+A new archive load or search closes the picker to avoid an outdated selection;
+a load failure closes it to reveal the browser's retry controls.
 Apply **Search** to refresh the archive results.
 
 Item Finder shows its categories and subcategories in a collapsible list on the

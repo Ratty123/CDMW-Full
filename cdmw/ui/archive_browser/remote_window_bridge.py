@@ -492,6 +492,9 @@ class ArchiveRemoteWindowBridge(QObject):
     def _begin_pending(self, text: str, *, operation: str) -> None:
         self._window.archive._clear_archive_failure_display()
         window = self._window
+        picker = window.archive.archive_extension_picker_dialog
+        if picker is not None:
+            picker.reject()
         self._clear_pending_progress()
         reset_progress = getattr(window.archive, "_reset_archive_load_progress", None)
         if callable(reset_progress):

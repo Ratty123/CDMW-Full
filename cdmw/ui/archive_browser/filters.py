@@ -256,6 +256,12 @@ class ArchiveFilterStateMixin:
         return "Other"
 
     def _open_archive_extension_picker(self) -> None:
+        existing = getattr(self, "archive_extension_picker_dialog", None)
+        if existing is not None:
+            existing.show()
+            existing.raise_()
+            existing.activateWindow()
+            return
         extension_counts = self._archive_extension_counts()
         current_value = normalize_archive_extension_filter(
             self.textures._combo_value(self.archive_extension_filter_combo) or ARCHIVE_EXTENSION_FILTER
@@ -396,6 +402,8 @@ class ArchiveFilterStateMixin:
             # A startup click can precede the first published archive session.
             # Category views may also publish their counts before this signal.
             if session_id is not None:
+                if handle.session_id != session_id:
+                    dialog.reject()
                 return
             published_session = getattr(bridge, "current_session", None)
             if published_session is None or handle.session_id != published_session.session_id:
@@ -425,18 +433,43 @@ class ArchiveFilterStateMixin:
             controller.facetsReady.connect(_facets_ready)
             controller.queryPublished.connect(_query_published)
             controller.requestFailed.connect(_request_failed)
-        try:
-            result = dialog.exec()
-        finally:
+
+        disconnected = False
+
+        def _disconnect_updates(*_args) -> None:
+            nonlocal disconnected
+            if disconnected:
+                return
+            disconnected = True
+            if self.archive_extension_picker_dialog is dialog:
+                self.archive_extension_picker_dialog = None
             if controller is not None:
-                controller.facetsReady.disconnect(_facets_ready)
-                controller.queryPublished.disconnect(_query_published)
-                controller.requestFailed.disconnect(_request_failed)
+                for signal, callback in (
+                    (controller.facetsReady, _facets_ready),
+                    (controller.queryPublished, _query_published),
+                    (controller.requestFailed, _request_failed),
+                ):
+                    try:
+                        signal.disconnect(callback)
+                    except RuntimeError:
+                        pass  # The controller may already be gone at shutdown.
+
+        def _finished(result: int) -> None:
+            _disconnect_updates()
             dialog.deleteLater()
-        if result == QDialog.Accepted and selected_value is not None:
-            self.textures._set_combo_by_value(self.archive_extension_filter_combo, selected_value)
-            self._mark_archive_filters_dirty()
-            self.shell.schedule_settings_save()
+            if result == QDialog.Accepted and selected_value is not None:
+                self.textures._set_combo_by_value(self.archive_extension_filter_combo, selected_value)
+                self._mark_archive_filters_dirty()
+                self.shell.schedule_settings_save()
+
+        self.archive_extension_picker_dialog = dialog
+        dialog.finished.connect(_finished)
+        dialog.destroyed.connect(_disconnect_updates)
+        # An application-modal exec broadcasts WindowBlocked to every loaded
+        # tool before painting this small, already-cached list.
+        dialog.ensurePolished()
+        dialog.show()
+        search_edit.setFocus()
 
     def _rebuild_archive_extension_filter_choices(self, selected_value: Optional[str] = None) -> None:
         selected_raw = (

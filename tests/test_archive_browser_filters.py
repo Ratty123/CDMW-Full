@@ -5,7 +5,6 @@ import os
 import threading
 from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
 from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -140,8 +139,7 @@ class ArchiveBrowserFilterTests(unittest.TestCase):
         host._add_combo_choice(host.archive_extension_filter_combo, ".dds", ".dds")
 
         try:
-            with patch.object(QDialog, "exec", return_value=QDialog.Rejected):
-                host._open_archive_extension_picker()
+            host._open_archive_extension_picker()
 
             dialog = host.findChild(QDialog)
             self.assertIsNotNone(dialog)
@@ -168,6 +166,7 @@ class ArchiveBrowserFilterTests(unittest.TestCase):
             self.assertEqual(len(expected_groups), len(set(group_colors)))
             self.assertIs(app, QApplication.instance())
         finally:
+            dialog.reject()
             host.deleteLater()
             app.processEvents()
 

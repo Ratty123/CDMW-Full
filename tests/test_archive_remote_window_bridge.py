@@ -70,6 +70,7 @@ class _ShadowWindow(QObject):
         self.archive_filtered_entries = list(self.archive_entries)
         self.archive_remote_actions_safe = True
         self.archive_filters_dirty = False
+        self.archive_extension_picker_dialog = None
         self.archive_scan_finalize_pending = False
         self.archive_startup_saved_filter_apply_pending = False
         self.worker_thread = None

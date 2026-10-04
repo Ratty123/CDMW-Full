@@ -27,6 +27,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- Browse Archives opens Select Extension without blocking the application, removing the delay before its cached list appears. Repeated clicks bring the existing picker forward.
 - Create New Item shows export blockers with the affected items and source archive, offers an existing mod folder to extend, and keeps write errors visible after progress stops.
 - Current Tool Log and Create New Item's Output log automatically follow new messages and keep the last line fully visible when resized or reopened.
 - Texture Workflow's OpenImageIO actions start correctly in the current workspace and deliver their reports to the authoring panel.
