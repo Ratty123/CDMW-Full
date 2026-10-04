@@ -780,7 +780,7 @@ automatically and game collision activation remains unverified.
 
 #### Weapon collisions
 
-**Weapon collisions** is a separate preview switch for supported single-root weapon
+**Weapon colliders > Weapon collisions** is a preview switch for supported single-root weapon
 PACs. Capsules are fitted around included rigid parts; guide-bound ribbons are excluded.
 It can run together with **Body collisions**. **Show collision shapes**, directly below
 the preview settings and profile headings, draws body shapes
@@ -789,15 +789,17 @@ It prepares a paused view before playback, so volumes inside a cloak can be insp
 without starting the simulation. The panel shows how many shapes are available; Reset
 clears the inspection view.
 
-For character cloth, **Collision sources > Choose weapon PAC…** loads a separate weapon
+For character cloth, **Collision sources**, directly below **Weapon colliders**, offers
+**Choose weapon PAC…** to load a separate weapon
 reference from **External file…** or **Game archives…**, such as Rhett's Longsword
 (`cd_phm_02_sword_0009.pac`). A cloak does not provide its own rigid weapon parts: load a
-weapon reference to enable **Weapon collisions**. The reference supplies collision shapes,
-not a rendered sword mesh. Enable **Show collision shapes** to see its gold outlines;
-enable **Weapon collisions** in the preview settings to use them during playback.
-The same chooser appears beside the
-unavailable switch. Position and rotation
-controls place its shapes in the model's coordinates. This reference uses the preview's
+weapon reference to enable **Weapon collisions**. Loading it automatically displays its
+rigid parts as an untextured solid reference, fits collision capsules and shows their gold
+outlines. Enable **Weapon collisions** under **Weapon colliders** to use those contacts
+during playback; no separate creation step is needed for a reference. **Show collision
+shapes** hides the outlines independently of the reference mesh. Position and rotation
+use one stable row per axis and move the mesh and contacts together. The last valid view
+stays visible while a new placement is prepared. This reference uses the preview's
 rigid test motion; game sockets and weapon animation are not loaded. Loading and placing
 it changes only the current preview. Clear, failed-load and cancellation behavior match
 the body/head inputs above.
@@ -808,6 +810,8 @@ Collision inputs show filenames in the panel and the complete source path on hov
 
 **Weapon colliders > Create weapon colliders** experimentally adds capsules to the
 weapon's exported PAC through the normal Undo, draft and Build PAC/Mod workflow.
+This export action appears when the currently edited model is a supported weapon;
+a sword loaded as a cloak's preview reference does not become part of that cloak's mod.
 **Restore source colliders** removes this authoring choice and retains original volumes.
 The writer currently supports verified, rigid, single weapon roots and preserves all
 render LOD geometry. Unsupported layouts or attachments are rejected with a reason.

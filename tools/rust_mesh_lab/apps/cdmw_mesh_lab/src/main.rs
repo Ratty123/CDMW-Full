@@ -2983,7 +2983,14 @@ impl LabApplication {
         state: Value,
         document: Option<MeshDocument>,
     ) -> Result<()> {
-        if self.cdmw_jiggle.preview.scene.is_some() || self.cdmw_jiggle.preview.pending.is_some() {
+        let collision_update = document.is_none()
+            && state.get("selection") == self.cdmw_state.get("selection")
+            && (state["jiggle"]["collision_inputs"] != self.cdmw_state["jiggle"]["collision_inputs"]
+                || state["jiggle"]["weapon_placement"] != self.cdmw_state["jiggle"]["weapon_placement"]
+                || state["jiggle"]["decoded"]["file"] != self.cdmw_state["jiggle"]["decoded"]["file"]);
+        if collision_update && state["jiggle"]["collision_inputs"]["weapon"].is_string() {
+            self.cancel_pending_jiggle();
+        } else if self.cdmw_jiggle.preview.scene.is_some() || self.cdmw_jiggle.preview.pending.is_some() {
             self.publish_mesh_snapshot();
         }
         let hair = self

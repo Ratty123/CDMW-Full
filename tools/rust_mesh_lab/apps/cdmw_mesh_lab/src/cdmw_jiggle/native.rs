@@ -336,6 +336,7 @@ pub(crate) struct Request {
 #[derive(Debug)]
 pub(crate) struct Prepared {
     pub rest: DrawSnapshot,
+    pub weapon_reference: Option<DrawSnapshot>,
     pub simulation: super::Simulation,
     pub rest_surface_normals: Vec<Vec3>,
     pub moving: usize,
@@ -348,6 +349,40 @@ struct Payload {
     rig: RigSnapshot,
     parts: Vec<Part>,
     cloth: Option<cdmw_mesh::cloth::Snapshot>,
+    weapon_reference: Option<WeaponReference>,
+}
+
+#[derive(Deserialize)]
+struct WeaponReference {
+    positions: Vec<[f32; 3]>,
+    indices: Vec<u32>,
+}
+
+impl WeaponReference {
+    fn prepare(self, rest: &DrawSnapshot, cancellation: &CancellationToken) -> Result<DrawSnapshot> {
+        if self.positions.is_empty() || self.positions.len() > 100_000
+            || self.indices.is_empty() || self.indices.len() > 600_000 || !self.indices.len().is_multiple_of(3)
+            || self.positions.iter().flatten().any(|v| !v.is_finite() || v.abs() > 1e6)
+            || self.indices.iter().any(|&i| i as usize >= self.positions.len()) {
+            bail!("Invalid weapon reference geometry.");
+        }
+        cancellation.check()?;
+        let count = self.positions.len();
+        let mut snapshot = DrawSnapshot {
+            mesh_identity: rest.mesh_identity, draw_revision: rest.draw_revision,
+            topology_generation: rest.topology_generation, positions: self.positions,
+            normals: vec![[0.; 3]; count], uvs: vec![[0.; 2]; count], shader_masks: vec![[0.; 3]; count],
+            triangle_materials: vec![u32::MAX; self.indices.len() / 3], indices: self.indices,
+            selected_vertices: Vec::new(), fingerprint: String::new(),
+        };
+        let mut normals = vec![Vec3::ZERO; count];
+        surface_normals(&snapshot, &mut normals);
+        for (normal, sum) in snapshot.normals.iter_mut().zip(normals) {
+            *normal = sum.normalize_or(Vec3::Y).to_array();
+        }
+        cancellation.check()?;
+        Ok(snapshot)
+    }
 }
 
 #[derive(Deserialize)]
@@ -421,6 +456,9 @@ pub(crate) fn prepare(
             contributions.push(contribution);
         }
         cancellation.check()?;
+        let weapon_reference = if request.cloth {
+            payload.weapon_reference.map(|reference| reference.prepare(&request.rest, cancellation)).transpose()?
+        } else { None };
         let simulation = if request.cloth {
             if !request.enabled { contributions.fill(63); }
             super::Simulation::Cloth(Box::new(crate::cdmw_cloth::preview::Simulation::new(
@@ -447,6 +485,7 @@ pub(crate) fn prepare(
         };
         Ok(Prepared {
             rest: request.rest,
+            weapon_reference,
             simulation,
             rest_surface_normals,
             moving,

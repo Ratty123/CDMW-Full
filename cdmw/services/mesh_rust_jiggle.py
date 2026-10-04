@@ -137,6 +137,9 @@ def _decoded_preview_state(authoring, session, metadata, appearance, eligible):
         cloth, cloth_state = metadata["decoded_cloth"]
         if cloth is not None:
             payload["cloth"] = cloth
+            from cdmw.modding.pac_weapon_collisions import placed_weapon_reference
+            weapon = authoring.cloth_collision_inputs.get("weapon")
+            payload["weapon_reference"] = placed_weapon_reference(weapon[1] if weapon else None)
         file_cache = metadata.get("decoded_file")
         if file_cache is None or file_cache[0] != payload:
             reference = _atomic_write_payload(
@@ -372,10 +375,9 @@ def set_cloth_collision_input(authoring, args, stop_event):
             if prepared is not None and (len(data) != prepared.size or hashlib.sha256(data).hexdigest() != prepared.sha256.lower()):
                 raise ValueError("The prepared collision input changed; choose it from the archives again.")
             if weapon:
-                from cdmw.modding.pac_weapon_collisions import preview_weapon_colliders
-                value = {"colliders": tuple(preview_weapon_colliders(data,
-                    check_cancelled=lambda: authoring._raise_if_cancelled(stop_event))),
-                         "offset": (0., 0., 0.), "rotation": (0., 0., 0.)}
+                from cdmw.modding.pac_weapon_collisions import preview_weapon_reference
+                value = preview_weapon_reference(data,
+                    check_cancelled=lambda: authoring._raise_if_cancelled(stop_event))
             else:
                 value = decode_pabv(data)
             candidate[args["role"]] = (name, value)
@@ -415,7 +417,9 @@ def set_cloth_collision_input(authoring, args, stop_event):
             reference=reference_weapon[1] if reference_weapon else None)
         state.update(weapon_collider_count=len(cloth["weapon_colliders"]), weapon_collider_reason=reason,
                      weapon_collider_source=source_name)
-        payload = {**metadata["decoded_file"][0], "cloth": cloth}
+        from cdmw.modding.pac_weapon_collisions import placed_weapon_reference
+        payload = {**metadata["decoded_file"][0], "cloth": cloth,
+                   "weapon_reference": placed_weapon_reference(reference_weapon[1] if reference_weapon else None)}
         authoring._raise_if_cancelled(stop_event)
         reference = _atomic_write_payload(authoring.root, "jiggle-rig.json", payload,
                                          data_type="jiggle_rig_json", element_count=len(payload["parts"]),

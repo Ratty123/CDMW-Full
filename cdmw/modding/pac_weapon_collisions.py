@@ -120,6 +120,42 @@ def preview_weapon_colliders(data, **kwargs):
             for row in weapon_capsules(data, **kwargs)]
 
 
+def preview_weapon_reference(data, *, check_cancelled=lambda: None):
+    """Keep bounded rigid geometry alongside its fitted preview contacts."""
+    colliders = preview_weapon_colliders(data, check_cancelled=check_cancelled)
+    parts = pac_cloth_lods(data)[0].submeshes
+    positions, indices = [], []
+    for collider in colliders:
+        check_cancelled()
+        part = parts[collider["source_ordinal"]]
+        if len(positions) + len(part.vertices) > 100_000 or len(indices) + 3 * len(part.faces) > 600_000:
+            raise ValueError("Weapon reference geometry exceeds the supported preview bounds.")
+        start = len(positions)
+        for face in part.faces:
+            if len(face) != 3 or any(type(i) is not int or not 0 <= i < len(part.vertices) for i in face):
+                raise ValueError("Weapon reference has invalid triangle indices.")
+            indices.extend(start + i for i in face)
+        positions.extend(list(point) for point in part.vertices)
+    return {"colliders": tuple(colliders), "mesh": {"positions": positions, "indices": indices},
+            "offset": (0., 0., 0.), "rotation": (0., 0., 0.)}
+
+
+def _place_weapon_point(point, reference):
+    x, y, z = point
+    a, b, c = (math.radians(v) for v in reference["rotation"])
+    y, z = y*math.cos(a)-z*math.sin(a), y*math.sin(a)+z*math.cos(a)
+    x, z = x*math.cos(b)+z*math.sin(b), -x*math.sin(b)+z*math.cos(b)
+    x, y = x*math.cos(c)-y*math.sin(c), x*math.sin(c)+y*math.cos(c)
+    return [v+offset for v, offset in zip((x, y, z), reference["offset"])]
+
+
+def placed_weapon_reference(reference):
+    if reference is None:
+        return None
+    return {"positions": [_place_weapon_point(p, reference) for p in reference["mesh"]["positions"]],
+            "indices": reference["mesh"]["indices"]}
+
+
 def combined_preview_colliders(data, *, parts=None, included=None, reference=None):
     reason = ""
     try:
@@ -128,18 +164,9 @@ def combined_preview_colliders(data, *, parts=None, included=None, reference=Non
         colliders, reason = [], str(exc)
     source = "rigid_parts" if colliders else ""
     if reference is not None:
-        angles = [math.radians(v) for v in reference["rotation"]]
-
-        def place(point):
-            x, y, z = point
-            a, b, c = angles
-            y, z = y*math.cos(a)-z*math.sin(a), y*math.sin(a)+z*math.cos(a)
-            x, z = x*math.cos(b)+z*math.sin(b), -x*math.sin(b)+z*math.cos(b)
-            x, y = x*math.cos(c)-y*math.sin(c), x*math.sin(c)+y*math.cos(c)
-            return [v+offset for v, offset in zip((x, y, z), reference["offset"])]
-
         start = max((row["source_ordinal"] for row in colliders), default=-1) + 1
-        colliders.extend({**row, "center1": place(row["center1"]), "center2": place(row["center2"]),
+        colliders.extend({**row, "center1": _place_weapon_point(row["center1"], reference),
+                          "center2": _place_weapon_point(row["center2"], reference),
                           "source_ordinal": start+i} for i, row in enumerate(reference["colliders"]))
         source = "rigid_parts_and_reference" if source else "reference"
         reason = ""

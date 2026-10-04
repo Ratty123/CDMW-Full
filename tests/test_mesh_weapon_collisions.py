@@ -68,3 +68,36 @@ def test_embedded_weapon_bones_locate_empty_and_generated_collision_sets():
     assert all(source[a["offset"]:a["offset"]+a["size"]] == output[b["offset"]:b["offset"]+b["size"]]
                for a, b in zip(before[1:], after[1:]))
     assert source[decoded.file_end:80+before[0]["size"]] == output[volumes.file_end:80+after[0]["size"]]
+
+
+def test_weapon_reference_geometry_and_contacts_follow_placement_without_changing_cloak(collision_session, tmp_path):
+    from cdmw.services.mesh_rust_authoring import read_owned_payload_reference
+
+    _, session, host = collision_session
+    source = weapon_fixture()
+    weapon = tmp_path / "sword.pac"
+    weapon.write_bytes(source)
+    output = shadow_output(host)
+    history = (len(session.undo_stack), len(session.redo_stack))
+
+    command(host, "cloth_collision_input", {"role": "weapon", "path": str(weapon)})
+    before = read_owned_payload_reference(host.root, decoded(host)["file"])
+    mesh = before["weapon_reference"]
+    assert mesh["positions"] and mesh["indices"]
+    assert max(mesh["indices"]) < len(mesh["positions"])
+    assert not host.state_payload()["weapon_collisions"]["available"]
+    command(host, "cloth_collision_input", {"weapon_placement": {
+        "offset": [1., 2., 3.], "rotation": [0., 0., 90.]}})
+    placed = read_owned_payload_reference(host.root, decoded(host)["file"])
+    for a, b in zip(mesh["positions"], placed["weapon_reference"]["positions"]):
+        assert b == pytest.approx([1. - a[1], 2. + a[0], 3. + a[2]])
+    for a, b in zip(before["cloth"]["weapon_colliders"], placed["cloth"]["weapon_colliders"]):
+        for key in ("center1", "center2"):
+            assert b[key] == pytest.approx([1. - a[key][1], 2. + a[key][0], 3. + a[key][2]])
+    host.jiggle_source_cache = None
+    assert read_owned_payload_reference(host.root, decoded(host)["file"])["weapon_reference"] == placed["weapon_reference"]
+    command(host, "cloth_collision_input", {"clear": True})
+    assert read_owned_payload_reference(host.root, decoded(host)["file"])["weapon_reference"] is None
+    assert shadow_output(host) == output
+    assert (len(session.undo_stack), len(session.redo_stack)) == history
+    assert weapon.read_bytes() == source

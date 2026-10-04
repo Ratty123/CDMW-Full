@@ -512,7 +512,7 @@ mod profiles {
             json!("Spline profile");
         ui.frame(Vec::new());
         assert!(ui.label_rect("Use profile in preview").is_none());
-        assert!(ui.label_rect("Spline profile").is_some());
+        ui.reveal("Spline profile")?;
         source_profiles(&mut ui);
         let mut other = ui.application.cdmw_state["physics_profiles"]["parts"][0].clone();
         other["index"] = json!(1);
@@ -1020,10 +1020,7 @@ fn missing_decoded_guides_disables_playback_but_keeps_saved_cloth_controls() -> 
     ui.application.cdmw_state["jiggle"]["decoded"]["cloth"] = json!({
         "available": false, "reason": "No supported guide mesh in this PAC."});
     ui.frame(Vec::new());
-    assert!(
-        ui.label_rect("No supported guide mesh in this PAC.")
-            .is_some()
-    );
+    ui.reveal("No supported guide mesh in this PAC.")?;
     assert!(ui.label_rect("Disable cloth").is_some());
     ui.click("Play preview")?;
     assert!(ui.application.cdmw_jiggle.preview.pending.is_none());
@@ -1208,6 +1205,7 @@ fn weapon_collision_preview_and_overlay_follow_centring_without_authoring_edits(
     advance(&mut ui)?;
     let without = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.clone();
     ui.click("Reset preview")?;
+    ui.click("Weapon colliders")?;
     ui.click("Weapon collisions")?;
     assert!(ui.application.cdmw_jiggle.preview.cloth_settings.weapon_collisions);
     assert!(!ui.application.cdmw_jiggle.preview.cloth_settings.body_collisions);
@@ -1269,7 +1267,7 @@ fn cloak_collision_shapes_prepare_without_playback_and_show_both_sources() -> Te
     state["cloth"]["weapon_collider_count"] = json!(1);
     ui.frame(Vec::new());
     assert!(ui.label_rect("Body collisions").is_none(), "preview settings stay collapsed");
-    assert!(ui.label_rect("Collision shapes: 3 body · 1 weapon").is_some());
+    ui.reveal("Collision shapes: 3 body · 1 weapon")?;
     ui.click("Show collision shapes")?;
     wait(&mut ui)?;
     assert!(!ui.application.cdmw_jiggle.preview.playing);
@@ -1287,6 +1285,7 @@ fn cloak_collision_shapes_prepare_without_playback_and_show_both_sources() -> Te
     assert_eq!(ui.application.jiggle_collider_lines().len(), 672);
     ui.click("Cloth preview settings")?;
     ui.click("Body collisions")?;
+    ui.click("Weapon colliders")?;
     ui.click("Weapon collisions")?;
     assert!(ui.application.cdmw_jiggle.preview.cloth_settings.body_collisions);
     assert!(ui.application.cdmw_jiggle.preview.cloth_settings.weapon_collisions);
@@ -1295,6 +1294,175 @@ fn cloak_collision_shapes_prepare_without_playback_and_show_both_sources() -> Te
     assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
     assert_eq!(std::fs::read(root.path().join("jiggle-rig.json"))?, payload);
     Ok(())
+}
+
+fn load_weapon_reference(root: &std::path::Path, ui: &mut HeadlessUi, payload: &mut Value, x: f64) -> TestResult {
+    payload["weapon_reference"] = json!({"positions": [[x, 0., 0.], [x + 0.3, 0., 0.], [x, 1., 0.]], "indices": [0, 1, 2]});
+    payload["cloth"]["weapon_colliders"] = json!([
+        {"kind": 5, "center1": [x, 0., 0.], "center2": [x, 1., 0.], "radius": 0.1, "bone_index": 0, "source_ordinal": 0}
+    ]);
+    let bytes = serde_json::to_vec(payload)?;
+    std::fs::write(root.join("jiggle-rig.json"), &bytes)?;
+    let mut state = ui.application.cdmw_state.clone();
+    state["jiggle"]["decoded"]["file"]["byte_length"] = json!(bytes.len());
+    state["jiggle"]["decoded"]["file"]["sha256"] = json!(format!("{:X}", Sha256::digest(&bytes)));
+    state["jiggle"]["decoded"]["cloth"]["weapon_collider_count"] = json!(1);
+    state["jiggle"]["collision_inputs"] = json!({"weapon": "sword.pac"});
+    state["jiggle"]["weapon_placement"] = json!({"offset": [x, 0., 0.], "rotation": [0., 0., 0.]});
+    ui.application.install_validated_cdmw_state(state, None)?;
+    ui.frame(Vec::new());
+    Ok(())
+}
+
+#[test]
+fn weapon_reference_load_place_clear_and_preview_controls_keep_cloak_unchanged() -> TestResult {
+    let (root, mut ui, bytes) = fixture()?;
+    let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
+    let mut payload: Value = serde_json::from_slice(&bytes)?;
+    load_weapon_reference(root.path(), &mut ui, &mut payload, 0.2)?;
+    wait(&mut ui)?;
+    advance(&mut ui)?;
+    assert!(!ui.application.cdmw_jiggle.preview.playing);
+    assert!(!ui.application.jiggle_collider_lines().is_empty());
+    let display = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().display.clone();
+    assert_eq!(display.positions.len(), authored.positions.len() + 3);
+    assert_eq!(display.indices.len(), authored.indices.len() + 3);
+    assert_eq!(display.triangle_materials.last(), Some(&u32::MAX));
+    ui.click("Weapon colliders")?;
+    assert!(ui.label_rect("Create weapon colliders").is_none());
+    ui.click("Weapon collisions")?;
+    assert!(ui.application.cdmw_jiggle.preview.cloth_settings.weapon_collisions);
+    assert!(ui.application.cdmw_pending_request.is_none());
+    assert!(ui.label_rect("Weapon colliders").unwrap().top() < ui.label_rect("Collision sources").unwrap().top());
+    ui.reveal("2 simulated vertices")?;
+    let baseline = ui.label_rect("2 simulated vertices").unwrap().top();
+    ui.application.submit_cdmw_command("cloth_collision_input",
+        json!({"weapon_placement": {"offset": [1.2, 0., 0.], "rotation": [0., 0., 0.]}}), "Place weapon preview");
+    ui.settle_layout();
+    assert_eq!(ui.label_rect("2 simulated vertices").unwrap().top(), baseline);
+    ui.application.cdmw_pending_request = None;
+    load_weapon_reference(root.path(), &mut ui, &mut payload, 1.2)?;
+    ui.settle_layout();
+    assert_eq!(ui.label_rect("2 simulated vertices").unwrap().top(), baseline);
+    // Keep the last renderable reference while its replacement loads.
+    assert_eq!(ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().display, display);
+    let stale = ui.application.cdmw_jiggle.preview.pending.unwrap();
+    load_weapon_reference(root.path(), &mut ui, &mut payload, 1.4)?;
+    ui.application.accept_prepared_jiggle(stale, Err("stale weapon placement".into()));
+    assert!(ui.application.cdmw_jiggle.preview.pending.is_some());
+    wait(&mut ui)?;
+    advance(&mut ui)?;
+    let scene = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap();
+    assert_eq!(scene.display.positions[authored.positions.len()][0], 1.4);
+    assert!(!ui.application.jiggle_collider_lines().is_empty());
+    assert_eq!(scene.frame.positions, authored.positions);
+    ui.click("Show collision shapes")?;
+    assert!(ui.application.jiggle_collider_lines().is_empty());
+    assert_eq!(ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().display.positions.len(), display.positions.len());
+    let mut state = ui.application.cdmw_state.clone();
+    state["jiggle"]["collision_inputs"] = json!({});
+    state["jiggle"]["weapon_placement"] = Value::Null;
+    state["jiggle"]["decoded"]["cloth"]["weapon_collider_count"] = json!(0);
+    ui.application.install_validated_cdmw_state(state, None)?;
+    ui.frame(Vec::new());
+    assert!(ui.application.cdmw_jiggle.preview.scene.is_none());
+    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
+    Ok(())
+}
+
+#[test]
+fn weapon_placement_rows_keep_vertical_positions_at_different_values_and_fonts() -> TestResult {
+    for font in [10., 14., 18.] {
+        let (_root, mut ui, _) = fixture()?;
+        ui.application.apply_cdmw_theme_payload(&json!({"font_point_size": font, "density": "comfortable"}));
+        ui.application.cdmw_state["jiggle"]["collision_inputs"] = json!({"weapon": "sword.pac"});
+        ui.click("Collision sources")?;
+        ui.reveal("Clear collision inputs")?;
+        let mut baseline: Option<(f32, f32)> = None;
+        for value in [0., 0.01, -9.999999999, 100., -100., 1.234567891] {
+            ui.application.cdmw_state["jiggle"]["weapon_placement"] = json!({"offset": [value, value, value], "rotation": [value, value, value]});
+            ui.settle_layout();
+            let positions = (ui.label_rect("Weapon preview rotation").ok_or("rotation label")?.top(),
+                ui.label_rect("Clear collision inputs").ok_or("clear label")?.top());
+            if let Some(baseline) = baseline {
+                assert!((positions.0 - baseline.0).abs() < 0.1 && (positions.1 - baseline.1).abs() < 0.1,
+                    "font {font}, value {value}: {positions:?} != {baseline:?}");
+            } else { baseline = Some(positions); }
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn weapon_reference_invalid_reload_preserves_the_last_renderable_scene() -> TestResult {
+    let (root, mut ui, bytes) = fixture()?;
+    let mut payload: Value = serde_json::from_slice(&bytes)?;
+    load_weapon_reference(root.path(), &mut ui, &mut payload, 0.2)?;
+    wait(&mut ui)?;
+    advance(&mut ui)?;
+    let before = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().display.clone();
+    payload["weapon_reference"]["indices"] = json!([0, 1, 900]);
+    let bytes = serde_json::to_vec(&payload)?;
+    std::fs::write(root.path().join("jiggle-rig.json"), &bytes)?;
+    let mut state = ui.application.cdmw_state.clone();
+    state["jiggle"]["decoded"]["file"]["byte_length"] = json!(bytes.len());
+    state["jiggle"]["decoded"]["file"]["sha256"] = json!(format!("{:X}", Sha256::digest(&bytes)));
+    ui.application.install_validated_cdmw_state(state, None)?;
+    ui.frame(Vec::new());
+    wait(&mut ui)?;
+    assert_eq!(ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().display, before);
+    ui.reveal("Invalid weapon reference geometry.")?;
+    Ok(())
+}
+
+#[test]
+#[ignore = "synthetic hidden-window D3D12 weapon reference pixels; no game assets"]
+fn weapon_reference_renders_solid_pixels_and_clears_without_cloak_changes() -> TestResult {
+    use winit::application::ApplicationHandler;
+    use winit::event::WindowEvent;
+    use winit::event_loop::{ActiveEventLoop, EventLoop};
+    use winit::platform::windows::EventLoopBuilderExtWindows;
+    use winit::window::{Window, WindowId};
+
+    #[derive(Default)]
+    struct Probe(Option<TestResult>);
+    impl ApplicationHandler for Probe {
+        fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+            self.0 = Some(run(event_loop));
+            event_loop.exit();
+        }
+        fn window_event(&mut self, _: &ActiveEventLoop, _: WindowId, _: WindowEvent) {}
+    }
+    fn run(event_loop: &ActiveEventLoop) -> TestResult {
+        let (root, mut ui, bytes) = fixture()?;
+        let mut payload: Value = serde_json::from_slice(&bytes)?;
+        load_weapon_reference(root.path(), &mut ui, &mut payload, 2.0)?;
+        wait(&mut ui)?;
+        advance(&mut ui)?;
+        let scene = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap();
+        let window = std::sync::Arc::new(event_loop.create_window(Window::default_attributes()
+            .with_visible(false).with_inner_size(winit::dpi::PhysicalSize::new(160, 120)))?);
+        let mut renderer = pollster::block_on(WindowRenderer::new(window))?;
+        renderer.set_clear_colour([0., 0., 0., 1.]);
+        renderer.set_camera(glam::Mat4::orthographic_rh(-3., 3., -2., 2., 0.1, 10.)
+            * glam::Mat4::look_at_rh(Vec3::new(0., 0., 5.), Vec3::ZERO, Vec3::Y));
+        for mode in [ViewMode::TexturedSolid, ViewMode::Solid] {
+            renderer.set_view_mode(mode);
+            renderer.set_snapshot(&scene.frame)?;
+            let cloak = renderer.capture_frame(160, 120, None)?.read_rgba()?;
+            renderer.set_snapshot(&scene.display)?;
+            let reference = renderer.capture_frame(160, 120, None)?.read_rgba()?;
+            assert!(cloak.chunks_exact(4).zip(reference.chunks_exact(4)).filter(|(a, b)| a != b).count() > 20,
+                "the weapon reference must produce visible pixels in {mode:?}");
+            renderer.set_snapshot(&scene.frame)?;
+            assert_eq!(renderer.capture_frame(160, 120, None)?.read_rgba()?, cloak);
+        }
+        Ok(())
+    }
+    let event_loop = EventLoop::builder().with_any_thread(true).build()?;
+    let mut probe = Probe::default();
+    event_loop.run_app(&mut probe)?;
+    probe.0.ok_or("weapon pixel probe did not run")?
 }
 
 fn check_body_collision_source(source: &str) -> TestResult {

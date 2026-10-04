@@ -46,6 +46,7 @@ pub(super) struct JiggleView {
     pub retained_percent: f64,
     pub region_bone: Option<u32>,
     key: Value,
+    collision_preview_key: Value,
     pub preview: Preview,
 }
 
@@ -61,6 +62,7 @@ impl Default for JiggleView {
             retained_percent: 50.0,
             region_bone: None,
             key: Value::Null,
+            collision_preview_key: Value::Null,
             preview: Preview::default(),
         }
     }
@@ -144,6 +146,8 @@ impl Preview {
 pub(super) struct Scene {
     rest: DrawSnapshot,
     pub frame: DrawSnapshot,
+    pub display: DrawSnapshot,
+    weapon_reference: Option<DrawSnapshot>,
     simulation: Simulation,
     normal_sums: Vec<Vec3>,
     rest_surface_normals: Vec<Vec3>,
@@ -151,6 +155,21 @@ pub(super) struct Scene {
     moving: usize,
     motion_scale: f32,
     centred: bool,
+}
+
+impl Scene {
+    fn refresh_display(&mut self, centred: bool) {
+        let Some(reference) = &self.weapon_reference else { return; };
+        self.display.clone_from(&self.frame);
+        let transform = if centred { glam::Mat4::IDENTITY } else { self.simulation.motion_transform() };
+        let start = self.display.positions.len() as u32;
+        self.display.positions.extend(reference.positions.iter().map(|p| transform.transform_point3(Vec3::from(*p)).to_array()));
+        self.display.normals.extend(reference.normals.iter().map(|n| transform.transform_vector3(Vec3::from(*n)).normalize_or(Vec3::Y).to_array()));
+        self.display.uvs.extend_from_slice(&reference.uvs);
+        if !self.display.shader_masks.is_empty() { self.display.shader_masks.extend_from_slice(&reference.shader_masks); }
+        self.display.indices.extend(reference.indices.iter().map(|i| i + start));
+        self.display.triangle_materials.extend_from_slice(&reference.triangle_materials);
+    }
 }
 
 fn motion_scale(rest: &DrawSnapshot) -> f32 {
@@ -236,7 +255,7 @@ fn collision_source_choice(ui: &mut egui::Ui, available: bool, role: &'static st
                 ui.close();
             }
         }).response.on_hover_text(crate::localization::tr(if role == "weapon" {
-            "Loads collision shapes only; the weapon mesh is not shown. Enable Show collision shapes to see and position them."
+            "Shows an untextured weapon reference and fits its collision shapes automatically. Placement affects this preview only."
         } else {
             "Choose body/head PABV files or a weapon PAC for this preview. Inputs are not saved to the model or draft."
         }));
@@ -486,15 +505,17 @@ impl LabApplication {
                 ui.add_enabled_ui(weapon_available, |ui| {
                     ui.label("Weapon preview position")
                         .on_hover_text("Place the weapon in model space. In-game sockets and weapon animation are not loaded.");
-                    ui.horizontal_wrapped(|ui| { for (i, axis) in ["X", "Y", "Z"].iter().enumerate() {
+                    egui::Grid::new("weapon-preview-position").show(ui, |ui| { for (i, axis) in ["X", "Y", "Z"].iter().enumerate() {
                         ui.label(*axis);
                         changed |= ui.add(crate::cdmw_ui::numeric::value(&mut offset[i]).speed(0.01).range(-100.0..=100.0)).changed();
+                        ui.end_row();
                     }});
                     ui.label("Weapon preview rotation")
                         .on_hover_text("Place the weapon in model space. In-game sockets and weapon animation are not loaded.");
-                    ui.horizontal_wrapped(|ui| { for (i, axis) in ["X", "Y", "Z"].iter().enumerate() {
+                    egui::Grid::new("weapon-preview-rotation").show(ui, |ui| { for (i, axis) in ["X", "Y", "Z"].iter().enumerate() {
                         ui.label(*axis);
                         changed |= ui.add(crate::cdmw_ui::numeric::value(&mut rotation[i]).speed(1.0).range(-360.0..=360.0).suffix("°")).changed();
+                        ui.end_row();
                     }});
                 });
                 if changed {
@@ -553,6 +574,13 @@ impl LabApplication {
             self.publish_mesh_snapshot();
             self.cdmw_jiggle.preview.parts = ids;
         }
+        let collision_key = json!([self.cdmw_state["jiggle"]["collision_inputs"],
+            self.cdmw_state["jiggle"]["weapon_placement"], self.cdmw_state["jiggle"]["decoded"]["file"],
+            self.cdmw_state["base_revision"]]);
+        let show_reference = cloth && !self.cdmw_busy()
+            && self.cdmw_state["jiggle"]["collision_inputs"]["weapon"].is_string()
+            && collision_key != self.cdmw_jiggle.collision_preview_key;
+        if cloth && !self.cdmw_busy() { self.cdmw_jiggle.collision_preview_key = collision_key; }
         let was_playing = self.cdmw_jiggle.preview.playing
             || (self.cdmw_jiggle.preview.pending.is_some() && self.cdmw_jiggle.preview.play_when_ready);
         let was_inspecting = cloth && self.cdmw_jiggle.preview.show_colliders;
@@ -738,9 +766,6 @@ impl LabApplication {
                         _ => "Uses the matched rig's default volumes.",
                     })
                     .on_disabled_hover_text(cloth_state["body_collider_reason"].as_str().unwrap_or("Body collisions need supported model or rig volumes."));
-                ui.add_enabled(weapon_available, egui::Checkbox::new(&mut settings.weapon_collisions, "Weapon collisions"))
-                    .on_hover_text("Uses fitted capsules around rigid weapon parts. This switch affects the preview; Create weapon colliders saves shapes for the mod.")
-                    .on_disabled_hover_text(cloth_state["weapon_collider_reason"].as_str().unwrap_or("Load a weapon reference to test collisions with this cloth."));
                 if !weapon_available {
                     collision_source_choice(ui, can_choose_weapon, "weapon", actions);
                 }
@@ -791,6 +816,13 @@ impl LabApplication {
                 self.publish_mesh_snapshot();
             }
         }
+        if show_reference {
+            self.cdmw_jiggle.preview.show_colliders = true;
+            self.cancel_pending_jiggle();
+            if let Err(error) = self.prepare_jiggle_preview(parts, false) {
+                self.cdmw_jiggle.preview.feedback = error.to_string();
+            }
+        }
         if show_shapes_changed && self.cdmw_jiggle.preview.show_colliders
             && self.cdmw_jiggle.preview.scene.is_none() && self.cdmw_jiggle.preview.pending.is_none() {
             if let Err(error) = self.prepare_jiggle_preview(parts, false) {
@@ -838,6 +870,10 @@ impl LabApplication {
         } else {
             ""
         }.to_owned();
+        let preview_button_width = ["Preparing preview", "Pause preview", "Resume preview", "Play preview"]
+            .iter().map(|label| ui.painter().layout_no_wrap(crate::localization::tr(*label).into(),
+                egui::TextStyle::Button.resolve(ui.style()), ui.visuals().text_color()).size().x)
+            .fold(0.0_f32, f32::max) + 2.0 * ui.spacing().button_padding.x;
         ui.horizontal_wrapped(|ui| {
             let label = if self.cdmw_jiggle.preview.pending.is_some() {
                 "Preparing preview"
@@ -849,8 +885,10 @@ impl LabApplication {
                 "Play preview"
             };
             if ui
-                .add_enabled(reason.is_empty(), egui::Button::new(label))
+                .add_enabled(reason.is_empty(), egui::Button::new(label)
+                    .min_size(egui::vec2(preview_button_width, 0.0)).wrap_mode(egui::TextWrapMode::Extend))
                 .on_hover_text("Preview settings are not exported. Reset preview to edit the surface.")
+                .on_disabled_hover_text(&reason)
                 .clicked()
             {
                 if self.cdmw_jiggle.preview.playing {
@@ -873,7 +911,9 @@ impl LabApplication {
                 self.publish_mesh_snapshot();
             }
         });
-        if !reason.is_empty() {
+        // Transient work is already indicated by the button and host status.
+        // Inserting a status row here makes placement edits move the whole rail.
+        if !reason.is_empty() && !self.cdmw_busy() && self.cdmw_jiggle.preview.pending.is_none() {
             ui.small(reason);
         }
         if let Some(scene) = &self.cdmw_jiggle.preview.scene {
@@ -1023,6 +1063,8 @@ impl LabApplication {
         }
         let scene = Scene {
             centred: false,
+            display: rest.clone(),
+            weapon_reference: None,
             motion_scale: motion_scale(&rest),
             rest_surface_normals,
             frame: rest.clone(),
@@ -1107,6 +1149,7 @@ impl LabApplication {
         scene.tick = scene.tick.wrapping_add(1);
         scene.centred = preview.keep_centred;
         scene.frame.draw_revision = scene.rest.draw_revision.wrapping_add(scene.tick);
+        scene.refresh_display(preview.keep_centred);
         Ok(())
     }
 
@@ -1126,10 +1169,13 @@ impl LabApplication {
             {
                 renderer.set_face_selection(&[], [0.0; 4])?;
                 renderer.set_collision_lines(&lines)?;
+                let snapshot = if scene.weapon_reference.is_some() { &scene.display } else { &scene.frame };
                 if let Some(colours) = &self.cdmw_jiggle.region_colours {
-                    renderer.set_snapshot_with_vertex_colours(&scene.frame, colours)?;
+                    let mut colours = colours.clone();
+                    colours.resize(snapshot.positions.len(), [0.; 4]);
+                    renderer.set_snapshot_with_vertex_colours(snapshot, &colours)?;
                 } else {
-                    renderer.set_snapshot_with_deformation_interactive(&scene.frame, None)?;
+                    renderer.set_snapshot_with_deformation_interactive(snapshot, None)?;
                 }
             }
             Ok(())
@@ -1167,7 +1213,8 @@ impl LabApplication {
                     return;
                 }
                 let count = prepared.rest.positions.len();
-                self.cdmw_jiggle.preview.scene = Some(Scene { motion_scale: motion_scale(&prepared.rest), frame: prepared.rest.clone(), rest: prepared.rest,
+                self.cdmw_jiggle.preview.scene = Some(Scene { motion_scale: motion_scale(&prepared.rest), frame: prepared.rest.clone(),
+                    display: prepared.rest.clone(), weapon_reference: prepared.weapon_reference, rest: prepared.rest,
                     simulation: prepared.simulation, normal_sums: vec![Vec3::ZERO; count],
                     rest_surface_normals: prepared.rest_surface_normals, tick: 0, moving: prepared.moving, centred: false });
                 self.cdmw_jiggle.preview.playing = self.cdmw_jiggle.preview.play_when_ready;

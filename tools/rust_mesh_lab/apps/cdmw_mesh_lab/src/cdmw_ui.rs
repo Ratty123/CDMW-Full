@@ -273,7 +273,7 @@ pub(crate) mod numeric {
                 next = bounded(next, &self.range, self.integer);
             }
             let response = ui.vertical(|ui| {
-                let mut response = ui.horizontal_wrapped(|ui| {
+                let draw_number = |ui: &mut Ui| {
                     let value_id = ui.next_auto_id();
                     let cancel = ui.input(|input| input.key_pressed(egui::Key::Escape));
                     let ticks = arrows(ui, ui.next_auto_id());
@@ -315,7 +315,9 @@ pub(crate) mod numeric {
                     increment(ui, id, &mut step, self.integer);
                     if !self.text.is_empty() { response |= ui.label(self.text); }
                     response
-                }).inner;
+                };
+                let mut response = if self.slider { ui.horizontal_wrapped(draw_number) }
+                    else { ui.horizontal(draw_number) }.inner;
                 if self.slider {
                     // The slider edits a copy so merely opening a panel or
                     // selecting a coarser step never quantizes authored values.

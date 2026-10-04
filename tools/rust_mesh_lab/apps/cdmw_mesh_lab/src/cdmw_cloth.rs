@@ -691,6 +691,7 @@ impl LabApplication {
 
     pub(super) fn draw_cdmw_cloth_page(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
         self.draw_weapon_collision_authoring(ui, actions);
+        self.draw_cloth_collision_inputs(ui, actions);
         let cloth = self.cdmw_state["cloth"].clone();
         let inspected = if self.cdmw_cloth.selected_only { self.selected_part_indices() } else {
             cloth["parts"].as_array().into_iter().flatten()
@@ -811,27 +812,36 @@ impl LabApplication {
             }
         });
         self.draw_cloth_preview_controls(ui, &parts, actions);
-        self.draw_cloth_collision_inputs(ui, actions);
     }
 
-    fn draw_weapon_collision_authoring(&self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
-        let state = &self.cdmw_state["weapon_collisions"];
-        let available = state_bool(state, "available") && !self.cdmw_busy();
-        let active = state_bool(state, "active");
+    fn draw_weapon_collision_authoring(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
+        let state = self.cdmw_state["weapon_collisions"].clone();
+        let available = state_bool(&state, "available") && !self.cdmw_busy();
+        let active = state_bool(&state, "active");
+        let cloth = &self.cdmw_state["jiggle"]["decoded"]["cloth"];
+        let preview_available = !self.cdmw_busy() && state_u64(cloth, "weapon_collider_count") > 0;
+        let preview_reason = state_str(cloth, "weapon_collider_reason")
+            .unwrap_or("Load a weapon reference to test collisions with this cloth.").to_owned();
         crate::localization::collapsing("Weapon colliders").id_salt("Weapon colliders (experimental)").show(ui, |ui| {
-            if !state_bool(state, "available") {
-                ui.small(crate::localization::tr(state["reason"].as_str().unwrap_or("No supported weapon collision geometry.")));
+            ui.add_enabled(preview_available, egui::Checkbox::new(
+                &mut self.cdmw_jiggle.preview.cloth_settings.weapon_collisions, crate::localization::tr("Weapon collisions")))
+                .on_hover_text(crate::localization::tr("Uses the fitted weapon shapes during cloth preview. Choosing a weapon creates these shapes automatically."))
+                .on_disabled_hover_text(crate::localization::tr(preview_reason));
+            if state_bool(&state, "available") || active {
+                ui.horizontal_wrapped(|ui| {
+                    if ui.add_enabled(available && !active, egui::Button::new(crate::localization::tr("Create weapon colliders"))).clicked() {
+                        actions.push(UiAction::CdmwCommand { command: "replacement_weapon_collisions",
+                            arguments: json!({"enabled": true}), label: "Create weapon colliders" });
+                    }
+                    if ui.add_enabled(active && !self.cdmw_busy(), egui::Button::new(crate::localization::tr("Restore source colliders"))).clicked() {
+                        actions.push(UiAction::CdmwCommand { command: "replacement_weapon_collisions",
+                            arguments: json!({"enabled": false}), label: "Restore source colliders" });
+                    }
+                });
+            } else {
+                ui.small(crate::localization::tr("Collider export needs an editable weapon PAC."))
+                    .on_hover_text(crate::localization::tr(state["reason"].as_str().unwrap_or("No supported weapon collision geometry.")));
             }
-            ui.horizontal_wrapped(|ui| {
-                if ui.add_enabled(available && !active, egui::Button::new(crate::localization::tr("Create weapon colliders"))).clicked() {
-                    actions.push(UiAction::CdmwCommand { command: "replacement_weapon_collisions",
-                        arguments: json!({"enabled": true}), label: "Create weapon colliders" });
-                }
-                if ui.add_enabled(active && !self.cdmw_busy(), egui::Button::new(crate::localization::tr("Restore source colliders"))).clicked() {
-                    actions.push(UiAction::CdmwCommand { command: "replacement_weapon_collisions",
-                        arguments: json!({"enabled": false}), label: "Restore source colliders" });
-                }
-            });
         }).header_response
             .on_hover_text(crate::localization::tr("Weapon colliders (experimental)"))
             .on_hover_text(crate::localization::tr("Fits capsules to included rigid weapon parts; cloth parts are excluded."))
