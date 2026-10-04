@@ -650,6 +650,7 @@ pub(super) fn physics_lines(part: &Value) -> Vec<String> {
 }
 
 pub(super) struct ClothView {
+    experimental: bool,
     pub selected_only: bool,
     pub amount_percent: f64,
     pub use_height: bool,
@@ -663,6 +664,7 @@ pub(super) struct ClothView {
 impl Default for ClothView {
     fn default() -> Self {
         Self {
+            experimental: false,
             selected_only: false,
             amount_percent: 100.0,
             use_height: false,
@@ -690,21 +692,35 @@ impl LabApplication {
     }
 
     pub(super) fn draw_cdmw_cloth_page(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
-        self.draw_weapon_collision_authoring(ui, actions);
-        self.draw_cloth_collision_inputs(ui, actions);
+        ui.horizontal_wrapped(|ui| {
+            for (experimental, label) in [(false, "Cloth settings"), (true, "Experimental features")] {
+                if ui.add(egui::Button::new(crate::localization::tr(label))
+                    .selected(self.cdmw_cloth.experimental == experimental)).clicked() {
+                    self.cdmw_cloth.experimental = experimental;
+                }
+            }
+        });
+        ui.separator();
         let cloth = self.cdmw_state["cloth"].clone();
-        let inspected = if self.cdmw_cloth.selected_only { self.selected_part_indices() } else {
-            cloth["parts"].as_array().into_iter().flatten()
-                .filter(|part| state_bool(part, "included")).map(|part| state_u64(part, "index") as u32).collect()
-        };
-        self.draw_cdmw_physics_detection(ui, &inspected);
-        self.draw_cdmw_guide_authoring(ui, actions);
+        if self.cdmw_cloth.experimental {
+            self.draw_weapon_collision_authoring(ui, actions);
+            self.draw_cloth_collision_inputs(ui, actions);
+            self.draw_cdmw_guide_authoring(ui, actions);
+        } else {
+            let inspected = if self.cdmw_cloth.selected_only { self.selected_part_indices() } else {
+                cloth["parts"].as_array().into_iter().flatten()
+                    .filter(|part| state_bool(part, "included")).map(|part| state_u64(part, "index") as u32).collect()
+            };
+            self.draw_cdmw_physics_detection(ui, &inspected);
+        }
         if !state_bool(&cloth, "available") {
-            ui.label(crate::localization::tr(state_str(&cloth, "reason").unwrap_or("Cloth influence is unavailable.")));
-            let parts = self.cdmw_state["replacement"]["parts"].as_array().cloned().unwrap_or_default();
-            let can_author = !self.cdmw_busy() && state_bool(&self.cdmw_state, "authoring_enabled");
-            profiles::draw(ui, &self.cdmw_state["physics_profiles"], &parts,
-                &mut self.cdmw_cloth.profiles, &mut self.cdmw_jiggle.preview.cloth_settings, false, false, false, actions, can_author);
+            if !self.cdmw_cloth.experimental {
+                ui.label(crate::localization::tr(state_str(&cloth, "reason").unwrap_or("Cloth influence is unavailable.")));
+                let parts = self.cdmw_state["replacement"]["parts"].as_array().cloned().unwrap_or_default();
+                let can_author = !self.cdmw_busy() && state_bool(&self.cdmw_state, "authoring_enabled");
+                profiles::draw(ui, &self.cdmw_state["physics_profiles"], &parts,
+                    &mut self.cdmw_cloth.profiles, &mut self.cdmw_jiggle.preview.cloth_settings, false, false, false, actions, can_author);
+            }
             return;
         }
         ui.checkbox(&mut self.cdmw_cloth.selected_only, crate::localization::tr("Selected parts only"));
@@ -724,93 +740,96 @@ impl LabApplication {
             ui.label(crate::localization::tr("Select an included part with cloth bindings."));
             return;
         }
-        let ids: Vec<&str> = parts
-            .iter()
-            .filter_map(|part| part["id"].as_str())
-            .collect();
-        let key = json!([
-            ids,
-            parts.iter().map(|part| &part["rule"]).collect::<Vec<_>>()
-        ]);
-        let mixed = parts.iter().any(|part| part["rule"] != parts[0]["rule"]);
-        if key != self.cdmw_cloth.key {
-            self.cdmw_cloth.key = key;
-            let rule = if mixed {
-                &Value::Null
-            } else {
-                &parts[0]["rule"]
-            };
-            self.cdmw_cloth.amount_percent = rule["amount"].as_f64().unwrap_or(1.0) * 100.0;
-            self.cdmw_cloth.use_height = rule["fixed_above"].as_f64().is_some();
-            let min_y = parts
+        if !self.cdmw_cloth.experimental {
+            let ids: Vec<&str> = parts
                 .iter()
-                .filter_map(|part| part["min_y"].as_f64())
-                .fold(f64::INFINITY, f64::min);
-            let max_y = parts
-                .iter()
-                .filter_map(|part| part["max_y"].as_f64())
-                .fold(f64::NEG_INFINITY, f64::max);
-            self.cdmw_cloth.height = rule["fixed_above"]
-                .as_f64()
-                .unwrap_or((min_y + max_y) * 0.5);
-            self.cdmw_cloth.fade = rule["fade"].as_f64().unwrap_or(0.0);
-        }
-        ui.small(crate::localization::tr(format!(
-            "{} parts · applies to all {} LODs",
-            parts.len(),
-            state_u64(&cloth, "lod_count")
-        )));
-        if mixed {
-            ui.small(crate::localization::tr("Mixed saved settings. Apply replaces them for these parts."));
-        }
-        ui.add(
-            crate::cdmw_ui::numeric::slider(&mut self.cdmw_cloth.amount_percent, 0.0..=100.0)
-                .text(crate::localization::tr("Cloth amount")),
-        ).on_hover_text(crate::localization::tr("Fixed vertices follow the skeleton. Cloth amount edits retained bindings."));
-        ui.checkbox(&mut self.cdmw_cloth.use_height, crate::localization::tr("Fix vertices above height"))
-            .on_hover_text(crate::localization::tr("Uses displayed model coordinates. Higher vertices stay fixed; lower vertices move."));
-        if self.cdmw_cloth.use_height {
-            ui.horizontal(|ui| {
-                ui.label(crate::localization::tr("Height (Y)"));
-                ui.add(crate::cdmw_ui::numeric::value(&mut self.cdmw_cloth.height).speed(0.01));
-            });
-            ui.horizontal(|ui| {
-                ui.label(crate::localization::tr("Fade below height"));
-                ui.add(
-                    crate::cdmw_ui::numeric::value(&mut self.cdmw_cloth.fade)
-                        .range(0.0..=f64::MAX)
-                        .speed(0.01),
-                );
-            });
-        }
-        if ui.button(crate::localization::tr("Apply cloth settings"))
-            .on_hover_text(crate::localization::tr("Saved with Build PAC and drafts. Preview simulation remains approximate.")).clicked() {
-            actions.push(UiAction::CdmwCommand {
-                command: "replacement_cloth",
-                arguments: json!({"part_ids": ids, "rule": {
-                    "amount": self.cdmw_cloth.amount_percent / 100.0,
-                    "fixed_above": self.cdmw_cloth.use_height.then_some(self.cdmw_cloth.height),
-                    "fade": if self.cdmw_cloth.use_height { self.cdmw_cloth.fade } else { 0.0 }
-                }}),
-                label: "Edit cloth influence",
-            });
-        }
-        ui.horizontal_wrapped(|ui| {
-            if ui.button(crate::localization::tr("Disable cloth")).clicked() {
-                actions.push(UiAction::CdmwCommand {
-                    command: "replacement_cloth",
-                    arguments: json!({"part_ids": ids, "rule": {"amount": 0.0, "fixed_above": null, "fade": 0.0}}),
-                    label: "Disable cloth influence",
+                .filter_map(|part| part["id"].as_str())
+                .collect();
+            let key = json!([
+                ids,
+                parts.iter().map(|part| &part["rule"]).collect::<Vec<_>>()
+            ]);
+            let mixed = parts.iter().any(|part| part["rule"] != parts[0]["rule"]);
+            if key != self.cdmw_cloth.key {
+                self.cdmw_cloth.key = key;
+                let rule = if mixed {
+                    &Value::Null
+                } else {
+                    &parts[0]["rule"]
+                };
+                self.cdmw_cloth.amount_percent = rule["amount"].as_f64().unwrap_or(1.0) * 100.0;
+                self.cdmw_cloth.use_height = rule["fixed_above"].as_f64().is_some();
+                let min_y = parts
+                    .iter()
+                    .filter_map(|part| part["min_y"].as_f64())
+                    .fold(f64::INFINITY, f64::min);
+                let max_y = parts
+                    .iter()
+                    .filter_map(|part| part["max_y"].as_f64())
+                    .fold(f64::NEG_INFINITY, f64::max);
+                self.cdmw_cloth.height = rule["fixed_above"]
+                    .as_f64()
+                    .unwrap_or((min_y + max_y) * 0.5);
+                self.cdmw_cloth.fade = rule["fade"].as_f64().unwrap_or(0.0);
+            }
+            ui.small(crate::localization::tr(format!(
+                "{} parts · applies to all {} LODs",
+                parts.len(),
+                state_u64(&cloth, "lod_count")
+            )));
+            if mixed {
+                ui.small(crate::localization::tr("Mixed saved settings. Apply replaces them for these parts."));
+            }
+            ui.add(
+                crate::cdmw_ui::numeric::slider(&mut self.cdmw_cloth.amount_percent, 0.0..=100.0)
+                    .text(crate::localization::tr("Cloth amount")),
+            ).on_hover_text(crate::localization::tr("Fixed vertices follow the skeleton. Cloth amount edits retained bindings."));
+            ui.checkbox(&mut self.cdmw_cloth.use_height, crate::localization::tr("Fix vertices above height"))
+                .on_hover_text(crate::localization::tr("Uses displayed model coordinates. Higher vertices stay fixed; lower vertices move."));
+            if self.cdmw_cloth.use_height {
+                ui.horizontal(|ui| {
+                    ui.label(crate::localization::tr("Height (Y)"));
+                    ui.add(crate::cdmw_ui::numeric::value(&mut self.cdmw_cloth.height).speed(0.01));
+                });
+                ui.horizontal(|ui| {
+                    ui.label(crate::localization::tr("Fade below height"));
+                    ui.add(
+                        crate::cdmw_ui::numeric::value(&mut self.cdmw_cloth.fade)
+                            .range(0.0..=f64::MAX)
+                            .speed(0.01),
+                    );
                 });
             }
-            if ui.add_enabled(parts.iter().any(|part| !part["rule"].is_null()), egui::Button::new(crate::localization::tr("Restore cloth"))).clicked() {
+            if ui.button(crate::localization::tr("Apply cloth settings"))
+                .on_hover_text(crate::localization::tr("Saved with Build PAC and drafts. Preview simulation remains approximate.")).clicked() {
                 actions.push(UiAction::CdmwCommand {
                     command: "replacement_cloth",
-                    arguments: json!({"part_ids": ids, "reset": true}),
-                    label: "Restore cloth influence",
+                    arguments: json!({"part_ids": ids, "rule": {
+                        "amount": self.cdmw_cloth.amount_percent / 100.0,
+                        "fixed_above": self.cdmw_cloth.use_height.then_some(self.cdmw_cloth.height),
+                        "fade": if self.cdmw_cloth.use_height { self.cdmw_cloth.fade } else { 0.0 }
+                    }}),
+                    label: "Edit cloth influence",
                 });
             }
-        });
+            ui.horizontal_wrapped(|ui| {
+                if ui.button(crate::localization::tr("Disable cloth")).clicked() {
+                    actions.push(UiAction::CdmwCommand {
+                        command: "replacement_cloth",
+                        arguments: json!({"part_ids": ids, "rule": {"amount": 0.0, "fixed_above": null, "fade": 0.0}}),
+                        label: "Disable cloth influence",
+                    });
+                }
+                if ui.add_enabled(parts.iter().any(|part| !part["rule"].is_null()), egui::Button::new(crate::localization::tr("Restore cloth"))).clicked() {
+                    actions.push(UiAction::CdmwCommand {
+                        command: "replacement_cloth",
+                        arguments: json!({"part_ids": ids, "reset": true}),
+                        label: "Restore cloth influence",
+                    });
+                }
+            });
+        }
+        // Both tabs operate on the same preview and selected parts.
         self.draw_cloth_preview_controls(ui, &parts, actions);
     }
 

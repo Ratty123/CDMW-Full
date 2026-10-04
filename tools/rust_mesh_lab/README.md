@@ -174,10 +174,11 @@ jiggle_bones::samples` compares 41 owned Python reference vectors, including con
 frames using native packed feedback. Regenerate with
 `jiggle_bones/samples/generate_vectors.py` from the repo root.
 
-The native Jiggle preview uses the verified wind consumer with manual speed, direction
-and gust controls; it supplies zero initial sample state, the decoded normal profile and
-a fixed 60 Hz preview clock. Water is decoded in the core but is not exposed as a
-verified mesh effect. No game weather or live profile is inferred.
+The native Jiggle solver retains its tested wind consumer with explicit speed, direction
+and gust inputs, zero initial sample state, the decoded normal profile and a fixed
+60 Hz preview clock. Mesh Editor does not expose wind controls: this consumer acts on
+jiggle contributions and does not drive Cloth. Water is decoded in the core but is not
+exposed as a verified mesh effect. No game weather or live profile is inferred.
 
 ### Render skinning and rig snapshots
 
@@ -343,7 +344,7 @@ centred** view removes only the rigid test transform from draw positions and nor
 the solver retains the full motion. Freehand and guide cloth use the same display
 option, including paused toggles.
 
-Bone and wind controls provide hover examples; decoded damping retains velocity, so
+Bone controls provide hover examples; decoded damping retains velocity, so
 higher values mean less braking. Current/original/disabled comparisons change
 contribution, not authored geometry. The **Approximate vertices** choice retains
 `cdmw_mesh::jiggle::Simulation`. `cargo test --locked -p cdmw_mesh_lab jiggle` exercises

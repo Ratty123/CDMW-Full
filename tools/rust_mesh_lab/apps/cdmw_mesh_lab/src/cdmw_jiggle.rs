@@ -575,7 +575,6 @@ impl LabApplication {
             || (self.cdmw_jiggle.preview.pending.is_some() && self.cdmw_jiggle.preview.play_when_ready);
         let was_inspecting = cloth && self.cdmw_jiggle.preview.show_colliders;
         let can_author = !self.cdmw_busy() && state_bool(&self.cdmw_state, "authoring_enabled");
-        let can_choose_weapon = !self.cdmw_busy() && state_bool(&self.cdmw_state["jiggle"]["decoded"]["cloth"], "available");
         let mut changed = false;
         let mut show_shapes_changed = false;
         let preview = &mut self.cdmw_jiggle.preview;
@@ -672,23 +671,6 @@ impl LabApplication {
             } else {
                 "Shared preview settings. Regional overrides are retained; Reset bone settings clears them. These values are not exported."
             }));
-            ui.collapsing("Wind preview", |ui| {
-                let wind = &mut preview.native_settings.wind;
-                ui.checkbox(&mut wind.enabled, "Enable wind")
-                    .on_hover_text("Adds wind to the preview. For example, enable it while Freehand is still to see wind-driven movement on its own.")
-                    .on_hover_text("Preview wind is supplied manually; game weather is not loaded.");
-                ui.add_enabled_ui(wind.enabled, |ui| {
-                    ui.add(crate::cdmw_ui::numeric::slider(&mut wind.speed, 0.0..=20.0).text("Wind speed"))
-                        .on_hover_text("Strength of the preview wind. For example, zero supplies no wind force; a higher value pushes affected regions more strongly.");
-                    ui.add(crate::cdmw_ui::numeric::slider(&mut wind.direction, 0.0..=360.0).text("Wind direction").suffix("°"))
-                        .on_hover_text("Horizontal wind direction. For example, 0 degrees blows along +X and 90 degrees along +Z in model coordinates.");
-                    ui.add(crate::cdmw_ui::numeric::slider(&mut wind.cycle, 0.05..=10.0).text("Gust cycle (seconds)"))
-                        .on_hover_text("Time between repeating gusts. For example, 1 second gives quick changes, while 5 seconds gives slower changes.");
-                    ui.add(crate::cdmw_ui::numeric::slider(&mut wind.gusts, 0.0..=1.0).text("Gust amount"))
-                        .on_hover_text("How much the wind varies. For example, zero gives steadier wind; a higher value adds stronger gusts and small direction changes.");
-                });
-                if ui.button("Reset wind").clicked() { *wind = native::Wind::default(); }
-            });
         } else if cloth {
             let cloth_state = &self.cdmw_state["jiggle"]["decoded"]["cloth"];
             let standalone = self.cdmw_state["jiggle"]["decoded"]["rig_mode"] == "rigid_attachment";
@@ -757,9 +739,6 @@ impl LabApplication {
                         _ => "Uses the matched rig's default volumes.",
                     })
                     .on_disabled_hover_text(cloth_state["body_collider_reason"].as_str().unwrap_or("Body collisions need supported model or rig volumes."));
-                if !weapon_available {
-                    collision_source_choice(ui, can_choose_weapon, "weapon", actions);
-                }
                 if settings.body_collisions || settings.weapon_collisions {
                     ui.add(crate::cdmw_ui::numeric::slider(&mut settings.collision_margin, 0.0..=0.1).text("Collision margin"));
                 }

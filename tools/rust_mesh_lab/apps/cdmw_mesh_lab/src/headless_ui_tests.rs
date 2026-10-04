@@ -451,6 +451,7 @@ mod guide_authoring_tests {
             "parts": [{"id": "guides:0", "index": 0, "included": true, "name": "cloth", "min_y": 0.0,
                        "max_y": 2.0, "lod_vertices": [1200, 800, 500, 200], "rule": null}]});
         ui.click_tool_button("Cloth")?;
+        ui.click("Experimental features")?;
         ui.click("Create cloth guides (experimental)")?;
         ui.settle_layout();
         Ok(ui)
@@ -4864,19 +4865,8 @@ fn integrated_decoded_jiggle_prepares_compares_cancels_and_preserves_the_previou
     assert_eq!(original.positions[1], current.positions[1]);
     assert!(original.normals.iter().flatten().all(|v| v.is_finite()));
 
-    ui.click("Wind preview")?;
-    ui.click("Enable wind")?;
-    assert!(ui.label_rect("Wind direction").is_some());
-    ui.click("Reset preview")?;
-    ui.click("Play preview")?;
-    wait(&mut ui)?;
-    for _ in 0..20 { ui.application.advance_jiggle_preview(1.0 / 60.0)?; }
-    let windy = &ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame;
-    assert_ne!(windy.positions[1], original.positions[1]);
-    assert_eq!(windy.positions[2], original.positions[2]);
-    assert!(windy.normals.iter().flatten().all(|v| v.is_finite()));
-    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
-    ui.click("Reset wind")?;
+    assert!(ui.label_rect("Wind preview").is_none());
+    assert!(ui.label_rect("Enable wind").is_none());
     ui.click("Reset preview")?;
     ui.click("Play preview")?;
     wait(&mut ui)?;

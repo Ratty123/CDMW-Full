@@ -650,7 +650,7 @@ does not establish real-game rendering or animation compatibility.
 
 ## Cloth influence
 
-For an original PAC at LOD0, open **Mesh Data > Cloth**. Choose all included
+For an original PAC at LOD0, open **Mesh Data > Cloth > Cloth settings**. Choose all included
 cloth parts or **Selected parts only**. **Cloth amount** scales their existing
 influence; **Disable cloth** makes them follow skeletal animation. Enable
 **Fix vertices above height** to set where movement begins, with an optional
@@ -779,6 +779,10 @@ only and do not change mesh Undo, drafts or exported PACs. Outfit files are not 
 automatically and game collision activation remains unverified.
 
 #### Weapon collisions
+
+Open **Cloth > Experimental features** for **Weapon colliders**, **Collision sources**
+and **Create cloth guides (experimental)**. Motion preview remains available in both
+Cloth tabs. The weapon PAC picker appears once, in **Collision sources**.
 
 **Weapon colliders > Weapon collisions** is a preview switch for supported single-root weapon
 PACs. Capsules are fitted around included rigid parts; guide-bound ribbons are excluded.
@@ -997,21 +1001,6 @@ These are preview-only parameters, separate from byte 38. Rig reading and vertex
 preparation run on the existing background loader; cancellation and source changes
 reject late results, and a failed replacement keeps the previous frame paused.
 
-#### Wind preview
-
-**Wind preview** is optional in Decoded bones. Enable it to adjust speed, horizontal
-direction (0 degrees = +X, 90 degrees = +Z), gust amount and cycle duration. These
-manual preview inputs drive the decoded wind sample generator; game weather is not
-loaded. Gusts vary speed/cycle and add a small yaw movement. The sample springs use the
-decoded normal initialization profile, independently of the character's Bone solver
-settings. Speed zero supplies no wind force. Reset wind disables it and clears its
-sample history on the next preview step;
-
-Reset preview starts the whole test again. Wind follows the retained jiggle
-contributions, so disabled vertices and All disabled bypass it. Water controls remain
-unavailable until their render consumer is verified. Wind settings are not written to
-the PAC, draft or Undo/Redo history.
-
 #### Approximate vertices
 
 **Approximate vertices** remains available for meshes without a resolved rig,
@@ -1049,7 +1038,7 @@ shared PAC LOD reader validates record ownership without requiring cloth binding
 
 ### Creating cloth guides on existing bones
 
-In **Mesh Data > Cloth**, expand **Create cloth guides (experimental)**. This
+In **Mesh Data > Cloth > Experimental features**, expand **Create cloth guides (experimental)**. This
 requires a guide-free PAC with a decoded 2-, 3- or 4-LOD layout and a matching
 skeleton. Select the parts to affect and enable **Create guides for selected
 parts only** when appropriate. Choose a **Source LOD** and **Pin guides at or

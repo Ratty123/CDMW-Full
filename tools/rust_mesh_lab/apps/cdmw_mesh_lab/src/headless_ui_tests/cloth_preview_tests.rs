@@ -736,6 +736,7 @@ fn standalone_spline_play_pause_disable_and_reset_keep_authored_mesh_unchanged()
     ui.click("Reset preview")?;
     assert!(ui.application.cdmw_jiggle.preview.scene.is_none());
     assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
+    ui.click("Experimental features")?;
     ui.click("Collision sources")?;
     let actions = ui.actions_from_click("Choose body PABV…")?;
     assert!(!actions.iter().any(|action| matches!(action, UiAction::ChooseClothCollisionInput { .. })));
@@ -1120,9 +1121,44 @@ fn appearance_body_collision_control_uses_owned_volumes_and_preserves_authored_m
 }
 
 #[test]
+fn cloth_experimental_tab_groups_controls_without_interrupting_preview() -> TestResult {
+    let (_root, mut ui, _) = fixture()?;
+    ui.application.cdmw_state["cloth_guides"] = json!({"available": false, "reason": "Guides already exist."});
+    ui.frame(Vec::new());
+    let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
+    assert!(ui.label_rect("Cloth amount").is_some());
+    for label in ["Weapon colliders", "Collision sources", "Create cloth guides (experimental)", "Wind preview"] {
+        assert!(ui.label_rect(label).is_none(), "{label} is outside the default cloth tab");
+    }
+    ui.click("Cloth preview settings")?;
+    assert!(ui.label_rect("Choose weapon PAC…").is_none());
+    ui.click("Play preview")?;
+    wait(&mut ui)?;
+    advance(&mut ui)?;
+    let frame = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.clone();
+    ui.click("Experimental features")?;
+    assert!(ui.label_rect("Cloth amount").is_none());
+    for label in ["Weapon colliders", "Collision sources", "Create cloth guides (experimental)"] {
+        assert!(ui.label_rect(label).is_some(), "missing experimental section {label}");
+    }
+    assert!(ui.application.cdmw_jiggle.preview.playing);
+    assert!(ui.application.cdmw_jiggle.preview.pending.is_none());
+    assert_eq!(ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame, frame);
+    ui.click("Collision sources")?;
+    assert!(ui.label_rect("Choose weapon PAC…").is_some());
+    ui.click("Cloth settings")?;
+    assert!(ui.label_rect("Cloth amount").is_some());
+    assert!(ui.label_rect("Choose weapon PAC…").is_none());
+    assert!(ui.application.cdmw_jiggle.preview.playing);
+    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
+    Ok(())
+}
+
+#[test]
 fn collision_input_controls_choose_roles_even_with_model_volumes() -> TestResult {
     let (_root, mut ui, _) = fixture()?;
     let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
+    ui.click("Experimental features")?;
     ui.click("Collision sources")?;
     for (role, suffix) in [("body", "PABV"), ("head", "PABV"), ("weapon", "PAC")] {
         ui.click(&format!("Choose {role} {suffix}…"))?;
@@ -1173,6 +1209,7 @@ fn weapon_export_controls_work_without_guides_and_restore_when_geometry_is_unava
     ui.application.cdmw_state["cloth"]["available"] = json!(false);
     ui.application.cdmw_state["weapon_collisions"] = json!({"available": true, "active": false});
     ui.frame(Vec::new());
+    ui.click("Experimental features")?;
     ui.click("Weapon colliders")?;
     let actions = ui.actions_from_click("Create weapon colliders")?;
     assert!(actions.iter().any(|action| matches!(action,
@@ -1215,6 +1252,7 @@ fn weapon_collision_preview_and_overlay_follow_centring_without_authoring_edits(
     advance(&mut ui)?;
     let without = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.clone();
     ui.click("Reset preview")?;
+    ui.click("Experimental features")?;
     ui.click("Weapon colliders")?;
     ui.click("Weapon collisions")?;
     assert!(ui.application.cdmw_jiggle.preview.cloth_settings.weapon_collisions);
@@ -1295,6 +1333,7 @@ fn cloak_collision_shapes_prepare_without_playback_and_show_both_sources() -> Te
     assert_eq!(ui.application.jiggle_collider_lines().len(), 672);
     ui.click("Cloth preview settings")?;
     ui.click("Body collisions")?;
+    ui.click("Experimental features")?;
     ui.click("Weapon colliders")?;
     ui.click("Weapon collisions")?;
     assert!(ui.application.cdmw_jiggle.preview.cloth_settings.body_collisions);
@@ -1344,6 +1383,7 @@ fn weapon_reference_load_place_clear_and_preview_controls_keep_cloak_unchanged()
     assert_eq!(display.positions.len(), authored.positions.len() + 3);
     assert_eq!(display.indices.len(), authored.indices.len() + 3);
     assert_eq!(display.triangle_materials.last(), Some(&u32::MAX));
+    ui.click("Experimental features")?;
     ui.click("Weapon colliders")?;
     assert!(ui.label_rect("Create weapon colliders").is_none());
     ui.click("Weapon collisions")?;
@@ -1396,6 +1436,7 @@ fn weapon_placement_rows_keep_vertical_positions_at_different_values_and_fonts()
         load_weapon_reference(root.path(), &mut ui, &mut payload, 0.)?;
         wait(&mut ui)?;
         advance(&mut ui)?;
+        ui.click("Experimental features")?;
         ui.click("Collision sources")?;
         ui.reveal("Clear collision inputs")?;
         let mut baseline: Option<(f32, f32, f32)> = None;
@@ -1528,6 +1569,7 @@ fn weapon_rotation_gizmo_and_contacts_use_the_same_placement() -> TestResult {
     load_weapon_reference(root.path(), &mut ui, &mut payload, 0.2)?;
     wait(&mut ui)?;
     advance(&mut ui)?;
+    ui.click("Experimental features")?;
     ui.click("Collision sources")?;
     ui.click("Rotate weapon")?;
     let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
@@ -1566,6 +1608,7 @@ fn weapon_drag_holds_the_current_body_pose_and_failed_save_keeps_the_scene() -> 
     ui.click("Keep model centred")?;
     advance(&mut ui)?;
     let body_position = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.positions[0];
+    ui.click("Experimental features")?;
     ui.click("Collision sources")?;
     ui.click("Move weapon")?;
     let before = ui.application.weapon_placement();

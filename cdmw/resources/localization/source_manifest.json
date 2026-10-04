@@ -6052,16 +6052,6 @@
       ]
     },
     {
-      "key": "Adds wind to the preview. For example, enable it while Freehand is still to see wind-driven movement on its own.",
-      "origins": [
-        {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
-          "line": 673,
-          "sink": "rust-presentation"
-        }
-      ]
-    },
-    {
       "key": "Adjust Bone Weight",
       "origins": [
         {
@@ -26987,6 +26977,16 @@
       ]
     },
     {
+      "key": "Cloth settings",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs",
+          "line": 696,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Cloth settings require a cloth-capable draft format.",
       "origins": [
         {
@@ -40137,16 +40137,6 @@
       ]
     },
     {
-      "key": "Enable wind",
-      "origins": [
-        {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
-          "line": 672,
-          "sink": "rust-presentation"
-        }
-      ]
-    },
-    {
       "key": "Enabled",
       "origins": [
         {
@@ -41678,6 +41668,16 @@
           "path": "cdmw/ui/archive_browser/mesh_swap_scope_dialog.py",
           "line": 243,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Experimental features",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs",
+          "line": 696,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -51137,26 +51137,6 @@
       ]
     },
     {
-      "key": "Gust amount",
-      "origins": [
-        {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
-          "line": 682,
-          "sink": "rust-presentation"
-        }
-      ]
-    },
-    {
-      "key": "Gust cycle (seconds)",
-      "origins": [
-        {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
-          "line": 680,
-          "sink": "rust-presentation"
-        }
-      ]
-    },
-    {
       "key": "HIRC event/action tables not parsed, so sounds can be swapped but not added",
       "origins": [
         {
@@ -53577,16 +53557,6 @@
       ]
     },
     {
-      "key": "Horizontal wind direction. For example, 0 degrees blows along +X and 90 degrees along +Z in model coordinates.",
-      "origins": [
-        {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
-          "line": 679,
-          "sink": "rust-presentation"
-        }
-      ]
-    },
-    {
       "key": "Hover Current for exact values or selection ranges.",
       "origins": [
         {
@@ -53733,16 +53703,6 @@
           "path": "tools/placement_studio/move_weapon.py",
           "line": 305,
           "sink": "setToolTip"
-        }
-      ]
-    },
-    {
-      "key": "How much the wind varies. For example, zero gives steadier wind; a higher value adds stronger gusts and small direction changes.",
-      "origins": [
-        {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
-          "line": 683,
-          "sink": "rust-presentation"
         }
       ]
     },
@@ -96817,16 +96777,6 @@
       ]
     },
     {
-      "key": "Preview wind is supplied manually; game weather is not loaded.",
-      "origins": [
-        {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
-          "line": 674,
-          "sink": "rust-presentation"
-        }
-      ]
-    },
-    {
       "key": "Preview-core cloth constraint count is invalid.",
       "origins": [
         {
@@ -106438,16 +106388,6 @@
           "path": "tools/placement_studio/window.py",
           "line": 405,
           "sink": "QAction"
-        }
-      ]
-    },
-    {
-      "key": "Reset wind",
-      "origins": [
-        {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
-          "line": 685,
-          "sink": "rust-presentation"
         }
       ]
     },
@@ -126707,16 +126647,6 @@
       ]
     },
     {
-      "key": "Strength of the preview wind. For example, zero supplies no wind force; a higher value pushes affected regions more strongly.",
-      "origins": [
-        {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
-          "line": 677,
-          "sink": "rust-presentation"
-        }
-      ]
-    },
-    {
       "key": "Stretch response",
       "origins": [
         {
@@ -136108,16 +136038,6 @@
           "path": "cdmw/ui/new_item/read_failure.py",
           "line": 62,
           "sink": "python-return:_report_text"
-        }
-      ]
-    },
-    {
-      "key": "Time between repeating gusts. For example, 1 second gives quick changes, while 5 seconds gives slower changes.",
-      "origins": [
-        {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
-          "line": 681,
-          "sink": "rust-presentation"
         }
       ]
     },
@@ -145578,31 +145498,6 @@
           "path": "cdmw/ui/model_preview_settings_dialog.py",
           "line": 297,
           "sink": "_add_slider_row"
-        },
-        {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
-          "line": 678,
-          "sink": "rust-presentation"
-        }
-      ]
-    },
-    {
-      "key": "Wind preview",
-      "origins": [
-        {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
-          "line": 670,
-          "sink": "rust-presentation"
-        }
-      ]
-    },
-    {
-      "key": "Wind speed",
-      "origins": [
-        {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
-          "line": 676,
-          "sink": "rust-presentation"
         }
       ]
     },
