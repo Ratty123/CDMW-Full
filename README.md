@@ -1,7 +1,7 @@
 # Crimson Desert Mod Workbench
 
 [![Windows build](https://img.shields.io/github/actions/workflow/status/Ratty123/CDMW-Full/windows-build.yml?branch=main&style=flat-square&logo=github&label=Windows%20build)](https://github.com/Ratty123/CDMW-Full/actions/workflows/windows-build.yml)
-![version](https://img.shields.io/badge/version-0.11.0--alpha.22-1f6feb?style=flat-square)
+![version](https://img.shields.io/badge/version-0.11.0--alpha.23-1f6feb?style=flat-square)
 ![platform](https://img.shields.io/badge/platform-Windows%2011%20x64-555555?style=flat-square)
 [![license](https://img.shields.io/badge/license-MIT-brightgreen?style=flat-square)](LICENSE)
 
@@ -12,7 +12,7 @@ mod packages.
 **[Download the Windows portable app](https://github.com/Ratty123/CDMW-Full/releases/latest)**
 · [Release history](CHANGELOG.md) · [Report a problem](https://github.com/Ratty123/CDMW-Full/issues)
 
-`0.11.0-alpha.22` is the current source version. For browsing and extraction only,
+`0.11.0-alpha.23` is the current source version. For browsing and extraction only,
 see the smaller, read-only [CDMW Lite](https://github.com/Ratty123/CDMW-Lite).
 
 ## Install
@@ -96,6 +96,11 @@ fresh exports check for unintended inherited custom items.
 but disabled: version 3.5.0 can lose new item records and omit their texture registrations.
 New mod folders can have a custom name and an optional ZIP copy.
 
+**Include mounted items in a new mod** combines installed overlay items and their
+assets with the new item in a separate CDUMM or JMM package. Review the included
+items and archives in Output, then follow the package's installation and rollback
+steps when replacing the original mods.
+
 See the [Create New Item guide](cdmw/ui/new_item/README.md) for detailed controls.
 
 ## Mesh Editor
@@ -109,6 +114,11 @@ jiggle settings, Hair Tools, and Morph & Refit for body and garment adjustments.
 Availability depends on the source format and selected output; disabled controls
 explain their requirements. Hiding a part changes its preview visibility; use the
 mod inclusion controls to exclude it from output.
+
+Open **Selection** directly for selection controls. In **Cloth**, expand
+**Experimental features** for weapon colliders, collision sources and cloth-guide
+creation. Cloth can preview contact with a separately positioned weapon reference;
+experimental collider export still needs in-game testing.
 
 See the [Mesh Editor guide](cdmw/ui/mesh_editor/README.md) for supported edits,
 physics controls, draft recovery and output limits.
@@ -140,8 +150,9 @@ package outputs.
 ## Known limitations
 
 - **Experimental authoring needs in-game testing.** This includes Hair Tools,
-  generated cloth guides, material/shader experiments, and item stats, perks,
-  recipes and rewards. A successful build or preview does not prove game behavior.
+  generated cloth guides and weapon colliders, material/shader experiments, and
+  item stats, perks, recipes and rewards. A successful build or preview does not
+  prove game behavior.
 - **Transparent surfaces can show visual artifacts when they overlap.** Physics
   and material previews approximate the game; preview tuning is separate from
   saved mesh and physics-profile edits.

@@ -7,10 +7,24 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+## [0.11.0-alpha.23] - 2026-10-04
+
+Adds guided private problem reporting, mounted-item packaging and expanded Mesh
+Editor cloth tools, with faster browsing and more reliable authoring workflows.
+
+**Export availability:** Create New Item supports CDUMM (the default), JMM and
+CDMW game overlays. DMM remains visible but disabled because of new-item and
+texture-registration compatibility problems. Mesh Editor replacement exports
+still offer DMM, JMM, CDUMM and Crimson Sharp.
+
+**Experimental features:** Weapon collider export, generated cloth guides,
+material/shader experiments and other labelled experimental tools still need
+in-game testing. Physics and material previews approximate the game; preview
+tuning does not establish in-game behavior.
+
 ### Added
 
 - Create New Item can combine mounted overlay items and their assets with a new item in a separate CDUMM or JMM package. Output reviews the included items and archives, reports missing assets or conflicts, and supplies installation and rollback steps.
-
 - Jiggle can adjust named bone regions independently through the existing contribution control, preserving skin-weight blending across LODs, Undo/Redo and saved drafts. Recovered drafts can use the whole-part controls without reopening the archive. The existing bone preview settings can also target individual regions; solver settings remain preview-only.
 - Mesh Editor offers experimental spline playback with flexible starting settings, guide rotation and adjustable spring-back. Verified rigid attachments can preview without a character skeleton, and saved profile edits refresh the loaded preview.
 - Mesh Editor previews cloth against supported rigid weapon parts or a separately positioned weapon reference. Collision inputs can come from external files or game archives; body and weapon shapes can be inspected through the mesh before playback or while paused. Experimental weapon collider export supports Undo, drafts and Build Mod, alongside an explicit own-model collision profile override; in-game activation remains unverified.
