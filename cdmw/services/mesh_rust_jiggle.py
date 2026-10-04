@@ -338,8 +338,6 @@ def set_cloth_collision_input(authoring, args, stop_event):
         weapon = args.get("role") == "weapon" or placement is not None
         if not decoded.get("available") or not cloth_state.get("available") or (not weapon and session.skeleton is None):
             raise ValueError("Collision inputs need a decoded cloth preview; body/head inputs also need a matching rig.")
-        if not weapon and cloth_state.get("body_collider_source") == "pac_model":
-            raise ValueError("This model's embedded collision volumes take precedence over appearance inputs.")
         if placement is not None:
             if "weapon" not in candidate:
                 raise ValueError("Choose a weapon PAC before changing its preview placement.")
@@ -395,8 +393,6 @@ def set_cloth_collision_input(authoring, args, stop_event):
                 raise ValueError("Standalone rigid attachment has no matched body collision rig.")
             volumes, source_name = select_cloth_body_volumes(
                 session.original_data, session.skeleton, **{role: value[1] for role, value in candidate.items() if role in ("body", "head")})
-            if not clear and args.get("role") in ("body", "head") and source_name == "pac_model":
-                raise ValueError("This model's embedded collision volumes take precedence over appearance inputs.")
             colliders = build_cloth_body_collider_snapshot(session.skeleton, rig, volumes=volumes)
         except (ValueError, OverflowError, struct.error) as exc:
             if not clear and args.get("role") in ("body", "head"):

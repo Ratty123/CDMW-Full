@@ -131,6 +131,7 @@ pub struct Simulation {
     velocities: Vec<DVec3>,
     output: Vec<[f32; 3]>,
     previous_motion: DMat4,
+    previous_weapon_transform: DMat4,
     pub inactive_area_constraints: usize,
 }
 
@@ -355,6 +356,7 @@ impl Simulation {
             velocities: vec![DVec3::ZERO; count],
             output: rest.to_vec(),
             previous_motion: DMat4::IDENTITY,
+            previous_weapon_transform: DMat4::IDENTITY,
             inactive_area_constraints: areas,
         })
     }
@@ -378,31 +380,41 @@ impl Simulation {
     /// One bounded preview substep. Work is transactional: invalid input or an
     /// unstable projection leaves the previous complete simulation/draw state.
     pub fn step(&mut self, dt: f64, motion: Matrix, settings: Settings) -> Result<()> {
+        self.step_with_weapon_transform(dt, motion, settings, self.snapshot.weapon_colliders.len(),
+                                        DMat4::IDENTITY.to_cols_array_2d())
+    }
+
+    /// Move only the separately loaded reference (the suffix of weapon contacts).
+    /// The transform is relative to the immutable, already placed input snapshot.
+    pub fn step_with_weapon_transform(&mut self, dt: f64, motion: Matrix, settings: Settings,
+                                      reference_start: usize, weapon_transform: Matrix) -> Result<()> {
         if !dt.is_finite()
             || !(0.0..=0.1).contains(&dt)
             || dt == 0.0
             || !settings.valid()
             || motion.iter().flatten().any(|v| !v.is_finite())
             || motion.map(|r| r[3]) != [0.0, 0.0, 0.0, 1.0]
+            || reference_start > self.snapshot.weapon_colliders.len()
+            || weapon_transform.iter().flatten().any(|v| !v.is_finite())
+            || weapon_transform.map(|r| r[3]) != [0.0, 0.0, 0.0, 1.0]
         {
             return Err("Invalid cloth preview time, motion or settings.");
         }
         let motion = DMat4::from_cols_array_2d(&motion);
+        let weapon_transform = DMat4::from_cols_array_2d(&weapon_transform);
         if settings.spline && self.snapshot.spline_chains.is_empty() {
             return Err("Spline preview needs complete ordered guide chains with fixed roots.");
         }
-        let axes = [
-            motion.x_axis.truncate(),
-            motion.y_axis.truncate(),
-            motion.z_axis.truncate(),
-        ];
-        if axes.iter().any(|v| (v.length_squared() - 1.0).abs() > 1e-6)
-            || axes[0].dot(axes[1]).abs() > 1e-6
-            || axes[0].dot(axes[2]).abs() > 1e-6
-            || axes[1].dot(axes[2]).abs() > 1e-6
-            || (motion.determinant() - 1.0).abs() > 1e-6
-        {
-            return Err("Cloth preview motion must be a rigid transform.");
+        for transform in [motion, weapon_transform] {
+            let axes = [transform.x_axis.truncate(), transform.y_axis.truncate(), transform.z_axis.truncate()];
+            if axes.iter().any(|v| (v.length_squared() - 1.0).abs() > 1e-6)
+                || axes[0].dot(axes[1]).abs() > 1e-6
+                || axes[0].dot(axes[2]).abs() > 1e-6
+                || axes[1].dot(axes[2]).abs() > 1e-6
+                || (transform.determinant() - 1.0).abs() > 1e-6
+            {
+                return Err("Cloth preview motion must be a rigid transform.");
+            }
         }
         let animation = self
             .frames
@@ -415,20 +427,26 @@ impl Simulation {
         if settings.weapon_collisions && self.snapshot.weapon_colliders.is_empty() {
             return Err("No weapon colliders are available for this preview.");
         }
+        let to_previous_body = self.previous_motion * motion.inverse();
+        let reference_motion = motion * weapon_transform;
+        let to_previous_weapon = self.previous_motion * self.previous_weapon_transform * reference_motion.inverse();
+        let to_current_body = to_previous_body.inverse();
+        let to_current_weapon = to_previous_weapon.inverse();
         let colliders =
             if (settings.body_collisions || settings.weapon_collisions) && self.bindings.iter().any(|b| b.skeletal_blend < 1.0) {
                 self.snapshot
                     .body_colliders
                     .iter()
                     .filter(|_| settings.body_collisions)
-                    .map(|c| (c.in_motion(motion), false))
-                    .chain(self.snapshot.weapon_colliders.iter().filter(|_| settings.weapon_collisions)
-                        .map(|c| (c.in_motion(motion), true)))
+                    .map(|c| (c.in_motion(motion), false, to_previous_body, to_current_body))
+                    .chain(self.snapshot.weapon_colliders.iter().enumerate().filter(|_| settings.weapon_collisions)
+                        .map(|(i, c)| if i >= reference_start {
+                            (c.in_motion(reference_motion), true, to_previous_weapon, to_current_weapon)
+                        } else { (c.in_motion(motion), true, to_previous_body, to_current_body) }))
                     .collect::<Vec<_>>()
             } else {
                 Vec::new()
             };
-        let to_previous_body = self.previous_motion * motion.inverse();
         let masses = self
             .snapshot
             .fixed
@@ -526,13 +544,13 @@ impl Simulation {
             };
             let mut contacts = Vec::new();
             if !self.snapshot.fixed[i] {
-                for (collider, weapon) in &colliders {
+                for (collider, weapon, to_previous, to_current) in &colliders {
                     if let Some((point, normal)) =
-                        if *weapon { collider.project_weapon(positions[i], self.positions[i], settings.collision_margin)? }
+                        if *weapon { collider.project_weapon(positions[i], to_current.transform_point3(self.positions[i]), settings.collision_margin)? }
                         else { collider.project(positions[i], settings.collision_margin)? }
                     {
                         positions[i] = point;
-                        let body_velocity = (point - to_previous_body.transform_point3(point)) / dt;
+                        let body_velocity = (point - to_previous.transform_point3(point)) / dt;
                         contacts.push((normal, body_velocity));
                     }
                 }
@@ -623,6 +641,7 @@ impl Simulation {
         self.velocities = velocities;
         self.output = output;
         self.previous_motion = motion;
+        self.previous_weapon_transform = weapon_transform;
         Ok(())
     }
 }
@@ -1186,6 +1205,40 @@ mod tests {
     }
 
     #[test]
+    fn moving_reference_sweeps_across_guides_without_moving_body_or_authored_contacts() {
+        for enabled in [false, true] {
+            let mut sim = simulation([0, 0, 63]);
+            // The first weapon belongs to the model; only the appended reference moves.
+            sim.snapshot.weapon_colliders = vec![
+                BodyCollider { kind: 5, center1: [10., -1., 0.], center2: [10., 2., 0.],
+                    radius: 0.1, bone_index: 0, source_ordinal: 0 },
+                BodyCollider { kind: 5, center1: [-0.5, -1., 0.], center2: [-0.5, 2., 0.],
+                    radius: 0.1, bone_index: 0, source_ordinal: 1 },
+            ];
+            let settings = Settings { gravity: 0., damping: 0., stretch: 0., bend: 0.,
+                weapon_collisions: enabled, ..Settings::default() };
+            let identity = DMat4::IDENTITY.to_cols_array_2d();
+            sim.step_with_weapon_transform(1. / 60., identity, settings, 1,
+                DMat4::from_translation(DVec3::X).to_cols_array_2d()).unwrap();
+            close(sim.positions()[1], if enabled { DVec3::X * 0.61 } else { DVec3::ZERO });
+            assert_eq!(sim.positions()[0], [0., 1., 0.]);
+            assert_eq!(sim.positions()[2], [1., 0., 0.]);
+            assert_eq!(sim.weapon_colliders()[0].center1, [10., -1., 0.]);
+            assert_eq!(sim.weapon_colliders()[1].center1, [-0.5, -1., 0.]);
+            assert_eq!(sim.previous_motion, DMat4::IDENTITY);
+            if enabled { assert!(sim.velocities[1].x > 0.); }
+            let before = sim.positions().to_vec();
+            let guides = sim.guide_positions();
+            for (start, matrix) in [(3, DMat4::IDENTITY), (1, DMat4::from_scale(DVec3::splat(2.))),
+                (1, DMat4::from_translation(DVec3::splat(f64::NAN)))] {
+                assert!(sim.step_with_weapon_transform(1. / 60., identity, settings, start, matrix.to_cols_array_2d()).is_err());
+                assert_eq!(sim.positions(), before);
+                assert_eq!(sim.guide_positions(), guides);
+            }
+        }
+    }
+
+    #[test]
     fn body_contacts_preserve_tangent_outward_and_moving_body_velocity() {
         let dt = 1.0 / 480.0;
         for incoming in [-1.0, 1.0] {
@@ -1660,6 +1713,12 @@ mod collision {
 
     impl PlacedCollider {
         pub(super) fn project_weapon(&self, point: DVec3, previous: DVec3, margin: f64) -> Result<Option<(DVec3, DVec3)>> {
+            // Sweep in the current collider's frame. A fast dragged sword can
+            // cross a guide entirely between frames; retain the entering side.
+            if matches!(self.kind, 1 | 5)
+                && let Some((surface, normal)) = self.sweep_capsule(previous, point, margin) {
+                return Ok(Some((point + normal * (surface - point).dot(normal).max(0.0), normal)));
+            }
             match self.project(point, margin) {
                 Err(_) if matches!(self.kind, 1 | 5) => {
                     // A fitted weapon can start exactly on a guide's axis.
@@ -1675,6 +1734,47 @@ mod collision {
                 }
                 result => result,
             }
+        }
+
+        fn sweep_capsule(&self, from: DVec3, to: DVec3, margin: f64) -> Option<(DVec3, DVec3)> {
+            let radius = self.radius + margin;
+            let edge = if self.kind == 1 { DVec3::ZERO } else { self.b - self.a };
+            let length = edge.length();
+            let axis = edge.try_normalize().unwrap_or(DVec3::Y);
+            let nearest = self.a + axis * (from - self.a).dot(axis).clamp(0.0, length);
+            if from.distance_squared(nearest) < radius * radius * (1.0 - 1e-9) { return None; }
+            let travel = to - from;
+            if travel.length_squared() < 1e-20 { return None; }
+            let mut hit = None;
+            let mut admit = |t: f64, center: DVec3| {
+                if (0.0..=1.0).contains(&t) && hit.is_none_or(|(old, _, _)| t < old) {
+                    let surface = from + travel * t;
+                    if let Some(normal) = (surface - center).try_normalize()
+                        && travel.dot(normal) < -1e-12 { hit = Some((t, surface, normal)); }
+                }
+            };
+            // Entry roots for both round caps and the finite cylinder.
+            for center in [self.a, self.a + edge] {
+                let relative = from - center;
+                let a = travel.length_squared();
+                let b = relative.dot(travel);
+                let d = b * b - a * (relative.length_squared() - radius * radius);
+                if d >= 0.0 { admit((-b - d.sqrt()) / a, center); }
+            }
+            if length > 1e-12 {
+                let relative = from - self.a;
+                let perpendicular = travel - axis * travel.dot(axis);
+                let radial = relative - axis * relative.dot(axis);
+                let a = perpendicular.length_squared();
+                let b = radial.dot(perpendicular);
+                let d = b * b - a * (radial.length_squared() - radius * radius);
+                if a > 1e-20 && d >= 0.0 {
+                    let t = (-b - d.sqrt()) / a;
+                    let along = (relative + travel * t).dot(axis);
+                    if (0.0..=length).contains(&along) { admit(t, self.a + axis * along); }
+                }
+            }
+            hit.map(|(_, surface, normal)| (surface, normal))
         }
 
         /// Only points inside the expanded primitive are admitted by this preview.

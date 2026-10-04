@@ -45,6 +45,10 @@ pub(crate) struct Simulation {
     pub elapsed: f64,
     pub rotation: Quat,
     pub motion_transform: glam::Mat4,
+    weapon_reference_start: usize,
+    weapon_transform: glam::DMat4,
+    pub weapon_target: glam::DMat4,
+    pub hold_body: bool,
 }
 
 impl Simulation {
@@ -81,6 +85,7 @@ impl Simulation {
         if !(1e-6..=1e6).contains(&scale) || !(min + max).is_finite() {
             bail!("Invalid cloth preview mesh scale.");
         }
+        let weapon_reference_start = core.weapon_colliders().len();
         Ok(Self {
             core,
             pivot: (min + max) * 0.5,
@@ -89,6 +94,10 @@ impl Simulation {
             elapsed: 0.0,
             rotation: Quat::IDENTITY,
             motion_transform: glam::Mat4::IDENTITY,
+            weapon_reference_start,
+            weapon_transform: glam::DMat4::IDENTITY,
+            weapon_target: glam::DMat4::IDENTITY,
+            hold_body: false,
         })
     }
 
@@ -96,12 +105,23 @@ impl Simulation {
         self.core.positions()
     }
 
+    pub fn set_weapon_reference(&mut self, count: usize) -> Result<()> {
+        if count == 0 || count > self.core.weapon_colliders().len() {
+            bail!("Weapon reference contacts do not match the preview snapshot.");
+        }
+        self.weapon_reference_start = self.core.weapon_colliders().len() - count;
+        Ok(())
+    }
+
     pub fn collider_lines(&self, centred: bool) -> Vec<cdmw_render_wgpu::EffectLineVertex> {
         let transform = if centred { glam::Mat4::IDENTITY } else { self.motion_transform };
         let mut lines = Vec::new();
-        for (colliders, colour) in [(self.core.body_colliders(), [0.2, 0.85, 1., 1.]),
-                                   (self.core.weapon_colliders(), [1., 0.7, 0.15, 1.])] {
-        for collider in colliders {
+        for (colliders, colour, weapon) in [(self.core.body_colliders(), [0.2, 0.85, 1., 1.], false),
+                                   (self.core.weapon_colliders(), [1., 0.7, 0.15, 1.], true)] {
+        for (index, collider) in colliders.iter().enumerate() {
+            let transform = if weapon && index >= self.weapon_reference_start {
+                transform * self.weapon_target.as_mat4()
+            } else { transform };
             let a = Vec3::from(collider.center1.map(|v| v as f32));
             let b = if collider.kind == 1 { a } else { Vec3::from(collider.center2.map(|v| v as f32)) };
             let radius = collider.radius as f32;
@@ -152,7 +172,15 @@ impl Simulation {
         }
         let settings = substep_settings(settings)?;
         self.accumulator = (self.accumulator + seconds).min(FRAME_STEP * 8.0);
+        let steps = ((self.accumulator + 1e-12) / STEP).floor() as u32;
+        let (_, start_rotation, start_translation) = self.weapon_transform.to_scale_rotation_translation();
+        let (_, end_rotation, end_translation) = self.weapon_target.to_scale_rotation_translation();
+        let mut step = 0;
         while self.accumulator + 1e-12 >= STEP {
+            step += 1;
+            let fraction = f64::from(step) / f64::from(steps);
+            let weapon_transform = glam::DMat4::from_rotation_translation(
+                start_rotation.slerp(end_rotation, fraction), start_translation.lerp(end_translation, fraction));
             let elapsed = self.elapsed + STEP;
             let phase = (elapsed % 4.0) as f32;
             let (rotation, translation) = match motion {
@@ -184,18 +212,21 @@ impl Simulation {
                     Vec3::ZERO,
                 ),
             };
-            let motion_transform = glam::Mat4::from_rotation_translation(
+            let rotation = if self.hold_body { self.rotation } else { rotation };
+            let motion_transform = if self.hold_body { self.motion_transform } else { glam::Mat4::from_rotation_translation(
                 rotation,
                 self.pivot + translation - rotation * self.pivot,
-            );
+            ) };
             let transform: Matrix = motion_transform.to_cols_array_2d()
                 .map(|row| row.map(f64::from));
             self.core
-                .step(STEP, transform, settings)
+                .step_with_weapon_transform(STEP, transform, settings, self.weapon_reference_start,
+                                            weapon_transform.to_cols_array_2d())
                 .map_err(anyhow::Error::msg)?;
             self.elapsed = elapsed;
             self.rotation = rotation;
             self.motion_transform = motion_transform;
+            self.weapon_transform = weapon_transform;
             self.accumulator -= STEP;
         }
         Ok(())

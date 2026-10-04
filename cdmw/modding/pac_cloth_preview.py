@@ -85,13 +85,13 @@ def rigid_attachment_preview_rig(data: bytes, current_parts=(), *, spline_profil
 
 
 def select_cloth_body_volumes(data: bytes, skeleton, *, body=None, head=None):
-    """Prefer decoded model volumes; only an empty set permits rig defaults.
+    """Use explicit preview inputs over decoded model volumes or rig defaults.
 
     The mapped producer (0x142D3F550/0x142D3EE80) looks raw model keys up in
     the skeleton's hash table via 0x140466840. Mark this materialized set as
     hash-keyed; never apply the PAB loader's index conversion to PAC records.
-    Explicit appearance inputs replace the rig defaults only when the model
-    set is empty. Standalone inputs must have hash keys: there is no matching
+    Explicit body inputs replace the primary set; head inputs merge into it.
+    Standalone inputs must have hash keys: there is no matching
     source-rig provenance for converting their legacy indices here.
     """
     from .pabv_parser import (
@@ -100,15 +100,14 @@ def select_cloth_body_volumes(data: bytes, skeleton, *, body=None, head=None):
     )
 
     model = decode_pac_embedded_volumes(data)
-    if model.volumes:
-        return PabvVolumes(3, model.volumes), "pac_model"
     for value in (body, head):
         if value is not None and not value.uses_bone_hashes:
             raise ValueError("Collision preview inputs need bone hashes; legacy indices need a matching source rig.")
-    primary = body if body is not None else decode_pab_embedded_volumes(skeleton).primary
+    primary = body if body is not None else (PabvVolumes(3, model.volumes) if model.volumes
+                                            else decode_pab_embedded_volumes(skeleton).primary)
     if body is not None or head is not None:
         return merge_pabv_body_head_volumes(primary, head).volumes, "appearance"
-    return primary, "pab_primary"
+    return primary, "pac_model" if model.volumes else "pab_primary"
 
 
 def build_cloth_body_collider_snapshot(skeleton, rig: dict, *, volumes=None) -> list[dict]:

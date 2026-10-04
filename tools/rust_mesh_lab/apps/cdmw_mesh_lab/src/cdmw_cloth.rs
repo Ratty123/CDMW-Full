@@ -823,10 +823,12 @@ impl LabApplication {
         let preview_reason = state_str(cloth, "weapon_collider_reason")
             .unwrap_or("Load a weapon reference to test collisions with this cloth.").to_owned();
         crate::localization::collapsing("Weapon colliders").id_salt("Weapon colliders (experimental)").show(ui, |ui| {
-            ui.add_enabled(preview_available, egui::Checkbox::new(
+            if ui.add_enabled(preview_available, egui::Checkbox::new(
                 &mut self.cdmw_jiggle.preview.cloth_settings.weapon_collisions, crate::localization::tr("Weapon collisions")))
                 .on_hover_text(crate::localization::tr("Uses the fitted weapon shapes during cloth preview. Choosing a weapon creates these shapes automatically."))
-                .on_disabled_hover_text(crate::localization::tr(preview_reason));
+                .on_disabled_hover_text(crate::localization::tr(preview_reason)).changed() {
+                self.play_weapon_preview();
+            }
             if state_bool(&state, "available") || active {
                 ui.horizontal_wrapped(|ui| {
                     if ui.add_enabled(available && !active, egui::Button::new(crate::localization::tr("Create weapon colliders"))).clicked() {

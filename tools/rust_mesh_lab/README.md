@@ -241,6 +241,14 @@ this core through `cdmw_cloth::preview` to the shared motion controller and boun
 loader. It supplies up/down, start/stop and turning motion, pause/resume/reset,
 current/original/disabled weight comparisons, and preview-only solver settings.
 
+Separate weapon references carry their placed draw geometry, placement transform and
+the count of contacts appended to the cloth snapshot. The weapon gizmo and numeric
+controls update this reference locally, independently of `WorkingMesh`. Translation
+and rotation are interpolated over cloth substeps; relative contact sweeps prevent
+fast capsule crossings from skipping a guide. A release persists placement through
+the existing host command, and its acknowledgement retains the running simulation.
+Body/head source overrides remain preview-only and can replace embedded model defaults.
+
 ### Authored cloth profile preview
 
 `Authored cloth profile` shows the exact archive-sidecar assignments for the

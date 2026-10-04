@@ -175,6 +175,25 @@ def test_invalid_prepared_archive_collision_preserves_last_good_input(collision_
     assert host.cloth_collision_inputs == inputs and session.revision == revision
 
 
+def test_external_body_and_archive_head_combine_without_replacing_each_other(collision_session, tmp_path):
+    from cdmw.services.mesh_rust_authoring import read_owned_payload_reference
+    from tests.test_pabv_parser import container, record
+
+    _, session, host = collision_session
+    before = shadow_output(host)
+    body = tmp_path / 'body.pabv'
+    body.write_bytes(container(record(key=session.skeleton.bones[0].name_hash, parameters=(.5, 2.)),
+                               record(key=session.skeleton.bones[1].name_hash)))
+    command(host, 'cloth_collision_input', {'role': 'body', 'path': str(body)})
+    entry, prepared = _input(tmp_path, 'head', container(record(
+        key=session.skeleton.bones[1].name_hash, parameters=(.75, 2.))))
+    result = command(host, 'cloth_collision_input', {'role': 'head', '_archive_entry': entry, '_archive_prepared': prepared})
+    assert result['state']['jiggle']['collision_inputs'] == {'body': 'body.pabv', 'head': entry.path}
+    payload = read_owned_payload_reference(host.root, decoded(host)['file'])
+    assert [(c['bone_index'], c['radius']) for c in payload['cloth']['body_colliders']] == [(0, .5), (1, .75)]
+    assert shadow_output(host) == before
+
+
 def test_archive_collision_picker_cancel_uses_protocol_worker_and_recovers_queue(tmp_path):
     from PySide6.QtCore import QThread
     from tests.test_mesh_archive_refit_flow import _wait_for_protocol_worker

@@ -19,6 +19,7 @@ pub(crate) mod numeric {
         text: egui::WidgetText,
         suffix: String,
         min_decimals: usize,
+        compact_width: Option<f32>,
     }
 
     pub(crate) fn value<N: Numeric>(value: &mut N) -> Number<'_> {
@@ -37,6 +38,7 @@ pub(crate) mod numeric {
             text: Default::default(),
             suffix: String::new(),
             min_decimals: 0,
+            compact_width: None,
         }
     }
 
@@ -53,6 +55,11 @@ pub(crate) mod numeric {
     }
 
     impl Number<'_> {
+        /// Bounded display width with full precision in the scrollable text editor.
+        pub(crate) fn compact_width(mut self, width: f32) -> Self {
+            self.compact_width = Some(width);
+            self
+        }
         pub(crate) fn range<N: Numeric>(mut self, range: RangeInclusive<N>) -> Self {
             self.range = range.start().to_f64()..=range.end().to_f64();
             self
@@ -289,7 +296,54 @@ pub(crate) mod numeric {
                     if self.clamping != SliderClamping::Never {
                         drag = drag.range(self.range.clone()).clamp_existing_to_range(false);
                     }
-                    let mut response = ui.add(drag).on_hover_text(crate::localization::tr(
+                    let old_size = ui.spacing().interact_size;
+                    let mut response = if let Some(width) = self.compact_width {
+                        ui.spacing_mut().interact_size.x = width;
+                        let response = if ui.memory(|memory| memory.has_focus(value_id)) {
+                            drop(drag);
+                            let mut text = ui.data_mut(|data| data.get_temp::<String>(value_id)).unwrap_or_else(|| next.to_string());
+                            let response = ui.add(egui::TextEdit::singleline(&mut text).id(value_id)
+                                .font(ui.style().drag_value_text_style.clone()).desired_width(width - 2.0 * ui.spacing().button_padding.x)
+                                .min_size(egui::vec2(width, old_size.y)).margin(ui.spacing().button_padding));
+                            if response.gained_focus() {
+                                let mut state = egui::TextEdit::load_state(ui.ctx(), value_id).unwrap_or_default();
+                                state.cursor.set_char_range(Some(egui::text::CCursorRange::two(
+                                    egui::text::CCursor::default(), egui::text::CCursor::new(text.chars().count()))));
+                                state.store(ui.ctx(), response.id);
+                            }
+                            if response.lost_focus() && !cancel && let Some(value) = parse(&text) { next = value; }
+                            ui.data_mut(|data| data.insert_temp(value_id, text));
+                            response
+                        } else {
+                            let painter = ui.painter().clone();
+                            let font = ui.style().drag_value_text_style.resolve(ui.style());
+                            let colour = ui.visuals().text_color();
+                            let suffix = self.suffix.clone();
+                            let text_width = width - 2.0 * ui.spacing().button_padding.x - 2.0;
+                            let response = ui.add(drag.custom_formatter(move |value, _| {
+                                let fits = |text: &str| painter.layout_no_wrap(format!("{text}{suffix}"), font.clone(), colour).size().x <= text_width;
+                                for precision in (0..=9).rev() {
+                                    let text = format!("{value:.precision$}");
+                                    let text = if text.contains('.') { text.trim_end_matches('0').trim_end_matches('.') } else { &text };
+                                    if value != 0.0 && text.parse::<f64>() == Ok(0.0) { continue; }
+                                    if fits(text) { return text.to_owned(); }
+                                    let compact = text.strip_prefix("0.").map(|v| format!(".{v}"))
+                                        .or_else(|| text.strip_prefix("-0.").map(|v| format!("-.{v}")));
+                                    if let Some(text) = compact && fits(&text) { return text; }
+                                }
+                                for precision in (0..=3).rev() {
+                                    let text = format!("{value:.precision$e}");
+                                    if fits(&text) { return text; }
+                                }
+                                // Hover or click exposes the exact value when the rail is narrow.
+                                "…".to_owned()
+                            }));
+                            if response.clicked() { ui.data_mut(|data| data.insert_temp(value_id, next.to_string())); }
+                            response
+                        };
+                        ui.spacing_mut().interact_size = old_size;
+                        response.on_hover_text(format!("{old}{}", self.suffix))
+                    } else { ui.add(drag) }.on_hover_text(crate::localization::tr(
                         "Click to type. Scroll or use Up/Down while focused. Choose an increment with ⋮."
                     ));
                     if cancel {
@@ -1208,11 +1262,11 @@ impl LabApplication {
     }
 
     fn cdmw_show_busy_controls(&self) -> bool {
-        // Selection is already shown locally. Do not flash the surrounding UI
+        // Selection and weapon placement are already shown locally. Keep the UI steady
         // while the host records it; cdmw_busy still guards edits until the reply.
         self.cdmw_pending_request
             .as_ref()
-            .is_some_and(|pending| pending.origin != Some(CdmwRequestOrigin::Selection))
+            .is_some_and(|pending| !matches!(pending.origin, Some(CdmwRequestOrigin::Selection | CdmwRequestOrigin::WeaponPlacement)))
             || self.hair.preparing()
     }
 
@@ -1232,7 +1286,7 @@ impl LabApplication {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new(crate::localization::tr("Mesh Editor")).heading().strong());
                     if self.cdmw_pending_request.as_ref().is_some_and(|pending|
-                        pending.origin != Some(CdmwRequestOrigin::Selection)) || self.hair.saving() {
+                        !matches!(pending.origin, Some(CdmwRequestOrigin::Selection | CdmwRequestOrigin::WeaponPlacement))) || self.hair.saving() {
                         ui.add(Spinner::new());
                     }
                     if wide {
@@ -4257,12 +4311,12 @@ impl LabApplication {
             });
         });
         self.draw_cdmw_physics_detection(ui, &selected);
-        if busy {
+        if busy && !self.cdmw_pending_request.as_ref().is_some_and(|request| request.origin == Some(CdmwRequestOrigin::WeaponPlacement)) {
             ui.small(crate::localization::tr("Updating parts…"));
         } else if state_str(&self.cdmw_state, "output_policy") != Some("free_edit_rebuild") {
-            ui.menu_button(crate::localization::tr("Enable part edits…"), |ui| {
+            ui.add_enabled_ui(!busy, |ui| ui.menu_button(crate::localization::tr("Enable part edits…"), |ui| {
                 self.draw_cdmw_output_policy(ui, actions)
-            })
+            })).inner
             .response
             .on_hover_text(crate::localization::tr("Duplicate and Delete require Free Edit output"));
         } else if !selected.is_empty() && selected.len() >= parts.len() {

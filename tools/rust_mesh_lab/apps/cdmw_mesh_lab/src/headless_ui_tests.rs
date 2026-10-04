@@ -110,6 +110,7 @@ mod precision_controls {
                                     .speed(0.01),
                             ),
                             2 => ui.add(numeric::slider(&mut self.count, 1..=8).text("Count")),
+                            4 => ui.add(numeric::value(&mut self.value).range(-10.0..=10.0).compact_width(52.0)),
                             _ => numeric::text(
                                 ui,
                                 &mut self.text,
@@ -231,6 +232,33 @@ mod precision_controls {
             ui.type_value("inf");
             assert_eq!(ui.value, 10.0);
         }
+    }
+
+    #[test]
+    fn compact_numbers_keep_exact_text_entry_cancel_and_increment_behavior() {
+        let mut ui = Controls::new(4);
+        let position = ui.number(ui.value);
+        ui.step("0.5");
+        ui.type_value("-0.123456789");
+        assert_eq!(ui.value, -0.123456789);
+        let menu = ui.rect("⋮");
+        ui.click_at(position);
+        ui.frame(vec![key_event(egui::Key::Enter, true)]);
+        ui.frame(vec![key_event(egui::Key::Enter, false)]);
+        assert_eq!(ui.value, -0.123456789, "reopening a compact value must not round it");
+        ui.click_at(position);
+        ui.scroll(position, true);
+        assert!((ui.value - 0.376543211).abs() < 1e-12);
+        ui.frame(vec![key_event(egui::Key::Enter, true)]);
+        ui.frame(vec![key_event(egui::Key::Enter, false)]);
+        assert!((ui.value - 0.376543211).abs() < 1e-12);
+        ui.click_at(position);
+        ui.frame(vec![Event::Text("9.87654321".into())]);
+        assert!((ui.value - 0.376543211).abs() < 1e-12);
+        ui.frame(vec![key_event(egui::Key::Escape, true)]);
+        ui.frame(vec![key_event(egui::Key::Escape, false)]);
+        assert!((ui.value - 0.376543211).abs() < 1e-12);
+        assert_eq!(ui.rect("⋮"), menu);
     }
 
     #[test]

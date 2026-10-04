@@ -153,7 +153,8 @@ def placed_weapon_reference(reference):
     if reference is None:
         return None
     return {"positions": [_place_weapon_point(p, reference) for p in reference["mesh"]["positions"]],
-            "indices": reference["mesh"]["indices"]}
+            "indices": reference["mesh"]["indices"], "collider_count": len(reference["colliders"]),
+            "placement": {key: reference[key] for key in ("offset", "rotation")}}
 
 
 def combined_preview_colliders(data, *, parts=None, included=None, reference=None):

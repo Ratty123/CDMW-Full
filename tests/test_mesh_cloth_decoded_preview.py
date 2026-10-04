@@ -439,7 +439,7 @@ def test_collision_input_failure_preserves_last_valid_snapshot(collision_session
     assert session.original_data == original
 
 
-def test_collision_input_cannot_override_embedded_model_or_unknown_model_metadata(collision_session, tmp_path, monkeypatch):
+def test_collision_inputs_override_model_volumes_and_clear_restores_them(collision_session, tmp_path, monkeypatch):
     from dataclasses import replace
     from cdmw.modding import pabv_parser
     from tests.test_mesh_rust_replacement import command
@@ -447,14 +447,21 @@ def test_collision_input_cannot_override_embedded_model_or_unknown_model_metadat
 
     original, session, host = collision_session
     path = tmp_path / 'override.pabv'
-    path.write_bytes(container(record(key=0xA23A288E)))
+    path.write_bytes(container(record(key=0xA23A288E, parameters=(.75, 2.))))
     model = replace(pabv_parser.decode_pac_embedded_volumes(original),
                     volumes=pabv_parser.decode_pabv(container(record(key=0xA23A288E))).volumes)
     monkeypatch.setattr(pabv_parser, 'decode_pac_embedded_volumes', lambda _: model)
     before = decoded(host)
-    with pytest.raises(ValueError, match='take precedence'):
-        command(host, 'cloth_collision_input', {'role': 'body', 'path': str(path)})
-    assert decoded(host) == before and not host.cloth_collision_inputs
+    assert before['cloth']['body_collider_source'] == 'pac_model'
+    for role in ('head', 'body'):
+        command(host, 'cloth_collision_input', {'role': role, 'path': str(path)})
+        state = decoded(host)
+        assert state['cloth']['body_collider_source'] == 'appearance'
+        payload = read_owned_payload_reference(host.root, state['file'])
+        assert payload['cloth']['body_colliders'][0]['radius'] == .75
+        command(host, 'cloth_collision_input', {'clear': True})
+        assert decoded(host) == before and not host.cloth_collision_inputs
+    # Unknown model metadata still fails explicitly instead of guessing its layout.
     def unknown(_):
         raise ValueError('Unknown model metadata')
     monkeypatch.setattr('cdmw.modding.pabv_parser.decode_pac_embedded_volumes', unknown)

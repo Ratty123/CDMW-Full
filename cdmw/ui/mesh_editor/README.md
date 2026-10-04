@@ -757,7 +757,7 @@ frames never change authored geometry, drafts or exports.
 #### Body collisions
 
 **Body collisions** optionally projects moving cloth guides against authored sphere,
-cylinder and capsule volumes. A decoded, nonempty model PAC volume set takes precedence;
+cylinder and capsule volumes. By default, a decoded, nonempty model PAC volume set takes precedence;
 a confirmed empty set uses the matched PAB rig's primary defaults. The panel identifies
 which source is used. Model volumes bind through stored bone hashes, independently of
 palette order. Colliders use the same neutral pose and up/down or turning motion as the
@@ -768,11 +768,11 @@ Undecoded model metadata, missing or ambiguous bone bindings, and unsupported vo
 disable this option while leaving ordinary cloth playback available. They do not
 silently substitute rig defaults. **Collision sources** accepts body/head PABV inputs
 from **External file…** or **Game archives…** for the current preview. Archive search
-shows only the requested file type and loads only the selected file. With an empty model
-set, the body input replaces rig
-defaults and the head input replaces the first matching head volume. Standalone inputs
-must use bone hashes; unsupported shapes or bindings are rejected. Model volumes retain
-precedence and disable these choosers. **Clear collision inputs** restores the defaults.
+shows only the requested file type and loads only the selected file. The body input replaces
+model or rig defaults and the head input replaces the first matching head volume in that
+set. Both inputs can be selected together, including an external body and an archive head.
+Standalone inputs must use bone hashes; unsupported shapes or bindings are rejected.
+**Clear collision inputs** restores the model or rig defaults.
 
 Failed or cancelled loads preserve the previous inputs. Inputs are held for this session
 only and do not change mesh Undo, drafts or exported PACs. Outfit files are not selected
@@ -797,10 +797,16 @@ weapon reference to enable **Weapon collisions**. Loading it automatically displ
 rigid parts as an untextured solid reference, fits collision capsules and shows their gold
 outlines. Enable **Weapon collisions** under **Weapon colliders** to use those contacts
 during playback; no separate creation step is needed for a reference. **Show collision
-shapes** hides the outlines independently of the reference mesh. Position and rotation
-use one stable row per axis and move the mesh and contacts together. The last valid view
-stays visible while a new placement is prepared. This reference uses the preview's
-rigid test motion; game sockets and weapon animation are not loaded. Loading and placing
+shapes** hides the outlines independently of the reference mesh. **Move weapon** and
+**Rotate weapon** show a separate gizmo at the weapon's origin. Drag an axis or the
+centre to place the weapon without editing the cloak; Escape cancels the drag.
+Position and rotation each use one horizontal XYZ row that keeps its height as values
+change. Gizmo and numeric placement move the mesh and contacts together and resume a
+stationary-body cloth test. With **Weapon collisions** enabled, moving contacts push
+the cloth guides; fast crossings retain the entering side. Fixed guides and disabled cloth
+influence remain fixed. Placement is retained on release without resetting the simulation.
+The other motion tests still move the body and reference together; game sockets and
+weapon animation are not loaded. Loading and placing
 it changes only the current preview. Clear, failed-load and cancellation behavior match
 the body/head inputs above.
 

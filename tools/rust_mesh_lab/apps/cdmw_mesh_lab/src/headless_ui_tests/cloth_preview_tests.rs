@@ -1120,7 +1120,7 @@ fn appearance_body_collision_control_uses_owned_volumes_and_preserves_authored_m
 }
 
 #[test]
-fn collision_input_controls_choose_roles_clear_and_observe_model_precedence() -> TestResult {
+fn collision_input_controls_choose_roles_even_with_model_volumes() -> TestResult {
     let (_root, mut ui, _) = fixture()?;
     let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
     ui.click("Collision sources")?;
@@ -1144,7 +1144,17 @@ fn collision_input_controls_choose_roles_clear_and_observe_model_precedence() ->
     ui.frame(Vec::new());
     assert!(ui.label_rect("Body volumes: chosen.pabv").is_some());
     assert!(ui.label_rect("Body volumes: character/model/body/chosen.pabv").is_none());
-    assert!(ui.actions_from_click("Choose body PABV…")?.is_empty());
+    for role in ["body", "head"] {
+        ui.click(&format!("Choose {role} PABV…"))?;
+        assert!(ui.actions_from_click("External file…")?.iter().any(|action|
+            matches!(action, UiAction::ChooseClothCollisionInput { role: selected } if *selected == role)));
+        ui.frame(Vec::new());
+        ui.click(&format!("Choose {role} PABV…"))?;
+        assert!(ui.actions_from_click("Game archives…")?.iter().any(|action|
+            matches!(action, UiAction::CdmwCommand { arguments, .. } if arguments == &json!({"role": role, "source": "archive"}))));
+        ui.application.cdmw_pending_request = None;
+        ui.frame(Vec::new());
+    }
     ui.click("Choose weapon PAC…")?;
     assert!(ui.actions_from_click("External file…")?.iter().any(|action|
         matches!(action, UiAction::ChooseClothCollisionInput { role: "weapon" })));
@@ -1297,9 +1307,15 @@ fn cloak_collision_shapes_prepare_without_playback_and_show_both_sources() -> Te
 }
 
 fn load_weapon_reference(root: &std::path::Path, ui: &mut HeadlessUi, payload: &mut Value, x: f64) -> TestResult {
-    payload["weapon_reference"] = json!({"positions": [[x, 0., 0.], [x + 0.3, 0., 0.], [x, 1., 0.]], "indices": [0, 1, 2]});
+    load_weapon_reference_at(root, ui, payload, [x, 0., 0.])
+}
+
+fn load_weapon_reference_at(root: &std::path::Path, ui: &mut HeadlessUi, payload: &mut Value, offset: [f64; 3]) -> TestResult {
+    let [x, y, z] = offset;
+    payload["weapon_reference"] = json!({"positions": [[x, y, z], [x + 0.3, y, z], [x, y + 1., z]], "indices": [0, 1, 2],
+        "collider_count": 1, "placement": {"offset": offset, "rotation": [0., 0., 0.]}});
     payload["cloth"]["weapon_colliders"] = json!([
-        {"kind": 5, "center1": [x, 0., 0.], "center2": [x, 1., 0.], "radius": 0.1, "bone_index": 0, "source_ordinal": 0}
+        {"kind": 5, "center1": [x, y, z], "center2": [x, y + 1., z], "radius": 0.1, "bone_index": 0, "source_ordinal": 0}
     ]);
     let bytes = serde_json::to_vec(payload)?;
     std::fs::write(root.join("jiggle-rig.json"), &bytes)?;
@@ -1308,7 +1324,7 @@ fn load_weapon_reference(root: &std::path::Path, ui: &mut HeadlessUi, payload: &
     state["jiggle"]["decoded"]["file"]["sha256"] = json!(format!("{:X}", Sha256::digest(&bytes)));
     state["jiggle"]["decoded"]["cloth"]["weapon_collider_count"] = json!(1);
     state["jiggle"]["collision_inputs"] = json!({"weapon": "sword.pac"});
-    state["jiggle"]["weapon_placement"] = json!({"offset": [x, 0., 0.], "rotation": [0., 0., 0.]});
+    state["jiggle"]["weapon_placement"] = json!({"offset": offset, "rotation": [0., 0., 0.]});
     ui.application.install_validated_cdmw_state(state, None)?;
     ui.frame(Vec::new());
     Ok(())
@@ -1332,6 +1348,7 @@ fn weapon_reference_load_place_clear_and_preview_controls_keep_cloak_unchanged()
     assert!(ui.label_rect("Create weapon colliders").is_none());
     ui.click("Weapon collisions")?;
     assert!(ui.application.cdmw_jiggle.preview.cloth_settings.weapon_collisions);
+    ui.click("Pause preview")?;
     assert!(ui.application.cdmw_pending_request.is_none());
     assert!(ui.label_rect("Weapon colliders").unwrap().top() < ui.label_rect("Collision sources").unwrap().top());
     ui.reveal("2 simulated vertices")?;
@@ -1373,23 +1390,205 @@ fn weapon_reference_load_place_clear_and_preview_controls_keep_cloak_unchanged()
 #[test]
 fn weapon_placement_rows_keep_vertical_positions_at_different_values_and_fonts() -> TestResult {
     for font in [10., 14., 18.] {
-        let (_root, mut ui, _) = fixture()?;
+        let (root, mut ui, bytes) = fixture()?;
         ui.application.apply_cdmw_theme_payload(&json!({"font_point_size": font, "density": "comfortable"}));
-        ui.application.cdmw_state["jiggle"]["collision_inputs"] = json!({"weapon": "sword.pac"});
+        let mut payload: Value = serde_json::from_slice(&bytes)?;
+        load_weapon_reference(root.path(), &mut ui, &mut payload, 0.)?;
+        wait(&mut ui)?;
+        advance(&mut ui)?;
         ui.click("Collision sources")?;
         ui.reveal("Clear collision inputs")?;
-        let mut baseline: Option<(f32, f32)> = None;
+        let mut baseline: Option<(f32, f32, f32)> = None;
         for value in [0., 0.01, -9.999999999, 100., -100., 1.234567891] {
-            ui.application.cdmw_state["jiggle"]["weapon_placement"] = json!({"offset": [value, value, value], "rotation": [value, value, value]});
+            let placement = cdmw_jiggle::weapon::Placement { offset: [value; 3], rotation: [value; 3] };
+            ui.application.place_weapon_preview(placement);
+            assert_eq!(ui.application.weapon_placement(), placement, "local placement: font {font}, value {value}");
+            ui.frame(Vec::new());
+            assert_eq!(ui.application.weapon_placement(), placement,
+                "first frame: font {font}, value {value}, scene {}, pending {:?}, source {}",
+                ui.application.cdmw_jiggle.preview.scene.is_some(), ui.application.cdmw_jiggle.preview.pending,
+                ui.application.cdmw_state["jiggle"]["weapon_placement"]);
             ui.settle_layout();
+            assert_eq!(ui.application.weapon_placement(), placement, "display formatting must not round placement");
             let positions = (ui.label_rect("Weapon preview rotation").ok_or("rotation label")?.top(),
                 ui.label_rect("Clear collision inputs").ok_or("clear label")?.top());
+            let position_label = ui.label_rect("Weapon preview position").ok_or("position label")?;
+            let axes = ["X", "Y", "Z"].map(|axis| ui.label_rect_where(axis, |r|
+                r.top() > position_label.bottom() && r.top() < positions.0));
+            let [Some(x), Some(y), Some(z)] = axes else { panic!("XYZ must all remain visible: font {font}, value {value}, {axes:?}"); };
+            assert!((x.top() - y.top()).abs() < 0.1 && (y.top() - z.top()).abs() < 0.1, "font {font}, value {value}: {axes:?}");
+            assert!(x.left() < y.left() && y.left() < z.left());
+            let rotation_axes = ["X", "Y", "Z"].map(|axis| ui.label_rect_where(axis, |r|
+                r.top() > positions.0 && r.top() < positions.1));
+            let [Some(x), Some(y), Some(z)] = rotation_axes else { panic!("rotation XYZ: {rotation_axes:?}"); };
+            assert!((x.top() - y.top()).abs() < 0.1 && (y.top() - z.top()).abs() < 0.1);
+            for (top, bottom) in [(position_label.bottom(), positions.0), (positions.0, positions.1)] {
+                let menus = ui.output.shapes.iter().filter(|clipped| {
+                    let egui::Shape::Text(text) = &clipped.shape else { return false; };
+                    let rect = text.visual_bounding_rect();
+                    text.galley.job.text == "⋮" && rect.top() > top && rect.bottom() < bottom
+                        && clipped.clip_rect.contains_rect(rect)
+                }).count();
+                let bounds = ui.output.shapes.iter().filter_map(|clipped| {
+                    let egui::Shape::Text(text) = &clipped.shape else { return None; };
+                    let rect = text.visual_bounding_rect();
+                    (text.galley.job.text == "⋮" && rect.top() > top && rect.bottom() < bottom)
+                        .then_some((rect, clipped.clip_rect))
+                }).collect::<Vec<_>>();
+                assert_eq!(menus, 3, "every number and increment must fit: font {font}, value {value}, {bounds:?}");
+            }
+            let layout = (positions.0, positions.1, ui.application.viewport_rect.unwrap().left());
             if let Some(baseline) = baseline {
-                assert!((positions.0 - baseline.0).abs() < 0.1 && (positions.1 - baseline.1).abs() < 0.1,
-                    "font {font}, value {value}: {positions:?} != {baseline:?}");
-            } else { baseline = Some(positions); }
+                assert!((layout.0 - baseline.0).abs() < 0.1 && (layout.1 - baseline.1).abs() < 0.1
+                        && (layout.2 - baseline.2).abs() < 0.1,
+                    "font {font}, value {value}: {layout:?} != {baseline:?}");
+            } else {
+                baseline = Some(layout);
+            }
+            if ui.application.cdmw_pending_request.take().is_some() {
+                let mut state = ui.application.cdmw_state.clone();
+                state["jiggle"]["weapon_placement"] = json!(placement);
+                ui.application.install_validated_cdmw_state(state, None)?;
+            }
         }
     }
+    Ok(())
+}
+
+#[test]
+fn weapon_gizmo_drags_reference_and_cloth_independently_and_ack_keeps_playback() -> TestResult {
+    for enabled in [false, true] {
+        let (root, mut ui, bytes) = fixture()?;
+        let mut payload: Value = serde_json::from_slice(&bytes)?;
+        load_weapon_reference_at(root.path(), &mut ui, &mut payload, [0.2, -1., -1.])?;
+        wait(&mut ui)?;
+        advance(&mut ui)?;
+        let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
+        ui.application.cdmw_jiggle.preview.cloth_settings = cdmw_mesh::cloth::Settings {
+            gravity: 0., stretch: 0., bend: 0., restore_angle: 0., damping: 0.,
+            weapon_collisions: enabled, ..Default::default()
+        };
+        let rect = ui.application.viewport_rect.unwrap();
+        let (_, pivot) = ui.application.weapon_gizmo().ok_or("weapon gizmo")?;
+        let (_, start, end, _) = gizmo_segments(&ui.application.camera, pivot, rect).into_iter()
+            .find(|(axis, _, _, _)| *axis == GizmoAxis::X).ok_or("X axis")?;
+        let press = start.lerp(end, 0.8);
+        assert_eq!(ui.application.hit_test_gizmo(ViewportTool::Move, press, pivot, rect), Some(GizmoAxis::X));
+        let delta = ui.application.camera.project(pivot + Vec3::X, rect).unwrap().screen
+            - ui.application.camera.project(pivot, rect).unwrap().screen;
+        ui.frame(vec![Event::PointerMoved(egui::pos2(press.x, press.y)),
+            pointer_button(egui::pos2(press.x, press.y), PointerButton::Primary, true)]);
+        let target = press + delta;
+        ui.frame(vec![Event::PointerMoved(egui::pos2(target.x, target.y))]);
+        assert!(ui.application.cdmw_pending_request.is_none(), "no host work during dragging");
+        ui.application.advance_jiggle_preview(1. / 60.)?;
+        let placement = ui.application.weapon_placement();
+        assert!(placement.offset[0] > 1.0, "{placement:?}");
+        assert_eq!(placement.offset[1..], [-1., -1.]);
+        let scene = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap();
+        assert_eq!(scene.frame.positions[0], authored.positions[0]);
+        if enabled { assert!(scene.frame.positions[1][0] > authored.positions[1][0] + 0.1,
+            "contact: before {:?}, after {:?}, placement {placement:?}", authored.positions, scene.frame.positions); }
+        else { assert_eq!(scene.frame.positions, authored.positions); }
+        assert!((f64::from(scene.display.positions[authored.positions.len()][0]) - placement.offset[0]).abs() < 1e-5);
+        assert!(ui.application.jiggle_collider_lines().iter().all(|p| p.position[0] > 0.8));
+        ui.frame(vec![pointer_button(egui::pos2(target.x, target.y), PointerButton::Primary, false)]);
+        assert!(ui.application.cdmw_pending_request.is_some());
+        let frame = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.clone();
+        ui.application.cdmw_pending_request = None;
+        load_weapon_reference_at(root.path(), &mut ui, &mut payload, placement.offset)?;
+        assert!(ui.application.cdmw_jiggle.preview.pending.is_none(), "placement acknowledgement must not reload cloth");
+        assert_eq!(ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame, frame);
+        assert!(ui.application.cdmw_jiggle.preview.playing);
+        assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
+        assert!(ui.application.history.undo_len() == 0 && ui.application.cdmw_transaction_attempts == 0);
+        // Cancel and camera ownership restore an in-progress placement without host edits.
+        for cancel_by_camera in [false, true] {
+            let rect = ui.application.viewport_rect.unwrap();
+            let (_, pivot) = ui.application.weapon_gizmo().unwrap();
+            let point = ui.application.camera.project(pivot, rect).unwrap().screen;
+            for event in [ViewportPointerEvent::PrimaryPressed(point), ViewportPointerEvent::PrimaryMoved(point + Vec2::splat(20.))] {
+                ui.application.pointer_events.push(event);
+            }
+            ui.frame(Vec::new());
+            assert_ne!(ui.application.weapon_placement(), placement);
+            if cancel_by_camera { ui.application.pointer_events.push(ViewportPointerEvent::Orbit(Vec2::new(5., 0.))); ui.frame(Vec::new()); }
+            else { ui.application.cancel_active_gesture("Escape"); }
+            assert_eq!(ui.application.weapon_placement(), placement);
+            assert!(ui.application.cdmw_pending_request.is_none());
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn weapon_rotation_gizmo_and_contacts_use_the_same_placement() -> TestResult {
+    let (root, mut ui, bytes) = fixture()?;
+    let mut payload: Value = serde_json::from_slice(&bytes)?;
+    load_weapon_reference(root.path(), &mut ui, &mut payload, 0.2)?;
+    wait(&mut ui)?;
+    advance(&mut ui)?;
+    ui.click("Collision sources")?;
+    ui.click("Rotate weapon")?;
+    let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
+    let rect = ui.application.viewport_rect.unwrap();
+    let (tool, pivot) = ui.application.weapon_gizmo().unwrap();
+    assert_eq!(tool, ViewportTool::Rotate);
+    let ring = rotation_ring(&ui.application.camera, pivot, GizmoAxis::Z, rect);
+    let index = ring.iter().position(|&p| ui.application.hit_test_gizmo(tool, p, pivot, rect) == Some(GizmoAxis::Z)).ok_or("Z ring")?;
+    let points = [ring[index], ring[(index + ring.len() / 4) % ring.len()]];
+    ui.drag(&points, PointerButton::Primary);
+    let placement = ui.application.weapon_placement();
+    assert!(placement.rotation[2].abs() > 30., "{placement:?}");
+    ui.application.advance_jiggle_preview(1. / 60.)?;
+    let transform = placement.transform();
+    let displayed = &ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().display;
+    for (local, actual) in [[0., 0., 0.], [0.3, 0., 0.], [0., 1., 0.]].into_iter()
+        .zip(&displayed.positions[authored.positions.len()..]) {
+        assert!(transform.transform_point3(glam::DVec3::from(local)).as_vec3().distance(Vec3::from(*actual)) < 1e-5);
+    }
+    let lines = ui.application.jiggle_collider_lines();
+    let first_ring_center = lines[..32].iter().map(|p| Vec3::from(p.position)).sum::<Vec3>() / 32.;
+    assert!(first_ring_center.distance(Vec3::from(placement.offset.map(|v| v as f32))) < 1e-5);
+    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
+    Ok(())
+}
+
+#[test]
+fn weapon_drag_holds_the_current_body_pose_and_failed_save_keeps_the_scene() -> TestResult {
+    let (root, mut ui, bytes) = fixture()?;
+    let mut payload: Value = serde_json::from_slice(&bytes)?;
+    load_weapon_reference(root.path(), &mut ui, &mut payload, 0.2)?;
+    wait(&mut ui)?;
+    ui.click("Turning")?;
+    wait(&mut ui)?;
+    ui.click("Resume preview")?;
+    ui.click("Keep model centred")?;
+    advance(&mut ui)?;
+    let body_position = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.positions[0];
+    ui.click("Collision sources")?;
+    ui.click("Move weapon")?;
+    let before = ui.application.weapon_placement();
+    let accepted = ui.application.cdmw_state.clone();
+    let rect = ui.application.viewport_rect.unwrap();
+    let (_, pivot) = ui.application.weapon_gizmo().unwrap();
+    let point = ui.application.camera.project(pivot, rect).unwrap().screen;
+    ui.drag(&[point, point + Vec2::new(35., -20.)], PointerButton::Primary);
+    assert_ne!(ui.application.weapon_placement(), before);
+    advance(&mut ui)?;
+    assert_eq!(ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.positions[0], body_position);
+    ui.application.install_validated_cdmw_state(accepted, None)?;
+    ui.application.reject_weapon_placement();
+    ui.application.cdmw_pending_request = None;
+    assert_eq!(ui.application.weapon_placement(), before);
+    assert!(ui.application.cdmw_jiggle.preview.scene.is_some());
+    assert!(ui.application.cdmw_jiggle.preview.pending.is_none());
+    // Body motion remains accessible while a separate reference is loaded.
+    ui.click("Freehand")?;
+    wait(&mut ui)?;
+    assert!(ui.application.weapon_gizmo().is_none());
+    ui.click("Move weapon")?;
+    assert!(ui.application.weapon_gizmo().is_some());
     Ok(())
 }
 
@@ -1440,6 +1639,14 @@ fn weapon_reference_renders_solid_pixels_and_clears_without_cloak_changes() -> T
         wait(&mut ui)?;
         advance(&mut ui)?;
         let scene = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap();
+        let frame = scene.frame.clone();
+        let reference = scene.display.clone();
+        ui.application.place_weapon_preview(cdmw_jiggle::weapon::Placement {
+            offset: [1.5, 0.5, 0.], rotation: [0., 0., 45.],
+        });
+        let scene = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap();
+        assert_eq!(scene.frame, frame);
+        let moved_reference = scene.display.clone();
         let window = std::sync::Arc::new(event_loop.create_window(Window::default_attributes()
             .with_visible(false).with_inner_size(winit::dpi::PhysicalSize::new(160, 120)))?);
         let mut renderer = pollster::block_on(WindowRenderer::new(window))?;
@@ -1448,13 +1655,17 @@ fn weapon_reference_renders_solid_pixels_and_clears_without_cloak_changes() -> T
             * glam::Mat4::look_at_rh(Vec3::new(0., 0., 5.), Vec3::ZERO, Vec3::Y));
         for mode in [ViewMode::TexturedSolid, ViewMode::Solid] {
             renderer.set_view_mode(mode);
-            renderer.set_snapshot(&scene.frame)?;
+            renderer.set_snapshot(&frame)?;
             let cloak = renderer.capture_frame(160, 120, None)?.read_rgba()?;
-            renderer.set_snapshot(&scene.display)?;
-            let reference = renderer.capture_frame(160, 120, None)?.read_rgba()?;
-            assert!(cloak.chunks_exact(4).zip(reference.chunks_exact(4)).filter(|(a, b)| a != b).count() > 20,
+            renderer.set_snapshot(&reference)?;
+            let pixels = renderer.capture_frame(160, 120, None)?.read_rgba()?;
+            assert!(cloak.chunks_exact(4).zip(pixels.chunks_exact(4)).filter(|(a, b)| a != b).count() > 20,
                 "the weapon reference must produce visible pixels in {mode:?}");
-            renderer.set_snapshot(&scene.frame)?;
+            renderer.set_snapshot(&moved_reference)?;
+            let moved = renderer.capture_frame(160, 120, None)?.read_rgba()?;
+            assert!(pixels.chunks_exact(4).zip(moved.chunks_exact(4)).filter(|(a, b)| a != b).count() > 20,
+                "moving and rotating the weapon must update rendered pixels in {mode:?}");
+            renderer.set_snapshot(&frame)?;
             assert_eq!(renderer.capture_frame(160, 120, None)?.read_rgba()?, cloak);
         }
         Ok(())

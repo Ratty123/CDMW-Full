@@ -1,5 +1,6 @@
 //! Preview state is deliberately separate from WorkingMesh and the host protocol.
 pub(crate) mod native;
+pub(crate) mod weapon;
 use super::*;
 use crate::cdmw_ui::{state_bool, state_str, state_u64};
 use cdmw_mesh::{Provenance, jiggle};
@@ -47,6 +48,8 @@ pub(super) struct JiggleView {
     pub region_bone: Option<u32>,
     key: Value,
     collision_preview_key: Value,
+    weapon_placement_dirty: bool,
+    weapon_placement_sent: Option<weapon::Placement>,
     pub preview: Preview,
 }
 
@@ -63,6 +66,8 @@ impl Default for JiggleView {
             region_bone: None,
             key: Value::Null,
             collision_preview_key: Value::Null,
+            weapon_placement_dirty: false,
+            weapon_placement_sent: None,
             preview: Preview::default(),
         }
     }
@@ -102,6 +107,8 @@ pub(super) struct Preview {
     pub manual_drag: Option<(Vec2, Vec3)>,
     keep_centred: bool,
     show_colliders: bool,
+    weapon_tool: Option<ViewportTool>,
+    weapon_drag: Option<weapon::Drag>,
 }
 
 impl Default for Preview {
@@ -124,6 +131,8 @@ impl Default for Preview {
             manual_drag: None,
             keep_centred: true,
             show_colliders: false,
+            weapon_tool: None,
+            weapon_drag: None,
         }
     }
 }
@@ -137,6 +146,7 @@ impl Preview {
         self.feedback.clear();
         self.last_tick = Instant::now();
         self.manual_drag = None;
+        self.weapon_drag = None;
         if matches!(self.motion, jiggle::Motion::Freehand(_)) {
             self.motion = jiggle::Motion::Freehand(Vec3::ZERO);
         }
@@ -147,7 +157,7 @@ pub(super) struct Scene {
     rest: DrawSnapshot,
     pub frame: DrawSnapshot,
     pub display: DrawSnapshot,
-    weapon_reference: Option<DrawSnapshot>,
+    weapon_reference: Option<weapon::Reference>,
     simulation: Simulation,
     normal_sums: Vec<Vec3>,
     rest_surface_normals: Vec<Vec3>,
@@ -160,8 +170,14 @@ pub(super) struct Scene {
 impl Scene {
     fn refresh_display(&mut self, centred: bool) {
         let Some(reference) = &self.weapon_reference else { return; };
+        // Reference placement can change without a cloth substep. Give every
+        // composed frame its own revision so the renderer uploads that change.
+        let revision = self.display.draw_revision.wrapping_add(1);
         self.display.clone_from(&self.frame);
-        let transform = if centred { glam::Mat4::IDENTITY } else { self.simulation.motion_transform() };
+        self.display.draw_revision = revision;
+        let transform = (if centred { glam::Mat4::IDENTITY } else { self.simulation.motion_transform() })
+            * (reference.placement.transform() * reference.base_inverse).as_mat4();
+        let reference = &reference.draw;
         let start = self.display.positions.len() as u32;
         self.display.positions.extend(reference.positions.iter().map(|p| transform.transform_point3(Vec3::from(*p)).to_array()));
         self.display.normals.extend(reference.normals.iter().map(|n| transform.transform_vector3(Vec3::from(*n)).normalize_or(Vec3::Y).to_array()));
@@ -478,16 +494,16 @@ impl LabApplication {
         self.draw_motion_preview_controls(ui, parts, false, &mut Vec::new());
     }
 
-    pub(super) fn draw_cloth_collision_inputs(&self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
+    pub(super) fn draw_cloth_collision_inputs(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
         let jiggle = &self.cdmw_state["jiggle"];
-        let inputs = &jiggle["collision_inputs"];
+        let inputs = jiggle["collision_inputs"].clone();
         let model_owned = jiggle["decoded"]["cloth"]["body_collider_source"] == "pac_model";
         let available = !self.cdmw_busy()
             && jiggle["decoded"]["rig_mode"] != "rigid_attachment"
-            && jiggle["decoded"]["cloth"]["available"].as_bool() == Some(true) && !model_owned;
+            && jiggle["decoded"]["cloth"]["available"].as_bool() == Some(true);
         let weapon_available = !self.cdmw_busy() && jiggle["decoded"]["cloth"]["available"].as_bool() == Some(true);
         ui.collapsing("Collision sources", |ui| {
-            for (role, label, default) in [("body", "Body volumes", "Rig defaults"), ("head", "Head volumes", "No head override")] {
+            for (role, label, default) in [("body", "Body volumes", if model_owned { "Model volumes" } else { "Rig defaults" }), ("head", "Head volumes", "No head override")] {
                 let source = inputs[role].as_str().unwrap_or(default);
                 let filename = source.rsplit(['/', '\\']).next().unwrap_or(source);
                 ui.label(format!("{label}: {filename}")).on_hover_text(source);
@@ -498,30 +514,7 @@ impl LabApplication {
             ui.label(format!("Weapon volumes: {filename}")).on_hover_text(source);
             collision_source_choice(ui, weapon_available, "weapon", actions);
             if inputs["weapon"].is_string() {
-                let placement = &jiggle["weapon_placement"];
-                let mut offset: [f64; 3] = std::array::from_fn(|i| placement["offset"][i].as_f64().unwrap_or(0.));
-                let mut rotation: [f64; 3] = std::array::from_fn(|i| placement["rotation"][i].as_f64().unwrap_or(0.));
-                let mut changed = false;
-                ui.add_enabled_ui(weapon_available, |ui| {
-                    ui.label("Weapon preview position")
-                        .on_hover_text("Place the weapon in model space. In-game sockets and weapon animation are not loaded.");
-                    egui::Grid::new("weapon-preview-position").show(ui, |ui| { for (i, axis) in ["X", "Y", "Z"].iter().enumerate() {
-                        ui.label(*axis);
-                        changed |= ui.add(crate::cdmw_ui::numeric::value(&mut offset[i]).speed(0.01).range(-100.0..=100.0)).changed();
-                        ui.end_row();
-                    }});
-                    ui.label("Weapon preview rotation")
-                        .on_hover_text("Place the weapon in model space. In-game sockets and weapon animation are not loaded.");
-                    egui::Grid::new("weapon-preview-rotation").show(ui, |ui| { for (i, axis) in ["X", "Y", "Z"].iter().enumerate() {
-                        ui.label(*axis);
-                        changed |= ui.add(crate::cdmw_ui::numeric::value(&mut rotation[i]).speed(1.0).range(-360.0..=360.0).suffix("°")).changed();
-                        ui.end_row();
-                    }});
-                });
-                if changed {
-                    actions.push(UiAction::CdmwCommand { command: "cloth_collision_input",
-                        arguments: json!({"weapon_placement": {"offset": offset, "rotation": rotation}}), label: "Place weapon preview" });
-                }
+                self.draw_weapon_placement(ui, weapon_available, actions);
             }
             let has_inputs = inputs.as_object().is_some_and(|values| !values.is_empty());
             if ui.add_enabled(!self.cdmw_busy() && has_inputs, egui::Button::new("Clear collision inputs")).clicked() {
@@ -529,8 +522,7 @@ impl LabApplication {
                     command: "cloth_collision_input", arguments: json!({"clear": true}), label: "Clear collision inputs",
                 });
             }
-        }).header_response.on_hover_text("Choose body/head PABV files or a weapon PAC for this preview. Inputs are not saved to the model or draft.")
-            .on_hover_text(if model_owned { "This model's embedded volumes take precedence over appearance inputs." } else { "" });
+        }).header_response.on_hover_text("Choose body/head PABV files or a weapon PAC for this preview. Inputs are not saved to the model or draft.");
     }
 
     pub(super) fn choose_cloth_collision_input(&mut self, role: &'static str) {
@@ -574,9 +566,7 @@ impl LabApplication {
             self.publish_mesh_snapshot();
             self.cdmw_jiggle.preview.parts = ids;
         }
-        let collision_key = json!([self.cdmw_state["jiggle"]["collision_inputs"],
-            self.cdmw_state["jiggle"]["weapon_placement"], self.cdmw_state["jiggle"]["decoded"]["file"],
-            self.cdmw_state["base_revision"]]);
+        let collision_key = weapon::collision_key(&self.cdmw_state);
         let show_reference = cloth && !self.cdmw_busy()
             && self.cdmw_state["jiggle"]["collision_inputs"]["weapon"].is_string()
             && collision_key != self.cdmw_jiggle.collision_preview_key;
@@ -625,8 +615,9 @@ impl LabApplication {
                     } else { "" })
                     .on_hover_text("Right mouse orbits; middle mouse pans. Reset clears the motion.")
                     .clicked()
-                    && !selected
+                    && (!selected || preview.weapon_tool.is_some())
                 {
+                    preview.weapon_tool = None;
                     preview.motion = motion;
                     changed = true;
                 }
@@ -817,6 +808,7 @@ impl LabApplication {
             }
         }
         if show_reference {
+            self.cdmw_jiggle.preview.weapon_tool = Some(ViewportTool::Move);
             self.cdmw_jiggle.preview.show_colliders = true;
             self.cancel_pending_jiggle();
             if let Err(error) = self.prepare_jiggle_preview(parts, false) {
@@ -1213,8 +1205,13 @@ impl LabApplication {
                     return;
                 }
                 let count = prepared.rest.positions.len();
+                self.reset_weapon_placement_request();
+                let mut display = prepared.rest.clone();
+                if let Some(previous) = &self.cdmw_jiggle.preview.scene {
+                    display.draw_revision = previous.display.draw_revision;
+                }
                 self.cdmw_jiggle.preview.scene = Some(Scene { motion_scale: motion_scale(&prepared.rest), frame: prepared.rest.clone(),
-                    display: prepared.rest.clone(), weapon_reference: prepared.weapon_reference, rest: prepared.rest,
+                    display, weapon_reference: prepared.weapon_reference, rest: prepared.rest,
                     simulation: prepared.simulation, normal_sums: vec![Vec3::ZERO; count],
                     rest_surface_normals: prepared.rest_surface_normals, tick: 0, moving: prepared.moving, centred: false });
                 self.cdmw_jiggle.preview.playing = self.cdmw_jiggle.preview.play_when_ready;

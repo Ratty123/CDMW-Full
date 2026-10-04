@@ -336,7 +336,7 @@ pub(crate) struct Request {
 #[derive(Debug)]
 pub(crate) struct Prepared {
     pub rest: DrawSnapshot,
-    pub weapon_reference: Option<DrawSnapshot>,
+    pub weapon_reference: Option<weapon::Reference>,
     pub simulation: super::Simulation,
     pub rest_surface_normals: Vec<Vec3>,
     pub moving: usize,
@@ -356,14 +356,16 @@ struct Payload {
 struct WeaponReference {
     positions: Vec<[f32; 3]>,
     indices: Vec<u32>,
+    placement: weapon::Placement,
+    collider_count: usize,
 }
 
 impl WeaponReference {
-    fn prepare(self, rest: &DrawSnapshot, cancellation: &CancellationToken) -> Result<DrawSnapshot> {
+    fn prepare(self, rest: &DrawSnapshot, cancellation: &CancellationToken) -> Result<weapon::Reference> {
         if self.positions.is_empty() || self.positions.len() > 100_000
             || self.indices.is_empty() || self.indices.len() > 600_000 || !self.indices.len().is_multiple_of(3)
             || self.positions.iter().flatten().any(|v| !v.is_finite() || v.abs() > 1e6)
-            || self.indices.iter().any(|&i| i as usize >= self.positions.len()) {
+            || self.indices.iter().any(|&i| i as usize >= self.positions.len()) || !self.placement.valid() {
             bail!("Invalid weapon reference geometry.");
         }
         cancellation.check()?;
@@ -381,7 +383,7 @@ impl WeaponReference {
             *normal = sum.normalize_or(Vec3::Y).to_array();
         }
         cancellation.check()?;
-        Ok(snapshot)
+        Ok(weapon::Reference { draw: snapshot, placement: self.placement, base_inverse: self.placement.transform().inverse() })
     }
 }
 
@@ -456,14 +458,17 @@ pub(crate) fn prepare(
             contributions.push(contribution);
         }
         cancellation.check()?;
+        let reference_count = payload.weapon_reference.as_ref().map(|r| r.collider_count);
         let weapon_reference = if request.cloth {
             payload.weapon_reference.map(|reference| reference.prepare(&request.rest, cancellation)).transpose()?
         } else { None };
         let simulation = if request.cloth {
             if !request.enabled { contributions.fill(63); }
-            super::Simulation::Cloth(Box::new(crate::cdmw_cloth::preview::Simulation::new(
+            let mut simulation = crate::cdmw_cloth::preview::Simulation::new(
                 payload.cloth.ok_or_else(|| anyhow::anyhow!("Cloth preview needs a decoded guide mesh."))?,
-                &payload.rig, &request.rest.positions, &records, &contributions, cancellation)?))
+                &payload.rig, &request.rest.positions, &records, &contributions, cancellation)?;
+            if let Some(count) = reference_count { simulation.set_weapon_reference(count)?; }
+            super::Simulation::Cloth(Box::new(simulation))
         } else {
             super::Simulation::Decoded(Box::new(Simulation::new(
                 payload.rig, &request.rest.positions, &records, contributions, request.enabled, cancellation)?))

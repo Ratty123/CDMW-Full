@@ -30,7 +30,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
-- Mesh Editor displays an untextured weapon reference and its collision shapes when loaded for cloth preview. Placement moves both together, retains the last view while updating, and keeps position and rotation rows at a stable height.
+- Mesh Editor displays loaded weapon references with separate move and rotation gizmos. Moving the weapon drives cloth contact continuously when Weapon collisions is enabled, including fast drags. Position and rotation use compact horizontal XYZ rows with stable height. Body and head collision sources remain selectable for models with embedded volumes and can combine external files with game archive inputs.
 - Effects & Perks filters the library by effect names, categories and types without including unrelated shared resources or nonmatching selected rows. Infinite-lived flames such as Torch 1 no longer receive an artificial preview fade-out when they have no authored opacity curve. Sprite effects support placement rotation, with an emitter Orientation choice for camera-facing flames such as Jwibul; the choice is retained in saved and exported effects.
 - Browse Archives opens Select Extension without blocking the application, removing the delay before its cached list appears. Repeated clicks bring the existing picker forward.
 - Create New Item shows export blockers with the affected items and source archive, offers an existing mod folder to extend, and keeps write errors visible after progress stops.

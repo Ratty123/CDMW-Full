@@ -1633,6 +1633,7 @@ enum CdmwLocalEdit {
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum CdmwRequestOrigin {
     Selection,
+    WeaponPlacement,
     Normals,
     Uv,
     MorphValue(String),
@@ -1683,6 +1684,9 @@ fn cdmw_result_feedback(payload: &Value) -> CdmwResultFeedback {
 }
 
 fn cdmw_request_origin(command: &str, arguments: &Value) -> Option<CdmwRequestOrigin> {
+    if command == "cloth_collision_input" && arguments["weapon_placement"].is_object() {
+        return Some(CdmwRequestOrigin::WeaponPlacement);
+    }
     if command == "select" {
         return Some(CdmwRequestOrigin::Selection);
     }
@@ -2876,6 +2880,9 @@ impl LabApplication {
             return;
         }
         self.cdmw_pending_request.take();
+        if label == "Place weapon preview" && !ok {
+            self.reject_weapon_placement();
+        }
         if label == "Edit Vertex Parameters" {
             self.vertex_inspector.note = if ok {
                 "Vertex parameters applied.".into()
@@ -2940,7 +2947,7 @@ impl LabApplication {
             Some(CdmwRequestOrigin::Uv) => {
                 self.cdmw_uv_feedback = Some(self.status.clone());
             }
-            Some(CdmwRequestOrigin::Selection | CdmwRequestOrigin::MorphValue(_)) | None => {}
+            Some(CdmwRequestOrigin::Selection | CdmwRequestOrigin::WeaponPlacement | CdmwRequestOrigin::MorphValue(_)) | None => {}
         }
     }
 
@@ -2988,7 +2995,12 @@ impl LabApplication {
             && (state["jiggle"]["collision_inputs"] != self.cdmw_state["jiggle"]["collision_inputs"]
                 || state["jiggle"]["weapon_placement"] != self.cdmw_state["jiggle"]["weapon_placement"]
                 || state["jiggle"]["decoded"]["file"] != self.cdmw_state["jiggle"]["decoded"]["file"]);
-        if collision_update && state["jiggle"]["collision_inputs"]["weapon"].is_string() {
+        let placement_response = document.is_none()
+            && state.get("selection") == self.cdmw_state.get("selection")
+            && self.accept_weapon_placement_state(&state);
+        if placement_response {
+            // Keep the live cloth frame and clock after persisting a reference drag.
+        } else if collision_update && state["jiggle"]["collision_inputs"]["weapon"].is_string() {
             self.cancel_pending_jiggle();
         } else if self.cdmw_jiggle.preview.scene.is_some() || self.cdmw_jiggle.preview.pending.is_some() {
             self.publish_mesh_snapshot();
@@ -4403,8 +4415,12 @@ impl LabApplication {
 
     fn handle_actions(&mut self, actions: Vec<UiAction>) {
         let _language = crate::localization::enter(&self.egui_context);
-        if actions.iter().any(|action| !matches!(action,
-            UiAction::FrameAll | UiAction::StandardView(_) | UiAction::OrbitYaw(_) | UiAction::OrbitMode))
+        if actions.iter().any(|action| match action {
+            UiAction::FrameAll | UiAction::StandardView(_) | UiAction::OrbitYaw(_) | UiAction::OrbitMode => false,
+            UiAction::CdmwCommand { command, arguments, .. }
+                if cdmw_request_origin(command, arguments) == Some(CdmwRequestOrigin::WeaponPlacement) => false,
+            _ => true,
+        })
             && self.cdmw_jiggle.preview.scene.is_some() {
             self.publish_mesh_snapshot();
         }
@@ -5232,6 +5248,7 @@ impl LabApplication {
     }
 
     fn publish_mesh_snapshot(&mut self) {
+        self.reset_weapon_placement_request();
         self.cancel_pending_jiggle();
         self.cdmw_jiggle.preview.invalidate();
         self.hair.invalidate_scene();
@@ -5432,6 +5449,7 @@ impl LabApplication {
         let edit_gesture_before = self.edit_gesture.is_some();
         let pointer_events = self.pointer_events.drain().collect::<Vec<_>>();
         for event in pointer_events {
+            if self.handle_weapon_pointer(&event, rectangle) { continue; }
             if self.handle_jiggle_pointer(&event, rectangle) {
                 continue;
             }
@@ -6041,6 +6059,7 @@ impl LabApplication {
     }
 
     fn cancel_active_gesture(&mut self, reason: impl Into<String>) {
+        self.cancel_weapon_drag();
         self.cdmw_jiggle.preview.manual_drag = None;
         let reason = reason.into();
         let mut cancelled = self.cancel_hair_stroke();
@@ -6243,6 +6262,10 @@ impl LabApplication {
     }
 
     fn paint_gizmo(&self, ui: &egui::Ui, rectangle: egui::Rect) {
+        if let Some((tool, pivot)) = self.weapon_gizmo() {
+            self.paint_transform_gizmo(ui, rectangle, tool, pivot);
+            return;
+        }
         if !matches!(
             self.viewport_tool,
             ViewportTool::Move | ViewportTool::Rotate | ViewportTool::Scale
@@ -6255,8 +6278,12 @@ impl LabApplication {
         let Some(pivot) = OrbitCamera::selected_center(mesh) else {
             return;
         };
+        self.paint_transform_gizmo(ui, rectangle, self.viewport_tool, pivot);
+    }
+
+    fn paint_transform_gizmo(&self, ui: &egui::Ui, rectangle: egui::Rect, tool: ViewportTool, pivot: Vec3) {
         let painter = ui.painter();
-        if self.viewport_tool == ViewportTool::Rotate {
+        if tool == ViewportTool::Rotate {
             for (axis, color) in axis_colors() {
                 let points = rotation_ring(&self.camera, pivot, axis, rectangle);
                 if points.len() >= 2 {
@@ -6283,7 +6310,7 @@ impl LabApplication {
                 [egui::pos2(start.x, start.y), egui::pos2(end.x, end.y)],
                 Stroke::new(3.0, color),
             );
-            if self.viewport_tool == ViewportTool::Scale {
+            if tool == ViewportTool::Scale {
                 painter.rect_filled(
                     egui::Rect::from_center_size(egui::pos2(end.x, end.y), egui::vec2(9.0, 9.0)),
                     1.0,

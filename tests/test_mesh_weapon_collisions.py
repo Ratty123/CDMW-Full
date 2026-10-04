@@ -85,10 +85,13 @@ def test_weapon_reference_geometry_and_contacts_follow_placement_without_changin
     mesh = before["weapon_reference"]
     assert mesh["positions"] and mesh["indices"]
     assert max(mesh["indices"]) < len(mesh["positions"])
+    assert mesh["collider_count"] == len(before["cloth"]["weapon_colliders"])
+    assert mesh["placement"] == {"offset": [0., 0., 0.], "rotation": [0., 0., 0.]}
     assert not host.state_payload()["weapon_collisions"]["available"]
     command(host, "cloth_collision_input", {"weapon_placement": {
         "offset": [1., 2., 3.], "rotation": [0., 0., 90.]}})
     placed = read_owned_payload_reference(host.root, decoded(host)["file"])
+    assert placed["weapon_reference"]["placement"] == {"offset": [1., 2., 3.], "rotation": [0., 0., 90.]}
     for a, b in zip(mesh["positions"], placed["weapon_reference"]["positions"]):
         assert b == pytest.approx([1. - a[1], 2. + a[0], 3. + a[2]])
     for a, b in zip(before["cloth"]["weapon_colliders"], placed["cloth"]["weapon_colliders"]):
