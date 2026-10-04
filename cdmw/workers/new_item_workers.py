@@ -151,6 +151,7 @@ def plan_task(
     icon: Optional[NewItemIcon] = None,
     icon_source_path: Optional[Path] = None,
     mod_base_folder: Optional[Path] = None,
+    include_mounted_items: bool = False,
     read_entry: Optional[Callable[[ArchiveEntry], bytes]] = None,
     reserved_keys: Sequence[int] = (),
     reserved_stems: Sequence[str] = (),
@@ -184,7 +185,17 @@ def plan_task(
                 read_entry=read_entry or (snapshot.provenance.reader if snapshot.provenance else snapshot.read_entry), on_log=report, stop_event=stop_event,
             )
             base = refreshed
-        if mod_base_folder is not None:
+        mounted = None
+        if include_mounted_items:
+            if mod_base_folder is not None:
+                raise ValueError("Choose either mounted items or an existing mod folder as the base.")
+            from cdmw.services.new_item_mounted_base import prepare_mounted_item_base
+
+            mounted = prepare_mounted_item_base(service, base,
+                read_entry=read_entry or (base.provenance.reader if base.provenance else base.read_entry),
+                on_log=report, stop_event=stop_event)
+            base = mounted.snapshot
+        elif mod_base_folder is not None:
             from cdmw.services.new_item_mod_base import build_mod_base_snapshot
 
             # A normal snapshot owns its reader even when the controller was not
@@ -203,6 +214,10 @@ def plan_task(
             reserved_keys=tuple(reserved_keys), reserved_stems=tuple(reserved_stems),
             on_log=log, on_progress=on_progress, stop_event=stop_event,
         )
+        if mounted is not None:
+            from cdmw.services.new_item_mounted_base import complete_mounted_item_plan
+
+            plan = complete_mounted_item_plan(plan, mounted, stop_event=stop_event)
         return replace(plan, refreshed_snapshot=refreshed) if refreshed is not None else plan
 
     return run

@@ -29,14 +29,14 @@ def _mounted_item(studio, manager):
     return first, folder, pamt
 
 
-def _build_new(studio, manager="DMM"):
+def _build_new(studio, manager="CDUMM"):
     fixture, tab, bridge = studio
     tab.show_step(1)
     tab.identity_panel.internal_name.setText("Fresh_Sword")
     _send(bridge, tab.identity_panel.display_name, "text", "Fresh sword")
     tab.show_step(6)
     panel = tab.output_panel
-    _send(bridge, panel.manager, "choose", panel.manager.findText(manager))
+    assert _send(bridge, panel.manager, "choose", panel.manager.findText(manager))["type"] == "ack"
     _send(bridge, panel.export_root, "text", str(fixture.root / "mods"))
     _send(bridge, panel.open_folder_after_creation, "toggle", False)
     _send(bridge, panel.build_button, "activate")
@@ -48,7 +48,7 @@ def _build_new(studio, manager="DMM"):
 def test_inherited_item_is_a_visible_block_before_writing(studio, manager):
     fixture, tab, bridge = studio
     first, _folder, pamt = _mounted_item(studio, manager)
-    panel = _build_new(studio, manager)
+    panel = _build_new(studio, "JMM" if manager == "DMM" else manager)
     plan = tab.controller.plan
     assert plan.unselected_source_items == (f"Existing <Sword> (item {first.spec.item_key})",)
     assert panel.plan_state.plain_text() == "Export blocked"
@@ -74,7 +74,7 @@ def test_inherited_item_is_a_visible_block_before_writing(studio, manager):
 
 def test_choose_existing_mod_preserves_draft_and_exports_both_items(studio):
     _fixture, tab, bridge = studio
-    first, folder, _pamt = _mounted_item(studio, "DMM")
+    first, folder, _pamt = _mounted_item(studio, "CDUMM")
     panel = _build_new(studio)
     before = {path: payload.read_bytes() for path, payload in mod_folder_payloads(folder).items()}
     with patch("cdmw.ui.new_item.panels_output.QFileDialog.getExistingDirectory", return_value=str(folder)):

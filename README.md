@@ -92,8 +92,8 @@ planned files and warnings in **Output**, then create a mod folder or install a
 CDMW game overlay. Use **Add to existing mod** to extend a package deliberately;
 fresh exports check for unintended inherited custom items.
 
-**Available outputs: CDUMM (default), JMM, DMM and CDMW game overlays.** Use DMM
-3.5.0 or newer for new-item packages and check the result in game after mounting.
+**Available outputs: CDUMM (default), JMM and CDMW game overlays.** DMM remains visible
+but disabled: version 3.5.0 can lose new item records and omit their texture registrations.
 New mod folders can have a custom name and an optional ZIP copy.
 
 See the [Create New Item guide](cdmw/ui/new_item/README.md) for detailed controls.

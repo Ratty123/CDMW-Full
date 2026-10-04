@@ -9,6 +9,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Added
 
+- Create New Item can combine mounted overlay items and their assets with a new item in a separate CDUMM or JMM package. Output reviews the included items and archives, reports missing assets or conflicts, and supplies installation and rollback steps.
+
 - Jiggle can adjust named bone regions independently through the existing contribution control, preserving skin-weight blending across LODs, Undo/Redo and saved drafts. Recovered drafts can use the whole-part controls without reopening the archive. The existing bone preview settings can also target individual regions; solver settings remain preview-only.
 - Mesh Editor offers experimental spline playback with flexible starting settings, guide rotation and adjustable spring-back. Verified rigid attachments can preview without a character skeleton, and saved profile edits refresh the loaded preview.
 - Mesh Editor previews cloth against supported rigid weapon parts or a separately positioned weapon reference. Collision inputs can come from external files or game archives; body and weapon shapes can be inspected through the mesh before playback or while paused. Experimental weapon collider export supports Undo, drafts and Build Mod, alongside an explicit own-model collision profile override; in-game activation remains unverified.
@@ -18,7 +20,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 - Create New Item renames Perks & Effects to Effects & Perks to match its initial Effects tab.
 - Create New Item labels every placement value with its axis, identifies scale width, height and depth, and adds optional Uniform scale to resize all three axes while keeping the current proportions.
-- Create New Item restores DMM export as one package for DMM 3.5.0 or newer, with a reminder to check the result in game. CDUMM remains the default, alongside JMM and CDMW game overlays.
+- Create New Item keeps DMM visible but disabled, with an explanation that DMM 3.5.0 can lose new items and their texture registrations. Saved DMM selections switch to CDUMM; JMM and CDMW game overlays remain available.
 - Mesh Editor moves explanatory text into hover help across its editing panels and shows shorter collision-source filenames. Show collision shapes is available outside the collapsed preview settings; weapon references supply collision outlines rather than a visible weapon mesh. Selection controls open directly from the Selection heading, removing the extra Select click.
 - Mesh Editor Action History supports selecting individual entries and right-clicking to undo from that action or restore through an undone action. Later actions remain available to restore until a new edit replaces them.
 - Problem reports collect recent activity and logs across tools, detailed worker and helper failures, crash or hang evidence and build fingerprints. Evidence refreshes when preparing a draft, with missing or truncated sources identified in the reviewed report.

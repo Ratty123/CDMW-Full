@@ -1586,22 +1586,23 @@ the source materials for per-part Glow. This is face separation, not a knife/cap
 
 ## Mod manager exports
 
-**Create New Item → Output → Mod folder** offers **CDUMM**, **JMM** and **DMM**.
+**Create New Item → Output → Mod folder** offers **CDUMM** and **JMM**.
 CDUMM writes a `files/` package with manager metadata; JMM writes game-relative
-files with its `mod.json` replacement map. DMM writes one archive-group package
-containing the planned tables, item text and assets. New drafts default to CDUMM;
-saved DMM selections are retained. Unknown manager choices are refused before export.
+files with its `mod.json` replacement map. **DMM** remains visible but greyed out,
+with its reason shown below the selector and in hover help. New drafts default to
+CDUMM; saved DMM selections switch to CDUMM. DMM and unknown manager choices are
+refused before export.
 CDMW's **Game overlay** option remains available.
 
 ### DMM archive compatibility
 
-Use **DMM 3.5.0 or newer**. Its [release notes](https://www.nexusmods.com/crimsondesert/mods/633)
-report fixes for false game-version rejection of new-item tables, incomplete
-multilingual packages and misleading mount summaries. The earlier DMM 3.2.1 failures
-led to temporarily disabling this choice; it is now available again with a version
-notice. The export keeps tables, text and assets together in `0036/`, without separate
-Data and Assets packages. Export and composition checks do not establish in-game
-compatibility: after mounting, verify that every intended item appears and works.
+DMM export is temporarily disabled after a DMM 3.5.0 mount generated a vanilla-only
+ItemInfo table ahead of the mod's complete table, hiding its added item record. The
+shop still referenced that item, producing an empty, unbuyable entry. The mount also
+omitted the package's new PATHC texture registrations. The same mod was reported
+working in game with JMM. Use **JMM** or **CDUMM** for new-item packages while these
+DMM issues remain unresolved; a successful mount message does not establish that
+the new items and textures were preserved.
 
 ### Mounted source data
 
@@ -1616,11 +1617,50 @@ is kept; rebuild the plan to combine its new item with that package's items and 
 Cancelling the picker leaves the plan and destination unchanged.
 
 **Add to existing mod** uses only the selected mod folder; it does not collect all
-installed mods. To combine several packages, use **Mod Management → Merge mods** and
+installed mods. **Include mounted items in a new mod** reads the installed overlays
+instead, carrying their current files into a new package without needing their original
+mod folders. To combine several uninstalled packages, use **Mod Management → Merge mods** and
 review its compatibility results. Install the combined package in place of its source
 packages. To create a separate mod from clean tables, unmount the item mods, read the
 archives again and rebuild the plan. Installing a composed game overlay keeps its
 existing behavior. This check does not certify arbitrary third-party edits as vanilla.
+
+### Create a combined mod from mounted items
+
+1. Keep the original mods mounted and read the game archives in CDMW.
+2. Create the new item normally. In **Output → Mod folder**, select
+   **Include mounted items in a new mod**. This and **Add to existing mod** are
+   alternative sources; choosing one clears the other.
+3. Choose CDUMM or JMM, a new mod name, and an output folder
+   outside the game installation. **Rebuild plan** reads the installed content in
+   the background. Cancelling preserves the draft and source files.
+4. Review **Included mounted items** and **Archive folders** at the top of Destination,
+   and the complete file list under **File changes**. All active content from the
+   mounted overlay archives is included, including other changes in those archives.
+   **Details and warnings** contains the installation steps.
+5. **Write mod folder** creates a separate package and, when selected, a ZIP. The
+   originals remain mounted throughout creation. The package's **README.txt** lists
+   the included items and archive folders and explains how to install and revert it.
+6. Close the game. Use each original manager to disable the included originals
+   (for CDMW overlays, use **Mod Management**), then install and enable the combined
+   package in their place. Do not run both copies together or delete archive folders
+   by hand. Check the new and existing items in game. To revert, disable the combined
+   package and re-enable the originals.
+
+This option supports identifiable, separate mounted overlay archives. It preserves the
+current mounted result, including models, material files, textures, icons, tables and
+item text. Missing required models or declared material textures, incomplete tables,
+conflicting custom item rows and unavailable source archives block the plan with the
+affected item, file or archive. Items written directly into shipped archives need their
+original package; this option cannot isolate them. It also cannot recover changes that
+were already overwritten before CDMW read the installation.
+
+Source archives and mount metadata are checked again before publication. Compatibility
+records use the underlying game payloads rather than treating mounted mod tables as
+vanilla. The live texture registry is preserved with explicit texture ownership, but
+is not advertised as a clean vanilla baseline. The resulting package can be extended
+with **Add to existing mod** or used in **Merge mods**, subject to the usual compatibility
+checks. Creating a package does not establish in-game compatibility.
 
 ### Output folders and ZIP files
 

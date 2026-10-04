@@ -248,18 +248,18 @@ class OutputPanel(QGroupBox):
         export.setSpacing(6)
         export.addWidget(QLabel("Mod manager"))
         self.manager = QComboBox()
-        self.manager.addItems(list(MANAGERS))
+        self.manager.addItems([*MANAGERS, "DMM"])
+        self.manager.model().item(self.manager.findText("DMM")).setEnabled(False)
         self.manager.setCurrentText(controller.draft.manager if controller.draft.manager in MANAGERS else MANAGERS[0])
         controller.draft.manager = self.manager.currentText()
         self.manager.setToolTip("The mod manager whose folder layout the loose mod is written in.")
         self.manager.currentTextChanged.connect(lambda text: setattr(self._controller.draft, "manager", str(text)))
         export.addWidget(self.manager)
         self.dmm_warning = QLabel(
-            "Use DMM 3.5.0 or newer. After mounting, check that your item appears and works in game.")
+            "DMM is temporarily disabled. DMM 3.5.0 can lose new items and skip their textures. Use JMM or CDUMM.")
         self.dmm_warning.setWordWrap(True)
+        self.manager.setItemData(self.manager.findText("DMM"), self.dmm_warning.text(), Qt.ToolTipRole)
         export.addWidget(self.dmm_warning)
-        self.manager.currentTextChanged.connect(lambda text: self.dmm_warning.setVisible(text == "DMM"))
-        self.dmm_warning.setVisible(self.manager.currentText() == "DMM")
         export.addWidget(QLabel("Mod name"))
         self.mod_name = QLineEdit(controller.draft.mod_name)
         self.mod_name.setPlaceholderText(controller.draft.display_names.get("eng", "") or self.tr("Mod name"))
@@ -300,6 +300,13 @@ class OutputPanel(QGroupBox):
         )
         self.add_to_mod.toggled.connect(lambda _checked: self._mod_base_changed())
         write_layout.addWidget(self.add_to_mod)
+        self.include_mounted = QCheckBox("Include mounted items in a new mod")
+        self.include_mounted.setToolTip(
+            "Copies all mounted overlay archives into a new package, including their other changes. "
+            "Keep the originals mounted while building, then review the plan before exporting."
+        )
+        self.include_mounted.toggled.connect(self._mounted_base_changed)
+        self.mounted_review = NoteLabel("", WARN)
         self.mod_base_note = QLabel("")
         self.mod_base_note.setWordWrap(True)
         self.mod_base_note.setVisible(False)
@@ -309,7 +316,9 @@ class OutputPanel(QGroupBox):
         self.choose_mod_base_button = QPushButton("Choose mod to extend...")
         self.choose_mod_base_button.clicked.connect(self._choose_mod_to_extend)
         self.choose_mod_base_button.hide()
-        write_layout.insertWidget(1, self.choose_mod_base_button)
+        write_layout.insertWidget(1, self.include_mounted)
+        write_layout.insertWidget(2, self.choose_mod_base_button)
+        write_layout.insertWidget(3, self.mounted_review)
         self.export_root.textChanged.connect(lambda _text: self._mod_base_changed())
         self.mod_name.textChanged.connect(lambda _text: self._update_destination())
         self.overlay_controls = QWidget()
@@ -435,10 +444,23 @@ class OutputPanel(QGroupBox):
         """Only use the selected folder as a base when the user asks to extend it."""
         folder_mode = self.output_mode.currentData() == "folder"
         self.add_to_mod.setVisible(folder_mode)
+        self.include_mounted.setVisible(folder_mode)
+        if self.add_to_mod.isChecked() and self.include_mounted.isChecked():
+            self.include_mounted.blockSignals(True)
+            self.include_mounted.setChecked(False)
+            self.include_mounted.blockSignals(False)
         self.mod_base_note.setVisible(folder_mode)
+        self._controller.include_mounted_items = folder_mode and self.include_mounted.isChecked()
         self._controller.invalidate_plan()
         self._controller.set_mod_base(self._package_root() if folder_mode and self.add_to_mod.isChecked() else None)
         self._update_destination()
+
+    def _mounted_base_changed(self, checked: bool) -> None:
+        if checked:
+            self.add_to_mod.blockSignals(True)
+            self.add_to_mod.setChecked(False)
+            self.add_to_mod.blockSignals(False)
+        self._mod_base_changed()
 
     def _package_root(self) -> Optional[Path]:
         text = self.export_root.text().strip()
@@ -452,6 +474,12 @@ class OutputPanel(QGroupBox):
         self.export_root_label.setText(self.tr("Existing mod folder") if adding else self.tr("Output folder"))
         if adding:
             self.mod_base_note.setText("Adds this item to the selected mod folder and keeps its existing items. Select the mod folder itself, then rebuild the plan.")
+        elif self.include_mounted.isChecked():
+            self.mod_base_note.setText(
+                "1. Keep the originals mounted and rebuild the plan. "
+                "2. Review the included items and archives. "
+                "3. Write to a new folder. Before installing, disable the included originals in their mod manager."
+            )
         else:
             self.mod_base_note.setText("Creates a new folder named after your mod inside the output folder. To add this item to a mod you already made, tick Add to existing mod.")
         root = self._package_root()
@@ -484,12 +512,24 @@ class OutputPanel(QGroupBox):
         if source:
             message += "\n" + self.tr("Source: {value_0}").format(value_0=source)
         message += "\n\n" + self.tr(
-            "To combine items, choose the existing mod folder and rebuild the plan. "
+            "To combine items, select Include mounted items in a new mod, or choose the existing mod folder, then rebuild the plan. "
             "For a separate mod, unmount the item mods, read the archives again, then rebuild."
         )
         return message
 
     def _refresh_export_state(self) -> None:
+        plan = self._controller.plan
+        mounted = plan.manifest.get("mounted_base") if plan and self.output_mode.currentData() == "folder" else None
+        review = ""
+        if mounted:
+            names = ", ".join(f"{item['display_name']} (item {item['item_key']})" for item in mounted["items"])
+            review = self.tr("Included mounted items: {value_0}\nArchive folders: {value_1}").format(
+                value_0=names, value_1=", ".join(mounted["archives"]))
+            review += "\n" + self.tr(
+                "The whole active content of these overlays is included. Install this package in place of their originals. "
+                "Installation steps are in Details and warnings and the exported README.txt."
+            )
+        self.mounted_review.set_lines((line, WARN) for line in review.splitlines())
         source_problem = self._source_export_problem()
         problem = source_problem or (self._export_error if self.output_mode.currentData() == "folder" else "")
         changed = problem != self.export_problem.plain_text()
@@ -609,6 +649,11 @@ class OutputPanel(QGroupBox):
         if zip_path is not None:
             message += f"\n\nZIP: {zip_path}"
             self.append_log(f"ZIP written to {zip_path}")
+        if self._controller.plan and self._controller.plan.manifest.get("mounted_base"):
+            message += "\n\n" + self.tr(
+                "Before enabling this combined mod, disable the included originals in the manager that installed them. "
+                "See README.txt for the included archive folders and installation steps."
+            )
         if self._open_export_folder and root:
             if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(root))):
                 self.append_log(f"The mod was created, but its folder could not be opened: {root}")
@@ -654,7 +699,7 @@ class OutputPanel(QGroupBox):
         self.export_button.setEnabled(has_plan and not busy)
         self.install_overlay_button.setEnabled(has_plan and not busy)
         self.overlay_directory.setEnabled(not busy)
-        for control in (self.output_mode, self.mode_buttons, self.folder_controls, self.add_to_mod):
+        for control in (self.output_mode, self.mode_buttons, self.folder_controls, self.add_to_mod, self.include_mounted):
             control.setEnabled(not busy)
         self._refresh_export_state()
 

@@ -252,7 +252,8 @@ class NewItemTaskControllerMixin:
         task = plan_task(
             spec, self.snapshot, service=self.service, model=self.model_result, scene=self.model_scene,
             icon_source_path=icon_source, reserved_keys=tuple(self.issued_keys), reserved_stems=tuple(self.issued_stems),
-            mod_base_folder=self.mod_base_folder, read_entry=self._read_entry, **variant_arguments,
+            mod_base_folder=self.mod_base_folder, include_mounted_items=self.include_mounted_items,
+            read_entry=self._read_entry, **variant_arguments,
         )
 
         def run(log, progress, stop_event):
@@ -299,7 +300,9 @@ class NewItemTaskControllerMixin:
     def start_export(self, package_root: Path, manager: str, *, create_zip: bool = False,
                      replace_existing: bool = True) -> bool:
         if manager not in MANAGERS:
-            self.status_message.emit("Choose DMM, CDUMM or JMM for new item exports.", True)
+            self.status_message.emit(
+                "DMM is temporarily disabled. DMM 3.5.0 can lose new items and skip their textures. Use JMM or CDUMM."
+                if manager == "DMM" else "Choose CDUMM or JMM for new item exports.", True)
             return False
         if not self.has_current_plan:
             self.status_message.emit("Build the plan first.", True)

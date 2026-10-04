@@ -355,7 +355,7 @@ class NewItemService:
                 "Cannot create a separate mod from source tables containing other custom items: "
                 + ", ".join(plan.unselected_source_items) + ". "
                 "Unmount existing item mods and read the archives again before building the plan, "
-                "or select the intended mod folder with Add to existing mod."
+                "or rebuild with Include mounted items in a new mod or Add to existing mod."
             )
         if plan.source_revision is not None:
             plan.source_revision.validate(stop_event)
@@ -364,11 +364,17 @@ class NewItemService:
         if profile is None and options is None:
             raise ValueError(f"Unknown loose-mod manager profile {manager!r}; one of {', '.join(LOOSE_EXPORT_PROFILES)}")
         root = Path(package_root).expanduser().resolve()
+        if plan.manifest.get("mounted_base"):
+            game_root = _package_root_of(plan)
+            if root.is_relative_to(game_root) or game_root.is_relative_to(root):
+                raise ValueError("Choose a new output folder outside the game installation for the combined mod.")
+            if root.exists():
+                raise ValueError("A combined mod from mounted items must be written to a new folder. Choose another mod name.")
 
         def write(staging: Path) -> NewItemExportResult:
             (staging / "new-item.json").write_text(json.dumps(dict(plan.manifest), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
             if str((profile or {}).get("structure") or "") == "archive_group" and options is None:
-                return self._export_archive_group(
+                result = self._export_archive_group(
                     plan,
                     staging,
                     existing_root=root,
@@ -377,12 +383,14 @@ class NewItemService:
                     created_utc=created_utc,
                     stop_event=stop_event,
                 )
+                from cdmw.services.new_item_mounted_base import write_mounted_item_readme
+                return write_mounted_item_readme(plan, result)
             from cdmw.core.mod_compatibility import capture_patch_compatibility
             try:
                 game_root = _package_root_of(plan)
             except NewItemInstallRefused:
                 game_root = None
-            compatibility = capture_patch_compatibility(plan.patches, plan.additions,
+            compatibility = plan.export_compatibility or capture_patch_compatibility(plan.patches, plan.additions,
                 game_root=game_root, metadata_files=tuple((item.path, item.payload_data) for item in plan.meta_files),
                 dependencies=tuple({"path": row["path"], "sha256": row["sha256"]}
                     for row in plan.manifest.get("sources", ())), stop_event=stop_event)
@@ -420,13 +428,15 @@ class NewItemService:
                 stop_event=stop_event,
             )
             metadata = tuple(sorted(Path(path).name for path in getattr(result, "metadata_files", ()) or ()))
-            return NewItemExportResult(
+            exported = NewItemExportResult(
                 package_root=staging,
                 manager=str(manager or "").upper() or "custom",
                 payload_paths=tuple(payload_paths),
                 new_paths=tuple(plan.new_paths),
                 metadata_files=metadata,
             )
+            from cdmw.services.new_item_mounted_base import write_mounted_item_readme
+            return write_mounted_item_readme(plan, exported)
 
         return _publish_package_atomically(
             root, write, stop_event=stop_event,
@@ -461,7 +471,7 @@ class NewItemService:
         group = _existing_archive_group(source_root)
         carried_plan = _carry_forward_archive_group(plan, source_root, group, stop_event=stop_event)
         from cdmw.core.mod_compatibility import capture_patch_compatibility
-        compatibility = capture_patch_compatibility(carried_plan.patches, carried_plan.additions,
+        compatibility = plan.export_compatibility or capture_patch_compatibility(carried_plan.patches, carried_plan.additions,
             game_root=game_root, metadata_files=tuple((item.path, item.payload_data) for item in carried_plan.meta_files),
             dependencies=tuple({"path": row["path"], "sha256": row["sha256"]}
                 for row in plan.manifest.get("sources", ())), stop_event=stop_event)

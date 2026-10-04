@@ -99,6 +99,9 @@ class NewItemPlan:
     source_revision: object = field(default=None, repr=False, compare=False)
     #: Existing CDMW-range items inherited from the game, without a selected mod base.
     unselected_source_items: Tuple[str, ...] = ()
+    # Mounted-content exports retain their underlying game baselines separately
+    # from the currently installed (already modified) source bytes.
+    export_compatibility: object = field(default=None, repr=False, compare=False)
 
     @property
     def touched_paths(self) -> Tuple[str, ...]:
@@ -852,7 +855,8 @@ def build_plan(
             "The source item table already contains custom items: " + ", ".join(inherited) + ". "
             "Their records would be included in the exported tables. To create a separate mod, "
             "unmount existing item mods and read the archives again before building the plan. "
-            "To extend a mod, select its folder with Add to existing mod. "
+            "To combine mounted items, select Include mounted items in a new mod and rebuild. "
+            "To extend a mod folder, select it with Add to existing mod. "
             f"Source: {snapshot.iteminfo.payload_entry.pamt_path}"
         )
     return NewItemPlan(

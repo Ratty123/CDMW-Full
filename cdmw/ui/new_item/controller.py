@@ -123,6 +123,7 @@ class NewItemStudioController(
         #: A mod folder to plan on top of, so a second item joins the first one's tables
         #: instead of replacing them. None plans against the archives.
         self.mod_base_folder: Optional[Path] = None
+        self.include_mounted_items = False
         #: The game's own character for the placement viewport, read once per player rig.
         #: A cached None means that rig was absent and the placement service uses a stand-in.
         self._character_references: Dict[str, object] = {}
