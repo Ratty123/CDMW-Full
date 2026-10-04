@@ -7874,6 +7874,7 @@
     "Preparing model rows...": "准备模型行...",
     "Preparing model textures…": "正在准备模型纹理…",
     "Preparing overlay history...": "正在准备叠加包历史记录...",
+    "Preparing placement transform and attachment for {value_0}...": "正在准备 {value_0} 的放置变换和附着...",
     "Preparing preview": "Preparing preview",
     "Preparing preview - cloning model.": "准备预览 - 克隆模型。",
     "Preparing preview - model buffers ready.": "准备预览 - 模型缓冲区准备就绪。",

@@ -7874,6 +7874,7 @@
     "Preparing model rows...": "Przygotowywanie wierszy modelu...",
     "Preparing model textures…": "Przygotowywanie tekstur modelu…",
     "Preparing overlay history...": "Przygotowywanie historii nakładek...",
+    "Preparing placement transform and attachment for {value_0}...": "Przygotowywanie transformacji położenia i mocowania dla {value_0}...",
     "Preparing preview": "Preparing preview",
     "Preparing preview - cloning model.": "Przygotowanie podglądu - klonowanie modelu.",
     "Preparing preview - model buffers ready.": "Przygotowanie podglądu - gotowe bufory modelu.",

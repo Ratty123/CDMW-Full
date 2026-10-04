@@ -7874,6 +7874,7 @@
     "Preparing model rows...": "モデル行を準備しています...",
     "Preparing model textures…": "モデルのテクスチャを準備中…",
     "Preparing overlay history...": "オーバーレイ履歴を準備しています...",
+    "Preparing placement transform and attachment for {value_0}...": "{value_0} の配置変換とアタッチメントを準備しています...",
     "Preparing preview": "Preparing preview",
     "Preparing preview - cloning model.": "プレビューを準備しています - モデルのクローンを作成しています。",
     "Preparing preview - model buffers ready.": "プレビューを準備しています - モデル バッファの準備ができています。",

@@ -176,7 +176,7 @@ def _build_mesh_import_supplemental_file_specs(
     if archive_entries_by_basename is not None:
         from cdmw.core.archive_model_references import _find_archive_model_related_entries
 
-        related_entries = _find_archive_model_related_entries(entry, dict(archive_entries_by_basename))
+        related_entries = _find_archive_model_related_entries(entry, archive_entries_by_basename)
     related_entries_by_extension: Dict[str, List[ArchiveEntry]] = {}
     for related_entry in related_entries:
         related_entries_by_extension.setdefault(related_entry.extension.lower(), []).append(related_entry)
@@ -250,7 +250,7 @@ def _collect_original_mesh_sidecar_texts(
     from cdmw.core.archive_model_references import _find_archive_model_sidecar_entries
 
     sidecars: List[Tuple[ArchiveEntry, str]] = []
-    for sidecar_entry in _find_archive_model_sidecar_entries(entry, dict(archive_entries_by_basename)):
+    for sidecar_entry in _find_archive_model_sidecar_entries(entry, archive_entries_by_basename):
         raise_if_cancelled(stop_event, "Mesh import preview cancelled.")
         try:
             sidecar_data, _decompressed, _note = read_archive_entry_data(

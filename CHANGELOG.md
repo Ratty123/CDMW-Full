@@ -27,7 +27,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 ### Fixed
 
 - Texture Workflow's OpenImageIO actions start correctly in the current workspace and deliver their reports to the authoring panel.
-- Create New Item requires Finish Edit Mesh before accepting edited parts, separates Effects layer selection and renaming from visibility, and retains issued item IDs and model names across restarts. Apply placement also avoids a hard crash caused by background cleanup of UI objects.
+- Create New Item requires Finish Edit Mesh before accepting edited parts, separates Effects layer selection and renaming from visibility, and retains issued item IDs and model names across restarts. Apply placement avoids a hard crash caused by background cleanup of UI objects and long reference-resolution delays with large archive catalogues. Current Tool Log reports its phases, timings, reference lookups and texture-conversion activity.
 - Mesh Editor can apply and restore shader experiments in saved replacement drafts without reopening game archives.
 - Mesh Editor identifies cloth and spline physics per part, shows retained guide and jiggle influence, and explains missing data or preview limits.
 - Mesh Editor no longer rejects Finish Edit Mesh when Windows uses a redirected temporary folder.

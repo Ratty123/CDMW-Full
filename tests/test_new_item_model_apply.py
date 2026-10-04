@@ -105,6 +105,43 @@ def test_apply_button_publishes_selected_variant_and_unblocks_plan(studio, monke
     assert controller.has_current_plan
 
 
+def test_apply_backend_activity_reaches_current_tool_log_before_completion(studio, monkeypatch):
+    app, tab = studio
+    _import(tab)
+    release = threading.Event()
+    built = ModelFiles(b"placed fixture PAC")
+    progress, worker_threads = [], []
+    gui_thread = threading.get_ident()
+    tab.controller.operation_progress.connect(lambda *event: progress.append(event))
+
+    def build(_entry, _path, *, on_log, on_progress, **_kwargs):
+        worker_threads.append(threading.get_ident())
+        on_progress(5, 10, "Resolve references")
+        on_log("Reference 1/3: Skull / base colour -> Skull_basecolor.png...")
+        assert release.wait(3)
+        return built
+
+    monkeypatch.setattr("cdmw.services.preview_workflow_service.build_mesh_import_preview", build)
+    try:
+        tab.model_panel.apply_button.click()
+        deadline = time.monotonic() + 2
+        while "Skull_basecolor.png" not in tab.log.toPlainText() and time.monotonic() < deadline:
+            app.processEvents()
+            time.sleep(.005)
+        assert tab.controller.busy
+        assert "Preparing placement transform" in tab.log.toPlainText()
+        assert "Skull_basecolor.png" in tab.log.toPlainText()
+        assert "Skull_basecolor.png" in tab.output_panel.log.toPlainText()
+        assert "Placement applied to" not in tab.log.toPlainText()
+        assert worker_threads and worker_threads[0] != gui_thread
+        assert ("model_apply", 6, 11, "Resolve references") in progress
+    finally:
+        release.set()
+        _finish(app, tab.controller)
+    assert tab.controller.model_result is built
+    assert "Placement applied to" in tab.log.toPlainText()
+
+
 def test_apply_placement_collects_gui_cycles_without_stopping_worker(studio, monkeypatch):
     import gc
     from PySide6.QtCore import QObject, Qt

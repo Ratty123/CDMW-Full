@@ -463,6 +463,7 @@ class NewItemModelControllerMixin:
                     attachment_prefab_data=snapshot.payload(variant[0]) if snapshot is not None and variant else b"",
                     stop_event=stop_event,
                     on_progress=progress,
+                    on_log=log,
                 )
 
         def done(result: object) -> None:

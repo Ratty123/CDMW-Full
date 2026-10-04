@@ -7874,6 +7874,7 @@
     "Preparing model rows...": "모델 행 준비 중...",
     "Preparing model textures…": "모델 텍스처 준비 중…",
     "Preparing overlay history...": "오버레이 기록을 준비하는 중...",
+    "Preparing placement transform and attachment for {value_0}...": "{value_0}의 배치 변환 및 부착을 준비하는 중...",
     "Preparing preview": "Preparing preview",
     "Preparing preview - cloning model.": "미리보기 준비 중 - 모델 복제.",
     "Preparing preview - model buffers ready.": "미리보기 준비 중 - 모델 버퍼 준비.",

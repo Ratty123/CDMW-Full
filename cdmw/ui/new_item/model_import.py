@@ -1315,6 +1315,7 @@ def build_placed_import(
     attachment_prefab_data: bytes = b"",
     stop_event: Optional[threading.Event] = None,
     on_progress: Optional[Callable[[int, int, str], None]] = None,
+    on_log: Optional[Callable[[str], None]] = None,
 ):
     """The Builder's import over the template's mesh `entry`, headless: the Full Import
     Model Replacement (the imported model owns the visible mesh, the generated textures
@@ -1340,6 +1341,8 @@ def build_placed_import(
     )
     if on_progress is not None:
         on_progress(0, 11, "Transform mesh")
+    if on_log is not None:
+        on_log(f"Preparing placement transform and attachment for {entry.basename}...")
     scene = dc_replace(source.scene, mesh=bind_static_import_to_attachment(
         source.baked_scene_mesh(), entry.path, attachment_prefab_data,
     ))
@@ -1360,4 +1363,5 @@ def build_placed_import(
         texture_entries_by_basename=entries_by_basename,
         stop_event=stop_event,
         on_progress=forward_progress,
+        on_log=on_log,
     )

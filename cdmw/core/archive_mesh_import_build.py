@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+import time
 from pathlib import Path
 from typing import Callable, Mapping, Optional, Sequence
 
@@ -40,6 +41,7 @@ def build_mesh_import_preview(
     supplemental_files: Sequence[Path] = (),
     stop_event: Optional[threading.Event] = None,
     on_progress: Optional[Callable[[int, int, str], None]] = None,
+    on_log: Optional[Callable[[str], None]] = None,
 ) -> MeshImportPreviewResult:
     state = MeshImportBuildState(
         entry=entry,
@@ -54,6 +56,7 @@ def build_mesh_import_preview(
         visible_texture_mode=visible_texture_mode,
         supplemental_files=supplemental_files,
         stop_event=stop_event,
+        on_log=on_log,
     )
     stages = (
         (load_mesh_import_sources, "Read source"),
@@ -65,15 +68,26 @@ def build_mesh_import_preview(
         (configure_mesh_import_materials, "Configure materials"),
         (generate_mesh_import_material_payloads, "Build materials"),
         (prepare_mesh_import_paired_lod, "Write package"),
+        (finish_mesh_import_preview, "Publish"),
     )
-    total = len(stages) + 1
+    total = len(stages)
     for index, (stage, detail) in enumerate(stages):
         if on_progress is not None:
             on_progress(index, total, detail)
-        stage(state)
-    if on_progress is not None:
-        on_progress(total - 1, total, "Publish")
-    result = finish_mesh_import_preview(state)
+        started = time.monotonic()
+        summary_start = len(state.summary_lines)
+        if on_log is not None:
+            on_log(f"{detail}: starting...")
+        try:
+            result = stage(state)
+        except Exception as exc:
+            if on_log is not None:
+                on_log(f"{detail}: stopped after {time.monotonic() - started:.1f}s: {exc}")
+            raise
+        if on_log is not None:
+            for line in state.summary_lines[summary_start:]:
+                on_log(line)
+            on_log(f"{detail}: finished in {time.monotonic() - started:.1f}s.")
     if on_progress is not None:
         on_progress(total, total, "Ready")
     return result

@@ -188,6 +188,7 @@ def build_static_texture_payloads(state: MeshImportBuildState, original_sidecars
         submesh_mappings=state.static_mappings,
         read_original_texture_bytes=api._mesh_texture_original_bytes,
         original_texture_source_path=api._mesh_texture_original_source_path,
+        on_log=state.on_log,
         enable_missing_base_color_parameters=state.enable_missing_base_color_parameters,
         texture_slot_overrides=values["texture_slot_overrides"],
         source_material_texture_overrides=values["source_material_texture_overrides"],

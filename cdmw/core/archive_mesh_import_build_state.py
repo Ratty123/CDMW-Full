@@ -3,7 +3,7 @@ from __future__ import annotations
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Mapping, Optional, Sequence
+from typing import Any, Callable, Mapping, Optional, Sequence
 
 from cdmw.models import ArchiveEntry
 from cdmw.modding.scene_importer import SceneImportResult
@@ -18,12 +18,15 @@ class MeshImportBuildState:
     static_replacement_options: Optional[StaticMeshReplacementOptions]
     scene_import_result: Optional[SceneImportResult]
     source_display_label: str
+    # These may be lazy resident-catalogue views. Query them directly; copying
+    # them would enumerate the whole game's catalogue for each import stage.
     archive_entries_by_normalized_path: Optional[Mapping[str, Sequence[ArchiveEntry]]]
     texture_entries_by_normalized_path: Optional[Mapping[str, Sequence[ArchiveEntry]]]
     texture_entries_by_basename: Optional[Mapping[str, Sequence[ArchiveEntry]]]
     visible_texture_mode: str
     supplemental_files: Sequence[Path]
     stop_event: Optional[threading.Event]
+    on_log: Optional[Callable[[str], None]] = None
     imported_mesh: Any = None
     manifest_payload: Any = None
     original_baseline: Any = None

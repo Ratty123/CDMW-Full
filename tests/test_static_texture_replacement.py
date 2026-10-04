@@ -5925,9 +5925,11 @@ class StaticTextureReplacementTests(unittest.TestCase):
             _write_fake_png_header(source_png, 4096, 4096)
             original_dds.write_bytes(_fake_dds_bytes(256, 256, mips=9, fourcc=b"DXT1"))
             seen_formats: list[str] = []
+            logs: list[str] = []
 
             def fake_native_encode(source: Path, target: Path, **kwargs: object) -> dict[str, object]:
                 seen_formats.append(str(kwargs["dds_format"]))
+                kwargs["on_log"]("Native texture encode is still running after 30s.")
                 return _fake_native_dds_encode(source, target, **kwargs)
 
             report = TextureReplacementReport()
@@ -5938,13 +5940,15 @@ class StaticTextureReplacementTests(unittest.TestCase):
                     read_original_texture_bytes=lambda _entry: original_dds.read_bytes(),
                     original_texture_source_path=lambda _entry: original_dds,
                     report=report,
-                    on_log=None,
+                    on_log=logs.append,
                 )
 
             output_dds = root / "output.dds"
             output_dds.write_bytes(payload)
             self.assertEqual(["BC5_UNORM"], seen_formats)
             self.assertEqual("BC5_UNORM", parse_dds(output_dds).dds_format)
+            self.assertTrue(any("Helmet_normal.png" in line and "4096x4096" in line for line in logs))
+            self.assertIn("Native texture encode is still running after 30s.", logs)
             self.assertTrue(any("normal map output uses BC5_UNORM" in warning for warning in report.warnings))
 
     def test_material_mask_bc1_encode_forces_opaque_alpha_to_preserve_rgb(self) -> None:

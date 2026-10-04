@@ -1113,7 +1113,8 @@ def _build_texture_payload(
         if str(source_slot.slot_kind or "").strip().lower() == "material_mask" and _dds_format_is_bc1(output_format):
             _force_png_alpha_opaque(prepared_png)
         if on_log:
-            on_log(f"Converting {source_png.name} -> {getattr(target_entry, 'path', 'texture')} ({output_format})")
+            on_log(f"Converting {source_png.name} -> {getattr(target_entry, 'path', 'texture')} "
+                   f"({output_format}, {output_width}x{output_height}, {mip_count} mip levels)")
         produced = out_dir / f"{prepared_png.stem}.dds"
         native_report = encode_dds_with_directxtex(
             prepared_png,
@@ -1127,6 +1128,7 @@ def _build_texture_payload(
             source_color_policy=("assume_srgb" if source_info is not None
                                  and source_info.dds_format.upper() == "BC7_UNORM_SRGB"
                                  and output_format.upper() == "BC7_UNORM_SRGB" else "auto"),
+            on_log=on_log,
         )
         native_encode_ok = False
         native_encode_error = ""

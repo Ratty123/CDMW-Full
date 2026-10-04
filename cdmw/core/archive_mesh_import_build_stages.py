@@ -219,7 +219,7 @@ def resolve_mesh_import_sidecars(state: MeshImportBuildState) -> None:
             state.sidecar_texts_by_basename,
         ) = _extract_archive_model_sidecar_texture_references(
             state.entry,
-            archive_entries_by_basename=dict(state.texture_entries_by_basename),
+            archive_entries_by_basename=state.texture_entries_by_basename,
         )
         if state.original_archive_sidecar_texture_references and not state.selected_sidecar_texture_references:
             paths = state.original_archive_sidecar_reference_paths
@@ -255,14 +255,8 @@ def attach_mesh_import_texture_previews(state: MeshImportBuildState) -> None:
     from cdmw.core import archive_model_textures as textures
 
     kwargs = dict(
-        texture_entries_by_normalized_path=(
-            dict(state.texture_entries_by_normalized_path)
-            if state.texture_entries_by_normalized_path is not None
-            else None
-        ),
-        texture_entries_by_basename=(
-            dict(state.texture_entries_by_basename) if state.texture_entries_by_basename is not None else None
-        ),
+        texture_entries_by_normalized_path=state.texture_entries_by_normalized_path,
+        texture_entries_by_basename=state.texture_entries_by_basename,
         sidecar_texts_by_normalized_path=state.sidecar_texts_by_normalized_path,
         sidecar_texts_by_basename=state.sidecar_texts_by_basename,
         stop_event=state.stop_event,
@@ -355,16 +349,11 @@ def collect_mesh_import_references(state: MeshImportBuildState) -> None:
             state.preview_model,
             parsed_mesh=state.parsed_mesh,
             sidecar_texture_references=state.sidecar_texture_references,
-            texture_entries_by_normalized_path=(
-                dict(state.texture_entries_by_normalized_path)
-                if state.texture_entries_by_normalized_path is not None
-                else None
-            ),
-            texture_entries_by_basename=(
-                dict(state.texture_entries_by_basename) if state.texture_entries_by_basename is not None else None
-            ),
+            texture_entries_by_normalized_path=state.texture_entries_by_normalized_path,
+            texture_entries_by_basename=state.texture_entries_by_basename,
             sidecar_texts_by_normalized_path=state.sidecar_texts_by_normalized_path,
             sidecar_texts_by_basename=state.sidecar_texts_by_basename,
+            on_log=state.on_log,
         )
     )
     state.supplemental_file_specs = api._build_mesh_import_supplemental_file_specs(

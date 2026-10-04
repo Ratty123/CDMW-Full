@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from pathlib import PurePosixPath
-from typing import Dict, List, Optional, Sequence, Tuple
+import time
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 from cdmw.models import (
     ArchiveEntry,
@@ -355,7 +356,7 @@ def _upsert_model_texture_reference(
     texture_entries_by_basename: Optional[Dict[str, Sequence[ArchiveEntry]]],
     sidecar_texts_by_normalized_path: Optional[Dict[str, Tuple[str, ...]]],
     sidecar_texts_by_basename: Optional[Dict[str, Tuple[str, ...]]],
-) -> None:
+) -> Optional[ArchiveModelTextureReference]:
     texture_name, material_name, preview_path, semantic_hint, binding = candidate
     reference_name = texture_name or material_name
     if not reference_name:
@@ -413,6 +414,7 @@ def _upsert_model_texture_reference(
     else:
         references[key] = item
         ordered_keys.append(key)
+    return item
 
 
 def build_archive_model_texture_references(
@@ -426,9 +428,12 @@ def build_archive_model_texture_references(
     texture_entries_by_basename: Optional[Dict[str, Sequence[ArchiveEntry]]] = None,
     sidecar_texts_by_normalized_path: Optional[Dict[str, Tuple[str, ...]]] = None,
     sidecar_texts_by_basename: Optional[Dict[str, Tuple[str, ...]]] = None,
+    on_log: Optional[Callable[[str], None]] = None,
 ) -> List[ArchiveModelTextureReference]:
     preview_meshes = list(getattr(model_preview, "meshes", ()) or [])
     parsed_submeshes = _iter_parsed_model_submeshes(parsed_mesh)
+    if on_log is not None:
+        on_log(f"Finding companion files for {source_entry.basename}...")
     related = _find_archive_model_related_entries(source_entry, texture_entries_by_basename) if texture_entries_by_basename is not None else ()
     if not any((preview_meshes, parsed_submeshes, binary_texture_references, sidecar_texture_references, related)):
         return []
@@ -436,8 +441,15 @@ def build_archive_model_texture_references(
     ordered_keys: List[Tuple[str, ...]] = []
     _add_related_model_references(source_entry, related, references, ordered_keys)
     candidates = _collect_model_reference_candidates(preview_meshes, parsed_submeshes, binary_texture_references, sidecar_texture_references)
-    for candidate in candidates:
-        _upsert_model_texture_reference(
+    if on_log is not None:
+        on_log(f"Found {len(related):,} companion file(s); resolving {len(candidates):,} texture reference(s).")
+    for index, candidate in enumerate(candidates, 1):
+        started = time.monotonic()
+        if on_log is not None:
+            texture, material, _preview, hint, _binding = candidate
+            on_log(f"Reference {index}/{len(candidates)}: {material or 'unnamed material'} / "
+                   f"{hint or 'texture'} -> {texture or material or 'none'}...")
+        item = _upsert_model_texture_reference(
             source_entry,
             candidate,
             references,
@@ -447,4 +459,9 @@ def build_archive_model_texture_references(
             sidecar_texts_by_normalized_path=sidecar_texts_by_normalized_path,
             sidecar_texts_by_basename=sidecar_texts_by_basename,
         )
+        if on_log is not None:
+            status = item.resolution_status.replace("_", " ") if item is not None else "no texture declared"
+            target = f" -> {item.resolved_archive_path}" if item is not None and item.resolved_archive_path else ""
+            on_log(f"Reference {index}/{len(candidates)}: archive lookup {status}{target} "
+                   f"({time.monotonic() - started:.1f}s).")
     return [references[key] for key in ordered_keys]

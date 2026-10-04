@@ -1488,6 +1488,13 @@ bar above the placement actions. Apply runs through the controller's cancellable
 progress lane; its spinner, current phase, percentage when available and Cancel action
 remain live while conflicting placement edits are disabled.
 
+Apply placement also reports each backend phase and its elapsed time in **Current Tool
+Log** and the Output activity log. Reference lookup names the material and texture being
+checked; texture conversion reports the filename, DDS format, dimensions and mip count,
+with the native encoder's periodic heartbeat during long conversions. These messages
+also enter the runtime diagnostics log. Import stages query the resident archive indexes
+directly instead of copying the entire catalogue to resolve a model's dependencies.
+
 Preview-loading text stays in that operation bar while errors and ready/capture messages
 remain below the viewport. The fast-texture state explicitly says that full quality is
 still loading, and the final state confirms whether that texture pass completed or

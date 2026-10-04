@@ -92642,6 +92642,16 @@
       ]
     },
     {
+      "key": "Preparing placement transform and attachment for {value_0}...",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/model_import.py",
+          "line": 1345,
+          "sink": "on_log"
+        }
+      ]
+    },
+    {
       "key": "Preparing preview",
       "origins": [
         {

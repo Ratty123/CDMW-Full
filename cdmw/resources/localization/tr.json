@@ -7874,6 +7874,7 @@
     "Preparing model rows...": "Model satırları hazırlanıyor...",
     "Preparing model textures…": "Model dokuları hazırlanıyor…",
     "Preparing overlay history...": "Kaplama geçmişi hazırlanıyor...",
+    "Preparing placement transform and attachment for {value_0}...": "{value_0} için yerleştirme dönüşümü ve bağlantı hazırlanıyor...",
     "Preparing preview": "Preparing preview",
     "Preparing preview - cloning model.": "Önizleme hazırlanıyor - klonlama model.",
     "Preparing preview - model buffers ready.": "Önizleme hazırlanıyor - model arabellekleri hazır.",
