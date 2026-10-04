@@ -1278,6 +1278,11 @@ emitter; duplicate/remove controls change its emitter list, while the inspector 
 declared emission, lifetime, force, velocity, size, rotation and atlas fields.
 
 Overrides are opt-in, show inherited values, and unavailable fields are disabled.
+**Emitters → Orientation** offers **Original**, **Follow placement** and **Face camera**.
+Original keeps the source setting. Camera-facing flames, including Jwibul 1's main
+flame, can look unchanged when the placement rotates. Select that emitter and choose
+Follow placement to tilt its sprite with the rotation controls. This also preserves
+the particle's own XYZ rotation; the choice is included in saved recipes and exports.
 Colour, size and opacity curves use Start/Middle/End controls; portable JSON recipes can
 retain up to 128 samples. Save, load, import and export retain the complete composition.
 Playback speed, seek, seed, restart and preview quality support repeatable comparisons;

@@ -28,7 +28,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
-- Effects & Perks filters the library by effect names, categories and types without including unrelated shared resources or nonmatching selected rows. Infinite-lived flames such as Torch 1 no longer receive an artificial preview fade-out when they have no authored opacity curve.
+- Effects & Perks filters the library by effect names, categories and types without including unrelated shared resources or nonmatching selected rows. Infinite-lived flames such as Torch 1 no longer receive an artificial preview fade-out when they have no authored opacity curve. Sprite effects support placement rotation, with an emitter Orientation choice for camera-facing flames such as Jwibul; the choice is retained in saved and exported effects.
 - Browse Archives opens Select Extension without blocking the application, removing the delay before its cached list appears. Repeated clicks bring the existing picker forward.
 - Create New Item shows export blockers with the affected items and source archive, offers an existing mod folder to extend, and keeps write errors visible after progress stops.
 - Current Tool Log and Create New Item's Output log automatically follow new messages and keep the last line fully visible when resized or reopened.

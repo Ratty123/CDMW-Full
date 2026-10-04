@@ -44,7 +44,7 @@ VECTOR_FIELDS = (
     ("_rotationMax", "Rotation maximum"),
 )
 VECTOR_COMPONENTS = {"_spawnVolumeData": 4}
-INTEGER_FIELDS = frozenset(('_spawnVolumeType', '_useUniformSurfaceDensity', '_spawnCountMin', '_spawnCountMax', '_maxParticleCount', '_loopCount', '_sequenceCountX', '_sequenceCountY', '_isInfiniteParticle', '_useCureveRepeat'))
+INTEGER_FIELDS = frozenset(('_alignMode', '_spawnVolumeType', '_useUniformSurfaceDensity', '_spawnCountMin', '_spawnCountMax', '_maxParticleCount', '_loopCount', '_sequenceCountX', '_sequenceCountY', '_isInfiniteParticle', '_useCureveRepeat'))
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,6 +99,8 @@ class EffectLayer:
 def validate_emitter_edits(look: EffectLook) -> None:
     """Validate user recipes before decoding, allocating or writing binary data."""
     limits = {key: (low, high) for key, _label, low, high, _default in EMITTER_FIELDS}
+    # The orientation selector exposes only the two supported override modes.
+    limits['_alignMode'] = (0.0, 1.0)
     vectors = {key for key, _label in VECTOR_FIELDS}
     if len(look.emitters) > 128 or (look.emitter_order is not None and len(look.emitter_order) > 128):
         raise ValueError("An effect supports at most 128 emitter slots.")

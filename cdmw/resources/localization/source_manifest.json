@@ -44737,6 +44737,16 @@
       ]
     },
     {
+      "key": "Face camera",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_recipe_panel.py",
+          "line": 142,
+          "sink": "addItem"
+        }
+      ]
+    },
+    {
       "key": "Face vertex index byte. Must keep the same value count and reference existing vertices.",
       "origins": [
         {
@@ -47913,6 +47923,26 @@
           "path": "cdmw/constants.py",
           "line": 209,
           "sink": "python-data:UI_TEXT_COLOR_SCHEME_OPTIONS"
+        }
+      ]
+    },
+    {
+      "key": "Follow placement",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_recipe_panel.py",
+          "line": 141,
+          "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "Follow placement lets the flame tilt with the rotation controls. Face camera keeps it facing you. Original restores the source setting. This choice is saved in the exported effect.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_recipe_panel.py",
+          "line": 143,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -84343,6 +84373,11 @@
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
           "line": 310,
           "sink": "QTreeWidgetItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/effect_recipe_panel.py",
+          "line": 138,
+          "sink": "QLabel"
         }
       ]
     },
@@ -84418,6 +84453,11 @@
           "path": "cdmw/ui/mesh_editor/tab_dotnet_material_roles.py",
           "line": 30,
           "sink": "python-return:_dotnet_material_role_label"
+        },
+        {
+          "path": "cdmw/ui/new_item/effect_recipe_panel.py",
+          "line": 140,
+          "sink": "addItem"
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",

@@ -476,6 +476,9 @@ the new package's placement.
 The resident effect overlay renders DDS sprites, interpolated flipbooks,
 packed mask channels and bounded decoded mesh particles. It uses authored
 velocity, damping, speed limits, independent size axes, colour and alpha curves.
+Sprite alignment mode 0 retains authored XYZ rotation and the placement transform;
+mode 1 remains camera-facing. Older descriptors without an alignment field retain
+their camera-facing behavior. Other alignment modes keep the existing approximation.
 The authored force range is acceleration, matching the game's standard
 `GPUParticleUpdateCS`; particle mass affects external forces rather than dividing
 that range. Both sprite and line previews preserve this distinction.

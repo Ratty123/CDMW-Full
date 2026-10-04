@@ -124,6 +124,53 @@ def test_infinite_life_requires_a_boolean_integer():
         validate_emitter_edits(EffectLook(emitters=(EmitterEdit(0, values=(('_isInfiniteParticle', (.5,)),)),)))
 
 
+@pytest.mark.parametrize('mode', [0, 1])
+def test_particle_orientation_survives_recipe_export_and_preview(mode):
+    from cdmw.services.effect_preview_model import effect_preview_json
+
+    snapshot = Snapshot()
+    source = snapshot.payload(f'effect/binary__/releasebin/{STEM}.pae')
+    look = EffectLook(emitter_order=(0,), emitters=(EmitterEdit(0, values=(('_alignMode', (float(mode),)),)),))
+    restored = read_recipe(recipe_json((EffectLayer(STEM, look=look),)))[0].look
+    result = decode_effect_binary(compile_effect_recipe(snapshot, source, restored))
+    render = result.root.child('_emitterVariationDataArray')[0].child('_internalEmitterData').child('_renderData')
+    assert render.value('_alignMode').value == mode
+    assert render.value('_overrideParticleAlignMode').value is True
+    preview = preview_effect_from_snapshot(snapshot, STEM, restored)
+    assert preview.emitters[0].alignment_mode == mode
+    assert preview.editor_emitters[0]['values']['_alignMode'] == (mode,)
+    assert json.loads(effect_preview_json(preview))['emitters'][0]['alignment_mode'] == mode
+
+
+@pytest.mark.parametrize('mode', [-1., .5, 2.])
+def test_particle_orientation_rejects_unsupported_overrides(mode):
+    from cdmw.domain.new_item.effect_authoring import validate_emitter_edits
+
+    with pytest.raises(ValueError, match='(_alignMode|whole number)'):
+        validate_emitter_edits(EffectLook(emitters=(EmitterEdit(0, values=(('_alignMode', (mode,)),)),)))
+
+
+@pytest.mark.parametrize('override', [False, True])
+def test_orientation_respects_the_render_preset_until_explicitly_overridden(override):
+    snapshot = Snapshot()
+    path = f'effect/binary__/releasebin/{STEM}.pae'
+    look = EffectLook(emitter_order=(0,), emitters=(EmitterEdit(0, values=(('_alignMode', (0.,)),)),))
+    source = compile_effect_recipe(snapshot, snapshot.payload(path), look)
+    document = decode_effect_binary(source)
+    node = document.root.child('_emitterVariationDataArray')[0].child('_internalEmitterData')
+    render = node.child('_renderData')
+    assert set_typed_value(document, render, '_overrideParticleAlignMode', override)
+    preset_path = 'effect/binary__/renderpreset/' + node.value('_renderGroupPreset').value + '.parg'
+    preset_source = snapshot.payload(preset_path)
+    preset = decode_effect_binary(preset_source)
+    assert set_typed_value(preset, preset.root, '_alignMode', 1)
+    snapshot.data[preset_path] = serialize_effect(preset_source, preset)
+    snapshot.data[path] = serialize_effect(source, document)
+    preview = preview_effect_from_snapshot(snapshot, STEM)
+    assert preview.emitters[0].alignment_mode == (0 if override else 1)
+    assert preview.editor_emitters[0]['values']['_alignMode'] == (0 if override else 1,)
+
+
 @pytest.mark.parametrize('infinite', [False, True])
 @pytest.mark.parametrize('authored_opacity', [False, True])
 def test_infinite_flame_without_an_opacity_curve_does_not_fade_away(infinite, authored_opacity):

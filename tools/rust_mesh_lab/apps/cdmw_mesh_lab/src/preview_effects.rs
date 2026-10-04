@@ -394,6 +394,8 @@ pub(crate) fn effect_emitter_particles(
         .unwrap_or(0.0)
         .max(0.0);
     let (rotation_low, rotation_high) = value_pair(emitter.get("rotation"), (0.0, 0.0));
+    // Older preview descriptors omit this field and retain camera-facing sprites.
+    let follows_placement = emitter.get("alignment_mode").and_then(Value::as_u64) == Some(0);
     let velocity_stretch = emitter
         .get("velocity_stretch")
         .and_then(Value::as_f64)
@@ -671,24 +673,40 @@ pub(crate) fn effect_emitter_particles(
                 let angle = (rotation_low
                     + (rotation_high - rotation_low) * seed_unit(seed + 23.3))
                 .to_radians();
-                let mut right_direction = camera_right * angle.cos() + camera_up * angle.sin();
-                let mut up_direction = -camera_right * angle.sin() + camera_up * angle.cos();
+                let (mut right_axis, mut up_axis) = if follows_placement {
+                    // Native ParticleAlignMode 0 keeps the particle basis; mode 1
+                    // removes the emitter basis to face the view. Keep placement
+                    // and authored XYZ rotation together, including scale once.
+                    let angles = effect_range(emitter.get("rotation_3d"), seed + 23.3, Vec3::new(0.0, 0.0, angle.to_degrees()))
+                        * (std::f32::consts::PI / 180.0);
+                    let rotation = Quat::from_euler(EulerRot::XYZ, angles.x, angles.y, angles.z);
+                    (
+                        model_matrix.transform_vector3(rotation * Vec3::X),
+                        model_matrix.transform_vector3(rotation * Vec3::Y),
+                    )
+                } else {
+                    (
+                        (camera_right * angle.cos() + camera_up * angle.sin()) * scene_scale,
+                        (-camera_right * angle.sin() + camera_up * angle.cos()) * scene_scale,
+                    )
+                };
                 let world_velocity = model_matrix.transform_vector3(velocity);
                 let projected_velocity =
                     world_velocity - camera_forward * world_velocity.dot(camera_forward);
                 let stretch = 1.0 + projected_velocity.length() * velocity_stretch;
-                if velocity_stretch > 0.0 && projected_velocity.length_squared() > 1.0e-8 {
-                    up_direction = projected_velocity.normalize();
-                    right_direction = up_direction
+                if !follows_placement && velocity_stretch > 0.0 && projected_velocity.length_squared() > 1.0e-8 {
+                    let up_direction = projected_velocity.normalize();
+                    right_axis = up_direction
                         .cross(camera_forward)
-                        .normalize_or(right_direction);
+                        .normalize_or(right_axis.normalize_or(camera_right)) * scene_scale;
+                    up_axis = up_direction * scene_scale;
                 }
                 instances.push(EffectBillboardInstance {
                     center: center.to_array(),
                     // Authored particle scale is the full quad size. The draw
                     // shader expands these axes with corners at -1 and +1.
-                    axis_right: (right_direction * size.x * scene_scale * 0.5).to_array(),
-                    axis_up: (up_direction * size.y * scene_scale * stretch.clamp(1.0, 20.0) * 0.5)
+                    axis_right: (right_axis * size.x * 0.5).to_array(),
+                    axis_up: (up_axis * size.y * stretch.clamp(1.0, 20.0) * 0.5)
                         .to_array(),
                     colour,
                     uv_rect,
@@ -929,6 +947,38 @@ mod tests {
         );
         assert!((2.0 * Vec3::from(p[0].axis_right).length() - 0.015).abs() < 1.0e-6);
         assert!((2.0 * Vec3::from(p[0].axis_up).length() - 0.06).abs() < 1.0e-6);
+    }
+    #[test]
+    fn placement_aligned_flame_rotates_its_axes_and_scales_once() {
+        let mut e = emitter();
+        e["alignment_mode"] = json!(0);
+        // Particle pitch turns its up axis into Z; placement roll turns X into Y.
+        e["rotation_3d"] = json!([[90., 0., 0.], [90., 0., 0.]]);
+        let transform = Mat4::from_scale_rotation_translation(
+            Vec3::splat(0.2),
+            Quat::from_rotation_z(std::f32::consts::FRAC_PI_2),
+            Vec3::new(4., 5., 6.),
+        );
+        for (right, up, forward) in [(Vec3::X, Vec3::Y, -Vec3::Z), (Vec3::Z, Vec3::Y, Vec3::X)] {
+            let p = effect_emitter_billboards(&e, 0, 0.5, 1., 0, transform, right, up, forward);
+            assert_eq!(p.len(), 1);
+            assert_eq!(p[0].center, [4., 5., 6.]);
+            assert!(Vec3::from(p[0].axis_right).abs_diff_eq(Vec3::Y * 0.01, 1.0e-6));
+            assert!(Vec3::from(p[0].axis_up).abs_diff_eq(Vec3::Z * 0.04, 1.0e-6));
+        }
+    }
+    #[test]
+    fn camera_facing_and_legacy_flames_keep_the_camera_basis() {
+        for mode in [None, Some(1)] {
+            let mut e = emitter();
+            if let Some(mode) = mode {
+                e["alignment_mode"] = json!(mode);
+            }
+            let transform = Mat4::from_rotation_z(std::f32::consts::FRAC_PI_2);
+            let p = effect_emitter_billboards(&e, 0, 0.5, 1., 0, transform, Vec3::Z, Vec3::Y, Vec3::X);
+            assert!(Vec3::from(p[0].axis_right).abs_diff_eq(Vec3::Z * 0.05, 1.0e-6));
+            assert!(Vec3::from(p[0].axis_up).abs_diff_eq(Vec3::Y * 0.2, 1.0e-6));
+        }
     }
     #[test]
     fn authored_force_does_not_accelerate_low_mass_torch_particles_faster() {

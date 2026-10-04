@@ -147,6 +147,8 @@ class EmitterPreview:
     particle_tangents: Tuple[Tuple[float, ...], ...] = ()
     particle_colors: Tuple[Tuple[float, ...], ...] = ()
     material: dict = field(default_factory=dict)
+    #: ParticleAlignMode: 0 follows particle/placement rotation, 1 faces the camera.
+    alignment_mode: int = 1
 
 
 @dataclass(frozen=True, slots=True)
@@ -481,6 +483,13 @@ def _read(sources: Sequence[_Source], group: str, name: str, default, reader):
     return default
 
 
+def _alignment_mode(sources: Sequence[_Source]) -> int:
+    presets = [source for source in sources if source.node.type_name == RENDER_PRESET_TYPE]
+    if presets and not _read(sources, '_renderData', '_overrideParticleAlignMode', 0, _number):
+        sources = presets + [source for source in sources if source not in presets]
+    return int(_read(sources, '_renderData', '_alignMode', 1, _number))
+
+
 def _curve_from(sources: Sequence[_Source], curve_id: int, assumed_components: int) -> Tuple[Tuple[float, ...], ...]:
     """The first source carrying curve `curve_id` with data, respecting inherited keys
     and removals. Keyless legacy records use the base layout. The component count is
@@ -722,6 +731,7 @@ def _emitter_preview(
         emissive_color=emissive, brightness=brightness, beam_width=beam_width, beam_jitter=beam_jitter, mesh=particle_mesh,
         spawn_time=max(0.0, spawn_time), mass=max(0.0, mass), simulation_speed=max(0.01, simulation_speed),
         sequence=sequence, velocity_stretch=max(0.0, velocity_stretch), beam_length=beam_length, beam_axis=beam_axis,
+        alignment_mode=_alignment_mode(sources),
         velocity=velocity, scale_axes_over_life=tuple(tuple(max(0.0, float(v)) for v in s[:3]) for s in scale_curve),
         texture_is_mask=texture_is_mask, texture_channels=4 if packed_channels else 1,
         rotation_3d=(
@@ -834,6 +844,7 @@ def build_effect_preview(
                 decoded = value.value
                 if isinstance(decoded, (int, float)) or (isinstance(decoded, tuple) and len(decoded) <= 4 and all(isinstance(v, (int, float)) for v in decoded)):
                     field_values[value.name] = decoded if isinstance(decoded, tuple) else (decoded,)
+        field_values['_alignMode'] = (_alignment_mode(sources),)
         editor_emitters.append({"index": index, "name": name, "enabled": enabled, "fields": sorted(field_names), "values": field_values, "resolved": document.walk_complete and (bool(base_doc and base_doc.walk_complete) or embedded.type_name == "EmitterData")})
         if enabled:
             from dataclasses import replace

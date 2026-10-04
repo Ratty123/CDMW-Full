@@ -62,6 +62,46 @@ def _mesh() -> ParsedMesh:
     )
 
 
+def test_emitter_orientation_selector_edits_and_restores_only_orientation():
+    from cdmw.domain.new_item.effect_authoring import EmitterEdit
+    from cdmw.ui.new_item.effect_recipe_panel import EffectRecipePanel, EffectUserLibrary
+
+    app = QApplication.instance() or QApplication([])
+    panel = EffectRecipePanel(EffectUserLibrary())
+    state = EffectWorkspaceState(stem='fx_fire_object_b__jwibul1', emitter_edits=(
+        EmitterEdit(0, intensity=2., values=(('_spawnCountMax', (3.,)),)),
+    ))
+    panel.set_state(state)
+    preview = SimpleNamespace(emitters=(SimpleNamespace(source_index=0, kind='billboard'),), editor_emitters=({
+        'name': 'cdem_material_fire_alpha_uberstandard_disabledepth', 'enabled': True,
+        'resolved': True, 'fields': ('_alignMode', '_spawnCountMax'),
+        'values': {'_alignMode': (1,), '_spawnCountMax': (3.,)},
+    },))
+    panel.set_preview(preview)
+    changes = []
+    panel.changed.connect(changes.append)
+    try:
+        assert panel.orientation.isEnabled()
+        assert panel.orientation.currentData() is None
+        for mode in (0, 1, None):
+            panel.orientation.setCurrentIndex(panel.orientation.findData(mode))
+            state = changes[-1]
+            edit = state.emitter_edits[0]
+            assert dict(edit.values).get('_alignMode') == (None if mode is None else (float(mode),))
+            assert dict(edit.values)['_spawnCountMax'] == (3.,)
+            assert edit.intensity == 2.
+            panel.set_state(state)
+        preview.emitters[0].kind = 'mesh'
+        panel.set_preview(preview)
+        assert not panel.orientation.isEnabled()
+        panel.set_preview(None)
+        assert not panel.orientation.isEnabled()
+    finally:
+        panel.close()
+        panel.deleteLater()
+        app.processEvents()
+
+
 class _Controller(QObject):
     effect_catalogue_progress = Signal(int, int, str)
     effect_catalogue_ready = Signal()

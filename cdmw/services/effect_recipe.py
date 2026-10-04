@@ -190,6 +190,10 @@ def compile_effect_recipe(snapshot, source: bytes, look: EffectLook, *, cancelle
             render = node.child('_renderData')
             if isinstance(render, ReflectNode):
                 set_typed_value(individual, render, '_overridePresetColor', True)
+        if '_alignMode' in dict(edit.values):
+            render = node.child('_renderData')
+            if isinstance(render, ReflectNode):
+                set_typed_value(individual, render, '_overrideParticleAlignMode', True)
         if edit.texture:
             if not snapshot.has_entry(edit.texture):
                 raise EffectBinaryError(f'Texture is absent from the archives: {edit.texture}')

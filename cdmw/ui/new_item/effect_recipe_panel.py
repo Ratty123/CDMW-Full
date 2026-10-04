@@ -134,6 +134,16 @@ class EffectRecipePanel(QWidget):
             row.addWidget(button)
         col.addLayout(row)
         self.parameters = QTableWidget(0, 3)
+        orientation_row = QHBoxLayout()
+        orientation_row.addWidget(QLabel('Orientation'))
+        self.orientation = QComboBox()
+        self.orientation.addItem('Original', None)
+        self.orientation.addItem('Follow placement', 0)
+        self.orientation.addItem('Face camera', 1)
+        self.orientation.setToolTip('Follow placement lets the flame tilt with the rotation controls. Face camera keeps it facing you. Original restores the source setting. This choice is saved in the exported effect.')
+        self.orientation.currentIndexChanged.connect(lambda _: self._edit())
+        orientation_row.addWidget(self.orientation, 1)
+        col.addLayout(orientation_row)
         self.parameters.setHorizontalHeaderLabels(('Use', 'Property', 'Value'))
         self.parameters.verticalHeader().hide()
         self.parameters.setMinimumHeight(240)
@@ -307,6 +317,9 @@ class EffectRecipePanel(QWidget):
         self._fields.clear()
         self.parameters.setRowCount(0)
         values = dict(edit.values)
+        self.orientation.setCurrentIndex(max(0, self.orientation.findData(values.get('_alignMode', (None,))[0])))
+        sprite = any(e.source_index == index and e.kind == 'billboard' for e in getattr(self.preview, 'emitters', ()))
+        self.orientation.setEnabled(sprite and bool(slot.get('resolved')) and '_alignMode' in slot.get('fields', ()))
         descriptions = [(k,l,lo,hi,d,1) for k,l,lo,hi,d in EMITTER_FIELDS]
         descriptions += [(k,l,-1000.,1000.,0.,VECTOR_COMPONENTS.get(k, 3)) for k,l in VECTOR_FIELDS]
         descriptions += [(k, label, .05,20.,1.,1) for k,label in (('intensity','Brightness factor'), ('size','Size factor'), ('rate','Spawn factor'), ('lifetime','Lifetime factor'))]
@@ -399,6 +412,8 @@ class EffectRecipePanel(QWidget):
         index=self.emitter.currentIndex()
         previous=next((e for e in self.state.emitter_edits if e.index==index),EmitterEdit(index))
         fields={k:tuple(s.value() for s in spins) for k,(check,spins) in self._fields.items() if check.checkState()==Qt.CheckState.Checked}
+        if self.orientation.currentData() is not None:
+            fields['_alignMode'] = (float(self.orientation.currentData()),)
         factors={k:fields.pop(k,(1.,))[0] for k in ('intensity','size','rate','lifetime')}
         # Imported recipes can carry 128 samples. Only editing that curve's
         # controls replaces it with the three visible stops.
