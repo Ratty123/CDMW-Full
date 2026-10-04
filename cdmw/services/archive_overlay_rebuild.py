@@ -14,6 +14,7 @@ from cdmw.services.archive_overlay_install import OVERLAY_OWNER_MARKER, is_cdmw_
 
 def prepare_overlay_rebuild(package_root, *, stop_event=None, on_log=None):
     root = Path(package_root).resolve()
+    observed_state = owner._observe_state(root)
     inventory = (root / owner.INDEX_PATH).read_bytes()
     state = owner._load_index(root)
     if state is None or not any(row['active'] or row.get('disabled') for row in state['layers']):
@@ -138,5 +139,5 @@ def prepare_overlay_rebuild(package_root, *, stop_event=None, on_log=None):
         # put the newly composed shared tables ahead of the sources it merged.
         underlay_mount = serialize_papgt([record for record in records if str(record.name) != name], header=mount[:12])
         writes['meta/0.papgt'] = papgt_with_directory(underlay_mount, name, prepared.pamt_checksum, first=True)
-    return replace(prepared, action='rebuild', writes=tuple(writes.items()),
+    return replace(owner._pin_preparation(prepared, observed_state), action='rebuild', writes=tuple(writes.items()),
                    source_stamps=tuple((p, tuple(s)) for p, s in stamps.items()))

@@ -7,6 +7,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Fixed
+
+- Independent item packages refuse overlapping overlay operations that would discard newer ownership, allow further items to be authored after installing generated textures, recheck imported model bindings, and ignore unmounted external mods during compatibility checks.
+
 ## [0.11.0-alpha.23] - 2026-10-04
 
 Adds guided private problem reporting, mounted-item packaging and expanded Mesh

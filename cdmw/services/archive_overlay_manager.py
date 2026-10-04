@@ -6,7 +6,7 @@ order. Removed journal entries remain as the baseline and recovery history.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import hashlib
 import io
 import json
@@ -453,6 +453,31 @@ class OverlayChangePreparation:
     payload_bytes: int
     carried_forward: int
     action: str = 'remove'
+    # Read dependencies, including absent ledgers, are not mutation targets.
+    observed_state: tuple[tuple[str, bytes | None], ...] = ()
+
+
+def _observe_state(root):
+    paths = (INDEX_PATH, '.cdmw/independent-items.json', 'meta/0.papgt', 'meta/0.pathc')
+    return tuple((relative, path.read_bytes() if path.is_file() else None)
+                 for relative in paths for path in (_target(root, relative),))
+
+
+def _verify_observed_state(root, observed, phase, error_type=OverlayConflict):
+    for relative, expected in observed:
+        path = _target(root, relative)
+        actual = path.read_bytes() if path.is_file() else None
+        if actual != expected or (expected is None and path.exists()):
+            raise error_type(f'{relative} changed {phase}. Refresh and prepare again.')
+
+
+def _pin_preparation(prepared, observed, *, error_type=OverlayConflict):
+    """Tie composition and publication to the state read before planning began."""
+    _verify_observed_state(prepared.package_root, observed, 'during preparation', error_type)
+    before = dict(prepared.before)
+    if any(path in before and before[path] != expected for path, expected in observed):
+        raise error_type('The installed state changed during preparation. Refresh and prepare again.')
+    return replace(prepared, observed_state=observed)
 
 
 @dataclass(frozen=True)
@@ -635,6 +660,7 @@ def _compose(root, state, pending, label, removed_id, stop_event, on_log, *, dec
 
 def prepare_item_overlay(plan, package_root, *, directory_name=None, stop_event=None, on_log=None, retirement=None):
     root = Path(package_root).resolve()
+    observed = _observe_state(root)
     if on_log:
         on_log('Validating the plan archive sources...')
     if plan.source_revision is not None:
@@ -706,11 +732,12 @@ def prepare_item_overlay(plan, package_root, *, directory_name=None, stop_event=
         if (before[INDEX_PATH] != retirement.inventory_data or before['meta/0.papgt'] != retirement.mount_data
                 or before[archived] is not None):
             raise OverlayConflict('The overlay state changed after preparation. Refresh and prepare again.')
-    return prepared
+    return _pin_preparation(prepared, observed)
 
 
 def prepare_overlay_removal(package_root, overlay_id, *, stop_event=None, on_log=None):
     root = Path(package_root).resolve()
+    observed = _observe_state(root)
     state, pending = _state_for_edit(root, None, stop_event)
     identity = str(overlay_id)
     selected = next((layer for layer in state['layers'] if (layer['active'] or layer.get('disabled', False)) and
@@ -719,13 +746,13 @@ def prepare_overlay_removal(package_root, overlay_id, *, stop_event=None, on_log
         raise ValueError('The selected overlay is no longer installed. Refresh the list.')
     selected['active'] = False
     selected.pop('disabled', None)
-    return _compose(root, state, pending, selected['label'], selected['id'], stop_event, on_log)
+    return _pin_preparation(_compose(root, state, pending, selected['label'], selected['id'], stop_event, on_log), observed)
 
 
 def prepare_overlay_enabled(package_root, overlay_id, enabled, *, stop_event=None, on_log=None):
     """Review a reversible enable/disable using the same composition and transaction as removal."""
-    from dataclasses import replace
     root = Path(package_root).resolve()
+    observed = _observe_state(root)
     state, pending = _state_for_edit(root, None, stop_event)
     selected = next((layer for layer in state['layers'] if (layer['id'] == str(overlay_id)
                      or (str(overlay_id) == 'legacy:' + state['directory'] and layer.get('legacy')))
@@ -733,7 +760,7 @@ def prepare_overlay_enabled(package_root, overlay_id, enabled, *, stop_event=Non
     if selected is None:
         raise ValueError('The selected overlay is no longer installed. Refresh the list.')
     selected['active'], selected['disabled'] = bool(enabled), not bool(enabled)
-    return replace(_compose(root, state, pending, selected['label'], selected['id'], stop_event, on_log),
+    return replace(_pin_preparation(_compose(root, state, pending, selected['label'], selected['id'], stop_event, on_log), observed),
                    action='enable' if enabled else 'disable')
 
 
@@ -778,6 +805,7 @@ def apply_overlay_change(preparation, *, confirmed, backup, restore_backup, game
     if set(preparation.deletes) - {name + '/0.pamt', name + '/0.paz', name + '/' + OVERLAY_OWNER_MARKER, 'meta/0.pathc'}:
         raise ValueError('A prepared overlay removal names an unowned file.')
     originals = {}
+    _verify_observed_state(root, preparation.observed_state, 'after preparation')
     for relative, expected in preparation.before:
         path = _target(root, relative)
         actual = path.read_bytes() if path.is_file() else None
@@ -794,6 +822,7 @@ def apply_overlay_change(preparation, *, confirmed, backup, restore_backup, game
     _verify_backup(backup_dir, originals)
     if game_running():
         raise RuntimeError('Crimson Desert started during backup. Close it before changing overlays.')
+    _verify_observed_state(root, preparation.observed_state, 'after preparation')
     for relative, expected in preparation.before:
         path = _target(root, relative)
         actual = path.read_bytes() if path.is_file() else None

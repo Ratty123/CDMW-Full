@@ -9,9 +9,9 @@ import json
 from pathlib import Path
 import re
 
-from cdmw.core.archive_format import discover_pamt_files, parse_archive_pamt
+from cdmw.core.archive_format import parse_archive_pamt
 from cdmw.core.atomic_file import atomic_binary_writer
-from cdmw.core.pathc_format import parse_pathc
+from cdmw.core.papgt_format import parse_papgt
 from cdmw.core.stringinfo_table import stringinfo_key
 from cdmw.domain.archives.overlay_merge import _table
 from cdmw.domain.cancellation import raise_if_cancelled
@@ -164,10 +164,17 @@ def _capture(plan, snapshot, root, state, pathc_before):
     return changes
 
 
-def _external_paths(root, state):
+def _external_paths(root, state, stop_event=None):
     paths = set()
-    for pamt in discover_pamt_files(root):
-        if int(Path(pamt).parent.name) >= 36 and Path(pamt).parent.name != state['directory']:
+    for record in parse_papgt(overlays._target(root, 'meta/0.papgt').read_bytes()):
+        raise_if_cancelled(stop_event)
+        name = record.name
+        if len(name) != 4 or not name.isascii() or not name.isdigit():
+            raise IndependentItemError('The mounted archive layout is unsupported for independent items.')
+        if int(name) < 36 or name == state['directory']:
+            continue
+        for pamt in sorted(overlays._target(root, name).glob('*.pamt')):
+            raise_if_cancelled(stop_event)
             paths.update(entry.path.lower() for entry in parse_archive_pamt(pamt))
     return paths
 
@@ -187,7 +194,7 @@ def retained_package_recovery(root, state, *, stop_event=None, on_log=None):
     observed = {REGISTRY_PATH: overlays._target(root, REGISTRY_PATH).read_bytes()}
     registry = load_registry(root)
     snapshot = stock_snapshot(root, stop_event=stop_event, on_log=on_log)
-    external = _external_paths(root, state)
+    external = _external_paths(root, state, stop_event)
     for layer in state['layers']:
         identity = layer.get('independent_identity')
         if not identity or not (layer['active'] or layer.get('disabled')):
@@ -211,11 +218,10 @@ def retained_package_recovery(root, state, *, stop_event=None, on_log=None):
 
 def prepare_install(sources, root, *, stop_event=None, on_log=None, read_entry=None):
     root = Path(root).resolve()
+    observed_state = overlays._observe_state(root)
     def current_bytes(relative):
         path = overlays._target(root, relative)
         return path.read_bytes() if path.is_file() else None
-    observed_registry = current_bytes(REGISTRY_PATH)
-    observed_index = current_bytes(overlays.INDEX_PATH)
     if not sources or len(sources) > 128:
         raise IndependentItemError('Select between one and 128 item packages.')
     packages = {}
@@ -235,19 +241,19 @@ def prepare_install(sources, root, *, stop_event=None, on_log=None, read_entry=N
     state, pending = overlays._state_for_edit(root, None, stop_event)
     decoded = {layer['id']: overlays._unpack_changes(root, layer, pending, stop_event) for layer in state['layers']}
     service = NewItemService()
-    snapshot = stock_snapshot(root, service=service, read_entry=read_entry, stop_event=stop_event, on_log=on_log)
+    snapshot = stock_snapshot(root, service=service, read_entry=read_entry, stop_event=stop_event, on_log=on_log,
+                              overlay_changes=decoded.values())
     pathc_path = overlays._target(root, 'meta/0.pathc')
     pathc_before = pathc_path.read_bytes() if pathc_path.is_file() else None
     for changes in decoded.values():
         if 'meta/0.pathc' in changes:
             pathc_before = changes['meta/0.pathc']['before']
             break
-    snapshot.pathc = parse_pathc(pathc_before) if pathc_before is not None else None
     baseline = snapshot
     baseline_dependencies = snapshot.provenance.capture().payloads
     # Inspect all mounted external files, irrespective of priority. Adding our
     # composed table must never silently hide a manager's replacement.
-    external_paths = _external_paths(root, state)
+    external_paths = _external_paths(root, state, stop_event)
     rows = []
     for identity, package in packages.items():
         raise_if_cancelled(stop_event, 'Independent item preparation cancelled.')
@@ -352,8 +358,7 @@ def prepare_install(sources, root, *, stop_event=None, on_log=None, read_entry=N
     _validate_registry(registry)
     pending[REGISTRY_PATH] = canonical(registry)
     preparation = overlays._compose(root, state, pending, 'Independent items', None, stop_event, on_log, decoded=decoded)
-    if dict(preparation.before)[REGISTRY_PATH] != observed_registry or dict(preparation.before)[overlays.INDEX_PATH] != observed_index:
-        raise IndependentItemError('The installed item state changed during preparation. Refresh and prepare again.')
+    preparation = overlays._pin_preparation(preparation, observed_state, error_type=IndependentItemError)
     return IndependentItemInstallPlan(preparation, tuple(rows), tuple(f'{status}: {title} (item {key})' for _, title, key, status in rows))
 
 
@@ -392,10 +397,7 @@ def export_profile(root, destination, *, stop_event=None):
 
 def prepare_profile_import(source, root, *, stop_event=None, on_log=None):
     root = Path(root).resolve()
-    registry_path = overlays._target(root, REGISTRY_PATH)
-    observed = registry_path.read_bytes() if registry_path.is_file() else None
-    index_path = overlays._target(root, overlays.INDEX_PATH)
-    observed_index = index_path.read_bytes() if index_path.is_file() else None
+    observed_state = overlays._observe_state(root)
     incoming = _read_registry(Path(source))
     registry = load_registry(root)
     for identity, row in incoming['items'].items():
@@ -418,6 +420,4 @@ def prepare_profile_import(source, root, *, stop_event=None, on_log=None):
                 raise IndependentItemError('An installed overlay occupies an identity in the incoming profile.')
     pending[REGISTRY_PATH] = canonical(registry)
     preparation = overlays._compose(root, state, pending, 'Import independent item identities', None, stop_event, on_log)
-    if dict(preparation.before)[REGISTRY_PATH] != observed or dict(preparation.before)[overlays.INDEX_PATH] != observed_index:
-        raise IndependentItemError('The installed item state changed during preparation. Refresh and prepare again.')
-    return preparation
+    return overlays._pin_preparation(preparation, observed_state, error_type=IndependentItemError)

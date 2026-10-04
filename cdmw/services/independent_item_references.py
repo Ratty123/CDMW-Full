@@ -80,6 +80,18 @@ def audit_references(plan, snapshot, *, stop_event=None):
             raise IndependentItemError('The item dependency graph exceeds the supported size.')
 
     family = snapshot.family(plan.spec.template_key)
+    mesh_bindings = {}
+    if any(path.endswith('.pac') for path in outputs):
+        if plan.spec.variants is not None:
+            for variant in plan.manifest.get('variants', ()):
+                if 'output_model' in variant:
+                    mesh_bindings.setdefault(variant['output_model'], []).append(
+                        (variant['model_path'], variant['prefab_path']))
+        else:
+            for role, original, target in family.renamed(plan.spec.stem):
+                if role == 'pac':
+                    mesh_bindings[target] = [(original, part.prefab_path) for part in family.parts
+                                             if original in part.pac_paths]
     for resource in family.files:
         if resource.exists:
             require(resource.path)
@@ -141,10 +153,17 @@ def audit_references(plan, snapshot, *, stop_event=None):
                 require(resource)
         elif path.endswith('.pac'):
             if owned:
-                from cdmw.modding.mesh_parser import parse_pac
-                mesh = parse_pac(data, path)
-                if not mesh.submeshes:
-                    raise IndependentItemError(f'The owned mesh format is unverified: {path}')
+                from cdmw.services.new_item_variants import validate_variant_rig
+                bindings = mesh_bindings.get(path)
+                if not bindings:
+                    raise IndependentItemError(f'The owned mesh has no verified target binding: {path}')
+                # Validate the actual output, including prepared imports and
+                # companion meshes, without baking authoring settings again.
+                for target, prefab in bindings:
+                    try:
+                        validate_variant_rig(snapshot, target, data, prefab_path=prefab)
+                    except ValueError as exc:
+                        raise IndependentItemError(f'Incompatible owned mesh {path}: {exc}') from exc
             from cdmw.services.new_item_variants import xml_path
             sidecar = xml_path(path)
             if sidecar in outputs or snapshot.has_entry(sidecar):

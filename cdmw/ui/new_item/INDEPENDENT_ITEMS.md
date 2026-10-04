@@ -61,6 +61,9 @@ payload hashes must match the author's source. This is conservative version
 compatibility, not proof that a user's base archives are an untouched retail copy.
 Opaque dependencies on another mod are unsupported. An external mounted archive
 replacing a required path blocks preparation, regardless of priority.
+Unmounted external archive folders do not participate in that check. Authoring
+also restores the texture baseline from retained overlay history, so installing
+an item with generated textures does not prevent preparing the next package.
 Custom dye masks that still refer to a local file are refused; this package version
 does not import files from the recipient's computer.
 
@@ -73,6 +76,9 @@ the existing overlay mutation transaction. Review includes the exact game folder
 and affected files. The game must be closed and the existing backup verification,
 stale-source checks and rollback must succeed. A failed/cancelled preparation
 writes nothing; publication failure rolls back the transaction.
+Ordinary and independent overlay operations pin the initial ownership inventory,
+identity ledger (including its absence), mount list and texture registry. Changes
+during preparation, review or backup require a new preparation before publication.
 The existing overlay rebuild also checks retained packages against their pinned
 game dependencies and backs up their matching identity and recovery data.
 
@@ -90,7 +96,7 @@ projects and invokes these same controls and callbacks.
 | Legacy enhancement rows | Existing verified transition editor, with reserved keys | Unknown row/reference boundary |
 | Embedded perks | Verified game dependency; optional owned zero-price copies | Undecoded stat blocks or missing localisation |
 | Shops and groups | Add stock and group membership | Stock replacement or edits to existing reward consumers |
-| Imported PAC meshes | Prepared geometry through existing model/variant planning | Undecodable geometry or incompatible target binding |
+| Imported PAC meshes | Final output checked against each exact template attachment or skin palette at export and installation, without reapplying authoring edits | Undecodable geometry, missing target binding or incompatible skinning |
 | PAC XML and DDS | Parsed resource paths and owned textures/icons; composed texture registry | Unknown XML root/reference attributes, unresolved resources or absent registry |
 | PAPPT and prefabs | Existing structured editors and relocation | Incomplete or inferred prefab reference layouts |
 | Owned effects/emitters/presets | Complete reflection decode, bounded fixed-length reference edits and reserved tokens | Missing dependencies or ambiguous reflection boundaries |
@@ -110,6 +116,11 @@ localisation; repeated imports, updates, restart-style re-reading, removal and
 reinstallation, and transfer through an identity profile. Corruption, incomplete
 dependencies, incompatible source hashes, collisions, allocation exhaustion,
 stale mappings and rollback/cancellation have focused fixture checks.
+
+`tests/test_independent_item_regressions.py` covers overlapping overlay operations,
+ledger changes before publication, authoring after a generated-icon installation,
+invalid imported attachment bindings with valid package hashes, and unmounted
+external archives during installation and rebuild.
 
 `tests/test_independent_items_ui.py` and the Output test in
 `tests/test_new_item_rust_ui.py` drive the real Qt controls through the Rust input

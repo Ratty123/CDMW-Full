@@ -40,7 +40,7 @@ def virtual_path(value):
     return value
 
 
-def stock_snapshot(root, *, service=None, read_entry=None, stop_event=None, on_log=None):
+def stock_snapshot(root, *, service=None, read_entry=None, stop_event=None, on_log=None, overlay_changes=None):
     """Use the existing shipped-directory boundary, never a mounted custom table."""
     from cdmw.core.archive_format import discover_pamt_files, parse_archive_pamt
     from cdmw.services.new_item_service import NewItemService
@@ -59,6 +59,23 @@ def stock_snapshot(root, *, service=None, read_entry=None, stop_event=None, on_l
     from cdmw.domain.new_item.allocation import DEFAULT_ITEM_KEY_RANGE
     if any(key in DEFAULT_ITEM_KEY_RANGE for key in result.rows):
         raise IndependentItemError("The shipped item tables contain custom items. Restore a clean game baseline before using independent packages.")
+    # Authoring uses temporary identities, so its texture registry must have the
+    # same baseline as its tables. Installed additions are resolved at install.
+    if overlay_changes is None:
+        from cdmw.services import archive_overlay_manager as overlays
+        result.provenance.pin_file(overlays._target(root, overlays.INDEX_PATH))
+        state = overlays._load_index(root)
+        layers = (state or {}).get('layers', ())
+        if not any(layer['active'] or layer.get('disabled') for layer in layers):
+            layers = ()  # Removed history may predate the current game baseline.
+        overlay_changes = (overlays._unpack_changes(root, layer, {}, stop_event) for layer in layers)
+    for changes in overlay_changes:
+        raise_if_cancelled(stop_event)
+        if 'meta/0.pathc' in changes:
+            from cdmw.core.pathc_format import parse_pathc
+            baseline = changes['meta/0.pathc']['before']
+            result.pathc = parse_pathc(baseline) if baseline is not None else None
+            break
     return result
 
 
