@@ -20,17 +20,18 @@ def files_in(root):
     return {path.relative_to(root): path.read_bytes() for path in root.rglob('*') if path.is_file()}
 
 
-def add_external_group(tmp_path, root, name, files):
+def add_external_group(tmp_path, root, name, files, *, present=True):
     from cdmw.core.papgt_format import papgt_with_directory
     from tests.test_new_item_service import build_package
     pamt = build_package(tmp_path / name, files)
-    directory = root / name
-    directory.mkdir()
-    for source in pamt.parent.iterdir():
-        if source.is_file():
-            (directory / source.name).write_bytes(source.read_bytes())
+    if present:
+        directory = root / name
+        directory.mkdir()
+        for source in pamt.parent.iterdir():
+            if source.is_file():
+                (directory / source.name).write_bytes(source.read_bytes())
     mount = root / 'meta/0.papgt'
-    checksum = int.from_bytes((directory / '0.pamt').read_bytes()[:4], 'little')
+    checksum = int.from_bytes(pamt.read_bytes()[:4], 'little')
     mount.write_bytes(papgt_with_directory(mount.read_bytes(), name, checksum))
 
 
@@ -64,7 +65,8 @@ def test_independent_plan_uses_shipped_data_with_named_manager_archives(tmp_path
     assert files_in(root) == before
 
 
-def test_named_manager_archives_survive_independent_item_lifecycle(tmp_path):
+@pytest.mark.parametrize('present', [True, False])
+def test_named_manager_archives_survive_independent_item_lifecycle(tmp_path, present):
     from cdmw.core.papgt_format import parse_papgt
     from cdmw.services.archive_overlay_rebuild import prepare_overlay_rebuild
     _, package = authored(tmp_path / 'author')
@@ -72,7 +74,9 @@ def test_named_manager_archives_survive_independent_item_lifecycle(tmp_path):
     setup_game(tmp_path / 'recipient')
     root, backups = tmp_path / 'recipient/game', Backups(tmp_path)
     for name in ('dmmgen', 'dmmsa'):
-        add_external_group(tmp_path, root, name, {f'ui/texture/{name}.dds': b'unrelated external asset'})
+        # Deleting a manager folder leaves its name and checksum in PAPGT.
+        add_external_group(tmp_path, root, name, {f'ui/texture/{name}.dds': b'unrelated external asset'},
+                           present=present)
     groups = {name: files_in(root / name) for name in ('0009', 'dmmgen', 'dmmsa')}
     mount = root / 'meta/0.papgt'
     original_mount = parse_papgt(mount.read_bytes())
