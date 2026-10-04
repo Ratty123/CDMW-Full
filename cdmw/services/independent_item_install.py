@@ -169,9 +169,10 @@ def _external_paths(root, state, stop_event=None):
     for record in parse_papgt(overlays._target(root, 'meta/0.papgt').read_bytes()):
         raise_if_cancelled(stop_event)
         name = record.name
-        if len(name) != 4 or not name.isascii() or not name.isdigit():
-            raise IndependentItemError('The mounted archive layout is unsupported for independent items.')
-        if int(name) < 36 or name == state['directory']:
+        if not re.fullmatch(r'[A-Za-z0-9_-]+', name):
+            raise IndependentItemError(f'Unsupported mounted archive folder for independent items: {name!r}.')
+        shipped = len(name) == 4 and name.isascii() and name.isdigit() and int(name) < 36
+        if shipped or name == state['directory']:
             continue
         for pamt in sorted(overlays._target(root, name).glob('*.pamt')):
             raise_if_cancelled(stop_event)

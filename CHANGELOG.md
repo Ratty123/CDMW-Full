@@ -9,7 +9,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
-- Independent item packages refuse overlapping overlay operations that would discard newer ownership, allow further items to be authored after installing generated textures, recheck imported model bindings, and ignore unmounted external mods during compatibility checks.
+- Independent item packages recognize named manager archive folders such as `dmmgen` and `dmmsa`, while still refusing conflicting mounted mods and ignoring unmounted ones. They also protect newer ownership from overlapping operations, allow further items to be authored after installing generated textures, and recheck imported model bindings.
 
 ## [0.11.0-alpha.23] - 2026-10-04
 

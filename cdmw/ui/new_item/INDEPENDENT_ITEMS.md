@@ -55,12 +55,16 @@ versions, malformed types, missing/unreferenced blobs and checksum/size failures
 Limits are 4 MiB of metadata, 256 MiB per resource, 1 GiB total and 4,096 entries;
 one installation batch accepts up to 128 packages.
 
-The initial baseline uses the project's shipped archive boundary (directories
-below 0036). Custom item IDs already present there are refused. Required source
+The initial baseline uses only direct, four-digit shipped archive directories
+0000 through 0035. Named manager folders such as `dmmgen` and `dmmsa`, other mod
+groups and nested archive copies are excluded from authoring inputs. Custom item
+IDs already present in shipped tables are refused. Required source
 payload hashes must match the author's source. This is conservative version
 compatibility, not proof that a user's base archives are an untouched retail copy.
-Opaque dependencies on another mod are unsupported. An external mounted archive
-replacing a required path blocks preparation, regardless of priority.
+Opaque dependencies on another mod are unsupported. Mounted external archive
+folders may use letters, digits, underscores and hyphens. They are inspected for
+conflicts, including named manager folders: replacing a required path or claiming
+an owned asset blocks installation, regardless of priority.
 Unmounted external archive folders do not participate in that check. Authoring
 also restores the texture baseline from retained overlay history, so installing
 an item with generated textures does not prevent preparing the next package.

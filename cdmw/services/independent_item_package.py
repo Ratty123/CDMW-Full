@@ -51,9 +51,12 @@ def stock_snapshot(root, *, service=None, read_entry=None, stop_event=None, on_l
         raise_if_cancelled(stop_event)
         path = Path(path).resolve()
         folder = path.parent.name
-        if not path.is_relative_to(root) or not folder.isascii() or not folder.isdigit():
+        if not path.is_relative_to(root):
             raise IndependentItemError("The game archive layout is unsupported for independent items.")
-        if int(folder) < OVERLAY_DIRECTORY_FIRST:
+        # Manager archives (including named groups) and nested copies are not
+        # shipped inputs. Only direct, four-digit game groups form the baseline.
+        if (path.parent.parent == root and len(folder) == 4
+                and folder.isascii() and folder.isdigit() and int(folder) < OVERLAY_DIRECTORY_FIRST):
             entries.extend(parse_archive_pamt(path))
     result = (service or NewItemService()).build_snapshot(entries, read_entry=read_entry, stop_event=stop_event, on_log=on_log)
     from cdmw.domain.new_item.allocation import DEFAULT_ITEM_KEY_RANGE

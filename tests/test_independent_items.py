@@ -336,7 +336,8 @@ def test_dependency_version_and_hash_collisions_fail_without_writing(tmp_path, m
 
 
 @pytest.mark.parametrize('first', [False, True])
-def test_external_replacement_blocks_installation_even_below_our_priority(tmp_path, first):
+@pytest.mark.parametrize('directory_name', ['0042', 'dmmgen', 'dmmsa'])
+def test_external_replacement_blocks_installation_even_below_our_priority(tmp_path, first, directory_name):
     from cdmw.core.papgt_format import papgt_with_directory
     from tests.test_new_item_service import build_package
     _, package = authored(tmp_path / 'source')
@@ -344,14 +345,14 @@ def test_external_replacement_blocks_installation_even_below_our_priority(tmp_pa
     root = tmp_path / 'recipient/game'
     path = next(iter(package.dependencies))
     pamt = build_package(tmp_path / 'foreign', {path: snapshot.payload(path)})
-    directory = root / '0042'
+    directory = root / directory_name
     directory.mkdir()
     for source in pamt.parent.iterdir():
         if source.is_file():
             (directory / source.name).write_bytes(source.read_bytes())
     mount = root / 'meta/0.papgt'
     checksum = int.from_bytes((directory / '0.pamt').read_bytes()[:4], 'little')
-    mount.write_bytes(papgt_with_directory(mount.read_bytes(), '0042', checksum, first=first))
+    mount.write_bytes(papgt_with_directory(mount.read_bytes(), directory_name, checksum, first=first))
     before = mount.read_bytes()
     with pytest.raises(IndependentItemError, match='external mod replaces'):
         prepare_install([package_bytes(package)], root)

@@ -9,7 +9,7 @@ import pytest
 from cdmw.domain.new_item.independent import IndependentItemError
 from cdmw.services import archive_overlay_manager as overlays
 from cdmw.services.independent_item_install import (
-    REGISTRY_PATH, inventory, load_registry, prepare_install,
+    REGISTRY_PATH, inventory, load_registry, prepare_install, prepare_remove,
 )
 from cdmw.services.independent_item_package import digest, from_plan, package_bytes
 from tests.test_archive_overlay_manager import Backups, shop_spec, snapshot_of
@@ -18,6 +18,106 @@ from tests.test_independent_items import authored, imported_game, setup_game
 
 def files_in(root):
     return {path.relative_to(root): path.read_bytes() for path in root.rglob('*') if path.is_file()}
+
+
+def add_external_group(tmp_path, root, name, files):
+    from cdmw.core.papgt_format import papgt_with_directory
+    from tests.test_new_item_service import build_package
+    pamt = build_package(tmp_path / name, files)
+    directory = root / name
+    directory.mkdir()
+    for source in pamt.parent.iterdir():
+        if source.is_file():
+            (directory / source.name).write_bytes(source.read_bytes())
+    mount = root / 'meta/0.papgt'
+    checksum = int.from_bytes((directory / '0.pamt').read_bytes()[:4], 'little')
+    mount.write_bytes(papgt_with_directory(mount.read_bytes(), name, checksum))
+
+
+@pytest.mark.parametrize('imported', [False, True])
+def test_independent_plan_uses_shipped_data_with_named_manager_archives(tmp_path, imported):
+    from cdmw.domain.new_item.spec import ModelSource
+    from cdmw.services.new_item_planning import ModelFiles
+    from cdmw.workers.new_item_workers import plan_task
+    from tests.test_new_item_service import PAC_XML, imported_pac
+    service, snapshot, _ = setup_game(tmp_path / 'author')
+    root = tmp_path / 'author/game'
+    choice = replace(shop_spec('NamedArchives'),
+                     model_source=ModelSource.IMPORTED if imported else ModelSource.TEMPLATE)
+    model = ModelFiles(imported_pac(1), {PAC_XML: snapshot.payload(PAC_XML)}) if imported else None
+    task = plan_task(choice, snapshot, service=service, model=model, independent=True)
+    expected = task(lambda _: None, threading.Event())
+    identity = uuid4().hex
+    expected_dependencies = from_plan(expected, identity).dependencies
+    for name in ('dmmgen', 'dmmsa'):
+        # Valid external archives, but their replacement table is not a verified
+        # game input. Authoring must ignore it even when mounted first.
+        add_external_group(tmp_path, root, name, {snapshot.iteminfo.payload_entry.path: b'external table'})
+    nested = root / 'external-cache/0009'
+    nested.mkdir(parents=True)
+    (nested / '0.pamt').write_bytes(b'not a shipped archive')
+    before = files_in(root)
+    actual = task(lambda _: None, threading.Event())
+    assert actual.loose_files == expected.loose_files
+    assert from_plan(actual, identity).dependencies == expected_dependencies
+    assert all(row.entry.pamt_path.parent == root / '0009' for row in actual.source_revision.payloads)
+    assert files_in(root) == before
+
+
+def test_named_manager_archives_survive_independent_item_lifecycle(tmp_path):
+    from cdmw.core.papgt_format import parse_papgt
+    from cdmw.services.archive_overlay_rebuild import prepare_overlay_rebuild
+    _, package = authored(tmp_path / 'author')
+    _, update = authored(tmp_path / 'update', package.identity, 'UpdatedItem')
+    setup_game(tmp_path / 'recipient')
+    root, backups = tmp_path / 'recipient/game', Backups(tmp_path)
+    for name in ('dmmgen', 'dmmsa'):
+        add_external_group(tmp_path, root, name, {f'ui/texture/{name}.dds': b'unrelated external asset'})
+    groups = {name: files_in(root / name) for name in ('0009', 'dmmgen', 'dmmsa')}
+    mount = root / 'meta/0.papgt'
+    original_mount = parse_papgt(mount.read_bytes())
+    backups.apply(prepare_install([package_bytes(package)], root).preparation)
+    binding = load_registry(root)['items'][package.identity]['values']
+    backups.apply(prepare_install([package_bytes(update)], root).preparation)
+    backups.apply(prepare_overlay_rebuild(root))
+    assert inventory(root)[0][3] == 'Installed'
+    assert load_registry(root)['items'][package.identity]['values'] == binding
+    backups.apply(prepare_remove(package.identity, root))
+    assert parse_papgt(mount.read_bytes()) == original_mount
+    assert {name: files_in(root / name) for name in groups} == groups
+
+
+@pytest.mark.parametrize('name', ['dmmgen', 'dmmsa'])
+def test_named_external_archive_cannot_claim_an_owned_asset(tmp_path, name):
+    from cdmw.core.item_icon_addition import NewItemIcon, icon_string_for_stem, icon_target_path
+    from cdmw.core.stringinfo_table import stringinfo_key
+    from cdmw.domain.new_item.spec import IconSource
+    from tests.test_new_item_service import _fake_dds
+    service, snapshot, _ = setup_game(tmp_path / 'recipient')
+    root = tmp_path / 'recipient/game'
+    choice = replace(shop_spec('OwnedIcon'), icon=IconSource.GENERATED)
+    stem = icon_string_for_stem(service.allocate(choice, snapshot).stem)
+    icon = NewItemIcon(stem, stringinfo_key(stem), icon_target_path(stem), _fake_dds(), None, None)
+    package = from_plan(service.plan(choice, snapshot, icon=icon, capture_independent=True), uuid4().hex)
+    add_external_group(tmp_path, root, name, {icon_target_path(stem): _fake_dds()})
+    before = files_in(root)
+    with pytest.raises(IndependentItemError, match='owned asset name is already reserved'):
+        prepare_install([package_bytes(package)], root)
+    assert files_in(root) == before
+
+
+@pytest.mark.parametrize('name', ['../outside', 'nested/mod', r'nested\mod', 'C:mod', '.', 'mod.'])
+def test_unsafe_mounted_archive_names_are_refused(tmp_path, name):
+    from cdmw.core.papgt_format import papgt_with_directory
+    from cdmw.services.independent_item_install import _external_paths
+    setup_game(tmp_path / 'recipient')
+    root = tmp_path / 'recipient/game'
+    mount = root / 'meta/0.papgt'
+    mount.write_bytes(papgt_with_directory(mount.read_bytes(), name, 0))
+    before = files_in(root)
+    with pytest.raises(IndependentItemError, match='Unsupported mounted archive folder'):
+        _external_paths(root, {'directory': '0036'})
+    assert files_in(root) == before
 
 
 @pytest.mark.parametrize('operation', ['install', 'remove', 'disable', 'enable', 'rebuild'])
@@ -156,7 +256,8 @@ def test_import_rejects_invalid_attachment_bindings_even_with_valid_hashes(tmp_p
     assert files_in(root) == before
 
 
-def test_unmounted_external_replacement_does_not_block_install_or_rebuild(tmp_path):
+@pytest.mark.parametrize('directory_name', ['0042', 'dmmgen', 'dmmsa'])
+def test_unmounted_external_replacement_does_not_block_install_or_rebuild(tmp_path, directory_name):
     from cdmw.services.archive_overlay_rebuild import prepare_overlay_rebuild
     from tests.test_new_item_service import build_package
     _, package = authored(tmp_path / 'author')
@@ -164,7 +265,7 @@ def test_unmounted_external_replacement_does_not_block_install_or_rebuild(tmp_pa
     root, backups = tmp_path / 'recipient/game', Backups(tmp_path)
     path = next(iter(package.dependencies))
     pamt = build_package(tmp_path / 'external', {path: snapshot.payload(path)})
-    directory = root / '0042'
+    directory = root / directory_name
     directory.mkdir()
     for source in pamt.parent.iterdir():
         if source.is_file():
