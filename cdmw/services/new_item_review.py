@@ -33,9 +33,11 @@ def plan_review_content(plan, mode, labels, stop_event):
     for path in plan.new_paths:
         raise_if_cancelled(stop_event)
         rows.append((path, labels[1]))
-    if mode == "overlay":
+    if mode in ("overlay", "independent"):
         rows.extend((meta.path, labels[2]) for meta in plan.meta_files)
     lines = [f"Item {plan.spec.item_key} {plan.spec.internal_name} from template {plan.spec.template_key}"]
+    if mode == "independent":
+        lines.insert(0, "Package preview: game identities are assigned at installation. Shared tables below are composed by CDMW; the package does not contain replacement tables.")
     if plan.spec.stem:
         lines.append(f"Model stem: {plan.spec.stem}")
     lines.append("")

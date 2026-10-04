@@ -4,7 +4,7 @@ import struct
 
 from cdmw.core.item_recipe_table import RecipeIngredient, RecipeGroupIngredient, encode_item_recipe
 from cdmw.core.item_recipe_links import connected_recipe_keys
-from cdmw.core.multichangeinfo_table import allocate_multichange_keys, find_multichange_keys
+from cdmw.core.multichangeinfo_table import find_multichange_keys
 from cdmw.core.structured_binary_editor import append_table_rows, parse_pabgh_table
 from cdmw.domain.new_item.authoring import RecipeOverride
 from cdmw.domain.new_item.spec import EnhancementRows
@@ -56,7 +56,7 @@ def plan_recipes(planner):
     recipe_pair, reward_pair = index.pairs["multichangeinfo"], index.pairs["dropsetinfo"]
     recipe_body, recipe_header = planner.table_data(recipe_pair)
     reward_body, reward_header = planner.table_data(reward_pair)
-    recipe_keys = allocate_multichange_keys(table_keys(recipe_body, recipe_header), len(choices))
+    recipe_keys = planner.allocate_owned_keys("multichangeinfo", tuple(f"recipe:{choice.recipe_key}" for choice in choices), table_keys(recipe_body, recipe_header))
     used_rewards = table_keys(reward_body, reward_header)
     recipe_rows, reward_rows, mapping, manifests = [], [], {}, []
     for choice, new_key in zip(choices, recipe_keys):

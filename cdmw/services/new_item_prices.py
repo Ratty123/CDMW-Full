@@ -5,7 +5,7 @@ from cdmw.core.iteminfo_row import clone_iteminfo_row, parse_iteminfo_row, rebui
 from cdmw.domain.new_item.allocation import allocate_item_key, localization_keys
 
 
-def own_zero_price_perks(row_bytes, snapshot, reserved_keys=()):
+def own_zero_price_perks(row_bytes, snapshot, reserved_keys=(), *, allocate_key=None):
     """Return the equipment row and its distinct owned perk copies (source, clone)."""
     row = parse_iteminfo_row(row_bytes, item_keys=set(snapshot.rows))
     used = set(snapshot.rows) | set(reserved_keys) | {row.key}
@@ -19,7 +19,7 @@ def own_zero_price_perks(row_bytes, snapshot, reserved_keys=()):
             continue
         if perk.stat_block_offset is None:
             raise ValueError(f"Cannot remove the price contribution of undecoded perk {perk.string_key}.")
-        clone_key = allocate_item_key(used)
+        clone_key = allocate_item_key(used) if allocate_key is None else allocate_key(key, used)
         used.add(clone_key)
         name_key, desc_key = localization_keys(clone_key)
         raw = clone_iteminfo_row(perk, key=clone_key, string_key=f"CDMW_Perk_{row.key}_{key}",

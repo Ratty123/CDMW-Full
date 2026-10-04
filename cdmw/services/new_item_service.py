@@ -231,6 +231,7 @@ class NewItemService:
         on_log: Optional[Callable[[str], None]] = None,
         on_progress: Optional[Callable[[int, int, str], None]] = None,
         stop_event: Optional[threading.Event] = None,
+        capture_independent: bool = False,
     ) -> NewItemPlan:
         """Validate, allocate and compose. `model` is a Builder result or :class:`ModelFiles`.
 
@@ -328,7 +329,7 @@ class NewItemService:
             report("Preparing the item icon...")
             built = self.build_icon(allocated, snapshot, icon_source_path, on_log=report, stop_event=stop_event)
         report("Composing item tables and files...")
-        return build_plan(allocated, snapshot, model=files, variant_models=prepared_variants, icon=built, issues=tuple(issues) + tuple(more), on_log=report, stop_event=stop_event, reserved_item_keys=tuple(reserved_keys))
+        return build_plan(allocated, snapshot, model=files, variant_models=prepared_variants, icon=built, issues=tuple(issues) + tuple(more), on_log=report, stop_event=stop_event, reserved_item_keys=tuple(reserved_keys), capture_independent=capture_independent)
 
     # ------------------------------------------------------------------ writing
 

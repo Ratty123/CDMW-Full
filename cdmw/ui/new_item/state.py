@@ -251,8 +251,11 @@ class NewItemDraft:
     shader_controls: tuple[tuple[str, ShaderControls], ...] = ()
     body_visibility: BodyVisibilityChoice = BodyVisibilityChoice()
     surface_settings: tuple[tuple[str, SurfaceEdit], ...] = ()
+    independent_identity: str = ""
 
     def reset_for_template(self, template_key: Optional[int]) -> None:
+        if self.template_key != template_key:
+            self.independent_identity = ""
         self.template_key = template_key
         self.model_source = ModelSource.TEMPLATE
         self.grid_values = {}

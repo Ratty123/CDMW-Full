@@ -254,6 +254,7 @@ class NewItemTaskControllerMixin:
             icon_source_path=icon_source, reserved_keys=tuple(self.issued_keys), reserved_stems=tuple(self.issued_stems),
             mod_base_folder=self.mod_base_folder, include_mounted_items=self.include_mounted_items,
             read_entry=self._read_entry, **variant_arguments,
+            **({"independent": True} if self.independent_mode else {}),
         )
 
         def run(log, progress, stop_event):
@@ -273,9 +274,10 @@ class NewItemTaskControllerMixin:
                     self._effect_compatibility_lane.cancel()
                 self.plan = result
                 self._plan_revision = revision
-                self.remember_issued_identity(result.spec.item_key, str(result.spec.stem or ""))
-                for perk in result.manifest.get("owned_price_perks", ()):
-                    self.remember_issued_identity(int(perk["item_key"]))
+                if not self.independent_mode:
+                    self.remember_issued_identity(result.spec.item_key, str(result.spec.stem or ""))
+                    for perk in result.manifest.get("owned_price_perks", ()):
+                        self.remember_issued_identity(int(perk["item_key"]))
                 self.plan_ready.emit(result)
             else:
                 self.plan_failed.emit("The plan finished with an unexpected result.", ())
@@ -315,6 +317,26 @@ class NewItemTaskControllerMixin:
         task = export_task(self.plan, Path(package_root), service=self.service, manager=manager,
                            package_info=package_info, create_zip=create_zip, replace_existing=replace_existing)
         return self._run("export", task, self.export_finished.emit, lambda message: self.status_message.emit(message, True))
+
+    def start_independent_export(self, path, *, update=False) -> bool:
+        if not self.independent_mode or not self.has_current_plan:
+            self.status_message.emit("Select Independent item package and build the plan first.", True)
+            return False
+        plan, identity = self.plan, self.draft.independent_identity
+        if not update:
+            from uuid import uuid4
+            identity = uuid4().hex
+        revision = self._draft_revision
+        def task(log, stop):
+            from cdmw.services.independent_item_package import from_plan, read_package, write_package
+            previous = read_package(path, stop_event=stop) if update else None
+            package = from_plan(plan, previous.identity if previous else identity, stop_event=stop)
+            return write_package(package, path, expected_digest=previous.digest if previous else None, stop_event=stop)
+        def done(result):
+            if revision == self._draft_revision:
+                self.draft.independent_identity = result.identity
+            self.export_finished.emit(result)
+        return self._run("export", task, done, lambda message: self.status_message.emit(message, True))
 
     def start_install(self, mutation_service) -> bool:
         """Compatibility entry point for callers predating overlay-only installation."""

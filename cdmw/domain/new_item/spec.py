@@ -204,7 +204,7 @@ class NewItemSpec:
     #: nothing glows, which is what an imported model does unless it brought an emissive
     #: map of its own: a template's own glow rides on a mask cut for the template's mesh,
     #: and the map the importer generates in its place says "glow everywhere".
-    glow: "GlowChoice" = None  # type: ignore[assignment]
+    glow: Optional[GlowChoice] = None
     icon: IconSource = IconSource.TEMPLATE
     stat_edits: Tuple[StatEdit, ...] = ()
     buy_price_edits: Tuple[BuyPriceEdit, ...] = ()

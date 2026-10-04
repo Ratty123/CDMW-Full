@@ -74,6 +74,49 @@ def test_json_lines_preserve_split_unicode_and_reject_oversize_duplicate_and_non
             decode_message(('{"protocol":"' + PROTOCOL + '",' + suffix + '}').encode())
 
 
+def test_independent_output_preserves_draft_and_exports_through_rust_input(studio, tmp_path):
+    from cdmw.services.independent_item_package import read_package
+    from tests.test_independent_items import setup_game
+    _fixture, tab, bridge = studio
+    controller, output = tab.controller, tab.output_panel
+    _service, controller.snapshot, _entries = setup_game(tmp_path / 'source')
+    controller.draft.internal_name = 'OriginalName'
+    controller.draft.display_names['eng'] = 'Independent test'
+    controller.draft.item_key = 1990420
+    controller.draft.stem = 'cd_phm_01_sword_9876'
+    controller.draft.manager = 'JMM'
+    output.manager.setCurrentText('JMM')
+    tab.show_step(6)
+    _send(bridge, output.independent_mode_button, 'activate')
+    assert controller.independent_mode
+    assert output.export_button.text() == 'Write item package'
+    assert not output.folder_controls.isVisible() and not output.overlay_controls.isVisible()
+    managed = controller.current_spec()
+    assert managed.item_key is None and managed.stem is None and managed.internal_name.startswith('CDI_')
+    assert controller.draft.item_key == 1990420 and controller.draft.internal_name == 'OriginalName'
+    _send(bridge, output.build_button, 'activate')
+    assert controller.has_current_plan, output.summary.toPlainText()
+    target = tmp_path / 'item.cditem'
+    with patch('cdmw.ui.new_item.panels_output.QFileDialog.getSaveFileName', return_value=(str(target), '')), \
+            patch.object(QMessageBox, 'information'):
+        _send(bridge, output.export_button, 'activate')
+    package = read_package(target)
+    assert package.identity == controller.draft.independent_identity
+    duplicate = tmp_path / 'duplicate.cditem'
+    with patch('cdmw.ui.new_item.panels_output.QFileDialog.getSaveFileName', return_value=(str(duplicate), '')), \
+            patch.object(QMessageBox, 'information'):
+        _send(bridge, output.export_button, 'activate')
+    assert read_package(duplicate).identity != package.identity
+    with patch('cdmw.ui.new_item.panels_output.QFileDialog.getOpenFileName', return_value=(str(target), '')), \
+            patch.object(QMessageBox, 'information'):
+        _send(bridge, output.update_package_button, 'activate')
+    assert read_package(target).identity == package.identity == controller.draft.independent_identity
+    _send(bridge, output.folder_mode_button, 'activate')
+    assert not controller.independent_mode and output.manager.currentText() == 'JMM'
+    assert controller.current_spec().item_key == 1990420
+    assert controller.draft.display_names['eng'] == 'Independent test'
+
+
 @pytest.fixture
 def placement_ui(studio):
     _fixture, tab, bridge = studio

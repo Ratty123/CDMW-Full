@@ -2,7 +2,6 @@
 from dataclasses import replace
 
 from cdmw.core.item_reward_table import encode_item_reward_set
-from cdmw.core.multichangeinfo_table import allocate_multichange_keys
 
 
 def own_recipe_outputs(planner, index, source, choice, new_key, used_keys):
@@ -16,7 +15,7 @@ def own_recipe_outputs(planner, index, source, choice, new_key, used_keys):
         reward = index.rewards.get(reward_key)
         if reward is None:
             raise ValueError(f"Recipe output {reward_key} has an unsupported reward layout.")
-        key = allocate_multichange_keys(used_keys, 1)[0]
+        key = planner.allocate_owned_keys("dropsetinfo", (f"recipe:{source.key}:{reward_index}",), used_keys)[0]
         used_keys.add(key)
         products = []
         for entry_index, entry in enumerate(reward.entries):

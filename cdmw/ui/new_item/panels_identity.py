@@ -182,6 +182,7 @@ class IdentityPanel(QGroupBox):
         self.workspace_splitter.setStretchFactor(1, 2)
         self.workspace_splitter.setSizes((720, 480))
         controller.template_changed.connect(self._template_changed)
+        controller.plan_invalidated.connect(lambda: self._refresh_identity_states(()))
         self._refresh_identity_states(())
 
     # ------------------------------------------------------------------ draft
@@ -209,7 +210,11 @@ class IdentityPanel(QGroupBox):
         return next((issue for issue in matching if issue.is_error), matching[0] if matching else None)
 
     def _refresh_identity_states(self, issues: tuple) -> None:
-        self.identifier_summary.setText(self.internal_name.text())
+        managed = self._controller.independent_mode
+        self.identifiers_toggle.setEnabled(not managed)
+        self.identifier_fields.setVisible(not managed and self.identifiers_toggle.isChecked())
+        self.identifier_fields.setEnabled(not managed)
+        self.identifier_summary.setText(self.tr("Managed by CDMW when the package is installed.") if managed else self.internal_name.text())
         self.presentation_name.setText(self.display_name.text())
         self.presentation_description.setText(self.description.toPlainText())
         internal_issue = self._field_issue(issues, "internal_name")

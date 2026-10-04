@@ -226,14 +226,16 @@ class OutputPanel(QGroupBox):
         self.output_mode = QComboBox(self)
         self.output_mode.addItem("Mod folder", "folder")
         self.output_mode.addItem("Game overlay", "overlay")
+        self.output_mode.addItem("Independent item package (Experimental)", "independent")
         self.output_mode.hide()
         self.mode_buttons = QWidget()
-        mode_row = QHBoxLayout(self.mode_buttons)
+        mode_row = QVBoxLayout(self.mode_buttons)
         mode_row.setContentsMargins(0, 0, 0, 0)
         mode_row.setSpacing(4)
         self.folder_mode_button = QToolButton(self.mode_buttons)
         self.overlay_mode_button = QToolButton(self.mode_buttons)
-        for index, button in enumerate((self.folder_mode_button, self.overlay_mode_button)):
+        self.independent_mode_button = QToolButton(self.mode_buttons)
+        for index, button in enumerate((self.folder_mode_button, self.overlay_mode_button, self.independent_mode_button)):
             button.setText(self.output_mode.itemText(index))
             button.setCheckable(True)
             button.setAutoExclusive(True)
@@ -292,6 +294,19 @@ class OutputPanel(QGroupBox):
         self.export_button.clicked.connect(self._export)
         self.export_button.setProperty("newItemPrimary", True)
         write_layout.addWidget(self.folder_controls)
+        self.independent_controls = QWidget()
+        independent_layout = QVBoxLayout(self.independent_controls)
+        independent_layout.setContentsMargins(0, 0, 0, 0)
+        self.independent_note = QLabel("Share this .cditem file. Recipients install it through Mod Management > Independent items. Game identities are assigned there; unsupported dependencies are refused.")
+        self.independent_note.setWordWrap(True)
+        independent_layout.addWidget(self.independent_note)
+        self.independent_validation = QLabel("Game and save compatibility is not yet verified.")
+        self.independent_validation.setWordWrap(True)
+        independent_layout.addWidget(self.independent_validation)
+        self.update_package_button = QPushButton("Update an existing item package...")
+        self.update_package_button.clicked.connect(lambda: self._write_independent(update=True))
+        independent_layout.addWidget(self.update_package_button)
+        write_layout.addWidget(self.independent_controls)
         # Plan on the chosen package's tables so both items share one complete package.
         self.add_to_mod = QCheckBox("Add to existing mod")
         self.add_to_mod.setToolTip(
@@ -425,13 +440,32 @@ class OutputPanel(QGroupBox):
 
     def _output_mode_changed(self) -> None:
         folder = self.output_mode.currentData() == "folder"
+        independent = self.output_mode.currentData() == "independent"
+        overlay = self.output_mode.currentData() == "overlay"
+        self._controller.independent_mode = independent
         self.folder_mode_button.setChecked(folder)
-        self.overlay_mode_button.setChecked(not folder)
+        self.overlay_mode_button.setChecked(overlay)
+        self.independent_mode_button.setChecked(independent)
         self.folder_controls.setVisible(folder)
-        self.overlay_controls.setVisible(not folder)
-        self.export_button.setVisible(folder)
-        self.install_overlay_button.setVisible(not folder)
+        self.independent_controls.setVisible(independent)
+        self.overlay_controls.setVisible(overlay)
+        self.export_button.setVisible(folder or independent)
+        self.export_button.setText(self.tr("Write item package") if independent else self.tr("Write mod folder"))
+        self.export_button.setToolTip(self.tr("Write a portable .cditem file for installation through CDMW.") if independent else self.tr("Create the mod folder shown above, with an optional ZIP copy."))
+        self.install_overlay_button.setVisible(overlay)
         self._mod_base_changed()
+
+    def _write_independent(self, *, update=False):
+        if not self._controller.has_current_plan:
+            return
+        if update:
+            path, _ = QFileDialog.getOpenFileName(self, self.tr("Select the item package to update"), "", self.tr("Independent item (*.cditem)"))
+        else:
+            path, _ = QFileDialog.getSaveFileName(self, self.tr("Write item package"), "", self.tr("Independent item (*.cditem)"))
+        if path:
+            if not path.lower().endswith(".cditem"):
+                path += ".cditem"
+            self._controller.start_independent_export(path, update=update)
 
     def _build(self) -> None:
         self.summary.setPlainText("Building the plan...")
@@ -531,7 +565,7 @@ class OutputPanel(QGroupBox):
             )
         self.mounted_review.set_lines((line, WARN) for line in review.splitlines())
         source_problem = self._source_export_problem()
-        problem = source_problem or (self._export_error if self.output_mode.currentData() == "folder" else "")
+        problem = source_problem or (self._export_error if self.output_mode.currentData() in ("folder", "independent") else "")
         changed = problem != self.export_problem.plain_text()
         self.export_problem.set_lines((line, BLOCK) for line in problem.splitlines())
         if problem and changed:
@@ -539,6 +573,7 @@ class OutputPanel(QGroupBox):
         self.choose_mod_base_button.setVisible(bool(source_problem))
         self.choose_mod_base_button.setEnabled(not self._controller.busy)
         self.export_button.setEnabled(self._controller.has_current_plan and not self._controller.busy and not source_problem)
+        self.update_package_button.setEnabled(self._controller.has_current_plan and not self._controller.busy)
         if problem:
             self.plan_state.set_note("Export blocked", BLOCK)
         elif self._controller.has_current_plan:
@@ -551,6 +586,9 @@ class OutputPanel(QGroupBox):
             )
 
     def _export(self) -> None:
+        if self.output_mode.currentData() == "independent":
+            self._write_independent()
+            return
         if self._source_export_problem():
             self._refresh_export_state()
             return
@@ -638,6 +676,12 @@ class OutputPanel(QGroupBox):
         self.plan_state.set_note(f"Blocked: {message}", BLOCK)
 
     def _export_finished(self, result: object) -> None:
+        from cdmw.domain.new_item.independent import IndependentItemExport
+        if isinstance(result, IndependentItemExport):
+            self._export_error = ""
+            self.append_log(f"Item package written: {result.path}")
+            QMessageBox.information(self, self.tr("Write item package"), self.tr("Package written. Install it through Mod Management > Independent items.") + "\n\n" + str(result.path))
+            return
         self._export_error = ""
         self._refresh_export_state()
         root = getattr(result, "package_root", "")
@@ -699,8 +743,9 @@ class OutputPanel(QGroupBox):
         self.export_button.setEnabled(has_plan and not busy)
         self.install_overlay_button.setEnabled(has_plan and not busy)
         self.overlay_directory.setEnabled(not busy)
-        for control in (self.output_mode, self.mode_buttons, self.folder_controls, self.add_to_mod, self.include_mounted):
+        for control in (self.output_mode, self.mode_buttons, self.folder_controls, self.independent_controls, self.add_to_mod, self.include_mounted):
             control.setEnabled(not busy)
+        self.update_package_button.setEnabled(has_plan and not busy)
         self._refresh_export_state()
 
     def _operation_progress(self, lane: str, current: int, total: int, detail: str) -> None:

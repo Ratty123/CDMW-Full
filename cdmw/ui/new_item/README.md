@@ -1068,9 +1068,15 @@ settings in a right sidebar.
 
 ## Output review and Mod Management
 
-The sidebar groups the **Mod folder** / **Game overlay** choices, destination,
-plan status and **Write mod folder** or **Install as an overlay** action. Its
+The sidebar groups **Mod folder**, **Game overlay** and **Independent item package
+(Experimental)**, destination, plan status and the selected output action. Its
 settings scroll independently while the plan status and output actions stay visible.
+
+The experimental output writes a separate `.cditem` file for installation through
+**Mod Management > Independent items**. CDMW assigns destination identities and
+composes shared files automatically. Selecting it preserves the draft and manager
+settings. See [Independent item packages](INDEPENDENT_ITEMS.md) for supported
+formats, update/removal behaviour, identity profiles and validation limits.
 
 ### Mod name
 

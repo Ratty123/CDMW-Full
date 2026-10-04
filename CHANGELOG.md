@@ -24,6 +24,7 @@ tuning does not establish in-game behavior.
 
 ### Added
 
+- Create New Item offers experimental independent `.cditem` packages. Mod Management installs and updates compatible packages without manual merging, retains item identities after removal, and transfers mappings with identity profiles. Unsupported dependencies and conflicts are refused; in-game and save compatibility remain unverified.
 - Create New Item can combine mounted overlay items and their assets with a new item in a separate CDUMM or JMM package. Output reviews the included items and archives, reports missing assets or conflicts, and supplies installation and rollback steps.
 - Jiggle can adjust named bone regions independently through the existing contribution control, preserving skin-weight blending across LODs, Undo/Redo and saved drafts. Recovered drafts can use the whole-part controls without reopening the archive. The existing bone preview settings can also target individual regions; solver settings remain preview-only.
 - Mesh Editor offers experimental spline playback with flexible starting settings, guide rotation and adjustable spring-back. Verified rigid attachments can preview without a character skeleton, and saved profile edits refresh the loaded preview.

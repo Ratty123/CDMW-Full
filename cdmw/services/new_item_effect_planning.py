@@ -61,6 +61,9 @@ class EffectPlanningMixin:
         if not self.snapshot.has_entry(effect_path):
             raise NewItemPlanError(f"the archives have no {effect_path}, so its look cannot be edited")
         tag = f"_n{(int(self.spec.item_key or 0) + index) % 100000:05d}"
+        if self.identity_bindings is not None:
+            token = self.identity_bindings.allocate("effect", f"layer:{index}:{stem}", ())
+            tag = f"_n{token % 100000:05d}"
         taken = set(self.snapshot.effect_stems)
         new_stem = same_length_stem(stem, tag, taken=taken)
         taken.add(new_stem)
@@ -104,7 +107,11 @@ class EffectPlanningMixin:
         report = EffectEditReport()
 
         def cloned(data: bytes) -> bytes:
-            renamed = rename_effect_strings(data, renames)
+            if self.independent:
+                from cdmw.services.independent_item_references import rename_effect_references
+                renamed = rename_effect_references(data, renames)
+            else:
+                renamed = rename_effect_strings(data, renames)
             if preset_renames:
                 renamed = rename_string_values(renamed, preset_renames)
             return renamed

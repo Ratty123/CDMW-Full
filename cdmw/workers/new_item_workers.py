@@ -152,6 +152,7 @@ def plan_task(
     icon_source_path: Optional[Path] = None,
     mod_base_folder: Optional[Path] = None,
     include_mounted_items: bool = False,
+    independent: bool = False,
     read_entry: Optional[Callable[[ArchiveEntry], bytes]] = None,
     reserved_keys: Sequence[int] = (),
     reserved_stems: Sequence[str] = (),
@@ -177,7 +178,14 @@ def plan_task(
         report("Checking archives before building the plan...")
         base = snapshot
         refreshed = None
-        if snapshot.source_files_changed():
+        if independent:
+            if include_mounted_items or mod_base_folder is not None:
+                raise ValueError("Independent packages cannot include a mod base.")
+            from cdmw.services.independent_item_package import stock_snapshot
+            root = Path(snapshot.iteminfo.payload_entry.pamt_path).parent.parent
+            base = stock_snapshot(root, service=service, read_entry=read_entry,
+                                  stop_event=stop_event, on_log=report)
+        elif snapshot.source_files_changed():
             report("The game archives changed. Refreshing them before building the plan...")
             root = Path(snapshot.iteminfo.payload_entry.pamt_path).parent.parent
             refreshed = service.build_snapshot(
@@ -213,6 +221,7 @@ def plan_task(
             spec, base, model=model, scene=scene, icon=icon, icon_source_path=resolved_icon, **variant_arguments,
             reserved_keys=tuple(reserved_keys), reserved_stems=tuple(reserved_stems),
             on_log=log, on_progress=on_progress, stop_event=stop_event,
+            **({"capture_independent": True} if independent else {}),
         )
         if mounted is not None:
             from cdmw.services.new_item_mounted_base import complete_mounted_item_plan

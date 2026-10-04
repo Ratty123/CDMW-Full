@@ -1,5 +1,17 @@
 [
   {
+    "path": "cdmw/ui/new_item/panels_output.py",
+    "symbol": "OutputPanel.__init__",
+    "source": "independent",
+    "reason": "Output mode data identity; the separate visible experimental label is translated."
+  },
+  {
+    "path": "cdmw/services/independent_item_package.py",
+    "symbol": "read_package",
+    "source": "item.json",
+    "reason": "Fixed ZIP manifest entry name, never a user-facing label."
+  },
+  {
     "path": "cdmw/services/mesh_rust_cloth.py",
     "symbol": "cloth_ui_state",
     "source": "available",

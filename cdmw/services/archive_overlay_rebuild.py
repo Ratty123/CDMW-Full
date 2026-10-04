@@ -23,6 +23,11 @@ def prepare_overlay_rebuild(package_root, *, stop_event=None, on_log=None):
     records = parse_papgt(mount)
     mounted = any(str(record.name) == name for record in records)
     observed = {owner.INDEX_PATH: inventory, 'meta/0.papgt': mount}
+    package_recovery, package_sources = {}, {}
+    if any(layer.get('independent_identity') and (layer['active'] or layer.get('disabled')) for layer in state['layers']):
+        from cdmw.services.independent_item_install import retained_package_recovery
+        package_recovery, package_sources = retained_package_recovery(root, state, stop_event=stop_event, on_log=on_log)
+        observed.update(package_recovery)
     # A missing/unmounted CDMW group is recoverable from journals. An occupied
     # or edited group is not permission to replace someone else's work.
     directory = root / name
@@ -60,7 +65,7 @@ def prepare_overlay_rebuild(package_root, *, stop_event=None, on_log=None):
                 {p: c['after'] for p, c in changes.items()}, old_current)
 
     sources = {}
-    state['sources'] = {}
+    state['sources'] = dict(package_sources)
     for record in records:
         if str(record.name) == name:
             continue
@@ -100,7 +105,7 @@ def prepare_overlay_rebuild(package_root, *, stop_event=None, on_log=None):
         raise OverlayConflict('The current game or another mod already supplies owned item IDs: '
                               + ', '.join(map(str, sorted(overlap))) + '. Review those conflicts before rebuilding.')
     identity = game_identity(root, stop_event)
-    pending = {'.cdmw/retired-overlays/' + uuid4().hex + '.json': inventory}
+    pending = {**package_recovery, '.cdmw/retired-overlays/' + uuid4().hex + '.json': inventory}
     for layer, changes in layers:
         raise_if_cancelled(stop_event)
         if on_log:

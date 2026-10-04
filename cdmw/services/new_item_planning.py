@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import re
 import threading
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
@@ -102,6 +102,8 @@ class NewItemPlan:
     # Mounted-content exports retain their underlying game baselines separately
     # from the currently installed (already modified) source bytes.
     export_compatibility: object = field(default=None, repr=False, compare=False)
+    # Prepared portable inputs, captured only for the opt-in package workflow.
+    independent_inputs: object = field(default=None, repr=False, compare=False)
 
     @property
     def touched_paths(self) -> Tuple[str, ...]:
@@ -148,6 +150,19 @@ class _Planner(EffectPlanningMixin):
     effect_outputs: List[tuple] = field(default_factory=list)
     price_perks: tuple = ()
     reserved_item_keys: tuple = ()
+    identity_bindings: object = None
+    independent: bool = False
+
+    def allocate_owned_keys(self, namespace, symbols, used):
+        if self.identity_bindings is None:
+            return allocate_multichange_keys(used, len(symbols))
+        taken = set(used)
+        result = []
+        for symbol in symbols:
+            value = self.identity_bindings.allocate(namespace, symbol, taken)
+            result.append(value)
+            taken.add(value)
+        return tuple(result)
 
     # ------------------------------------------------------------------ helpers
 
@@ -313,7 +328,7 @@ class _Planner(EffectPlanningMixin):
         if not own:
             self.warnings.append(f"{self.template.string_key} has no enhancement rows of its own to clone; the item shares whatever its template lists.")
             return
-        keys = allocate_multichange_keys(self.snapshot.multichange_rows, len(own))
+        keys = self.allocate_owned_keys("multichangeinfo", tuple(f"transition:{row.key}" for row in own), self.snapshot.multichange_rows)
         payload, header, mapping = clone_transition_rows(
             pair.payload, pair.header, own, new_item_key=int(self.spec.item_key), new_item_name=self.spec.internal_name, new_keys=keys,
         )
@@ -343,7 +358,8 @@ class _Planner(EffectPlanningMixin):
         row_bytes = self._apply_row_edits(row_bytes)
         if not self.spec.include_perk_prices:
             from cdmw.services.new_item_prices import own_zero_price_perks
-            row_bytes, self.price_perks = own_zero_price_perks(row_bytes, self.snapshot, self.reserved_item_keys)
+            allocator = None if self.identity_bindings is None else lambda key, used: self.identity_bindings.allocate("iteminfo", f"perk:{key}", used)
+            row_bytes, self.price_perks = own_zero_price_perks(row_bytes, self.snapshot, self.reserved_item_keys, allocate_key=allocator)
             self.manifest["owned_price_perks"] = [{"source_key": source.key, "item_key": clone.key} for source, clone in self.price_perks]
             self.summary.append(f"Shop price: {len(self.price_perks)} owned perk copies with zero price contribution; bonuses retained")
         if self.recipe_keys is not None:
@@ -775,6 +791,8 @@ def build_plan(
     on_log: Optional[Callable[[str], None]] = None,
     stop_event: Optional[threading.Event] = None,
     reserved_item_keys: Sequence[int] = (),
+    capture_independent: bool = False,
+    identity_bindings: object = None,
 ) -> NewItemPlan:
     """Compose the plan for an allocated, validated spec."""
 
@@ -785,6 +803,8 @@ def build_plan(
         raise NewItemPlanError("the spec needs a stem and none is allocated")
     planner = _Planner(spec=spec, snapshot=snapshot, model=model, icon=icon, on_log=on_log, stop_event=stop_event)
     planner.reserved_item_keys = tuple(reserved_item_keys)
+    planner.identity_bindings = identity_bindings
+    planner.independent = capture_independent
     from cdmw.services.new_item_variants import prepare_variant_plan
     planner.variant_models = dict(variant_models or {})
     planner.variant_plan = prepare_variant_plan(planner)
@@ -859,7 +879,7 @@ def build_plan(
             "To extend a mod folder, select it with Add to existing mod. "
             f"Source: {snapshot.iteminfo.payload_entry.pamt_path}"
         )
-    return NewItemPlan(
+    result = NewItemPlan(
         spec=spec,
         patches=tuple(planner.patches),
         additions=tuple(planner.additions),
@@ -872,7 +892,13 @@ def build_plan(
         meta_files=tuple(planner.meta_files),
         source_revision=revision,
         unselected_source_items=inherited,
+        independent_inputs=(model, dict(variant_models or {}), bytes(icon.payload_data) if icon else None) if capture_independent else None,
     )
+    if capture_independent:
+        from cdmw.services.independent_item_package import audit_plan
+        audit_plan(result, snapshot, stop_event=stop_event)
+        result = replace(result, source_revision=snapshot.provenance.capture() if snapshot.provenance else None)
+    return result
 
 
 def model_files_from_import(result: object, *, family: ItemModelFamily) -> ModelFiles:

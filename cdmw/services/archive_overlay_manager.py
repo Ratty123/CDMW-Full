@@ -669,6 +669,13 @@ def prepare_item_overlay(plan, package_root, *, directory_name=None, stop_event=
         raise ValueError('The overlay plan changes nothing.')
     item_keys = _added_item_keys(changes)
     known_items = set(item_keys) | {int(plan.spec.item_key)}
+    # Portable packages retain save identities after removal. Ordinary CDMW
+    # installs must respect those reservations too, even on a stale item plan.
+    if _target(root, '.cdmw/independent-items.json').exists():
+        from cdmw.services.independent_item_install import load_registry
+        registry = load_registry(root)
+        if any(known_items.intersection(row['values']['iteminfo'].values()) for row in registry['items'].values()):
+            raise OverlayConflict('This item identity is reserved by an independent package. Rebuild with a different identity or update that package through Independent items.')
     references = owned_item_references(changes) | {int(plan.spec.template_key)}
     dependencies = []
     decoded = {}
@@ -760,11 +767,11 @@ def apply_overlay_change(preparation, *, confirmed, backup, restore_backup, game
         raise RuntimeError('Close Crimson Desert before changing overlays.')
     root = preparation.package_root.resolve()
     name = _directory(preparation.directory_name)
-    allowed = {INDEX_PATH, 'meta/0.papgt', 'meta/0.pathc', name + '/0.pamt', name + '/0.paz', name + '/' + OVERLAY_OWNER_MARKER}
+    allowed = {INDEX_PATH, '.cdmw/independent-items.json', 'meta/0.papgt', 'meta/0.pathc', name + '/0.pamt', name + '/0.paz', name + '/' + OVERLAY_OWNER_MARKER}
     import re
     for relative in (*dict(preparation.writes), *preparation.deletes):
         if relative not in allowed and not re.fullmatch(
-                r'\.cdmw/(?:overlays/[0-9a-f]{32}\.zip|retired-overlays/[0-9a-f]{32}\.json)', relative):
+                r'\.cdmw/(?:overlays/[0-9a-f]{32}\.zip|retired-overlays/[0-9a-f]{32}\.json|independent-items/[0-9a-f]{32}-[0-9a-f]{64}\.cditem)', relative):
             raise ValueError('A prepared overlay change targets a file outside its ownership.')
     if set(dict(preparation.before)) != set(dict(preparation.writes)) | set(preparation.deletes):
         raise ValueError('Prepared overlay targets do not match their original files.')

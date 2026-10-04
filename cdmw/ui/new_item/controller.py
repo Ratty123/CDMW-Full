@@ -133,6 +133,7 @@ class NewItemStudioController(
         #: (template key, its material part names), read once per template
         self._material_parts: tuple = ()
         self.draft = NewItemDraft()
+        self.independent_mode = False
         self.plan: Optional[NewItemPlan] = None
         self._draft_revision = 0
         self._plan_revision = -1
@@ -552,7 +553,13 @@ class NewItemStudioController(
 
     def current_spec(self) -> NewItemSpec:
         self._sync_variant_state()
-        return spec_from_draft(self.draft, self.stat_grid())
+        draft = self.draft
+        if self.independent_mode:
+            from uuid import uuid4
+            if not draft.independent_identity:
+                draft.independent_identity = uuid4().hex
+            draft = replace(draft, internal_name="CDI_" + draft.independent_identity, item_key=None, stem="")
+        return spec_from_draft(draft, self.stat_grid())
 
     def validate(self) -> Tuple[ValidationIssue, ...]:
         if self.snapshot is None:
