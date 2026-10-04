@@ -4,7 +4,7 @@ from collections import Counter
 import sys
 
 import pytest
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QCoreApplication, QEvent, Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QDialog, QLabel, QLineEdit, QPushButton, QTreeWidget
 
@@ -39,6 +39,112 @@ def _leaf(tree, value):
             if child.data(0, Qt.UserRole) == value:
                 return child
     raise AssertionError(f"Missing extension {value}")
+
+
+def _start_loading(workspace, monkeypatch):
+    archive = workspace.archive
+    bridge = archive.archive_remote_bridge
+    assert bridge.current_session is None
+    # Keep unrelated catalogue warmups out of this controlled startup sequence.
+    monkeypatch.setattr(archive.archive_item_finder_warmup_controller, "start", lambda *args, **kwargs: None)
+    monkeypatch.setattr(archive.archive_character_finder_warmup_controller, "start", lambda *args, **kwargs: None)
+    monkeypatch.setattr(workspace, "_publish_archive_catalogue_session_to_consumers", lambda *args: None)
+    monkeypatch.setattr(bridge, "request_structure_children", lambda *args: None)
+    bridge._begin_pending("Loading archive catalogue...", operation="open")
+    workspace.set_busy(False)
+    return archive
+
+
+@pytest.mark.parametrize("counts_before_rows", [False, True])
+def test_startup_click_opens_picker_before_first_rows(workspace, tmp_path, monkeypatch, counts_before_rows):
+    archive = _start_loading(workspace, monkeypatch)
+    controller = archive.archive_remote_bridge.controller
+    facets = ArchiveFacetsResult("synthetic-session", (ArchiveFacet(".pac", ".pac", 12),), (), (), ())
+    opened = []
+    errors = []
+    monkeypatch.setattr(sys, "excepthook", lambda *error: errors.append(error))
+
+    def interact(dialog):
+        opened.append(dialog)
+        dialog.show()
+        QApplication.processEvents()
+        tree = dialog.findChild(QTreeWidget)
+        search = dialog.findChild(QLineEdit)
+        hint = next(label for label in dialog.findChildren(QLabel) if label.text() == "Loading extension counts...")
+        assert hint.isVisible() and tree.topLevelItemCount() == 1
+        search.setText("pac")
+        if counts_before_rows:
+            controller.facetsReady.emit(facets)
+        configure_synthetic_archive_context(workspace, synthetic_archive_entry(tmp_path))
+        controller.queryPublished.emit(archive.archive_remote_bridge.model.query_handle)
+        if not counts_before_rows:
+            controller.facetsReady.emit(facets)
+        assert search.text() == "pac" and not hint.isVisible()
+        item = _leaf(tree, ".pac")
+        assert item.text(1) == "12" and not item.isHidden()
+        controller.facetsReady.emit(ArchiveFacetsResult("obsolete-session", (ArchiveFacet(".dds", ".dds", 4),), (), (), ()))
+        assert _leaf(tree, ".pac") is item
+        tree.setCurrentItem(item)
+        next(button for button in dialog.findChildren(QPushButton) if button.text() == "Select Extension").click()
+        return dialog.result()
+
+    monkeypatch.setattr(QDialog, "exec", interact)
+    archive.archive_extension_picker_button.click()
+    assert errors == []
+    assert len(opened) == 1, "An early startup click must open the extension picker."
+    assert archive.textures._combo_value(archive.archive_extension_filter_combo) == ".pac"
+    assert archive.archive_filters_dirty
+
+
+@pytest.mark.parametrize("finish", ["cancel", "load_failure", "counts_failure"])
+def test_startup_picker_close_disconnects_late_updates(workspace, tmp_path, monkeypatch, finish):
+    archive = _start_loading(workspace, monkeypatch)
+    bridge = archive.archive_remote_bridge
+    controller = bridge.controller
+    errors = []
+    opened = []
+    monkeypatch.setattr(sys, "excepthook", lambda *error: errors.append(error))
+
+    def interact(dialog):
+        opened.append(True)
+        dialog.show()
+        if finish == "counts_failure":
+            configure_synthetic_archive_context(workspace, synthetic_archive_entry(tmp_path))
+            controller.queryPublished.emit(bridge.model.query_handle)
+        if finish == "cancel":
+            dialog.reject()
+        else:
+            controller.requestFailed.emit("facets" if finish == "counts_failure" else "open", RuntimeError("Fixture load failure"))
+        assert dialog.result() == QDialog.Rejected and not dialog.isVisible()
+        return dialog.result()
+
+    monkeypatch.setattr(QDialog, "exec", interact)
+    archive.archive_extension_picker_button.click()
+    assert opened == [True]
+    assert archive.archive_remote_query_pending == (finish == "cancel")
+    assert archive.textures._combo_value(archive.archive_extension_filter_combo) == "*"
+    assert not archive.archive_filters_dirty
+    QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+    configure_synthetic_archive_context(workspace, synthetic_archive_entry(tmp_path))
+    controller.queryPublished.emit(bridge.model.query_handle)
+    controller.facetsReady.emit(ArchiveFacetsResult("synthetic-session", (ArchiveFacet(".pac", ".pac", 12),), (), (), ()))
+    controller.requestFailed.emit("facets", RuntimeError("Late fixture failure"))
+    assert errors == []
+
+
+def test_startup_picker_keeps_existing_worker_and_query_gates(workspace, tmp_path, monkeypatch):
+    archive = _start_loading(workspace, monkeypatch)
+    assert archive.archive_extension_picker_button.isEnabled()
+    with monkeypatch.context() as patch:
+        patch.setattr(workspace, "worker_thread", object())
+        archive._update_archive_filter_button_state()
+        assert not archive.archive_extension_picker_button.isEnabled()
+    configure_synthetic_archive_context(workspace, synthetic_archive_entry(tmp_path))
+    archive._update_archive_filter_button_state()
+    assert not archive.archive_extension_picker_button.isEnabled()
+    archive.archive_remote_query_pending = False
+    archive._update_archive_filter_button_state()
+    assert archive.archive_extension_picker_button.isEnabled()
 
 
 @pytest.mark.parametrize("interaction", ["select", "double_click"])

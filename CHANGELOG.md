@@ -39,7 +39,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - FBX import uses the selected Blender, supports cancellation and retains all bone influences and correct vertex colours. FBX export accepts mixed numeric vertex data.
 - Archive Browser's Export OBJ dropdown opens the export workflow for the selected mesh without requiring a loaded preview.
 - Item Finder keeps category names, item captions and actions readable at narrow widths and larger fonts; long details wrap without changing copied text.
-- Select Extension closes reliably after selection and becomes available with extension counts as archive rows load.
+- Select Extension responds to early startup clicks while archives are loading, fills in automatically without losing the search, and closes reliably after selection.
 - Hair Tools draws smoother locks and handles slow strokes reliably. Smooth keeps the tip in place, Lengthen extends the tail gradually, and Curl follows each lock's direction. Brushes affect every visible lock inside their radius, including Cut and Lengthen, with steady strength as locks enter the brush and one Undo step per cut stroke. Unavailable hairstyles remain previewable with their compatibility reason while Start stays disabled; styles with separate base and tail meshes remain unsupported.
 - Archive loading and item indexing retry temporary failures once. Stalled work stops after five minutes without progress and offers retry and error details; item-name failures leave archive browsing available.
 - Later launches reclaim abandoned temporary data while preserving active sessions, recovery backups and export history.

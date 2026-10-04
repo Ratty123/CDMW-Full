@@ -383,12 +383,32 @@ class ArchiveFilterStateMixin:
         selected_value: str | None = None
 
         def _facets_ready(facets) -> None:
-            if getattr(facets, "session_id", None) != session_id:
+            if session_id is None or getattr(facets, "session_id", None) != session_id:
                 return
             item = extension_tree.currentItem()
             preferred = item.data(0, Qt.UserRole) if item is not None else current_value
             _populate_extensions(Counter({facet.key: int(facet.count) for facet in facets.extensions if facet.key}),
                                  preferred or current_value)
+            loading_hint.hide()
+
+        def _query_published(handle) -> None:
+            nonlocal session_id
+            # A startup click can precede the first published archive session.
+            # Category views may also publish their counts before this signal.
+            if session_id is not None:
+                return
+            published_session = getattr(bridge, "current_session", None)
+            if published_session is None or handle.session_id != published_session.session_id:
+                return
+            session_id = published_session.session_id
+            item = extension_tree.currentItem()
+            preferred = item.data(0, Qt.UserRole) if item is not None else current_value
+            _populate_extensions(self._archive_extension_counts(), preferred or current_value)
+
+        def _request_failed(kind: str, _error: object) -> None:
+            if session_id is None or kind in {"facets", "stage_facets"}:
+                # Reveal the Archive Browser's existing failure/retry controls.
+                dialog.reject()
 
         def _double_click(item: QTreeWidgetItem, _column: int) -> None:
             value = item.data(0, Qt.UserRole)
@@ -403,11 +423,15 @@ class ArchiveFilterStateMixin:
         _populate_extensions(extension_counts, current_value)
         if controller is not None:
             controller.facetsReady.connect(_facets_ready)
+            controller.queryPublished.connect(_query_published)
+            controller.requestFailed.connect(_request_failed)
         try:
             result = dialog.exec()
         finally:
             if controller is not None:
                 controller.facetsReady.disconnect(_facets_ready)
+                controller.queryPublished.disconnect(_query_published)
+                controller.requestFailed.disconnect(_request_failed)
             dialog.deleteLater()
         if result == QDialog.Accepted and selected_value is not None:
             self.textures._set_combo_by_value(self.archive_extension_filter_combo, selected_value)

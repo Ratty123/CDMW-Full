@@ -88,9 +88,11 @@ file access remains on the preview worker; this adds no persistent cache files.
 
 **Select Extension** opens a grouped, searchable extension list. Select a leaf
 and confirm, or double-click it, to close the picker and update the filter. The
-picker is available as soon as archive rows are published; extension counts load
-ahead of catalogue warmups and update an already-open picker without losing its
-search. Apply **Search** to refresh the archive results.
+picker opens while the startup archive index is still loading and fills in as
+extensions become available, preserving anything typed in its search. Extension
+counts load ahead of catalogue warmups. Closing the picker leaves archive loading
+running; a load failure closes it to reveal the browser's retry controls.
+Apply **Search** to refresh the archive results.
 
 Item Finder shows its categories and subcategories in a collapsible list on the
 left, with item counts. The item grid is in the middle and item details and asset
