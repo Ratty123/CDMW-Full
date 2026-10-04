@@ -497,7 +497,7 @@ is still being prepared, filename queries scan without retaining a second name c
 and adopt the index when it becomes available. This creates no additional disk cache.
 Older workers and standalone entry lists retain the existing archive-read path.
 The shared preview, identity checks and output actions are available immediately;
-Combat, Perks & Effects and Distribution are built when first requested. Workflow
+Combat, Effects & Perks and Distribution are built when first requested. Workflow
 summaries read the draft without constructing those pages. Optional preview warm-up
 still cancels and drains before snapshot publication; debug logs report its drain time.
 
@@ -797,7 +797,7 @@ in-game verification. Restore/untick or Undo recovers the original skin material
 Unsupported-material errors name the shader; animation/translucency conflicts
 are reported only for a translucent material or an overlapping translucency edit.
 
-Both options follow the selected variant, Model & Placement, Perks & Effects and
+Both options follow the selected variant, Model & Placement, Effects & Perks and
 Build plan. The export uses the matching `SkinnedMeshEmissive` variant and retains
 other material inputs. Shader combinations that would drop wrinkle inputs, and
 animated/RGB glow on the same part as translucency, are rejected. Switching to
@@ -950,7 +950,7 @@ before either preview builder, including packages produced by native Preview Cor
 cache probe never waits for unfinished texture dependencies. On a miss, the bare
 template mesh loads while native materials prepare in parallel.
 
-Its canonical material package is cached for Model & Placement and Perks & Effects, with
+Its canonical material package is cached for Model & Placement and Effects & Perks, with
 texture resources leased until the consuming scene owns them. Effects uses the same
 archive render settings as the shared template viewport. New Item reads the cache root
 from the archive owner, just as Browse Archives does; warm-up, Model & Placement and
@@ -987,7 +987,7 @@ Template, variant, fitted geometry and character changes still establish a new s
 Clearing the preview cancels pending texture work and ignores late renderer readiness.
 Placement and character comparison scenes also consume that native template package.
 They retain its complete material graph, layer masks, DDS bytes and material parameters
-in the combined scene, including Perks & Effects and template appearance edits. Rust
+in the combined scene, including Effects & Perks and template appearance edits. Rust
 composes these same layers for archive and combined previews; Python does not synthesize
 the template maps again. Native resources remain leased until the scene owns its copies.
 
@@ -1169,7 +1169,7 @@ The navigator is a compact 46 px row; the outer pages do not repeat numbered tit
 underneath it. Distribution fills the available height; Shops scrolls independently,
 while recipe ingredients/outputs and reward routes use the remaining workspace. Recipes
 and Loot and rewards are marked experimental. Longer active content remains scrollable.
-Perks & Effects keeps gameplay perks separate from visual-only effects. Perks are chosen
+Effects & Perks keeps gameplay perks separate from visual-only effects. Perks are chosen
 through searchable Available and Selected lists that grow with the workspace rather than
 a popup catalogue.
 
@@ -1199,8 +1199,9 @@ rejected Rust inputs are recorded in Activity rather than a banner above the wor
 The library keeps a short search field below its heading and result count, with the
 category selector beside All / Loops / One-shot. There is no separate search row above
 the viewport. A compact footer keeps the preview notice and compatibility messages
-visible when the library is folded. Search matches words in the readable name, category,
-exact stem, emitter, texture, mesh and preset metadata. For example,
+visible when the library is folded. Search matches all typed terms, without regard to
+case, in the readable name, category, type and exact stem. Shared emitter, texture,
+mesh and preset names do not add unrelated results. For example,
 `fx_aftertaa_a__lightning_att1` appears as **Lightning ATT 1 · Aftertaa A**. Unknown
 artist/character names and ambiguous codes such as ATT and EXP remain intact.
 
@@ -1221,7 +1222,9 @@ usable.
 ### Filters, favourites and variants
 
 Labelled All / Loops / One-shot filters, a result count and Reset filters make browsing
-explicit; the staged selection remains visible even when it falls outside the filters.
+explicit; only matching effects appear in the results, alongside `No effect`.
+Filtering preserves the staged effect in the selection heading and preview even when
+it falls outside the results; clearing the filters reveals its selected row again.
 Library labels and facts are prepared in short event-loop slices and reused across
 filtering and placement changes. Unchanged rows retain their selection and layout, and
 metadata column sizing samples a bounded number of rows even while the page is hidden.
@@ -1340,7 +1343,10 @@ Inherited curves and material parameters resolve by stable binary collection key
 removed parent curves are not restored by preview or recipe compilation.
 
 The emitter inspector exposes infinite particle life and repeated lifetime curves
-independently of emitter looping. Scalar brightness, including a declared omitted unit
+independently of emitter looping. Infinite particles without an authored opacity curve
+stay visible in the preview instead of receiving an artificial fade-out, including the
+flame in **Torch 1 · Fire BG A**. Authored opacity curves still apply.
+Scalar brightness, including a declared omitted unit
 default on an unpreset emitter, is editable through the checked writer. Export resolves
 effect namespaces from the active game registries and keeps that suffix on edited
 clones. Mesh particles keep complete supported geometry; unavailable geometry no longer
@@ -1801,7 +1807,7 @@ the row tooltip and generation status.
 
 ### Perks, sockets and bonuses
 
-**Perks & Effects** separates embedded perks, available socket capacity and
+**Effects & Perks** separates embedded perks, available socket capacity and
 unlock costs, inherent bonuses, and visual effects. Bonus presets come from
 shipped equipment. Parameters are the validated BuffInfo levels, without invented
 percentage conversions. Bonus overrides can apply to one enhancement level or all

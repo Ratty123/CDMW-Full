@@ -39392,6 +39392,16 @@
       ]
     },
     {
+      "key": "Effects & Perks",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 54,
+          "sink": "python-return:_build_start_sections"
+        }
+      ]
+    },
+    {
       "key": "Effects are approximate previews and do not add elemental damage. A successful build or game startup does not verify equipping, appearance, stats, or behavior in a save.",
       "origins": [
         {
@@ -89068,16 +89078,6 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 598,
           "sink": "python-return:_build_reference_sections"
-        }
-      ]
-    },
-    {
-      "key": "Perks & Effects",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 54,
-          "sink": "python-return:_build_start_sections"
         }
       ]
     },

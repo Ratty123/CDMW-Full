@@ -16,6 +16,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Changed
 
+- Create New Item renames Perks & Effects to Effects & Perks to match its initial Effects tab.
 - Create New Item labels every placement value with its axis, identifies scale width, height and depth, and adds optional Uniform scale to resize all three axes while keeping the current proportions.
 - Create New Item restores DMM export as one package for DMM 3.5.0 or newer, with a reminder to check the result in game. CDUMM remains the default, alongside JMM and CDMW game overlays.
 - Mesh Editor moves explanatory text into hover help across its editing panels and shows shorter collision-source filenames. Show collision shapes is available outside the collapsed preview settings; weapon references supply collision outlines rather than a visible weapon mesh. Selection controls open directly from the Selection heading, removing the extra Select click.
@@ -27,6 +28,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- Effects & Perks filters the library by effect names, categories and types without including unrelated shared resources or nonmatching selected rows. Infinite-lived flames such as Torch 1 no longer receive an artificial preview fade-out when they have no authored opacity curve.
 - Browse Archives opens Select Extension without blocking the application, removing the delay before its cached list appears. Repeated clicks bring the existing picker forward.
 - Create New Item shows export blockers with the affected items and source archive, offers an existing mod folder to extend, and keeps write errors visible after progress stops.
 - Current Tool Log and Create New Item's Output log automatically follow new messages and keep the last line fully visible when resized or reopened.

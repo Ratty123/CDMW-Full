@@ -572,6 +572,7 @@ def _emitter_preview(
     max_particles = int(_read(sources, "_spawnData", "_maxParticleCount", 200, _number))
     loop_count = int(_read(sources, "_spawnData", "_loopCount", fallback("_loopCount", 0), _number))
     loop = loop_count == -1
+    infinite_life = bool(_read(sources, "_spawnData", "_isInfiniteParticle", 0, _number))
     spawn_time = float(_read(sources, "_spawnData", "_spawnTime", fallback("_spawnTime", 0.0), _number))
     mass = float(_read(sources, "_simulationData", "_mass", 1.0, _number))
     simulation_speed = float(_read(sources, "_simulationData", "_simulationSpeed", 1.0, _number))
@@ -644,7 +645,14 @@ def _emitter_preview(
     alpha_curve = _curve_from(sources, ALPHA_CURVE_ID, 1)
     color_curve = _curve_from(sources, COLOR_CURVE_ID, 4)
     scale_over_life = tuple(max(0.0, sum(s[:3]) / max(1, len(s[:3]))) for s in scale_curve) if scale_curve else tuple(1.0 for _ in range(CURVE_SAMPLES))
-    alpha_over_life = tuple(max(0.0, min(1.0, s[0])) for s in alpha_curve) if alpha_curve else tuple(_bell(k / (CURVE_SAMPLES - 1)) for k in range(CURVE_SAMPLES))
+    if alpha_curve:
+        alpha_over_life = tuple(max(0.0, min(1.0, s[0])) for s in alpha_curve)
+    elif infinite_life:
+        # Persistent particles keep their original births. An invented fade
+        # would leave an otherwise looping flame permanently invisible.
+        alpha_over_life = (1.0,) * CURVE_SAMPLES
+    else:
+        alpha_over_life = tuple(_bell(k / (CURVE_SAMPLES - 1)) for k in range(CURVE_SAMPLES))
     color_over_life = _colors_over_life(color_curve, ramp, temperature_brightness, emissive)
     if uses_base_colour:
         # An unlit mask is coverage for the base colour. Applying the emitter's
@@ -687,7 +695,7 @@ def _emitter_preview(
 
     return EmitterPreview(
         name=name, kind=kind, texture=texture, blend=blend,
-        infinite_life=bool(_read(sources, "_spawnData", "_isInfiniteParticle", 0, _number)),
+        infinite_life=infinite_life,
         repeat_curves=bool(_read(sources, "_spawnData", "_useCureveRepeat", 0, _number)),
         spawn_volume_type=spawn_volume,
         spawn_mesh=mesh_name,

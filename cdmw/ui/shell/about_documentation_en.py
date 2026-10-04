@@ -22,7 +22,7 @@ CREATE_NEW_ITEM_SECTION = {
       <li><b>Identity</b>: keep allocated IDs or choose Manual. English names are required; missing item-language entries fall back to English.</li>
       <li><b>Model &amp; Placement</b>: keep the template or import glTF, GLB, OBJ, DAE, FBX, or a ZIP. FBX needs the configured converter. Review placement, materials, variants, dyes, and the icon.</li>
       <li><b>Stats &amp; Prices</b>: compare raw game values with the template. Advanced stat edits remain experimental.</li>
-      <li><b>Perks &amp; Effects</b>: choose gameplay perks separately from visual effects. Four perks is the default cap; five to eight requires experimental mode. Apply staged effect placement before planning.</li>
+      <li><b>Effects &amp; Perks</b>: choose gameplay perks separately from visual effects. Four perks is the default cap; five to eight requires experimental mode. Apply staged effect placement before planning.</li>
       <li><b>Distribution</b>: review shops, crafting recipes, supported reward sources, and item groups. Saved routes are included in the final plan.</li>
       <li><b>Output</b>: Build plan is read-only. Export a mod package or review and confirm an overlay installation. New Item does not install into shipped archives.</li>
     </ol>

@@ -9,7 +9,7 @@ Saved replacement drafts can apply and restore shader controls using their captu
 dependencies without reopening the game archive.
 Mesh Editor numbers offer sliders as well as typed values. New Item numbers accept
 wheel adjustment when focused. An incompatible choice saved by an older build must
-be restored in Model & Placement → Appearance before Perks & Effects can prepare it.
+be restored in Model & Placement → Appearance before Effects & Perks can prepare it.
 
 ## Transparency limitations
 

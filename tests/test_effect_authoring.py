@@ -124,6 +124,41 @@ def test_infinite_life_requires_a_boolean_integer():
         validate_emitter_edits(EffectLook(emitters=(EmitterEdit(0, values=(('_isInfiniteParticle', (.5,)),)),)))
 
 
+@pytest.mark.parametrize('infinite', [False, True])
+@pytest.mark.parametrize('authored_opacity', [False, True])
+def test_infinite_flame_without_an_opacity_curve_does_not_fade_away(infinite, authored_opacity):
+    snapshot = Snapshot()
+    path = f'effect/binary__/releasebin/{STEM}.pae'
+    # Torch-style persistent particles: one full-capacity burst, a short curve
+    # period and no repeated lifetime curves. Exercise the real binary handoff.
+    look = EffectLook(emitter_order=(0,), emitters=(EmitterEdit(0, values=(
+        ('_loopCount', (-1.,)), ('_isInfiniteParticle', (float(infinite),)),
+        ('_useCureveRepeat', (0.,)), ('_lifeTimeMin', (.32,)), ('_lifeTimeMax', (.32,)),
+        ('_spawnCountMin', (16.,)), ('_spawnCountMax', (16.,)), ('_maxParticleCount', (16.,)),
+    ), opacity_curve=(.75, .25)),))
+    source = compile_effect_recipe(snapshot, snapshot.data[path], look)
+    doc = decode_effect_binary(source)
+    if not authored_opacity:
+        emitter = doc.root.child('_emitterVariationDataArray')[0].child('_internalEmitterData')
+        curves = emitter.child('_curveEntryDataList')
+        emitter.children = [(name, tuple(c for c in curves if c.value('_splineID').value != 2)
+                             if name == '_curveEntryDataList' else child)
+                            for name, child in emitter.children]
+    # The compiled emitter is self-contained; omit unrelated preset curves.
+    snapshot.data = {path: serialize_effect(source, doc)}
+    preview = preview_effect_from_snapshot(snapshot, STEM)
+    emitter = preview.emitters[0]
+    assert emitter.loop and emitter.infinite_life is infinite
+    assert not emitter.repeat_curves
+    if authored_opacity:
+        assert emitter.alpha_over_life[0] == pytest.approx(.75)
+        assert emitter.alpha_over_life[-1] == pytest.approx(.25)
+    elif infinite:
+        assert min(emitter.alpha_over_life) == max(emitter.alpha_over_life) == 1.
+    else:
+        assert emitter.alpha_over_life[-1] == pytest.approx(0.)
+
+
 def test_recipe_flattens_keyed_inheritance_without_reviving_removed_curves():
     snapshot = Snapshot()
     source = snapshot.payload(f'effect/binary__/releasebin/{STEM}.pae')

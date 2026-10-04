@@ -193,7 +193,8 @@ class EffectLibraryRow:
             behavior=behavior,
             facts=facts,
             tags=tags,
-            search_text=" ".join((stem, label, *tags, behavior, facts.search_text() if facts else "")).casefold(),
+            # Shared textures, meshes and presets do not identify this effect.
+            search_text=" ".join((stem, label, *tags, behavior)).casefold(),
         )
 
 

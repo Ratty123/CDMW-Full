@@ -396,6 +396,14 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         tab.close()
         tab.deleteLater()
 
+    def test_effects_and_perks_step_opens_effects_first(self) -> None:
+        tab = self._tab()
+        tab.start_snapshot()
+        self.assertEqual(tab.steps.item(4).text(), "Effects & Perks")
+        tab.show_step(4)
+        perks = tab.perks_panel
+        self.assertIs(perks.tabs.currentWidget(), perks.effects_page)
+
     def test_an_untouched_step_carries_no_empty_boxes(self) -> None:
         """The optional blocks are hidden, not merely greyed: a step whose answer is "the
         template's" is a few lines, and no page scrolls sideways at a 1280-wide window."""

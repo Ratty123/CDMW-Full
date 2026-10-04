@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (  # noqa: E402
 )
 
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh  # noqa: E402
-from cdmw.services.effect_catalogue import EffectCatalogue  # noqa: E402
+from cdmw.services.effect_catalogue import EffectCatalogue, EffectFacts  # noqa: E402
 from cdmw.ui.new_item.controller import NewItemStudioController  # noqa: E402
 from cdmw.ui.new_item.effect_placement_dialog import EffectPlacementWorkspace  # noqa: E402
 from cdmw.ui.new_item.effect_workspace import (  # noqa: E402
@@ -366,6 +366,56 @@ class EffectWorkspaceTests(unittest.TestCase):
         self.assertIn("Smoke", workspace.selected_effect_label.toolTip())
         workspace.apply_staged()
         self.assertEqual(controller.draft.effect_stem, "fx_fire_family_a__smoke1")
+
+    def test_search_filters_names_without_shared_resources_or_pinning_the_selection(self) -> None:
+        controller = _Controller()
+        torch = "fx_fire_bg_a__torch1"
+        second = "fx_fire_bg_a__torch2"
+        arrow = "fx_fire_projectile_b__arrow7"
+        blood = "fx_blood_common_a_tpl__blood2"
+        controller.stems = (torch, second, arrow, blood)
+        facts = {
+            stem: EffectFacts(
+                stem=stem, name="fx/common/torch_authoring_name",
+                emitters=("emitter/sound_fire_torch",),
+                textures=("effect/texture/pafx_fire_torch_002a_4pack.dds",),
+                meshes=("effect/mesh/cdfx_torch_001b_smh.pam",),
+                presets=("torch_preset",), dependencies=("torch_dependency",),
+                box_min=(0.0, 0.0, 0.0), box_max=(1.0, 1.0, 1.0),
+                infinite_emitter=stem in (torch, arrow), infinite_particle=False,
+                has_lights=False, max_spawnable_time=0.0, life_cycle_time=0.0,
+                byte_length=1,
+            )
+            for stem in controller.stems
+        }
+        controller.effect_facts = facts.get
+        workspace, _controller, _confirmations = self._workspace(controller)
+        workspace.choose_effect(arrow)
+        workspace.search.setText("  ToRcH  ")
+        self._settle(lambda: not workspace._library_timer.isActive())
+        self.assertEqual({row.stem for row in workspace.library_model._rows}, {"", torch, second})
+        self.assertEqual(workspace.library_count.text(), "2 effects")
+        self.assertEqual(workspace.staged_state.stem, arrow)
+        self.assertEqual(workspace.selected_effect_label.text(), "Arrow 7 · Fire Projectile B")
+        self.assertFalse(workspace.library_view.currentIndex().isValid())
+
+        workspace.loop_only.click()
+        self._settle(lambda: not workspace._library_timer.isActive())
+        self.assertEqual({row.stem for row in workspace.library_model._rows}, {"", torch})
+        workspace.search.setText("torch 2")
+        self._settle(lambda: not workspace._library_timer.isActive())
+        self.assertEqual(workspace.library_model.rowCount(), 1)
+        self.assertEqual(workspace.library_count.text(), "0 effects")
+        self.assertFalse(workspace.empty_results.isHidden())
+        self.assertEqual(workspace.staged_state.stem, arrow)
+
+        workspace.one_shot_only.click()
+        self._settle(lambda: not workspace._library_timer.isActive())
+        self.assertEqual({row.stem for row in workspace.library_model._rows}, {"", second})
+        workspace._reset_filters()
+        self._settle(lambda: not workspace._library_timer.isActive())
+        self.assertEqual(workspace.library_model.rowCount(), 5)
+        self.assertEqual(workspace.library_view.currentIndex().data(EffectLibraryModel.StemRole), arrow)
 
     def test_no_effect_uses_the_pinned_row_without_repeating_empty_status(self) -> None:
         workspace, _controller, _confirmations = self._workspace()
@@ -962,7 +1012,8 @@ class EffectWorkspaceTests(unittest.TestCase):
         workspace.choose_effect("fx_frost_loop")
         self._settle(lambda: not workspace._library_timer.isActive())
         stems = [workspace.library_model.row(row).stem for row in range(workspace.library_model.rowCount())]
-        self.assertEqual(stems, ["", "fx_fire_ring_loop", "fx_frost_loop"], "the current selection stays visible")
+        self.assertEqual(stems, ["", "fx_fire_ring_loop"])
+        self.assertEqual(workspace.staged_state.stem, "fx_frost_loop")
 
     def test_variants_filter_preserves_grouping_and_a_selection_outside_the_catalogue(self) -> None:
         controller = _Controller()
@@ -976,7 +1027,8 @@ class EffectWorkspaceTests(unittest.TestCase):
         workspace.search.setText("no match")
         self._settle(lambda: not workspace._library_timer.isActive())
         stems = [workspace.library_model.row(row).stem for row in range(workspace.library_model.rowCount())]
-        self.assertEqual(stems, ["", "fx_fire-03"], "the current selection stays visible")
+        self.assertEqual(stems, [""])
+        self.assertEqual(workspace.staged_state.stem, "fx_fire-03")
 
     def test_library_toggle_buttons_show_their_current_state(self) -> None:
         workspace, _, _ = self._workspace()
@@ -1095,7 +1147,7 @@ class EffectWorkspaceTests(unittest.TestCase):
         workspace.search.setText("fire ring")
         self._settle(lambda: not workspace._library_timer.isActive())
         stems = [workspace.library_model.row(row).stem for row in range(workspace.library_model.rowCount())]
-        self.assertEqual(stems, ["", "fx_fire_ring_loop", "fx_frost_loop"])
+        self.assertEqual(stems, ["", "fx_fire_ring_loop"])
         workspace.search.setText("no such effect")
         self._settle(lambda: not workspace._library_timer.isActive())
         self.assertTrue(workspace.empty_results.isVisibleTo(workspace))

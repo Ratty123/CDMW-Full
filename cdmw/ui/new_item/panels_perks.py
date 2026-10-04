@@ -51,7 +51,7 @@ SAFE_PERKS = 4
 
 class PerksPanel(QGroupBox):
     def __init__(self, controller: NewItemStudioController, parent=None) -> None:
-        super().__init__("5. Perks & Effects", parent)
+        super().__init__("5. Effects & Perks", parent)
         self._controller = controller
         self._perk_lookup = controller.create_lookup_lane()
         self._perk_lookup.completed.connect(self._publish_catalogue)

@@ -34,7 +34,7 @@ DEFAULT_STEP_LABELS = (
     "Identity",
     "Model & Placement",
     "Stats & Prices",
-    "Perks & Effects",
+    "Effects & Perks",
     "Distribution",
     "Output",
 )

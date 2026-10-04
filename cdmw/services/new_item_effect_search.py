@@ -15,7 +15,7 @@ def filter_effect_rows(candidates, *, selected, terms, category, loop_only, one_
                    and (favourites is None or stem in favourites)
                    and (family is None or family_of(stem) == family))
         matches += int(matched)
-        if matched or stem == selected:
+        if matched:
             rows.append(row)
     rows.sort(key=lambda row: (row.label.casefold(), row.stem.casefold()))
     raise_if_cancelled(stop_event)
