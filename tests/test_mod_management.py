@@ -443,7 +443,8 @@ def test_rust_workspace_navigation_filter_and_scoped_activity(tmp_path, monkeypa
             assert text not in json.dumps(state['root'])
         assert not tab.operation_bar.isVisible()
         assert history.events[-1].message == 'Full textures loaded.'
-        assert drawer.tool_log_view.document() is tab.log.document()
+        assert drawer._tool_log_binding.source_document is tab.log.document()
+        assert drawer.tool_log_view.toPlainText() == tab.log.toPlainText()
         drawer.tabs.setCurrentIndex(1)
         drawer.copy_button.click()
         assert app.clipboard().text() == tab.log.toPlainText()

@@ -33,11 +33,15 @@ Compact choice remains authoritative. Compact mode hides the existing tab bars, 
 its rail through the shared activation path, reuses the existing actions and status
 widgets, and never constructs a second tool/controller/worker tree. Its shared
 application theme and category state are documented in
-`docs/features/compact-workspace.md`. The shared Activity drawer checks tool-log content
-without copying the complete document on tab activation or each appended line.
+`docs/features/compact-workspace.md`. Current Tool Log has its own text layout so a
+hidden writer or a differently sized Output pane cannot clip its final line. It
+copies the source once when changing tools, then mirrors only changed text and
+highlighting. Repeated activation keeps the existing binding.
 
-Repeated activation keeps its document connection; Copy still retrieves the full log,
-and whitespace-only logs retain their empty-state and Copy/Clear behavior. Activity
+New messages scroll to the bottom after layout settles, including messages written
+while the drawer is closed. Reopening catches up immediately; older messages remain
+readable between updates. Copy and Clear still use the original log, and whitespace-only
+logs retain their empty-state and Copy/Clear behavior. Activity
 history redraws are batched on a 40 ms timer while its page is visible; hidden drawers
 and the Current Tool Log page do not rebuild the history text. Opening Activity
 immediately catches up, Clear remains immediate, and Copy reads the current history even

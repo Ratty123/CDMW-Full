@@ -397,7 +397,7 @@ source launch to try this workspace before the next application package.
 
 ## Build planning and preparation
 
-Current Tool Log is available as soon as the tab opens. The same bounded document
+Current Tool Log is available as soon as the tab opens. One bounded log source
 keeps archive-read progress, template changes, preview status, effect indexing and
 Output messages, including messages emitted before the workspace is built. These
 stages also enter `diagnostics_current.jsonl` through the shell's persisted activity
@@ -1117,7 +1117,9 @@ Output has three adjustable columns: **File changes / Details and warnings**,
 **Activity log**, and **Destination**. **Build plan** stays beside the review
 heading. Review text and activity scroll inside their panes without making the
 page taller. The log is always visible and returns to the latest event when a
-message arrives, including beyond a full text page. Older activity remains
+message arrives, including writes through the controller and beyond a full text page.
+Output and Current Tool Log use independent text layouts, keeping the final line
+fully visible at different pane sizes and after reopening. Older activity remains
 available through scrolling and paging; **Copy** includes every retained message.
 Progress and output actions stay visible beside the review.
 An overlay installation failure also opens a warning and keeps the reason visible

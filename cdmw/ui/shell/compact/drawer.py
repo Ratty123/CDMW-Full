@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 )
 
 from cdmw.ui.shell.compact.activity import ActivityHistory, ToolLogAdapter
+from cdmw.ui.log_view import LiveLogBinding
 
 
 class CompactActivityDrawer(QFrame):
@@ -73,6 +74,7 @@ class CompactActivityDrawer(QFrame):
         self.tool_log_view = QPlainTextEdit()
         self.tool_log_view.setObjectName("CompactCurrentToolLogView")
         self.tool_log_view.setReadOnly(True)
+        self._tool_log_binding = LiveLogBinding(self.tool_log_view)
         self.tool_log_stack.addWidget(self.tool_log_empty_label)
         self.tool_log_stack.addWidget(self.tool_log_view)
         self.tabs.addTab(self.tool_log_stack, "Current Tool Log")
@@ -135,16 +137,15 @@ class CompactActivityDrawer(QFrame):
     def set_tool_log(self, adapter: ToolLogAdapter) -> None:
         self._tool_adapter = adapter
         document = adapter.document or self._empty_document
-        if self.tool_log_view.document() is document:
+        if self._tool_log_binding.source_document is document:
             self._update_tool_log_empty_state()
             return
         self._disconnect_document()
-        self.tool_log_view.setDocument(document)
+        self._tool_log_binding.set_document(document)
         if self._log_font is not None:
             self.tool_log_view.setFont(self._log_font)
             self.tool_log_view.setProperty("_cdmw_global_font_managed", False)
-            if document.defaultFont() != self._log_font:
-                document.setDefaultFont(self._log_font)
+            self.tool_log_view.document().setDefaultFont(self._log_font)
         if adapter.document is not None:
             self._connected_document = adapter.document
             adapter.document.contentsChanged.connect(self._update_tool_log_empty_state)

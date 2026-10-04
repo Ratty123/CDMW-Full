@@ -524,7 +524,7 @@ class NewItemStudioTab(QWidget):
         self.output_panel = OutputPanel(controller, self, settings=getattr(getattr(self._window, "shell", None), "settings", None))
         self.output_panel.hide()
         controller.log_message.disconnect(self.output_panel.append_log)
-        self.output_panel.log.setDocument(self.log.document())
+        self.output_panel._log_binding.set_document(self.log.document())
         yield
         self._apply_step_style()
         yield

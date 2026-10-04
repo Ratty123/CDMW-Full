@@ -163,7 +163,9 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         self.assertIn("Read the archives", document.toPlainText())
         self.assertFalse(hasattr(tab, "output_panel"))
         tab.start_snapshot()
-        self.assertIs(document, tab.output_panel.log.document())
+        self.assertIs(document, tab.output_panel._log_binding.source_document)
+        self.assertIsNot(document, tab.output_panel.log.document())
+        self.assertEqual(document.toPlainText(), tab.output_panel.log.toPlainText())
         self.assertIn("Opening the archive catalogue", document.toPlainText())
         tab.controller.log_message.emit("One operation message")
         self.assertEqual(document.toPlainText().count("One operation message"), 1)
@@ -971,10 +973,17 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
                 self.assertGreater(output.log.height(), output.height() * 0.6)
                 log_scroll = output.log.verticalScrollBar()
                 log_scroll.setValue(0)
-                output.append_log("Latest event")
-                self.app.processEvents()
+                # Live progress writes through the hidden owner of the shared
+                # document, not OutputPanel.append_log.
+                tab.controller.log_message.emit("Latest event: " + "texture reference " * 30)
+                for _ in range(4):
+                    self.app.processEvents()
                 self.assertGreater(log_scroll.maximum(), 0)
                 self.assertEqual(log_scroll.value(), log_scroll.maximum())
+                from PySide6.QtGui import QTextCursor
+                tail = QTextCursor(output.log.document())
+                tail.movePosition(QTextCursor.End)
+                self.assertLess(output.log.cursorRect(tail).bottom(), output.log.viewport().height())
                 self.assertEqual(output.actions.geometry(), action_geometry)
                 output.checklist.toggle.setChecked(True)
                 self.app.processEvents()

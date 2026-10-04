@@ -39,6 +39,7 @@ from cdmw.ui.new_item.state import MANAGERS
 from cdmw.ui.new_item.review_model import FileChangeModel, ReviewTextWriter
 from cdmw.ui.new_item.ui_kit import BLOCK, EDIT, OK, WARN, DetailsToggle, NoteLabel
 from cdmw.ui.widgets import request_settings_sync
+from cdmw.ui.log_view import LiveLogBinding
 
 # Both review tabs scroll locally inside the remaining workspace height.
 _COMPACT_SUMMARY_HEIGHT = 120
@@ -355,6 +356,7 @@ class OutputPanel(QGroupBox):
         self.log = QPlainTextEdit()
         self.log.setReadOnly(True)
         self.log.setProperty("followTail", True)
+        self._log_binding = LiveLogBinding(self.log)
         self.log.setPlaceholderText("Build progress, exports, installs, and other messages appear here.")
         self.log.setMinimumHeight(_COMPACT_SUMMARY_HEIGHT)
         activity_layout.addWidget(self.log, 1)
@@ -477,8 +479,7 @@ class OutputPanel(QGroupBox):
     # ------------------------------------------------------------------ results
 
     def append_log(self, message: str) -> None:
-        self.log.appendPlainText(str(message))
-        self.log.verticalScrollBar().setValue(self.log.verticalScrollBar().maximum())
+        self._log_binding.append_log(str(message))
 
     def _operation_message(self, message: str, error: bool) -> None:
         if error:

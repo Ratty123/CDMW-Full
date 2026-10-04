@@ -307,7 +307,8 @@ def test_drawer_switch_and_append_do_not_materialize_the_tool_log(monkeypatch):
             drawer.set_tool_log(adapter)
             source.appendPlainText("Another texture")
         assert not calls
-        assert drawer.tool_log_view.document() is source.document()
+        assert drawer._tool_log_binding.source_document is source.document()
+        assert drawer.tool_log_view.toPlainText() == source.toPlainText()
         assert drawer.tool_log_stack.currentWidget() is drawer.tool_log_view
         assert drawer.copy_button.isEnabled() and drawer.clear_button.isEnabled()
         drawer._copy_current_view()
@@ -625,20 +626,20 @@ def test_compact_drawer_follows_appearance_log_font_across_tool_switches(tmp_pat
         first_tool_log.setPlainText("first tool")
         first_tool_document = first_tool_log.document()
         drawer.set_tool_log(ToolLogAdapter("first", "First", first_tool_document))
-        assert drawer.tool_log_view.document() is first_tool_document
-        assert first_tool_document.defaultFont().pointSize() == 16
+        assert drawer._tool_log_binding.source_document is first_tool_document
+        assert drawer.tool_log_view.document().defaultFont().pointSize() == 16
 
         settings.setValue("appearance/log_font_size", 13)
         apply_window_data_fonts(window)  # type: ignore[arg-type]
-        assert first_tool_document.defaultFont().pointSize() == 13
+        assert drawer.tool_log_view.document().defaultFont().pointSize() == 13
 
         second_tool_log = QPlainTextEdit(host)
         second_tool_log.setPlainText("second tool")
         second_tool_document = second_tool_log.document()
         drawer.set_tool_log(ToolLogAdapter("second", "Second", second_tool_document))
-        assert drawer.tool_log_view.document() is second_tool_document
+        assert drawer._tool_log_binding.source_document is second_tool_document
         assert drawer.tool_log_view.font().pointSize() == 13
-        assert second_tool_document.defaultFont().pointSize() == 13
+        assert drawer.tool_log_view.document().defaultFont().pointSize() == 13
     finally:
         drawer.set_tool_log(ToolLogAdapter("", ""))
         host.close()
