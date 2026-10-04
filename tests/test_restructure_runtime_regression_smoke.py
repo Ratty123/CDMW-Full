@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QLabel, QPushButton, QWidget
 
 from cdmw.app.events import AppEventBus
@@ -61,6 +62,10 @@ class RestructureRuntimeRegressionSmokeTests(unittest.TestCase):
             event_bus=AppEventBus(),
         )
         self.window = MainWindow(app_context=context)
+        # Navigation starts lazy tools only when the selected tab is visible.
+        self.window.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+        self.window.show()
+        _app().processEvents()
 
     def tearDown(self) -> None:
         self.window._finalize_close()
