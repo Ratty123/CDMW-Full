@@ -26977,16 +26977,6 @@
       ]
     },
     {
-      "key": "Cloth settings",
-      "origins": [
-        {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs",
-          "line": 696,
-          "sink": "rust-presentation"
-        }
-      ]
-    },
-    {
       "key": "Cloth settings require a cloth-capable draft format.",
       "origins": [
         {
@@ -31361,7 +31351,12 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs",
-          "line": 76,
+          "line": 26,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs",
+          "line": 77,
           "sink": "rust-presentation"
         }
       ]

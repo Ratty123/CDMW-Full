@@ -2345,7 +2345,6 @@
     "Cloth parts must be unique.": "Stoffteile dürfen nicht mehrfach vorkommen.",
     "Cloth preview needs a decoded guide mesh.": "Cloth preview needs a decoded guide mesh.",
     "Cloth preview settings": "Cloth preview settings",
-    "Cloth settings": "Stoffeinstellungen",
     "Cloth settings require a cloth-capable draft format.": "Stoffeinstellungen erfordern ein Entwurfsformat mit Stoffunterstützung.",
     "Cloth: original {value_0} · effective {value_1} · {value_2}": "Stoff: Original {value_0} · effektives {value_1} · {value_2}",
     "Clump": "Klumpen",

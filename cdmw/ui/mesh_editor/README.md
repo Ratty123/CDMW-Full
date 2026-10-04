@@ -650,7 +650,7 @@ does not establish real-game rendering or animation compatibility.
 
 ## Cloth influence
 
-For an original PAC at LOD0, open **Mesh Data > Cloth > Cloth settings**. Choose all included
+For an original PAC at LOD0, open **Mesh Data > Cloth**. Choose all included
 cloth parts or **Selected parts only**. **Cloth amount** scales their existing
 influence; **Disable cloth** makes them follow skeletal animation. Enable
 **Fix vertices above height** to set where movement begins, with an optional
@@ -780,9 +780,10 @@ automatically and game collision activation remains unverified.
 
 #### Weapon collisions
 
-Open **Cloth > Experimental features** for **Weapon colliders**, **Collision sources**
-and **Create cloth guides (experimental)**. Motion preview remains available in both
-Cloth tabs. The weapon PAC picker appears once, in **Collision sources**.
+In **Cloth**, click **Experimental features** below the influence controls to show
+**Weapon colliders**, **Collision sources** and **Create cloth guides** inline.
+Click it again to hide them. Cloth settings and motion preview remain in the same
+panel. The weapon PAC picker appears once, in **Collision sources**.
 
 **Weapon colliders > Weapon collisions** is a preview switch for supported single-root weapon
 PACs. Capsules are fitted around included rigid parts; guide-bound ribbons are excluded.
@@ -1038,7 +1039,7 @@ shared PAC LOD reader validates record ownership without requiring cloth binding
 
 ### Creating cloth guides on existing bones
 
-In **Mesh Data > Cloth > Experimental features**, expand **Create cloth guides (experimental)**. This
+In **Mesh Data > Cloth**, click **Experimental features**, then expand **Create cloth guides**. This
 requires a guide-free PAC with a decoded 2-, 3- or 4-LOD layout and a matching
 skeleton. Select the parts to affect and enable **Create guides for selected
 parts only** when appropriate. Choose a **Source LOD** and **Pin guides at or

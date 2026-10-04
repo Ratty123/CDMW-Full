@@ -2345,7 +2345,6 @@
     "Cloth parts must be unique.": "Części tkaniny nie mogą się powtarzać.",
     "Cloth preview needs a decoded guide mesh.": "Cloth preview needs a decoded guide mesh.",
     "Cloth preview settings": "Cloth preview settings",
-    "Cloth settings": "Ustawienia tkaniny",
     "Cloth settings require a cloth-capable draft format.": "Ustawienia tkaniny wymagają formatu szkicu obsługującego tkaninę.",
     "Cloth: original {value_0} · effective {value_1} · {value_2}": "Tkanina: oryginalna {value_0} · efektywna {value_1} · {value_2}",
     "Clump": "Zlepek",

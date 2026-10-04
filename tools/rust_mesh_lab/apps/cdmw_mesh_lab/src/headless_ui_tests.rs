@@ -452,7 +452,7 @@ mod guide_authoring_tests {
                        "max_y": 2.0, "lod_vertices": [1200, 800, 500, 200], "rule": null}]});
         ui.click_tool_button("Cloth")?;
         ui.click("Experimental features")?;
-        ui.click("Create cloth guides (experimental)")?;
+        ui.click("Create cloth guides")?;
         ui.settle_layout();
         Ok(ui)
     }

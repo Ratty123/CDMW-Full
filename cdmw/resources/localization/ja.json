@@ -2345,7 +2345,6 @@
     "Cloth parts must be unique.": "クロスのパーツを重複させることはできません。",
     "Cloth preview needs a decoded guide mesh.": "Cloth preview needs a decoded guide mesh.",
     "Cloth preview settings": "Cloth preview settings",
-    "Cloth settings": "布の設定",
     "Cloth settings require a cloth-capable draft format.": "クロス設定にはクロス対応の下書き形式が必要です。",
     "Cloth: original {value_0} · effective {value_1} · {value_2}": "布: オリジナル {value_0} · 有効 {value_1} · {value_2}",
     "Clump": "クランプ",

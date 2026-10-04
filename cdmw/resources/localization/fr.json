@@ -2345,7 +2345,6 @@
     "Cloth parts must be unique.": "Les parties de tissu ne doivent pas être répétées.",
     "Cloth preview needs a decoded guide mesh.": "Cloth preview needs a decoded guide mesh.",
     "Cloth preview settings": "Cloth preview settings",
-    "Cloth settings": "Paramètres du tissu",
     "Cloth settings require a cloth-capable draft format.": "Les réglages de tissu nécessitent un format de brouillon compatible avec le tissu.",
     "Cloth: original {value_0} · effective {value_1} · {value_2}": "Tissu : {value_0} d'origine · {value_1} efficace · {value_2}",
     "Clump": "Amas",

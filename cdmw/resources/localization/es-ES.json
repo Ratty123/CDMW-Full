@@ -2345,7 +2345,6 @@
     "Cloth parts must be unique.": "Las partes de tela no deben repetirse.",
     "Cloth preview needs a decoded guide mesh.": "Cloth preview needs a decoded guide mesh.",
     "Cloth preview settings": "Cloth preview settings",
-    "Cloth settings": "Ajustes de tela",
     "Cloth settings require a cloth-capable draft format.": "Los ajustes de tela requieren un formato de borrador compatible con tela.",
     "Cloth: original {value_0} · effective {value_1} · {value_2}": "Tela: original {value_0} · efectivo {value_1} · {value_2}",
     "Clump": "Grupo",

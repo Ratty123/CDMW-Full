@@ -2345,7 +2345,6 @@
     "Cloth parts must be unique.": "As partes de tecido não podem se repetir.",
     "Cloth preview needs a decoded guide mesh.": "Cloth preview needs a decoded guide mesh.",
     "Cloth preview settings": "Cloth preview settings",
-    "Cloth settings": "Configurações de tecido",
     "Cloth settings require a cloth-capable draft format.": "As configurações de tecido requerem um formato de rascunho compatível com tecido.",
     "Cloth: original {value_0} · effective {value_1} · {value_2}": "Pano: {value_0} original · {value_1} efetivo · {value_2}",
     "Clump": "Aglomerado",

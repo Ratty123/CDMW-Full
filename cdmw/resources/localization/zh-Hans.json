@@ -2345,7 +2345,6 @@
     "Cloth parts must be unique.": "布料部件不能重复。",
     "Cloth preview needs a decoded guide mesh.": "Cloth preview needs a decoded guide mesh.",
     "Cloth preview settings": "Cloth preview settings",
-    "Cloth settings": "布料设置",
     "Cloth settings require a cloth-capable draft format.": "布料设置需要支持布料的草稿格式。",
     "Cloth: original {value_0} · effective {value_1} · {value_2}": "布料：原始 {value_0} · 有效 {value_1} · {value_2}",
     "Clump": "块状",

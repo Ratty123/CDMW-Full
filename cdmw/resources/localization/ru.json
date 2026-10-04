@@ -2345,7 +2345,6 @@
     "Cloth parts must be unique.": "Части ткани не должны повторяться.",
     "Cloth preview needs a decoded guide mesh.": "Cloth preview needs a decoded guide mesh.",
     "Cloth preview settings": "Cloth preview settings",
-    "Cloth settings": "Настройки ткани",
     "Cloth settings require a cloth-capable draft format.": "Для настроек ткани требуется формат черновика с поддержкой ткани.",
     "Cloth: original {value_0} · effective {value_1} · {value_2}": "Ткань: оригинальная {value_0} · эффективная {value_1} · {value_2}",
     "Clump": "Комок",

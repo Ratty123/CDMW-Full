@@ -2345,7 +2345,6 @@
     "Cloth parts must be unique.": "Kumaş parçaları yinelenmemelidir.",
     "Cloth preview needs a decoded guide mesh.": "Cloth preview needs a decoded guide mesh.",
     "Cloth preview settings": "Cloth preview settings",
-    "Cloth settings": "Kumaş ayarları",
     "Cloth settings require a cloth-capable draft format.": "Kumaş ayarları için kumaşı destekleyen bir taslak biçimi gerekir.",
     "Cloth: original {value_0} · effective {value_1} · {value_2}": "Kumaş: orijinal {value_0} · etkili {value_1} · {value_2}",
     "Clump": "yığın",

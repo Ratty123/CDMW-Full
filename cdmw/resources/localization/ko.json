@@ -2345,7 +2345,6 @@
     "Cloth parts must be unique.": "천 파트는 중복될 수 없습니다.",
     "Cloth preview needs a decoded guide mesh.": "Cloth preview needs a decoded guide mesh.",
     "Cloth preview settings": "Cloth preview settings",
-    "Cloth settings": "천 설정",
     "Cloth settings require a cloth-capable draft format.": "천 설정에는 천을 지원하는 초안 형식이 필요합니다.",
     "Cloth: original {value_0} · effective {value_1} · {value_2}": "천: 원본 {value_0} · 유효 {value_1} · {value_2}",
     "Clump": "덩어리",

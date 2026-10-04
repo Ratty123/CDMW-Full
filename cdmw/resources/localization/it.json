@@ -2345,7 +2345,6 @@
     "Cloth parts must be unique.": "Le parti di tessuto non devono essere ripetute.",
     "Cloth preview needs a decoded guide mesh.": "Cloth preview needs a decoded guide mesh.",
     "Cloth preview settings": "Cloth preview settings",
-    "Cloth settings": "Impostazioni della tela",
     "Cloth settings require a cloth-capable draft format.": "Le impostazioni del tessuto richiedono un formato di bozza che supporti il tessuto.",
     "Cloth: original {value_0} · effective {value_1} · {value_2}": "Panno: {value_0} originale · {value_1} efficace · {value_2}",
     "Clump": "Ciuffo",

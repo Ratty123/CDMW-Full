@@ -1121,14 +1121,14 @@ fn appearance_body_collision_control_uses_owned_volumes_and_preserves_authored_m
 }
 
 #[test]
-fn cloth_experimental_tab_groups_controls_without_interrupting_preview() -> TestResult {
+fn cloth_experimental_button_expands_inline_without_interrupting_preview() -> TestResult {
     let (_root, mut ui, _) = fixture()?;
     ui.application.cdmw_state["cloth_guides"] = json!({"available": false, "reason": "Guides already exist."});
     ui.frame(Vec::new());
     let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
     assert!(ui.label_rect("Cloth amount").is_some());
-    for label in ["Weapon colliders", "Collision sources", "Create cloth guides (experimental)", "Wind preview"] {
-        assert!(ui.label_rect(label).is_none(), "{label} is outside the default cloth tab");
+    for label in ["Weapon colliders", "Collision sources", "Create cloth guides", "Wind preview"] {
+        assert!(ui.label_rect(label).is_none(), "{label} stays hidden until requested");
     }
     ui.click("Cloth preview settings")?;
     assert!(ui.label_rect("Choose weapon PAC…").is_none());
@@ -1136,9 +1136,12 @@ fn cloth_experimental_tab_groups_controls_without_interrupting_preview() -> Test
     wait(&mut ui)?;
     advance(&mut ui)?;
     let frame = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.clone();
+    ui.application.cdmw_cloth.amount_percent = 72.5;
     ui.click("Experimental features")?;
-    assert!(ui.label_rect("Cloth amount").is_none());
-    for label in ["Weapon colliders", "Collision sources", "Create cloth guides (experimental)"] {
+    ui.reveal("Cloth amount")?;
+    assert!(ui.label_rect("Cloth amount").is_some());
+    assert_eq!(ui.application.cdmw_cloth.amount_percent, 72.5);
+    for label in ["Weapon colliders", "Collision sources", "Create cloth guides"] {
         assert!(ui.label_rect(label).is_some(), "missing experimental section {label}");
     }
     assert!(ui.application.cdmw_jiggle.preview.playing);
@@ -1146,9 +1149,14 @@ fn cloth_experimental_tab_groups_controls_without_interrupting_preview() -> Test
     assert_eq!(ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame, frame);
     ui.click("Collision sources")?;
     assert!(ui.label_rect("Choose weapon PAC…").is_some());
-    ui.click("Cloth settings")?;
+    ui.click("Experimental features")?;
+    ui.reveal("Cloth amount")?;
     assert!(ui.label_rect("Cloth amount").is_some());
+    assert_eq!(ui.application.cdmw_cloth.amount_percent, 72.5);
     assert!(ui.label_rect("Choose weapon PAC…").is_none());
+    for label in ["Weapon colliders", "Collision sources", "Create cloth guides"] {
+        assert!(ui.label_rect(label).is_none());
+    }
     assert!(ui.application.cdmw_jiggle.preview.playing);
     assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
     Ok(())
