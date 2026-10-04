@@ -178,6 +178,8 @@ class OutputPanel(QGroupBox):
         self._review_lookup.completed.connect(self._review_ready)
         self._review_lookup.failed.connect(self._review_failed)
         self._install_error = ""
+        self._export_error = ""
+        self._export_requested = False
         outer = QVBoxLayout(self)
         outer.setContentsMargins(8, 6, 8, 6)
         self.workspace_splitter = QSplitter(Qt.Orientation.Horizontal, self)
@@ -290,9 +292,7 @@ class OutputPanel(QGroupBox):
         self.export_button.clicked.connect(self._export)
         self.export_button.setProperty("newItemPrimary", True)
         write_layout.addWidget(self.folder_controls)
-        # A loose mod carries whole tables, so two of them cannot both be enabled: the one
-        # the manager mounts last owns the table and the other item is not in it. Planned
-        # on the folder's own tables instead, the next item joins the ones already there.
+        # Plan on the chosen package's tables so both items share one complete package.
         self.add_to_mod = QCheckBox("Add to existing mod")
         self.add_to_mod.setToolTip(
             "Select an existing mod folder to add this item while keeping its current items. "
@@ -304,6 +304,12 @@ class OutputPanel(QGroupBox):
         self.mod_base_note.setWordWrap(True)
         self.mod_base_note.setVisible(False)
         write_layout.addWidget(self.mod_base_note)
+        self.export_problem = NoteLabel("", BLOCK)
+        write_layout.insertWidget(0, self.export_problem)
+        self.choose_mod_base_button = QPushButton("Choose mod to extend...")
+        self.choose_mod_base_button.clicked.connect(self._choose_mod_to_extend)
+        self.choose_mod_base_button.hide()
+        write_layout.insertWidget(1, self.choose_mod_base_button)
         self.export_root.textChanged.connect(lambda _text: self._mod_base_changed())
         self.mod_name.textChanged.connect(lambda _text: self._update_destination())
         self.overlay_controls = QWidget()
@@ -461,7 +467,53 @@ class OutputPanel(QGroupBox):
         if path:
             self.export_root.setText(path)
 
+    def _choose_mod_to_extend(self) -> None:
+        path = QFileDialog.getExistingDirectory(self, "Choose the existing mod folder", self.export_root.text())
+        if path:
+            self.add_to_mod.setChecked(True)
+            self.export_root.setText(path)
+
+    def _source_export_problem(self) -> str:
+        plan = self._controller.plan
+        if (plan is None or not plan.unselected_source_items or self.add_to_mod.isChecked()
+                or self.output_mode.currentData() != "folder"):
+            return ""
+        items = ", ".join(plan.unselected_source_items)
+        message = self.tr("Source tables already contain other custom items: {value_0}.").format(value_0=items)
+        source = plan.manifest.get("tables", {}).get("iteminfo", {}).get("source_archive", "")
+        if source:
+            message += "\n" + self.tr("Source: {value_0}").format(value_0=source)
+        message += "\n\n" + self.tr(
+            "To combine items, choose the existing mod folder and rebuild the plan. "
+            "For a separate mod, unmount the item mods, read the archives again, then rebuild."
+        )
+        return message
+
+    def _refresh_export_state(self) -> None:
+        source_problem = self._source_export_problem()
+        problem = source_problem or (self._export_error if self.output_mode.currentData() == "folder" else "")
+        changed = problem != self.export_problem.plain_text()
+        self.export_problem.set_lines((line, BLOCK) for line in problem.splitlines())
+        if problem and changed:
+            self.sidebar_scroll.verticalScrollBar().setValue(0)
+        self.choose_mod_base_button.setVisible(bool(source_problem))
+        self.choose_mod_base_button.setEnabled(not self._controller.busy)
+        self.export_button.setEnabled(self._controller.has_current_plan and not self._controller.busy and not source_problem)
+        if problem:
+            self.plan_state.set_note("Export blocked", BLOCK)
+        elif self._controller.has_current_plan:
+            plan = self._controller.plan
+            warnings = len(plan.warnings)
+            self.plan_state.set_note(
+                f"Ready: item {plan.spec.item_key}, {len(plan.patches)} table file(s) replaced, {len(plan.additions)} new file(s)"
+                + (f", {warnings} warning(s) to review" if warnings else ""),
+                WARN if warnings else OK,
+            )
+
     def _export(self) -> None:
+        if self._source_export_problem():
+            self._refresh_export_state()
+            return
         root = self._package_root()
         if root is None:
             QMessageBox.information(self, "Write loose mod", "Choose an output folder first.")
@@ -473,8 +525,13 @@ class OutputPanel(QGroupBox):
             QMessageBox.information(self, "Write loose mod", "Build the plan first.")
             return
         self._open_export_folder = self.open_folder_after_creation.isChecked()
-        self._controller.start_export(root, self.manager.currentText(), create_zip=self.create_zip.isChecked(),
-                                      replace_existing=self.add_to_mod.isChecked())
+        self._export_error = ""
+        self._export_requested = True
+        try:
+            self._controller.start_export(root, self.manager.currentText(), create_zip=self.create_zip.isChecked(),
+                                          replace_existing=self.add_to_mod.isChecked())
+        finally:
+            self._export_requested = False
 
     # ------------------------------------------------------------------ results
 
@@ -484,11 +541,15 @@ class OutputPanel(QGroupBox):
     def _operation_message(self, message: str, error: bool) -> None:
         if error:
             self.append_log(message)
+            if self._export_requested or self._controller._lane == "export":
+                self._export_error = str(message)
+                self._refresh_export_state()
 
     def _show_plan(self, plan: Optional[NewItemPlan] = None) -> None:
         self.mod_name.setPlaceholderText(self._controller.draft.display_names.get("eng", "") or self.tr("Mod name"))
         self._update_destination()
         self._install_error = ""
+        self._export_error = ""
         if not self._controller.busy:
             self.busy_state.set_note("", None)
         enabled = plan is not None
@@ -497,6 +558,7 @@ class OutputPanel(QGroupBox):
         self.build_button.style().polish(self.build_button)
         self.export_button.setEnabled(enabled and not self._controller.busy)
         self.install_overlay_button.setEnabled(enabled and not self._controller.busy)
+        self._refresh_export_state()
         mode = self.output_mode.currentData()
         if getattr(self, "_displayed_plan", False) == (id(plan), mode):
             return
@@ -509,12 +571,6 @@ class OutputPanel(QGroupBox):
             self.plan_state.set_note("Plan not built.", WARN)
             return
         self.build_button.setText(self.tr("Rebuild plan"))
-        warnings = len(plan.warnings)
-        self.plan_state.set_note(
-            f"Ready: item {plan.spec.item_key}, {len(plan.patches)} table file(s) replaced, {len(plan.additions)} new file(s)"
-            + (f", {warnings} warning(s) to review" if warnings else ""),
-            WARN if warnings else OK,
-        )
         from cdmw.services.new_item_review import plan_review_content
         labels = (self.tr("Replace table"), self.tr("Add file"), self.tr("Overlay metadata"))
         self._summary_writer.set_text("Preparing the plan review…")
@@ -542,6 +598,8 @@ class OutputPanel(QGroupBox):
         self.plan_state.set_note(f"Blocked: {message}", BLOCK)
 
     def _export_finished(self, result: object) -> None:
+        self._export_error = ""
+        self._refresh_export_state()
         root = getattr(result, "package_root", "")
         count = len(getattr(result, "payload_paths", ()) or ())
         new = len(getattr(result, "new_paths", ()) or ())
@@ -573,6 +631,8 @@ class OutputPanel(QGroupBox):
         lane = str(getattr(self._controller, "_lane", "") or "")
         if busy and lane == "install":
             self._install_error = ""
+        if busy and lane == "export":
+            self._export_error = ""
         working = bool(busy) and lane in {"plan", "export", "install", "snapshot"}
         self.busy_bar.setVisible(working)
         self.busy_bar.setRange(0, 0)
@@ -596,6 +656,7 @@ class OutputPanel(QGroupBox):
         self.overlay_directory.setEnabled(not busy)
         for control in (self.output_mode, self.mode_buttons, self.folder_controls, self.add_to_mod):
             control.setEnabled(not busy)
+        self._refresh_export_state()
 
     def _operation_progress(self, lane: str, current: int, total: int, detail: str) -> None:
         if (not self._controller.busy or lane != self._controller._lane

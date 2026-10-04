@@ -1598,10 +1598,18 @@ The plan uses the currently mounted game data. A clean shipped archive underneat
 an active overlay does not make those source tables clean. Plan review names existing
 items in CDMW's reserved custom-item range and identifies the source archive when no
 mod base was selected. A fresh separate-folder export refuses to silently carry those
-items forward. Unmount the item mods, read the archives again and rebuild the plan,
-or explicitly choose **Add to existing mod** and the intended package. Installing a
-composed game overlay and deliberately extending a selected mod keep their existing
-behavior. This check does not certify arbitrary third-party edits as vanilla.
+items forward. Output shows **Export blocked**, the item names and IDs, and the source
+archive before writing. **Choose mod to extend...** opens the existing-folder picker
+and enables **Add to existing mod** after a folder is selected. The current item draft
+is kept; rebuild the plan to combine its new item with that package's items and assets.
+Cancelling the picker leaves the plan and destination unchanged.
+
+**Add to existing mod** uses only the selected mod folder; it does not collect all
+installed mods. To combine several packages, use **Mod Management → Merge mods** and
+review its compatibility results. Install the combined package in place of its source
+packages. To create a separate mod from clean tables, unmount the item mods, read the
+archives again and rebuild the plan. Installing a composed game overlay keeps its
+existing behavior. This check does not certify arbitrary third-party edits as vanilla.
 
 ### Output folders and ZIP files
 
@@ -1611,7 +1619,9 @@ blank uses the item's English display name; characters that cannot be used in a 
 name are replaced. The destination is shown before writing. **Also create a ZIP file**
 writes `heahea.zip` beside the completed mod folder. The folder and optional ZIP are
 prepared in the background and published together; cancellation or a failed write
-preserves the previous output.
+preserves the previous output. Write failures remain visible beside the destination
+after progress stops, with the reason in the activity log as well. Retry after resolving
+the problem, or rebuild the plan when its inputs change.
 
 A new export refuses an existing destination instead of replacing it. **Open folder
 after creation** starts checked and opens the completed mod folder. The choice is saved

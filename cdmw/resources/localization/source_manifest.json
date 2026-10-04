@@ -24597,6 +24597,16 @@
       ]
     },
     {
+      "key": "Choose mod to extend...",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 309,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Choose one archive original for the selected replacement.",
       "origins": [
         {
@@ -24881,8 +24891,13 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 457,
+          "line": 465,
           "sink": "tr"
+        },
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 471,
+          "sink": "getExistingDirectory"
         }
       ]
     },
@@ -42873,6 +42888,16 @@
           "path": "tools/translation_studio/tab.py",
           "line": 405,
           "sink": "QGroupBox"
+        }
+      ]
+    },
+    {
+      "key": "Export blocked",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 500,
+          "sink": "set_note"
         }
       ]
     },
@@ -123877,6 +123902,16 @@
       ]
     },
     {
+      "key": "Source tables already contain other custom items: {value_0}.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 482,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Source {value_0} DDS failed readback: {value_1}",
       "origins": [
         {
@@ -123988,6 +124023,11 @@
           "path": "cdmw/ui/archive_browser/mesh_modify_original.py",
           "line": 94,
           "sink": "QLabel"
+        },
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 485,
+          "sink": "tr"
         },
         {
           "path": "cdmw/ui/shell/model_library_bridge.py",
@@ -135748,6 +135788,16 @@
           "path": "cdmw/ui/texture_editor_tab.py",
           "line": 314,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "To combine items, choose the existing mod folder and rebuild the plan. For a separate mod, unmount the item mods, read the archives again, then rebuild.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 486,
+          "sink": "tr"
         }
       ]
     },

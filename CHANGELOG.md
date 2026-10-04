@@ -27,6 +27,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- Create New Item shows export blockers with the affected items and source archive, offers an existing mod folder to extend, and keeps write errors visible after progress stops.
 - Current Tool Log and Create New Item's Output log automatically follow new messages and keep the last line fully visible when resized or reopened.
 - Texture Workflow's OpenImageIO actions start correctly in the current workspace and deliver their reports to the authoring panel.
 - Create New Item requires Finish Edit Mesh before accepting edited parts, separates Effects layer selection and renaming from visibility, and retains issued item IDs and model names across restarts. Apply placement avoids a hard crash caused by background cleanup of UI objects and long reference-resolution delays with large archive catalogues. Current Tool Log reports its phases, timings, reference lookups and texture-conversion activity.
