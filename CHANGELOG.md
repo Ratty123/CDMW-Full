@@ -16,6 +16,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Changed
 
+- Create New Item restores DMM export as one package for DMM 3.5.0 or newer, with a reminder to check the result in game. CDUMM remains the default, alongside JMM and CDMW game overlays.
 - Mesh Editor moves explanatory text into hover help across its editing panels and shows shorter collision-source filenames. Show collision shapes is available outside the collapsed preview settings; weapon references supply collision outlines rather than a visible weapon mesh. Selection controls open directly from the Selection heading, removing the extra Select click.
 - Mesh Editor Action History supports selecting individual entries and right-clicking to undo from that action or restore through an undone action. Later actions remain available to restore until a new edit replaces them.
 - Problem reports collect recent activity and logs across tools, detailed worker and helper failures, crash or hang evidence and build fingerprints. Evidence refreshes when preparing a draft, with missing or truncated sources identified in the reviewed report.

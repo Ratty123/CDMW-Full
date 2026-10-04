@@ -23,7 +23,7 @@ def test_rust_mod_name_reaches_export_metadata_without_replanning(studio, entere
     _send(bridge, tab.identity_panel.display_name, "text", "Frost")
     tab.show_step(6)
     panel = tab.output_panel
-    assert [panel.manager.itemText(i) for i in range(panel.manager.count())] == ["CDUMM", "JMM"]
+    assert [panel.manager.itemText(i) for i in range(panel.manager.count())] == ["CDUMM", "JMM", "DMM"]
     assert tab.controller.draft.manager == "CDUMM"
     assert _send(bridge, panel.manager, "choose", panel.manager.findText("CDUMM"))["type"] == "ack"
     parent = fixture.root / "mods"
@@ -73,7 +73,7 @@ def test_rust_mod_name_reaches_export_metadata_without_replanning(studio, entere
         fixture.opened_folders.assert_not_called()
 
 
-@pytest.mark.parametrize("manager", ["DMM", "Unknown", ""])
+@pytest.mark.parametrize("manager", ["Unknown", ""])
 def test_new_item_refuses_unavailable_managers_before_starting_export(studio, manager):
     fixture, tab, _bridge = studio
     tab.show_step(1)
@@ -89,8 +89,8 @@ def test_new_item_refuses_unavailable_managers_before_starting_export(studio, ma
     assert not folder.exists()
 
 
-@pytest.mark.parametrize("manager", ["CDUMM", "JMM"])
-def test_rust_manager_selection_exports_the_complete_loose_package(studio, manager):
+@pytest.mark.parametrize("manager", ["CDUMM", "JMM", "DMM"])
+def test_rust_manager_selection_exports_the_complete_package(studio, manager):
     from cdmw.services.new_item_mod_base import mod_folder_payloads
 
     fixture, tab, bridge = studio
@@ -101,7 +101,7 @@ def test_rust_manager_selection_exports_the_complete_loose_package(studio, manag
     panel = tab.output_panel
     assert _send(bridge, panel.manager, "choose", panel.manager.findText(manager))["type"] == "ack"
     assert tab.controller.draft.manager == manager
-    assert panel.dmm_warning.isVisibleTo(tab)
+    assert panel.dmm_warning.isVisibleTo(tab) == (manager == "DMM")
     _send(bridge, panel.export_root, "text", str(fixture.root / "mods"))
     _send(bridge, panel.mod_name, "text", "Manager test")
     _send(bridge, panel.open_folder_after_creation, "toggle", False)
@@ -117,26 +117,39 @@ def test_rust_manager_selection_exports_the_complete_loose_package(studio, manag
         manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
         assert manifest["manager_targets"] == ["cdumm"]
         assert (folder / "files").is_dir()
+    elif manager == "DMM":
+        manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
+        assert manifest["manager_targets"] == ["dmm"]
+        assert manifest["structure"] == "archive_group"
+        assert manifest["archive_group"] == "0036"
+        assert (folder / "0036/0.pamt").is_file()
+        assert (folder / "0036/0.paz").is_file()
+        assert not (folder / "meta/0.papgt").exists()
+        assert not (folder / "files").exists()
     else:
         assert (folder / "gamedata").is_dir()
         assert not (folder / "files").exists()
 
 
-def test_dmm_disabled_notice_is_readable_in_rust_and_scoped_to_mod_folder(studio):
+def test_dmm_version_notice_is_readable_in_rust_and_scoped_to_dmm_mod_folder(studio):
     _, tab, bridge = studio
     tab.show_step(6)
     panel = tab.output_panel
+    assert not panel.dmm_warning.isVisibleTo(tab)
+    assert _send(bridge, panel.manager, "choose", panel.manager.findText("DMM"))["type"] == "ack"
     warning = bridge.document.widget(panel.dmm_warning, force=True)
     assert panel.dmm_warning.isVisibleTo(tab)
-    assert warning["props"]["text"] == "DMM export is temporarily disabled. Use CDUMM or JMM."
+    assert warning["props"]["text"] == "Use DMM 3.5.0 or newer. After mounting, check that your item appears and works in game."
     assert warning["props"]["wrap"]
     _send(bridge, panel.overlay_mode_button, "activate")
     assert not panel.dmm_warning.isVisibleTo(tab)
     _send(bridge, panel.folder_mode_button, "activate")
     assert panel.dmm_warning.isVisibleTo(tab)
+    _send(bridge, panel.manager, "choose", panel.manager.findText("JMM"))
+    assert not panel.dmm_warning.isVisibleTo(tab)
 
 
-@pytest.mark.parametrize(("saved_manager", "expected_manager"), [("DMM", "CDUMM"), ("JMM", "JMM")])
+@pytest.mark.parametrize(("saved_manager", "expected_manager"), [("DMM", "DMM"), ("JMM", "JMM"), ("Unknown", "CDUMM")])
 def test_output_reconciles_saved_manager_with_available_exports(studio, saved_manager, expected_manager):
     from cdmw.ui.new_item.panels_output import OutputPanel
 
@@ -145,7 +158,8 @@ def test_output_reconciles_saved_manager_with_available_exports(studio, saved_ma
     panel = OutputPanel(tab.controller)
     try:
         assert panel.manager.currentText() == tab.controller.draft.manager == expected_manager
-        assert panel.manager.findText("DMM") == -1
+        assert panel.manager.findText("DMM") >= 0
+        assert panel.dmm_warning.isHidden() == (expected_manager != "DMM")
     finally:
         panel.deleteLater()
 

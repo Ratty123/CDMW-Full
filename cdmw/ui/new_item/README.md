@@ -1559,25 +1559,22 @@ the source materials for per-part Glow. This is face separation, not a knife/cap
 
 ## Mod manager exports
 
-**Create New Item → Output → Mod folder** offers **CDUMM** and **JMM**.
+**Create New Item → Output → Mod folder** offers **CDUMM**, **JMM** and **DMM**.
 CDUMM writes a `files/` package with manager metadata; JMM writes game-relative
-files with its `mod.json` replacement map. Both retain the complete planned
-tables and added assets. New drafts default to CDUMM. DMM export is temporarily
-disabled while compatibility issues are investigated; the folder controls explain
-this, and the controller rejects DMM and unknown choices before starting an export.
-A saved DMM selection changes to CDUMM when Output opens. CDMW's **Game overlay**
-option remains available.
+files with its `mod.json` replacement map. DMM writes one archive-group package
+containing the planned tables, item text and assets. New drafts default to CDUMM;
+saved DMM selections are retained. Unknown manager choices are refused before export.
+CDMW's **Game overlay** option remains available.
 
 ### DMM archive compatibility
 
-DMM 3.2.1 can reject freshly generated standalone archives because its foreign-table
-check treats expanded loot, multichange, dye and string tables as an incompatible
-game version. Adding new records legitimately grows these tables. The supplied working
-variant separates loose game-data tables/localization from an assets-only
-`0036` archive in two enabled mod folders. This is a DMM routing workaround for that
-case, not a requirement to combine an overlay with an unrelated mod. The existing
-DMM exporter produces a single archive group; a general single-folder solution has
-not been verified in DMM, so Create New Item no longer offers that exporter.
+Use **DMM 3.5.0 or newer**. Its [release notes](https://www.nexusmods.com/crimsondesert/mods/633)
+report fixes for false game-version rejection of new-item tables, incomplete
+multilingual packages and misleading mount summaries. The earlier DMM 3.2.1 failures
+led to temporarily disabling this choice; it is now available again with a version
+notice. The export keeps tables, text and assets together in `0036/`, without separate
+Data and Assets packages. Export and composition checks do not establish in-game
+compatibility: after mounting, verify that every intended item appears and works.
 
 ### Mounted source data
 

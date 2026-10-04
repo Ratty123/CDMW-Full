@@ -299,7 +299,7 @@ class NewItemTaskControllerMixin:
     def start_export(self, package_root: Path, manager: str, *, create_zip: bool = False,
                      replace_existing: bool = True) -> bool:
         if manager not in MANAGERS:
-            self.status_message.emit("DMM export is temporarily disabled. Use CDUMM or JMM.", True)
+            self.status_message.emit("Choose DMM, CDUMM or JMM for new item exports.", True)
             return False
         if not self.has_current_plan:
             self.status_message.emit("Build the plan first.", True)

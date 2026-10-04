@@ -252,9 +252,11 @@ class OutputPanel(QGroupBox):
         self.manager.currentTextChanged.connect(lambda text: setattr(self._controller.draft, "manager", str(text)))
         export.addWidget(self.manager)
         self.dmm_warning = QLabel(
-            "DMM export is temporarily disabled. Use CDUMM or JMM.")
+            "Use DMM 3.5.0 or newer. After mounting, check that your item appears and works in game.")
         self.dmm_warning.setWordWrap(True)
         export.addWidget(self.dmm_warning)
+        self.manager.currentTextChanged.connect(lambda text: self.dmm_warning.setVisible(text == "DMM"))
+        self.dmm_warning.setVisible(self.manager.currentText() == "DMM")
         export.addWidget(QLabel("Mod name"))
         self.mod_name = QLineEdit(controller.draft.mod_name)
         self.mod_name.setPlaceholderText(controller.draft.display_names.get("eng", "") or self.tr("Mod name"))

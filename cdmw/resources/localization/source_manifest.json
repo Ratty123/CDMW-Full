@@ -22777,6 +22777,16 @@
       ]
     },
     {
+      "key": "Choose DMM, CDUMM or JMM for new item exports.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/controller_task_mixin.py",
+          "line": 302,
+          "sink": "emit"
+        }
+      ]
+    },
+    {
       "key": "Choose Damiane Head Reference",
       "origins": [
         {
@@ -33203,21 +33213,6 @@
           "path": "cdmw/workers/mesh_editor_workers.py",
           "line": 1052,
           "sink": "RuntimeError"
-        }
-      ]
-    },
-    {
-      "key": "DMM export is temporarily disabled. Use CDUMM or JMM.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 302,
-          "sink": "emit"
-        },
-        {
-          "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 254,
-          "sink": "QLabel"
         }
       ]
     },
@@ -139858,6 +139853,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
           "line": 531,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Use DMM 3.5.0 or newer. After mounting, check that your item appears and works in game.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 254,
+          "sink": "QLabel"
         }
       ]
     },

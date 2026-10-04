@@ -92,9 +92,9 @@ planned files and warnings in **Output**, then create a mod folder or install a
 CDMW game overlay. Use **Add to existing mod** to extend a package deliberately;
 fresh exports check for unintended inherited custom items.
 
-**Available outputs: CDUMM (default), JMM and CDMW game overlays. DMM export is
-temporarily disabled in Create New Item.** New mod folders can have a custom name
-and an optional ZIP copy.
+**Available outputs: CDUMM (default), JMM, DMM and CDMW game overlays.** Use DMM
+3.5.0 or newer for new-item packages and check the result in game after mounting.
+New mod folders can have a custom name and an optional ZIP copy.
 
 See the [Create New Item guide](cdmw/ui/new_item/README.md) for detailed controls.
 
@@ -102,8 +102,7 @@ See the [Create New Item guide](cdmw/ui/new_item/README.md) for detailed control
 
 Open a supported archive or local mesh, edit with Undo/Redo, then use
 **Finish Edit Mesh** to validate and accept the result. **Build Mod** offers DMM,
-JMM, CDUMM and Crimson Sharp packages, with an optional ZIP. Create New Item's DMM
-restriction does not apply to these mesh exports.
+JMM, CDUMM and Crimson Sharp packages, with an optional ZIP.
 
 Tools include selection, transforms, sculpting, UVs, material controls, cloth and
 jiggle settings, Hair Tools, and Morph & Refit for body and garment adjustments.
