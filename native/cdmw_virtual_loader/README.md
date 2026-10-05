@@ -99,8 +99,11 @@ return from the manual save and equip without repurchase. This is save/reload
 evidence for that two-item profile. A further guarded launch uses name-only
 updates to copies of both packages with the same identities and assets. The user
 confirms both saved swords receive the updated names and still equip without
-repurchase. Asset/behavior updates, removal/reinstallation and broader item/save
-coverage remain unverified; the public release gate stays closed.
+repurchase. A subsequent guarded profile removes test3 while retaining test4;
+the user confirms test3 is absent from the camp shop and saved test4 still
+equips. Both identities remain reserved. Saving with an absent item,
+asset/behavior updates, reinstallation and broader item/save coverage remain
+unverified; the public release gate stays closed.
 
 Do not poll until an unknown hook disappears or promote game loading based on
 the harness. The

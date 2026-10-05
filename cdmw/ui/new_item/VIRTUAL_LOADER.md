@@ -18,9 +18,10 @@ pair while the physical game archive directory remains absent. The user confirms
 both test items appear in the camp equipment shop, equip correctly and return in
 the saved inventory after restarting with the same virtual profile. A subsequent
 display-name update also reaches both saved items without repurchase and retains
-their equipment behavior. Asset/behavior updates, removal/reinstallation and the
-broader support matrix still require game validation; changing a manifest cannot
-enable the public launch mode.
+their ability to equip. Removing one package also removes its shop entry while
+the other saved item still equips. Asset/behavior updates, reinstallation and
+the broader support matrix still require game validation; changing a manifest
+cannot enable the public launch mode.
 
 ## Use and ownership
 
@@ -222,12 +223,18 @@ separate discovery experiment.
    confirms both already-owned swords show the updated names and still equip
    without repurchase. The native trace separately confirms the guarded startup
    and all four mapped file opens. Original packages and the earlier snapshot
-   remain unchanged. This establishes a display-name update only; asset/behavior
-   updates, removal/reinstallation and other configurations remain unverified.
+   remain unchanged. Another controlled profile removes test3 and retains the
+   updated test4. Parsed output has no test3 definition, shop stock, group
+   membership, owned auxiliary records, localization or assets; test4's owned
+   contribution is intact and both identities remain reserved. The user confirms
+   test3 is absent from the camp shop and saved test4 still equips. The native
+   trace separately confirms redirection to that one-item snapshot. Saving with
+   an absent item was not tested. Asset/behavior updates, reinstallation and
+   other configurations remain unverified.
    Verified save backups are retained from before the controlled launches.
 4. **Selectable experimental item loading:** blocked pending broader controlled
    coexistence, acquisition/equipment/crafting, full supported item/save coverage
-   and update/removal acceptance with a disposable backed-up save.
+   and broader update/reinstallation acceptance with a disposable backed-up save.
 
 Source tests, built native binaries, packaged application, visible game behavior
 and save compatibility are separate evidence classes. The diagnostic observations
