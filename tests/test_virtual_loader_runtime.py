@@ -27,6 +27,9 @@ def setup_fixture(tmp_path, monkeypatch):
     monkeypatch.setattr(runtime, 'GAME_SHA256', digest(b'fixture executable'))
     monkeypatch.setattr(runtime, 'BOOTSTRAP_SHA256', digest(b'fixture bootstrap'))
     monkeypatch.setattr('cdmw.services.new_item_service.game_is_running', lambda: False)
+    launcher = tmp_path / 'steam.exe'
+    launcher.write_bytes(b'fixture steam client')
+    monkeypatch.setattr(runtime, '_steam_launcher', lambda: launcher)
     return root, payload
 
 
@@ -73,6 +76,32 @@ def test_status_detects_early_host_exit_and_closed_game(tmp_path, monkeypatch):
     assert runtime.session_status(tmp_path, token).state == 'stopped'
     report.write_text(json.dumps({'state': 'blocked', 'pid': 123, 'detail': 'verified hook conflict'}))
     assert runtime.session_status(tmp_path, token).detail == 'verified hook conflict'
+
+
+def test_status_tracks_host_while_steam_game_is_not_bound(tmp_path, monkeypatch):
+    token = 'a' * 32
+    report = tmp_path / '.cdmw/virtual-loader' / f'session-{token}.json'
+    report.parent.mkdir(parents=True)
+    report.write_text(json.dumps({'state': 'starting', 'pid': 0, 'host_pid': 789,
+                                 'detail': 'Checking mod contents and their game baseline...'}))
+    monkeypatch.setattr(runtime, '_process_alive', lambda pid: pid == 789)
+    assert runtime.session_status(tmp_path, token).state == 'starting'
+    assert runtime.session_status(tmp_path, token).detail == 'Checking mod contents and their game baseline...'
+    monkeypatch.setattr(runtime, '_process_alive', lambda pid: False)
+    assert runtime.session_status(tmp_path, token).state == 'blocked'
+
+
+def test_steam_discovery_requires_one_unambiguous_client(tmp_path, monkeypatch):
+    from cdmw.core import archive_format
+    first, second = tmp_path / 'first', tmp_path / 'second'
+    for folder in (first, second):
+        folder.mkdir()
+        (folder / 'steam.exe').write_bytes(b'steam fixture')
+    monkeypatch.setattr(archive_format, 'discover_steam_roots', lambda: [first])
+    assert runtime._steam_launcher() == first / 'steam.exe'
+    monkeypatch.setattr(archive_format, 'discover_steam_roots', lambda: [first, second])
+    with pytest.raises(VirtualLoaderError, match='single installed Steam'):
+        runtime._steam_launcher()
 
 
 def test_snapshot_detects_content_changes_even_with_preserved_stamps(tmp_path):

@@ -1,8 +1,10 @@
 // Process-lifetime, exact-file VFS. DllMain never installs hooks or performs I/O.
 #include "protocol.hpp"
+#include "bootstrap.hpp"
 #include <atomic>
 #include <cstring>
 #include <mutex>
+#include <sstream>
 
 using namespace cdmw::vfs;
 namespace {
@@ -21,6 +23,14 @@ HANDLE session_pipe = INVALID_HANDLE_VALUE;
 HANDLE runtime_lane = INVALID_HANDLE_VALUE;
 struct Patch { void** slot; void* before; void* after; };
 std::vector<Patch> patches;
+decltype(&CreateFileW) next_open_w = &CreateFileW;
+decltype(&CreateFileA) next_open_a = &CreateFileA;
+decltype(&CreateFile2) next_open_2 = &CreateFile2;
+decltype(&GetFileAttributesW) next_attributes_w = &GetFileAttributesW;
+decltype(&GetFileAttributesA) next_attributes_a = &GetFileAttributesA;
+decltype(&GetFileAttributesExW) next_attributes_ex = &GetFileAttributesExW;
+decltype(&FindFirstFileW) next_find_w = &FindFirstFileW;
+decltype(&FindFirstFileExW) next_find_ex = &FindFirstFileExW;
 
 void record(uint32_t api, LPCWSTR path, bool redirected, DWORD error) noexcept {
     const auto index = trace_count.fetch_add(1, std::memory_order_relaxed);
@@ -61,38 +71,38 @@ bool read_only(DWORD access, DWORD disposition) {
 HANDLE WINAPI open_w(LPCWSTR name, DWORD access, DWORD share, LPSECURITY_ATTRIBUTES security, DWORD disposition, DWORD flags, HANDLE template_file) {
     const auto previous = GetLastError(); auto path = redirected(name); const bool changed = path != name;
     if (changed && (!read_only(access, disposition) || (flags & FILE_FLAG_DELETE_ON_CLOSE))) { SetLastError(ERROR_ACCESS_DENIED); return INVALID_HANDLE_VALUE; }
-    SetLastError(previous); auto result = CreateFileW(path, access, share, security, disposition, flags, template_file);
+    SetLastError(previous); auto result = next_open_w(path, access, share, security, disposition, flags, template_file);
     auto error = GetLastError(); record(1, name, changed, error); SetLastError(error); return result;
 }
 HANDLE WINAPI open_2(LPCWSTR name, DWORD access, DWORD share, DWORD disposition, LPCREATEFILE2_EXTENDED_PARAMETERS parameters) {
     const auto previous = GetLastError(); auto path = redirected(name); const bool changed = path != name;
     if (changed && (!read_only(access, disposition) || (parameters && (parameters->dwFileFlags & FILE_FLAG_DELETE_ON_CLOSE)))) { SetLastError(ERROR_ACCESS_DENIED); return INVALID_HANDLE_VALUE; }
-    SetLastError(previous); auto result = CreateFile2(path, access, share, disposition, parameters);
+    SetLastError(previous); auto result = next_open_2(path, access, share, disposition, parameters);
     auto error = GetLastError(); record(2, name, changed, error); SetLastError(error); return result;
 }
 bool widen(LPCSTR name, std::array<wchar_t, 32768>& buffer) { return name && MultiByteToWideChar(AreFileApisANSI() ? CP_ACP : CP_OEMCP, 0, name, -1, buffer.data(), static_cast<int>(buffer.size())); }
 HANDLE WINAPI open_a(LPCSTR name, DWORD access, DWORD share, LPSECURITY_ATTRIBUTES security, DWORD disposition, DWORD flags, HANDLE template_file) {
     const auto previous = GetLastError(); std::array<wchar_t, 32768> buffer{};
-    if (!widen(name, buffer)) { SetLastError(previous); return CreateFileA(name, access, share, security, disposition, flags, template_file); }
+    if (!widen(name, buffer)) { SetLastError(previous); return next_open_a(name, access, share, security, disposition, flags, template_file); }
     auto path = redirected(buffer.data());
-    if (path == buffer.data()) { SetLastError(previous); auto result = CreateFileA(name, access, share, security, disposition, flags, template_file); auto error = GetLastError(); record(3, buffer.data(), false, error); SetLastError(error); return result; }
+    if (path == buffer.data()) { SetLastError(previous); auto result = next_open_a(name, access, share, security, disposition, flags, template_file); auto error = GetLastError(); record(3, buffer.data(), false, error); SetLastError(error); return result; }
     if (!read_only(access, disposition) || (flags & FILE_FLAG_DELETE_ON_CLOSE)) { SetLastError(ERROR_ACCESS_DENIED); return INVALID_HANDLE_VALUE; }
-    SetLastError(previous); auto result = CreateFileW(path, access, share, security, disposition, flags, template_file);
+    SetLastError(previous); auto result = next_open_w(path, access, share, security, disposition, flags, template_file);
     auto error = GetLastError(); record(3, buffer.data(), true, error); SetLastError(error); return result;
 }
 DWORD WINAPI attributes_w(LPCWSTR name) {
     const auto previous = GetLastError(); auto path = redirected(name, true); SetLastError(previous);
-    auto result = GetFileAttributesW(path); auto error = GetLastError(); record(4, name, path != name, error); SetLastError(error); return result;
+    auto result = next_attributes_w(path); auto error = GetLastError(); record(4, name, path != name, error); SetLastError(error); return result;
 }
 BOOL WINAPI attributes_ex(LPCWSTR name, GET_FILEEX_INFO_LEVELS level, LPVOID output) {
     const auto previous = GetLastError(); auto path = redirected(name, true); SetLastError(previous);
-    auto result = GetFileAttributesExW(path, level, output); auto error = GetLastError(); record(5, name, path != name, error); SetLastError(error); return result;
+    auto result = next_attributes_ex(path, level, output); auto error = GetLastError(); record(5, name, path != name, error); SetLastError(error); return result;
 }
 DWORD WINAPI attributes_a(LPCSTR name) {
     const auto previous = GetLastError(); std::array<wchar_t, 32768> buffer{};
-    if (!widen(name, buffer)) { SetLastError(previous); return GetFileAttributesA(name); }
+    if (!widen(name, buffer)) { SetLastError(previous); return next_attributes_a(name); }
     auto path = redirected(buffer.data(), true); SetLastError(previous);
-    auto result = path == buffer.data() ? GetFileAttributesA(name) : GetFileAttributesW(path);
+    auto result = path == buffer.data() ? next_attributes_a(name) : next_attributes_w(path);
     auto error = GetLastError(); record(6, buffer.data(), path != buffer.data(), error); SetLastError(error); return result;
 }
 LPCWSTR enumeration(LPCWSTR name, std::array<wchar_t, 32768>& output) {
@@ -114,11 +124,11 @@ LPCWSTR enumeration(LPCWSTR name, std::array<wchar_t, 32768>& output) {
 }
 HANDLE WINAPI find_w(LPCWSTR name, LPWIN32_FIND_DATAW data) {
     const auto previous = GetLastError(); std::array<wchar_t, 32768> buffer{}; auto path = enumeration(name, buffer); SetLastError(previous);
-    auto result = FindFirstFileW(path, data); auto error = GetLastError(); record(7, name, path != name, error); SetLastError(error); return result;
+    auto result = next_find_w(path, data); auto error = GetLastError(); record(7, name, path != name, error); SetLastError(error); return result;
 }
 HANDLE WINAPI find_ex(LPCWSTR name, FINDEX_INFO_LEVELS level, LPVOID data, FINDEX_SEARCH_OPS search, LPVOID filter, DWORD flags) {
     const auto previous = GetLastError(); std::array<wchar_t, 32768> buffer{}; auto path = enumeration(name, buffer); SetLastError(previous);
-    auto result = FindFirstFileExW(path, level, data, search, filter, flags); auto error = GetLastError(); record(8, name, path != name, error); SetLastError(error); return result;
+    auto result = next_find_ex(path, level, data, search, filter, flags); auto error = GetLastError(); record(8, name, path != name, error); SetLastError(error); return result;
 }
 void* replacement(const char* name) {
     if (!strcmp(name, "CreateFileW")) return reinterpret_cast<void*>(&open_w);
@@ -138,7 +148,29 @@ void exchange(const Patch& p, bool install) {
     DWORD ignored{}; const bool restored = VirtualProtect(p.slot, sizeof(void*), old, &ignored) != FALSE;
     require(prior == (install ? p.before : p.after) && restored, "Import slot changed or protection restore failed");
 }
-void hook_imports() {
+void remember_original(const char* name, void* original) {
+    if (!strcmp(name, "CreateFileW")) next_open_w = reinterpret_cast<decltype(next_open_w)>(original);
+    if (!strcmp(name, "CreateFileA")) next_open_a = reinterpret_cast<decltype(next_open_a)>(original);
+    if (!strcmp(name, "CreateFile2")) next_open_2 = reinterpret_cast<decltype(next_open_2)>(original);
+    if (!strcmp(name, "GetFileAttributesW")) next_attributes_w = reinterpret_cast<decltype(next_attributes_w)>(original);
+    if (!strcmp(name, "GetFileAttributesA")) next_attributes_a = reinterpret_cast<decltype(next_attributes_a)>(original);
+    if (!strcmp(name, "GetFileAttributesExW")) next_attributes_ex = reinterpret_cast<decltype(next_attributes_ex)>(original);
+    if (!strcmp(name, "FindFirstFileW")) next_find_w = reinterpret_cast<decltype(next_find_w)>(original);
+    if (!strcmp(name, "FindFirstFileExW")) next_find_ex = reinterpret_cast<decltype(next_find_ex)>(original);
+}
+std::string address_label(void* address) {
+    HMODULE owner{};
+    std::array<wchar_t, 32768> path{};
+    if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                           reinterpret_cast<LPCWSTR>(address), &owner) ||
+        !GetModuleFileNameW(owner, path.data(), static_cast<DWORD>(path.size()))) return "unknown module";
+    const auto name = fs::path(path.data()).filename().u8string();
+    std::ostringstream out;
+    out << std::string(reinterpret_cast<const char*>(name.data()), name.size()) << "+0x" << std::hex
+        << (reinterpret_cast<uintptr_t>(address) - reinterpret_cast<uintptr_t>(owner));
+    return out.str();
+}
+void hook_imports(const fs::path& root) {
     auto base = reinterpret_cast<unsigned char*>(GetModuleHandleW(nullptr));
     auto dos = reinterpret_cast<IMAGE_DOS_HEADER*>(base);
     require(dos->e_magic == IMAGE_DOS_SIGNATURE && dos->e_lfanew > 0 && dos->e_lfanew < 0x100000, "Invalid DOS header");
@@ -148,6 +180,9 @@ void hook_imports() {
     const auto imports = pe->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
     require(imports.VirtualAddress && imports.VirtualAddress < size && imports.Size <= size - imports.VirtualAddress, "Invalid import directory");
     std::vector<Patch> candidates;
+    std::ostringstream conflicts;
+    VerifiedBootstrap bootstrap(root);
+    uint32_t forwarded{};
     for (size_t offset = 0; offset + sizeof(IMAGE_IMPORT_DESCRIPTOR) <= imports.Size; offset += sizeof(IMAGE_IMPORT_DESCRIPTOR)) {
         auto descriptor = reinterpret_cast<IMAGE_IMPORT_DESCRIPTOR*>(base + imports.VirtualAddress + offset);
         if (!descriptor->Name) break;
@@ -169,28 +204,36 @@ void hook_imports() {
             auto hook = replacement(item->Name); if (!hook) continue;
             auto original = reinterpret_cast<void*>(GetProcAddress(module, item->Name));
             auto slot = reinterpret_cast<void**>(base + slot_offset);
-            if (!original || *slot != original) {
-                HMODULE owner{};
-                std::array<wchar_t, 32768> owner_path{};
-                std::string owner_name = "unknown module";
-                if (GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                                      reinterpret_cast<LPCWSTR>(*slot), &owner) &&
-                    GetModuleFileNameW(owner, owner_path.data(), static_cast<DWORD>(owner_path.size()))) {
-                    auto utf8 = fs::path(owner_path.data()).filename().u8string();
-                    owner_name.assign(reinterpret_cast<const char*>(utf8.data()), utf8.size());
-                }
-                throw std::runtime_error(std::string(item->Name) + " is already hooked by " + owner_name + "; coexistence is unverified");
+            if (original && *slot != original && bootstrap.accepts(item->Name, *slot, original)) {
+                original = *slot;
+                ++forwarded;
             }
+            if (!original || *slot != original) {
+                conflicts << item->Name << " is already hooked by " << address_label(*slot)
+                          << "; expected " << address_label(original) << "; import RVA 0x" << std::hex << slot_offset << ". ";
+                continue;
+            }
+            for (const auto& existing : candidates)
+                require(existing.after != hook || existing.before == original, "Duplicate imports have different forwarding targets");
+            remember_original(item->Name, original);
             candidates.push_back({slot, original, hook});
         }
     }
+    if (!conflicts.str().empty()) {
+        conflicts << "Coexistence is unverified. Startup stack: ";
+        std::array<void*, 16> frames{};
+        const auto count = CaptureStackBackTrace(0, static_cast<DWORD>(frames.size()), frames.data(), nullptr);
+        for (USHORT i = 0; i < count; ++i) conflicts << address_label(frames[i]) << "; ";
+        throw std::runtime_error(conflicts.str());
+    }
     require(!candidates.empty(), "No supported file imports");
+    record(10, L"Verified UAL 9.7.1 forwarding wrappers", false, forwarded);
     try { for (const auto& patch : candidates) { patches.push_back(patch); exchange(patch, true); } }
     catch (...) { for (auto it = patches.rbegin(); it != patches.rend(); ++it) { try { if (*it->slot == it->after) exchange(*it, false); } catch (...) {} } throw; }
 }
 void acknowledge(const Manifest& m, DWORD code) {
     ULONG server{}; require(GetNamedPipeServerProcessId(session_pipe, &server) && server == m.host_pid, "Wrong session host");
-    std::array<DWORD, 3> message{0x31534656, GetCurrentProcessId(), code}; DWORD written{};
+    std::array<DWORD, 3> message{ready_magic, GetCurrentProcessId(), code}; DWORD written{};
     require(WriteFile(session_pipe, message.data(), sizeof(message), &written, nullptr) && written == sizeof(message), "Readiness handshake failed");
 }
 void initialize() {
@@ -198,9 +241,11 @@ void initialize() {
     auto path = root / L".cdmw/virtual-loader/session.bin";
     if (!fs::is_regular_file(path)) return; // Every ordinary launch remains inert.
     auto manifest = read_manifest(path);
-    if (manifest.pid != GetCurrentProcessId() || normalize(root) != normalize(manifest.root)) return;
+    const bool claiming = manifest.pid == 0 && manifest.host_pid && !manifest.launcher.empty();
+    if ((!claiming && manifest.pid != GetCurrentProcessId()) || normalize(root) != normalize(manifest.root)) return;
     try {
-        session_pipe = CreateFileW(pipe_name(manifest).c_str(), GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+        session_pipe = CreateFileW(pipe_name(manifest).c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (claiming && session_pipe == INVALID_HANDLE_VALUE) return; // An abandoned request cannot activate an ordinary launch.
         require(session_pipe != INVALID_HANDLE_VALUE, "No live session host; stale activation refused");
         ULONG server{};
         require(GetNamedPipeServerProcessId(session_pipe, &server) && server == manifest.host_pid, "Wrong session host");
@@ -208,6 +253,25 @@ void initialize() {
         require(hash_file(own_executable()) == manifest.executable, "Executable fingerprint changed");
         if (manifest.mode != Mode::harness) require(hex(manifest.executable) == game_hash, "Unverified game build");
         require(manifest.mode != Mode::redirect || game_redirection_approved, "Startup timing has not passed game validation");
+        using LoaderCallout = BOOLEAN (NTAPI*)();
+        const auto loader_callout = reinterpret_cast<LoaderCallout>(GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "RtlIsThreadWithinLoaderCallout"));
+        const DWORD loader_context = loader_callout ? loader_callout() : MAXDWORD;
+        require(manifest.mode != Mode::redirect || loader_context == 0, "The bootstrap called CDMW from a loader callout");
+        if (claiming) {
+            const std::array<DWORD, 3> claim{claim_magic, GetCurrentProcessId(), 0}; DWORD bytes{};
+            require(WriteFile(session_pipe, claim.data(), sizeof claim, &bytes, nullptr) && bytes == sizeof claim, "Cannot claim Steam session");
+            const auto deadline = GetTickCount64() + 60000;
+            for (;;) {
+                require(PeekNamedPipe(session_pipe, nullptr, 0, nullptr, &bytes, nullptr), "Session host exited before binding");
+                if (bytes) break;
+                require(GetTickCount64() < deadline, "Steam session binding timed out");
+                Sleep(10);
+            }
+            std::array<DWORD, 3> grant{};
+            require(ReadFile(session_pipe, grant.data(), sizeof grant, &bytes, nullptr) && bytes == sizeof grant &&
+                    grant[0] == grant_magic && grant[1] == GetCurrentProcessId() && grant[2] == 0, "Steam session binding was refused");
+            manifest.pid = GetCurrentProcessId();
+        }
         runtime_lane = CreateFileW(manifest.lane.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
                                    nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
         require(runtime_lane != INVALID_HANDLE_VALUE, "Cannot retain runtime lease");
@@ -229,7 +293,8 @@ void initialize() {
         require(GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_PIN,
                                   reinterpret_cast<LPCWSTR>(&initialize), &pinned), "Cannot pin runtime module");
         record(0, L"CDMW virtual trace v1", false, 0);
-        hook_imports();
+        record(11, L"InitializeASI loader callout (0 means outside)", false, loader_context);
+        hook_imports(root);
         Handle writer(CreateThread(nullptr, 0, flush_trace, nullptr, 0, nullptr));
         require(bool(writer), "Cannot start trace writer");
         acknowledge(manifest, 0);

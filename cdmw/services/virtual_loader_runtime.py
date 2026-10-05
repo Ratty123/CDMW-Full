@@ -101,11 +101,11 @@ def prepare_launch(root, *, stop_event=None):
                              generation_path(root, profile['generation']), digest(canonical(profile)))
 
 
-def session_manifest(root, profile, *, mode, executable_sha256, token=None):
+def session_manifest(root, profile, *, mode, executable_sha256, token=None, launcher=None):
     """Bounded UTF-16 wire format shared with the native session/runtime harness."""
     root = Path(root).resolve()
     token = token or uuid4().hex
-    data = bytearray(b'CDVFS1\0\0' + struct.pack('<III', mode, 0, 0) + bytes.fromhex(executable_sha256))
+    data = bytearray(b'CDVFS2\0\0' + struct.pack('<III', mode, 0, 0) + bytes.fromhex(executable_sha256))
     def string(value):
         encoded = str(value).encode('utf-16le')
         if not encoded or len(encoded) >= 65536 or '\0' in str(value):
@@ -131,7 +131,19 @@ def session_manifest(root, profile, *, mode, executable_sha256, token=None):
         string(path)
         data.extend(struct.pack('<I', int(checksum is not None)))
         data.extend(bytes.fromhex(checksum) if checksum else bytes(32))
+    data.extend(struct.pack('<I', int(launcher is not None)))
+    if launcher is not None:
+        string(Path(launcher).resolve())
+        data.extend(bytes.fromhex(hash_file(Path(launcher))))
     return token, bytes(data)
+
+
+def _steam_launcher():
+    from cdmw.core.archive_format import discover_steam_roots
+    candidates = {path.resolve() for folder in discover_steam_roots() if (path := folder / 'steam.exe').is_file()}
+    if len(candidates) != 1:
+        raise VirtualLoaderError('A single installed Steam client is required for the verified game launch.')
+    return candidates.pop()
 
 
 def launch(plan, *, stop_event=None):
@@ -156,7 +168,7 @@ def _start(root, profile, *, mode, stop_event=None):
         raise_if_cancelled(stop_event)
         if read_optional(target(root, '.cdmw/virtual-loader/profile.json')) != canonical(profile):
             raise VirtualLoaderError('The virtual profile changed before launch. Review it again.')
-        token, data = session_manifest(root, profile, mode=mode, executable_sha256=GAME_SHA256)
+        token, data = session_manifest(root, profile, mode=mode, executable_sha256=GAME_SHA256, launcher=_steam_launcher())
         path = target(root, '.cdmw/virtual-loader/launches/' + token + '.bin')
         atomic_write_bytes(path, data)
         # A onefile application's extraction directory disappears on exit. The
@@ -216,6 +228,11 @@ def session_status(root, token, *, host_pid=None):
     pid = value.get('pid')
     if type(pid) is not int or pid < 0:
         raise VirtualLoaderError('Invalid runtime process identity.')
+    if state == 'starting' and pid == 0:
+        expected_host = value.get('host_pid', host_pid)
+        if not _process_alive(expected_host):
+            return VirtualSessionStatus('blocked', 'The session host exited before reporting readiness. Review the launch diagnostics.')
+        return VirtualSessionStatus('starting', value.get('detail') or 'Waiting for runtime readiness.')
     if state in ('starting', 'running', 'tracing') and not _process_alive(pid):
         return VirtualSessionStatus('stopped', 'The game session ended.', pid=pid)
     details = {'starting': 'Waiting for runtime readiness.', 'running': 'The virtual session is running.',

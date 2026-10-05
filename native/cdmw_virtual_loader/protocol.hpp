@@ -23,6 +23,8 @@ struct Manifest {
     std::wstring generation, token;
     fs::path lane;
     Hash executable{};
+    fs::path launcher;
+    Hash launcher_sha{};
     std::vector<File> files;
     std::vector<Guard> guards;
 };
@@ -45,6 +47,7 @@ std::wstring normalize(const fs::path&);
 fs::path own_executable();
 fs::path executable(const Manifest&);
 std::wstring pipe_name(const Manifest&);
+inline constexpr DWORD claim_magic = 0x324d4443, grant_magic = 0x32474656, ready_magic = 0x31534656;
 void status(const Manifest&, const char* state, DWORD error = 0, const char* detail = "");
 void require(bool, const char*);
 }

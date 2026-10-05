@@ -79,6 +79,12 @@ void validate(const Manifest& m) {
     require(identity(m.token) && identity(m.generation), "Invalid session identity");
     require(m.root.is_absolute() && normalize(m.root) == normalize(m.root.lexically_normal()), "Invalid game root");
     no_links(m.root);
+    if (!m.launcher.empty()) {
+        require(m.launcher.is_absolute(), "Absolute launcher path required");
+        no_links(m.launcher);
+        const auto name = m.launcher.filename().wstring();
+        require(_wcsicmp(name.c_str(), m.mode == Mode::harness ? L"cdmw_virtual_steam_fixture.exe" : L"steam.exe") == 0, "Unsupported launcher");
+    }
     require(m.files.size() <= 256 && !m.files.empty(), "Invalid map size");
     std::set<std::wstring> seen;
     for (const auto& file : m.files) {
@@ -109,32 +115,36 @@ void validate(const Manifest& m) {
 Manifest read_manifest(const fs::path& path) {
     require(fs::file_size(path) < 16 * 1024 * 1024, "Oversized manifest");
     std::ifstream in(path, std::ios::binary);
-    std::array<char, 8> magic{}; read(in, magic); require(std::memcmp(magic.data(), "CDVFS1\0\0", 8) == 0, "Unsupported manifest");
+    std::array<char, 8> magic{}; read(in, magic); require(std::memcmp(magic.data(), "CDVFS2\0\0", 8) == 0, "Unsupported manifest");
     Manifest m; read(in, m.mode); read(in, m.pid); read(in, m.host_pid); read(in, m.executable);
     m.root = read_string(in); m.generation = read_string(in); m.token = read_string(in); m.lane = read_string(in);
     uint32_t count{}; read(in, count); require(count && count <= 256, "Invalid map size");
     for (uint32_t i = 0; i < count; ++i) { File file; file.logical = read_string(in); file.path = read_string(in); read(in, file.sha); m.files.push_back(std::move(file)); }
     read(in, count); require(count <= 65536, "Too many source guards");
     for (uint32_t i = 0; i < count; ++i) { Guard guard; guard.path = read_string(in); read(in, guard.present); read(in, guard.sha); m.guards.push_back(std::move(guard)); }
+    read(in, count); require(count <= 1, "Invalid launcher descriptor");
+    if (count) { m.launcher = read_string(in); read(in, m.launcher_sha); }
     require(in.peek() == std::char_traits<char>::eof(), "Trailing manifest bytes"); validate(m); return m;
 }
 void write_manifest(const fs::path& path, const Manifest& m) {
     validate(m);
     auto temporary = path; temporary += L".tmp";
     { std::ofstream out(temporary, std::ios::binary | std::ios::trunc);
-      out.write("CDVFS1\0\0", 8); write(out, m.mode); write(out, m.pid); write(out, m.host_pid); write(out, m.executable);
+      out.write("CDVFS2\0\0", 8); write(out, m.mode); write(out, m.pid); write(out, m.host_pid); write(out, m.executable);
       write_string(out, m.root.wstring()); write_string(out, m.generation); write_string(out, m.token); write_string(out, m.lane.wstring());
       write(out, static_cast<uint32_t>(m.files.size()));
       for (const auto& file : m.files) { write_string(out, file.logical); write_string(out, file.path.wstring()); write(out, file.sha); }
       write(out, static_cast<uint32_t>(m.guards.size()));
       for (const auto& guard : m.guards) { write_string(out, guard.path.wstring()); write(out, guard.present); write(out, guard.sha); }
+      write(out, uint32_t(!m.launcher.empty()));
+      if (!m.launcher.empty()) { write_string(out, m.launcher.wstring()); write(out, m.launcher_sha); }
       out.flush(); require(bool(out), "Cannot write session manifest"); }
     require(MoveFileExW(temporary.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH), "Cannot publish session manifest");
 }
 void status(const Manifest& m, const char* state, DWORD error, const char* detail) {
     auto path = m.root / L".cdmw/virtual-loader" / (L"session-" + m.token + L".json");
     auto temp = path; temp += L".tmp";
-    { std::ofstream out(temp); out << "{\"state\":\"" << state << "\",\"pid\":" << m.pid << ",\"error\":" << error << ",\"detail\":\"";
+    { std::ofstream out(temp); out << "{\"state\":\"" << state << "\",\"pid\":" << m.pid << ",\"host_pid\":" << m.host_pid << ",\"error\":" << error << ",\"detail\":\"";
       for (auto at = detail; *at; ++at) { if (*at == '\\' || *at == '\"') out << '\\'; if (static_cast<unsigned char>(*at) >= 32) out << *at; }
       out << "\"}"; out.flush(); }
     MoveFileExW(temp.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);

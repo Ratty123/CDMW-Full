@@ -3836,7 +3836,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 189,
+          "line": 205,
           "sink": "PermissionError"
         }
       ]
@@ -35806,7 +35806,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 218,
+          "line": 241,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -112481,7 +112481,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 252,
+          "line": 275,
           "sink": "PermissionError"
         }
       ]
@@ -112491,7 +112491,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 307,
+          "line": 330,
           "sink": "PermissionError"
         }
       ]
@@ -133891,12 +133891,12 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 214,
+          "line": 237,
           "sink": "VirtualSessionStatus"
         },
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 218,
+          "line": 241,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -135386,7 +135386,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 218,
+          "line": 241,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -135681,7 +135681,12 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 204,
+          "line": 222,
+          "sink": "VirtualSessionStatus"
+        },
+        {
+          "path": "cdmw/services/virtual_loader_runtime.py",
+          "line": 234,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -136346,7 +136351,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 218,
+          "line": 241,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -145846,12 +145851,17 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 205,
+          "line": 223,
           "sink": "VirtualSessionStatus"
         },
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 218,
+          "line": 235,
+          "sink": "VirtualSessionStatus"
+        },
+        {
+          "path": "cdmw/services/virtual_loader_runtime.py",
+          "line": 241,
           "sink": "VirtualSessionStatus"
         }
       ]

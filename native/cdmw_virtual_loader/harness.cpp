@@ -1,14 +1,16 @@
 // Synthetic game-shaped child. It is never used as real-game compatibility proof.
 #include "protocol.hpp"
+#include "bootstrap.hpp"
 #include <fstream>
 #include <atomic>
 #include <cstring>
 #include <iostream>
 #include <thread>
-#include <atomic>
 
 using namespace cdmw::vfs;
 extern "C" decltype(&CreateFile2) __imp_CreateFile2;
+extern "C" decltype(&GetModuleHandleW) __imp_GetModuleHandleW;
+extern "C" decltype(&GetProcAddress) __imp_GetProcAddress;
 HANDLE WINAPI foreign_open(LPCWSTR, DWORD, DWORD, DWORD, LPCREATEFILE2_EXTENDED_PARAMETERS) { return INVALID_HANDLE_VALUE; }
 int wmain(int argc, wchar_t** argv) {
     try {
@@ -20,6 +22,27 @@ int wmain(int argc, wchar_t** argv) {
             std::cout << "protocol self-test passed\n"; return 0;
         }
         auto root = own_executable().parent_path().parent_path();
+        if (argc == 2 && (!wcscmp(argv[1], L"--steam-fixture") || !wcscmp(argv[1], L"--steam-intermediary"))) {
+            auto exe = root / L"bin64/cdmw_virtual_loader_harness.exe";
+            std::wstring command = L"\"" + exe.wstring() + L"\"";
+            if (!wcscmp(argv[1], L"--steam-fixture") && fs::exists(root / L".cdmw/virtual-loader/harness-wrong-parent.flag")) {
+                exe = root / L"bin64/cdmw_virtual_steam_bridge.exe";
+                command = L"\"" + exe.wstring() + L"\" --steam-intermediary";
+            }
+            STARTUPINFOW startup{}; startup.cb = sizeof startup; PROCESS_INFORMATION child{};
+            require(CreateProcessW(exe.c_str(), command.data(), nullptr, nullptr, FALSE, 0, nullptr,
+                                   (root / L"bin64").c_str(), &startup, &child), "Fixture Steam launch failed");
+            Handle process(child.hProcess), thread(child.hThread);
+            WaitForSingleObject(process.value, INFINITE);
+            DWORD result{}; GetExitCodeProcess(process.value, &result); return static_cast<int>(result);
+        }
+        if (fs::exists(root / L".cdmw/virtual-loader/harness-bootstrap.flag")) {
+            require(LoadLibraryW((root / L"bin64/winmm.dll").c_str()) != nullptr, "Cannot load fixture bootstrap");
+            // Exercise the bootstrap's deferred plugin-loading callback through
+            // a real main-image import before manually requesting the ASI.
+            WIN32_FILE_ATTRIBUTE_DATA info{};
+            GetFileAttributesExW((root / L"meta/0.papgt").c_str(), GetFileExInfoStandard, &info);
+        }
         auto dll = root / L"bin64/CDMWVirtualLoader.asi";
         auto module = LoadLibraryW(dll.c_str()); require(module, "Cannot load runtime");
         auto initialize = reinterpret_cast<void(*)()>(GetProcAddress(module, "InitializeASI"));
@@ -33,6 +56,43 @@ int wmain(int argc, wchar_t** argv) {
         require(initialize && state, "Runtime exports missing"); initialize();
         if (argc == 2 && !wcscmp(argv[1], L"--inert")) { require(state() == 0, "Ordinary launch activated runtime"); return 0; }
         require(state() == 1, "Runtime did not become ready");
+        if (fs::exists(root / L".cdmw/virtual-loader/harness-bootstrap.flag")) {
+            auto base = reinterpret_cast<unsigned char*>(GetModuleHandleW(L"winmm.dll"));
+            const auto kernel = GetModuleHandleW(L"kernel32.dll");
+            auto expected = reinterpret_cast<void*>(GetProcAddress(kernel, "CreateFileA"));
+            // The production verifier lives in the newly loaded ASI, whose
+            // imports UAL never patched. Give this fixture-linked verifier the
+            // same lookup imports, so testing a false handoff flag does not
+            // itself invoke UAL and turn that flag back on.
+            const auto module_lookup = reinterpret_cast<decltype(&GetModuleHandleW)>(GetProcAddress(kernel, "GetModuleHandleW"));
+            const auto procedure_lookup = reinterpret_cast<decltype(&GetProcAddress)>(GetProcAddress(kernel, "GetProcAddress"));
+            DWORD lookup_protect{}, lookup_ignored{};
+            require(VirtualProtect(&__imp_GetModuleHandleW, sizeof(void*), PAGE_READWRITE, &lookup_protect), "Cannot isolate fixture lookup");
+            __imp_GetModuleHandleW = module_lookup;
+            VirtualProtect(&__imp_GetModuleHandleW, sizeof(void*), lookup_protect, &lookup_ignored);
+            require(VirtualProtect(&__imp_GetProcAddress, sizeof(void*), PAGE_READWRITE, &lookup_protect), "Cannot isolate fixture lookup");
+            __imp_GetProcAddress = procedure_lookup;
+            VirtualProtect(&__imp_GetProcAddress, sizeof(void*), lookup_protect, &lookup_ignored);
+            require(VerifiedBootstrap(root).accepts("CreateFileA", base + 0x1f260, expected), "Known bootstrap refused");
+            require(!VerifiedBootstrap(root).accepts("CreateFileA", base + 0x1f261, expected), "Wrong bootstrap entry accepted");
+            const auto reject_mutation = [&](unsigned char* at, size_t size, const char* failure) {
+                std::array<unsigned char, 8> saved{};
+                require(size <= saved.size(), "Oversized witness test");
+                memcpy(saved.data(), at, size);
+                DWORD protect{};
+                require(VirtualProtect(at, size, PAGE_EXECUTE_READWRITE, &protect), "Cannot stage witness test");
+                memset(at, 0, size);
+                const bool accepted = VerifiedBootstrap(root).accepts("CreateFileA", base + 0x1f260, expected);
+                memcpy(at, saved.data(), size);
+                DWORD ignored{}; require(VirtualProtect(at, size, protect, &ignored), "Cannot restore witness test");
+                FlushInstructionCache(GetCurrentProcess(), at, size);
+                require(!accepted, failure);
+            };
+            reject_mutation(base + 0x1f260, 1, "Changed forwarding instructions accepted");
+            reject_mutation(base + 0xb2b28, 4, "Unfinished restore phase accepted");
+            reject_mutation(base + 0xb2b24, 4, "Unstarted plugin phase accepted");
+            reject_mutation(base + 0x820f8, sizeof(void*), "Changed forwarding destination accepted");
+        }
         auto path = root / L"meta/0.papgt";
         auto check_read = [&](bool modern, bool overlapped) {
             Handle file(modern ? CreateFile2(path.c_str(), GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING, nullptr) :

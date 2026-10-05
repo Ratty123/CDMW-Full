@@ -7,9 +7,10 @@ and physical installation remain the defaults.
 
 **Current availability: profile preparation and reviewed startup diagnostics.**
 Game file redirection is disabled in both Python and the compiled native runtime.
-The controlled startup probe reached the runtime but refused an existing file
-hook owned by the verified ASI bootstrap. No virtual items or saves have been
-validated in game. Changing a manifest cannot enable the guarded launch mode.
+The controlled startup probe resolved the verified ASI bootstrap's retained
+forwarding hooks. Steam process binding now has a separate claim/readiness
+handshake. No virtual items or saves have been validated in game. Changing a
+manifest cannot enable the guarded launch mode.
 
 ## Use and ownership
 
@@ -107,18 +108,19 @@ Version text alone is never authorization to activate.
 
 | Boundary | Observation and limitation |
 | --- | --- |
-| ASI bootstrap | Calls `InitializeASI`; CDMW's `DllMain` only disables thread notifications. The controlled probe found `GetFileAttributesExW` already redirected into `WINMM.dll` at initialization. Loader-lock context and readiness before the first affected read are not established. |
+| ASI bootstrap | Calls `InitializeASI`; CDMW's `DllMain` only disables thread notifications. The exact UAL 9.7.1 build can retain forwarding imports after restoration. CDMW verifies the binary, instructions, phase flags and original forwarding targets before chaining. The controlled diagnostic reports outside the ntdll loader callout. Readiness before the first affected read still needs independent evidence. |
 | File opens | Exact main-image imports of `CreateFileW`, `CreateFileA` and `CreateFile2`; the verified executable's CreateFile2 IAT RVA is `0x51eb158`. Import presence is only a candidate boundary. |
-| Queries/enumeration | `GetFileAttributesW/A/ExW` and `FindFirstFileW/ExW` are exercised by synthetic native tests. The game-required subset and complete startup ordering still need observation. |
+| Queries/enumeration | Synthetic tests cover `GetFileAttributesW/A/ExW` and `FindFirstFileW/ExW`. The controlled Steam trace sees `CreateFile2` opening PAPGT/PAMT/PAZ/PATHC and W/ExW attribute queries on archive tables. Complete ordering before initialization still needs independent evidence. |
 | Reads and mapping | Approved logical paths map to real immutable files. Windows retains read, seek, mapping and asynchronous-I/O semantics through its handles; no archive parsing occurs in hooks. |
 | Unmapped paths | Original destinations; saves, configuration and executables are outside the redirect map. Mapped write access is refused. |
-| Session | Private local pipe with owner ACL, PID and host checks, random token and exact executable/snapshot hashes. The host creates its own suspended game child and requires readiness before accepting the session. |
-| Steam handoff | A process handoff that cannot be verified is refused. Cold/warm Steam startup has not passed acceptance; no environment-only activation or automatic rebinding is supported. |
+| Session | Private local pipe with owner ACL, PID and host checks, random token and exact executable/snapshot hashes. A new Steam game claims the pending launch; the host verifies its exact executable, parent and creation time before binding and granting initialization. Runtime readiness is a separate acknowledgement. |
+| Steam handoff | Steam is asked to launch app 3321460; its command process may exit independently. Ambiguous clients, existing games, changed launcher binaries and a different parent are refused. Synthetic handoff/lifetime tests and controlled warm-Steam diagnostics pass. Cold Steam and virtual item acceptance remain separate. No environment-only activation is used. |
 
 The native runtime refuses foreign import hooks and reports the function and
 owning module. It neither chains through an unverified hook nor overwrites it.
-If readiness fails, the host terminates only the child it created, before accepting
-the session. After readiness it waits for game exit. Unsupported hook combinations
+If readiness fails after binding, the host terminates only the verified new game,
+before accepting the session. An unverified claimant is never terminated. After
+readiness it waits for game exit. Unsupported hook combinations
 are outside the compatibility guarantee.
 
 ## Native discovery and registration research
@@ -158,14 +160,19 @@ not yet enabled because the verified startup/redirection boundary is unresolved.
 
 ## Evidence gates and validation
 
-1. **Loading map:** static executable leads and a controlled refusal witness;
-   deterministic bootstrap timing remains blocked.
+1. **Loading map:** static executable leads, verified bootstrap forwarding and
+   an outside-loader-callout witness; deterministic first-read timing remains
+   blocked.
 2. **Synthetic prototype:** profile composition, colliding authors, imported assets
    and auxiliary references, update/transfer, recovery, stale state, Qt/Rust input
    projection, native handles and session isolation have focused fixture coverage.
-3. **Controlled game prototype:** the reviewed original-file diagnostic reached
-   CDMW initialization and refused the bootstrap's existing hook. No redirected
-   game read or new-item acceptance is claimed.
+3. **Controlled game prototype:** the reviewed original-file diagnostic passed
+   bootstrap forwarding checks and binds the actual Steam-created game. The
+   user confirmed the title screen; the bounded trace observes mount/texture
+   metadata and archive access. A separate circular Windows file trace retained
+   only part of startup despite reporting zero dropped events, so it cannot
+   establish first-read readiness. No redirected game read or new-item acceptance
+   is claimed.
 4. **Selectable experimental item loading:** blocked pending the earlier timing
    gate, verified Steam behavior, coexistence, acquisition/equipment/crafting and
    save/reload/update/removal acceptance with a disposable backed-up save.
