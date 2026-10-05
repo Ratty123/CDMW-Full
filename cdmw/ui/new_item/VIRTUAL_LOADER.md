@@ -268,8 +268,14 @@ separate discovery experiment.
    reference, preserves the identities and all other composed payloads, and
    passes guarded redirection; the user still reports no visible blue effect.
    The structural fix is therefore insufficient to establish effect activation.
-   Effect appearance and save/reload acceptance for this additional pair remain
-   pending controlled game observation.
+   A subsequent candle-effect comparison keeps the imported item's identity and
+   uses the stock `fx_fire_bg_a__candle1.level.effect`, alongside a separately
+   bound blue clone with no emitter filtering. Its composed output preserves
+   existing item records and identities and passes guarded redirection. The user
+   reports success; screenshots show both flame colours in the shop and the blue
+   effect on the equipped weapon outside the shop. This establishes appearance
+   for that candle effect and its clone. The earlier fire-attach failure remains
+   unresolved, and save/reload acceptance for this comparison remains pending.
 4. **Selectable experimental item loading:** blocked pending broader controlled
    coexistence, acquisition/equipment/crafting, full supported item/save coverage
    and asset/behavior update acceptance with a disposable backed-up save.
