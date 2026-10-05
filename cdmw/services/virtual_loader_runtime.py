@@ -141,6 +141,8 @@ def launch(plan, *, stop_event=None):
         raise VirtualLoaderError('The launch plan changed. Review it again.')
     raise_if_cancelled(stop_event)
     profile = verify_snapshot(plan.root, stop_event=stop_event)
+    if digest(canonical(profile)) != plan.manifest_sha256:
+        raise VirtualLoaderError('The launch plan changed. Review it again.')
     return _start(plan.root, profile, mode=1, stop_event=stop_event)
 
 
@@ -150,10 +152,12 @@ def _start(root, profile, *, mode, stop_event=None):
     if game_is_running():
         raise VirtualLoaderError('Close Crimson Desert before starting a virtual session.')
     folder, _evidence = native_bundle(stop_event=stop_event)
-    token, data = session_manifest(root, profile, mode=mode, executable_sha256=GAME_SHA256)
-    path = target(root, '.cdmw/virtual-loader/launches/' + token + '.bin')
     with installation_lane(root):
         raise_if_cancelled(stop_event)
+        if read_optional(target(root, '.cdmw/virtual-loader/profile.json')) != canonical(profile):
+            raise VirtualLoaderError('The virtual profile changed before launch. Review it again.')
+        token, data = session_manifest(root, profile, mode=mode, executable_sha256=GAME_SHA256)
+        path = target(root, '.cdmw/virtual-loader/launches/' + token + '.bin')
         atomic_write_bytes(path, data)
         # A onefile application's extraction directory disappears on exit. The
         # user-owned session must run from persistent verified CDMW storage.
@@ -191,6 +195,8 @@ def start_diagnostic_trace(root, *, confirmed=False, expected_plan=None, stop_ev
     if expected_plan is not None and expected_plan != checked:
         raise VirtualLoaderError('The diagnostic launch plan changed. Review it again.')
     profile = load_profile(root)
+    if digest(canonical(profile)) != checked.manifest_sha256:
+        raise VirtualLoaderError('The diagnostic launch plan changed. Review it again.')
     return _start(Path(root).resolve(), profile, mode=0, stop_event=stop_event)
 
 

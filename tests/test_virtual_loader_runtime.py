@@ -94,6 +94,10 @@ def test_session_host_runs_from_persistent_storage_outside_app_job(tmp_path, mon
     root, payload = setup_fixture(tmp_path, monkeypatch)
     (root / runtime.RUNTIME_PATH).write_bytes(payload)
     profile = {'generation': 'a' * 32, 'files': {'meta/0.papgt': 'b' * 64}}
+    from cdmw.services.independent_item_package import canonical
+    stored = root / '.cdmw/virtual-loader/profile.json'
+    stored.parent.mkdir(parents=True)
+    stored.write_bytes(canonical(profile))
     monkeypatch.setattr('cdmw.services.process_job_service.breakaway_creation_flags', lambda: 0x1000000)
     captured = []
     def start(command, **kwargs):
@@ -107,6 +111,10 @@ def test_session_host_runs_from_persistent_storage_outside_app_job(tmp_path, mon
     assert captured[0][1]['creationflags'] & 0x1000000
     assert status.pid == 123
     assert (root / '.cdmw/virtual-loader/launches' / (status.detail + '.log')).is_file()
+    stored.write_bytes(b'changed')
+    with pytest.raises(VirtualLoaderError, match='profile changed before launch'):
+        runtime._start(root, profile, mode=0)
+    assert len(captured) == 1
 
 
 def test_diagnostic_plan_is_checked_again_after_review(tmp_path, monkeypatch):
