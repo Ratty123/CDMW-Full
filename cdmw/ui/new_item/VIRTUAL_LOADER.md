@@ -264,9 +264,12 @@ separate discovery experiment.
    the imported item equips and that refinement works. The intended blue effect
    is absent. Inspection found an embedded emitter file type still naming the
    original emitter after its ordinary reference was rebound; a focused fix now
-   rebinds and validates both references. Its effect on visible behavior is not
-   yet established. Effect appearance and save/reload acceptance for this
-   additional pair remain pending controlled game observation.
+   rebinds and validates both references. A controlled retry changes only that
+   reference, preserves the identities and all other composed payloads, and
+   passes guarded redirection; the user still reports no visible blue effect.
+   The structural fix is therefore insufficient to establish effect activation.
+   Effect appearance and save/reload acceptance for this additional pair remain
+   pending controlled game observation.
 4. **Selectable experimental item loading:** blocked pending broader controlled
    coexistence, acquisition/equipment/crafting, full supported item/save coverage
    and asset/behavior update acceptance with a disposable backed-up save.
