@@ -274,8 +274,12 @@ separate discovery experiment.
    existing item records and identities and passes guarded redirection. The user
    reports success; screenshots show both flame colours in the shop and the blue
    effect on the equipped weapon outside the shop. This establishes appearance
-   for that candle effect and its clone. The earlier fire-attach failure remains
-   unresolved, and save/reload acceptance for this comparison remains pending.
+   for that candle effect and its clone. Following a fresh verified save backup,
+   a guarded relaunch uses the same snapshot and identity ledger. The user
+   confirms that both swords remain in inventory and both flames appear when
+   equipped after loading the saved game. This passes the same-profile
+   save/reload check for the two candle-effect items. The earlier fire-attach
+   failure remains unresolved.
 4. **Selectable experimental item loading:** blocked pending broader controlled
    coexistence, acquisition/equipment/crafting, full supported item/save coverage
    and asset/behavior update acceptance with a disposable backed-up save.
