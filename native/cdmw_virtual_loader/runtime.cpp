@@ -256,7 +256,6 @@ void initialize() {
         using LoaderCallout = BOOLEAN (NTAPI*)();
         const auto loader_callout = reinterpret_cast<LoaderCallout>(GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "RtlIsThreadWithinLoaderCallout"));
         const DWORD loader_context = loader_callout ? loader_callout() : MAXDWORD;
-        require(manifest.mode != Mode::redirect || loader_context == 0, "The bootstrap called CDMW from a loader callout");
         if (claiming) {
             const std::array<DWORD, 3> claim{claim_magic, GetCurrentProcessId(), 0}; DWORD bytes{};
             require(WriteFile(session_pipe, claim.data(), sizeof claim, &bytes, nullptr) && bytes == sizeof claim, "Cannot claim Steam session");
@@ -271,6 +270,18 @@ void initialize() {
             require(ReadFile(session_pipe, grant.data(), sizeof grant, &bytes, nullptr) && bytes == sizeof grant &&
                     grant[0] == grant_magic && grant[1] == GetCurrentProcessId() && grant[2] == 0, "Steam session binding was refused");
             manifest.pid = GetCurrentProcessId();
+        }
+        // Check after the host has identified its new Steam child, so a refusal
+        // can terminate that launch instead of continuing without its profile.
+        std::array<void*, 64> startup_frames{};
+        const auto frame_count = CaptureStackBackTrace(0, static_cast<DWORD>(startup_frames.size()), startup_frames.data(), nullptr);
+        const bool startup_verified = manifest.mode != Mode::harness && loader_context == 0 && first_live_thread() &&
+            VerifiedBootstrap(root).accepts_startup(std::span<void* const>(startup_frames.data(), frame_count), GetModuleHandleW(nullptr));
+        if ((manifest.mode == Mode::redirect || manifest.mode == Mode::controlled_probe) && !startup_verified) {
+            std::ostringstream detail;
+            detail << "Unverified startup path; virtual loading refused. Loader callout " << loader_context << ". Stack: ";
+            for (USHORT i = 0; i < frame_count; ++i) detail << address_label(startup_frames[i]) << "; ";
+            throw std::runtime_error(detail.str());
         }
         runtime_lane = CreateFileW(manifest.lane.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
                                    nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
@@ -294,7 +305,9 @@ void initialize() {
                                   reinterpret_cast<LPCWSTR>(&initialize), &pinned), "Cannot pin runtime module");
         record(0, L"CDMW virtual trace v1", false, 0);
         record(11, L"InitializeASI loader callout (0 means outside)", false, loader_context);
+        record(12, L"Verified early GetCommandLineW startup path", false, startup_verified ? 1 : 0);
         hook_imports(root);
+        record(13, L"All approved file import hooks installed", false, 0);
         Handle writer(CreateThread(nullptr, 0, flush_trace, nullptr, 0, nullptr));
         require(bool(writer), "Cannot start trace writer");
         acknowledge(manifest, 0);

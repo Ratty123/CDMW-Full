@@ -95,7 +95,8 @@ std::array<DWORD, 3> receive(HANDLE pipe, HANDLE event, HANDLE process = nullptr
 }
 }
 int wmain(int argc, wchar_t** argv) {
-    if (argc != 2) { std::cerr << "Usage: cdmw_virtual_session manifest.bin\n"; return 2; }
+    const bool controlled = argc == 3 && !wcscmp(argv[2], L"--controlled-probe");
+    if (argc != 2 && !controlled) { std::cerr << "Usage: cdmw_virtual_session manifest.bin [--controlled-probe]\n"; return 2; }
     Manifest manifest;
     Handle process, lane;
     std::vector<Handle> pins;
@@ -104,6 +105,7 @@ int wmain(int argc, wchar_t** argv) {
     try {
         manifest = read_manifest(argv[1]);
         require(manifest.pid == 0 && manifest.host_pid == 0, "Session descriptor is already bound");
+        require((manifest.mode == Mode::controlled_probe) == controlled, "Controlled loading requires a separately reviewed host opt-in");
         require(manifest.mode != Mode::redirect || game_redirection_approved, "Game launch blocked: startup timing, Steam handoff and save tests are not verified");
         require(manifest.mode == Mode::harness || !manifest.launcher.empty(), "The reviewed Steam client is required");
         require(hash_file(executable(manifest)) == manifest.executable, "Executable fingerprint changed");

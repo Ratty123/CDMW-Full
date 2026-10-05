@@ -22,8 +22,10 @@ exact mapped files, source guards and the selected Steam client path/hash. Old
 transient launch descriptors are refused; saved item/identity/profile formats
 are unchanged. Trace mode observes original files;
 production redirect mode is compiled off; harness mode requires the separate
-fixture executable. The private named pipe rejects remote clients and validates
-its user, server and client. No network listener or environment-only activation
+fixture executable. Controlled probe mode additionally requires the host's
+`--controlled-probe` opt-in and the verified early startup path. It is a reviewed
+acceptance route, not a public UI launch option. The private named pipe rejects
+remote clients and validates its user, server and client. No network listener or environment-only activation
 is used. Session descriptors are not distributable mod packages.
 
 The host validates inputs, refuses an existing game, publishes a pending request,
@@ -50,7 +52,10 @@ no intercepted game-data read.
 The synthetic harness checks file opens, attributes, enumeration, mapping,
 asynchronous/concurrent reads, path aliases, write refusal and original errors.
 Python tests additionally exercise the host handshake, corrupt snapshots, the
-closed production gate, ordinary inert loading and process-lifetime leases.
+closed production gate, controlled-probe opt-in, ordinary inert loading and
+process-lifetime leases. Startup tests reject a worker thread, truncated or
+reordered return frames, a different game caller, late initialization and changed
+bootstrap instruction/forwarding witnesses.
 
 The exact Ultimate ASI Loader 9.7.1 bootstrap can leave temporary forwarding
 imports in read-only IAT pages after its restoration phase. CDMW chains through
@@ -67,12 +72,29 @@ reach the title screen. Independent Windows file-mode recordings retain process
 creation and show the game's first mount-table read after the host receives
 runtime readiness. The early archive queries come from CDMW's own manifest path
 validation; the cold-start call stacks identify that boundary through UAL's
-`GetCommandLineW` wrapper. These observations support the loading map, but do not
-implement a guard for that startup call site or establish redirected item/save
-behavior. Game redirection remains gated. The source lead for the retained
+`GetCommandLineW` wrapper. Game redirection now requires that ordered return chain:
+UAL RVAs `0x21785`, `0x308e8`, `0x32e13`, `0x1f848`, followed by game RVA
+`0x10958a48`. The runtime verifies UAL's complete `GetCommandLineW` wrapper and
+system forwarding destination, completed bootstrap phases, the earliest live
+process thread, and an outside-loader-callout result. It refuses before hooking
+if any witness is missing. This is an executable-specific startup boundary, not
+an item-registration ABI. The guard runs after Steam process binding, allowing
+the host to terminate its verified new game on refusal. Trace records distinguish
+the startup guard result from completion of all import hooks.
+
+Controlled game acceptance additionally requires a verified save backup and
+reviewed launch plan through `start_controlled_probe`. The ordinary production
+gate stays closed pending item and save validation. The source lead for the retained
 wrappers is the exact
 [UAL 9.7.1 implementation](https://github.com/ThirteenAG/Ultimate-ASI-Loader/blob/v9.7.1/source/dllmain.cpp);
 the reviewed local binary witnesses, not a project version label, govern support.
+
+The first controlled profile run passes the startup guard and records redirected
+opens for its PAPGT, PATHC and private PAMT/PAZ pair. The virtual archive directory
+is absent from the physical game root. Hook installation completes before the
+first redirected mount-table open. Separately, the user reports that both test
+items appear in the camp equipment shop and equip correctly. Save/reload and
+update/removal acceptance remain unverified; the public release gate stays closed.
 
 Do not poll until an unknown hook disappears or promote game loading based on
 the harness. The

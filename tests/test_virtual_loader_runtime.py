@@ -118,7 +118,8 @@ def test_snapshot_detects_content_changes_even_with_preserved_stamps(tmp_path):
         runtime.verify_snapshot(root)
 
 
-def test_session_host_runs_from_persistent_storage_outside_app_job(tmp_path, monkeypatch):
+@pytest.mark.parametrize('mode', [0, 3])
+def test_session_host_runs_from_persistent_storage_outside_app_job(tmp_path, monkeypatch, mode):
     from types import SimpleNamespace
     root, payload = setup_fixture(tmp_path, monkeypatch)
     (root / runtime.RUNTIME_PATH).write_bytes(payload)
@@ -133,11 +134,12 @@ def test_session_host_runs_from_persistent_storage_outside_app_job(tmp_path, mon
         captured.append((command, kwargs))
         return SimpleNamespace(pid=123)
     monkeypatch.setattr(runtime.subprocess, 'Popen', start)
-    status = runtime._start(root, profile, mode=0)
+    status = runtime._start(root, profile, mode=mode)
     executable = Path(captured[0][0][0])
     assert executable.is_relative_to(root / '.cdmw/virtual-loader/hosts')
     assert executable.read_bytes() == b'fixture host'
     assert captured[0][1]['creationflags'] & 0x1000000
+    assert ('--controlled-probe' in captured[0][0]) == (mode == 3)
     assert status.pid == 123
     assert (root / '.cdmw/virtual-loader/launches' / (status.detail + '.log')).is_file()
     stored.write_bytes(b'changed')
@@ -158,3 +160,27 @@ def test_diagnostic_plan_is_checked_again_after_review(tmp_path, monkeypatch):
     assert not (root / '.cdmw/virtual-loader/launches').exists()
     # Production loading remains unavailable even with a known installed runtime.
     assert runtime.runtime_status(root).state == 'blocked'
+
+
+def test_controlled_probe_requires_review_rechecks_inputs_and_keeps_release_blocked(tmp_path, monkeypatch):
+    root, files = packages(tmp_path, 1)
+    setup_fixture(tmp_path, monkeypatch)
+    runtime.apply_runtime_setup(runtime.prepare_runtime_setup(root), confirmed=True)
+    publish_profile(prepare_profile(VirtualProfile(files), root))
+    plan = runtime.prepare_diagnostic_trace(root)
+    calls = []
+    monkeypatch.setattr(runtime, '_start', lambda *args, **kw: calls.append(kw))
+    with pytest.raises(PermissionError):
+        runtime.start_controlled_probe(root, expected_plan=plan)
+    with pytest.raises(PermissionError):
+        runtime.start_controlled_probe(root, confirmed=True)
+    assert not calls
+    runtime.start_controlled_probe(root, confirmed=True, expected_plan=plan)
+    assert len(calls) == 1 and calls[0]['mode'] == 3
+    assert runtime.runtime_status(root).state == 'blocked'
+    with pytest.raises(VirtualLoaderError):
+        runtime.prepare_launch(root)
+    publish_profile(prepare_profile(VirtualProfile(), root))
+    with pytest.raises(VirtualLoaderError, match='plan changed'):
+        runtime.start_controlled_probe(root, confirmed=True, expected_plan=plan)
+    assert len(calls) == 1

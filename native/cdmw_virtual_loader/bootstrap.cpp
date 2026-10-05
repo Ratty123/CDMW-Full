@@ -1,6 +1,7 @@
 #include "bootstrap.hpp"
 #include <cstring>
 #include <string_view>
+#include <tlhelp32.h>
 
 namespace cdmw::vfs {
 namespace {
@@ -31,7 +32,7 @@ bool matches(const unsigned char* begin, std::string_view code, HMODULE owner) {
     return true;
 }
 }
-bool VerifiedBootstrap::accepts(const char* name, void* current, void* expected) {
+bool VerifiedBootstrap::verify() {
     if (!checked) {
         checked = true;
         module = GetModuleHandleW(L"winmm.dll");
@@ -51,11 +52,53 @@ bool VerifiedBootstrap::accepts(const char* name, void* current, void* expected)
                                reinterpret_cast<LPCWSTR>(module), &retained)) return false;
         verified = true;
     }
-    if (!verified) return false;
+    return verified;
+}
+bool VerifiedBootstrap::accepts(const char* name, void* current, void* expected) {
+    if (!verify()) return false;
     const auto base = reinterpret_cast<const unsigned char*>(module);
     for (const auto& row : witnesses) if (!strcmp(name, row.name))
         return current == base + row.rva && matches(base + row.rva, row.code, module) &&
             readable(base + row.import, sizeof(void*), module) && *reinterpret_cast<void* const*>(base + row.import) == expected;
     return false;
+}
+bool matches_startup_frames(std::span<void* const> frames, uintptr_t bootstrap, uintptr_t game) {
+    if (!bootstrap || !game) return false;
+    const std::array<uintptr_t, 5> expected{bootstrap + 0x21785, bootstrap + 0x308e8,
+        bootstrap + 0x32e13, bootstrap + 0x1f848, game + 0x10958a48};
+    for (size_t i = 0; i + expected.size() <= frames.size(); ++i) {
+        bool same = true;
+        for (size_t j = 0; j < expected.size(); ++j)
+            same = same && reinterpret_cast<uintptr_t>(frames[i + j]) == expected[j];
+        if (same) return true;
+    }
+    return false;
+}
+bool first_live_thread() {
+    FILETIME current{}, exit{}, kernel{}, user{};
+    if (!GetThreadTimes(GetCurrentThread(), &current, &exit, &kernel, &user)) return false;
+    Handle snapshot(CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0));
+    THREADENTRY32 entry{}; entry.dwSize = sizeof entry;
+    if (!snapshot || !Thread32First(snapshot.value, &entry)) return false;
+    bool found = false;
+    do {
+        if (entry.th32OwnerProcessID != GetCurrentProcessId()) continue;
+        if (entry.th32ThreadID == GetCurrentThreadId()) { found = true; continue; }
+        Handle thread(OpenThread(THREAD_QUERY_LIMITED_INFORMATION, FALSE, entry.th32ThreadID));
+        FILETIME created{};
+        if (!thread || !GetThreadTimes(thread.value, &created, &exit, &kernel, &user) ||
+            CompareFileTime(&created, &current) <= 0) return false;
+    } while (Thread32Next(snapshot.value, &entry));
+    return found && GetLastError() == ERROR_NO_MORE_FILES;
+}
+bool VerifiedBootstrap::accepts_startup(std::span<void* const> frames, HMODULE game) {
+    if (!verify()) return false;
+    const auto base = reinterpret_cast<const unsigned char*>(module);
+    // Complete GetCommandLineW forwarding function and its untouched system
+    // destination. A late/manual InitializeASI call cannot satisfy the stack.
+    return matches(base + 0x1f820, "4883ec38488b4c2438488d0588ab0600488d542420488944242048c74424280f000000e8f81401004883c43848ff258d280600", module) &&
+        readable(base + 0x820e0, sizeof(void*), module) &&
+        *reinterpret_cast<void* const*>(base + 0x820e0) == reinterpret_cast<void*>(GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "GetCommandLineW")) &&
+        matches_startup_frames(frames, reinterpret_cast<uintptr_t>(module), reinterpret_cast<uintptr_t>(game));
 }
 }

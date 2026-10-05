@@ -12,7 +12,9 @@ using Hash = std::array<unsigned char, 32>;
 inline constexpr char game_hash[] = "57da440d72f4db974f25fef047cf84c4dadd999a88cb2a3c5af4c9bd67fde1e7";
 // This is a compiled evidence gate, never a user-editable profile setting.
 inline constexpr bool game_redirection_approved = false;
-enum class Mode : uint32_t { trace = 0, redirect = 1, harness = 2 };
+// Controlled probes require a separate host opt-in and the verified startup
+// path. They do not enable the public release gate above.
+enum class Mode : uint32_t { trace = 0, redirect = 1, harness = 2, controlled_probe = 3 };
 struct File { std::wstring logical; fs::path path; Hash sha{}; };
 struct Guard { fs::path path; uint32_t present{}; Hash sha{}; };
 struct Manifest {

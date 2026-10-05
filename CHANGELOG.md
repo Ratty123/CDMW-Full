@@ -9,7 +9,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Added
 
-- Mod Management adds a separate experimental Virtual loader page to prepare private profiles from independent item packages and supported mods, with retained identities, recovery and reviewed startup diagnostics. Diagnostics support the verified ASI bootstrap and track the game launched by Steam. Game loading remains disabled pending verified startup behavior, runtime coexistence and save compatibility.
+- Mod Management adds a separate experimental Virtual loader page to prepare private profiles from independent item packages and supported mods, with retained identities, recovery and reviewed startup diagnostics. A guarded test route supports controlled game validation with the verified ASI bootstrap and Steam. General game loading remains disabled pending virtual-item, runtime coexistence and save compatibility checks.
 - Independent items can scan mounted mods or an extracted mod folder for conflicts, preserve supported unrelated record changes, and prepare a reviewed merge or separate merged package. Required-record conflicts and unsupported inputs are reported explicitly; runtime plugins and in-game compatibility remain unverified.
 
 ### Changed

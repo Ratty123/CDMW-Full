@@ -68,7 +68,8 @@ def inspect_trace(path):
         raise ValueError('Unsupported, truncated or oversized native trace.')
     names = {0: 'initialize', 1: 'CreateFileW', 2: 'CreateFile2', 3: 'CreateFileA', 4: 'GetFileAttributesW',
              5: 'GetFileAttributesExW', 6: 'GetFileAttributesA', 7: 'FindFirstFileW', 8: 'FindFirstFileExW',
-             9: 'hook ownership changed', 10: 'verified bootstrap forwarding', 11: 'loader callout context'}
+             9: 'hook ownership changed', 10: 'verified bootstrap forwarding', 11: 'loader callout context',
+             12: 'verified startup path', 13: 'file hooks ready'}
     events = []
     for kind, thread, redirected, error, ticks, raw in row.iter_unpack(path.read_bytes()):
         if kind not in names or redirected not in (0, 1):

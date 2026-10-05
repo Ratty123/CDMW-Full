@@ -6,14 +6,18 @@ and supported extracted or archive mod folders. Existing authoring, manager expo
 and physical installation remain the defaults.
 
 **Current availability: profile preparation and reviewed startup diagnostics.**
-Game file redirection is disabled in both Python and the compiled native runtime.
+The public game-loading gate remains disabled in Python and the native runtime.
 The controlled startup probe resolved the verified ASI bootstrap's retained
 forwarding hooks. Steam process binding now has a separate claim/readiness
 handshake. Warm- and cold-Steam diagnostics reach the title screen, with
 independent Windows traces showing readiness before the first game archive read.
-The observed startup call site still needs an activation guard, and no virtual
-items or saves have been validated in game. Changing a manifest cannot enable
-the guarded launch mode.
+The observed startup call site now has an exact-build activation guard. A separate
+reviewed controlled-probe route permits real-game acceptance testing with a
+verified save backup. Its first run redirects the prepared metadata and archive
+pair while the physical game archive directory remains absent. The user confirms
+both test items appear in the camp equipment shop and equip correctly. Save/reload,
+updates and the broader support matrix still require game validation; changing a
+manifest cannot enable the public launch mode.
 
 ## Use and ownership
 
@@ -109,11 +113,19 @@ The reviewed bootstrap SHA-256 is
 `810111a7f6a6cef892877c9f7c4582ccde2d621d119891f700c5309c370508bf`.
 Version text alone is never authorization to activate.
 
+For controlled acceptance, `start_controlled_probe` requires an explicit reviewed
+launch plan and confirmation that the caller retained a verified save backup.
+It revalidates the complete prepared profile and starts the native host with the
+separate `--controlled-probe` opt-in. This route is not exposed by the normal UI.
+The host checks the exact game/Steam identities and the runtime refuses a changed,
+late or unrecognized startup path before installing file hooks. A trace marker
+records hook installation completion separately from entry into initialization.
+
 | Boundary | Observation and limitation |
 | --- | --- |
-| ASI bootstrap | Calls `InitializeASI`; CDMW's `DllMain` only disables thread notifications. The exact UAL 9.7.1 build can retain forwarding imports after restoration. CDMW verifies the binary, instructions, phase flags and original forwarding targets before chaining. Independent cold-start stacks locate initialization through UAL's `GetCommandLineW` wrapper on the initial game thread, outside the ntdll loader callout. Guarding this observed startup call site remains pending. |
+| ASI bootstrap | Calls `InitializeASI`; CDMW's `DllMain` only disables thread notifications. The exact UAL 9.7.1 build can retain forwarding imports after restoration. CDMW verifies the binary, instructions, phase flags and original forwarding targets before chaining. Independent cold-start stacks locate initialization through UAL's `GetCommandLineW` wrapper on the initial game thread, outside the ntdll loader callout. Redirection requires that exact ordered return chain and game caller, verified wrapper instructions and forwarding, the earliest live thread, and no loader callout. |
 | File opens | Exact main-image imports of `CreateFileW`, `CreateFileA` and `CreateFile2`; the verified executable's CreateFile2 IAT RVA is `0x51eb158`. Independent Windows events and native traces match the observed original archive opens. A cold-start mount-table stack passes through CDMW's hook from game RVA `0x13274b6`; this is a file-loading observation, not an item-registration API. |
-| Queries/enumeration | Synthetic tests cover `GetFileAttributesW/A/ExW` and `FindFirstFileW/ExW`. The controlled Steam trace sees `CreateFile2` opening PAPGT/PAMT/PAZ/PATHC and W/ExW attribute queries on archive tables. Early original-file attribute queries match the manifest guard sequence and, in the cold trace, CDMW's validation call stacks. New virtual-directory discovery still requires the controlled redirection test. |
+| Queries/enumeration | Synthetic tests cover `GetFileAttributesW/A/ExW` and `FindFirstFileW/ExW`. The controlled Steam trace sees `CreateFile2` opening PAPGT/PAMT/PAZ/PATHC and W/ExW attribute queries on archive tables. Early original-file attribute queries match the manifest guard sequence and, in the cold trace, CDMW's validation call stacks. The first redirected profile run queries and opens its private archive pair despite that directory being absent from the physical game root. |
 | Reads and mapping | Approved logical paths map to real immutable files. Windows retains read, seek, mapping and asynchronous-I/O semantics through its handles; no archive parsing occurs in hooks. |
 | Unmapped paths | Original destinations; saves, configuration and executables are outside the redirect map. Mapped write access is refused. |
 | Session | Private local pipe with owner ACL, PID and host checks, random token and exact executable/snapshot hashes. A new Steam game claims the pending launch; the host verifies its exact executable, parent and creation time before binding and granting initialization. Runtime readiness is a separate acknowledgement. |
@@ -159,14 +171,15 @@ The next isolated discovery experiment must expose two uniquely named definition
 pairs without changing the original item tables and inspect both actual registries
 and auxiliary references. A file-open trace alone is insufficient. If an extra
 shared manifest is needed, that remains a composition requirement. This probe is
-not yet enabled because the verified startup/redirection boundary is unresolved.
+not yet enabled; controlled item and save acceptance takes priority over this
+separate discovery experiment.
 
 ## Evidence gates and validation
 
 1. **Loading map:** static executable leads, verified bootstrap forwarding,
    an outside-loader-callout witness and independent warm/cold first-read
-   observations. An activation guard for the observed startup call site remains
-   required before promoting game redirection.
+   observations. An activation guard now enforces the observed startup call site,
+   bootstrap phases, thread and loader-callout boundaries for controlled loading.
 2. **Synthetic prototype:** profile composition, colliding authors, imported assets
    and auxiliary references, update/transfer, recovery, stale state, Qt/Rust input
    projection, native handles and session isolation have focused fixture coverage.
@@ -182,10 +195,17 @@ not yet enabled because the verified startup/redirection boundary is unresolved.
    early queries to CDMW. The final capture's filename rundown resolves the
    earlier cached reads to the game executable, Windows disk metadata and the
    paging file. After all launches, the 286 checked original files and saved-game
-   fingerprints are unchanged. These are original-file diagnostics: no
-   redirected game read or new-item acceptance is claimed.
-4. **Selectable experimental item loading:** blocked pending the earlier timing
-   gate, verified Steam behavior, coexistence, acquisition/equipment/crafting and
+   fingerprints are unchanged. Those captures are original-file diagnostics.
+   A subsequent controlled virtual run passes the exact startup guard and records
+   redirected PAPGT, PATHC, PAMT and PAZ opens for the prepared two-item profile.
+   Its first redirected mount-table open follows completed hook installation by
+   about 0.64 seconds; the mapped archive directory is absent from the physical
+   game root. The user reports that both imported-model test items appear in the
+   camp equipment shop and equip correctly. That is user-observed item evidence,
+   separate from the native file trace; save/reload and update/removal acceptance
+   remain unverified. A fresh verified save backup is retained for those checks.
+4. **Selectable experimental item loading:** blocked pending broader controlled
+   coexistence, acquisition/equipment/crafting and
    save/reload/update/removal acceptance with a disposable backed-up save.
 
 Source tests, built native binaries, packaged application, visible game behavior

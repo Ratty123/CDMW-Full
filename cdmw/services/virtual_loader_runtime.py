@@ -183,7 +183,10 @@ def _start(root, profile, *, mode, stop_event=None):
     # The native host acquires the same lane and pins the snapshot before it
     # starts its own game. It remains alive if CDMW closes or crashes.
     with path.with_suffix('.log').open('xb') as log:
-        process = subprocess.Popen([str(host), str(path)], cwd=str(root),
+        command = [str(host), str(path)]
+        if mode == 3:
+            command.append('--controlled-probe')
+        process = subprocess.Popen(command, cwd=str(root),
             creationflags=breakaway_creation_flags() | int(getattr(subprocess, 'CREATE_NO_WINDOW', 0)),
             stdin=subprocess.DEVNULL, stdout=log, stderr=log, close_fds=True)
     return VirtualSessionStatus('starting', token, profile['generation'], process.pid)
@@ -210,6 +213,24 @@ def start_diagnostic_trace(root, *, confirmed=False, expected_plan=None, stop_ev
     if digest(canonical(profile)) != checked.manifest_sha256:
         raise VirtualLoaderError('The diagnostic launch plan changed. Review it again.')
     return _start(Path(root).resolve(), profile, mode=0, stop_event=stop_event)
+
+
+def start_controlled_probe(root, *, confirmed=False, expected_plan=None, stop_event=None):
+    """Reviewed real-game acceptance run; never selected by the public UI.
+
+    The caller must retain a verified save backup and review the runtime setup.
+    The native host/runtime still enforce the exact game, bootstrap, Steam
+    process and early startup path. This does not open the public release gate.
+    """
+    if not confirmed or expected_plan is None:
+        raise PermissionError('Controlled virtual loading requires an explicitly reviewed launch plan and save backup.')
+    checked = prepare_diagnostic_trace(root, stop_event=stop_event)
+    if expected_plan != checked:
+        raise VirtualLoaderError('The controlled launch plan changed. Review it again.')
+    profile = load_profile(root)
+    if digest(canonical(profile)) != checked.manifest_sha256:
+        raise VirtualLoaderError('The controlled launch plan changed. Review it again.')
+    return _start(Path(root).resolve(), profile, mode=3, stop_event=stop_event)
 
 
 def session_status(root, token, *, host_pid=None):

@@ -19,6 +19,21 @@ int wmain(int argc, wchar_t** argv) {
             try { validate(Manifest{}); } catch (...) { rejected = true; }
             require(rejected, "Empty manifest accepted");
             require(hex(hash_file(own_executable())).size() == 64, "Hash contract failed");
+            require(first_live_thread(), "Initial fixture thread was not recognized");
+            bool worker_accepted = true;
+            std::thread worker([&] { worker_accepted = first_live_thread(); }); worker.join();
+            require(!worker_accepted, "A late worker passed the startup thread guard");
+            constexpr uintptr_t bootstrap = 0x180000000, game = 0x140000000;
+            std::array<void*, 7> frames{nullptr, reinterpret_cast<void*>(bootstrap + 0x21785),
+                reinterpret_cast<void*>(bootstrap + 0x308e8), reinterpret_cast<void*>(bootstrap + 0x32e13),
+                reinterpret_cast<void*>(bootstrap + 0x1f848), reinterpret_cast<void*>(game + 0x10958a48), nullptr};
+            require(matches_startup_frames(frames, bootstrap, game), "Observed startup path refused");
+            require(!matches_startup_frames(std::span<void* const>(frames.data(), 5), bootstrap, game), "Truncated startup path accepted");
+            require(!matches_startup_frames(frames, bootstrap + 1, game), "Wrong startup module accepted");
+            std::swap(frames[2], frames[3]);
+            require(!matches_startup_frames(frames, bootstrap, game), "Reordered startup path accepted");
+            std::swap(frames[2], frames[3]); frames[5] = reinterpret_cast<void*>(game + 0x10958a49);
+            require(!matches_startup_frames(frames, bootstrap, game), "Unknown game startup caller accepted");
             std::cout << "protocol self-test passed\n"; return 0;
         }
         auto root = own_executable().parent_path().parent_path();
@@ -75,14 +90,23 @@ int wmain(int argc, wchar_t** argv) {
             VirtualProtect(&__imp_GetProcAddress, sizeof(void*), lookup_protect, &lookup_ignored);
             require(VerifiedBootstrap(root).accepts("CreateFileA", base + 0x1f260, expected), "Known bootstrap refused");
             require(!VerifiedBootstrap(root).accepts("CreateFileA", base + 0x1f261, expected), "Wrong bootstrap entry accepted");
-            const auto reject_mutation = [&](unsigned char* at, size_t size, const char* failure) {
+            auto game = GetModuleHandleW(nullptr);
+            std::array<void*, 5> startup_frames{base + 0x21785, base + 0x308e8, base + 0x32e13, base + 0x1f848,
+                reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(game) + 0x10958a48)};
+            // Synthetic addresses exercise witnesses, not real game timing.
+            require(VerifiedBootstrap(root).accepts_startup(startup_frames, game), "Known startup witnesses refused");
+            std::array<void*, 32> actual{};
+            auto count = CaptureStackBackTrace(0, static_cast<DWORD>(actual.size()), actual.data(), nullptr);
+            require(!VerifiedBootstrap(root).accepts_startup(std::span<void* const>(actual.data(), count), game), "Late fixture call accepted as early startup");
+            const auto reject_mutation = [&](unsigned char* at, size_t size, const char* failure, bool startup = false) {
                 std::array<unsigned char, 8> saved{};
                 require(size <= saved.size(), "Oversized witness test");
                 memcpy(saved.data(), at, size);
                 DWORD protect{};
                 require(VirtualProtect(at, size, PAGE_EXECUTE_READWRITE, &protect), "Cannot stage witness test");
                 memset(at, 0, size);
-                const bool accepted = VerifiedBootstrap(root).accepts("CreateFileA", base + 0x1f260, expected);
+                const bool accepted = startup ? VerifiedBootstrap(root).accepts_startup(startup_frames, game) :
+                    VerifiedBootstrap(root).accepts("CreateFileA", base + 0x1f260, expected);
                 memcpy(at, saved.data(), size);
                 DWORD ignored{}; require(VirtualProtect(at, size, protect, &ignored), "Cannot restore witness test");
                 FlushInstructionCache(GetCurrentProcess(), at, size);
@@ -92,6 +116,9 @@ int wmain(int argc, wchar_t** argv) {
             reject_mutation(base + 0xb2b28, 4, "Unfinished restore phase accepted");
             reject_mutation(base + 0xb2b24, 4, "Unstarted plugin phase accepted");
             reject_mutation(base + 0x820f8, sizeof(void*), "Changed forwarding destination accepted");
+            reject_mutation(base + 0x1f820, 1, "Changed startup instructions accepted", true);
+            reject_mutation(base + 0x820e0, sizeof(void*), "Changed startup forwarding destination accepted", true);
+            reject_mutation(base + 0xb2b28, 4, "Unfinished startup restore phase accepted", true);
         }
         auto path = root / L"meta/0.papgt";
         auto check_read = [&](bool modern, bool overlapped) {

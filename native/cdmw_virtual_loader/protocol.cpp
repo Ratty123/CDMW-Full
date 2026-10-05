@@ -75,7 +75,7 @@ void no_links(fs::path path) {
     }
 }
 void validate(const Manifest& m) {
-    require(m.mode == Mode::trace || m.mode == Mode::redirect || m.mode == Mode::harness, "Unknown mode");
+    require(m.mode == Mode::trace || m.mode == Mode::redirect || m.mode == Mode::harness || m.mode == Mode::controlled_probe, "Unknown mode");
     require(identity(m.token) && identity(m.generation), "Invalid session identity");
     require(m.root.is_absolute() && normalize(m.root) == normalize(m.root.lexically_normal()), "Invalid game root");
     no_links(m.root);

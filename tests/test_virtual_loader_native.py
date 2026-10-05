@@ -145,6 +145,29 @@ def test_native_production_redirect_gate_cannot_be_enabled_by_manifest(tmp_path)
     assert not (root / '.cdmw/virtual-loader/session.bin').exists()
 
 
+@pytest.mark.parametrize('opt_in', [False, True])
+def test_controlled_probe_requires_host_opt_in_and_exact_game(tmp_path, opt_in):
+    root, request, _token = fixture(tmp_path)
+    shutil.copy2(BUILD / 'cdmw_virtual_loader_harness.exe', root / 'bin64/CrimsonDesert.exe')
+    launcher = root / 'bin64/steam.exe'
+    shutil.copy2(BUILD / 'cdmw_virtual_loader_harness.exe', launcher)
+    profile = {'generation': next((root / '.cdmw/virtual-loader/generations').iterdir()).name,
+               'files': {p: digest(b'virtual') for p in ('meta/0.papgt', '0042/0.pamt', '0042/0.paz')}}
+    # Mode 2's serializer avoids requiring game-only runtime guards in this
+    # synthetic root. The resulting mode 3 still must pass all native guards.
+    _token, data = session_manifest(root, profile, mode=2,
+        executable_sha256=hash_file(root / 'bin64/CrimsonDesert.exe'), launcher=launcher)
+    data = bytearray(data); data[8:12] = (3).to_bytes(4, 'little'); request.write_bytes(data)
+    command = [str(BUILD / 'cdmw_virtual_session.exe'), str(request)]
+    if opt_in:
+        command.append('--controlled-probe')
+    result = subprocess.run(command, capture_output=True, timeout=10)
+    assert result.returncode != 0
+    assert (b'Unsupported executable build' if opt_in else b'reviewed host opt-in') in result.stderr
+    assert not (root / '.cdmw/virtual-loader/session.bin').exists()
+    assert not (root / '.cdmw/virtual-loader/harness-result.txt').exists()
+
+
 def test_normal_launch_is_inert_and_foreign_import_hook_is_refused(tmp_path):
     root, request, token = fixture(tmp_path)
     child = root / 'bin64/cdmw_virtual_loader_harness.exe'
