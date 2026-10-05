@@ -62,7 +62,11 @@ int wmain(int argc, wchar_t** argv) {
         require(GetFileAttributesA("../meta/0.papgt") != INVALID_FILE_ATTRIBUTES, "ANSI query failed");
         require(GetFileAttributesW((root / L"0042").c_str()) & FILE_ATTRIBUTE_DIRECTORY, "Virtual folder query failed");
         WIN32_FIND_DATAW found{};
-        auto search = FindFirstFileW((root / L"0042/*.pamt").c_str(), &found);
+        auto search = FindFirstFileW(path.c_str(), &found);
+        require(search != INVALID_HANDLE_VALUE && found.nFileSizeLow == 7 && !wcscmp(found.cFileName, L"0.papgt"), "Exact metadata query mismatch"); FindClose(search);
+        search = FindFirstFileExW(path.c_str(), FindExInfoBasic, &found, FindExSearchNameMatch, nullptr, 0);
+        require(search != INVALID_HANDLE_VALUE && found.nFileSizeLow == 7, "Extended metadata query mismatch"); FindClose(search);
+        search = FindFirstFileW((root / L"0042/*.pamt").c_str(), &found);
         require(search != INVALID_HANDLE_VALUE && !wcscmp(found.cFileName, L"0.pamt"), "Virtual enumeration failed"); FindClose(search);
         search = FindFirstFileExW((root / L"0042/*.paz").c_str(), FindExInfoBasic, &found, FindExSearchNameMatch, nullptr, 0);
         require(search != INVALID_HANDLE_VALUE && !wcscmp(found.cFileName, L"0.paz"), "Extended enumeration failed"); FindClose(search);

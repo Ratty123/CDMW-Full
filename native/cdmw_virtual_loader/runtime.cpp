@@ -97,6 +97,10 @@ DWORD WINAPI attributes_a(LPCSTR name) {
 }
 LPCWSTR enumeration(LPCWSTR name, std::array<wchar_t, 32768>& output) {
     if (!name || mode == Mode::trace) return name;
+    // Exact queries, including metadata files, must describe the same file
+    // returned by open/read. Wildcards only map an approved archive directory.
+    auto exact = redirected(name);
+    if (exact != name) return exact;
     std::array<wchar_t, 32768> full{};
     const auto n = GetFullPathNameW(name, static_cast<DWORD>(full.size()), full.data(), nullptr);
     if (!n || n >= full.size()) return name;
