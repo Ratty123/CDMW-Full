@@ -34,6 +34,7 @@ from cdmw.core.papgt_format import PAPGT_DEFAULT_FLAGS, papgt_with_directory, pa
 from cdmw.domain.archives.mutation import ArchiveAddRequest, ArchivePatchRequest
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.services.application_shutdown_service import archive_write_scope
+from cdmw.services.installation_lane import serialized_installation
 
 __all__ = [
     "OVERLAY_DIRECTORY_FIRST",
@@ -270,6 +271,7 @@ def _validate_staged_overlay(preparation: OverlayInstallPreparation) -> None:
 
 
 @archive_write_scope()
+@serialized_installation(lambda preparation, **_kwargs: getattr(preparation, 'package_root', None))
 def apply_overlay_install(
     preparation: OverlayInstallPreparation,
     *,
@@ -376,6 +378,7 @@ def apply_overlay_install(
 
 
 @archive_write_scope()
+@serialized_installation(lambda receipt_path, **_kwargs: Path(receipt_path).expanduser().resolve().parent.parent)
 def restore_last_overlay_install(
     receipt_path: Path | str,
     *,

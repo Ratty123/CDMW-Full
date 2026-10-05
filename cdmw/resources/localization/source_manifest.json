@@ -87,6 +87,21 @@
       ]
     },
     {
+      "key": "\n\n{value_0}\nSHA-256: {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 253,
+          "sink": "question"
+        },
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 266,
+          "sink": "question"
+        }
+      ]
+    },
+    {
       "key": "\nEmbedded face",
       "origins": [
         {
@@ -3721,7 +3736,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 146,
+          "line": 147,
           "sink": "ValueError"
         }
       ]
@@ -3813,6 +3828,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 54,
           "sink": "python-return:_build_start_sections"
+        }
+      ]
+    },
+    {
+      "key": "A diagnostic game launch requires explicit review.",
+      "origins": [
+        {
+          "path": "cdmw/services/virtual_loader_runtime.py",
+          "line": 189,
+          "sink": "PermissionError"
         }
       ]
     },
@@ -4006,7 +4031,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 816,
+          "line": 825,
           "sink": "ValueError"
         }
       ]
@@ -4016,7 +4041,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 820,
+          "line": 829,
           "sink": "ValueError"
         }
       ]
@@ -5857,6 +5882,21 @@
       ]
     },
     {
+      "key": "Add item packages…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 40,
+          "sink": "tr"
+        },
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 114,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Add mesh part",
       "origins": [
         {
@@ -5873,6 +5913,21 @@
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
           "line": 44,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Add mod folder…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 41,
+          "sink": "tr"
+        },
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 119,
+          "sink": "tr"
         }
       ]
     },
@@ -7946,7 +8001,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 648,
+          "line": 656,
           "sink": "OverlayConflict"
         }
       ]
@@ -8046,7 +8101,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 106,
+          "line": 107,
           "sink": "ValueError"
         }
       ]
@@ -8056,7 +8111,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 186,
+          "line": 187,
           "sink": "ValueError"
         }
       ]
@@ -8066,7 +8121,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 311,
+          "line": 312,
           "sink": "ValueError"
         }
       ]
@@ -8596,7 +8651,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 157,
+          "line": 158,
           "sink": "OverlayConflict"
         }
       ]
@@ -8606,7 +8661,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 524,
+          "line": 525,
           "sink": "OverlayConflict"
         }
       ]
@@ -11056,7 +11111,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 206,
+          "line": 212,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -11066,7 +11121,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 205,
+          "line": 211,
           "sink": "PermissionError"
         }
       ]
@@ -11296,7 +11351,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 147,
+          "line": 148,
           "sink": "ValueError"
         }
       ]
@@ -11306,7 +11361,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 141,
+          "line": 142,
           "sink": "ValueError"
         }
       ]
@@ -11686,7 +11741,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 70,
+          "line": 71,
           "sink": "TypeError"
         }
       ]
@@ -11696,7 +11751,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 72,
+          "line": 73,
           "sink": "TypeError"
         }
       ]
@@ -11706,7 +11761,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 68,
+          "line": 69,
           "sink": "TypeError"
         }
       ]
@@ -11726,7 +11781,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 213,
+          "line": 221,
           "sink": "TypeError"
         }
       ]
@@ -11816,7 +11871,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 100,
+          "line": 101,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -11826,7 +11881,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 168,
+          "line": 174,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -11836,7 +11891,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 96,
+          "line": 97,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -11846,7 +11901,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 158,
+          "line": 164,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -11856,12 +11911,12 @@
       "origins": [
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 171,
+          "line": 177,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 180,
+          "line": 186,
           "sink": "raise_if_cancelled"
         },
         {
@@ -11891,7 +11946,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 220,
+          "line": 228,
           "sink": "PermissionError"
         }
       ]
@@ -11901,7 +11956,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 234,
+          "line": 242,
           "sink": "ValueError"
         }
       ]
@@ -12216,12 +12271,12 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 105,
+          "line": 109,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 122,
+          "line": 126,
           "sink": "QGroupBox"
         }
       ]
@@ -12511,7 +12566,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 400,
+          "line": 401,
           "sink": "ValueError"
         }
       ]
@@ -12521,7 +12576,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 402,
+          "line": 403,
           "sink": "ValueError"
         }
       ]
@@ -14366,7 +14421,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 398,
+          "line": 399,
           "sink": "OverlayConflict"
         }
       ]
@@ -15066,7 +15121,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 302,
+          "line": 304,
           "sink": "on_log"
         },
         {
@@ -19152,6 +19207,16 @@
       ]
     },
     {
+      "key": "CDMW runtime removed. Retained profiles and identities are unchanged.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 268,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "CDMW startup / main window",
       "origins": [
         {
@@ -20166,7 +20231,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 152,
+          "line": 156,
           "sink": "QPushButton"
         },
         {
@@ -20816,7 +20881,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 150,
+          "line": 151,
           "sink": "on_log"
         }
       ]
@@ -22326,7 +22391,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 101,
+          "line": 105,
           "sink": "QPushButton"
         }
       ]
@@ -22561,7 +22626,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 716,
+          "line": 724,
           "sink": "on_log"
         }
       ]
@@ -22621,7 +22686,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 676,
+          "line": 684,
           "sink": "on_log"
         }
       ]
@@ -22921,7 +22986,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 395,
+          "line": 396,
           "sink": "ValueError"
         }
       ]
@@ -25221,7 +25286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 197,
+          "line": 203,
           "sink": "getExistingDirectory"
         }
       ]
@@ -25263,6 +25328,16 @@
           "path": "cdmw/ui/new_item/panels_placement.py",
           "line": 108,
           "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
+      "key": "Choose the installed Crimson Desert game folder.",
+      "origins": [
+        {
+          "path": "cdmw/services/virtual_loader_runtime.py",
+          "line": 79,
+          "sink": "VirtualSessionStatus"
         }
       ]
     },
@@ -26936,12 +27011,12 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 558,
+          "line": 560,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 808,
+          "line": 817,
           "sink": "RuntimeError"
         }
       ]
@@ -28686,7 +28761,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 628,
+          "line": 609,
           "sink": "on_log"
         }
       ]
@@ -30811,7 +30886,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 242,
+          "line": 250,
           "sink": "FileNotFoundError"
         }
       ]
@@ -30821,7 +30896,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 119,
+          "line": 120,
           "sink": "FileNotFoundError"
         }
       ]
@@ -32216,7 +32291,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 839,
+          "line": 848,
           "sink": "RuntimeError"
         }
       ]
@@ -35725,6 +35800,16 @@
       "key": "Diagnostic render mode",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Diagnostic trace running. Virtual files are not active.",
+      "origins": [
+        {
+          "path": "cdmw/services/virtual_loader_runtime.py",
+          "line": 218,
+          "sink": "VirtualSessionStatus"
+        }
+      ]
     },
     {
       "key": "Diagnostics-only .NET viewport launch; embedded .NET is unavailable or disabled by developer setting.",
@@ -41916,12 +42001,12 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 417,
+          "line": 418,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 424,
+          "line": 425,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -42198,6 +42283,16 @@
           "path": "cdmw/ui/new_item/panels_perks.py",
           "line": 164,
           "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
+      "key": "Experimental: game loading stays blocked until startup and save compatibility are verified.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 28,
+          "sink": "tr"
         }
       ]
     },
@@ -48686,7 +48781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 130,
+          "line": 134,
           "sink": "setToolTip"
         }
       ]
@@ -48696,7 +48791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 124,
+          "line": 128,
           "sink": "QLabel"
         }
       ]
@@ -50211,7 +50306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 79,
+          "line": 83,
           "sink": "addTab"
         }
       ]
@@ -57321,7 +57416,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 272,
+          "line": 308,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -57347,6 +57442,11 @@
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
           "line": 181,
+          "sink": "tr"
+        },
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 114,
           "sink": "tr"
         }
       ]
@@ -58117,6 +58217,16 @@
       ]
     },
     {
+      "key": "Inspect and prepare",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 46,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Inspect dependencies / references",
       "origins": [
         {
@@ -58442,6 +58552,16 @@
       ]
     },
     {
+      "key": "Install the CDMW diagnostic runtime at this exact path?",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 210,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Install this item as a separately tracked overlay. CDMW combines shared tables, preserves other installed overlays, and backs up the files it changes. Use Installed overlays to remove an individual install.",
       "origins": [
         {
@@ -58671,7 +58791,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 95,
+          "line": 99,
           "sink": "QPushButton"
         }
       ]
@@ -58901,7 +59021,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 275,
+          "line": 276,
           "sink": "ValueError"
         }
       ]
@@ -58961,7 +59081,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 99,
+          "line": 100,
           "sink": "ValueError"
         }
       ]
@@ -59201,7 +59321,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 269,
+          "line": 270,
           "sink": "ValueError"
         }
       ]
@@ -59211,7 +59331,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 104,
+          "line": 105,
           "sink": "ValueError"
         }
       ]
@@ -59221,7 +59341,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 97,
+          "line": 98,
           "sink": "ValueError"
         }
       ]
@@ -59231,7 +59351,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 94,
+          "line": 95,
           "sink": "ValueError"
         }
       ]
@@ -59241,7 +59361,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 251,
+          "line": 252,
           "sink": "ValueError"
         }
       ]
@@ -59251,7 +59371,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 52,
+          "line": 53,
           "sink": "ValueError"
         }
       ]
@@ -59261,7 +59381,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 282,
+          "line": 283,
           "sink": "ValueError"
         }
       ]
@@ -59271,7 +59391,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 102,
+          "line": 103,
           "sink": "ValueError"
         }
       ]
@@ -59436,12 +59556,12 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 373,
+          "line": 374,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 551,
+          "line": 553,
           "sink": "ValueError"
         }
       ]
@@ -60516,7 +60636,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 721,
+          "line": 729,
           "sink": "OverlayConflict"
         }
       ]
@@ -60608,6 +60728,16 @@
           "path": "cdmw/ui/shell/problem_report_dialog.py",
           "line": 259,
           "sink": "_line"
+        }
+      ]
+    },
+    {
+      "key": "Item package",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 107,
+          "sink": "tr"
         }
       ]
     },
@@ -62158,6 +62288,16 @@
           "path": "cdmw/ui/settings_tab.py",
           "line": 1111,
           "sink": "_add_settings_page"
+        }
+      ]
+    },
+    {
+      "key": "Launch with virtual profile",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 48,
+          "sink": "tr"
         }
       ]
     },
@@ -65776,7 +65916,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 382,
+          "line": 383,
           "sink": "ValueError"
         }
       ]
@@ -67586,7 +67726,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 78,
+          "line": 82,
           "sink": "addTab"
         },
         {
@@ -67671,7 +67811,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 98,
+          "line": 102,
           "sink": "QPushButton"
         },
         {
@@ -72130,6 +72270,11 @@
           "sink": "addItem"
         },
         {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 107,
+          "sink": "tr"
+        },
+        {
           "path": "cdmw/ui/shell/problem_report_catalog.py",
           "line": 101,
           "sink": "python-data:REPORT_TOOLS"
@@ -74206,7 +74351,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 362,
+          "line": 364,
           "sink": "on_log"
         }
       ]
@@ -74381,27 +74526,27 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 324,
+          "line": 333,
           "sink": "_overlay_services"
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 334,
+          "line": 343,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 339,
+          "line": 348,
           "sink": "_overlay_services"
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 344,
+          "line": 353,
           "sink": "information"
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 348,
+          "line": 357,
           "sink": "question"
         }
       ]
@@ -74411,7 +74556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 129,
+          "line": 133,
           "sink": "QPushButton"
         }
       ]
@@ -74516,7 +74661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 348,
+          "line": 357,
           "sink": "question"
         }
       ]
@@ -74746,7 +74891,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 391,
+          "line": 392,
           "sink": "OverlayConflict"
         }
       ]
@@ -77261,7 +77406,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 66,
+          "line": 67,
           "sink": "ValueError"
         }
       ]
@@ -80021,7 +80166,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 515,
+          "line": 516,
           "sink": "ValueError"
         }
       ]
@@ -81756,7 +81901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 344,
+          "line": 353,
           "sink": "information"
         }
       ]
@@ -82686,7 +82831,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 699,
+          "line": 707,
           "sink": "ValueError"
         }
       ]
@@ -83201,7 +83346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 183,
+          "line": 189,
           "sink": "tr"
         }
       ]
@@ -85266,7 +85411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 283,
+          "line": 292,
           "sink": "setText"
         }
       ]
@@ -86611,7 +86756,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 286,
+          "line": 288,
           "sink": "TypeError"
         }
       ]
@@ -86621,7 +86766,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 632,
+          "line": 640,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -86631,7 +86776,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 835,
+          "line": 844,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -86641,7 +86786,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 867,
+          "line": 876,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -86651,7 +86796,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 856,
+          "line": 865,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -86661,7 +86806,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 682,
+          "line": 690,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -86671,7 +86816,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 881,
+          "line": 890,
           "sink": "RuntimeError"
         }
       ]
@@ -86691,7 +86836,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 799,
+          "line": 808,
           "sink": "TypeError"
         }
       ]
@@ -86701,7 +86846,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 801,
+          "line": 810,
           "sink": "PermissionError"
         }
       ]
@@ -86726,12 +86871,12 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 597,
+          "line": 602,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 621,
+          "line": 619,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -86746,12 +86891,12 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 155,
+          "line": 156,
           "sink": "OverlayConflict"
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 689,
+          "line": 697,
           "sink": "OverlayConflict"
         }
       ]
@@ -86771,12 +86916,12 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 136,
+          "line": 137,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 66,
+          "line": 67,
           "sink": "ValueError"
         }
       ]
@@ -86806,7 +86951,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 305,
+          "line": 307,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -86816,7 +86961,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 319,
+          "line": 321,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -86826,7 +86971,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 314,
+          "line": 316,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -86836,7 +86981,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 316,
+          "line": 318,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -86846,7 +86991,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 291,
+          "line": 293,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -86856,7 +87001,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 343,
+          "line": 345,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -86866,7 +87011,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 324,
+          "line": 326,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -86901,7 +87046,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 355,
+          "line": 357,
           "sink": "RuntimeError"
         }
       ]
@@ -86921,7 +87066,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 288,
+          "line": 290,
           "sink": "PermissionError"
         }
       ]
@@ -86931,7 +87076,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 266,
+          "line": 267,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -86941,7 +87086,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 260,
+          "line": 261,
           "sink": "ValueError"
         }
       ]
@@ -86951,7 +87096,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 289,
+          "line": 290,
           "sink": "ValueError"
         }
       ]
@@ -86961,7 +87106,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 286,
+          "line": 287,
           "sink": "ValueError"
         }
       ]
@@ -86981,7 +87126,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 203,
+          "line": 204,
           "sink": "ValueError"
         }
       ]
@@ -87056,7 +87201,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 59,
+          "line": 60,
           "sink": "ValueError"
         }
       ]
@@ -87066,7 +87211,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 220,
+          "line": 221,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -87076,7 +87221,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 120,
+          "line": 121,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -87086,7 +87231,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 171,
+          "line": 172,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -87096,7 +87241,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 155,
+          "line": 156,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -87106,7 +87251,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 433,
+          "line": 436,
           "sink": "ValueError"
         }
       ]
@@ -87116,7 +87261,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 424,
+          "line": 427,
           "sink": "ValueError"
         }
       ]
@@ -87126,7 +87271,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 412,
+          "line": 415,
           "sink": "ValueError"
         }
       ]
@@ -87136,7 +87281,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 436,
+          "line": 439,
           "sink": "ValueError"
         }
       ]
@@ -87146,7 +87291,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 415,
+          "line": 418,
           "sink": "ValueError"
         }
       ]
@@ -87166,7 +87311,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 407,
+          "line": 410,
           "sink": "ValueError"
         }
       ]
@@ -87176,7 +87321,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 404,
+          "line": 407,
           "sink": "ValueError"
         }
       ]
@@ -87186,7 +87331,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 401,
+          "line": 404,
           "sink": "ValueError"
         }
       ]
@@ -87196,12 +87341,12 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 438,
+          "line": 441,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 461,
+          "line": 464,
           "sink": "ValueError"
         }
       ]
@@ -87221,7 +87366,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 389,
+          "line": 392,
           "sink": "PermissionError"
         }
       ]
@@ -87231,7 +87376,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 585,
+          "line": 587,
           "sink": "RuntimeError"
         }
       ]
@@ -87241,7 +87386,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 123,
+          "line": 124,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -87251,7 +87396,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 145,
+          "line": 146,
           "sink": "ValueError"
         }
       ]
@@ -87261,7 +87406,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 890,
+          "line": 899,
           "sink": "on_log"
         }
       ]
@@ -88133,6 +88278,16 @@
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
           "line": 54,
           "sink": "addRow"
+        }
+      ]
+    },
+    {
+      "key": "Package or folder",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 34,
+          "sink": "tr"
         }
       ]
     },
@@ -92451,7 +92606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 318,
+          "line": 327,
           "sink": "warning"
         }
       ]
@@ -93222,12 +93377,32 @@
       ]
     },
     {
+      "key": "Prepare a profile to review its contents.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 60,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Prepare a selection to preview",
       "origins": [
         {
           "path": "tools/placement_studio/move_preview.py",
           "line": 80,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Prepare a virtual profile first.",
+      "origins": [
+        {
+          "path": "cdmw/services/virtual_loader_runtime.py",
+          "line": 91,
+          "sink": "VirtualSessionStatus"
         }
       ]
     },
@@ -93278,6 +93453,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 54,
           "sink": "python-return:_build_start_sections"
+        }
+      ]
+    },
+    {
+      "key": "Prepare items and supported mods for a separate startup profile. Original game archives stay unchanged.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 25,
+          "sink": "tr"
         }
       ]
     },
@@ -93338,6 +93523,16 @@
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
           "line": 152,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Prepared for review. Save the profile to retain its item identities.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 163,
+          "sink": "tr"
         }
       ]
     },
@@ -93426,7 +93621,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 197,
+          "line": 198,
           "sink": "RuntimeError"
         }
       ]
@@ -93436,7 +93631,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 818,
+          "line": 827,
           "sink": "ValueError"
         }
       ]
@@ -94146,7 +94341,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 732,
+          "line": 740,
           "sink": "on_log"
         }
       ]
@@ -94578,6 +94773,16 @@
           "path": "cdmw/ui/text_search/remote_catalogue.py",
           "line": 199,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Preparing virtual profile…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 159,
+          "sink": "tr"
         }
       ]
     },
@@ -98887,6 +99092,16 @@
       ]
     },
     {
+      "key": "Profiles can be prepared. Game loading is awaiting verified startup timing, Steam handoff and save tests.",
+      "origins": [
+        {
+          "path": "cdmw/services/virtual_loader_runtime.py",
+          "line": 90,
+          "sink": "VirtualSessionStatus"
+        }
+      ]
+    },
+    {
       "key": "Profiles do not save open archives, active documents, or per-tab project sessions.",
       "origins": [
         {
@@ -100661,7 +100876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 330,
+          "line": 339,
           "sink": "emit"
         }
       ]
@@ -101317,6 +101532,16 @@
       ]
     },
     {
+      "key": "Ready to launch.",
+      "origins": [
+        {
+          "path": "cdmw/services/virtual_loader_runtime.py",
+          "line": 91,
+          "sink": "VirtualSessionStatus"
+        }
+      ]
+    },
+    {
       "key": "Ready to scan archive indexes.",
       "origins": [
         {
@@ -101701,7 +101926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 113,
+          "line": 117,
           "sink": "setToolTip"
         }
       ]
@@ -102757,6 +102982,26 @@
       ]
     },
     {
+      "key": "Recover interrupted profile",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 53,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Recover the interrupted virtual profile transaction first.",
+      "origins": [
+        {
+          "path": "cdmw/services/virtual_loader_runtime.py",
+          "line": 74,
+          "sink": "VirtualSessionStatus"
+        }
+      ]
+    },
+    {
       "key": "Recovered archive page did not match the current query.",
       "origins": [
         {
@@ -103061,7 +103306,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 82,
+          "line": 86,
           "sink": "addTab"
         },
         {
@@ -103091,7 +103336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 341,
+          "line": 350,
           "sink": "emit"
         }
       ]
@@ -103992,6 +104237,16 @@
       ]
     },
     {
+      "key": "Refresh status",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 51,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Refresh values",
       "origins": [
         {
@@ -104797,6 +105052,21 @@
       ]
     },
     {
+      "key": "Remove CDMW runtime…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 57,
+          "sink": "tr"
+        },
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 266,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Remove Doubles",
       "origins": [
         {
@@ -104897,6 +105167,16 @@
       ]
     },
     {
+      "key": "Remove only the owned CDMW runtime? Profiles, reservations and recovery files will be retained.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 264,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Remove selected",
       "origins": [
         {
@@ -104908,6 +105188,11 @@
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
           "line": 47,
           "sink": "QPushButton"
+        },
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 42,
+          "sink": "tr"
         }
       ]
     },
@@ -105356,7 +105641,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 77,
+          "line": 81,
           "sink": "addTab"
         }
       ]
@@ -109721,7 +110006,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 576,
+          "line": 578,
           "sink": "RuntimeError"
         }
       ]
@@ -109751,7 +110036,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 588,
+          "line": 590,
           "sink": "on_log"
         }
       ]
@@ -110622,12 +110907,42 @@
       ]
     },
     {
+      "key": "Review runtime setup…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 52,
+          "sink": "tr"
+        },
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 212,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Review saved installs against the current game.",
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 112,
+          "line": 116,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Review startup trace…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 56,
+          "sink": "tr"
+        },
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 253,
+          "sink": "tr"
         }
       ]
     },
@@ -111201,7 +111516,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 879,
+          "line": 888,
           "sink": "RuntimeError"
         }
       ]
@@ -112162,6 +112477,36 @@
       ]
     },
     {
+      "key": "Runtime removal requires review of its exact target.",
+      "origins": [
+        {
+          "path": "cdmw/services/virtual_loader_runtime.py",
+          "line": 252,
+          "sink": "PermissionError"
+        }
+      ]
+    },
+    {
+      "key": "Runtime setup requires review of its exact target and checksum.",
+      "origins": [
+        {
+          "path": "cdmw/services/virtual_loader_runtime.py",
+          "line": 307,
+          "sink": "PermissionError"
+        }
+      ]
+    },
+    {
+      "key": "Runtime setup saved. Game validation is still required.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 214,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Runtime target override: routing edited source part(s) {value_0} into {value_1} target 0 ({value_2}).",
       "origins": [
         {
@@ -112847,6 +113192,31 @@
       ]
     },
     {
+      "key": "Save this virtual profile and its retained item identities?",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 171,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Save virtual profile",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 47,
+          "sink": "tr"
+        },
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 172,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Saved",
       "origins": [
         {
@@ -112976,7 +113346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 109,
+          "line": 113,
           "sink": "QGroupBox"
         }
       ]
@@ -119433,6 +119803,16 @@
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
           "line": 136,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Selection changed. Inspect and prepare it again.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 98,
+          "sink": "tr"
         }
       ]
     },
@@ -126251,7 +126631,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 859,
+          "line": 868,
           "sink": "RuntimeError"
         }
       ]
@@ -126261,7 +126641,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 262,
+          "line": 263,
           "sink": "RuntimeError"
         }
       ]
@@ -126271,7 +126651,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 266,
+          "line": 267,
           "sink": "RuntimeError"
         }
       ]
@@ -126281,7 +126661,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 269,
+          "line": 270,
           "sink": "RuntimeError"
         }
       ]
@@ -126291,7 +126671,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 866,
+          "line": 875,
           "sink": "RuntimeError"
         }
       ]
@@ -126622,6 +127002,16 @@
       ]
     },
     {
+      "key": "Start a diagnostic game session using original game files? Virtual items will not be active. Leave the game at its title screen without loading a save, then close it.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 251,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Start always uses the current settings shown in Texture Workflow. Run Summary is optional and shows the current sources, backend, and policy without duplicating those controls.",
       "origins": [],
       "manual": true
@@ -126661,7 +127051,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 522,
+          "line": 523,
           "sink": "OverlayConflict"
         }
       ]
@@ -126851,7 +127241,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 556,
+          "line": 558,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -126861,7 +127251,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 544,
+          "line": 546,
           "sink": "ValueError"
         }
       ]
@@ -126871,7 +127261,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 542,
+          "line": 544,
           "sink": "PermissionError"
         }
       ]
@@ -126993,6 +127383,16 @@
           "path": "cdmw/ui/shell/problem_report_dialog.py",
           "line": 1055,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Starting the virtual session…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 231,
+          "sink": "tr"
         }
       ]
     },
@@ -131997,6 +132397,16 @@
       ]
     },
     {
+      "key": "The CDMW runtime needs a reviewed setup. Existing ASI loaders are not replaced.",
+      "origins": [
+        {
+          "path": "cdmw/services/virtual_loader_runtime.py",
+          "line": 88,
+          "sink": "VirtualSessionStatus"
+        }
+      ]
+    },
+    {
       "key": "The Clips & animation list is now filtered to these {value_0} clip(s). Double-click one to watch it.",
       "origins": [
         {
@@ -132471,7 +132881,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 293,
+          "line": 295,
           "sink": "RuntimeError"
         }
       ]
@@ -132486,7 +132896,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 314,
+          "line": 323,
           "sink": "warning"
         },
         {
@@ -132746,7 +133156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 334,
+          "line": 343,
           "sink": "warning"
         }
       ]
@@ -133151,7 +133561,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 431,
+          "line": 432,
           "sink": "ValueError"
         }
       ]
@@ -133326,7 +133736,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 406,
+          "line": 407,
           "sink": "OverlayConflict"
         }
       ]
@@ -133431,7 +133841,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 290,
+          "line": 292,
           "sink": "RuntimeError"
         }
       ]
@@ -133441,7 +133851,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 391,
+          "line": 394,
           "sink": "RuntimeError"
         }
       ]
@@ -133473,6 +133883,21 @@
           "path": "cdmw/services/mesh_hair_output.py",
           "line": 419,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The game session ended.",
+      "origins": [
+        {
+          "path": "cdmw/services/virtual_loader_runtime.py",
+          "line": 214,
+          "sink": "VirtualSessionStatus"
+        },
+        {
+          "path": "cdmw/services/virtual_loader_runtime.py",
+          "line": 218,
+          "sink": "VirtualSessionStatus"
         }
       ]
     },
@@ -133761,7 +134186,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 243,
+          "line": 244,
           "sink": "ValueError"
         }
       ]
@@ -133771,7 +134196,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 240,
+          "line": 241,
           "sink": "ValueError"
         }
       ]
@@ -133846,7 +134271,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 145,
+          "line": 146,
           "sink": "OverlayConflict"
         }
       ]
@@ -133856,7 +134281,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 142,
+          "line": 143,
           "sink": "OverlayConflict"
         }
       ]
@@ -134301,7 +134726,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 783,
+          "line": 791,
           "sink": "ValueError"
         }
       ]
@@ -134311,7 +134736,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 786,
+          "line": 794,
           "sink": "ValueError"
         }
       ]
@@ -134321,7 +134746,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 777,
+          "line": 785,
           "sink": "ValueError"
         }
       ]
@@ -134331,7 +134756,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 803,
+          "line": 812,
           "sink": "ValueError"
         }
       ]
@@ -134341,7 +134766,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 463,
+          "line": 466,
           "sink": "ValueError"
         }
       ]
@@ -134351,7 +134776,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 449,
+          "line": 452,
           "sink": "ValueError"
         }
       ]
@@ -134361,7 +134786,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 457,
+          "line": 460,
           "sink": "ValueError"
         }
       ]
@@ -134371,7 +134796,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 445,
+          "line": 448,
           "sink": "ValueError"
         }
       ]
@@ -134381,7 +134806,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 441,
+          "line": 444,
           "sink": "FileNotFoundError"
         }
       ]
@@ -134391,7 +134816,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 455,
+          "line": 458,
           "sink": "ValueError"
         }
       ]
@@ -134401,7 +134826,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 453,
+          "line": 456,
           "sink": "ValueError"
         }
       ]
@@ -134411,7 +134836,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 427,
+          "line": 430,
           "sink": "FileNotFoundError"
         }
       ]
@@ -134421,7 +134846,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 518,
+          "line": 519,
           "sink": "OverlayConflict"
         }
       ]
@@ -134431,7 +134856,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 85,
+          "line": 86,
           "sink": "ValueError"
         }
       ]
@@ -134441,7 +134866,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 581,
+          "line": 583,
           "sink": "RuntimeError"
         }
       ]
@@ -134461,7 +134886,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 702,
+          "line": 710,
           "sink": "ValueError"
         }
       ]
@@ -134471,17 +134896,17 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 370,
+          "line": 371,
           "sink": "OverlayConflict"
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 563,
+          "line": 565,
           "sink": "OverlayConflict"
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 741,
+          "line": 749,
           "sink": "OverlayConflict"
         }
       ]
@@ -134921,12 +135346,12 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 376,
+          "line": 377,
           "sink": "OverlayConflict"
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 565,
+          "line": 567,
           "sink": "OverlayConflict"
         }
       ]
@@ -134953,6 +135378,16 @@
           "path": "cdmw/services/new_item_variants.py",
           "line": 146,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The runtime refused this session. Review its diagnostics before retrying.",
+      "origins": [
+        {
+          "path": "cdmw/services/virtual_loader_runtime.py",
+          "line": 218,
+          "sink": "VirtualSessionStatus"
         }
       ]
     },
@@ -135126,12 +135561,12 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 753,
+          "line": 761,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 768,
+          "line": 776,
           "sink": "ValueError"
         }
       ]
@@ -135238,6 +135673,16 @@
           "path": "cdmw/services/new_item_variants.py",
           "line": 165,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The session host exited before reporting readiness. Review the launch diagnostics.",
+      "origins": [
+        {
+          "path": "cdmw/services/virtual_loader_runtime.py",
+          "line": 204,
+          "sink": "VirtualSessionStatus"
         }
       ]
     },
@@ -135476,7 +135921,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 793,
+          "line": 801,
           "sink": "OverlayConflict"
         }
       ]
@@ -135486,12 +135931,12 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 834,
+          "line": 843,
           "sink": "OverlayConflict"
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 850,
+          "line": 859,
           "sink": "OverlayConflict"
         }
       ]
@@ -135501,7 +135946,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 136,
+          "line": 137,
           "sink": "OverlayConflict"
         }
       ]
@@ -135893,6 +136338,16 @@
           "path": "cdmw/ui/new_item/item_preview.py",
           "line": 763,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "The virtual session is running.",
+      "origins": [
+        {
+          "path": "cdmw/services/virtual_loader_runtime.py",
+          "line": 218,
+          "sink": "VirtualSessionStatus"
         }
       ]
     },
@@ -136432,6 +136887,16 @@
       ]
     },
     {
+      "key": "This does not enable game loading. Existing ASI loaders and plugins are preserved.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 211,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "This donor has additional PAC LODs requiring a verified hair LOD writer.",
       "origins": [
         {
@@ -136487,6 +136952,16 @@
       ]
     },
     {
+      "key": "This executable build has not been verified for the virtual loader.",
+      "origins": [
+        {
+          "path": "cdmw/services/virtual_loader_runtime.py",
+          "line": 81,
+          "sink": "VirtualSessionStatus"
+        }
+      ]
+    },
+    {
       "key": "This external texture registry needs recorded texture ownership. Use Merge with a supported exported package.",
       "origins": [
         {
@@ -136531,7 +137006,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 116,
+          "line": 117,
           "sink": "ValueError"
         }
       ]
@@ -136651,7 +137126,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 711,
+          "line": 719,
           "sink": "OverlayConflict"
         }
       ]
@@ -136781,7 +137256,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 399,
+          "line": 402,
           "sink": "ValueError"
         }
       ]
@@ -139145,6 +139620,11 @@
           "sink": "setHeaderLabels"
         },
         {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 34,
+          "sink": "tr"
+        },
+        {
           "path": "cdmw/ui/research/tab_builders.py",
           "line": 136,
           "sink": "setHeaderLabels"
@@ -140347,6 +140827,16 @@
       ]
     },
     {
+      "key": "Unknown item deployment target.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_install.py",
+          "line": 255,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Unknown knowledge requirement",
       "origins": [
         {
@@ -141016,7 +141506,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 395,
+          "line": 398,
           "sink": "ValueError"
         }
       ]
@@ -141026,7 +141516,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 88,
+          "line": 89,
           "sink": "ValueError"
         }
       ]
@@ -141036,7 +141526,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 263,
+          "line": 264,
           "sink": "ValueError"
         }
       ]
@@ -141046,7 +141536,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 272,
+          "line": 273,
           "sink": "ValueError"
         }
       ]
@@ -143486,7 +143976,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 672,
+          "line": 680,
           "sink": "on_log"
         }
       ]
@@ -144567,6 +145057,46 @@
       ]
     },
     {
+      "key": "Virtual loader (Experimental)",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_management.py",
+          "line": 77,
+          "sink": "addTab"
+        }
+      ]
+    },
+    {
+      "key": "Virtual profile",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/independent_items_page.py",
+          "line": 170,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Virtual profile recovery completed. Refresh its status.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 221,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Virtual profile saved. Removed items keep their identities for existing saves.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 176,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Virtual sidecar",
       "origins": [
         {
@@ -145308,6 +145838,21 @@
           "path": "cdmw/ui/archive_browser/hkx_document_actions.py",
           "line": 592,
           "sink": "append_log"
+        }
+      ]
+    },
+    {
+      "key": "Waiting for runtime readiness.",
+      "origins": [
+        {
+          "path": "cdmw/services/virtual_loader_runtime.py",
+          "line": 205,
+          "sink": "VirtualSessionStatus"
+        },
+        {
+          "path": "cdmw/services/virtual_loader_runtime.py",
+          "line": 218,
+          "sink": "VirtualSessionStatus"
         }
       ]
     },
@@ -161386,7 +161931,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 500,
+          "line": 503,
           "sink": "ValueError"
         }
       ]
@@ -171222,6 +171767,16 @@
       ]
     },
     {
+      "key": "{value_0}\n\n{value_1}\nSHA-256: {value_2}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 212,
+          "sink": "question"
+        }
+      ]
+    },
+    {
       "key": "{value_0}\nAction: {value_1} | Semantic: {value_2}/{value_3} | Confidence: {value_4}%",
       "origins": [
         {
@@ -173056,12 +173611,12 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 828,
+          "line": 837,
           "sink": "OverlayConflict"
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 846,
+          "line": 855,
           "sink": "OverlayConflict"
         }
       ]
@@ -173101,7 +173656,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 127,
+          "line": 128,
           "sink": "OverlayConflict"
         }
       ]
@@ -173111,7 +173666,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 387,
+          "line": 388,
           "sink": "OverlayConflict"
         }
       ]
@@ -173831,7 +174386,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 694,
+          "line": 702,
           "sink": "OverlayConflict"
         }
       ]
@@ -175181,7 +175736,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 626,
+          "line": 607,
           "sink": "OverlayConflict"
         }
       ]
@@ -178346,6 +178901,36 @@
       "symbol": "developer_harness",
       "source": "*",
       "reason": "Placement Studio clipping-gate output; excluded developer harness."
+    },
+    {
+      "path": "cdmw/services/virtual_loader_state.py",
+      "symbol": "recover_profile",
+      "source": "before",
+      "reason": "Internal recovery disposition, not a user-facing status; the page displays a separate translated completion message."
+    },
+    {
+      "path": "cdmw/services/virtual_loader_state.py",
+      "symbol": "recover_profile",
+      "source": "after",
+      "reason": "Internal recovery disposition, not a user-facing status; the page displays a separate translated completion message."
+    },
+    {
+      "path": "cdmw/ui/new_item/virtual_loader_page.py",
+      "symbol": "VirtualLoaderPage._append_selection",
+      "source": "item",
+      "reason": "Internal selection kind, with a separate translated item or mod label."
+    },
+    {
+      "path": "cdmw/ui/new_item/virtual_loader_page.py",
+      "symbol": "VirtualLoaderPage._append_selection",
+      "source": "mod",
+      "reason": "Internal selection kind, with a separate translated item or mod label."
+    },
+    {
+      "path": "cdmw/ui/new_item/rust_ui_document.py",
+      "symbol": "_describe",
+      "source": "column",
+      "reason": "Rust document node kind, not a visible caption."
     }
   ]
 }

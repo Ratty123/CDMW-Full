@@ -196,7 +196,9 @@ definitions. Its inventory type identifiers must not be equated with these table
 keys. These observations do not prove that an engine-level registration route is
 impossible.
 
-No native loader or executable modification is enabled by this feature. Separate
-definition-file discovery, native registration lifetime, asset loading and save
-identity still require an isolated executable-specific prototype and controlled
-game evidence. That research remains outside the production installation path.
+Independent item installation itself does not enable a native loader or modify
+the executable. The separate [Virtual loader prototype](VIRTUAL_LOADER.md) reuses
+these packages and identity reservations for private profile preparation and
+reviewed startup diagnostics. Game redirection remains gated on verified startup
+timing and acceptance. Separate definition-file discovery and native registration
+are research tracks, outside the existing installation path.

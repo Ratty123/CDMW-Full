@@ -376,6 +376,14 @@ _add_native_binary(
 )
 _add_native_binary(f"native/cdmw_mesh_core/build/{NATIVE_CONFIGURATION}/cdmw-mesh-core.exe", "native", required_release=True)
 _add_native_binary(f"native/cdmw_mesh_core/build/{NATIVE_CONFIGURATION}/cdmw-mesh-core.dll", "native", required_release=True)
+for virtual_binary in ("CDMWVirtualLoader.asi", "cdmw_virtual_session.exe"):
+    _add_native_binary(
+        f"native/cdmw_virtual_loader/build/Release/{virtual_binary}",
+        "native/cdmw_virtual_loader",
+        required_release=True,
+    )
+_add_data_if_exists(datas, "native/cdmw_virtual_loader/build/Release/provenance.json",
+                    "native/cdmw_virtual_loader", required_release=True)
 rust_mesh_editor_stage = f"native/rust_mesh_editor/build/{NATIVE_CONFIGURATION}"
 _validate_rust_mesh_editor_payload(
     ROOT / rust_mesh_editor_stage,

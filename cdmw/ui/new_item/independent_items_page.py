@@ -167,7 +167,7 @@ class IndependentItemsPage(QWidget):
         identity = selected.data(0, Qt.ItemDataRole.UserRole) if selected else None
         self.items.clear()
         for key, title, game_id, status in rows:
-            shown = {"Installed": self.tr("Installed"), "Disabled": self.tr("Disabled"), "Removed / reserved": self.tr("Removed / reserved")}[status]
+            shown = {"Installed": self.tr("Installed"), "Virtual profile": self.tr("Virtual profile"), "Disabled": self.tr("Disabled"), "Removed / reserved": self.tr("Removed / reserved")}[status]
             item = QTreeWidgetItem([title, str(game_id), shown])
             item.setData(0, Qt.ItemDataRole.UserRole, key)
             item.setData(0, Qt.ItemDataRole.UserRole + 1, status)

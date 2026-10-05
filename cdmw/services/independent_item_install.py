@@ -4,7 +4,7 @@ Preparation is read-only. Publication uses the existing overlay transaction,
 including its game-closed check, backup verification, rollback and write lane.
 """
 from copy import deepcopy
-from dataclasses import replace
+from dataclasses import dataclass, replace
 import json
 from pathlib import Path
 import re
@@ -115,6 +115,8 @@ def load_registry(root):
                     row['layer'] != layer['id'] or row['digest'] != layer.get('independent_digest')
                     or row['binding_hash'] != layer.get('independent_bindings')):
                 raise IndependentItemError('Independent item ownership and identity mappings disagree. Restore their matching backup before continuing.')
+    from cdmw.services.virtual_loader_state import load_profile
+    load_profile(root, registry=registry)
     return registry
 
 
@@ -123,8 +125,10 @@ def inventory(root):
     registry = load_registry(root)
     state = overlays._load_index(root)
     layers = {layer['id']: layer for layer in (state or {}).get('layers', ())}
+    from cdmw.services.virtual_loader_state import active_identities
+    virtual = active_identities(root)
     return tuple((identity, row['title'], row['values']['iteminfo']['item'],
-                  'Installed' if layers.get(row['layer'], {}).get('active') else
+                  'Virtual profile' if identity in virtual else 'Installed' if layers.get(row['layer'], {}).get('active') else
                   'Disabled' if layers.get(row['layer'], {}).get('disabled') else 'Removed / reserved')
                  for identity, row in registry['items'].items())
 
@@ -224,13 +228,37 @@ def retained_package_recovery(root, state, *, stop_event=None, on_log=None):
     return observed, stamps
 
 
-def prepare_install(sources, root, *, stop_event=None, on_log=None, read_entry=None):
+@dataclass
+class ResolvedItemSet:
+    root: Path
+    observed: tuple
+    state: dict
+    pending: dict
+    decoded: dict
+    registry: dict
+    registry_before: bytes
+    baseline: object
+    external: object
+    rows: tuple
+    contributions: tuple
+    revisions: tuple
+    summary: tuple
+
+
+def resolve_items(sources, root, *, target='archive', folders=(), stop_event=None, on_log=None, read_entry=None):
+    """Resolve recipes without publishing archives, identities, or ownership.
+
+    Contributions have no overlay IDs. The selected deployment backend owns
+    publication and its own ownership representation.
+    """
+    if target not in ('archive', 'virtual'):
+        raise ValueError('Unknown item deployment target.')
     root = Path(root).resolve()
     observed_state = overlays._observe_state(root)
     def current_bytes(relative):
         path = overlays._target(root, relative)
         return path.read_bytes() if path.is_file() else None
-    if not sources or len(sources) > 128:
+    if (not sources and target == 'archive') or len(sources) > 128:
         raise IndependentItemError('Select between one and 128 item packages.')
     packages = {}
     total_size = 0
@@ -245,6 +273,10 @@ def prepare_install(sources, root, *, stop_event=None, on_log=None, read_entry=N
                 raise IndependentItemError('The selected packages exceed the batch size limit. Import a smaller batch.')
         packages[package.identity] = package
     registry = load_registry(root)
+    from cdmw.services.virtual_loader_state import active_identities
+    virtual_items = active_identities(root)
+    if target == 'archive' and set(packages) & virtual_items:
+        raise IndependentItemError('Remove the item from the virtual profile before installing it into archives.')
     registry_before = canonical(registry)
     state, pending = overlays._state_for_edit(root, None, stop_event)
     decoded = {layer['id']: overlays._unpack_changes(root, layer, pending, stop_event) for layer in state['layers']}
@@ -263,11 +295,15 @@ def prepare_install(sources, root, *, stop_event=None, on_log=None, read_entry=N
     # composed table must never silently hide a manager's replacement.
     # Keep the existing name/layout validation and public error type.
     _external_paths(root, state, stop_event)
-    external = external_mods(root, state, read_entry=read_entry, stop_event=stop_event, snapshot=snapshot)
+    external = external_mods(root, state, folders=folders, read_entry=read_entry, stop_event=stop_event, snapshot=snapshot)
+    if target == 'virtual' and any(row.status == 'Unknown' for row in external.findings):
+        raise IndependentItemError('; '.join(row.detail for row in external.findings))
     external_paths = external.paths
     external_keys = reserved_external_keys(external, snapshot, stop_event=stop_event)
     compatibility = []
     rows = []
+    contributions = []
+    revisions = []
     for identity, package in packages.items():
         raise_if_cancelled(stop_event, 'Independent item preparation cancelled.')
         snapshot = baseline.discovery_view()
@@ -275,6 +311,8 @@ def prepare_install(sources, root, *, stop_event=None, on_log=None, read_entry=N
             snapshot.payload(dependency.entry.path)
         prior = registry['items'].get(identity)
         previous_layer = next((layer for layer in state['layers'] if prior and layer['id'] == prior['layer']), None)
+        if target == 'virtual' and previous_layer and (previous_layer['active'] or previous_layer.get('disabled')):
+            raise IndependentItemError(f'{package.title}: remove the installed contribution before using this item in a virtual profile. Its identity will be retained.')
         _check_dependencies(package, snapshot, stop_event)
         if previous_layer and previous_layer['active'] and prior['digest'] == package.digest:
             check_package_dependencies(package, snapshot, external, decoded[previous_layer['id']], stop_event=stop_event)
@@ -336,6 +374,7 @@ def prepare_install(sources, root, *, stop_event=None, on_log=None, read_entry=N
         if any(row.entry.path.lower() not in package.dependencies for row in plan.source_revision.payloads):
             raise IndependentItemError('The package has an incomplete game dependency graph.')
         plan.source_revision.validate(stop_event)
+        revisions.append(plan.source_revision)
         added_paths = {virtual_path(request.path.lower()) for request in plan.additions}
         if added_paths & (reserved_paths | external_paths):
             raise IndependentItemError('An owned asset name is already reserved by another item or mod. The package cannot be installed without changing its identity.')
@@ -351,15 +390,12 @@ def prepare_install(sources, root, *, stop_event=None, on_log=None, read_entry=N
         changes = _capture(plan, snapshot, root, state, pathc_before)
         findings = check_package_dependencies(package, snapshot, external, changes, stop_event=stop_event)
         compatibility.extend(f'{", ".join(finding.mods)}: {finding.path}: {finding.detail}' for finding in findings)
-        layer = overlays._add_layer(state, pending, package.title, changes,
-                                    item_keys=tuple(bindings.values['iteminfo'].values()))
-        layer.update(independent_identity=identity, independent_digest=package.digest)
-        decoded[layer['id']] = changes
+        contributions.append((package, changes))
         bindings.paths = tuple(sorted(set(bindings.paths) | added_paths))
         registry['items'][identity] = {'title': package.title, 'digest': package.digest, 'values': bindings.values,
-                                      'stem': bindings.stem, 'paths': list(bindings.paths), 'layer': layer['id']}
+                                      'stem': bindings.stem, 'paths': list(bindings.paths), 'layer': None}
         row = registry['items'][identity]
-        row['binding_hash'] = layer['independent_bindings'] = _binding_hash(identity, row)
+        row['binding_hash'] = _binding_hash(identity, row)
         cache_path = f'.cdmw/independent-items/{identity}-{package.digest}.cditem'
         cached = current_bytes(cache_path)
         if cached is not None:
@@ -368,17 +404,32 @@ def prepare_install(sources, root, *, stop_event=None, on_log=None, read_entry=N
                 raise IndependentItemError('The retained recovery package has changed outside CDMW.')
         pending[cache_path] = cached if cached is not None else package_bytes(package, stop_event=stop_event)
         rows.append((identity, package.title, key, 'Update' if prior else 'Install'))
-    if canonical(registry) == registry_before and not external_paths:
-        return IndependentItemInstallPlan(None, tuple(rows), ('All selected items are already installed.',))
+    _validate_registry(registry)
+    return ResolvedItemSet(root, observed_state, state, pending, decoded, registry, registry_before,
+        baseline, external, tuple(rows), tuple(contributions), tuple(revisions), tuple(dict.fromkeys(compatibility)))
+
+
+def prepare_install(sources, root, *, stop_event=None, on_log=None, read_entry=None):
+    result = resolve_items(sources, root, stop_event=stop_event, on_log=on_log, read_entry=read_entry)
+    root, state, pending, decoded, registry = result.root, result.state, result.pending, result.decoded, result.registry
+    for package, changes in result.contributions:
+        row = registry['items'][package.identity]
+        layer = overlays._add_layer(state, pending, package.title, changes, item_keys=tuple(row['values']['iteminfo'].values()))
+        layer.update(independent_identity=package.identity, independent_digest=package.digest,
+                     independent_bindings=row['binding_hash'])
+        row['layer'] = layer['id']
+        decoded[layer['id']] = changes
+    if canonical(registry) == result.registry_before and not result.external.paths:
+        return IndependentItemInstallPlan(None, result.rows, ('All selected items are already installed.',))
     _validate_registry(registry)
     pending[REGISTRY_PATH] = canonical(registry)
     preparation = overlays._compose(root, state, pending, 'Independent items', None, stop_event, on_log,
-                                    decoded=decoded, independent_context=(external, baseline))
-    preparation = overlays._pin_preparation(preparation, observed_state, error_type=IndependentItemError)
+                                    decoded=decoded, independent_context=(result.external, result.baseline))
+    preparation = overlays._pin_preparation(preparation, result.observed, error_type=IndependentItemError)
     if all(dict(preparation.before).get(path) == value for path, value in preparation.writes) and not preparation.deletes:
-        return IndependentItemInstallPlan(None, tuple(rows), ('All selected items are already installed.',))
-    return IndependentItemInstallPlan(preparation, tuple(rows),
-        (*tuple(f'{status}: {title} (item {key})' for _, title, key, status in rows), *dict.fromkeys(compatibility)))
+        return IndependentItemInstallPlan(None, result.rows, ('All selected items are already installed.',))
+    return IndependentItemInstallPlan(preparation, result.rows,
+        (*tuple(f'{status}: {title} (item {key})' for _, title, key, status in result.rows), *result.summary))
 
 
 def prepare_remove(identity, root, *, stop_event=None, on_log=None):

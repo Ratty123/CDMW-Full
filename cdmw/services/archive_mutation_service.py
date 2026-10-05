@@ -11,6 +11,7 @@ from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.archives.safety import ArchiveMutationSafety, require_explicit_archive_mutation
 from cdmw.models import RunCancelled
 from cdmw.services.application_shutdown_service import archive_write_scope
+from cdmw.services.installation_lane import installation_lane
 
 
 def _archive_patching():
@@ -155,6 +156,11 @@ class ArchiveMutationService:
         stop_event: Optional[threading.Event] = None,
     ) -> ArchivePatchResult:
         plan = self._require_confirmed(plan)
+        root = self._patch_context(plan.requests, plan.additions)[0].parent.parent
+        with installation_lane(root):
+            return self._apply_confirmed_patch(plan, on_log=on_log, stop_event=stop_event)
+
+    def _apply_confirmed_patch(self, plan, *, on_log=None, stop_event=None):
         raise_if_cancelled(stop_event, "Archive patch cancelled before writing game files.")
         backup_dir: Optional[Path] = None
         result: Optional[ArchivePatchResult] = None
@@ -205,7 +211,9 @@ class ArchiveMutationService:
             raise PermissionError("Archive backup restore requires explicit confirmation.")
         raise_if_cancelled(stop_event, "Archive backup restore cancelled before writing game files.")
         # A partial multi-file restore can break the checksum chain, so finish once started.
-        return _archive_patching().restore_archive_patch_backup(Path(backup), on_log=on_log)
+        from cdmw.services.installation_lane import backup_installation_lanes
+        with backup_installation_lanes(Path(backup)):
+            return _archive_patching().restore_archive_patch_backup(Path(backup), on_log=on_log)
 
     @staticmethod
     def _require_plan(plan: ArchiveMutationPlan) -> ArchiveMutationPlan:

@@ -25,6 +25,7 @@ from cdmw.domain.archives.overlay_merge import (
 )
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.services.application_shutdown_service import archive_write_scope
+from cdmw.services.installation_lane import serialized_installation
 from cdmw.services.archive_overlay_install import (
     OVERLAY_OWNER_BYTES, OVERLAY_OWNER_MARKER, OverlayInstallResult,
     is_cdmw_overlay_directory, overlay_baseline_files, overlay_directory_name, _processed_payload,
@@ -459,7 +460,7 @@ class OverlayChangePreparation:
 
 
 def _observe_state(root):
-    paths = (INDEX_PATH, '.cdmw/independent-items.json', 'meta/0.papgt', 'meta/0.pathc')
+    paths = (INDEX_PATH, '.cdmw/independent-items.json', '.cdmw/virtual-loader/profile.json', 'meta/0.papgt', 'meta/0.pathc')
     return tuple((relative, path.read_bytes() if path.is_file() else None)
                  for relative in paths for path in (_target(root, relative),))
 
@@ -536,6 +537,7 @@ def prepare_overlay_retirement(package_root, *, stop_event=None):
 
 
 @archive_write_scope()
+@serialized_installation(lambda preparation, **_kwargs: getattr(preparation, 'package_root', None))
 def apply_overlay_retirement(preparation, *, confirmed, backup, restore_backup,
                              game_running=None, stop_event=None, on_log=None):
     if not confirmed:
@@ -589,6 +591,26 @@ def apply_overlay_retirement(preparation, *, confirmed, backup, restore_backup,
     return OverlayRetirementResult(_target(root, preparation.directory_name), preparation.labels, backup_dir, retired)
 
 
+def compose_layer_payloads(layers, baseline, *, stop_event=None, on_log=None):
+    """Pure composition shared by archive installation and virtual snapshots."""
+    current = dict(baseline)
+    active = [layer for layer, _ in layers if layer['active']]
+    inactive = {layer['id'] for layer, _ in layers if not layer['active']}
+    active_items = {key for layer in active for key in layer['item_keys']}
+    removed_items = {key for layer, _ in layers if not layer['active'] for key in layer['item_keys']} - active_items
+    for layer, changes in layers:
+        raise_if_cancelled(stop_event, 'Overlay composition cancelled.')
+        if not layer['active']:
+            continue
+        if (inactive.intersection(layer['dependencies'])
+                or (removed_items and removed_items.intersection(owned_item_references(changes)))):
+            raise OverlayConflict(f"{layer['label']} uses an item or asset from the selected overlay. Remove the dependent overlay first.")
+        if on_log:
+            on_log(f"Composing {layer['label']}...")
+        current = merge_overlay_files({p: c['before'] for p, c in changes.items()}, {p: c['after'] for p, c in changes.items()}, current)
+    return current, active
+
+
 def _compose(root, state, pending, label, removed_id, stop_event, on_log, *, decoded=None, independent_context=None):
     layers = []
     source_directories = ()
@@ -612,21 +634,7 @@ def _compose(root, state, pending, label, removed_id, stop_event, on_log, *, dec
         from cdmw.services.independent_item_compatibility import compose_underlay
         baseline, source_directories = compose_underlay(root, state, pending, layers, baseline,
             stop_event=stop_event, on_log=on_log, context=independent_context)
-    current = dict(baseline)
-    active = [layer for layer in state['layers'] if layer['active']]
-    inactive = {layer['id'] for layer in state['layers'] if not layer['active']}
-    active_items = {key for layer in active for key in layer['item_keys']}
-    removed_items = {key for layer in state['layers'] if not layer['active'] for key in layer['item_keys']} - active_items
-    for layer, changes in layers:
-        raise_if_cancelled(stop_event, 'Overlay composition cancelled.')
-        if not layer['active']:
-            continue
-        if (inactive.intersection(layer['dependencies'])
-                or (removed_items and removed_items.intersection(owned_item_references(changes)))):
-            raise OverlayConflict(f"{layer['label']} uses an item or asset from the selected overlay. Remove the dependent overlay first.")
-        if on_log:
-            on_log(f"Composing {layer['label']}...")
-        current = merge_overlay_files({p: c['before'] for p, c in changes.items()}, {p: c['after'] for p, c in changes.items()}, current)
+    current, active = compose_layer_payloads(layers, baseline, stop_event=stop_event, on_log=on_log)
     archive = []
     for path, payload in current.items():
         raise_if_cancelled(stop_event, 'Overlay archive preparation cancelled.')
@@ -794,6 +802,7 @@ def _verify_source_directories(root, preparation):
 
 
 @archive_write_scope()
+@serialized_installation(lambda preparation, **_kwargs: getattr(preparation, 'package_root', None))
 def apply_overlay_change(preparation, *, confirmed, backup, restore_backup, game_running=None, stop_event=None, on_log=None):
     if not isinstance(preparation, OverlayChangePreparation):
         raise TypeError('Overlay changes require a prepared change.')

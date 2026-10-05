@@ -369,6 +369,7 @@ _PYTHON_SINKS = {
     "ArchiveModelTextureReference",
     "ArchivePreviewResult",
     "CompatibilityFinding",
+    "VirtualSessionStatus",
     "AssetAuthoringHelperSpec",
     "CompactToolSpec",
     "EmptyStateTreeWidget",
@@ -763,6 +764,9 @@ def _python_source_value(node: ast.AST) -> str:
 
 
 def _python_candidate_nodes(call: ast.Call, sink: str) -> Iterable[ast.AST]:
+    if sink == "VirtualSessionStatus":
+        yield from _python_wrapper_candidates(call, (1,), (("state", "detail", "generation", "pid"),))
+        return
     if sink == "CompatibilityFinding":
         # Mod labels and virtual paths are user data, not translation keys.
         yield from _python_wrapper_candidates(call, (0, 3), (("status", "mods", "path", "detail"),))

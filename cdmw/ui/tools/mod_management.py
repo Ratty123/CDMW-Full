@@ -72,6 +72,10 @@ class ModManagementTab(QWidget):
         self.independent_page = IndependentItemsPage(self.controller, root, mutations() if callable(mutations) else None, self)
         self.pages.addTab(self.independent_page, 'Independent items')
         self.independent_page.activity.connect(self._append_activity)
+        from cdmw.ui.new_item.virtual_loader_page import VirtualLoaderPage
+        self.virtual_page = VirtualLoaderPage(self.controller, root, self)
+        self.pages.addTab(self.virtual_page, 'Virtual loader (Experimental)')
+        self.virtual_page.activity.connect(self._append_activity)
         from cdmw.ui.tools.mod_package_retrofit_tasks import ModPackageRetrofitToolWidget
         self.repackage_page = ModPackageRetrofitToolWidget()
         self.pages.addTab(self.repackage_page, 'Repackage')
@@ -80,7 +84,7 @@ class ModManagementTab(QWidget):
         recovery_page = QWidget()
         recovery_layout = QVBoxLayout(recovery_page)
         self.pages.addTab(recovery_page, 'Recovery')
-        self._page_by_key = {'overview': self.overview, 'installed': self.inventory, 'independent': self.independent_page,
+        self._page_by_key = {'overview': self.overview, 'installed': self.inventory, 'independent': self.independent_page, 'virtual': self.virtual_page,
                              'repackage': self.repackage_page, 'merge': self.merge_page, 'updates': self.update_page,
                              'recovery': recovery_page}
         self.pages.currentChanged.connect(self._page_changed)
@@ -175,6 +179,8 @@ class ModManagementTab(QWidget):
     def _page_changed(self, _index):
         if self.pages.currentWidget() is self.independent_page:
             self.independent_page.refresh()
+        if self.pages.currentWidget() is self.virtual_page:
+            self.virtual_page.refresh()
         if self.pages.currentWidget() is not self.repackage_page or self.repackage_ui is not None:
             return
         if self._repackage_owner is None:
@@ -204,7 +210,7 @@ class ModManagementTab(QWidget):
         self._refresh_inventory()
 
     def _owns_operation(self):
-        return getattr(self.controller, '_lane', '') in {'overlay_manager', 'mod_merge', 'mod_update', 'overlay', 'independent_items'}
+        return getattr(self.controller, '_lane', '') in {'overlay_manager', 'mod_merge', 'mod_update', 'overlay', 'independent_items', 'virtual_loader'}
 
     def _append_activity(self, message):
         if str(message).strip():
@@ -221,14 +227,14 @@ class ModManagementTab(QWidget):
             self._status_changed(message, error)
 
     def _operation_progress(self, lane, current, total, message):
-        if lane in {'overlay_manager', 'mod_merge', 'mod_update', 'overlay', 'independent_items'}:
+        if lane in {'overlay_manager', 'mod_merge', 'mod_update', 'overlay', 'independent_items', 'virtual_loader'}:
             self.progress.setRange(0, max(0, total))
             self.progress.setValue(current)
             self.status.setText(str(message))
             self._status_changed(message)
 
     def _cancel(self):
-        if self._owns_operation() and not self.inventory._applying and not self.independent_page._applying:
+        if self._owns_operation() and not self.inventory._applying and not self.independent_page._applying and not self.virtual_page._applying:
             self.controller.cancel_operation(self.controller._lane)
 
     def showEvent(self, event):
@@ -252,8 +258,11 @@ class ModManagementTab(QWidget):
             self.update_page.game_root.setText(root)
         self.inventory.refresh()
         self.independent_page.set_game_root(root)
+        self.virtual_page.set_game_root(root)
         if self.pages.currentWidget() is self.independent_page:
             self.independent_page.refresh()
+        if self.pages.currentWidget() is self.virtual_page:
+            self.virtual_page.refresh()
 
     def _status_changed(self, message, error=False):
         self.status_message_requested.emit(str(message), bool(error))
@@ -272,7 +281,7 @@ class ModManagementTab(QWidget):
         self.operation_bar.setVisible(own)
         self.progress.setVisible(own)
         self.cancel_button.setVisible(own)
-        self.cancel_button.setEnabled(own and not self.inventory._applying and not self.independent_page._applying)
+        self.cancel_button.setEnabled(own and not self.inventory._applying and not self.independent_page._applying and not self.virtual_page._applying)
         if not busy:
             if self._overview_refresh_needed and not self._closed:
                 self._overview_refresh_needed = False
@@ -380,6 +389,7 @@ class ModManagementTab(QWidget):
         self.overview.request_shutdown()
         self.repackage_page.request_shutdown()
         self.independent_page.request_shutdown()
+        self.virtual_page.request_shutdown()
         from cdmw.ui.new_item.overlay_manager_dialog import OverlayManagerDialog
         for dialog in self.findChildren(OverlayManagerDialog):
             dialog.request_shutdown()

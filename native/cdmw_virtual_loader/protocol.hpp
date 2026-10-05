@@ -1,0 +1,50 @@
+#pragma once
+#include <windows.h>
+#include <array>
+#include <cstdint>
+#include <filesystem>
+#include <string>
+#include <vector>
+
+namespace cdmw::vfs {
+namespace fs = std::filesystem;
+using Hash = std::array<unsigned char, 32>;
+inline constexpr char game_hash[] = "57da440d72f4db974f25fef047cf84c4dadd999a88cb2a3c5af4c9bd67fde1e7";
+// This is a compiled evidence gate, never a user-editable profile setting.
+inline constexpr bool game_redirection_approved = false;
+enum class Mode : uint32_t { trace = 0, redirect = 1, harness = 2 };
+struct File { std::wstring logical; fs::path path; Hash sha{}; };
+struct Guard { fs::path path; uint32_t present{}; Hash sha{}; };
+struct Manifest {
+    Mode mode{};
+    uint32_t pid{};
+    uint32_t host_pid{};
+    fs::path root;
+    std::wstring generation, token;
+    fs::path lane;
+    Hash executable{};
+    std::vector<File> files;
+    std::vector<Guard> guards;
+};
+struct Handle {
+    HANDLE value{INVALID_HANDLE_VALUE};
+    Handle() = default;
+    explicit Handle(HANDLE h): value(h) {}
+    ~Handle() { if (value != INVALID_HANDLE_VALUE && value) CloseHandle(value); }
+    Handle(const Handle&) = delete;
+    Handle& operator=(const Handle&) = delete;
+    Handle(Handle&& other) noexcept: value(other.value) { other.value = INVALID_HANDLE_VALUE; }
+    explicit operator bool() const { return value && value != INVALID_HANDLE_VALUE; }
+};
+Manifest read_manifest(const fs::path&);
+void write_manifest(const fs::path&, const Manifest&);
+void validate(const Manifest&);
+Hash hash_file(const fs::path&);
+std::string hex(const Hash&);
+std::wstring normalize(const fs::path&);
+fs::path own_executable();
+fs::path executable(const Manifest&);
+std::wstring pipe_name(const Manifest&);
+void status(const Manifest&, const char* state, DWORD error = 0, const char* detail = "");
+void require(bool, const char*);
+}

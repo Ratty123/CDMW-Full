@@ -967,6 +967,12 @@ function Invoke-NativeHelperPreparation {
         -Configuration $Configuration `
         -Clean:$Clean `
         -Required:$RequireReleaseHelpers
+    $virtualPython = Join-Path $scriptDir ".venv\Scripts\python.exe"
+    if (-not (Test-Path -LiteralPath $virtualPython)) { $virtualPython = "python" }
+    & $virtualPython (Join-Path $scriptDir "scripts\build_virtual_loader.py")
+    if ($LASTEXITCODE -ne 0) {
+        throw "Virtual loader prototype build/provenance check failed with exit code $LASTEXITCODE."
+    }
 }
 
 function Assert-CleanPythonSitePackages {

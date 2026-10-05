@@ -9,6 +9,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Added
 
+- Mod Management adds a separate experimental Virtual loader page to prepare private profiles from independent item packages and supported mods, with retained identities, recovery and reviewed startup diagnostics. Game loading remains disabled pending verified startup behavior, runtime coexistence and save compatibility.
 - Independent items can scan mounted mods or an extracted mod folder for conflicts, preserve supported unrelated record changes, and prepare a reviewed merge or separate merged package. Required-record conflicts and unsupported inputs are reported explicitly; runtime plugins and in-game compatibility remain unverified.
 
 ### Changed

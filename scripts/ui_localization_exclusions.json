@@ -172,5 +172,35 @@
     "symbol": "developer_harness",
     "source": "*",
     "reason": "Placement Studio clipping-gate output; excluded developer harness."
+  },
+  {
+    "path": "cdmw/services/virtual_loader_state.py",
+    "symbol": "recover_profile",
+    "source": "before",
+    "reason": "Internal recovery disposition, not a user-facing status; the page displays a separate translated completion message."
+  },
+  {
+    "path": "cdmw/services/virtual_loader_state.py",
+    "symbol": "recover_profile",
+    "source": "after",
+    "reason": "Internal recovery disposition, not a user-facing status; the page displays a separate translated completion message."
+  },
+  {
+    "path": "cdmw/ui/new_item/virtual_loader_page.py",
+    "symbol": "VirtualLoaderPage._append_selection",
+    "source": "item",
+    "reason": "Internal selection kind, with a separate translated item or mod label."
+  },
+  {
+    "path": "cdmw/ui/new_item/virtual_loader_page.py",
+    "symbol": "VirtualLoaderPage._append_selection",
+    "source": "mod",
+    "reason": "Internal selection kind, with a separate translated item or mod label."
+  },
+  {
+    "path": "cdmw/ui/new_item/rust_ui_document.py",
+    "symbol": "_describe",
+    "source": "column",
+    "reason": "Rust document node kind, not a visible caption."
   }
 ]
