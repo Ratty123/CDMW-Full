@@ -201,6 +201,44 @@ def test_installed_overlays_record_build_and_export_comparison_without_mutation(
     assert fingerprint(root) == before
 
 
+@pytest.mark.parametrize('replacement', [False, True])
+def test_installed_texture_comparison_preserves_owned_and_external_registrations(tmp_path, replacement):
+    from cdmw.core.pathc_format import encode_pathc, parse_pathc, register_dds, block_infos_for, pathc_checksum, dds_shape
+    from cdmw.services import archive_overlay_manager as overlays
+    from cdmw.workers.mod_update_workers import mod_update_scan_task
+    from tests.test_archive_overlay_manager import Backups
+    from tests.test_pathc_format import build_table, ICON_HEADER, ICON_BLOCKS, BIG_HEADER
+    root = tmp_path / 'game'
+    texture = 'ui/texture/base.dds' if replacement else 'ui/texture/added.dds'
+    build_package(root, {'ui/texture/base.dds': ICON_HEADER})
+    base = build_table(headers=[ICON_HEADER], entries=[('ui/texture/base.dds', 0, ICON_BLOCKS)])
+    live = register_dds(base, 'ui/texture/added.dds', BIG_HEADER)
+    if replacement:
+        live = replace(base, headers=live.headers, entries=tuple(
+            replace(entry, header_index=1, block_infos=block_infos_for(BIG_HEADER)) for entry in base.entries))
+    (root / 'meta/0.pathc').write_bytes(encode_pathc(base))
+    state, pending = overlays._state_for_edit(root, None, None)
+    changes = {
+        texture: {'before': ICON_HEADER if replacement else None, 'after': BIG_HEADER, 'flags': 0, 'meta': False},
+        'meta/0.pathc': {'before': encode_pathc(base), 'after': encode_pathc(live), 'flags': 0, 'meta': True},
+    }
+    overlays._add_layer(state, pending, 'Texture item', changes)
+    Backups(tmp_path).apply(overlays._compose(root, state, pending, 'Texture item', None, None, None))
+    # Another mod has registered an unrelated texture after our installation.
+    live = register_dds(live, 'ui/texture/external.dds', ICON_HEADER)
+    (root / 'meta/0.pathc').write_bytes(encode_pathc(live))
+    before = fingerprint(root)
+    checked = mod_update_scan_task('', root, installed=True)(lambda _: None, lambda *args: None, threading.Event())
+    assert checked.can_update, checked.conflicts
+    updated = dict((path, data) for path, data, _flags in checked.files)
+    output = parse_pathc(updated['meta/0.pathc'])
+    assert dds_shape(output.dds_header_for(output.find(texture))) == dds_shape(BIG_HEADER)
+    assert output.find(texture).block_infos == block_infos_for(BIG_HEADER)
+    assert output.find('ui/texture/external.dds') is not None
+    assert output.find(texture).checksum == pathc_checksum(texture)
+    assert fingerprint(root) == before
+
+
 def test_compatibility_survives_zip_and_retrofit(tmp_path):
     import zipfile
     from cdmw.core.mod_package_retrofit import analyze_retrofittable_mod_package, retrofit_mod_package

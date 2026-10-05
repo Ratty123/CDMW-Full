@@ -25,7 +25,6 @@ WORKER_TAB_NAMES = (
     "item_icons_tab",
     "model_library_tab",
     "recolor_variants_tab",
-    "mod_package_retrofit_tab",
     "mod_management_tab",
     "placement_studio_tab",
     "format_explorer_tab",

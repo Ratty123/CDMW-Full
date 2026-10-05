@@ -7,9 +7,14 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Changed
+
+- Mod Management brings Repackage into the same workspace, with an installation overview, missing-folder guidance, a game-folder selector and direct access to installed mods, item packages, merging, game updates and recovery. Repackage keeps its results inline and supports cancellation.
+
 ### Fixed
 
 - Independent item packages recognize named manager archive folders such as `dmmgen` and `dmmsa`, while still refusing conflicting mounted mods and ignoring unmounted ones. They also protect newer ownership from overlapping operations, allow further items to be authored after installing generated textures, and recheck imported model bindings.
+- Create New Item can read available archives after a mod folder was manually deleted; missing required game archives still produce an error. Game-update checks now handle added and replaced textures without the unpacking error.
 
 ## [0.11.0-alpha.23] - 2026-10-04
 

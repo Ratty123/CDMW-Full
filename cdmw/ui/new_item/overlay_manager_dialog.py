@@ -18,6 +18,7 @@ from cdmw.services.archive_overlay_manager import (
 class OverlayManagerDialog(QDialog):
     updates_requested = Signal()
     activity = Signal(str)
+    inventory_changed = Signal(object)
 
     def __init__(self, controller, package_root, mutation_service, parent=None, *, embedded=False,
                  catalogue_service=None):
@@ -401,6 +402,7 @@ class OverlayManagerDialog(QDialog):
             self.status.setText(f'{enabled} enabled · {len(entries) - enabled} disabled' if entries else 'No CDMW overlays are installed. Create an item and install it as an overlay to get started.')
         self._filter()
         self.activity.emit(self.status.text())
+        self.inventory_changed.emit(self._entries)
 
     def _check_updates(self):
         if self._embedded:

@@ -44,7 +44,7 @@ class ModPackageRetrofitTaskController(QObject):
         return request_id
 
     def start_conversion(self, request: RetrofitConversionRequest) -> int:
-        if self._closed or self._active_conversion_id:
+        if self._closed or self._active_conversion_id or any(kind == 'conversion' for kind, _worker, _thread in self._jobs.values()):
             return 0
         self._next_request_id += 1
         request_id = self._next_request_id
@@ -143,12 +143,8 @@ class ModPackageRetrofitTaskController(QObject):
         self._emit_busy()
 
     def _emit_busy(self) -> None:
-        latest_scan = self._jobs.get(self._latest_scan_id)
-        scan_busy = bool(latest_scan is not None and latest_scan[0] == "scan" and latest_scan[2].isRunning())
-        conversion_busy = bool(
-            self._active_conversion_id
-            and any(kind == "conversion" and thread.isRunning() for kind, _worker, thread in self._jobs.values())
-        )
+        scan_busy = any(kind == "scan" for kind, _worker, _thread in self._jobs.values())
+        conversion_busy = any(kind == "conversion" for kind, _worker, _thread in self._jobs.values())
         self.busy_changed.emit(scan_busy, conversion_busy)
 
 

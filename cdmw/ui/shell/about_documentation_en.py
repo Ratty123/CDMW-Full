@@ -63,7 +63,7 @@ class AboutDocumentationEnglishMixin:
                   <tr><th>Area</th><th>Tools</th></tr>
                   <tr><td>Assets</td><td><a href="topic:new_item_studio">Create New Item</a>, <a href="topic:archive_browser">Archive Browser</a>, <a href="topic:model_library">Model Library</a>, and <a href="topic:icon_creator">Icon Creator</a></td></tr>
                   <tr><td>Authoring</td><td><a href="topic:mesh_editor">Mesh Editor</a>, <a href="topic:placement_studio">Placement &amp; Animations</a>, and <a href="topic:workflow_overview">Textures</a></td></tr>
-                  <tr><td>Utilities</td><td><a href="topic:mod_management">Mod Management</a>, <a href="topic:mod_package_retrofit">Retrofit/Repackage</a>, <a href="topic:format_explorer">Format Explorer</a>, <a href="topic:translation_studio">Translations</a>, <a href="topic:research">Research</a>, and <a href="topic:text_search">Text Search</a></td></tr>
+                  <tr><td>Utilities</td><td><a href="topic:mod_management">Mod Management</a> (including <a href="topic:mod_package_retrofit">Repackage</a>), <a href="topic:format_explorer">Format Explorer</a>, <a href="topic:translation_studio">Translations</a>, <a href="topic:research">Research</a>, and <a href="topic:text_search">Text Search</a></td></tr>
                 </table>
                 <p>On a first run, follow the <a href="topic:first_run_checklist">First Run Checklist</a>. Compact Workspace is the first-run layout; a saved Compact or Classic choice remains authoritative.</p>
                 """,
@@ -541,9 +541,10 @@ class AboutDocumentationEnglishMixin:
                 "html": """
                 <p>Open <b>Utilities &gt; Mod Management</b> without creating an item or reading the Create New Item archives first.</p>
                 <ul>
-                  <li><b>Installed overlays</b> lists CDMW installs. Select an overlay and, for bundles, an item to preview its installed model and materials. Refresh re-reads the inventory.</li>
+                  <li><b>Overview</b> shows installation status, missing archive folders and shortcuts. <b>Installed mods</b> lists CDMW installs with model previews. <b>Independent items</b> installs experimental .cditem packages.</li>
+                  <li><b>Repackage</b> converts mod folders or ZIPs for a supported manager and shows results inline.</li>
                   <li><b>Merge mods</b> combines compatible mod folders into a separate package. <b>Check mods for game updates</b> compares recorded source data with the current game.</li>
-                  <li><b>Archive recovery</b> reviews changes previously written into shipped archives before moving them into an overlay.</li>
+                  <li><b>Recovery</b> provides rebuild, reapply and start-fresh actions, and reviews changes previously written into shipped archives before moving them into an overlay.</li>
                   <li>Removal and recovery require review and confirmation, then preserve the existing backup and rollback workflow. Previewing does not write to game archives.</li>
                 </ul>
                 """,
@@ -554,7 +555,7 @@ class AboutDocumentationEnglishMixin:
                 "summary": "Inspect and normalize an existing loose mod for supported manager layouts.",
                 "keywords": "retrofit repackage mod package normalize inspect loose manager cdumm dmm jmm manifest",
                 "html": """
-                <p><b>Retrofit/Repackage</b> is for an existing loose mod whose files or metadata need to be inspected and normalized for a supported manager layout.</p>
+                <p>Open <b>Utilities &gt; Mod Management &gt; Repackage</b> to inspect and convert existing mod folders or ZIPs for a supported manager.</p>
                 <ul>
                   <li>Open the existing mod, review detected files and metadata, and choose the intended target layout.</li>
                   <li>Write the repackaged result as a separate output rather than mutating shipped game archives.</li>

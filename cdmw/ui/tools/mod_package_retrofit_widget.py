@@ -68,6 +68,7 @@ class ModPackageRetrofitUi:
         self.owner = owner
         self.parent = parent
         self.on_close = on_close
+        self._cancelling = False
         self.dialog_title = "Retrofit/Repackage Mods"
         self.task_controller = retrofit_task_controller_for_widget(owner, parent)  # type: ignore[arg-type]
         self.packages: list[RetrofittableModPackage] = []
@@ -147,13 +148,13 @@ class ModPackageRetrofitUi:
         self.layout.addWidget(self.content_splitter, 1)
 
         left_panel = QWidget()
-        left_panel.setMinimumWidth(540)
+        left_panel.setMinimumWidth(240)
         left_layout = QVBoxLayout(left_panel)
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(8)
         self.content_splitter.addWidget(left_panel)
         right_panel = QWidget()
-        right_panel.setMinimumWidth(420)
+        right_panel.setMinimumWidth(240)
         right_layout = QVBoxLayout(right_panel)
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(8)
@@ -183,7 +184,7 @@ class ModPackageRetrofitUi:
         self.diff_preview = QTextBrowser()
         self.diff_preview.setReadOnly(True)
         self.diff_preview.setOpenExternalLinks(False)
-        self.diff_preview.setMinimumWidth(360)
+        self.diff_preview.setMinimumWidth(0)
         self.diff_preview.setHtml(
             "<p>Select package rows and press <strong>Preview Package Plan</strong>, or read this live preview.</p>"
         )
@@ -237,9 +238,12 @@ class ModPackageRetrofitUi:
         self.convert_button = QPushButton("Process Selected")
         self.convert_button.setObjectName("retrofit_convert_button")
         self.open_output_button = QPushButton("Open Output Folder")
+        self.cancel_button = QPushButton('Cancel')
+        self.cancel_button.hide()
         button_row.addWidget(self.preview_button)
         button_row.addWidget(self.convert_button)
         button_row.addWidget(self.open_output_button)
+        button_row.addWidget(self.cancel_button)
         button_row.addStretch(1)
         self.close_button = QPushButton("Close") if self.on_close is not None else None
         if self.close_button is not None:
@@ -253,6 +257,7 @@ class ModPackageRetrofitUi:
         self.preview_button.clicked.connect(self._preview_plan)
         self.convert_button.clicked.connect(self._convert_selected)
         self.open_output_button.clicked.connect(self._open_output)
+        self.cancel_button.clicked.connect(self._cancel)
         self.task_controller.scan_completed.connect(self._handle_scan_completed)
         self.task_controller.conversion_completed.connect(self._handle_conversion_completed)
         self.task_controller.failed.connect(self._handle_task_failed)
@@ -269,10 +274,8 @@ class ModPackageRetrofitUi:
         if restore_splitter_layout(self.content_splitter):
             return
         width = max(1, self.content_splitter.width())
-        left_width = max(540, int(width * 0.56))
-        right_width = max(420, width - left_width)
-        if left_width + right_width > width:
-            left_width = max(540, width - right_width)
+        left_width = int(width * 0.56)
+        right_width = width - left_width
         self.content_splitter.setSizes([left_width, right_width])
 
     def _apply_widget_localization(self, widget: QWidget) -> None:
@@ -463,6 +466,16 @@ class ModPackageRetrofitUi:
     def _handle_task_busy(self, scan_busy: bool, conversion_busy: bool) -> None:
         self.scan_button.setEnabled(not conversion_busy)
         self.convert_button.setEnabled(bool(self.packages) and not scan_busy and not conversion_busy)
+        self.cancel_button.setVisible(scan_busy or conversion_busy)
+        self.cancel_button.setEnabled(not self._cancelling)
+        if self._cancelling and not scan_busy and not conversion_busy:
+            self._cancelling = False
+            self.status_label.setText('Stopped. Check the output folder before starting again.')
+
+    def _cancel(self) -> None:
+        self._cancelling = True
+        self.status_label.setText('Cancellation requested. Finishing the current file operation…')
+        self.task_controller.cancel()
 
     def _browse_source(self) -> None:
         selected = QFileDialog.getExistingDirectory(self.parent, "Choose packaged mods folder", self.source_edit.text().strip())
@@ -507,6 +520,9 @@ class ModPackageRetrofitUi:
             f"Processed {len(result.processed):,} package(s). Failed {len(result.failed):,} package(s)."
             if result.processed or result.failed else "No packages were selected for processing."
         )
+        if self.on_close is None:
+            self.diff_preview.setHtml(build_retrofit_processing_results_html(result.processed, result.failed, update_mode=False))
+            return
         dialog = QDialog(self.parent)
         dialog.setObjectName("layout_cdmw_ui_tools_mod_package_retrofit_widget__handle_conversion_completed_dialog")
         dialog.setWindowTitle(self.dialog_title)

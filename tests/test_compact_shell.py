@@ -151,7 +151,7 @@ def test_shell_setting_normalization_and_shared_theme(tmp_path: Path) -> None:
 
 
 def test_compact_registry_has_one_textures_workspace() -> None:
-    assert len(COMPACT_TOOL_SPECS) == 13
+    assert len(COMPACT_TOOL_SPECS) == 12
     assert len({spec.key for spec in COMPACT_TOOL_SPECS}) == len(COMPACT_TOOL_SPECS)
     assert [(spec.category, spec.label) for spec in COMPACT_TOOL_SPECS] == [
         ("Assets", "Browse Archives"),
@@ -162,7 +162,6 @@ def test_compact_registry_has_one_textures_workspace() -> None:
         ("Authoring", "Placement & Animations"),
         ("Authoring", "Textures"),
         ("Utilities", "Mod Management"),
-        ("Utilities", "Repackage Mods"),
         ("Utilities", "Inspect File Formats"),
         ("Utilities", "Edit Translations"),
         ("Utilities", "Asset Research"),
@@ -709,6 +708,9 @@ def test_real_main_window_compact_wrapper_preserves_tool_authority(tmp_path: Pat
     )
     with patch.dict(os.environ, {"CDMW_GUI_STARTUP_SMOKE": "1"}):
         window = MainWindow(app_context=context)
+        window.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+        window.show()
+        app.processEvents()
     try:
         assert window.is_compact_shell
         assert window.compact_workspace is not None
@@ -737,6 +739,16 @@ def test_real_main_window_compact_wrapper_preserves_tool_authority(tmp_path: Pat
         assert management.controller.snapshot is None
         assert window.compact_workspace.rail.tool_buttons["mod_management"].isChecked()
         assert window._tool_key_for_widget(window._current_navigation_widget()) == "mod_management"
+
+        window._activate_tool_key('mod_package_retrofit')
+        assert window.mod_package_retrofit_tab is window.mod_management_tab
+        assert 'mod_package_retrofit' not in window._tool_widgets_by_key
+        assert management.workflow.pages.currentWidget() is management.workflow.repackage_page
+        assert management.workflow.repackage_ui is not None
+        management.open_page('overview')
+        window.settings.setValue('ui/active_tool_key', 'mod_package_retrofit')
+        window._restore_saved_navigation()
+        assert management.workflow.pages.currentWidget() is management.workflow.repackage_page
 
         window._activate_tool_key("format_explorer")
         deadline = time.monotonic() + 4.0

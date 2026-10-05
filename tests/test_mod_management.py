@@ -17,6 +17,7 @@ os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 import numpy as np
 import pytest
 from PIL import Image
+from PySide6.QtCore import QEvent
 from PySide6.QtWidgets import QApplication
 
 from cdmw.core.archive_format import parse_archive_pamt
@@ -132,6 +133,7 @@ def test_utilities_opens_installed_textured_model_without_a_studio_snapshot(tmp_
         utility.show()
         app.processEvents()
         dialog = utility.findChild(OverlayManagerDialog)
+        utility.open_page('installed')
         assert dialog.table.rowCount() == 1
         assert dialog._selected_entry() is None and not requested
         assert dialog.preview_empty.isVisibleTo(dialog)
@@ -249,6 +251,7 @@ def test_inventory_and_selection_work_while_snapshot_is_still_loading(tmp_path, 
         assert inventory._selected_entry() is None and not requested
         assert not inventory.toggle_button.isEnabled()
         bridge = NewItemPresentationBridge(tab)
+        _send(bridge, tab.pages, 'tab', tab.pages.indexOf(inventory))
         _send(bridge, inventory.table, 'select', {'path': [0], 'column': 0, 'mode': 'click'})
         assert inventory._selected_entry().id == 'a'
         assert len(requested) == 1
@@ -397,7 +400,9 @@ def test_rust_workspace_navigation_filter_and_scoped_activity(tmp_path, monkeypa
     from PySide6.QtWidgets import QWidget
     app = QApplication.instance() or QApplication([])
     monkeypatch.setattr(ItemPreviewFrame, '_start_package', lambda *_args, **_kwargs: None)
-    tab = ModManagementTab(controller=NewItemStudioController(synchronous=True))
+    from tests.test_mod_package_retrofit_async import _ToolOwner
+    repackage_owner = _ToolOwner(tmp_path)
+    tab = ModManagementTab(controller=NewItemStudioController(synchronous=True), repackage_owner=repackage_owner)
     visible = QWidget()
     dialogs = PresentationDialogs(tab, visible)
     dialogs.active = True
@@ -416,6 +421,10 @@ def test_rust_workspace_navigation_filter_and_scoped_activity(tmp_path, monkeypa
         assert tab.inventory._selected_entry() is None
         assert not bridge.snapshot()['unsupported']
         assert not dialogs.dialogs(), 'Inline pages must never become Rust modal dialogs.'
+        assert tab.pages.currentWidget() is tab.overview
+        assert tab.overview.counts['enabled'].text() == '2'
+        _send(bridge, tab.overview.actions['installed'], 'activate')
+        assert tab.pages.currentWidget() is tab.inventory
         _send(bridge, tab.inventory.search, 'text', 'Beta')
         assert tab.inventory.table.isRowHidden(0)
         assert tab.inventory._selected_entry() is None
@@ -426,8 +435,8 @@ def test_rust_workspace_navigation_filter_and_scoped_activity(tmp_path, monkeypa
         assert not tab.inventory.preview_retry.isEnabled()
         _send(bridge, tab.inventory.search, 'text', '')
         assert tab.inventory._selected_entry() is None
-        for index, page in enumerate((tab.inventory, tab.merge_page, tab.update_page)):
-            _send(bridge, tab.pages, 'tab', index)
+        for page in tab._page_by_key.values():
+            _send(bridge, tab.pages, 'tab', tab.pages.indexOf(page))
             assert tab.pages.currentWidget() is page
             assert not bridge.snapshot()['unsupported']
             assert not dialogs.dialogs()
@@ -436,7 +445,7 @@ def test_rust_workspace_navigation_filter_and_scoped_activity(tmp_path, monkeypa
         tab.inventory._preview_status('The preview could not be built: missing model')
         assert 'missing model' in tab.inventory.preview_status.text()
         assert 'missing model' in tab.log.toPlainText()
-        _send(bridge, tab.pages, 'tab', 3)
+        _send(bridge, tab.pages, 'tab', tab.pages.indexOf(tab._page_by_key['recovery']))
         tab.inventory._preview_status('Full textures loaded.')
         state = bridge.snapshot()
         for text in ('Full textures loaded.', 'Copy activity', '"Activity"'):
@@ -475,6 +484,7 @@ def test_rust_workspace_navigation_filter_and_scoped_activity(tmp_path, monkeypa
         tab.deleteLater()
         visible.deleteLater()
         drawer.deleteLater()
+        repackage_owner.deleteLater()
 
 
 def test_installed_preview_worker_delivers_package_and_waits_for_host_ready(tmp_path, monkeypatch):
@@ -521,6 +531,7 @@ def test_installed_preview_worker_delivers_package_and_waits_for_host_ready(tmp_
     try:
         tab.show()
         pump(app, lambda: tab.inventory.table.rowCount() == 1)
+        tab.open_page('installed')
         tab.inventory.table.selectRow(0)
         pump(app, lambda: bool(owner_threads))
         preview = tab.inventory.preview
@@ -539,6 +550,7 @@ def test_installed_preview_worker_delivers_package_and_waits_for_host_ready(tmp_
         tab.request_shutdown()
         pump(app, lambda: not tab.iter_shutdown_workers())
         tab.deleteLater()
+        app.sendPostedEvents(None, QEvent.DeferredDelete)
 
 
 def test_inline_disable_last_overlay_can_be_enabled_again(tmp_path, monkeypatch):
@@ -571,6 +583,22 @@ def test_inline_disable_last_overlay_can_be_enabled_again(tmp_path, monkeypatch)
         assert inventory._selected_entry().enabled is True
         assert inventory.toggle_button.isEnabled()
         assert 'Enabled Toggle' in tab.log.toPlainText()
+        # Recovery's relocated button still uses the reviewed archive boundary.
+        from cdmw.ui.new_item.rust_ui_bridge import NewItemPresentationBridge
+        from tests.test_new_item_rust_ui import _send
+        reviewed = []
+        def decline(*args):
+            reviewed.append(args)
+            return QMessageBox.No
+        monkeypatch.setattr(QMessageBox, 'question', decline)
+        fingerprints = {path: hashlib.sha256(path.read_bytes()).digest()
+                        for path in root.rglob('*') if path.is_file()}
+        tab.open_page('recovery')
+        _send(NewItemPresentationBridge(tab), inventory.rebuild_button, 'activate')
+        assert reviewed and reviewed[0][1] == 'Rebuild / reapply overlay'
+        assert str(root) in reviewed[0][2] and 'Files to update:' in reviewed[0][2]
+        assert reviewed[0][-1] == QMessageBox.No
+        assert {path: hashlib.sha256(path.read_bytes()).digest() for path in fingerprints} == fingerprints
     finally:
         tab.request_shutdown()
         pump(app, lambda: not tab.iter_shutdown_workers())

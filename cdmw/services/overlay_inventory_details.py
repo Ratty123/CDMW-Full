@@ -1,10 +1,38 @@
 """Read-only inspector data for CDMW's overlay workspace."""
 from pathlib import Path
 from datetime import datetime
+from dataclasses import dataclass
 
 from cdmw.core.papgt_format import parse_papgt
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.services.archive_overlay_manager import _load_index, _unpack_changes, overlay_journal_path
+
+
+@dataclass(frozen=True)
+class MountedArchive:
+    name: str
+    game: bool
+    present: bool
+    optional: bool
+
+
+def mounted_archive_status(package_root, *, stop_event=None):
+    """Inspect the mount list and folder presence without reading game payloads."""
+    root = Path(package_root).resolve()
+    path = root / 'meta/0.papgt'
+    if not str(package_root).strip() or not path.is_file():
+        raise ValueError('Choose a game archive folder to read installed overlays.')
+    if path.stat().st_size > 1024 * 1024:
+        raise ValueError('Archive mount table is unexpectedly large.')
+    rows = []
+    for record in parse_papgt(path.read_bytes()):
+        raise_if_cancelled(stop_event)
+        directory = (root / record.name).resolve()
+        if directory.parent != root:
+            raise ValueError(f'Mounted archive is outside the game folder: {record.name}')
+        game = len(record.name) == 4 and record.name.isascii() and record.name.isdigit() and int(record.name) < 36
+        rows.append(MountedArchive(record.name, game, (directory / '0.pamt').is_file(), bool(record.flags & 0xff)))
+    return tuple(rows)
 
 
 def overlay_details(package_root, overlay_id, *, stop_event=None):
@@ -32,10 +60,8 @@ def external_overlay_summary(package_root, *, stop_event=None):
     state = _load_index(root)
     owned = state['directory'] if state else None
     names = []
-    for record in parse_papgt((root / 'meta/0.papgt').read_bytes()):
-        raise_if_cancelled(stop_event)
-        name = str(record.name)
-        if name.isascii() and name.isdigit() and int(name) >= 36 and name != owned and (root / name).is_dir():
-            names.append(name)
+    for record in mounted_archive_status(root, stop_event=stop_event):
+        if not record.game and record.name != owned and record.present:
+            names.append(record.name)
     return ('Other mounted archive folders: ' + ', '.join(names) + '. Managed externally; compatibility has not been verified.'
             if names else 'No other mounted overlay folders detected.')

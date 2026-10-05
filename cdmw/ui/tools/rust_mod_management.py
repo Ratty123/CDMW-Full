@@ -15,3 +15,6 @@ class RustModManagementTab(RustNewItemStudioTab):
         if not self._closed and self._bridge is None:
             self._prewarming = not self.isVisible()
             self.use_rust()
+
+    def open_page(self, key):
+        self.workflow.open_page(key)

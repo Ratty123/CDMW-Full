@@ -3,7 +3,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (
-    QHBoxLayout, QLabel, QMessageBox, QPlainTextEdit, QProgressBar,
+    QFileDialog, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QProgressBar,
     QPushButton, QTabWidget, QToolButton, QVBoxLayout, QWidget,
 )
 
@@ -14,10 +14,13 @@ class ModManagementTab(QWidget):
     status_message_requested = Signal(str, bool)
 
     def __init__(self, parent=None, *, window=None, service=None, controller=None,
-                 get_package_root=None, preview_context=None):
+                 get_package_root=None, set_package_root=None, preview_context=None, repackage_owner=None):
         super().__init__(parent)
         self._window = window
         self._get_package_root = get_package_root or (lambda: "")
+        self._set_package_root = set_package_root
+        self._repackage_owner = repackage_owner or getattr(window, 'archive', None)
+        self.repackage_ui = None
         self.controller = controller or NewItemStudioController(service=service, parent=self)
         context = dict(getattr(self.controller, '_template_preview_context', None) or {})
         context.update(preview_context or {})
@@ -27,12 +30,24 @@ class ModManagementTab(QWidget):
         self._migration_preview_lane.failed.connect(self._migration_preview_failed)
         self._closed = False
         self._refresh_needed = True
+        self._overview_refresh_needed = False
         layout = QVBoxLayout(self)
         heading = QLabel("Mod Management")
+        heading.setObjectName('SectionTitle')
         layout.addWidget(heading)
-        help_text = QLabel("Manage installed overlays, preview their items, and review changes against the current game.")
+        help_text = QLabel("Install, organise, convert and maintain your mods in one workspace.")
         help_text.setWordWrap(True)
         layout.addWidget(help_text)
+        source_row = QHBoxLayout()
+        source_row.addWidget(QLabel('Game folder:'))
+        self.game_folder = QLineEdit(str(self._get_package_root() or ''))
+        self.game_folder.setReadOnly(True)
+        source_row.addWidget(self.game_folder, 1)
+        self.choose_game = QPushButton('Choose folder…')
+        self.choose_game.setEnabled(callable(self._set_package_root))
+        self.choose_game.clicked.connect(self._choose_game)
+        source_row.addWidget(self.choose_game)
+        layout.addLayout(source_row)
         self.pages = QTabWidget()
         self.pages.setObjectName('mod_management_pages')
         from cdmw.ui.new_item.overlay_manager_dialog import OverlayManagerDialog
@@ -46,16 +61,29 @@ class ModManagementTab(QWidget):
                                                   getattr(window, 'archive', None), 'archive_catalogue_service', None))
         self.merge_page = ModMergeDialog(self.controller, root, self, embedded=True)
         self.update_page = ModUpdateDialog(self.controller, root, self, installed=True, embedded=True)
-        self.pages.addTab(self.inventory, 'Installed overlays')
-        self.pages.addTab(self.merge_page, 'Merge mod folders')
-        self.pages.addTab(self.update_page, 'Compare updates / export')
+        from cdmw.ui.tools.mod_management_overview import ModManagementOverview
+        self.overview = ModManagementOverview(self.controller, self)
+        self.pages.addTab(self.overview, 'Overview')
+        self.pages.addTab(self.inventory, 'Installed mods')
         from cdmw.ui.new_item.independent_items_page import IndependentItemsPage
         self.independent_page = IndependentItemsPage(self.controller, root, mutations() if callable(mutations) else None, self)
         self.pages.addTab(self.independent_page, 'Independent items')
         self.independent_page.activity.connect(self._append_activity)
+        from cdmw.ui.tools.mod_package_retrofit_tasks import ModPackageRetrofitToolWidget
+        self.repackage_page = ModPackageRetrofitToolWidget()
+        self.pages.addTab(self.repackage_page, 'Repackage')
+        self.pages.addTab(self.merge_page, 'Merge')
+        self.pages.addTab(self.update_page, 'Game updates')
         recovery_page = QWidget()
         recovery_layout = QVBoxLayout(recovery_page)
         self.pages.addTab(recovery_page, 'Recovery')
+        self._page_by_key = {'overview': self.overview, 'installed': self.inventory, 'independent': self.independent_page,
+                             'repackage': self.repackage_page, 'merge': self.merge_page, 'updates': self.update_page,
+                             'recovery': recovery_page}
+        self.pages.currentChanged.connect(self._page_changed)
+        self.overview.page_requested.connect(self.open_page)
+        self.overview.refresh_requested.connect(self.refresh)
+        self.inventory.inventory_changed.connect(self.overview.set_entries)
         layout.addWidget(self.pages, 1)
         self.inventory.updates_requested.connect(self._update_mods)
         self.inventory.activity.connect(self._append_activity)
@@ -76,10 +104,15 @@ class ModManagementTab(QWidget):
         self.recovery.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.recovery.setArrowType(Qt.ArrowType.RightArrow)
         recovery_layout.addWidget(QLabel('Archive recovery'))
-        recovery_help = QLabel('Rebuild / reapply in Installed overlays compares saved changes with the current game and preserves individual installs. '
+        recovery_help = QLabel('Rebuild / reapply compares saved changes with the current game and preserves individual installs. '
                               'Start fresh retires an unmounted set. Use migration below only for items previously written into shipped archives.')
         recovery_help.setWordWrap(True)
         recovery_layout.addWidget(recovery_help)
+        repair_row = QHBoxLayout()
+        repair_row.addWidget(self.inventory.rebuild_button)
+        repair_row.addWidget(self.inventory.start_fresh_button)
+        repair_row.addStretch(1)
+        recovery_layout.addLayout(repair_row)
         recovery_layout.addWidget(self.recovery)
         self.overlay_migration_button = QPushButton("Move installed items into the overlay...")
         self.overlay_migration_button.setToolTip(
@@ -121,6 +154,42 @@ class ModManagementTab(QWidget):
         self.controller.busy_changed.connect(self._busy_changed)
         self._busy_changed(self.controller.busy)
 
+    def open_page(self, key):
+        page = self._page_by_key.get(key)
+        if page is not None and not self._closed:
+            self.pages.setCurrentWidget(page)
+
+    def _page_changed(self, _index):
+        if self.pages.currentWidget() is self.independent_page:
+            self.independent_page.refresh()
+        if self.pages.currentWidget() is not self.repackage_page or self.repackage_ui is not None:
+            return
+        if self._repackage_owner is None:
+            if self.repackage_page.layout() is None:
+                layout = QVBoxLayout(self.repackage_page)
+                layout.addWidget(QLabel(self.tr('Open Mod Management from the main window to repackage mods.')))
+                layout.addStretch(1)
+            return
+        from cdmw.ui.tools.mod_package_retrofit_widget import build_mod_package_retrofit_tool
+        self.repackage_ui = build_mod_package_retrofit_tool(self._repackage_owner, self.repackage_page,
+                                                          run_initial_scan=False)
+        tasks = self.repackage_ui.task_controller
+        tasks.progress.connect(lambda _kind, _current, _total, detail: self._append_activity(detail))
+        tasks.failed.connect(lambda _kind, message: self._append_activity(message))
+        tasks.conversion_completed.connect(lambda _result: self._append_activity(self.repackage_ui.status_label.text()))
+
+    def _choose_game(self):
+        if self.controller.busy or not callable(self._set_package_root):
+            return
+        root = QFileDialog.getExistingDirectory(self, 'Choose the game archive folder', self.game_folder.text())
+        if root:
+            self._set_package_root(root)
+            self.refresh()
+
+    def refresh(self):
+        self._refresh_needed = True
+        self._refresh_inventory()
+
     def _owns_operation(self):
         return getattr(self.controller, '_lane', '') in {'overlay_manager', 'mod_merge', 'mod_update', 'overlay', 'independent_items'}
 
@@ -160,19 +229,29 @@ class ModManagementTab(QWidget):
             return
         self._refresh_needed = False
         root = str(self._get_package_root() or '').strip()
+        self.game_folder.setText(root)
+        self.overview.refresh(root)
         if root != str(self.inventory.package_root):
+            self.overview.set_entries(())
+            self.inventory._loaded(())
             self.inventory.package_root = root
             self.merge_page.game_root.setText(root)
             self.update_page.game_root.setText(root)
         self.inventory.refresh()
         self.independent_page.set_game_root(root)
-        self.independent_page.refresh()
+        if self.pages.currentWidget() is self.independent_page:
+            self.independent_page.refresh()
 
     def _status_changed(self, message, error=False):
         self.status_message_requested.emit(str(message), bool(error))
 
     def _busy_changed(self, busy):
         busy = self.controller.busy  # A completed review may already have queued its confirmed apply.
+        if busy and self.controller._lane != 'snapshot':
+            self.overview.cancel_read()
+            self._overview_refresh_needed = True
+        self.choose_game.setEnabled(not busy and callable(self._set_package_root))
+        self.overview.refresh_button.setEnabled(not busy)
         for button in (self.overlay_removal_button, self.merge_button, self.update_button,
                        self.overlay_migration_button):
             button.setEnabled(not busy)
@@ -182,6 +261,9 @@ class ModManagementTab(QWidget):
         self.cancel_button.setVisible(own)
         self.cancel_button.setEnabled(own and not self.inventory._applying and not self.independent_page._applying)
         if not busy:
+            if self._overview_refresh_needed and not self._closed:
+                self._overview_refresh_needed = False
+                self.overview.refresh(self._get_package_root())
             for page in (self.merge_page, self.update_page):
                 if page._working:
                     page._working = False
@@ -190,10 +272,10 @@ class ModManagementTab(QWidget):
             QTimer.singleShot(0, self, self._refresh_inventory)
 
     def _installed(self, result):
+        self._refresh_needed = True
+        QTimer.singleShot(0, self, self._refresh_inventory)
         from cdmw.services.archive_overlay_install import OverlayInstallResult
         if isinstance(result, OverlayInstallResult):
-            self._refresh_needed = True
-            QTimer.singleShot(0, self, self._refresh_inventory)
             return  # Create New Item owns the completion of its installation.
         if hasattr(result, 'removed_overlay_id') or hasattr(result, 'retired_inventory'):
             return  # The inventory owns this result and refreshes itself.
@@ -273,6 +355,7 @@ class ModManagementTab(QWidget):
     def iter_shutdown_workers(self):
         from cdmw.ui.new_item.overlay_manager_dialog import OverlayManagerDialog
         workers = list(self.controller.iter_shutdown_workers())
+        workers.extend(self.repackage_page.iter_shutdown_workers())
         for dialog in self.findChildren(OverlayManagerDialog):
             workers.extend(dialog.iter_shutdown_workers())
         return tuple(workers)
@@ -281,6 +364,8 @@ class ModManagementTab(QWidget):
         if self._closed:
             return
         self._closed = True
+        self.overview.request_shutdown()
+        self.repackage_page.request_shutdown()
         self.independent_page.request_shutdown()
         from cdmw.ui.new_item.overlay_manager_dialog import OverlayManagerDialog
         for dialog in self.findChildren(OverlayManagerDialog):

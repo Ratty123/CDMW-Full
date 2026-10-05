@@ -306,6 +306,40 @@ def test_snapshot_uses_shared_metadata_without_listing_or_decoding_unrelated_ent
     assert by_name["image_1.dds"][0] == by_path["unrelated/textures/image_1.dds"][0]
 
 
+@pytest.mark.parametrize('name', ['0036', 'dmmgen', 'dmmsa'])
+def test_new_item_snapshot_skips_deleted_mod_mounts(catalogue, tmp_path, name):
+    from cdmw.core.papgt_format import papgt_with_directory
+    root, entries, _ = catalogue
+    mount = root / 'meta/0.papgt'
+    mount.write_bytes(papgt_with_directory(mount.read_bytes(), name, 123))
+    source = write_resident_index(root, entries, tmp_path / 'missing-mod')
+    before = mount.read_bytes()
+    messages = []
+    snapshot = snapshot_task((), service=NewItemService(), read_entry=_read,
+                             package_root=root, resident_source=source)(messages.append, threading.Event())
+    assert TEMPLATE in snapshot.rows
+    assert source.open().missing_mod_mounts == [name]
+    assert any(name in message and 'Skipping' in message for message in messages)
+    assert mount.read_bytes() == before
+    (root / name).mkdir()
+    with pytest.raises(ValueError, match='Archive source changed'):
+        source.open()
+
+
+@pytest.mark.parametrize('name,present', [('0008', False), ('0036', True)])
+def test_missing_game_archive_or_incomplete_mod_catalogue_is_still_refused(catalogue, tmp_path, name, present):
+    from cdmw.core.papgt_format import papgt_with_directory
+    root, entries, _ = catalogue
+    if present:
+        (root / name).mkdir()
+        (root / name / '0.pamt').write_bytes(b'archive not in this catalogue')
+    mount = root / 'meta/0.papgt'
+    mount.write_bytes(papgt_with_directory(mount.read_bytes(), name, 123))
+    source = write_resident_index(root, entries, tmp_path / 'incomplete')
+    with pytest.raises(ValueError, match='Mounted archive is missing'):
+        source.open()
+
+
 def test_resident_index_rejects_source_changes_before_reuse(catalogue):
     _root, entries, source = catalogue
     source.open()

@@ -12,7 +12,7 @@ class ShellSignalWiringMixin:
     def _connect_shell_signals(self) -> None:
         self.export_profile_action.triggered.connect(self.export_profile)
         self.import_profile_action.triggered.connect(self.import_profile)
-        self.mod_package_tool_action.triggered.connect(lambda _checked=False: self._activate_tool_widget(self.mod_package_retrofit_tab))
+        self.mod_package_tool_action.triggered.connect(lambda _checked=False: self._activate_tool_key('mod_package_retrofit'))
         self.detach_current_tab_action.triggered.connect(self._detach_current_tool_tab)
         self.attach_current_tool_action.triggered.connect(self._attach_current_tool_tab)
         self.attach_all_tools_action.triggered.connect(self._attach_all_detached_tools)

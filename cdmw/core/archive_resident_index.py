@@ -146,6 +146,7 @@ class ResidentArchiveIndex(Sequence[ArchiveEntry]):
             self._dependency_check_at = 0.
             self._ascii_case_alias = None
             self._mounts = None
+            self.missing_mod_mounts = []
             mount_path = root / "meta" / "0.papgt"
             if mount_path.is_file():
                 from cdmw.core.papgt_format import parse_papgt
@@ -155,8 +156,18 @@ class ResidentArchiveIndex(Sequence[ArchiveEntry]):
                 packages = {file.parent.name.casefold() for file, *_ in self.source_files if file.suffix.lower() == ".pamt"}
                 self._mounts = {}
                 for rank, mount in enumerate(mount_rows):
+                    directory = (root / mount.name).resolve()
+                    if directory.parent != root:
+                        raise ValueError(f"Mounted archive is outside the game folder: {mount.name}")
                     if mount.name.casefold() not in packages:
                         if mount.flags & 0xff:
+                            continue
+                        shipped = (len(mount.name) == 4 and mount.name.isascii()
+                                   and mount.name.isdigit() and int(mount.name) < 36)
+                        if not shipped and not directory.exists():
+                            # PAPGT retains manager reservations after a mod is
+                            # removed. They have no payloads to add to this view.
+                            self.missing_mod_mounts.append(mount.name)
                             continue
                         raise ValueError(f"Mounted archive is missing: {mount.name}")
                     self._mounts[str(root / mount.name).replace("\\", "/").casefold()] = rank
@@ -234,6 +245,10 @@ class ResidentArchiveIndex(Sequence[ArchiveEntry]):
         )
 
     def validate_sources(self, stop_event=None):
+        for name in getattr(self, 'missing_mod_mounts', ()):
+            raise_if_cancelled(stop_event, "Archive catalogue loading cancelled.")
+            if (Path(self.source.package_root) / name).exists():
+                raise ValueError(f"Archive source changed: {name}. Refresh the archives.")
         for file, size, ticks in self.source_files:
             raise_if_cancelled(stop_event, "Archive catalogue loading cancelled.")
             stat = file.stat()

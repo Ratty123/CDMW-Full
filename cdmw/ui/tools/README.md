@@ -1,12 +1,13 @@
 # Tools
 
 Owns utility workspaces that do not belong to Assets, Textures, or Research. **Utilities
-> Mod Management** owns Merge mods, Check mods for game updates, Installed overlays and
-Archive recovery, previously in Create New Item's Output. The visible tab uses the
-existing Rust presentation bridge over an offscreen `ModManagementTab`. Its default page
-loads a searchable overlay inventory with a resizable preview and Files and history
-inspector. Merge, comparison/export and recovery are embedded pages; only pickers and
-mutation confirmations open dialogs.
+> Mod Management** owns installed mods, independent item packages, Repackage, Merge,
+Game updates and Recovery. The visible tab uses the existing Rust presentation bridge
+over an offscreen `ModManagementTab`. Overview shows enabled/disabled installs, entries
+needing review, mounted folders and direct actions. The shared game-folder selector
+updates the existing archive setting. Installed mods provides a searchable inventory
+with a resizable preview and Files and history inspector. All workflows are embedded
+pages; pickers and mutation confirmations still use dialogs.
 
 Activity is collapsed by default and includes management operations and its own preview,
 rather than unrelated Create New Item work. The loading page remains visible until the
@@ -47,15 +48,26 @@ opening, filtering, inspecting and previewing the workspace are read-only.
 
 Other mounted archive folders are informational. This does not make DMM accept an
 installation it considers non-vanilla, or establish simultaneous manager compatibility.
+Overview identifies missing mod folders left in the mount list after manual deletion.
+Create New Item can read the remaining data when a non-game folder is absent; missing
+required game archives and present but unindexed folders still block reading. Neither
+operation edits the mount list. A previously absent folder reappearing invalidates a
+cached read, requiring an archive refresh.
+Game-update comparisons handle both added and replaced textures while preserving
+unrelated texture registrations.
 The shell tracks the tab's operations, lookups and overlay preview during shutdown.
 
 ## Retrofit and Repackage
 
-Retrofit/Repackage Mods lives here; old Archive Browser imports remain
-compatibility wrappers.
+**Mod Management > Repackage** converts existing folders or ZIPs for supported managers.
+It is constructed on first use and keeps its selection, output settings and inline
+results when switching pages. Existing Repackage menu actions and saved navigation
+open this page. Old Archive Browser imports remain compatibility wrappers.
 
 Retrofit/Repackage scans and conversions run through its tracked request-ID
 worker controller. A newer scan cancels and supersedes older results; conversion
 requests stage all selected packages before transactional publication.
+Cancel retains ownership until the worker stops; another conversion cannot start
+while a cancelled writer is draining. The shared Activity drawer records its progress.
 Available filenames are checked against both the folder and its complete name
 with `.zip` appended. Filename selection also honours cancellation.

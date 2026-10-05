@@ -86,7 +86,6 @@ _LAZY_TOOL_UI_MODULES: dict[str, tuple[str, ...]] = {
     "replace_assistant": ("cdmw.ui.replace_assistant_tab",),
     "recolor_variants": ("cdmw.ui.recolor_variants_tab",),
     "texture_editor": ("cdmw.ui.texture_editor_tab",),
-    "mod_package_retrofit": ("cdmw.ui.tools.mod_package_retrofit_tasks",),
     "mod_management": ("cdmw.ui.tools.mod_management",),
     "placement_studio": ("tools.placement_studio.tab", "tools.placement_studio.window"),
     "format_explorer": ("tools.format_explorer.tab",),
@@ -469,6 +468,8 @@ class ShellToolTabsMixin:
         tab = RustModManagementTab(
             window=self, controller=self._shared_new_item_controller(),
             get_package_root=lambda: self.archive.archive_package_root_edit.text(),
+            set_package_root=self.archive.archive_package_root_edit.setText,
+            repackage_owner=self.archive,
             preview_context={
                 "native_preview_core_cache_root": runtime_cache_layout(self.archive.archive_cache_root).native_preview_root,
                 "render_settings": self.archive._current_model_preview_render_settings(),
@@ -479,14 +480,6 @@ class ShellToolTabsMixin:
         tab.status_message_requested.connect(
             lambda message, is_error: self.set_status_message(message, error=is_error, tool_key="mod_management")
         )
-        return tab
-
-    def _create_mod_package_retrofit_tab(self) -> QWidget:
-        from cdmw.ui.tools.mod_package_retrofit_tasks import ModPackageRetrofitToolWidget
-
-        tab = ModPackageRetrofitToolWidget()
-        tab.setObjectName("mod_package_retrofit")
-        self.archive._build_mod_package_retrofit_tool(tab, run_initial_scan=False)
         return tab
 
     def _create_placement_studio_tab(self) -> QWidget:
@@ -727,11 +720,7 @@ class ShellToolTabsMixin:
         self.mod_management_tab = self._add_lazy_shell_tool(
             "Mod Management", "mod_management", self._create_mod_management_tab
         )
-        self.mod_package_retrofit_tab = self._add_lazy_shell_tool(
-            "Retrofit/Repackage",
-            "mod_package_retrofit",
-            self._create_mod_package_retrofit_tab,
-        )
+        self.mod_package_retrofit_tab = self.mod_management_tab  # Retained attribute for older integrations.
         # Mesh Editor and Placement are complete workspaces, so both sit directly in the
         # main strip instead of adding a second tab bar above their own workspace controls.
         self.placement_studio_tab = self._add_lazy_shell_tool(
@@ -768,7 +757,6 @@ class ShellToolTabsMixin:
         self._register_detachable_tool("item_icons", self.item_icons_tab, "Icon Creator")
         self._register_detachable_tool("new_item_studio", self.new_item_studio_tab, "Create New Item")
         self._register_detachable_tool("mod_management", self.mod_management_tab, "Mod Management")
-        self._register_detachable_tool("mod_package_retrofit", self.mod_package_retrofit_tab, "Retrofit/Repackage")
         self._register_detachable_tool("placement_studio", self.placement_studio_tab, "Placement & Animation Studio")
         self._register_detachable_tool("settings", self.settings_tab, "Settings")
         self._register_detachable_tool(

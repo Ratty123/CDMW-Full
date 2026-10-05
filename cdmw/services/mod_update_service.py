@@ -297,7 +297,7 @@ def prepare_installed_overlay_update(game_root, *, entries, read_entry=None, sto
     def underlay(path):
         value = current(path)
         if path == "meta/0.pathc" and value is not None and baseline.get(path) is not None:
-            textures = {name: data for name, data in after.items() if name.endswith(".dds") and baseline.get(name) is None}
+            textures = {name: (baseline.get(name), data) for name, data in after.items() if name.endswith(".dds")}
             value = legacy_texture_baseline(baseline[path], value, textures)
         return value
     output, new_baseline, comparisons, conflicts, dependencies, status = _compare(after, flags, evidence, underlay, stop_event, progress)

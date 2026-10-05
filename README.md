@@ -66,8 +66,8 @@ Compact is the default layout. Classic is available in
 | **Mesh Editor** | Authoring > Mesh Editor | Edit supported meshes and materials; OBJ/FBX/GLB export, OBJ/FBX/DAE/glTF/GLB import. FBX import uses your selected Blender. |
 | **Placement & Animations** | Authoring > Placement & Animations | Adjust equipment attachments and review animation changes before packaging. |
 | **Textures** | Authoring > Textures | Edit layered textures, replace files in bulk, recolour, upscale and export. |
-| **Mod Management** | Utilities > Mod Management | Preview and manage installed overlays, merge mods and check game-update compatibility. |
-| **Retrofit/Repackage** | Utilities > Repackage Mods | Review and convert existing mod folders or ZIPs to supported manager layouts. |
+| **Mod Management** | Utilities > Mod Management | Review installation health, install item packages, preview and manage overlays, merge mods, check game updates and access recovery. |
+| **Retrofit/Repackage** | Utilities > Mod Management > Repackage | Review and convert existing mod folders or ZIPs to supported manager layouts. |
 | **Format Explorer** | Utilities > Inspect File Formats | Check which formats and operations are supported. |
 | **Translations** | Utilities > Edit Translations | Edit game language tables or existing `.paloc` mods, with optional AI assistance. |
 | **Research** | Utilities > Asset Research | Review texture families, classifications, references and quality reports. |

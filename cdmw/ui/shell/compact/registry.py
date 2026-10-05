@@ -24,7 +24,6 @@ COMPACT_TOOL_SPECS = (
     CompactToolSpec("placement_studio", "Placement & Animations", "Authoring", "person"),
     CompactToolSpec("textures", "Textures", "Authoring", "brush"),
     CompactToolSpec("mod_management", "Mod Management", "Utilities", "package"),
-    CompactToolSpec("mod_package_retrofit", "Repackage Mods", "Utilities", "package"),
     CompactToolSpec("format_explorer", "Inspect File Formats", "Utilities", "document"),
     CompactToolSpec("translation_studio", "Edit Translations", "Utilities", "globe"),
     CompactToolSpec("research", "Asset Research", "Utilities", "book"),

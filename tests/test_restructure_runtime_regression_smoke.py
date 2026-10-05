@@ -94,7 +94,7 @@ class RestructureRuntimeRegressionSmokeTests(unittest.TestCase):
         )
         expected_tools = {
             "archive_browser", "model_library", "item_icons", "new_item_studio",
-            "mesh_editor", "placement_studio", "textures", "mod_management", "mod_package_retrofit",
+            "mesh_editor", "placement_studio", "textures", "mod_management",
             "format_explorer", "translation_studio", "research", "text_search", "settings",
         }
         self.assertEqual(expected_tools, set(self.window.tab_registry.widgets))
@@ -185,8 +185,10 @@ class RestructureRuntimeRegressionSmokeTests(unittest.TestCase):
         self.assertNotIn("Tools", menu_titles)
         self.assertIs(self.window.tool_stack.currentWidget(), self.window.mod_package_retrofit_tab)
         self.assertEqual("Retrofit/Repackage Mods", self.window.mod_package_tool_action.text())
-        self.assertEqual("Repackage Mods", self.window.tab_registry.titles["mod_package_retrofit"])
-        retrofit_tool = self._wait_for_created_tool(self.window.mod_package_retrofit_tab)
+        self.assertNotIn("mod_package_retrofit", self.window.tab_registry.titles)
+        management = self._wait_for_created_tool(self.window.mod_management_tab)
+        retrofit_tool = management.workflow.repackage_page
+        self.assertIs(management.workflow.pages.currentWidget(), retrofit_tool)
         button_labels = {
             button.text()
             for button in retrofit_tool.findChildren(QPushButton)
@@ -196,7 +198,7 @@ class RestructureRuntimeRegressionSmokeTests(unittest.TestCase):
         self.assertNotIn("Refresh Game Index", button_labels)
         label_text = " ".join(
             label.text()
-            for label in self.window.mod_package_retrofit_tab.findChildren(QLabel)
+            for label in retrofit_tool.findChildren(QLabel)
         )
         self.assertIn("Scan loose or zipped mod packages", label_text)
         self.assertNotIn("Game build", label_text)

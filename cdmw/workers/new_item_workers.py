@@ -110,6 +110,8 @@ def snapshot_task(
         try:
             log("Opening the archive catalogue for New Item...")
             catalogue = resident_source.open(stop_event, package_root=package_root) if resident_source is not None else None
+            if catalogue is not None and catalogue.missing_mod_mounts:
+                log("Skipping missing mod archive folders: " + ", ".join(catalogue.missing_mod_mounts))
             listed = frozen
             stale_listing = bool(package_root and listed and any(
                 not Path(path).is_file()

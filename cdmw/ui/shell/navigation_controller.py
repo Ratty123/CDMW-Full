@@ -45,7 +45,7 @@ class NavigationControllerMixin:
             self._activate_tool_key("archive_browser")
             return
         from cdmw.ui.texture_workflow.job import TEXTURE_TOOL_ALIASES
-        if saved_key in self._tool_widgets_by_key or saved_key in TEXTURE_TOOL_ALIASES:
+        if saved_key in self._tool_widgets_by_key or saved_key in TEXTURE_TOOL_ALIASES or saved_key == 'mod_package_retrofit':
             self._activate_tool_key(saved_key)
             return
         if self.settings.contains("ui/main_tab_index"):
@@ -267,6 +267,15 @@ class NavigationControllerMixin:
         return True
 
     def _activate_tool_key(self, key: str) -> None:
+        if key == 'mod_package_retrofit':
+            widget = self._tool_widgets_by_key.get('mod_management')
+            if widget is not None:
+                if isinstance(widget, LazyToolTab):
+                    widget.when_created(lambda tool: tool.open_page('repackage'))
+                else:
+                    widget.open_page('repackage')
+                self._activate_tool_widget(widget)
+            return
         if key == "new_item_rust_studio":
             key = "new_item_studio"
         from cdmw.ui.texture_workflow.job import TEXTURE_TOOL_ALIASES
