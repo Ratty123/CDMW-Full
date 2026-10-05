@@ -111,7 +111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 206,
+          "line": 219,
           "sink": "appendPlainText"
         }
       ]
@@ -131,7 +131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 209,
+          "line": 220,
           "sink": "appendPlainText"
         }
       ]
@@ -1501,7 +1501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 59,
+          "line": 69,
           "sink": "setFormat"
         }
       ]
@@ -1828,16 +1828,6 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 677,
           "sink": "python-return:_build_environment_sections"
-        }
-      ]
-    },
-    {
-      "key": ", or read this live preview.",
-      "origins": [
-        {
-          "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 188,
-          "sink": "setHtml"
         }
       ]
     },
@@ -2377,11 +2367,11 @@
       ]
     },
     {
-      "key": "1 mod folder missing",
+      "key": "1 stale mod reference",
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 142,
+          "line": 147,
           "sink": "tr"
         }
       ]
@@ -4336,7 +4326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 252,
+          "line": 268,
           "sink": "tr"
         }
       ]
@@ -5771,8 +5761,18 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 62,
+          "line": 74,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Add at least two mod folders.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 41,
+          "sink": "setAccessibleDescription"
         }
       ]
     },
@@ -5871,7 +5871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 35,
+          "line": 44,
           "sink": "QPushButton"
         }
       ]
@@ -9686,7 +9686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 253,
+          "line": 269,
           "sink": "tr"
         }
       ]
@@ -12221,8 +12221,8 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 109,
-          "sink": "QLabel"
+          "line": 122,
+          "sink": "QGroupBox"
         }
       ]
     },
@@ -15036,7 +15036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 461,
+          "line": 464,
           "sink": "_run"
         }
       ]
@@ -16991,12 +16991,12 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 120,
+          "line": 113,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 121,
+          "line": 114,
           "sink": "QPushButton"
         }
       ]
@@ -18476,7 +18476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 57,
+          "line": 56,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -18811,7 +18811,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 165,
+          "line": 173,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -19176,7 +19176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 249,
+          "line": 265,
           "sink": "tr"
         }
       ]
@@ -20166,12 +20166,12 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 143,
+          "line": 152,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 241,
+          "line": 221,
           "sink": "QPushButton"
         }
       ]
@@ -20271,7 +20271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 477,
+          "line": 457,
           "sink": "setText"
         }
       ]
@@ -21231,7 +21231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 478,
+          "line": 481,
           "sink": "setText"
         }
       ]
@@ -22261,7 +22261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 77,
+          "line": 89,
           "sink": "QPushButton"
         }
       ]
@@ -22306,7 +22306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 149,
+          "line": 152,
           "sink": "QPushButton"
         }
       ]
@@ -22571,7 +22571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 420,
+          "line": 423,
           "sink": "_run"
         }
       ]
@@ -22641,7 +22641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 166,
+          "line": 179,
           "sink": "_run"
         }
       ]
@@ -22691,7 +22691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 170,
+          "line": 186,
           "sink": "tr"
         }
       ]
@@ -22771,7 +22771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 438,
+          "line": 441,
           "sink": "_run"
         }
       ]
@@ -23841,12 +23841,12 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 100,
+          "line": 105,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 125,
+          "line": 130,
           "sink": "tr"
         }
       ]
@@ -23891,7 +23891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 103,
+          "line": 116,
           "sink": "getExistingDirectory"
         }
       ]
@@ -23921,12 +23921,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 54,
+          "line": 63,
           "sink": "setPlaceholderText"
         },
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 48,
+          "line": 56,
           "sink": "setPlaceholderText"
         }
       ]
@@ -23966,7 +23966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 209,
+          "line": 225,
           "sink": "tr"
         }
       ]
@@ -24081,7 +24081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 217,
+          "line": 233,
           "sink": "tr"
         }
       ]
@@ -24118,16 +24118,6 @@
           "path": "cdmw/services/mesh_replacement_import.py",
           "line": 203,
           "sink": "ValueError"
-        }
-      ]
-    },
-    {
-      "key": "Choose a target profile per row, such as Mod Manager, CDUMM, JMM JSON, Crimson Sharp, or Field JSON.",
-      "origins": [
-        {
-          "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 124,
-          "sink": "QLabel"
         }
       ]
     },
@@ -24411,7 +24401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 56,
+          "line": 65,
           "sink": "_browse"
         }
       ]
@@ -24511,7 +24501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 89,
+          "line": 92,
           "sink": "setToolTip"
         }
       ]
@@ -24761,7 +24751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 487,
+          "line": 467,
           "sink": "getExistingDirectory"
         }
       ]
@@ -24996,7 +24986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 481,
+          "line": 461,
           "sink": "getExistingDirectory"
         }
       ]
@@ -25231,7 +25221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 188,
+          "line": 197,
           "sink": "getExistingDirectory"
         }
       ]
@@ -25241,7 +25231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 107,
+          "line": 123,
           "sink": "tr"
         }
       ]
@@ -25251,7 +25241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 334,
+          "line": 337,
           "sink": "setText"
         }
       ]
@@ -25261,7 +25251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 46,
+          "line": 55,
           "sink": "_browse"
         }
       ]
@@ -25281,7 +25271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 402,
+          "line": 382,
           "sink": "setToolTip"
         }
       ]
@@ -26926,12 +26916,12 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 248,
+          "line": 228,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 536,
+          "line": 516,
           "sink": "QPushButton"
         },
         {
@@ -27891,7 +27881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 212,
+          "line": 228,
           "sink": "getText"
         }
       ]
@@ -28336,7 +28326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 68,
+          "line": 78,
           "sink": "QPushButton"
         }
       ]
@@ -28376,7 +28366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 182,
+          "line": 198,
           "sink": "tr"
         }
       ]
@@ -28406,7 +28396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 426,
+          "line": 429,
           "sink": "_run"
         }
       ]
@@ -28416,7 +28406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 166,
+          "line": 177,
           "sink": "_run"
         }
       ]
@@ -28446,7 +28436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 190,
+          "line": 206,
           "sink": "tr"
         }
       ]
@@ -28478,6 +28468,16 @@
           "path": "cdmw/ui/character_context_panel.py",
           "line": 104,
           "sink": "_make_tree"
+        },
+        {
+          "path": "cdmw/ui/new_item/independent_items_page.py",
+          "line": 63,
+          "sink": "QGroupBox"
+        },
+        {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 71,
+          "sink": "QGroupBox"
         }
       ]
     },
@@ -29051,12 +29051,12 @@
         },
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 178,
+          "line": 189,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 204,
+          "line": 183,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -29116,7 +29116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 176,
+          "line": 187,
           "sink": "setText"
         }
       ]
@@ -31151,7 +31151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 232,
+          "line": 235,
           "sink": "_details_ready"
         }
       ]
@@ -32596,7 +32596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 43,
+          "line": 50,
           "sink": "_folder_row"
         }
       ]
@@ -32936,7 +32936,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 411,
+          "line": 391,
           "sink": "addItem"
         }
       ]
@@ -33781,7 +33781,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 411,
+          "line": 391,
           "sink": "addItem"
         }
       ]
@@ -36231,7 +36231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 51,
+          "line": 61,
           "sink": "QLabel"
         }
       ]
@@ -36241,7 +36241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 52,
+          "line": 62,
           "sink": "setToolTip"
         }
       ]
@@ -36251,12 +36251,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 154,
+          "line": 170,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 383,
+          "line": 386,
           "sink": "tr"
         },
         {
@@ -36426,7 +36426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 207,
+          "line": 210,
           "sink": "setText"
         }
       ]
@@ -36446,12 +36446,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 140,
+          "line": 143,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 181,
+          "line": 184,
           "sink": "setText"
         }
       ]
@@ -40536,7 +40536,7 @@
         },
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 383,
+          "line": 386,
           "sink": "tr"
         },
         {
@@ -40626,7 +40626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 181,
+          "line": 184,
           "sink": "setText"
         }
       ]
@@ -41866,7 +41866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 204,
+          "line": 183,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -43566,7 +43566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 275,
+          "line": 291,
           "sink": "tr"
         }
       ]
@@ -43576,7 +43576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 43,
+          "line": 55,
           "sink": "QPushButton"
         }
       ]
@@ -45851,7 +45851,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 411,
+          "line": 391,
           "sink": "addItem"
         }
       ]
@@ -46116,7 +46116,7 @@
         },
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 57,
+          "line": 56,
           "sink": "setHorizontalHeaderLabels"
         },
         {
@@ -46146,7 +46146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 134,
+          "line": 137,
           "sink": "addTab"
         }
       ]
@@ -46206,7 +46206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 247,
+          "line": 263,
           "sink": "tr"
         }
       ]
@@ -48286,7 +48286,7 @@
         },
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 57,
+          "line": 56,
           "sink": "setHorizontalHeaderLabels"
         },
         {
@@ -48301,7 +48301,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 93,
+          "line": 98,
           "sink": "setHeaderLabels"
         }
       ]
@@ -48426,17 +48426,17 @@
         },
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 45,
+          "line": 54,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 55,
+          "line": 64,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 91,
+          "line": 102,
           "sink": "QPushButton"
         },
         {
@@ -48488,6 +48488,11 @@
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
           "line": 52,
           "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
+          "line": 119,
+          "sink": "QGroupBox"
         }
       ]
     },
@@ -48681,8 +48686,18 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 121,
+          "line": 130,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "For items previously written into shipped archives.",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_management.py",
+          "line": 124,
+          "sink": "QLabel"
         }
       ]
     },
@@ -48996,7 +49011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 163,
+          "line": 170,
           "sink": "tr"
         }
       ]
@@ -49016,7 +49031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 439,
+          "line": 419,
           "sink": "setText"
         }
       ]
@@ -49806,7 +49821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 162,
+          "line": 169,
           "sink": "tr"
         }
       ]
@@ -49851,7 +49866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 27,
+          "line": 33,
           "sink": "setHeaderLabels"
         }
       ]
@@ -49871,7 +49886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 23,
+          "line": 20,
           "sink": "QLabel"
         },
         {
@@ -49961,7 +49976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 50,
+          "line": 59,
           "sink": "addRow"
         }
       ]
@@ -49976,7 +49991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 57,
+          "line": 56,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -50046,7 +50061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 246,
+          "line": 262,
           "sink": "tr"
         }
       ]
@@ -50226,7 +50241,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 411,
+          "line": 391,
           "sink": "addItem"
         }
       ]
@@ -54702,16 +54717,26 @@
       ]
     },
     {
+      "key": "Identity profile",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/independent_items_page.py",
+          "line": 27,
+          "sink": "QGroupBox"
+        }
+      ]
+    },
+    {
       "key": "Identity profile (*.cdprofile)",
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 275,
+          "line": 291,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 285,
+          "line": 301,
           "sink": "tr"
         }
       ]
@@ -54721,7 +54746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 282,
+          "line": 298,
           "sink": "tr"
         }
       ]
@@ -54731,7 +54756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 162,
+          "line": 178,
           "sink": "tr"
         }
       ]
@@ -55751,7 +55776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 285,
+          "line": 301,
           "sink": "tr"
         }
       ]
@@ -55761,7 +55786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 45,
+          "line": 57,
           "sink": "QPushButton"
         }
       ]
@@ -55771,7 +55796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 165,
+          "line": 181,
           "sink": "tr"
         }
       ]
@@ -55801,7 +55826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 33,
+          "line": 40,
           "sink": "QPushButton"
         }
       ]
@@ -56807,6 +56832,16 @@
       ]
     },
     {
+      "key": "Include archive-list entries whose files are no longer present.",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_management_overview.py",
+          "line": 88,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Include extra local context in diagnostic reports",
       "origins": [
         {
@@ -57241,7 +57276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 176,
+          "line": 187,
           "sink": "setText"
         }
       ]
@@ -57266,7 +57301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 270,
+          "line": 286,
           "sink": "tr"
         }
       ]
@@ -57311,7 +57346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 165,
+          "line": 181,
           "sink": "tr"
         }
       ]
@@ -58397,12 +58432,12 @@
       ]
     },
     {
-      "key": "Install separate .cditem packages here. CDMW assigns distinct identities and composes their shared files. Keep the identity profile with your saves when moving to another computer.",
+      "key": "Install separate .cditem packages here. CDMW assigns distinct identities and composes their shared files.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 20,
-          "sink": "QLabel"
+          "line": 42,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -58506,12 +58541,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 154,
+          "line": 170,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 57,
+          "line": 56,
           "sink": "setHorizontalHeaderLabels"
         },
         {
@@ -58536,7 +58571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 37,
+          "line": 44,
           "sink": "addItem"
         }
       ]
@@ -58584,6 +58619,11 @@
     {
       "key": "Installed mods",
       "origins": [
+        {
+          "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
+          "line": 73,
+          "sink": "QGroupBox"
+        },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 506,
@@ -59906,7 +59946,7 @@
         },
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 27,
+          "line": 33,
           "sink": "setHeaderLabels"
         }
       ]
@@ -60597,6 +60637,16 @@
       ]
     },
     {
+      "key": "Item packages",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/independent_items_page.py",
+          "line": 25,
+          "sink": "QGroupBox"
+        }
+      ]
+    },
+    {
       "key": "Item presentation",
       "origins": [
         {
@@ -60766,7 +60816,7 @@
         },
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 57,
+          "line": 56,
           "sink": "setHorizontalHeaderLabels"
         },
         {
@@ -61382,6 +61432,16 @@
       ]
     },
     {
+      "key": "Keep this profile with your saves when moving computers.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/independent_items_page.py",
+          "line": 51,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
       "key": "Keep underlying skin/head",
       "origins": [
         {
@@ -61521,7 +61581,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 204,
+          "line": 183,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -61796,7 +61856,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 204,
+          "line": 183,
           "sink": "setHorizontalHeaderLabels"
         },
         {
@@ -65696,7 +65756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 93,
+          "line": 98,
           "sink": "setHeaderLabels"
         }
       ]
@@ -65756,7 +65816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 204,
+          "line": 183,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -67641,7 +67701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 55,
+          "line": 71,
           "sink": "QPushButton"
         }
       ]
@@ -67661,7 +67721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 205,
+          "line": 218,
           "sink": "setText"
         }
       ]
@@ -67671,7 +67731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 225,
+          "line": 241,
           "sink": "tr"
         }
       ]
@@ -71641,12 +71701,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 384,
+          "line": 387,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 163,
+          "line": 171,
           "sink": "tr"
         }
       ]
@@ -71723,16 +71783,6 @@
           "path": "tools/placement_studio/relationships.py",
           "line": 91,
           "sink": "python-return:resolve"
-        }
-      ]
-    },
-    {
-      "key": "Missing mod folders: {value_0}. Their archive-list entries remain after deletion. Available game data can still be read. Restore the mod through its manager if you need it.",
-      "origins": [
-        {
-          "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 144,
-          "sink": "tr"
         }
       ]
     },
@@ -72071,7 +72121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 36,
+          "line": 43,
           "sink": "addItem"
         },
         {
@@ -72146,7 +72196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 212,
+          "line": 228,
           "sink": "tr"
         }
       ]
@@ -72156,7 +72206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 41,
+          "line": 48,
           "sink": "_folder_row"
         }
       ]
@@ -72168,6 +72218,16 @@
           "path": "cdmw/ui/new_item/panels_output.py",
           "line": 520,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Mod folders",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 32,
+          "sink": "QGroupBox"
         }
       ]
     },
@@ -74321,27 +74381,27 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 315,
+          "line": 324,
           "sink": "_overlay_services"
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 325,
+          "line": 334,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 330,
+          "line": 339,
           "sink": "_overlay_services"
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 335,
+          "line": 344,
           "sink": "information"
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 339,
+          "line": 348,
           "sink": "question"
         }
       ]
@@ -74351,7 +74411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 120,
+          "line": 129,
           "sink": "QPushButton"
         }
       ]
@@ -74456,7 +74516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 339,
+          "line": 348,
           "sink": "question"
         }
       ]
@@ -76101,7 +76161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 381,
+          "line": 384,
           "sink": "tr"
         }
       ]
@@ -76111,7 +76171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 384,
+          "line": 387,
           "sink": "tr"
         },
         {
@@ -76706,7 +76766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 402,
+          "line": 405,
           "sink": "setText"
         }
       ]
@@ -78452,6 +78512,16 @@
       ]
     },
     {
+      "key": "No installed mods to display.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
+          "line": 77,
+          "sink": "setAccessibleDescription"
+        }
+      ]
+    },
+    {
       "key": "No installed overlay history is available to rebuild.",
       "origins": [
         {
@@ -78468,6 +78538,16 @@
           "path": "cdmw/services/new_item_body_visibility.py",
           "line": 58,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "No item packages installed.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/independent_items_page.py",
+          "line": 37,
+          "sink": "setAccessibleDescription"
         }
       ]
     },
@@ -79051,7 +79131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 265,
+          "line": 268,
           "sink": "setText"
         }
       ]
@@ -79206,12 +79286,12 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 93,
+          "line": 94,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 359,
+          "line": 339,
           "sink": "setText"
         }
       ]
@@ -79221,7 +79301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 358,
+          "line": 338,
           "sink": "setHtml"
         }
       ]
@@ -79241,7 +79321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 519,
+          "line": 499,
           "sink": "setText"
         }
       ]
@@ -80986,7 +81066,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 415,
+          "line": 395,
           "sink": "addItem"
         },
         {
@@ -81331,7 +81411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 163,
+          "line": 171,
           "sink": "tr"
         }
       ]
@@ -81351,12 +81431,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 382,
+          "line": 385,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 383,
+          "line": 386,
           "sink": "tr"
         }
       ]
@@ -81676,7 +81756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 335,
+          "line": 344,
           "sink": "information"
         }
       ]
@@ -83121,7 +83201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 174,
+          "line": 183,
           "sink": "tr"
         }
       ]
@@ -83167,11 +83247,6 @@
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
           "line": 405,
-          "sink": "QPushButton"
-        },
-        {
-          "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 240,
           "sink": "QPushButton"
         }
       ]
@@ -84108,6 +84183,16 @@
           "path": "tools/placement_studio/window_playback.py",
           "line": 111,
           "sink": "getOpenFileName"
+        }
+      ]
+    },
+    {
+      "key": "Open output folder",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
+          "line": 220,
+          "sink": "QPushButton"
         }
       ]
     },
@@ -85171,7 +85256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 517,
+          "line": 520,
           "sink": "setText"
         }
       ]
@@ -85181,7 +85266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 274,
+          "line": 283,
           "sink": "setText"
         }
       ]
@@ -85271,7 +85356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 420,
+          "line": 400,
           "sink": "setPlaceholderText"
         }
       ]
@@ -85831,7 +85916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 65,
+          "line": 75,
           "sink": "setPlaceholderText"
         }
       ]
@@ -85961,7 +86046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 45,
+          "line": 53,
           "sink": "setPlaceholderText"
         }
       ]
@@ -86217,16 +86302,6 @@
       ]
     },
     {
-      "key": "Other manager",
-      "origins": [
-        {
-          "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 162,
-          "sink": "tr"
-        }
-      ]
-    },
-    {
       "key": "Other mounted archive folders: {value_0}. Managed externally; compatibility has not been verified.",
       "origins": [
         {
@@ -86263,6 +86338,16 @@
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
           "line": 478,
           "sink": "QTreeWidgetItem"
+        },
+        {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 34,
+          "sink": "QGroupBox"
+        },
+        {
+          "path": "cdmw/ui/new_item/mod_update_dialog.py",
+          "line": 35,
+          "sink": "QGroupBox"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
@@ -86326,7 +86411,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 136,
+          "line": 126,
           "sink": "QLabel"
         }
       ]
@@ -86336,12 +86421,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 60,
+          "line": 69,
           "sink": "addRow"
         },
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 49,
+          "line": 57,
           "sink": "_folder_row"
         }
       ]
@@ -86491,7 +86576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 57,
+          "line": 56,
           "sink": "setHorizontalHeaderLabels"
         },
         {
@@ -87311,7 +87396,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 416,
+          "line": 396,
           "sink": "addItem"
         }
       ]
@@ -87886,7 +87971,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 204,
+          "line": 183,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -88041,12 +88126,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 52,
+          "line": 61,
           "sink": "addRow"
         },
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 46,
+          "line": 54,
           "sink": "addRow"
         }
       ]
@@ -88078,6 +88163,16 @@
           "path": "cdmw/ui/replace_assistant_tab.py",
           "line": 412,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Package plan",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
+          "line": 145,
+          "sink": "QGroupBox"
         }
       ]
     },
@@ -88151,7 +88246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 204,
+          "line": 183,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -88248,6 +88343,11 @@
           "path": "cdmw/ui/research/tab_builders.py",
           "line": 114,
           "sink": "setHeaderLabels"
+        },
+        {
+          "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
+          "line": 139,
+          "sink": "QGroupBox"
         }
       ]
     },
@@ -90286,7 +90386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 204,
+          "line": 183,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -92351,7 +92451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 309,
+          "line": 318,
           "sink": "warning"
         }
       ]
@@ -94221,7 +94321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 434,
+          "line": 437,
           "sink": "_run"
         }
       ]
@@ -94891,7 +94991,7 @@
         },
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 86,
+          "line": 89,
           "sink": "addTab"
         },
         {
@@ -95418,21 +95518,6 @@
           "path": "cdmw/ui/model_library/commands.py",
           "line": 523,
           "sink": "addAction"
-        }
-      ]
-    },
-    {
-      "key": "Preview Package Plan",
-      "origins": [
-        {
-          "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 188,
-          "sink": "setHtml"
-        },
-        {
-          "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 237,
-          "sink": "QPushButton"
         }
       ]
     },
@@ -97082,6 +97167,16 @@
       ]
     },
     {
+      "key": "Preview plan",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
+          "line": 216,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Preview playback speed; exported simulation settings are unchanged.",
       "origins": [
         {
@@ -98342,16 +98437,6 @@
       ]
     },
     {
-      "key": "Process Selected",
-      "origins": [
-        {
-          "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 238,
-          "sink": "QPushButton"
-        }
-      ]
-    },
-    {
       "key": "Process summary",
       "origins": [
         {
@@ -98366,7 +98451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 519,
+          "line": 499,
           "sink": "setText"
         }
       ]
@@ -98406,7 +98491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 514,
+          "line": 494,
           "sink": "setText"
         }
       ]
@@ -98836,7 +98921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 60,
+          "line": 70,
           "sink": "setToolTip"
         }
       ]
@@ -100511,7 +100596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 127,
+          "line": 132,
           "sink": "tr"
         }
       ]
@@ -100576,7 +100661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 321,
+          "line": 330,
           "sink": "emit"
         }
       ]
@@ -100601,7 +100686,7 @@
         },
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 340,
+          "line": 343,
           "sink": "setText"
         }
       ]
@@ -100716,7 +100801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 217,
+          "line": 220,
           "sink": "setPlainText"
         }
       ]
@@ -101192,6 +101277,16 @@
       ]
     },
     {
+      "key": "Ready packages can be rewritten for the selected manager. Review warnings before processing.",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
+          "line": 160,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Ready to build the archive cache for this path.",
       "origins": [
         {
@@ -101206,7 +101301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 174,
+          "line": 187,
           "sink": "setText"
         }
       ]
@@ -101261,7 +101356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 204,
+          "line": 183,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -101602,12 +101697,12 @@
       ]
     },
     {
-      "key": "Rebuild / reapply compares saved changes with the current game and preserves individual installs. Start fresh retires an unmounted set. Use migration below only for items previously written into shipped archives.",
+      "key": "Rebuild / reapply compares saved changes with the current game and preserves individual installs. Start fresh retires an unmounted set.",
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 110,
-          "sink": "QLabel"
+          "line": 113,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -101616,7 +101711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 152,
+          "line": 155,
           "sink": "QPushButton"
         }
       ]
@@ -102996,7 +103091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 332,
+          "line": 341,
           "sink": "emit"
         }
       ]
@@ -103411,7 +103506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 179,
+          "line": 190,
           "sink": "tr"
         }
       ]
@@ -103671,12 +103766,12 @@
         },
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 37,
+          "line": 46,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 146,
+          "line": 149,
           "sink": "QPushButton"
         },
         {
@@ -103691,7 +103786,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 86,
+          "line": 91,
           "sink": "QPushButton"
         },
         {
@@ -104536,7 +104631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 114,
+          "line": 117,
           "sink": "QPushButton"
         }
       ]
@@ -104746,12 +104841,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 182,
+          "line": 195,
           "sink": "python-return:build"
         },
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 187,
+          "line": 200,
           "sink": "python-return:build"
         }
       ]
@@ -104811,7 +104906,7 @@
         },
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 38,
+          "line": 47,
           "sink": "QPushButton"
         }
       ]
@@ -104821,7 +104916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 35,
+          "line": 44,
           "sink": "QPushButton"
         }
       ]
@@ -104841,7 +104936,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 143,
+          "line": 146,
           "sink": "QPushButton"
         }
       ]
@@ -104961,7 +105056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 154,
+          "line": 170,
           "sink": "tr"
         }
       ]
@@ -105071,7 +105166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 197,
+          "line": 200,
           "sink": "setText"
         }
       ]
@@ -105298,6 +105393,16 @@
           "path": "cdmw/ui/tools/mod_management_overview.py",
           "line": 67,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Repackage selected",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
+          "line": 217,
+          "sink": "QPushButton"
         }
       ]
     },
@@ -106731,7 +106836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 140,
+          "line": 145,
           "sink": "tr"
         }
       ]
@@ -109465,6 +109570,11 @@
           "sink": "addRow"
         },
         {
+          "path": "cdmw/ui/new_item/mod_update_dialog.py",
+          "line": 58,
+          "sink": "QGroupBox"
+        },
+        {
           "path": "cdmw/ui/text_search/tab.py",
           "line": 256,
           "sink": "FlatSectionPanel"
@@ -109601,7 +109711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 443,
+          "line": 446,
           "sink": "question"
         }
       ]
@@ -109621,7 +109731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 464,
+          "line": 467,
           "sink": "setText"
         }
       ]
@@ -109731,7 +109841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 458,
+          "line": 438,
           "sink": "setText"
         }
       ]
@@ -109748,16 +109858,6 @@
           "path": "cdmw/ui/tools/mod_package_retrofit.py",
           "line": 16,
           "sink": "setWindowTitle"
-        }
-      ]
-    },
-    {
-      "key": "Retrofit/Repackage plan for selected packages",
-      "origins": [
-        {
-          "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 181,
-          "sink": "QLabel"
         }
       ]
     },
@@ -110466,7 +110566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 250,
+          "line": 266,
           "sink": "tr"
         }
       ]
@@ -110506,7 +110606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 184,
+          "line": 187,
           "sink": "setToolTip"
         }
       ]
@@ -110518,6 +110618,16 @@
           "path": "cdmw/ui/shell/problem_report_dialog.py",
           "line": 443,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Review saved installs against the current game.",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_management.py",
+          "line": 112,
+          "sink": "QLabel"
         }
       ]
     },
@@ -112296,7 +112406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 381,
+          "line": 384,
           "sink": "tr"
         }
       ]
@@ -112862,6 +112972,16 @@
       ]
     },
     {
+      "key": "Saved installs",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_management.py",
+          "line": 109,
+          "sink": "QGroupBox"
+        }
+      ]
+    },
+    {
       "key": "Saved item icon metadata for {value_0}.",
       "origins": [
         {
@@ -113351,7 +113471,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 122,
+          "line": 115,
           "sink": "QPushButton"
         }
       ]
@@ -113446,8 +113566,18 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 177,
+          "line": 162,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Scan a source folder to find packages.",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
+          "line": 161,
+          "sink": "setAccessibleDescription"
         }
       ]
     },
@@ -113516,7 +113646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 64,
+          "line": 80,
           "sink": "setPlaceholderText"
         }
       ]
@@ -113526,7 +113656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 51,
+          "line": 67,
           "sink": "QPushButton"
         }
       ]
@@ -113542,12 +113672,12 @@
       ]
     },
     {
-      "key": "Scan loose or zipped mod packages and repackage them for another supported mod-manager profile. Use checkboxes to process one package or many at once.",
+      "key": "Scan loose or zipped mod packages. Choose a target manager for each package.",
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 104,
-          "sink": "QLabel"
+          "line": 118,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -113556,7 +113686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 53,
+          "line": 69,
           "sink": "QPushButton"
         }
       ]
@@ -113598,16 +113728,6 @@
           "path": "cdmw/ui/character_finder/dialog.py",
           "line": 53,
           "sink": "ValueError"
-        }
-      ]
-    },
-    {
-      "key": "Scan to see package readiness summary.",
-      "origins": [
-        {
-          "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 167,
-          "sink": "QLabel"
         }
       ]
     },
@@ -113776,7 +113896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 447,
+          "line": 427,
           "sink": "setText"
         }
       ]
@@ -116126,7 +116246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 174,
+          "line": 190,
           "sink": "tr"
         }
       ]
@@ -116253,6 +116373,16 @@
           "path": "cdmw/ui/archive_browser/pac_xml_editor_graph_view.py",
           "line": 296,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Select a package to review its output.",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
+          "line": 170,
+          "sink": "setPlaceholderText"
         }
       ]
     },
@@ -117221,7 +117351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 268,
+          "line": 271,
           "sink": "setText"
         }
       ]
@@ -117456,12 +117586,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 78,
+          "line": 81,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 196,
+          "line": 199,
           "sink": "setText"
         }
       ]
@@ -117471,22 +117601,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 103,
+          "line": 106,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 106,
+          "line": 109,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 110,
-          "sink": "QLabel"
-        },
-        {
-          "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 265,
+          "line": 268,
           "sink": "setText"
         }
       ]
@@ -117586,7 +117711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 494,
+          "line": 474,
           "sink": "information"
         }
       ]
@@ -117596,7 +117721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 501,
+          "line": 481,
           "sink": "information"
         }
       ]
@@ -118211,18 +118336,8 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 193,
+          "line": 172,
           "sink": "QLabel"
-        }
-      ]
-    },
-    {
-      "key": "Select package rows and press",
-      "origins": [
-        {
-          "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 188,
-          "sink": "setHtml"
         }
       ]
     },
@@ -118867,6 +118982,16 @@
       ]
     },
     {
+      "key": "Selected mod",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
+          "line": 79,
+          "sink": "QGroupBox"
+        }
+      ]
+    },
+    {
       "key": "Selected mod folders must not contain one another.",
       "origins": [
         {
@@ -119301,12 +119426,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 125,
+          "line": 138,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 125,
+          "line": 136,
           "sink": "setText"
         }
       ]
@@ -121722,6 +121847,16 @@
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
           "line": 713,
+          "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
+      "key": "Show missing references",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_management_overview.py",
+          "line": 86,
           "sink": "QCheckBox"
         }
       ]
@@ -124930,6 +125065,11 @@
           "sink": "setHeaderLabels"
         },
         {
+          "path": "cdmw/ui/new_item/mod_update_dialog.py",
+          "line": 34,
+          "sink": "QGroupBox"
+        },
+        {
           "path": "cdmw/ui/research/tab_builders.py",
           "line": 431,
           "sink": "setHeaderLabels"
@@ -125246,7 +125386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 177,
+          "line": 188,
           "sink": "tr"
         }
       ]
@@ -125311,7 +125451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 133,
+          "line": 123,
           "sink": "QLabel"
         }
       ]
@@ -125681,7 +125821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 39,
+          "line": 46,
           "sink": "addRow"
         }
       ]
@@ -126262,6 +126402,16 @@
       ]
     },
     {
+      "key": "Stale reference",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_management_overview.py",
+          "line": 170,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Stamp",
       "origins": [
         {
@@ -126521,7 +126671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 443,
+          "line": 446,
           "sink": "question"
         },
         {
@@ -126536,7 +126686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 155,
+          "line": 158,
           "sink": "QPushButton"
         }
       ]
@@ -126781,7 +126931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 450,
+          "line": 453,
           "sink": "setText"
         }
       ]
@@ -127026,7 +127176,7 @@
         },
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 57,
+          "line": 56,
           "sink": "setHorizontalHeaderLabels"
         },
         {
@@ -127386,7 +127536,7 @@
         },
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 27,
+          "line": 33,
           "sink": "setHeaderLabels"
         },
         {
@@ -127406,23 +127556,13 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 93,
+          "line": 98,
           "sink": "setHeaderLabels"
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
           "line": 3783,
           "sink": "rust-presentation"
-        }
-      ]
-    },
-    {
-      "key": "Status: Ready packages can be rewritten for the selected manager profile; warnings need review before processing.",
-      "origins": [
-        {
-          "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 171,
-          "sink": "QLabel"
         }
       ]
     },
@@ -127751,7 +127891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 473,
+          "line": 453,
           "sink": "setText"
         }
       ]
@@ -128041,7 +128181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 204,
+          "line": 183,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -132317,6 +132457,16 @@
       ]
     },
     {
+      "key": "The archive list still references {value_0}, but their archive indexes are absent. These are not active mod folders.",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_management_overview.py",
+          "line": 149,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "The archive mount list changed after overlay preparation; prepare again",
       "origins": [
         {
@@ -132336,7 +132486,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 305,
+          "line": 314,
           "sink": "warning"
         },
         {
@@ -132596,7 +132746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 325,
+          "line": 334,
           "sink": "warning"
         }
       ]
@@ -132806,7 +132956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 176,
+          "line": 187,
           "sink": "setText"
         }
       ]
@@ -133761,7 +133911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 74,
+          "line": 86,
           "sink": "setPlaceholderText"
         }
       ]
@@ -134131,7 +134281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 176,
+          "line": 187,
           "sink": "setText"
         }
       ]
@@ -134301,7 +134451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 200,
+          "line": 203,
           "sink": "setText"
         }
       ]
@@ -134786,12 +134936,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 195,
+          "line": 208,
           "sink": "_review_ready"
         },
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 199,
+          "line": 210,
           "sink": "_review_ready"
         }
       ]
@@ -136301,7 +136451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 197,
+          "line": 200,
           "sink": "setText"
         }
       ]
@@ -136621,7 +136771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 184,
+          "line": 187,
           "sink": "setToolTip"
         }
       ]
@@ -140056,7 +140206,7 @@
         },
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 382,
+          "line": 385,
           "sink": "tr"
         },
         {
@@ -140068,6 +140218,11 @@
           "path": "cdmw/ui/shell/problem_report_dialog.py",
           "line": 303,
           "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/tools/mod_management_overview.py",
+          "line": 169,
+          "sink": "tr"
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
@@ -140146,7 +140301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 177,
+          "line": 188,
           "sink": "tr"
         }
       ]
@@ -141226,7 +141381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 178,
+          "line": 189,
           "sink": "tr"
         }
       ]
@@ -141246,7 +141401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 208,
+          "line": 219,
           "sink": "setText"
         }
       ]
@@ -141341,7 +141496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 489,
+          "line": 492,
           "sink": "_run"
         }
       ]
@@ -141741,7 +141896,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 204,
+          "line": 183,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -142691,7 +142846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 226,
+          "line": 242,
           "sink": "tr"
         }
       ]
@@ -144966,7 +145121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 321,
+          "line": 324,
           "sink": "failed"
         }
       ]
@@ -144976,12 +145131,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 160,
+          "line": 173,
           "sink": "failed"
         },
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 160,
+          "line": 171,
           "sink": "failed"
         }
       ]
@@ -145216,7 +145371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 237,
+          "line": 240,
           "sink": "setText"
         }
       ]
@@ -145436,7 +145591,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 204,
+          "line": 183,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -147871,12 +148026,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 212,
+          "line": 228,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 81,
+          "line": 94,
           "sink": "QPushButton"
         }
       ]
@@ -147886,7 +148041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 57,
+          "line": 73,
           "sink": "QPushButton"
         }
       ]
@@ -147946,7 +148101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 425,
+          "line": 405,
           "sink": "setToolTip"
         }
       ]
@@ -147986,7 +148141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 71,
+          "line": 82,
           "sink": "QPushButton"
         }
       ]
@@ -148151,7 +148306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 200,
+          "line": 213,
           "sink": "_run"
         }
       ]
@@ -148171,7 +148326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 203,
+          "line": 214,
           "sink": "_run"
         }
       ]
@@ -153951,7 +154106,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 298,
+          "line": 278,
           "sink": "python-return:_manager_for_row"
         }
       ]
@@ -156011,7 +156166,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 411,
+          "line": 391,
           "sink": "addItem"
         }
       ]
@@ -162321,7 +162476,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 416,
+          "line": 396,
           "sink": "addItem"
         }
       ]
@@ -172346,7 +172501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 203,
+          "line": 206,
           "sink": "setText"
         }
       ]
@@ -173111,7 +173266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 172,
+          "line": 185,
           "sink": "setText"
         }
       ]
@@ -173286,7 +173441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 402,
+          "line": 405,
           "sink": "setText"
         }
       ]
@@ -173396,12 +173551,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 182,
+          "line": 195,
           "sink": "python-return:build"
         },
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 187,
+          "line": 200,
           "sink": "python-return:build"
         }
       ]
@@ -174077,16 +174232,6 @@
       ]
     },
     {
-      "key": "{value_0} mod folders missing",
-      "origins": [
-        {
-          "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 143,
-          "sink": "tr"
-        }
-      ]
-    },
-    {
       "key": "{value_0} model candidate(s) shown. Weak matches are guesses; prefer a model you recognize from the asset path.",
       "origins": [
         {
@@ -174311,7 +174456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 472,
+          "line": 475,
           "sink": "question"
         }
       ]
@@ -174506,7 +174651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 399,
+          "line": 402,
           "sink": "setText"
         }
       ]
@@ -174848,6 +174993,16 @@
           "path": "cdmw/ui/new_item/effect_placement_package.py",
           "line": 349,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} stale mod references",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_management_overview.py",
+          "line": 148,
+          "sink": "tr"
         }
       ]
     },
@@ -175221,7 +175376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 493,
+          "line": 496,
           "sink": "setText"
         }
       ]
@@ -175241,7 +175396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 472,
+          "line": 475,
           "sink": "question"
         }
       ]
@@ -176976,7 +177131,7 @@
         },
         {
           "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
-          "line": 391,
+          "line": 394,
           "sink": "setToolTip"
         },
         {
@@ -177026,7 +177181,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 436,
+          "line": 416,
           "sink": "setText"
         },
         {
@@ -177881,7 +178036,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 464,
+          "line": 444,
           "sink": "setText"
         }
       ]

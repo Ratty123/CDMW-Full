@@ -7,7 +7,11 @@ over an offscreen `ModManagementTab`. Overview shows enabled/disabled installs, 
 needing review and mounted folders. Its compact action groups are Install & manage,
 Package tools and Maintenance; explanations appear on hover. The Rust layout measures
 translated labels at the current font size, stacks the groups when they no longer fit
-side by side, and scrolls the overview when the window is short. The shared game-folder selector
+side by side, and scrolls when the window is short. All management pages share these
+panel, input, button and navigation styles. Form sections and inventory/preview panes
+stack at narrow widths or larger text sizes; tables retain horizontal scrolling for
+additional columns. Explanations stay concise, with longer guidance in hover help.
+The shared game-folder selector
 updates the existing archive setting. Installed mods provides a searchable inventory
 with a resizable preview and Files and history inspector. All workflows are embedded
 pages; pickers and mutation confirmations still use dialogs.
@@ -51,7 +55,11 @@ opening, filtering, inspecting and previewing the workspace are read-only.
 
 Other mounted archive folders are informational. This does not make DMM accept an
 installation it considers non-vanilla, or establish simultaneous manager compatibility.
-Overview identifies missing mod folders left in the mount list after manual deletion.
+Overview shows archive folders with an existing index by default. **Show missing
+references** reveals mod entries left in the mount list whose archive index is absent;
+these are labelled stale references, with unknown ownership unless CDMW tracks them.
+The count remains visible while those entries are hidden. Required missing game archives
+still produce a visible warning. Filtering never changes the mount list or game files.
 Create New Item can read the remaining data when a non-game folder is absent; missing
 required game archives and present but unindexed folders still block reading. Neither
 operation edits the mount list. A previously absent folder reappearing invalidates a

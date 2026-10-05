@@ -197,6 +197,8 @@ class PresentationDocument:
                     "enabled": widget.isEnabled(), "props": {}, "children": []}
             node["props"]["grow_x"] = bool(widget.sizePolicy().horizontalPolicy().value & 2)
             node["props"]["grow_y"] = bool(widget.sizePolicy().verticalPolicy().value & 2)
+            if widget.property('managementRole'):
+                node['props']['management_role'] = str(widget.property('managementRole'))
             self._describe(widget, identifier, node)
             return self.registry.publish(widget, node)
         finally:
@@ -287,6 +289,7 @@ class PresentationDocument:
         elif isinstance(widget, QAbstractItemView):
             node["kind"] = "table"
             props.update(self.models.view(widget, identifier, self.widget))
+            props['empty_text'] = widget.accessibleDescription()
             if node['name'] == 'mod_management_archives':
                 props['folder_states'] = dict(widget.property('modManagementFolderStates') or {})
         elif isinstance(widget, QLabel):

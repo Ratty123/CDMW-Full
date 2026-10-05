@@ -5,6 +5,9 @@ use super::*;
 use egui::{CornerRadius, Frame, Margin, Rect, Sense, Stroke, StrokeKind, pos2, vec2};
 use std::sync::Arc;
 
+#[path = "mod_management_pages.rs"]
+mod pages;
+
 #[cfg(test)]
 #[path = "mod_management_tests.rs"]
 mod tests;
@@ -88,25 +91,50 @@ impl PresentationView {
                     }
                 });
         } else {
-            self.management_header(ui, root);
-            self.management_tabs(ui, pages);
-            let bar = named(root, "mod_management_operation_bar");
-            let reserved = bar.map_or(0.0, |node| {
-                estimate_height(ui, node, ui.available_width()) + 8.0
-            });
-            let height = (bounded_height(ui) - reserved).max(0.0);
-            ui.allocate_ui_with_layout(
-                vec2(ui.available_width(), height),
-                egui::Layout::top_down(egui::Align::Min),
-                |ui| {
-                    for page in &pages.children {
-                        self.node(ui, page);
+            egui::ScrollArea::vertical()
+                .id_salt((
+                    "mod-management-page",
+                    pages.number("selected", 0.0) as usize,
+                ))
+                .auto_shrink([false, false])
+                .show(ui, |ui| {
+                    if let Ok(surface) = Color32::from_hex(root.text("management_surface")) {
+                        ui.visuals_mut().window_fill = surface;
                     }
-                },
-            );
-            if let Some(bar) = bar {
-                self.node(ui, bar);
-            }
+                    self.management_header(ui, root);
+                    self.management_tabs(ui, pages);
+                    let s = scale(ui);
+                    Frame::NONE
+                        .inner_margin(margin(22.0 * s, 20.0 * s))
+                        .show(ui, |ui| {
+                            ui.spacing_mut().item_spacing = vec2(12.0 * s, 12.0 * s);
+                            ui.spacing_mut().button_padding = vec2(10.0 * s, 8.0 * s);
+                        ui.spacing_mut().interact_size.y = 34.0 * s;
+                        let border = line(ui);
+                        let input_fill = ui.visuals().extreme_bg_color;
+                        ui.visuals_mut().widgets.inactive.bg_stroke = border;
+                        ui.visuals_mut().widgets.inactive.bg_fill = input_fill;
+                        ui.visuals_mut().widgets.inactive.weak_bg_fill = input_fill;
+                            ui.visuals_mut().widgets.inactive.corner_radius = CornerRadius::same(4);
+                            let selected = pages.number("selected", 0.0) as usize;
+                            if let Some(title) = pages
+                                .array("tabs")
+                                .get(selected)
+                                .and_then(|tab| tab["text"].as_str())
+                            {
+                                ui.label(RichText::new(title).font(font(ui, 18.0)).strong());
+                                ui.add_space(4.0 * s);
+                            }
+                            self.management_page = true;
+                            for page in &pages.children {
+                                self.node(ui, page);
+                            }
+                            if let Some(bar) = named(root, "mod_management_operation_bar") {
+                                self.node(ui, bar);
+                            }
+                            self.management_page = false;
+                        });
+                });
         }
     }
 
@@ -588,7 +616,15 @@ impl PresentationView {
             .size()
             .x
             + 44.0 * s;
-        let wide = ui.available_width() >= title_width + check_width + refresh_width + 38.0 * s;
+        let missing = named(overview, "mod_management_show_missing");
+        let missing_width = missing.map_or(0.0, |node| {
+            galley(ui, &node.label, 12.0, muted(ui), f32::INFINITY)
+                .size()
+                .x
+                + 34.0 * s
+        });
+        let wide = ui.available_width()
+            >= title_width + check_width + missing_width + refresh_width + 38.0 * s;
         let controls = |view: &mut Self, ui: &mut Ui| {
             let mut checked = check.flag("checked");
             let response = ui.add_enabled(
@@ -604,6 +640,22 @@ impl PresentationView {
                 view.input(check, "toggle", json!(checked));
             }
             view.record(ui, check, &response);
+            if let Some(missing) = missing {
+                let mut checked = missing.flag("checked");
+                let response = ui.add_enabled(
+                    missing.enabled,
+                    egui::Checkbox::new(
+                        &mut checked,
+                        RichText::new(&missing.label)
+                            .font(font(ui, 12.0))
+                            .color(muted(ui)),
+                    ),
+                );
+                if response.changed() {
+                    view.input(missing, "toggle", json!(checked));
+                }
+                view.record(ui, missing, &response);
+            }
             view.management_button(
                 ui,
                 refresh,
@@ -626,7 +678,8 @@ impl PresentationView {
             self.record(ui, title, &response);
             if wide {
                 ui.add_space(
-                    (ui.available_width() - check_width - refresh_width - 24.0 * s).max(0.0),
+                    (ui.available_width() - check_width - missing_width - refresh_width - 24.0 * s)
+                        .max(0.0),
                 );
                 controls(self, ui);
             }

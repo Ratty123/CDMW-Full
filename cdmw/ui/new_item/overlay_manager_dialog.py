@@ -6,7 +6,7 @@ from PySide6.QtCore import Qt, QTimer, QSignalBlocker, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView, QDialog, QDialogButtonBox, QHeaderView, QLabel,
     QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QHBoxLayout,
-    QComboBox, QLineEdit, QPlainTextEdit, QSplitter, QTabWidget, QWidget,
+    QComboBox, QGroupBox, QLineEdit, QPlainTextEdit, QSplitter, QTabWidget, QWidget,
 )
 
 from cdmw.services.archive_overlay_manager import (
@@ -52,7 +52,6 @@ class OverlayManagerDialog(QDialog):
         self.search = QLineEdit()
         self.search.setPlaceholderText('Search overlays by name, item ID or state…')
         self.search.textChanged.connect(self._filter)
-        layout.addWidget(self.search)
         self.table = QTableWidget(0, 8)
         self.table.setHorizontalHeaderLabels(['Overlay', 'Items', 'Folder', 'Files', 'Installed', 'Built for', 'Game check', 'State'])
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -71,10 +70,14 @@ class OverlayManagerDialog(QDialog):
         split = QSplitter(Qt.Orientation.Horizontal)
         split.setObjectName('mod_management_inventory_splitter')
         split.setChildrenCollapsible(False)
-        split.addWidget(self.table)
-        preview_panel = QWidget()
+        inventory_panel = QGroupBox('Installed mods')
+        inventory_layout = QVBoxLayout(inventory_panel)
+        inventory_layout.addWidget(self.search)
+        inventory_layout.addWidget(self.table, 1)
+        self.table.setAccessibleDescription('No installed mods to display.')
+        split.addWidget(inventory_panel)
+        preview_panel = QGroupBox('Selected mod')
         preview_layout = QVBoxLayout(preview_panel)
-        preview_layout.setContentsMargins(4, 0, 0, 0)
         self.selected_title = QLabel('Select an overlay')
         self.selected_title.setTextFormat(Qt.TextFormat.PlainText)
         self.selected_title.setWordWrap(True)
@@ -107,7 +110,7 @@ class OverlayManagerDialog(QDialog):
         self.preview_empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.preview_empty.setWordWrap(True)
         preview_body.addWidget(self.preview_empty, 1)
-        self.preview_status = QLabel('Select an overlay to preview its installed items.')
+        self.preview_status = QLabel('')
         self.preview_status.setTextFormat(Qt.TextFormat.PlainText)
         self.preview_status.setWordWrap(True)
         preview_body.addWidget(self.preview_status)
@@ -160,7 +163,7 @@ class OverlayManagerDialog(QDialog):
         buttons.rejected.connect(self.reject)
         row.addWidget(buttons)
         buttons.setVisible(not embedded)
-        layout.addLayout(row)
+        inventory_layout.addLayout(row)
         self.finished.connect(self._finished)
         controller.busy_changed.connect(self._busy_changed)
         self._buttons()

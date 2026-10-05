@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QFileDialog,
     QGridLayout,
+    QGroupBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -101,14 +102,6 @@ class ModPackageRetrofitUi:
             title = QLabel(self.dialog_title)
             title.setObjectName("SectionTitle")
             self.layout.addWidget(title)
-        intro = QLabel(
-            "Scan loose or zipped mod packages and repackage them for another supported mod-manager profile. "
-            "Use checkboxes to process one package or many at once."
-        )
-        intro.setWordWrap(True)
-        intro.setObjectName("HintLabel")
-        self.layout.addWidget(intro)
-
         config = self.owner.textures.collect_config()  # type: ignore[attr-defined]
         configured_root = str(getattr(config, "mod_ready_export_root", "") or "").strip()
         settings_path = Path(self.owner.shell.settings_file_path)  # type: ignore[attr-defined]
@@ -121,13 +114,10 @@ class ModPackageRetrofitUi:
         self.browse_output_button = QPushButton("Browse...")
         self.scan_button = QPushButton("Scan")
         self.scan_button.setObjectName("retrofit_scan_button")
-        hint = QLabel(
-            "Choose a target profile per row, such as Mod Manager, CDUMM, JMM JSON, Crimson Sharp, or Field JSON."
-        )
-        hint.setObjectName("HintLabel")
-        hint.setWordWrap(True)
-
-        path_layout = QGridLayout()
+        self.scan_button.setProperty('newItemPrimary', True)
+        self.scan_button.setToolTip('Scan loose or zipped mod packages. Choose a target manager for each package.')
+        paths = QGroupBox('Folders')
+        path_layout = QGridLayout(paths)
         path_layout.setHorizontalSpacing(8)
         path_layout.setVerticalSpacing(8)
         path_layout.addWidget(QLabel("Source folder"), 0, 0)
@@ -136,10 +126,9 @@ class ModPackageRetrofitUi:
         path_layout.addWidget(QLabel("Output folder"), 1, 0)
         path_layout.addWidget(self.output_edit, 1, 1)
         path_layout.addWidget(self.browse_output_button, 1, 2)
-        path_layout.addWidget(self.scan_button, 0, 3, 2, 1)
-        path_layout.addWidget(hint, 2, 1, 1, 2)
+        path_layout.addWidget(self.scan_button, 2, 1)
         path_layout.setColumnStretch(1, 1)
-        self.layout.addLayout(path_layout)
+        self.layout.addWidget(paths)
 
     def _build_content(self) -> None:
         self.content_splitter = QSplitter(Qt.Horizontal)
@@ -147,13 +136,13 @@ class ModPackageRetrofitUi:
         self.content_splitter.setHandleWidth(8)
         self.layout.addWidget(self.content_splitter, 1)
 
-        left_panel = QWidget()
+        left_panel = QGroupBox('Packages')
         left_panel.setMinimumWidth(240)
         left_layout = QVBoxLayout(left_panel)
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(8)
         self.content_splitter.addWidget(left_panel)
-        right_panel = QWidget()
+        right_panel = QGroupBox('Package plan')
         right_panel.setMinimumWidth(240)
         right_layout = QVBoxLayout(right_panel)
         right_layout.setContentsMargins(0, 0, 0, 0)
@@ -164,31 +153,21 @@ class ModPackageRetrofitUi:
 
         self.table = self._create_table()
         left_layout.addWidget(self.table, 1)
-        self.scan_summary_label = QLabel("Scan to see package readiness summary.")
+        self.scan_summary_label = QLabel('')
         self.scan_summary_label.setObjectName("HintLabel")
         self.scan_summary_label.setWordWrap(True)
         left_layout.addWidget(self.scan_summary_label)
-        legend = QLabel(
-            "Status: Ready packages can be rewritten for the selected manager profile; warnings need review before processing."
-        )
-        legend.setObjectName("HintLabel")
-        legend.setWordWrap(True)
-        left_layout.addWidget(legend)
+        self.table.setToolTip('Ready packages can be rewritten for the selected manager. Review warnings before processing.')
+        self.table.setAccessibleDescription('Scan a source folder to find packages.')
         self.status_label = QLabel("Scan a source folder to find packaged mods.")
         self.status_label.setObjectName("HintLabel")
         left_layout.addWidget(self.status_label)
 
-        diff_label = QLabel("Retrofit/Repackage plan for selected packages")
-        diff_label.setObjectName("HintLabel")
-        diff_label.setWordWrap(True)
         self.diff_preview = QTextBrowser()
         self.diff_preview.setReadOnly(True)
         self.diff_preview.setOpenExternalLinks(False)
         self.diff_preview.setMinimumWidth(0)
-        self.diff_preview.setHtml(
-            "<p>Select package rows and press <strong>Preview Package Plan</strong>, or read this live preview.</p>"
-        )
-        right_layout.addWidget(diff_label)
+        self.diff_preview.setPlaceholderText('Select a package to review its output.')
         right_layout.addWidget(self.diff_preview, 1)
         self.selection_status_label = QLabel("Select package rows and check a box to see package summary.")
         self.selection_status_label.setObjectName("HintLabel")
@@ -234,10 +213,11 @@ class ModPackageRetrofitUi:
 
     def _build_actions(self) -> None:
         button_row = QHBoxLayout()
-        self.preview_button = QPushButton("Preview Package Plan")
-        self.convert_button = QPushButton("Process Selected")
+        self.preview_button = QPushButton('Preview plan')
+        self.convert_button = QPushButton('Repackage selected')
+        self.convert_button.setProperty('newItemPrimary', True)
         self.convert_button.setObjectName("retrofit_convert_button")
-        self.open_output_button = QPushButton("Open Output Folder")
+        self.open_output_button = QPushButton('Open output folder')
         self.cancel_button = QPushButton('Cancel')
         self.cancel_button.hide()
         button_row.addWidget(self.preview_button)

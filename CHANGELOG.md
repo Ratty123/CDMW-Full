@@ -13,7 +13,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Changed
 
-- Mod Management brings Repackage into the same workspace, with compact install counts and actions grouped under Install & manage, Package tools and Maintenance. Hover help replaces the overview's long descriptions, and the layout adapts to window size and text scaling. The game-folder selector and missing-folder guidance remain available. Repackage keeps its results inline and supports cancellation.
+- Mod Management brings Repackage into the same workspace, with grouped overview actions and consistent panels, buttons and navigation across every tab. Shorter guidance and layouts that adapt to window size and text scaling make the tools easier to use. Archive folders show existing files by default; stale references remain available through Show missing references. Repackage keeps its results inline and supports cancellation.
 
 ### Fixed
 

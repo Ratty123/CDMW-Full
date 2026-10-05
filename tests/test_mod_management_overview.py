@@ -52,8 +52,12 @@ def test_grouped_overview_projects_existing_controls_and_preserves_every_route()
         assert state['root']['name'] == 'mod_management_workspace'
         assert not state['unsupported']
         assert projected['mod_management_group_installs']['label'] == 'Install & manage'
-        assert projected['mod_management_archives']['props']['folder_states'] == {'0037': 'found', 'dmmgen': 'missing'}
-        assert projected['mod_management_status']['props']['management_warning'] is True
+        assert projected['mod_management_archives']['props']['folder_states'] == {'0037': 'found'}
+        assert projected['mod_management_status']['props']['management_warning'] is False
+        _send(bridge, tab.overview.show_missing, 'toggle', True)
+        assert tab.overview.mounts.topLevelItemCount() == 2
+        assert tab.overview.mounts.topLevelItem(1).text(1) == 'Unknown'
+        assert tab.overview.mounts.topLevelItem(1).text(2) == 'Stale reference'
         _send(bridge, tab.overview.show_game, 'toggle', True)
         assert tab.overview.mounts.topLevelItemCount() == 3
         for key, button in tab.overview.actions.items():
@@ -100,14 +104,15 @@ def test_overview_reads_discard_old_root_and_close_results(tmp_path, monkeypatch
         return (MountedArchive(root, False, False, False),)
     monkeypatch.setattr('cdmw.ui.tools.mod_management_overview.mounted_archive_status', read)
     try:
+        overview.show_missing.setChecked(True)
         overview.refresh('old')
         pump(app, started.is_set)
         overview.refresh('new')
         release.set()
         pump(app, lambda: overview.mounts.topLevelItemCount() == 1)
         assert overview.mounts.topLevelItem(0).text(0) == 'new'
-        assert overview.status.text() == '1 mod folder missing'
-        assert 'Missing mod folders: new' in overview.status.toolTip()
+        assert overview.status.text() == '1 stale mod reference'
+        assert 'still references new' in overview.status.toolTip()
         overview.set_entries((InstalledOverlay('one', 'Item', (1,), 'new', 2, 0, health='missing'),))
         assert overview.counts['attention'].text() == '1'
         assert overview.mounts.topLevelItem(0).text(1) == 'CDMW'
@@ -126,6 +131,55 @@ def test_overview_reads_discard_old_root_and_close_results(tmp_path, monkeypatch
         controller.request_shutdown()
         pump(app, lambda: not controller.iter_shutdown_workers())
         overview.deleteLater()
+        app.sendPostedEvents(None, QEvent.DeferredDelete)
+
+
+def test_all_management_pages_keep_their_actions_and_editable_controls(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    owner = _ToolOwner(tmp_path)
+    tab = ModManagementTab(repackage_owner=owner)
+    bridge = NewItemPresentationBridge(tab)
+
+    def walk(node):
+        yield node
+        for child in node['children']:
+            yield from walk(child)
+
+    try:
+        for key in ('installed', 'independent', 'repackage', 'merge', 'updates', 'recovery'):
+            tab.open_page(key)
+            if key == 'installed':
+                controls = [tab.inventory.search, tab.inventory.table, tab.inventory.inspector,
+                            tab.inventory.toggle_button, tab.inventory.remove_button, tab.inventory.refresh_button,
+                            tab.inventory.update_button, tab.inventory.preview_retry]
+            elif key == 'independent':
+                page = tab.independent_page
+                controls = [page.items, page.import_button, page.remove_button, page.refresh_button,
+                            page.export_profile_button, page.import_profile_button, page.scan_button,
+                            page.scan_folder_button, page.compose_button, page.export_merge_button, page.comparison]
+            elif key == 'repackage':
+                page = tab.repackage_ui
+                controls = [page.source_edit, page.output_edit, page.scan_button, page.table,
+                            page.preview_button, page.convert_button, page.open_output_button, page.diff_preview]
+            elif key in ('merge', 'updates'):
+                page = tab._page_by_key[key]
+                controls = [page.game_root, page.title, page.destination, page.scan_button, page.export_button, page.review]
+            else:
+                controls = [tab.inventory.rebuild_button, tab.inventory.start_fresh_button, tab.recovery]
+            state = bridge.snapshot()
+            assert not state['unsupported'], key
+            projected = {node['id']: node for node in walk(state['root']) if 'id' in node}
+            for widget in controls:
+                identifier = bridge.document.registry.identify(widget)
+                assert identifier in projected, (key, type(widget).__name__, widget.objectName())
+                assert projected[identifier]['enabled'] == widget.isEnabled()
+            assert len([node for node in projected.values() if node['kind'] == 'group']) >= 2, key
+        _send(bridge, tab.recovery, 'activate')
+        assert not tab.overlay_migration_button.isHidden()
+    finally:
+        tab.request_shutdown()
+        pump(app, lambda: not tab.iter_shutdown_workers())
+        tab.deleteLater()
         app.sendPostedEvents(None, QEvent.DeferredDelete)
 
 

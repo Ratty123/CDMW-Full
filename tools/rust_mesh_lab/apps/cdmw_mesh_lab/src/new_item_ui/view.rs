@@ -32,6 +32,7 @@ pub struct PresentationView {
     pub textures: HashMap<String, egui::TextureHandle>,
     strings: BTreeMap<String, String>,
     compact_depth: usize,
+    management_page: bool,
 }
 
 struct EditText {
@@ -275,6 +276,9 @@ impl PresentationView {
     fn control(&mut self, ui: &mut Ui, node: &Node) {
         if node.name == "mod_management_workspace" {
             self.mod_management(ui, node);
+            return;
+        }
+        if self.management_page && self.management_page_control(ui, node) {
             return;
         }
         let response = match node.kind.as_str() {
@@ -1131,6 +1135,10 @@ impl PresentationView {
         .desired_width(f32::INFINITY)
         .password(node.flag("password"))
         .char_limit(node.number("maximum", 65536.0) as usize);
+        let edit = if self.management_page {
+            let scale = TextStyle::Body.resolve(ui.style()).size / 14.0;
+            edit.margin(Vec2::new(9.0 * scale, 8.0 * scale))
+        } else { edit };
         let response = if multiline && readonly {
             let footer = control_height(ui) + ui.spacing().item_spacing.y;
             let height = (bounded_height(ui) - footer).max(0.0);
@@ -1627,7 +1635,7 @@ impl PresentationView {
                 let rows = egui::ScrollArea::vertical().id_salt(("rows",offset)).auto_shrink([false,!fill_height])
                     .min_scrolled_height(0.0)
                     .max_height((height-header_space).max(header_height)).show(ui, |ui| {
-                        if node.array("rows").is_empty() { ui.weak("—"); }
+                        if node.array("rows").is_empty() && !self.management_page { ui.weak("—"); }
                         self.table_rows(ui,node,&node.props,&columns,&widths,row_header_width,0,focus_id);
                     });
                 let scrolling_down = ui.input(|input| input.pointer.latest_pos().is_some_and(|point| rows.inner_rect.contains(point))

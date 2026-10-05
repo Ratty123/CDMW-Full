@@ -430,3 +430,146 @@ fn grouped_management_other_pages_keep_navigation_and_operation_controls() {
                 && input.value == json!(1))
     );
 }
+
+fn management_form_fixture() -> State {
+    let mut state = fixture(false);
+    let pages = state
+        .root
+        .children
+        .iter_mut()
+        .find(|node| node.name == "mod_management_pages")
+        .unwrap();
+    pages.props["selected"] = json!(4);
+    let mut page = node("form-page", "column", "");
+    let mut setup = node("setup", "row", "");
+    for index in 0..2 {
+        let mut group = node(
+            &format!("panel-{index}"),
+            "group",
+            "Translated input and output settings",
+        );
+        let mut grid = node(&format!("fields-{index}"), "grid", "");
+        grid.props["form"] = json!(true);
+        for row in 0..3 {
+            let mut label = node(
+                &format!("label-{index}-{row}"),
+                "label",
+                "A longer translated field caption",
+            );
+            label.cell = Some([row, 0, 1, 1]);
+            let mut input = node(
+                &format!("input-{index}-{row}"),
+                "text",
+                "C:/long game path/with additional directories/Crimson Desert",
+            );
+            input.cell = Some([row, 1, 1, 1]);
+            grid.children.extend([label, input]);
+        }
+        group.children.push(grid);
+        setup.children.push(group);
+    }
+    page.children.push(setup);
+    let mut results = node("result-panel", "group", "Results");
+    let mut report = node("result-text", "text", "");
+    report.props = json!({"readonly":true,"multiline":true,"text":"", "placeholder":"Compare the selected folders to see their changes and conflicts here."});
+    results.children.push(report);
+    let mut actions = node("form-actions", "row", "");
+    actions.children.extend([
+        node(
+            "compare-action",
+            "button",
+            "Compare selected changes with the current game",
+        ),
+        node(
+            "export-action",
+            "button",
+            "Write a separate merged mod package",
+        ),
+    ]);
+    actions.children[0].props["primary"] = json!(true);
+    results.children.push(actions);
+    page.children.push(results);
+    pages.children = vec![page];
+    state
+}
+
+#[test]
+fn grouped_management_forms_fit_and_actions_remain_reachable_at_all_sizes() {
+    for pixels in [14.0, 21.0, 28.0] {
+        for width in [360.0, 520.0, 800.0, 1200.0, 1920.0] {
+            let ctx = egui::Context::default();
+            apply_theme(&ctx, &json!({"font_pixels":pixels,"dark":true}));
+            let state = management_form_fixture();
+            let mut view = PresentationView::default();
+            let size = vec2(width, 400.0);
+            let mut seen = std::collections::BTreeSet::new();
+            for pass in 0..65 {
+                let events = if pass < 3 {
+                    vec![]
+                } else {
+                    vec![
+                        egui::Event::PointerMoved(pos2(width - 18.0, 230.0)),
+                        egui::Event::MouseWheel {
+                            unit: egui::MouseWheelUnit::Point,
+                            delta: vec2(0.0, -90.0),
+                            phase: egui::TouchPhase::Move,
+                            modifiers: egui::Modifiers::NONE,
+                        },
+                    ]
+                };
+                frame(&ctx, &mut view, &state, size, events);
+                assert!(view.errors.is_empty(), "{:?}", view.errors);
+                let controls: Vec<_> = view
+                    .rects
+                    .iter()
+                    .filter(|r| r.id.starts_with("input-") || r.id.ends_with("-action"))
+                    .collect();
+                for control in &controls {
+                    let [x, y, w, h] = control.rect;
+                    assert!(
+                        x >= -0.5 && x + w <= width + 0.5,
+                        "{width}/{pixels}: {control:?}"
+                    );
+                    if y >= 0.0 && y + h <= size.y {
+                        seen.insert(control.id.clone());
+                    }
+                    if control.kind == "button" {
+                        let text = ctx.fonts_mut(|fonts| {
+                            fonts.layout(
+                                control.label.clone(),
+                                FontId::proportional(13.0 * pixels / 14.0),
+                                Color32::WHITE,
+                                (w - 20.0 * pixels / 14.0).max(1.0),
+                            )
+                        });
+                        assert!(text.size().y <= h, "Clipped button caption: {control:?}");
+                    }
+                }
+                for (i, a) in controls.iter().enumerate() {
+                    for b in &controls[i + 1..] {
+                        let a = Rect::from_min_size(
+                            pos2(a.rect[0], a.rect[1]),
+                            vec2(a.rect[2], a.rect[3]),
+                        );
+                        let b = Rect::from_min_size(
+                            pos2(b.rect[0], b.rect[1]),
+                            vec2(b.rect[2], b.rect[3]),
+                        );
+                        assert!(
+                            a.intersect(b).area() <= 0.5,
+                            "Overlapping form controls at {width}/{pixels}"
+                        );
+                    }
+                }
+                if seen.len() == 8 {
+                    break;
+                }
+            }
+            assert_eq!(
+                seen.len(),
+                8,
+                "Unreachable form controls at {width}/{pixels}: {seen:?}"
+            );
+        }
+    }
+}

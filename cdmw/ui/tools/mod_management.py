@@ -3,7 +3,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (
-    QFileDialog, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QProgressBar,
+    QFileDialog, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QProgressBar,
     QPushButton, QTabWidget, QToolButton, QVBoxLayout, QWidget,
 )
 
@@ -106,17 +106,26 @@ class ModManagementTab(QWidget):
         self.recovery.setCheckable(True)
         self.recovery.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.recovery.setArrowType(Qt.ArrowType.RightArrow)
-        recovery_layout.addWidget(QLabel('Archive recovery'))
-        recovery_help = QLabel('Rebuild / reapply compares saved changes with the current game and preserves individual installs. '
-                              'Start fresh retires an unmounted set. Use migration below only for items previously written into shipped archives.')
+        saved = QGroupBox('Saved installs')
+        saved_layout = QVBoxLayout(saved)
+        recovery_layout.addWidget(saved)
+        recovery_help = QLabel('Review saved installs against the current game.')
+        recovery_help.setToolTip('Rebuild / reapply compares saved changes with the current game and preserves individual installs. '
+                                'Start fresh retires an unmounted set.')
         recovery_help.setWordWrap(True)
-        recovery_layout.addWidget(recovery_help)
+        saved_layout.addWidget(recovery_help)
         repair_row = QHBoxLayout()
         repair_row.addWidget(self.inventory.rebuild_button)
         repair_row.addWidget(self.inventory.start_fresh_button)
         repair_row.addStretch(1)
-        recovery_layout.addLayout(repair_row)
-        recovery_layout.addWidget(self.recovery)
+        saved_layout.addLayout(repair_row)
+        legacy = QGroupBox('Archive recovery')
+        legacy_layout = QVBoxLayout(legacy)
+        legacy_help = QLabel('For items previously written into shipped archives.')
+        legacy_help.setWordWrap(True)
+        legacy_layout.addWidget(legacy_help)
+        legacy_layout.addWidget(self.recovery)
+        recovery_layout.addWidget(legacy)
         self.overlay_migration_button = QPushButton("Move installed items into the overlay...")
         self.overlay_migration_button.setToolTip(
             "For items already written into the shipped archives. Every archive entry that differs from the oldest "
@@ -127,7 +136,7 @@ class ModManagementTab(QWidget):
         self.recovery.toggled.connect(self.overlay_migration_button.setVisible)
         self.recovery.toggled.connect(lambda expanded: self.recovery.setArrowType(
             Qt.ArrowType.DownArrow if expanded else Qt.ArrowType.RightArrow))
-        recovery_layout.addWidget(self.overlay_migration_button)
+        legacy_layout.addWidget(self.overlay_migration_button)
         recovery_layout.addStretch(1)
         self.operation_bar = QWidget()
         self.operation_bar.setObjectName('mod_management_operation_bar')

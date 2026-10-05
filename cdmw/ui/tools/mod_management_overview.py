@@ -83,6 +83,11 @@ class ModManagementOverview(QWidget):
         self.show_game.setObjectName('mod_management_show_game')
         self.show_game.toggled.connect(self._render_mounts)
         toolbar.addWidget(self.show_game)
+        self.show_missing = QCheckBox('Show missing references')
+        self.show_missing.setObjectName('mod_management_show_missing')
+        self.show_missing.setToolTip('Include archive-list entries whose files are no longer present.')
+        self.show_missing.toggled.connect(self._render_mounts)
+        toolbar.addWidget(self.show_missing)
         self.refresh_button = QPushButton('Refresh')
         self.refresh_button.setObjectName('mod_management_refresh')
         self.refresh_button.clicked.connect(self.refresh_requested.emit)
@@ -139,12 +144,12 @@ class ModManagementOverview(QWidget):
         if broken_game:
             self.status.setText(self.tr('Required game archives are missing: {value_0}. Verify the game files before continuing.').format(value_0=', '.join(broken_game)))
         elif missing:
-            self.status.setText(self.tr('1 mod folder missing') if len(missing) == 1 else
-                                self.tr('{value_0} mod folders missing').format(value_0=len(missing)))
-            self.status.setToolTip(self.tr('Missing mod folders: {value_0}. Their archive-list entries remain after deletion. Available game data can still be read. Restore the mod through its manager if you need it.').format(value_0=', '.join(missing)))
+            self.status.setText(self.tr('1 stale mod reference') if len(missing) == 1 else
+                                self.tr('{value_0} stale mod references').format(value_0=len(missing)))
+            self.status.setToolTip(self.tr('The archive list still references {value_0}, but their archive indexes are absent. These are not active mod folders.').format(value_0=', '.join(missing)))
         else:
             self.status.setText('')
-        self.status.setProperty('modManagementWarning', bool(missing or broken_game))
+        self.status.setProperty('modManagementWarning', bool(broken_game))
 
     def _failed(self, key, message):
         if not self._closed and key == (self._generation, self._root):
@@ -159,8 +164,11 @@ class ModManagementOverview(QWidget):
         for row in self._mounts:
             if row.game and not self.show_game.isChecked():
                 continue
-            owner = self.tr('Game') if row.game else 'CDMW' if row.name in owned else self.tr('Other manager')
-            status = self.tr('Found') if row.present else self.tr('Not installed') if row.game and row.optional else self.tr('Missing files')
+            if not row.game and not row.present and not self.show_missing.isChecked():
+                continue
+            owner = self.tr('Game') if row.game else 'CDMW' if row.name in owned else self.tr('Unknown')
+            status = (self.tr('Found') if row.present else self.tr('Stale reference') if not row.game else
+                      self.tr('Not installed') if row.optional else self.tr('Missing files'))
             states[row.name] = 'found' if row.present else 'optional' if row.game and row.optional else 'missing'
             self.mounts.addTopLevelItem(QTreeWidgetItem([row.name, owner, status]))
         self.mounts.setProperty('modManagementFolderStates', states)
