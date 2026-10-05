@@ -15,9 +15,10 @@ The observed startup call site now has an exact-build activation guard. A separa
 reviewed controlled-probe route permits real-game acceptance testing with a
 verified save backup. Its first run redirects the prepared metadata and archive
 pair while the physical game archive directory remains absent. The user confirms
-both test items appear in the camp equipment shop and equip correctly. Save/reload,
-updates and the broader support matrix still require game validation; changing a
-manifest cannot enable the public launch mode.
+both test items appear in the camp equipment shop, equip correctly and return in
+the saved inventory after restarting with the same virtual profile. Updates,
+removal/reinstallation and the broader support matrix still require game
+validation; changing a manifest cannot enable the public launch mode.
 
 ## Use and ownership
 
@@ -201,12 +202,17 @@ separate discovery experiment.
    Its first redirected mount-table open follows completed hook installation by
    about 0.64 seconds; the mapped archive directory is absent from the physical
    game root. The user reports that both imported-model test items appear in the
-   camp equipment shop and equip correctly. That is user-observed item evidence,
-   separate from the native file trace; save/reload and update/removal acceptance
-   remain unverified. A fresh verified save backup is retained for those checks.
+   camp equipment shop and equip correctly. After saving, the user reports the
+   item absent on an ordinary restart. A second controlled launch reuses the
+   exact profile and identities and again passes the startup guard; the user
+   confirms both items return in the manual save's inventory and equip without
+   buying them again. This establishes user-observed save/reload for these two
+   items with an unchanged profile, separately from the native file trace.
+   Updates, removal/reinstallation and other configurations remain unverified.
+   Verified save backups are retained from before both controlled launches.
 4. **Selectable experimental item loading:** blocked pending broader controlled
-   coexistence, acquisition/equipment/crafting and
-   save/reload/update/removal acceptance with a disposable backed-up save.
+   coexistence, acquisition/equipment/crafting, full supported item/save coverage
+   and update/removal acceptance with a disposable backed-up save.
 
 Source tests, built native binaries, packaged application, visible game behavior
 and save compatibility are separate evidence classes. The diagnostic observations

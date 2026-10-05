@@ -84,8 +84,8 @@ the startup guard result from completion of all import hooks.
 
 Controlled game acceptance additionally requires a verified save backup and
 reviewed launch plan through `start_controlled_probe`. The ordinary production
-gate stays closed pending item and save validation. The source lead for the retained
-wrappers is the exact
+gate stays closed pending broader item and profile-lifecycle validation. The
+source lead for the retained wrappers is the exact
 [UAL 9.7.1 implementation](https://github.com/ThirteenAG/Ultimate-ASI-Loader/blob/v9.7.1/source/dllmain.cpp);
 the reviewed local binary witnesses, not a project version label, govern support.
 
@@ -93,8 +93,11 @@ The first controlled profile run passes the startup guard and records redirected
 opens for its PAPGT, PATHC and private PAMT/PAZ pair. The virtual archive directory
 is absent from the physical game root. Hook installation completes before the
 first redirected mount-table open. Separately, the user reports that both test
-items appear in the camp equipment shop and equip correctly. Save/reload and
-update/removal acceptance remain unverified; the public release gate stays closed.
+items appear in the camp equipment shop and equip correctly. A second guarded
+launch reuses the same profile and identities; the user confirms both swords
+return from the manual save and equip without repurchase. This is save/reload
+evidence for that two-item profile. Updates, removal/reinstallation and broader
+item/save coverage remain unverified; the public release gate stays closed.
 
 Do not poll until an unknown hook disappears or promote game loading based on
 the harness. The
