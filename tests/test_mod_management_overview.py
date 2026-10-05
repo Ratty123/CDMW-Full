@@ -20,6 +20,53 @@ from tests.test_mod_package_retrofit_async import _ToolOwner
 from tests.test_new_item_rust_ui import _send
 
 
+def test_grouped_overview_projects_existing_controls_and_preserves_every_route():
+    from PySide6.QtWidgets import QGroupBox, QLabel
+
+    app = QApplication.instance() or QApplication([])
+    tab = ModManagementTab()
+    bridge = NewItemPresentationBridge(tab)
+    try:
+        groups = tab.overview.findChildren(QGroupBox)
+        assert [(group.title(), [button.objectName() for button in group.findChildren(type(tab.choose_game))])
+                for group in groups] == [
+            ('Install && manage', ['mod_management_open_independent', 'mod_management_open_installed']),
+            ('Package tools', ['mod_management_open_repackage', 'mod_management_open_merge']),
+            ('Maintenance', ['mod_management_open_updates', 'mod_management_open_recovery']),
+        ]
+        assert all(label.objectName() != 'HintLabel' for label in tab.overview.findChildren(QLabel))
+        assert all(button.toolTip() for button in tab.overview.actions.values())
+        tab.overview._loaded((tab.overview._generation, ''), (
+            MountedArchive('0037', False, True, False),
+            MountedArchive('dmmgen', False, False, False),
+            MountedArchive('0008', True, False, True),
+        ))
+
+        def nodes(node):
+            yield node
+            for child in node['children']:
+                yield from nodes(child)
+
+        state = bridge.snapshot()
+        projected = {node['name']: node for node in nodes(state['root'])}
+        assert state['root']['name'] == 'mod_management_workspace'
+        assert not state['unsupported']
+        assert projected['mod_management_group_installs']['label'] == 'Install & manage'
+        assert projected['mod_management_archives']['props']['folder_states'] == {'0037': 'found', 'dmmgen': 'missing'}
+        assert projected['mod_management_status']['props']['management_warning'] is True
+        _send(bridge, tab.overview.show_game, 'toggle', True)
+        assert tab.overview.mounts.topLevelItemCount() == 3
+        for key, button in tab.overview.actions.items():
+            _send(bridge, button, 'activate')
+            assert tab.pages.currentWidget() is tab._page_by_key[key]
+            _send(bridge, tab.pages, 'tab', 0)
+    finally:
+        tab.request_shutdown()
+        pump(app, lambda: not tab.iter_shutdown_workers())
+        tab.deleteLater()
+        app.sendPostedEvents(None, QEvent.DeferredDelete)
+
+
 def test_mounted_status_reports_missing_mods_and_named_external_groups_without_writes(tmp_path):
     (tmp_path / 'meta').mkdir()
     records = [PapgtDirectory(name, PAPGT_DEFAULT_FLAGS, 0) for name in ('0009', '0036', 'dmmgen', 'dmmsa')]
@@ -59,7 +106,8 @@ def test_overview_reads_discard_old_root_and_close_results(tmp_path, monkeypatch
         release.set()
         pump(app, lambda: overview.mounts.topLevelItemCount() == 1)
         assert overview.mounts.topLevelItem(0).text(0) == 'new'
-        assert 'Missing mod folders: new' in overview.status.text()
+        assert overview.status.text() == '1 mod folder missing'
+        assert 'Missing mod folders: new' in overview.status.toolTip()
         overview.set_entries((InstalledOverlay('one', 'Item', (1,), 'new', 2, 0, health='missing'),))
         assert overview.counts['attention'].text() == '1'
         assert overview.mounts.topLevelItem(0).text(1) == 'CDMW'
@@ -184,8 +232,8 @@ def test_localized_overview_and_late_repackage_keep_navigation_and_settings(tmp_
             tab.open_page('overview')
             app.processEvents()
             localizer.apply_registered_roots()
-            assert tab.choose_game.text() == localizer.translate('Choose folder…')
-            assert tab.overview.actions['installed'].text() == localizer.translate('Manage installed mods')
+            assert tab.choose_game.text() == localizer.translate('Change…')
+            assert tab.overview.actions['installed'].text() == localizer.translate('Installed mods')
             assert tab.pages.tabText(tab.pages.indexOf(tab.repackage_page)) == localizer.translate('Repackage')
             tab.open_page('repackage')
             app.processEvents()

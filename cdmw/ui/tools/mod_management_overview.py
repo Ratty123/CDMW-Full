@@ -1,7 +1,7 @@
 """Installation overview and navigation for the shared Mod Management workspace."""
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QAbstractItemView, QCheckBox, QGridLayout, QGroupBox, QHBoxLayout, QHeaderView,
+    QAbstractItemView, QCheckBox, QGroupBox, QHBoxLayout, QHeaderView,
     QLabel, QPushButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
 )
 
@@ -14,6 +14,7 @@ class ModManagementOverview(QWidget):
 
     def __init__(self, controller, parent=None):
         super().__init__(parent)
+        self.setObjectName('mod_management_overview')
         self._closed = False
         self._generation = 0
         self._root = ''
@@ -28,58 +29,67 @@ class ModManagementOverview(QWidget):
         summary = QHBoxLayout()
         self.counts = {}
         for key, title in (('enabled', 'Enabled'), ('disabled', 'Disabled'), ('attention', 'Needs review')):
-            box = QGroupBox(title)
-            body = QVBoxLayout(box)
             value = QLabel('—')
+            value.setObjectName('mod_management_count_' + key)
             font = value.font()
-            font.setPointSize(font.pointSize() + 8)
             font.setBold(True)
             value.setFont(font)
-            body.addWidget(value)
+            caption = QLabel(title)
+            caption.setObjectName('mod_management_count_label_' + key)
+            summary.addWidget(value)
+            summary.addWidget(caption)
+            summary.addSpacing(16)
             self.counts[key] = value
-            summary.addWidget(box, 1)
+        summary.addStretch(1)
         layout.addLayout(summary)
-        actions = QGroupBox('What would you like to do?')
-        grid = QGridLayout(actions)
+        groups = QHBoxLayout()
         self.actions = {}
         choices = {
-            'independent': ('Install item packages', 'Install or update .cditem files and keep their save identities.'),
-            'installed': ('Manage installed mods', 'Preview items, enable or disable mods, and remove selected installs.'),
-            'repackage': ('Repackage Mods', 'Convert folders or ZIPs for another mod manager.'),
+            'independent': ('Install item package', 'Install or update .cditem files and keep their save identities.'),
+            'installed': ('Installed mods', 'Preview items, enable or disable mods, and remove selected installs.'),
+            'repackage': ('Repackage mods', 'Convert folders or ZIPs for another mod manager.'),
             'merge': ('Merge mods', 'Combine compatible mod folders into one package.'),
             'updates': ('Check game updates', 'Compare recorded changes with your current game files.'),
             'recovery': ('Recovery', 'Rebuild saved installs or review an installation that needs attention.'),
         }
-        for index, (key, (title, detail)) in enumerate(choices.items()):
-            button = QPushButton(title)
-            button.setObjectName('mod_management_open_' + key)
-            button.setToolTip(detail)
-            button.clicked.connect(lambda _checked=False, page=key: self.page_requested.emit(page))
-            caption = QLabel(detail)
-            caption.setWordWrap(True)
-            caption.setObjectName('HintLabel')
-            column, row = index % 2, (index // 2) * 2
-            grid.addWidget(button, row, column)
-            grid.addWidget(caption, row + 1, column)
-            self.actions[key] = button
-        grid.setColumnStretch(0, 1)
-        grid.setColumnStretch(1, 1)
-        layout.addWidget(actions)
+        for name, title, keys in (
+            ('installs', 'Install && manage', ('independent', 'installed')),
+            ('packages', 'Package tools', ('repackage', 'merge')),
+            ('maintenance', 'Maintenance', ('updates', 'recovery')),
+        ):
+            group = QGroupBox(title)
+            group.setObjectName('mod_management_group_' + name)
+            body = QVBoxLayout(group)
+            for key in keys:
+                label, detail = choices[key]
+                button = QPushButton(label)
+                button.setObjectName('mod_management_open_' + key)
+                button.setToolTip(detail)
+                button.setProperty('newItemPrimary', key == 'independent')
+                button.clicked.connect(lambda _checked=False, page=key: self.page_requested.emit(page))
+                body.addWidget(button)
+                self.actions[key] = button
+            groups.addWidget(group, 1)
+        layout.addLayout(groups)
         toolbar = QHBoxLayout()
         title = QLabel('Archive folders')
+        title.setObjectName('mod_management_archives_title')
         font = title.font()
         font.setBold(True)
         title.setFont(font)
         toolbar.addWidget(title)
         toolbar.addStretch(1)
         self.show_game = QCheckBox('Show game archives')
+        self.show_game.setObjectName('mod_management_show_game')
         self.show_game.toggled.connect(self._render_mounts)
         toolbar.addWidget(self.show_game)
         self.refresh_button = QPushButton('Refresh')
+        self.refresh_button.setObjectName('mod_management_refresh')
         self.refresh_button.clicked.connect(self.refresh_requested.emit)
         toolbar.addWidget(self.refresh_button)
         layout.addLayout(toolbar)
         self.mounts = QTreeWidget()
+        self.mounts.setObjectName('mod_management_archives')
         self.mounts.setHeaderLabels(['Folder', 'Managed by', 'Status'])
         self.mounts.setRootIsDecorated(False)
         self.mounts.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
@@ -88,6 +98,7 @@ class ModManagementOverview(QWidget):
         self.mounts.header().setStretchLastSection(True)
         layout.addWidget(self.mounts, 1)
         self.status = QLabel('Choose a game folder, then refresh.')
+        self.status.setObjectName('mod_management_status')
         self.status.setWordWrap(True)
         self.status.setTextFormat(Qt.TextFormat.PlainText)
         layout.addWidget(self.status)
@@ -108,6 +119,8 @@ class ModManagementOverview(QWidget):
         self._mounts = ()
         self._render_mounts()
         self._lookup.cancel()
+        self.status.setToolTip('')
+        self.status.setProperty('modManagementWarning', False)
         if not self._root:
             self.status.setText(self.tr('Choose a game folder, then refresh.'))
             return
@@ -122,26 +135,35 @@ class ModManagementOverview(QWidget):
         self._render_mounts()
         missing = [row.name for row in mounts if not row.game and not row.present]
         broken_game = [row.name for row in mounts if row.game and not row.present and not row.optional]
+        self.status.setToolTip('')
         if broken_game:
             self.status.setText(self.tr('Required game archives are missing: {value_0}. Verify the game files before continuing.').format(value_0=', '.join(broken_game)))
         elif missing:
-            self.status.setText(self.tr('Missing mod folders: {value_0}. Their archive-list entries remain after deletion. Available game data can still be read. Restore the mod through its manager if you need it.').format(value_0=', '.join(missing)))
+            self.status.setText(self.tr('1 mod folder missing') if len(missing) == 1 else
+                                self.tr('{value_0} mod folders missing').format(value_0=len(missing)))
+            self.status.setToolTip(self.tr('Missing mod folders: {value_0}. Their archive-list entries remain after deletion. Available game data can still be read. Restore the mod through its manager if you need it.').format(value_0=', '.join(missing)))
         else:
-            self.status.setText(self.tr('Archive folders are present. Use Game updates to check mod compatibility.'))
+            self.status.setText('')
+        self.status.setProperty('modManagementWarning', bool(missing or broken_game))
 
     def _failed(self, key, message):
         if not self._closed and key == (self._generation, self._root):
+            self.status.setToolTip('')
+            self.status.setProperty('modManagementWarning', True)
             self.status.setText(str(message))
 
     def _render_mounts(self, *_args):
         self.mounts.clear()
+        states = {}
         owned = {entry.directory for entry in self._entries}
         for row in self._mounts:
             if row.game and not self.show_game.isChecked():
                 continue
             owner = self.tr('Game') if row.game else 'CDMW' if row.name in owned else self.tr('Other manager')
             status = self.tr('Found') if row.present else self.tr('Not installed') if row.game and row.optional else self.tr('Missing files')
+            states[row.name] = 'found' if row.present else 'optional' if row.game and row.optional else 'missing'
             self.mounts.addTopLevelItem(QTreeWidgetItem([row.name, owner, status]))
+        self.mounts.setProperty('modManagementFolderStates', states)
 
     def request_shutdown(self):
         self._closed = True

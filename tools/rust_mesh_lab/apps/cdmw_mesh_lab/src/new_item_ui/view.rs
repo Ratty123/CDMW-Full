@@ -9,6 +9,9 @@ use std::collections::{BTreeMap, HashMap};
 #[path = "view_tests.rs"]
 mod tests;
 
+#[path = "mod_management.rs"]
+mod mod_management;
+
 #[derive(Default)]
 pub struct PresentationView {
     pub inputs: Vec<Input>,
@@ -270,6 +273,10 @@ impl PresentationView {
     }
 
     fn control(&mut self, ui: &mut Ui, node: &Node) {
+        if node.name == "mod_management_workspace" {
+            self.mod_management(ui, node);
+            return;
+        }
         let response = match node.kind.as_str() {
             "workspace" => {
                 self.workspace(ui, node);

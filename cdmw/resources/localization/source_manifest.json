@@ -2377,6 +2377,16 @@
       ]
     },
     {
+      "key": "1 mod folder missing",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_management_overview.py",
+          "line": 142,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "1. Add the package.\n2. Choose manager, structure and repair options.\n3. Repackage.",
       "origins": [
         {
@@ -11531,18 +11541,8 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 69,
+          "line": 75,
           "sink": "QLabel"
-        }
-      ]
-    },
-    {
-      "key": "Archive folders are present. Use Game updates to check mod compatibility.",
-      "origins": [
-        {
-          "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 130,
-          "sink": "tr"
         }
       ]
     },
@@ -12196,12 +12196,12 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 102,
+          "line": 105,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 106,
+          "line": 109,
           "sink": "QLabel"
         }
       ]
@@ -18766,7 +18766,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 144,
+          "line": 165,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -20111,7 +20111,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 139,
+          "line": 143,
           "sink": "QPushButton"
         },
         {
@@ -21392,6 +21392,16 @@
       ]
     },
     {
+      "key": "Change…",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_management.py",
+          "line": 47,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Changing hair part ownership requires complete geometry publication.",
       "origins": [
         {
@@ -22226,23 +22236,13 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 31,
-          "sink": "QGroupBox"
-        },
-        {
-          "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 54,
+          "line": 65,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 56,
+          "line": 67,
           "sink": "setToolTip"
-        },
-        {
-          "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 58,
-          "sink": "QLabel"
         }
       ]
     },
@@ -22271,7 +22271,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 98,
+          "line": 101,
           "sink": "QPushButton"
         }
       ]
@@ -23786,12 +23786,12 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 90,
+          "line": 100,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 112,
+          "line": 125,
           "sink": "tr"
         }
       ]
@@ -24722,16 +24722,6 @@
       ]
     },
     {
-      "key": "Choose folder…",
-      "origins": [
-        {
-          "path": "cdmw/ui/tools/mod_management.py",
-          "line": 46,
-          "sink": "QPushButton"
-        }
-      ]
-    },
-    {
       "key": "Choose glowing parts, colour, strength and animation. Source glow maps are retained; parts without a glow map use a solid map. Off restores the source emission.",
       "origins": [
         {
@@ -25072,6 +25062,16 @@
       ]
     },
     {
+      "key": "Choose the Crimson Desert game folder.",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_management.py",
+          "line": 49,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Choose the Mesh Replacement Alignment renderer and adjust lighting, texture, support-map, and diagnostic controls.",
       "origins": [
         {
@@ -25156,7 +25156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 184,
+          "line": 188,
           "sink": "getExistingDirectory"
         }
       ]
@@ -27791,23 +27791,13 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 31,
-          "sink": "QGroupBox"
-        },
-        {
-          "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 54,
+          "line": 65,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 56,
+          "line": 67,
           "sink": "setToolTip"
-        },
-        {
-          "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 58,
-          "sink": "QLabel"
         }
       ]
     },
@@ -28181,23 +28171,13 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 31,
-          "sink": "QGroupBox"
-        },
-        {
-          "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 54,
+          "line": 65,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 56,
+          "line": 67,
           "sink": "setToolTip"
-        },
-        {
-          "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 58,
-          "sink": "QLabel"
         }
       ]
     },
@@ -29701,23 +29681,13 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 31,
-          "sink": "QGroupBox"
-        },
-        {
-          "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 54,
+          "line": 65,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 56,
+          "line": 67,
           "sink": "setToolTip"
-        },
-        {
-          "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 58,
-          "sink": "QLabel"
         }
       ]
     },
@@ -36161,13 +36131,13 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 31,
-          "sink": "QGroupBox"
+          "line": 37,
+          "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 54,
-          "sink": "QPushButton"
+          "line": 60,
+          "sink": "QGroupBox"
         }
       ]
     },
@@ -40436,13 +40406,13 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 31,
-          "sink": "QGroupBox"
+          "line": 37,
+          "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 54,
-          "sink": "QPushButton"
+          "line": 60,
+          "sink": "QGroupBox"
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs",
@@ -48161,7 +48131,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 83,
+          "line": 93,
           "sink": "setHeaderLabels"
         }
       ]
@@ -48541,7 +48511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 118,
+          "line": 121,
           "sink": "setToolTip"
         }
       ]
@@ -48856,7 +48826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 143,
+          "line": 163,
           "sink": "tr"
         }
       ]
@@ -49666,7 +49636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 142,
+          "line": 162,
           "sink": "tr"
         }
       ]
@@ -49882,6 +49852,16 @@
       ]
     },
     {
+      "key": "Game folder",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_management.py",
+          "line": 40,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
       "key": "Game folder / archive setup",
       "origins": [
         {
@@ -49898,11 +49878,6 @@
           "path": "cdmw/ui/new_item/independent_items_page.py",
           "line": 159,
           "sink": "tr"
-        },
-        {
-          "path": "cdmw/ui/tools/mod_management.py",
-          "line": 42,
-          "sink": "QLabel"
         }
       ]
     },
@@ -50051,7 +50026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 76,
+          "line": 79,
           "sink": "addTab"
         }
       ]
@@ -57146,7 +57121,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 70,
+          "line": 73,
           "sink": "addTab"
         }
       ]
@@ -58092,6 +58067,21 @@
       ]
     },
     {
+      "key": "Install && manage",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_management_overview.py",
+          "line": 37,
+          "sink": "QLabel"
+        },
+        {
+          "path": "cdmw/ui/tools/mod_management_overview.py",
+          "line": 60,
+          "sink": "QGroupBox"
+        }
+      ]
+    },
+    {
       "key": "Install as Overlay",
       "origins": [
         {
@@ -58167,27 +58157,17 @@
       ]
     },
     {
-      "key": "Install item packages",
+      "key": "Install item package",
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 31,
-          "sink": "QGroupBox"
-        },
-        {
-          "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 54,
+          "line": 65,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 56,
+          "line": 67,
           "sink": "setToolTip"
-        },
-        {
-          "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 58,
-          "sink": "QLabel"
         }
       ]
     },
@@ -58216,23 +58196,13 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 31,
-          "sink": "QGroupBox"
-        },
-        {
-          "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 54,
+          "line": 65,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 56,
+          "line": 67,
           "sink": "setToolTip"
-        },
-        {
-          "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 58,
-          "sink": "QLabel"
         }
       ]
     },
@@ -58273,16 +58243,6 @@
           "path": "cdmw/ui/new_item/tab.py",
           "line": 1131,
           "sink": "question"
-        }
-      ]
-    },
-    {
-      "key": "Install, organise, convert and maintain your mods in one workspace.",
-      "origins": [
-        {
-          "path": "cdmw/ui/tools/mod_management.py",
-          "line": 38,
-          "sink": "QLabel"
         }
       ]
     },
@@ -58441,8 +58401,18 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 67,
+          "line": 70,
           "sink": "addTab"
+        },
+        {
+          "path": "cdmw/ui/tools/mod_management_overview.py",
+          "line": 65,
+          "sink": "QPushButton"
+        },
+        {
+          "path": "cdmw/ui/tools/mod_management_overview.py",
+          "line": 67,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -58471,7 +58441,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 92,
+          "line": 95,
           "sink": "QPushButton"
         }
       ]
@@ -65508,8 +65478,18 @@
     },
     {
       "key": "Maintenance",
-      "origins": [],
-      "manual": true
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_management_overview.py",
+          "line": 37,
+          "sink": "QLabel"
+        },
+        {
+          "path": "cdmw/ui/tools/mod_management_overview.py",
+          "line": 60,
+          "sink": "QGroupBox"
+        }
+      ]
     },
     {
       "key": "Malformed replacement draft state.",
@@ -65522,36 +65502,11 @@
       ]
     },
     {
-      "key": "Manage installed mods",
-      "origins": [
-        {
-          "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 31,
-          "sink": "QGroupBox"
-        },
-        {
-          "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 54,
-          "sink": "QPushButton"
-        },
-        {
-          "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 56,
-          "sink": "setToolTip"
-        },
-        {
-          "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 58,
-          "sink": "QLabel"
-        }
-      ]
-    },
-    {
       "key": "Managed by",
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 83,
+          "line": 93,
           "sink": "setHeaderLabels"
         }
       ]
@@ -67381,7 +67336,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 75,
+          "line": 78,
           "sink": "addTab"
         },
         {
@@ -67446,28 +67401,18 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 95,
+          "line": 98,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 31,
-          "sink": "QGroupBox"
-        },
-        {
-          "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 54,
+          "line": 65,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 56,
+          "line": 67,
           "sink": "setToolTip"
-        },
-        {
-          "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 58,
-          "sink": "QLabel"
         }
       ]
     },
@@ -71471,7 +71416,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 143,
+          "line": 163,
           "sink": "tr"
         }
       ]
@@ -71556,7 +71501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 128,
+          "line": 144,
           "sink": "tr"
         }
       ]
@@ -71776,7 +71721,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 35,
+          "line": 36,
           "sink": "QLabel"
         }
       ]
@@ -74106,27 +74051,27 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 311,
+          "line": 315,
           "sink": "_overlay_services"
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 321,
+          "line": 325,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 326,
+          "line": 330,
           "sink": "_overlay_services"
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 331,
+          "line": 335,
           "sink": "information"
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 335,
+          "line": 339,
           "sink": "question"
         }
       ]
@@ -74136,7 +74081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 117,
+          "line": 120,
           "sink": "QPushButton"
         }
       ]
@@ -74241,7 +74186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 335,
+          "line": 339,
           "sink": "question"
         }
       ]
@@ -75901,13 +75846,13 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 31,
-          "sink": "QGroupBox"
+          "line": 37,
+          "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 54,
-          "sink": "QPushButton"
+          "line": 60,
+          "sink": "QGroupBox"
         }
       ]
     },
@@ -81086,7 +81031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 143,
+          "line": 163,
           "sink": "tr"
         }
       ]
@@ -81431,7 +81376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 331,
+          "line": 335,
           "sink": "information"
         }
       ]
@@ -82876,7 +82821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 170,
+          "line": 174,
           "sink": "tr"
         }
       ]
@@ -84936,7 +84881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 270,
+          "line": 274,
           "sink": "setText"
         }
       ]
@@ -85976,7 +85921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 142,
+          "line": 162,
           "sink": "tr"
         }
       ]
@@ -87116,7 +87061,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 66,
+          "line": 69,
           "sink": "addTab"
         }
       ]
@@ -87918,6 +87863,21 @@
           "path": "cdmw/ui/archive_browser/mod_ready_export.py",
           "line": 161,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Package tools",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_management_overview.py",
+          "line": 37,
+          "sink": "QLabel"
+        },
+        {
+          "path": "cdmw/ui/tools/mod_management_overview.py",
+          "line": 60,
+          "sink": "QGroupBox"
         }
       ]
     },
@@ -92091,7 +92051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 305,
+          "line": 309,
           "sink": "warning"
         }
       ]
@@ -96161,23 +96121,13 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 31,
-          "sink": "QGroupBox"
-        },
-        {
-          "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 54,
+          "line": 65,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 56,
+          "line": 67,
           "sink": "setToolTip"
-        },
-        {
-          "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 58,
-          "sink": "QLabel"
         }
       ]
     },
@@ -100261,7 +100211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 114,
+          "line": 127,
           "sink": "tr"
         }
       ]
@@ -100326,7 +100276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 317,
+          "line": 321,
           "sink": "emit"
         }
       ]
@@ -101356,7 +101306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 107,
+          "line": 110,
           "sink": "QLabel"
         }
       ]
@@ -101536,23 +101486,13 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 31,
-          "sink": "QGroupBox"
-        },
-        {
-          "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 54,
+          "line": 65,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 56,
+          "line": 67,
           "sink": "setToolTip"
-        },
-        {
-          "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 58,
-          "sink": "QLabel"
         }
       ]
     },
@@ -102726,28 +102666,18 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 79,
+          "line": 82,
           "sink": "addTab"
         },
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 31,
-          "sink": "QGroupBox"
-        },
-        {
-          "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 54,
+          "line": 65,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 56,
+          "line": 67,
           "sink": "setToolTip"
-        },
-        {
-          "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 58,
-          "sink": "QLabel"
         }
       ]
     },
@@ -102766,7 +102696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 328,
+          "line": 332,
           "sink": "emit"
         }
       ]
@@ -103461,7 +103391,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 78,
+          "line": 86,
           "sink": "QPushButton"
         },
         {
@@ -105031,7 +104961,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 74,
+          "line": 77,
           "sink": "addTab"
         }
       ]
@@ -105053,26 +104983,21 @@
           "path": "cdmw/ui/shell/problem_report_catalog.py",
           "line": 99,
           "sink": "python-data:REPORT_TOOLS"
-        },
+        }
+      ]
+    },
+    {
+      "key": "Repackage mods",
+      "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 31,
-          "sink": "QGroupBox"
-        },
-        {
-          "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 54,
+          "line": 65,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 56,
+          "line": 67,
           "sink": "setToolTip"
-        },
-        {
-          "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 58,
-          "sink": "QLabel"
         }
       ]
     },
@@ -106506,7 +106431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 126,
+          "line": 140,
           "sink": "tr"
         }
       ]
@@ -121276,7 +121201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 75,
+          "line": 82,
           "sink": "QCheckBox"
         }
       ]
@@ -127081,7 +127006,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 83,
+          "line": 93,
           "sink": "setHeaderLabels"
         },
         {
@@ -132001,7 +131926,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 301,
+          "line": 305,
           "sink": "warning"
         },
         {
@@ -132261,7 +132186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 321,
+          "line": 325,
           "sink": "warning"
         }
       ]
@@ -146047,16 +145972,6 @@
       ]
     },
     {
-      "key": "What would you like to do?",
-      "origins": [
-        {
-          "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 42,
-          "sink": "QGroupBox"
-        }
-      ]
-    },
-    {
       "key": "What you can change",
       "origins": [
         {
@@ -158883,26 +158798,6 @@
           "path": "cdmw/ui/mesh_editor/actions.py",
           "line": 304,
           "sink": "MeshEditorAction"
-        },
-        {
-          "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 31,
-          "sink": "QGroupBox"
-        },
-        {
-          "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 54,
-          "sink": "QPushButton"
-        },
-        {
-          "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 56,
-          "sink": "setToolTip"
-        },
-        {
-          "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 58,
-          "sink": "QLabel"
         }
       ]
     },
@@ -173628,6 +173523,16 @@
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
           "line": 325,
           "sink": "QTreeWidgetItem"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} mod folders missing",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_management_overview.py",
+          "line": 143,
+          "sink": "tr"
         }
       ]
     },

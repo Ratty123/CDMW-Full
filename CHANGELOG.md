@@ -7,9 +7,13 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Added
+
+- Independent items can scan mounted mods or an extracted mod folder for conflicts, preserve supported unrelated record changes, and prepare a reviewed merge or separate merged package. Required-record conflicts and unsupported inputs are reported explicitly; runtime plugins and in-game compatibility remain unverified.
+
 ### Changed
 
-- Mod Management brings Repackage into the same workspace, with an installation overview, missing-folder guidance, a game-folder selector and direct access to installed mods, item packages, merging, game updates and recovery. Repackage keeps its results inline and supports cancellation.
+- Mod Management brings Repackage into the same workspace, with compact install counts and actions grouped under Install & manage, Package tools and Maintenance. Hover help replaces the overview's long descriptions, and the layout adapts to window size and text scaling. The game-folder selector and missing-folder guidance remain available. Repackage keeps its results inline and supports cancellation.
 
 ### Fixed
 

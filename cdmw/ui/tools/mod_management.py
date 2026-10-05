@@ -16,6 +16,7 @@ class ModManagementTab(QWidget):
     def __init__(self, parent=None, *, window=None, service=None, controller=None,
                  get_package_root=None, set_package_root=None, preview_context=None, repackage_owner=None):
         super().__init__(parent)
+        self.setObjectName('mod_management_workspace')
         self._window = window
         self._get_package_root = get_package_root or (lambda: "")
         self._set_package_root = set_package_root
@@ -35,15 +36,17 @@ class ModManagementTab(QWidget):
         heading = QLabel("Mod Management")
         heading.setObjectName('SectionTitle')
         layout.addWidget(heading)
-        help_text = QLabel("Install, organise, convert and maintain your mods in one workspace.")
-        help_text.setWordWrap(True)
-        layout.addWidget(help_text)
         source_row = QHBoxLayout()
-        source_row.addWidget(QLabel('Game folder:'))
+        source_label = QLabel('Game folder')
+        source_label.setObjectName('mod_management_game_label')
+        source_row.addWidget(source_label)
         self.game_folder = QLineEdit(str(self._get_package_root() or ''))
+        self.game_folder.setObjectName('mod_management_game_folder')
         self.game_folder.setReadOnly(True)
         source_row.addWidget(self.game_folder, 1)
-        self.choose_game = QPushButton('Choose folder…')
+        self.choose_game = QPushButton('Change…')
+        self.choose_game.setObjectName('mod_management_choose_game')
+        self.choose_game.setToolTip('Choose the Crimson Desert game folder.')
         self.choose_game.setEnabled(callable(self._set_package_root))
         self.choose_game.clicked.connect(self._choose_game)
         source_row.addWidget(self.choose_game)
@@ -127,6 +130,7 @@ class ModManagementTab(QWidget):
         recovery_layout.addWidget(self.overlay_migration_button)
         recovery_layout.addStretch(1)
         self.operation_bar = QWidget()
+        self.operation_bar.setObjectName('mod_management_operation_bar')
         activity_row = QHBoxLayout(self.operation_bar)
         activity_row.setContentsMargins(0, 0, 0, 0)
         self.status = QLabel('')

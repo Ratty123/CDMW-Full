@@ -287,12 +287,16 @@ class PresentationDocument:
         elif isinstance(widget, QAbstractItemView):
             node["kind"] = "table"
             props.update(self.models.view(widget, identifier, self.widget))
+            if node['name'] == 'mod_management_archives':
+                props['folder_states'] = dict(widget.property('modManagementFolderStates') or {})
         elif isinstance(widget, QLabel):
             node["kind"] = "label"
             text, links = self._format_text(widget.text(), plain_text) if widget.textFormat() != Qt.PlainText else (widget.text(), [])
             props.update(text=text, links=links, bold=widget.font().bold(), wrap=widget.wordWrap(),
                          image=self.image(widget.pixmap()), align=int(widget.alignment()),
                          spans=self._format_text(widget.text(), rich_spans) if widget.textFormat() != Qt.PlainText else [])
+            if node['name'] == 'mod_management_status':
+                props['management_warning'] = bool(widget.property('modManagementWarning'))
         elif isinstance(widget, QProgressBar):
             node["kind"] = "progress"
             props.update(value=widget.value(), minimum=widget.minimum(), maximum=widget.maximum(),
@@ -334,6 +338,8 @@ class PresentationDocument:
             node["kind"] = "menu"
             node["children"] = [self.action(action) for action in widget.actions() if action.isVisible()]
         else:
+            if node['name'] == 'mod_management_workspace':
+                props['management_surface'] = widget.palette().color(QPalette.ToolTipBase).name()
             if isinstance(widget, QGroupBox):
                 node["kind"] = "group"
                 node["label"] = qt_caption(widget.title())

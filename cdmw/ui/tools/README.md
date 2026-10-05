@@ -4,7 +4,10 @@ Owns utility workspaces that do not belong to Assets, Textures, or Research. **U
 > Mod Management** owns installed mods, independent item packages, Repackage, Merge,
 Game updates and Recovery. The visible tab uses the existing Rust presentation bridge
 over an offscreen `ModManagementTab`. Overview shows enabled/disabled installs, entries
-needing review, mounted folders and direct actions. The shared game-folder selector
+needing review and mounted folders. Its compact action groups are Install & manage,
+Package tools and Maintenance; explanations appear on hover. The Rust layout measures
+translated labels at the current font size, stacks the groups when they no longer fit
+side by side, and scrolls the overview when the window is short. The shared game-folder selector
 updates the existing archive setting. Installed mods provides a searchable inventory
 with a resizable preview and Files and history inspector. All workflows are embedded
 pages; pickers and mutation confirmations still use dialogs.
