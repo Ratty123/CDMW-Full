@@ -244,6 +244,23 @@ separate discovery experiment.
    files to their pre-test hashes. The physical overlay directory is still
    absent; original packages, restored identities and active snapshot hashes
    also match their expected values.
+   A further real-data preparation uses separate clean authoring snapshots for
+   a stock Hwando model and an imported model. Both deliberately receive the
+   same temporary item, perk, recipe, reward and icon identities. The published
+   four-item view gives the new packages disjoint bindings while preserving
+   test3/test4's reservations, records and assets. Its audit resolves two custom
+   icons through StringInfo, the icon list and PATHC; three owned perks and
+   fourteen owned recipe/output pairs per item; names in all fifteen language
+   tables; and the imported item's owned effect, emitter and render preset.
+   Each new item has a first-refinement ingredient override for the game check.
+   An attempted effect on the stock model correctly refuses export because it
+   would copy an unverified physics file; this template test instead retains
+   the original model and physics as game dependencies. Save backups precede
+   publication. The guarded launch redirects the reviewed four-file snapshot;
+   the checked physical mount/texture metadata and game-data archive pair still
+   match their initial hashes, and the virtual archive directory remains absent
+   from the game root. Appearance, effect, refinement and save acceptance for
+   this additional pair remain pending controlled game observation.
 4. **Selectable experimental item loading:** blocked pending broader controlled
    coexistence, acquisition/equipment/crafting, full supported item/save coverage
    and asset/behavior update acceptance with a disposable backed-up save.
