@@ -101,8 +101,12 @@ updates to copies of both packages with the same identities and assets. The user
 confirms both saved swords receive the updated names and still equip without
 repurchase. A subsequent guarded profile removes test3 while retaining test4;
 the user confirms test3 is absent from the camp shop and saved test4 still
-equips. Both identities remain reserved. Saving with an absent item,
-asset/behavior updates, reinstallation and broader item/save coverage remain
+equips. Both identities remain reserved. Restoring the original packages in
+reverse selection order reproduces the original identity ledger. The next
+guarded launch redirects that restored snapshot; the user confirms both swords
+return from the original manual save under their original names and equip
+without repurchase. This completes the tested two-item lifecycle. Saving with
+an absent item, asset/behavior updates and broader item/save coverage remain
 unverified; the public release gate stays closed.
 
 Do not poll until an unknown hook disappears or promote game loading based on

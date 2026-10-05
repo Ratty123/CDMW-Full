@@ -19,9 +19,10 @@ both test items appear in the camp equipment shop, equip correctly and return in
 the saved inventory after restarting with the same virtual profile. A subsequent
 display-name update also reaches both saved items without repurchase and retains
 their ability to equip. Removing one package also removes its shop entry while
-the other saved item still equips. Asset/behavior updates, reinstallation and
-the broader support matrix still require game validation; changing a manifest
-cannot enable the public launch mode.
+the other saved item still equips. Restoring the original packages in reverse
+order recovers both saved swords under their original names without repurchase.
+Asset/behavior updates and the broader support matrix still require game
+validation; changing a manifest cannot enable the public launch mode.
 
 ## Use and ownership
 
@@ -228,13 +229,24 @@ separate discovery experiment.
    membership, owned auxiliary records, localization or assets; test4's owned
    contribution is intact and both identities remain reserved. The user confirms
    test3 is absent from the camp shop and saved test4 still equips. The native
-   trace separately confirms redirection to that one-item snapshot. Saving with
-   an absent item was not tested. Asset/behavior updates, reinstallation and
-   other configurations remain unverified.
+   trace separately confirms redirection to that one-item snapshot. Restoring
+   the original package files in reverse selection order reproduces the original
+   identity ledger exactly, including auxiliary identities and asset paths.
+   Parsed records match the original two-item view; differences are table order
+   and the owned shop entries' positions. The guarded launch redirects the
+   restored snapshot, and the user confirms both swords return from the original
+   manual save under their original names and equip without repurchase. This
+   completes acquisition, same-profile save/reload, name update, partial removal
+   and reinstallation for these two imported-model swords. Saving with an absent
+   item, asset/behavior updates and other configurations remain unverified.
    Verified save backups are retained from before the controlled launches.
+   The final full comparison matches all 228 original archive and metadata
+   files to their pre-test hashes. The physical overlay directory is still
+   absent; original packages, restored identities and active snapshot hashes
+   also match their expected values.
 4. **Selectable experimental item loading:** blocked pending broader controlled
    coexistence, acquisition/equipment/crafting, full supported item/save coverage
-   and broader update/reinstallation acceptance with a disposable backed-up save.
+   and asset/behavior update acceptance with a disposable backed-up save.
 
 Source tests, built native binaries, packaged application, visible game behavior
 and save compatibility are separate evidence classes. The diagnostic observations
