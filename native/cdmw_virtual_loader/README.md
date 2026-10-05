@@ -96,8 +96,11 @@ first redirected mount-table open. Separately, the user reports that both test
 items appear in the camp equipment shop and equip correctly. A second guarded
 launch reuses the same profile and identities; the user confirms both swords
 return from the manual save and equip without repurchase. This is save/reload
-evidence for that two-item profile. Updates, removal/reinstallation and broader
-item/save coverage remain unverified; the public release gate stays closed.
+evidence for that two-item profile. A further guarded launch uses name-only
+updates to copies of both packages with the same identities and assets. The user
+confirms both saved swords receive the updated names and still equip without
+repurchase. Asset/behavior updates, removal/reinstallation and broader item/save
+coverage remain unverified; the public release gate stays closed.
 
 Do not poll until an unknown hook disappears or promote game loading based on
 the harness. The

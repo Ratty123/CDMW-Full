@@ -16,9 +16,11 @@ reviewed controlled-probe route permits real-game acceptance testing with a
 verified save backup. Its first run redirects the prepared metadata and archive
 pair while the physical game archive directory remains absent. The user confirms
 both test items appear in the camp equipment shop, equip correctly and return in
-the saved inventory after restarting with the same virtual profile. Updates,
-removal/reinstallation and the broader support matrix still require game
-validation; changing a manifest cannot enable the public launch mode.
+the saved inventory after restarting with the same virtual profile. A subsequent
+display-name update also reaches both saved items without repurchase and retains
+their equipment behavior. Asset/behavior updates, removal/reinstallation and the
+broader support matrix still require game validation; changing a manifest cannot
+enable the public launch mode.
 
 ## Use and ownership
 
@@ -214,8 +216,15 @@ separate discovery experiment.
    confirms both items return in the manual save's inventory and equip without
    buying them again. This establishes user-observed save/reload for these two
    items with an unchanged profile, separately from the native file trace.
-   Updates, removal/reinstallation and other configurations remain unverified.
-   Verified save backups are retained from before both controlled launches.
+   A later controlled launch updates copies of both packages with visible name
+   suffixes while preserving their UUIDs and all item, perk, recipe and asset
+   bindings. The composed payload changes only localization records; the user
+   confirms both already-owned swords show the updated names and still equip
+   without repurchase. The native trace separately confirms the guarded startup
+   and all four mapped file opens. Original packages and the earlier snapshot
+   remain unchanged. This establishes a display-name update only; asset/behavior
+   updates, removal/reinstallation and other configurations remain unverified.
+   Verified save backups are retained from before the controlled launches.
 4. **Selectable experimental item loading:** blocked pending broader controlled
    coexistence, acquisition/equipment/crafting, full supported item/save coverage
    and update/removal acceptance with a disposable backed-up save.
