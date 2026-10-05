@@ -157,6 +157,88 @@ def test_virtual_update_and_identity_transfer_reuse_bindings(tmp_path):
     assert load_registry(recipient) == load_registry(root)
 
 
+@pytest.mark.parametrize('archive_mod', [False, True])
+def test_virtual_update_partial_removal_and_reverse_reinstall_preserve_external_edit(tmp_path, archive_mod):
+    import copy
+    import shutil
+    from cdmw.services.independent_item_package import read_package
+    from tests.test_archive_overlay_manager import snapshot_of
+    from tests.test_independent_item_compatibility import table_change
+    from tests.test_new_item_service import build_package, OTHER, TEMPLATE
+
+    root, files = packages(tmp_path)
+    stock = snapshot_of(root)
+    external = tmp_path / 'external'
+    changes = table_change(stock)
+    if archive_mod:
+        external = build_package(external, changes).parent
+    else:
+        for path, data in changes.items():
+            target = external / 'files' / path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(data)
+    original_game, original_mod = game_bytes(root), game_bytes(external)
+    originals = tuple(read_package(path) for path in files)
+    publish_profile(prepare_profile(VirtualProfile(files, (external,)), root))
+    reservations = load_registry(root)
+    first_generation = root / '.cdmw/virtual-loader/generations' / load_profile(root)['generation']
+    first_files = game_bytes(first_generation / 'files')
+
+    recipe = copy.deepcopy(originals[0].recipe)
+    recipe['spec']['fields']['display_names']['map']['eng'] = 'Updated sword'
+    updated_path = tmp_path / 'updated.cditem'
+    updated_path.write_bytes(package_bytes(replace(originals[0], recipe=recipe)))
+    selections = ((updated_path, files[1]), (updated_path,), tuple(reversed(files)))
+    for index, selected in enumerate(selections):
+        prepared = prepare_profile(VirtualProfile(selected, (external,)), root)
+        publish_profile(prepared)
+        active = {read_package(path).identity for path in selected}
+        assert set(load_profile(root)['items']) == active
+        registry = load_registry(root)
+        assert set(registry['items']) == set(reservations['items'])
+        for identity, original in reservations['items'].items():
+            for field in ('values', 'stem', 'paths', 'binding_hash'):
+                assert registry['items'][identity][field] == original[field]
+
+        view = tmp_path / f'view-{index}'
+        shutil.copytree(root, view, ignore=shutil.ignore_patterns('.cdmw'))
+        for relative, data in prepared.files:
+            target = view / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(data)
+        snapshot = snapshot_of(view)
+        camp = next(store for store in snapshot.stores if store.name == 'Store_Camp_Equipment')
+        names = snapshot.english.index()
+        assert snapshot.rows[OTHER].max_stack_count == stock.rows[OTHER].max_stack_count + 1
+        for package in originals:
+            key = reservations['items'][package.identity]['values']['iteminfo']['item']
+            assert (key in snapshot.rows) == (package.identity in active)
+            assert bool(camp.entries_for(key)) == (package.identity in active)
+            if package.identity in active:
+                expected_name = ('Updated sword' if index < 2 and package == originals[0]
+                                 else package.recipe['spec']['fields']['display_names']['map']['eng'])
+                assert names[snapshot.rows[key].name_key].text == expected_name
+            else:
+                assert all(key not in group.members for group in snapshot.item_groups)
+        assert game_bytes(root) == original_game
+        assert game_bytes(external) == original_mod
+        assert game_bytes(first_generation / 'files') == first_files
+
+    assert load_registry(root) == reservations
+    # An edit to a required template must refuse without replacing the usable profile.
+    conflicting = tmp_path / 'conflicting'
+    for path, data in table_change(stock, key=TEMPLATE).items():
+        target = conflicting / 'files' / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
+    before = (root / PROFILE_PATH).read_bytes()
+    with pytest.raises(ValueError, match='record'):
+        prepare_profile(VirtualProfile(files, (conflicting,)), root)
+    assert (root / PROFILE_PATH).read_bytes() == before
+    assert load_registry(root) == reservations
+    assert game_bytes(root) == original_game
+
+
 @pytest.mark.parametrize('reverse', [False, True])
 def test_virtual_imported_models_auxiliaries_and_recipes_resolve_in_complete_view(tmp_path, reverse):
     import shutil

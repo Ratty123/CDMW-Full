@@ -184,6 +184,12 @@ separate discovery experiment.
 2. **Synthetic prototype:** profile composition, colliding authors, imported assets
    and auxiliary references, update/transfer, recovery, stale state, Qt/Rust input
    projection, native handles and session isolation have focused fixture coverage.
+   The virtual route also covers updating one item, removing the other and
+   reinstalling in reverse order while retaining a disjoint external ItemInfo
+   edit, for both loose-file and archive mods. It checks saved identities, shop
+   stock, displayed names, immutable earlier snapshots and unchanged source
+   files. A conflicting template-record edit refuses without replacing the
+   usable profile. These are synthetic composition checks, not game/save proof.
 3. **Controlled game prototype:** the reviewed original-file diagnostic passed
    bootstrap forwarding checks and binds the actual Steam-created game. The
    user confirmed the title screen, including a cold Steam launch. Independent
