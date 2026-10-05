@@ -259,8 +259,14 @@ separate discovery experiment.
    publication. The guarded launch redirects the reviewed four-file snapshot;
    the checked physical mount/texture metadata and game-data archive pair still
    match their initial hashes, and the virtual archive directory remains absent
-   from the game root. Appearance, effect, refinement and save acceptance for
-   this additional pair remain pending controlled game observation.
+   from the game root. User screenshots show the expected stock/imported models,
+   the supplied green/blue test icons and perk labels. The user confirms that
+   the imported item equips and that refinement works. The intended blue effect
+   is absent. Inspection found an embedded emitter file type still naming the
+   original emitter after its ordinary reference was rebound; a focused fix now
+   rebinds and validates both references. Its effect on visible behavior is not
+   yet established. Effect appearance and save/reload acceptance for this
+   additional pair remain pending controlled game observation.
 4. **Selectable experimental item loading:** blocked pending broader controlled
    coexistence, acquisition/equipment/crafting, full supported item/save coverage
    and asset/behavior update acceptance with a disposable backed-up save.

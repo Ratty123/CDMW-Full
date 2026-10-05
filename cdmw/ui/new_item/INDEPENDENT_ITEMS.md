@@ -26,8 +26,9 @@ Installation allocates item/perk, recipe and reward integers in the existing
 1,990,000–1,999,999 range. No numeric range was widened. Names, localisation keys,
 model families and effects are rebuilt from the destination bindings. Reflection
 references use decoded values and bounded, declared strings; effect names retain
-their byte lengths. The original shared table records are preserved, apart from
-supported additive shop stock and item-group membership.
+their byte lengths. Embedded emitter file types are rebound with emitter names
+and included in dependency validation. The original shared table records are
+preserved, apart from supported additive shop stock and item-group membership.
 
 Updates retain prior identities and atomically replace the selected item's
 contribution. Importing identical content is a no-op. Removal deletes only that

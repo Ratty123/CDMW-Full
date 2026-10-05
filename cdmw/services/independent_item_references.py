@@ -15,15 +15,21 @@ def rename_effect_references(data, renames):
     document = decode_effect_binary(data)
     if not document.walk_complete:
         raise IndependentItemError('The effect reference graph did not decode completely.')
-    prefixes = ('emitter/', '/effect/binary__/emitter/', 'effect/binary__/emitter/',
-                'fx/materialfx/', 'effect/binary__/releasebin/')
+    prefixes = (
+        ('emitter/', ('',)),
+        ('/effect/binary__/emitter/', ('', '.paem')),
+        ('effect/binary__/emitter/', ('', '.paem')),
+        ('fx/materialfx/', ('',)),
+        ('effect/binary__/releasebin/', ('', '.pae')),
+    )
     def changed(text):
         for old, new in renames.items():
             if len(old.encode()) != len(new.encode()):
                 raise IndependentItemError('An effect reference requires a fixed-length name.')
-            for prefix in prefixes:
-                if text == prefix + old:
-                    return prefix + new
+            for prefix, suffixes in prefixes:
+                for suffix in suffixes:
+                    if text == prefix + old + suffix:
+                        return prefix + new + suffix
         return text
     output = bytes(data)
     for value in document.root.all_values():
@@ -149,7 +155,13 @@ def audit_references(plan, snapshot, *, stop_event=None):
             document = decode_effect_binary(data)
             if not document.walk_complete or document.blob_offset + document.blob_length != len(data):
                 raise IndependentItemError(f'The complete effect reference layout is unverified: {path}')
-            for resource in (*document.resources(), *emitter_paths_of(document), *(preset_path(kind, name) for kind, name in preset_names_of(document))):
+            # An embedded emitter override inherits the file named by its type,
+            # independently of the ordinary _emitterDataName string. Walk used
+            # nodes only: removed emitter slots may leave unused declarations.
+            embedded_emitters = tuple(node.type_name.lstrip('/') for node in document.root.walk()
+                                      if node.type_name.lower().endswith('.paem'))
+            for resource in (*document.resources(), *emitter_paths_of(document), *embedded_emitters,
+                             *(preset_path(kind, name) for kind, name in preset_names_of(document))):
                 require(resource)
         elif path.endswith('.pac'):
             if owned:

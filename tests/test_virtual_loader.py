@@ -240,7 +240,7 @@ def test_virtual_update_partial_removal_and_reverse_reinstall_preserve_external_
 
 
 @pytest.mark.parametrize('reverse', [False, True])
-def test_virtual_imported_models_auxiliaries_and_recipes_resolve_in_complete_view(tmp_path, reverse):
+def test_virtual_imported_models_auxiliaries_and_recipes_resolve_in_complete_view(tmp_path, reverse, monkeypatch):
     import shutil
     from cdmw.core.item_icon_addition import NewItemIcon, icon_string_for_stem, icon_target_path
     from cdmw.core.stringinfo_table import stringinfo_key
@@ -252,6 +252,9 @@ def test_virtual_imported_models_auxiliaries_and_recipes_resolve_in_complete_vie
     from tests.test_independent_items import imported_game
     from tests.test_archive_overlay_manager import snapshot_of
     from tests.test_effect_edit import EFFECT
+    # This installation consists only of owned temporary fixtures; a real game
+    # running on the developer's machine cannot observe this synthetic profile.
+    monkeypatch.setattr('cdmw.services.new_item_service.game_is_running', lambda: False)
     files, source_ids = [], []
     for i in range(2):
         service, snapshot = imported_game(tmp_path / f'author-{i}', auxiliaries=True)
@@ -307,4 +310,7 @@ def test_virtual_imported_models_auxiliaries_and_recipes_resolve_in_complete_vie
             if path.endswith('.pae'):
                 from cdmw.core.effect_binary import decode_effect_binary
                 from cdmw.core.effect_edit import emitter_paths_of
-                assert set(emitter_paths_of(decode_effect_binary(snapshot.payload(path)))) <= set(row['paths'])
+                document = decode_effect_binary(snapshot.payload(path))
+                assert set(emitter_paths_of(document)) <= set(row['paths'])
+                assert {node.type_name.lstrip('/') for node in document.root.walk()
+                        if node.type_name.endswith('.paem')} <= set(row['paths'])

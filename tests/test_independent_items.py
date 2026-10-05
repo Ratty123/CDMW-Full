@@ -121,7 +121,10 @@ def test_imported_mesh_icon_and_material_references_remap_together(tmp_path, aux
             if path.endswith('.pae'):
                 from cdmw.core.effect_binary import decode_effect_binary
                 from cdmw.core.effect_edit import emitter_paths_of
-                assert set(emitter_paths_of(decode_effect_binary(snapshot.payload(path)))) <= set(owned['paths'])
+                document = decode_effect_binary(snapshot.payload(path))
+                assert set(emitter_paths_of(document)) <= set(owned['paths'])
+                assert {node.type_name.lstrip('/') for node in document.root.walk()
+                        if node.type_name.endswith('.paem')} <= set(owned['paths'])
         if auxiliaries:
             main = snapshot.rows[owned['values']['iteminfo']['item']]
             perk_key = owned['values']['iteminfo']['perk:1002791']

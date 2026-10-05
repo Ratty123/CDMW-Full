@@ -20,6 +20,59 @@ def files_in(root):
     return {path.relative_to(root): path.read_bytes() for path in root.rglob('*') if path.is_file()}
 
 
+def test_effect_clone_rebinds_declared_emitter_file_references():
+    from cdmw.core.effect_binary import decode_effect_binary
+    from cdmw.core.effect_edit import same_length_stem
+    from cdmw.services.independent_item_references import rename_effect_references
+    from tests.test_effect_edit import EFFECT, TRAIL
+
+    source = EFFECT.read_bytes()
+    clone = same_length_stem(TRAIL.stem, '_n90012')
+    result = rename_effect_references(source, {TRAIL.stem: clone})
+    document = decode_effect_binary(result)
+    expected = '/effect/binary__/emitter/' + clone + '.paem'
+    original = '/effect/binary__/emitter/' + TRAIL.name
+    assert document.walk_complete and len(result) == len(source)
+    assert 'emitter/' + clone in document.emitter_names()
+    assert expected in [node.type_name for node in document.root.walk()]
+    assert expected in [row.type_name for row in document.types]
+    assert original not in [row.type_name for row in document.types]
+    assert 'emitter/cdem_material_firefly_alpha_uberstandard' in document.emitter_names()
+    # A similarly named stem is not a complete reference, even in the header.
+    assert rename_effect_references(source, {TRAIL.stem[:-1]: clone[:-1]}) == source
+
+
+def test_effect_audit_rejects_missing_embedded_emitter_type(tmp_path):
+    from cdmw.core.effect_binary import decode_effect_binary, write_value
+    from cdmw.core.effect_edit import same_length_stem
+    from cdmw.domain.new_item.spec import EffectLook, ModelSource
+    from cdmw.services.independent_item_references import audit_references, rename_effect_references
+    from cdmw.services.new_item_planning import ModelFiles
+    from tests.test_effect_edit import EFFECT
+    from tests.test_new_item_service import PAC_XML, imported_pac
+
+    service, snapshot = imported_game(tmp_path / 'author', auxiliaries=True)
+    choice = replace(shop_spec('OwnedEffect'), model_source=ModelSource.IMPORTED,
+        include_perk_prices=False, effect=EFFECT.stem + '.level.effect',
+        effect_look=EffectLook(color=(0, 0, 1), emitter_order=(0,)))
+    plan = service.plan(choice, snapshot,
+        model=ModelFiles(imported_pac(100), {PAC_XML: snapshot.payload(PAC_XML)}),
+        capture_independent=True)
+    request = next(item for item in plan.additions if item.path.endswith('.pae'))
+    document = decode_effect_binary(request.payload_data)
+    emitter = document.emitter_names()[0].split('/')[-1]
+    missing = same_length_stem(emitter, '_absent')
+    data = rename_effect_references(request.payload_data, {emitter: missing})
+    # Keep the ordinary emitter-name reference valid; only the embedded type is missing.
+    for value in decode_effect_binary(data).root.all_values():
+        if value.name == '_emitterDataName':
+            data = write_value(data, value, ('emitter/' + emitter).encode())
+    changed = replace(plan, additions=tuple(
+        replace(item, payload_data=data) if item is request else item for item in plan.additions))
+    with pytest.raises(IndependentItemError, match='Unresolved item dependency: .*' + missing):
+        audit_references(changed, snapshot)
+
+
 def add_external_group(tmp_path, root, name, files, *, present=True):
     from cdmw.core.papgt_format import papgt_with_directory
     from tests.test_new_item_service import build_package
