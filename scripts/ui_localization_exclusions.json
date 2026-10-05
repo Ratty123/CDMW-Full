@@ -1,5 +1,29 @@
 [
   {
+    "path": "cdmw/services/independent_item_references.py",
+    "symbol": "payload",
+    "source": "effect/binary__/releasebin/{value_0}.pae",
+    "reason": "Archive resource identity passed to a payload reader, not a user-facing message."
+  },
+  {
+    "path": "cdmw/services/effect_reference.py",
+    "symbol": "payload",
+    "source": "effect/effect_{value_0}.xml",
+    "reason": "Archive resource identity passed to a payload reader, not a user-facing message."
+  },
+  {
+    "path": "cdmw/services/new_item_mounted_base.py",
+    "symbol": "payload",
+    "source": "{value_0}/{value_1}.dds",
+    "reason": "Archive texture identity passed to a payload reader; paths must remain unchanged."
+  },
+  {
+    "path": "cdmw/services/new_item_template_materials.py",
+    "symbol": "payload",
+    "source": "{value_0}_cdmw_{value_1}_{value_2}_{value_3}.dds",
+    "reason": "Generated texture identity passed to a payload reader; paths must remain unchanged."
+  },
+  {
     "path": "cdmw/ui/new_item/panels_output.py",
     "symbol": "OutputPanel.__init__",
     "source": "independent",

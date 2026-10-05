@@ -4016,7 +4016,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 802,
+          "line": 816,
           "sink": "ValueError"
         }
       ]
@@ -4026,7 +4026,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 806,
+          "line": 820,
           "sink": "ValueError"
         }
       ]
@@ -4130,6 +4130,16 @@
       "key": "A required file is missing. Refresh the archive catalogue and select the model again.",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "A required resource changed; its reference boundary is not supported for merging.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 343,
+          "sink": "OverlayConflict"
+        }
+      ]
     },
     {
       "key": "A resolved existing target icon entry is required for custom item icons.",
@@ -4326,7 +4336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 165,
+          "line": 252,
           "sink": "tr"
         }
       ]
@@ -7936,7 +7946,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 642,
+          "line": 648,
           "sink": "OverlayConflict"
         }
       ]
@@ -8596,7 +8606,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 523,
+          "line": 524,
           "sink": "OverlayConflict"
         }
       ]
@@ -9676,7 +9686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 166,
+          "line": 253,
           "sink": "tr"
         }
       ]
@@ -11527,6 +11537,16 @@
       ]
     },
     {
+      "key": "Archive folder changed: {value_0}. Scan again.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 123,
+          "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
       "key": "Archive folder: {value_0}",
       "origins": [
         {
@@ -12223,6 +12243,21 @@
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
           "line": 248,
           "sink": "append_archive_log"
+        }
+      ]
+    },
+    {
+      "key": "Archive resource escapes its mod folder: {value_0}.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 167,
+          "sink": "OverlayConflict"
+        },
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 183,
+          "sink": "OverlayConflict"
         }
       ]
     },
@@ -16432,6 +16467,16 @@
       "manual": true
     },
     {
+      "key": "Both table files are required to verify a changed table.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 218,
+          "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
       "key": "Bottom",
       "origins": [
         {
@@ -18867,6 +18912,16 @@
       ]
     },
     {
+      "key": "CDMW can preserve the external data and add the installed items in one shared output.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 482,
+          "sink": "CompatibilityFinding"
+        }
+      ]
+    },
+    {
       "key": "CDMW capture requires --capture-output <bmp>",
       "origins": [
         {
@@ -19121,7 +19176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 162,
+          "line": 249,
           "sink": "tr"
         }
       ]
@@ -22506,7 +22561,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 709,
+          "line": 716,
           "sink": "on_log"
         }
       ]
@@ -22566,7 +22621,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 669,
+          "line": 676,
           "sink": "on_log"
         }
       ]
@@ -22636,7 +22691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 139,
+          "line": 170,
           "sink": "tr"
         }
       ]
@@ -23907,6 +23962,16 @@
       ]
     },
     {
+      "key": "Choose a parent folder for the merged mod",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/independent_items_page.py",
+          "line": 209,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Choose a perk to inspect its details.",
       "origins": [
         {
@@ -24008,6 +24073,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_vertex_inspector.rs",
           "line": 85,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Choose a simple folder name without path separators.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/independent_items_page.py",
+          "line": 217,
+          "sink": "tr"
         }
       ]
     },
@@ -25166,7 +25241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 78,
+          "line": 107,
           "sink": "tr"
         }
       ]
@@ -26871,12 +26946,12 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 557,
+          "line": 558,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 794,
+          "line": 808,
           "sink": "RuntimeError"
         }
       ]
@@ -27812,6 +27887,16 @@
       ]
     },
     {
+      "key": "Combined items",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/independent_items_page.py",
+          "line": 212,
+          "sink": "getText"
+        }
+      ]
+    },
+    {
       "key": "Combined preview exceeds the bounded material graph limit.",
       "origins": [
         {
@@ -28287,6 +28372,16 @@
       ]
     },
     {
+      "key": "Comparing independent items with other mods...",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/independent_items_page.py",
+          "line": 182,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Comparing original vs rebuilt mip behavior...",
       "origins": [
         {
@@ -28343,6 +28438,16 @@
           "path": "cdmw/ui/replace_assistant/review_dialog.py",
           "line": 216,
           "sink": "python-return:_format_comparison_html"
+        }
+      ]
+    },
+    {
+      "key": "Comparison complete. Review the results before merging.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/independent_items_page.py",
+          "line": 190,
+          "sink": "tr"
         }
       ]
     },
@@ -28422,6 +28527,16 @@
       ]
     },
     {
+      "key": "Compatible",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 323,
+          "sink": "CompatibilityFinding"
+        }
+      ]
+    },
+    {
       "key": "Compatible  ·  {value_0} target",
       "origins": [
         {
@@ -28458,6 +28573,26 @@
           "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
           "line": 268,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Compatible shared files can be composed.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 427,
+          "sink": "python-return:text"
+        }
+      ]
+    },
+    {
+      "key": "Compatible: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 427,
+          "sink": "python-return:text"
         }
       ]
     },
@@ -28551,7 +28686,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 622,
+          "line": 628,
           "sink": "on_log"
         }
       ]
@@ -28900,6 +29035,21 @@
       "key": "Conflict",
       "origins": [
         {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 467,
+          "sink": "CompatibilityFinding"
+        },
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 487,
+          "sink": "CompatibilityFinding"
+        },
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 499,
+          "sink": "CompatibilityFinding"
+        },
+        {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
           "line": 178,
           "sink": "tr"
@@ -28928,6 +29078,16 @@
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
           "line": 361,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Conflict: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 427,
+          "sink": "python-return:text"
         }
       ]
     },
@@ -32056,7 +32216,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 824,
+          "line": 839,
           "sink": "RuntimeError"
         }
       ]
@@ -36091,7 +36251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 123,
+          "line": 154,
           "sink": "tr"
         },
         {
@@ -41642,6 +41802,16 @@
       ]
     },
     {
+      "key": "Existing dependency records are unchanged; additions can coexist.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 323,
+          "sink": "CompatibilityFinding"
+        }
+      ]
+    },
+    {
       "key": "Existing game item",
       "origins": [
         {
@@ -43396,7 +43566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 188,
+          "line": 275,
           "sink": "tr"
         }
       ]
@@ -43406,7 +43576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 41,
+          "line": 43,
           "sink": "QPushButton"
         }
       ]
@@ -46036,7 +46206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 160,
+          "line": 247,
           "sink": "tr"
         }
       ]
@@ -49681,7 +49851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 25,
+          "line": 27,
           "sink": "setHeaderLabels"
         }
       ]
@@ -49701,7 +49871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 21,
+          "line": 23,
           "sink": "QLabel"
         },
         {
@@ -49876,7 +50046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 159,
+          "line": 246,
           "sink": "tr"
         }
       ]
@@ -54492,6 +54662,16 @@
       ]
     },
     {
+      "key": "Identical game data; no conflicting changes.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 323,
+          "sink": "CompatibilityFinding"
+        }
+      ]
+    },
+    {
       "key": "Identity",
       "origins": [
         {
@@ -54526,12 +54706,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 188,
+          "line": 275,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 198,
+          "line": 285,
           "sink": "tr"
         }
       ]
@@ -54541,7 +54721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 195,
+          "line": 282,
           "sink": "tr"
         }
       ]
@@ -54551,7 +54731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 131,
+          "line": 162,
           "sink": "tr"
         }
       ]
@@ -55571,7 +55751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 198,
+          "line": 285,
           "sink": "tr"
         }
       ]
@@ -55581,7 +55761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 43,
+          "line": 45,
           "sink": "QPushButton"
         }
       ]
@@ -55591,7 +55771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 134,
+          "line": 165,
           "sink": "tr"
         }
       ]
@@ -55621,7 +55801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 31,
+          "line": 33,
           "sink": "QPushButton"
         }
       ]
@@ -57086,7 +57266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 183,
+          "line": 270,
           "sink": "tr"
         }
       ]
@@ -57106,7 +57286,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 260,
+          "line": 272,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -57131,7 +57311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 134,
+          "line": 165,
           "sink": "tr"
         }
       ]
@@ -58082,6 +58262,16 @@
       ]
     },
     {
+      "key": "Install an independent item before comparing other mods.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 439,
+          "sink": "CompatibilityFinding"
+        }
+      ]
+    },
+    {
       "key": "Install as Overlay",
       "origins": [
         {
@@ -58211,7 +58401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 18,
+          "line": 20,
           "sink": "QLabel"
         }
       ]
@@ -58316,7 +58506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 123,
+          "line": 154,
           "sink": "tr"
         },
         {
@@ -59211,7 +59401,7 @@
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 550,
+          "line": 551,
           "sink": "ValueError"
         }
       ]
@@ -59716,7 +59906,7 @@
         },
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 25,
+          "line": 27,
           "sink": "setHeaderLabels"
         }
       ]
@@ -60286,7 +60476,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 714,
+          "line": 721,
           "sink": "OverlayConflict"
         }
       ]
@@ -67357,6 +67547,26 @@
       ]
     },
     {
+      "key": "Merge available",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 482,
+          "sink": "CompatibilityFinding"
+        }
+      ]
+    },
+    {
+      "key": "Merge available: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 427,
+          "sink": "python-return:text"
+        }
+      ]
+    },
+    {
       "key": "Merge distance",
       "origins": [
         {
@@ -67427,6 +67637,16 @@
       ]
     },
     {
+      "key": "Merge shared files...",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/independent_items_page.py",
+          "line": 55,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Merged into the next cumulative stroke update.",
       "origins": [
         {
@@ -67443,6 +67663,16 @@
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
           "line": 205,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Merged mod written:",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/independent_items_page.py",
+          "line": 225,
+          "sink": "tr"
         }
       ]
     },
@@ -71785,6 +72015,11 @@
       "key": "Mod comparison cancelled.",
       "origins": [
         {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 52,
+          "sink": "raise_if_cancelled"
+        },
+        {
           "path": "cdmw/services/mod_update_service.py",
           "line": 66,
           "sink": "raise_if_cancelled"
@@ -71813,6 +72048,21 @@
           "path": "cdmw/services/mod_update_service.py",
           "line": 147,
           "sink": "raise_if_cancelled"
+        }
+      ]
+    },
+    {
+      "key": "Mod comparison exceeds its memory limit. Compare fewer mods.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 69,
+          "sink": "OverlayConflict"
+        },
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 106,
+          "sink": "OverlayConflict"
         }
       ]
     },
@@ -71872,12 +72122,32 @@
       ]
     },
     {
+      "key": "Mod folder changed: {value_0}. Scan again.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 126,
+          "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
       "key": "Mod folder does not exist: {value_0}",
       "origins": [
         {
           "path": "cdmw/services/mod_merge_service.py",
           "line": 67,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Mod folder name:",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/independent_items_page.py",
+          "line": 212,
+          "sink": "tr"
         }
       ]
     },
@@ -77842,6 +78112,16 @@
       ]
     },
     {
+      "key": "No external file overlaps with the installed independent items were found.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 501,
+          "sink": "CompatibilityFinding"
+        }
+      ]
+    },
+    {
       "key": "No file defines {value_0}",
       "origins": [
         {
@@ -78867,6 +79147,26 @@
       ]
     },
     {
+      "key": "No overlap",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 501,
+          "sink": "CompatibilityFinding"
+        }
+      ]
+    },
+    {
+      "key": "No overlap: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 427,
+          "sink": "python-return:text"
+        }
+      ]
+    },
+    {
       "key": "No package tables (0.pamt) were found under {value_0}.",
       "origins": [
         {
@@ -79641,7 +79941,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 514,
+          "line": 515,
           "sink": "ValueError"
         }
       ]
@@ -82306,7 +82606,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 692,
+          "line": 699,
           "sink": "ValueError"
         }
       ]
@@ -86236,7 +86536,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 626,
+          "line": 632,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -86246,7 +86546,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 820,
+          "line": 835,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -86256,7 +86556,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 851,
+          "line": 867,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -86266,7 +86566,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 840,
+          "line": 856,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -86276,7 +86576,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 675,
+          "line": 682,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -86286,7 +86586,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 865,
+          "line": 881,
           "sink": "RuntimeError"
         }
       ]
@@ -86306,7 +86606,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 785,
+          "line": 799,
           "sink": "TypeError"
         }
       ]
@@ -86316,7 +86616,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 787,
+          "line": 801,
           "sink": "PermissionError"
         }
       ]
@@ -86341,12 +86641,12 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 595,
+          "line": 597,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 615,
+          "line": 621,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -86366,7 +86666,7 @@
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 682,
+          "line": 689,
           "sink": "OverlayConflict"
         }
       ]
@@ -86846,7 +87146,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 584,
+          "line": 585,
           "sink": "RuntimeError"
         }
       ]
@@ -86876,7 +87176,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 874,
+          "line": 890,
           "sink": "on_log"
         }
       ]
@@ -93036,7 +93336,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 804,
+          "line": 818,
           "sink": "ValueError"
         }
       ]
@@ -93746,7 +94046,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 725,
+          "line": 732,
           "sink": "on_log"
         }
       ]
@@ -103371,7 +103671,7 @@
         },
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 35,
+          "line": 37,
           "sink": "QPushButton"
         },
         {
@@ -104521,7 +104821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 33,
+          "line": 35,
           "sink": "QPushButton"
         }
       ]
@@ -104661,7 +104961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 123,
+          "line": 154,
           "sink": "tr"
         }
       ]
@@ -106447,6 +106747,26 @@
       ]
     },
     {
+      "key": "Required prefab metadata changed.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 340,
+          "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
+      "key": "Required record {value_0} was changed or removed.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 346,
+          "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
       "key": "Required review:",
       "origins": [],
       "manual": true
@@ -106478,6 +106798,16 @@
           "path": "tools/placement_studio/move_weapon.py",
           "line": 294,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Required {value_0} record {value_1} was changed or removed.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 316,
+          "sink": "OverlayConflict"
         }
       ]
     },
@@ -109281,7 +109611,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 575,
+          "line": 576,
           "sink": "RuntimeError"
         }
       ]
@@ -109311,7 +109641,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 587,
+          "line": 588,
           "sink": "on_log"
         }
       ]
@@ -110136,7 +110466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 163,
+          "line": 250,
           "sink": "tr"
         }
       ]
@@ -110198,6 +110528,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 192,
           "sink": "python-return:_build_workflow_planning_sections"
+        }
+      ]
+    },
+    {
+      "key": "Review the conflicts or unsupported data before merging.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 427,
+          "sink": "python-return:text"
         }
       ]
     },
@@ -110751,7 +111091,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 863,
+          "line": 879,
           "sink": "RuntimeError"
         }
       ]
@@ -113172,6 +113512,26 @@
       ]
     },
     {
+      "key": "Scan for shared files, required records and unsupported mod data before merging.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/independent_items_page.py",
+          "line": 64,
+          "sink": "setPlaceholderText"
+        }
+      ]
+    },
+    {
+      "key": "Scan installed mods",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/independent_items_page.py",
+          "line": 51,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Scan loose .meshinfo, .motionblending, .paa_metabin, .prefab, .pappt, .pamhc, and .seqmt files and export a read-only schema/layout ranking report.",
       "origins": [
         {
@@ -113188,6 +113548,16 @@
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
           "line": 104,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Scan mod folder...",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/independent_items_page.py",
+          "line": 53,
+          "sink": "QPushButton"
         }
       ]
     },
@@ -115752,6 +116122,16 @@
       ]
     },
     {
+      "key": "Select a mod folder to compare",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/independent_items_page.py",
+          "line": 174,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Select a mod target in the asset list.",
       "origins": [
         {
@@ -116883,6 +117263,16 @@
           "path": "cdmw/ui/text_search/export_actions.py",
           "line": 19,
           "sink": "emit"
+        }
+      ]
+    },
+    {
+      "key": "Select an external mod folder separate from the game installation.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 173,
+          "sink": "OverlayConflict"
         }
       ]
     },
@@ -119308,6 +119698,16 @@
           "path": "cdmw/ui/new_item/panels_stats.py",
           "line": 218,
           "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
+      "key": "Separate records can coexist; shared output will preserve this mod.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 323,
+          "sink": "CompatibilityFinding"
         }
       ]
     },
@@ -125711,7 +126111,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 843,
+          "line": 859,
           "sink": "RuntimeError"
         }
       ]
@@ -125751,7 +126151,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 850,
+          "line": 866,
           "sink": "RuntimeError"
         }
       ]
@@ -126111,7 +126511,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 521,
+          "line": 522,
           "sink": "OverlayConflict"
         }
       ]
@@ -126301,7 +126701,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 555,
+          "line": 556,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -126311,7 +126711,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 543,
+          "line": 544,
           "sink": "ValueError"
         }
       ]
@@ -126321,7 +126721,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 541,
+          "line": 542,
           "sink": "PermissionError"
         }
       ]
@@ -126986,7 +127386,7 @@
         },
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 25,
+          "line": 27,
           "sink": "setHeaderLabels"
         },
         {
@@ -128625,6 +129025,16 @@
       "key": "Table layout changed in {value_0}.",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Table layout changed.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 306,
+          "sink": "OverlayConflict"
+        }
+      ]
     },
     {
       "key": "Tagging And Notes",
@@ -133741,7 +134151,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 776,
+          "line": 783,
           "sink": "ValueError"
         }
       ]
@@ -133751,7 +134161,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 779,
+          "line": 786,
           "sink": "ValueError"
         }
       ]
@@ -133761,7 +134171,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 770,
+          "line": 777,
           "sink": "ValueError"
         }
       ]
@@ -133771,7 +134181,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 789,
+          "line": 803,
           "sink": "ValueError"
         }
       ]
@@ -133861,7 +134271,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 517,
+          "line": 518,
           "sink": "OverlayConflict"
         }
       ]
@@ -133881,7 +134291,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 580,
+          "line": 581,
           "sink": "RuntimeError"
         }
       ]
@@ -133901,7 +134311,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 695,
+          "line": 702,
           "sink": "ValueError"
         }
       ]
@@ -133916,12 +134326,12 @@
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 562,
+          "line": 563,
           "sink": "OverlayConflict"
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 734,
+          "line": 741,
           "sink": "OverlayConflict"
         }
       ]
@@ -134337,6 +134747,26 @@
       ]
     },
     {
+      "key": "The retained independent package does not match its ownership history.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 385,
+          "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
+      "key": "The retained independent package has changed outside CDMW.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 461,
+          "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
       "key": "The retired overlay history already exists. Refresh and prepare again.",
       "origins": [
         {
@@ -134346,7 +134776,7 @@
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 564,
+          "line": 565,
           "sink": "OverlayConflict"
         }
       ]
@@ -134546,12 +134976,12 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 746,
+          "line": 753,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 761,
+          "line": 768,
           "sink": "ValueError"
         }
       ]
@@ -134892,16 +135322,26 @@
       ]
     },
     {
+      "key": "The source archive folder {value_0} changed after preparation. Scan again.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 793,
+          "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
       "key": "The source archive {value_0} changed after preparation.",
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 819,
+          "line": 834,
           "sink": "OverlayConflict"
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 834,
+          "line": 850,
           "sink": "OverlayConflict"
         }
       ]
@@ -135802,6 +136242,16 @@
       ]
     },
     {
+      "key": "This compares file data and recorded dependencies. Runtime plugins and in-game behaviour are not verified.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 427,
+          "sink": "python-return:text"
+        }
+      ]
+    },
+    {
       "key": "This connected row has no visible 3D target yet. It may be a raw record, string, material, or unresolved reference rather than a decoded shape/constraint.",
       "origins": [
         {
@@ -135887,6 +136337,16 @@
       ]
     },
     {
+      "key": "This external texture registry needs recorded texture ownership. Use Merge with a supported exported package.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 448,
+          "sink": "CompatibilityFinding"
+        }
+      ]
+    },
+    {
       "key": "This file could not be read as a prefab: {value_0}",
       "origins": [
         {
@@ -135903,6 +136363,16 @@
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
           "line": 607,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "This folder contains runtime code, patch instructions or no supported file payloads. Its effects cannot be certified by a file scan.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 189,
+          "sink": "CompatibilityFinding"
         }
       ]
     },
@@ -136031,7 +136501,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 704,
+          "line": 711,
           "sink": "OverlayConflict"
         }
       ]
@@ -139535,6 +140005,21 @@
       "key": "Unknown",
       "origins": [
         {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 189,
+          "sink": "CompatibilityFinding"
+        },
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 439,
+          "sink": "CompatibilityFinding"
+        },
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 448,
+          "sink": "CompatibilityFinding"
+        },
+        {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
           "line": 116,
           "sink": "python-return:_archive_reference_role_label"
@@ -139843,6 +140328,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
           "line": 306,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Unknown: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 427,
+          "sink": "python-return:text"
         }
       ]
     },
@@ -140312,6 +140807,16 @@
       ]
     },
     {
+      "key": "Unsupported metadata in merged output: {value_0}.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 519,
+          "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
       "key": "Unsupported metadata inside a mounted archive: {value_0}",
       "origins": [
         {
@@ -140328,6 +140833,16 @@
           "path": "cdmw/services/model_library_preview.py",
           "line": 451,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Unsupported mounted archive folder for independent items: {value_0}.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 153,
+          "sink": "OverlayConflict"
         }
       ]
     },
@@ -142172,6 +142687,16 @@
       ]
     },
     {
+      "key": "Use the merged package instead of its source mods and the composed CDMW overlay. Keep the identity profile with your saves.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/independent_items_page.py",
+          "line": 226,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Use the same global preview settings as the Archive Preview and Mesh Replacement Alignment previews.",
       "origins": [
         {
@@ -142806,7 +143331,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 665,
+          "line": 672,
           "sink": "on_log"
         }
       ]
@@ -147345,8 +147870,23 @@
       "key": "Write merged mod",
       "origins": [
         {
+          "path": "cdmw/ui/new_item/independent_items_page.py",
+          "line": 212,
+          "sink": "tr"
+        },
+        {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
           "line": 81,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Write merged mod...",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/independent_items_page.py",
+          "line": 57,
           "sink": "QPushButton"
         }
       ]
@@ -172361,12 +172901,12 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 813,
+          "line": 828,
           "sink": "OverlayConflict"
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 830,
+          "line": 846,
           "sink": "OverlayConflict"
         }
       ]
@@ -172377,6 +172917,16 @@
         {
           "path": "cdmw/services/archive_overlay_rebuild.py",
           "line": 135,
+          "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} changed during comparison. Scan again.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 134,
           "sink": "OverlayConflict"
         }
       ]
@@ -173126,7 +173676,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 687,
+          "line": 694,
           "sink": "OverlayConflict"
         }
       ]
@@ -174476,7 +175026,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 620,
+          "line": 626,
           "sink": "OverlayConflict"
         }
       ]
@@ -175568,6 +176118,11 @@
           "path": "cdmw/services/mesh_hair_output.py",
           "line": 367,
           "sink": "read"
+        },
+        {
+          "path": "cdmw/services/new_item_variants.py",
+          "line": 317,
+          "sink": "payload"
         }
       ]
     },
@@ -175912,6 +176467,16 @@
       ]
     },
     {
+      "key": "{value_0}: an owned asset is already supplied by another mod: {value_1}.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 361,
+          "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
       "key": "{value_0}: archive read returned nothing ({value_1})",
       "origins": [
         {
@@ -176007,6 +176572,16 @@
       ]
     },
     {
+      "key": "{value_0}: different replacements of {value_1}; their original baselines are required. Use Merge to compare recorded mod baselines.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 78,
+          "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
       "key": "{value_0}: id={value_1} offset=0x{value_2}",
       "origins": [
         {
@@ -176018,6 +176593,26 @@
           "path": "cdmw/ui/archive_browser/binary_sidecar_actions.py",
           "line": 343,
           "sink": "getItem"
+        }
+      ]
+    },
+    {
+      "key": "{value_0}: incompatible game dependency {value_1}. Use the matching game version or an updated package.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 290,
+          "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
+      "key": "{value_0}: incomplete external table.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 221,
+          "sink": "OverlayConflict"
         }
       ]
     },
@@ -176153,6 +176748,26 @@
           "path": "tools/placement_studio/armour.py",
           "line": 469,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "{value_0}: resource exceeds comparison size limit: {value_1}.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 57,
+          "sink": "OverlayConflict"
+        },
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 62,
+          "sink": "OverlayConflict"
+        },
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 66,
+          "sink": "OverlayConflict"
         }
       ]
     },
@@ -176802,6 +177417,16 @@
       ]
     },
     {
+      "key": "{value_0}: {value_1}: {value_2}: {value_3}",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 389,
+          "sink": "on_log"
+        }
+      ]
+    },
+    {
       "key": "{value_0}::{value_1}",
       "origins": [
         {
@@ -176893,6 +177518,31 @@
           "path": "cdmw/ui/new_item/effect_library_model.py",
           "line": 334,
           "sink": "python-return:data"
+        }
+      ]
+    },
+    {
+      "key": "{value_0}; {value_1}; {value_2}: owned record {value_3} is also supplied by another mod.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 275,
+          "sink": "OverlayConflict"
+        },
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 282,
+          "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
+      "key": "{value_0}; {value_1}; {value_2}: {value_3}",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 327,
+          "sink": "OverlayConflict"
         }
       ]
     },
@@ -177058,6 +177708,11 @@
           "path": "cdmw/services/mesh_hair_output.py",
           "line": 370,
           "sink": "read"
+        },
+        {
+          "path": "cdmw/services/shader_controls_preview.py",
+          "line": 162,
+          "sink": "payload"
         }
       ]
     },
@@ -177363,6 +178018,30 @@
     }
   ],
   "exclusions": [
+    {
+      "path": "cdmw/services/independent_item_references.py",
+      "symbol": "payload",
+      "source": "effect/binary__/releasebin/{value_0}.pae",
+      "reason": "Archive resource identity passed to a payload reader, not a user-facing message."
+    },
+    {
+      "path": "cdmw/services/effect_reference.py",
+      "symbol": "payload",
+      "source": "effect/effect_{value_0}.xml",
+      "reason": "Archive resource identity passed to a payload reader, not a user-facing message."
+    },
+    {
+      "path": "cdmw/services/new_item_mounted_base.py",
+      "symbol": "payload",
+      "source": "{value_0}/{value_1}.dds",
+      "reason": "Archive texture identity passed to a payload reader; paths must remain unchanged."
+    },
+    {
+      "path": "cdmw/services/new_item_template_materials.py",
+      "symbol": "payload",
+      "source": "{value_0}_cdmw_{value_1}_{value_2}_{value_3}.dds",
+      "reason": "Generated texture identity passed to a payload reader; paths must remain unchanged."
+    },
     {
       "path": "cdmw/ui/new_item/panels_output.py",
       "symbol": "OutputPanel.__init__",

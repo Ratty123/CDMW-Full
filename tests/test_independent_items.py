@@ -337,7 +337,7 @@ def test_dependency_version_and_hash_collisions_fail_without_writing(tmp_path, m
 
 @pytest.mark.parametrize('first', [False, True])
 @pytest.mark.parametrize('directory_name', ['0042', 'dmmgen', 'dmmsa'])
-def test_external_replacement_blocks_installation_even_below_our_priority(tmp_path, first, directory_name):
+def test_identical_external_dependency_does_not_block_installation(tmp_path, first, directory_name):
     from cdmw.core.papgt_format import papgt_with_directory
     from tests.test_new_item_service import build_package
     _, package = authored(tmp_path / 'source')
@@ -354,8 +354,7 @@ def test_external_replacement_blocks_installation_even_below_our_priority(tmp_pa
     checksum = int.from_bytes((directory / '0.pamt').read_bytes()[:4], 'little')
     mount.write_bytes(papgt_with_directory(mount.read_bytes(), directory_name, checksum, first=first))
     before = mount.read_bytes()
-    with pytest.raises(IndependentItemError, match='external mod replaces'):
-        prepare_install([package_bytes(package)], root)
+    assert prepare_install([package_bytes(package)], root).preparation is not None
     assert mount.read_bytes() == before and not (root / REGISTRY_PATH).exists()
 
 

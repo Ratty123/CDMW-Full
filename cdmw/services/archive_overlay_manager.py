@@ -455,6 +455,7 @@ class OverlayChangePreparation:
     action: str = 'remove'
     # Read dependencies, including absent ledgers, are not mutation targets.
     observed_state: tuple[tuple[str, bytes | None], ...] = ()
+    source_directories: tuple[tuple[str, tuple[str, ...]], ...] = ()
 
 
 def _observe_state(root):
@@ -588,8 +589,9 @@ def apply_overlay_retirement(preparation, *, confirmed, backup, restore_backup,
     return OverlayRetirementResult(_target(root, preparation.directory_name), preparation.labels, backup_dir, retired)
 
 
-def _compose(root, state, pending, label, removed_id, stop_event, on_log, *, decoded=None):
+def _compose(root, state, pending, label, removed_id, stop_event, on_log, *, decoded=None, independent_context=None):
     layers = []
+    source_directories = ()
     baseline, flags, meta_paths = {}, {}, set()
     for layer in state['layers']:
         raise_if_cancelled(stop_event, 'Overlay composition cancelled.')
@@ -606,6 +608,10 @@ def _compose(root, state, pending, label, removed_id, stop_event, on_log, *, dec
             flags[path] = change['flags']
             if change['meta']:
                 meta_paths.add(path)
+    if any(layer.get('independent_identity') for layer, _ in layers):
+        from cdmw.services.independent_item_compatibility import compose_underlay
+        baseline, source_directories = compose_underlay(root, state, pending, layers, baseline,
+            stop_event=stop_event, on_log=on_log, context=independent_context)
     current = dict(baseline)
     active = [layer for layer in state['layers'] if layer['active']]
     inactive = {layer['id'] for layer in state['layers'] if not layer['active']}
@@ -655,7 +661,8 @@ def _compose(root, state, pending, label, removed_id, stop_event, on_log, *, dec
     before = tuple((path, _target(root, path).read_bytes() if _target(root, path).is_file() else None) for path in dict.fromkeys((*writes, *deletes)))
     return OverlayChangePreparation(root, name, label, removed_id, tuple(layer['label'] for layer in active),
         tuple(writes.items()), tuple(deletes), before, tuple((p, tuple(s)) for p, s in state['sources'].items()), paths,
-        checksum, payload_bytes, sum(layer['file_count'] for layer in active[:-1]) if removed_id is None else len(paths))
+        checksum, payload_bytes, sum(layer['file_count'] for layer in active[:-1]) if removed_id is None else len(paths),
+        source_directories=source_directories)
 
 
 def prepare_item_overlay(plan, package_root, *, directory_name=None, stop_event=None, on_log=None, retirement=None):
@@ -779,6 +786,13 @@ def _verify_backup(backup_dir, expected):
         raise ValueError('The overlay backup did not preserve every confirmed original file.')
 
 
+def _verify_source_directories(root, preparation):
+    for relative, expected in preparation.source_directories:
+        directory = _target(root, relative)
+        if tuple(sorted(path.name for path in directory.glob('*.pamt'))) != expected:
+            raise OverlayConflict(f'The source archive folder {relative} changed after preparation. Scan again.')
+
+
 @archive_write_scope()
 def apply_overlay_change(preparation, *, confirmed, backup, restore_backup, game_running=None, stop_event=None, on_log=None):
     if not isinstance(preparation, OverlayChangePreparation):
@@ -805,6 +819,7 @@ def apply_overlay_change(preparation, *, confirmed, backup, restore_backup, game
     if set(preparation.deletes) - {name + '/0.pamt', name + '/0.paz', name + '/' + OVERLAY_OWNER_MARKER, 'meta/0.pathc'}:
         raise ValueError('A prepared overlay removal names an unowned file.')
     originals = {}
+    _verify_source_directories(root, preparation)
     _verify_observed_state(root, preparation.observed_state, 'after preparation')
     for relative, expected in preparation.before:
         path = _target(root, relative)
@@ -822,6 +837,7 @@ def apply_overlay_change(preparation, *, confirmed, backup, restore_backup, game
     _verify_backup(backup_dir, originals)
     if game_running():
         raise RuntimeError('Crimson Desert started during backup. Close it before changing overlays.')
+    _verify_source_directories(root, preparation)
     _verify_observed_state(root, preparation.observed_state, 'after preparation')
     for relative, expected in preparation.before:
         path = _target(root, relative)

@@ -1,8 +1,9 @@
 """Thin UI for reviewed portable-item operations on the shared worker lane."""
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QFileDialog, QHBoxLayout, QLabel, QMessageBox, QPushButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFileDialog, QHBoxLayout, QInputDialog, QLabel, QMessageBox, QPlainTextEdit, QPushButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
 
 from cdmw.domain.new_item.independent import IndependentItemInstallPlan
+from cdmw.ui.new_item.review_model import ReviewTextWriter
 
 
 class IndependentItemsPage(QWidget):
@@ -14,6 +15,7 @@ class IndependentItemsPage(QWidget):
         self._closed = self._working = self._applying = False
         self._queued = None
         self._generation = 0
+        self._comparison = None
         layout = QVBoxLayout(self)
         help_text = QLabel("Install separate .cditem packages here. CDMW assigns distinct identities and composes their shared files. Keep the identity profile with your saves when moving to another computer.")
         help_text.setWordWrap(True)
@@ -45,6 +47,23 @@ class IndependentItemsPage(QWidget):
         profiles.addWidget(self.export_profile_button)
         profiles.addWidget(self.import_profile_button)
         layout.addLayout(profiles)
+        compare = QHBoxLayout()
+        self.scan_button = QPushButton("Scan installed mods")
+        self.scan_button.clicked.connect(lambda: self._scan())
+        self.scan_folder_button = QPushButton("Scan mod folder...")
+        self.scan_folder_button.clicked.connect(self._scan_folder)
+        self.compose_button = QPushButton("Merge shared files...")
+        self.compose_button.clicked.connect(self._compose_shared)
+        self.export_merge_button = QPushButton("Write merged mod...")
+        self.export_merge_button.clicked.connect(self._export_merge)
+        for button in (self.scan_button, self.scan_folder_button, self.compose_button, self.export_merge_button):
+            compare.addWidget(button)
+        layout.addLayout(compare)
+        self.comparison = QPlainTextEdit()
+        self.comparison.setReadOnly(True)
+        self.comparison.setPlaceholderText("Scan for shared files, required records and unsupported mod data before merging.")
+        self._comparison_writer = ReviewTextWriter(self.comparison)
+        layout.addWidget(self.comparison, 1)
         self.status = QLabel("")
         self.status.setWordWrap(True)
         self.status.setTextFormat(Qt.TextFormat.PlainText)
@@ -61,6 +80,11 @@ class IndependentItemsPage(QWidget):
         self.refresh_button.setEnabled(ready)
         self.export_profile_button.setEnabled(ready)
         self.import_profile_button.setEnabled(ready and self.mutations is not None)
+        self.scan_button.setEnabled(ready)
+        self.scan_folder_button.setEnabled(ready)
+        compatible = self._comparison is not None and self._comparison.compatible
+        self.compose_button.setEnabled(ready and compatible and not self._comparison.folders and self.mutations is not None)
+        self.export_merge_button.setEnabled(ready and compatible)
 
     def set_game_root(self, root):
         root = str(root)
@@ -69,6 +93,11 @@ class IndependentItemsPage(QWidget):
             self._generation += 1
             self._queued = None
             self.items.clear()
+            self._comparison = None
+            self._comparison_writer.set_text('')
+            if self._working and not self._applying:
+                self.controller.cancel_operation('independent_items')
+            self._buttons()
 
     def _run(self, task, done, *, applying=False):
         if self._closed or self.controller.busy:
@@ -89,6 +118,7 @@ class IndependentItemsPage(QWidget):
                 self._resume()
         def failed(message):
             self._working = self._applying = False
+            self._comparison = None
             self.controller.log_message.emit(str(message))
             if not self._closed and generation == self._generation:
                 self.status.setText(str(message))
@@ -102,6 +132,7 @@ class IndependentItemsPage(QWidget):
 
     def _queue_refresh(self):
         if not self._closed:
+            self._comparison = None
             self._queued = ('refresh', None)
             self._resume()
 
@@ -139,6 +170,62 @@ class IndependentItemsPage(QWidget):
         self.status.setText(self.tr("Checking packages and preparing the installation..."))
         self._run(lambda log, stop: prepare_install(paths, root, stop_event=stop, on_log=log), self._review)
 
+    def _scan_folder(self):
+        folder = QFileDialog.getExistingDirectory(self, self.tr("Select a mod folder to compare"))
+        if folder:
+            self._scan((folder,))
+
+    def _scan(self, folders=()):
+        from cdmw.services.independent_item_compatibility import scan_independent_conflicts
+        root, folders = self.package_root, tuple(folders)
+        self._comparison = None
+        self.status.setText(self.tr("Comparing independent items with other mods..."))
+        def task(log, stop):
+            report = scan_independent_conflicts(root, folders=folders, stop_event=stop, on_log=log)
+            return report, report.text()
+        def completed(result):
+            report, text = result
+            self._comparison = report
+            self._comparison_writer.set_text(text)
+            self.status.setText(self.tr("Comparison complete. Review the results before merging."))
+        self._run(task, completed)
+
+    def _compose_shared(self):
+        if self._comparison is None or not self._comparison.compatible or self._comparison.folders:
+            return
+        from cdmw.services.archive_overlay_rebuild import prepare_overlay_rebuild
+        root = self.package_root
+        # Always prepare from current data again. The report is never authority
+        # to apply a cached result after another manager changes the installation.
+        self._run(lambda log, stop: prepare_overlay_rebuild(root, stop_event=stop, on_log=log), self._review)
+
+    def _export_merge(self):
+        if self._comparison is None or not self._comparison.compatible:
+            return
+        from pathlib import Path
+        from cdmw.services.independent_item_compatibility import prepare_independent_mod_merge
+        from cdmw.services.mod_merge_service import export_merged_mod
+        root, folders, generation = self.package_root, self._comparison.folders, self._generation
+        parent = QFileDialog.getExistingDirectory(self, self.tr("Choose a parent folder for the merged mod"))
+        if not parent:
+            return
+        title, accepted = QInputDialog.getText(self, self.tr("Write merged mod"), self.tr("Mod folder name:"), text="Combined items")
+        if not accepted or not title.strip() or self._closed or generation != self._generation:
+            return
+        title = title.strip()
+        if title in ('.', '..') or any(char in title for char in '<>:"/\\|?*') or title.endswith(('.', ' ')):
+            self.status.setText(self.tr("Choose a simple folder name without path separators."))
+            return
+        destination = Path(parent) / title
+        def task(log, stop):
+            plan = prepare_independent_mod_merge(root, folders=folders, stop_event=stop, on_log=log)
+            return export_merged_mod(plan, destination, title=title, stop_event=stop, on_log=log)
+        def completed(result):
+            self._comparison = None
+            self.status.setText(self.tr("Merged mod written:") + ' ' + str(result.package_root))
+            self.comparison.appendPlainText(self.tr("Use the merged package instead of its source mods and the composed CDMW overlay. Keep the identity profile with your saves."))
+        self._run(task, completed)
+
     def _remove(self):
         item = self.items.currentItem()
         if item is None:
@@ -161,7 +248,7 @@ class IndependentItemsPage(QWidget):
                   + '\n'.join((*dict(prepared.writes), *prepared.deletes))
                   + '\n\n' + self.tr("CDMW will create a verified backup before applying this change. Close the game first. Removed items may still be referenced by saves; their identities remain reserved."))
         box = QMessageBox(QMessageBox.Icon.Question, self.tr("Review independent item changes"),
-                          summary + '\n\n' + str(prepared.package_root) + '\n\n'
+                          '\n'.join(summary.splitlines()[:4]) + '\n\n' + str(prepared.package_root) + '\n\n'
                           + self.tr("A verified backup will be created first. Close the game before continuing.")
                           + '\n\n' + self.tr("Apply these changes?"),
                           QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, self)
@@ -217,6 +304,7 @@ class IndependentItemsPage(QWidget):
 
     def request_shutdown(self):
         self._closed = True
+        self._comparison_writer.timer.stop()
         self._queued = None
         self._generation += 1
         if self._working and not self._applying:

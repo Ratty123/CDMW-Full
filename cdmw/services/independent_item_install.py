@@ -24,6 +24,9 @@ from cdmw.services.independent_item_package import (
 )
 from cdmw.services.new_item_planning import build_plan
 from cdmw.services.new_item_service import NewItemService
+from cdmw.services.independent_item_compatibility import (
+    external_mods, reserved_external_keys, check_package_dependencies,
+)
 
 REGISTRY_PATH = '.cdmw/independent-items.json'
 PROFILE_FORMAT = 'cdmw_independent_identity_profile_v1'
@@ -180,13 +183,11 @@ def _external_paths(root, state, stop_event=None):
     return paths
 
 
-def _check_dependencies(package, snapshot, external_paths, stop_event):
+def _check_dependencies(package, snapshot, stop_event):
     for path, checksum in package.dependencies.items():
         raise_if_cancelled(stop_event)
         if not snapshot.has_entry(path) or digest(snapshot.payload(path)) != checksum:
             raise IndependentItemError(f'{package.title}: incompatible game dependency {path}. Use the matching game version or an updated package.')
-        if path in external_paths:
-            raise IndependentItemError(f'{package.title}: an external mod replaces required game data: {path}.')
 
 
 def retained_package_recovery(root, state, *, stop_event=None, on_log=None):
@@ -195,7 +196,7 @@ def retained_package_recovery(root, state, *, stop_event=None, on_log=None):
     observed = {REGISTRY_PATH: overlays._target(root, REGISTRY_PATH).read_bytes()}
     registry = load_registry(root)
     snapshot = stock_snapshot(root, stop_event=stop_event, on_log=on_log)
-    external = _external_paths(root, state, stop_event)
+    external = external_mods(root, state, stop_event=stop_event, snapshot=snapshot)
     for layer in state['layers']:
         identity = layer.get('independent_identity')
         if not identity or not (layer['active'] or layer.get('disabled')):
@@ -209,11 +210,17 @@ def retained_package_recovery(root, state, *, stop_event=None, on_log=None):
         package = read_package(data, stop_event=stop_event)
         if package.identity != identity or package.digest != row['digest']:
             raise IndependentItemError('The retained recovery package has changed outside CDMW.')
-        _check_dependencies(package, snapshot, external, stop_event)
+        _check_dependencies(package, snapshot, stop_event)
+        changes = overlays._unpack_changes(root, layer, {}, stop_event)
+        check_package_dependencies(package, snapshot, external, changes, stop_event=stop_event)
         observed[relative] = data
     revision = snapshot.provenance.capture()
     revision.validate(stop_event)
     stamps = _game_source_stamps(root, revision)
+    external.validate(stop_event)
+    for path, stamp in external.tracker.capture().files:
+        if path.suffix in ('.pamt', '.paz'):
+            stamps[path.relative_to(root).as_posix()] = list(stamp)
     return observed, stamps
 
 
@@ -254,7 +261,12 @@ def prepare_install(sources, root, *, stop_event=None, on_log=None, read_entry=N
     baseline_dependencies = snapshot.provenance.capture().payloads
     # Inspect all mounted external files, irrespective of priority. Adding our
     # composed table must never silently hide a manager's replacement.
-    external_paths = _external_paths(root, state, stop_event)
+    # Keep the existing name/layout validation and public error type.
+    _external_paths(root, state, stop_event)
+    external = external_mods(root, state, read_entry=read_entry, stop_event=stop_event, snapshot=snapshot)
+    external_paths = external.paths
+    external_keys = reserved_external_keys(external, snapshot, stop_event=stop_event)
+    compatibility = []
     rows = []
     for identity, package in packages.items():
         raise_if_cancelled(stop_event, 'Independent item preparation cancelled.')
@@ -263,16 +275,18 @@ def prepare_install(sources, root, *, stop_event=None, on_log=None, read_entry=N
             snapshot.payload(dependency.entry.path)
         prior = registry['items'].get(identity)
         previous_layer = next((layer for layer in state['layers'] if prior and layer['id'] == prior['layer']), None)
-        _check_dependencies(package, snapshot, external_paths, stop_event)
+        _check_dependencies(package, snapshot, stop_event)
         if previous_layer and previous_layer['active'] and prior['digest'] == package.digest:
+            check_package_dependencies(package, snapshot, external, decoded[previous_layer['id']], stop_event=stop_event)
             rows.append((identity, package.title, prior['values']['iteminfo']['item'], 'Already installed'))
             continue
         if previous_layer:
             if any(layer['active'] and previous_layer['id'] in layer['dependencies'] for layer in state['layers']):
                 raise IndependentItemError('Another installed overlay depends on this item. Remove that dependent overlay before updating it.')
             previous_layer.update(active=False, disabled=False)
-        reserved = {name: set() for name in NAMESPACES}
-        reserved_paths, stems = set(), set()
+        reserved = {name: set(external_keys[name]) for name in NAMESPACES}
+        reserved_paths = set()
+        stems = {Path(path).stem for path in external_paths if path.endswith(('.pac', '.prefab'))}
         for other_id, other in registry['items'].items():
             if other_id == identity:
                 continue
@@ -334,9 +348,9 @@ def prepare_install(sources, root, *, stop_event=None, on_log=None, read_entry=N
             hashes[checksum] = path
         if any(path.endswith('.dds') for path in added_paths) and snapshot.pathc is None:
             raise IndependentItemError('This game has no verified texture registry for the new icon or textures.')
-        if set(plan.loose_files) & external_paths:
-            raise IndependentItemError('An external mod replaces a file required by this item.')
         changes = _capture(plan, snapshot, root, state, pathc_before)
+        findings = check_package_dependencies(package, snapshot, external, changes, stop_event=stop_event)
+        compatibility.extend(f'{", ".join(finding.mods)}: {finding.path}: {finding.detail}' for finding in findings)
         layer = overlays._add_layer(state, pending, package.title, changes,
                                     item_keys=tuple(bindings.values['iteminfo'].values()))
         layer.update(independent_identity=identity, independent_digest=package.digest)
@@ -354,13 +368,17 @@ def prepare_install(sources, root, *, stop_event=None, on_log=None, read_entry=N
                 raise IndependentItemError('The retained recovery package has changed outside CDMW.')
         pending[cache_path] = cached if cached is not None else package_bytes(package, stop_event=stop_event)
         rows.append((identity, package.title, key, 'Update' if prior else 'Install'))
-    if canonical(registry) == registry_before:
+    if canonical(registry) == registry_before and not external_paths:
         return IndependentItemInstallPlan(None, tuple(rows), ('All selected items are already installed.',))
     _validate_registry(registry)
     pending[REGISTRY_PATH] = canonical(registry)
-    preparation = overlays._compose(root, state, pending, 'Independent items', None, stop_event, on_log, decoded=decoded)
+    preparation = overlays._compose(root, state, pending, 'Independent items', None, stop_event, on_log,
+                                    decoded=decoded, independent_context=(external, baseline))
     preparation = overlays._pin_preparation(preparation, observed_state, error_type=IndependentItemError)
-    return IndependentItemInstallPlan(preparation, tuple(rows), tuple(f'{status}: {title} (item {key})' for _, title, key, status in rows))
+    if all(dict(preparation.before).get(path) == value for path, value in preparation.writes) and not preparation.deletes:
+        return IndependentItemInstallPlan(None, tuple(rows), ('All selected items are already installed.',))
+    return IndependentItemInstallPlan(preparation, tuple(rows),
+        (*tuple(f'{status}: {title} (item {key})' for _, title, key, status in rows), *dict.fromkeys(compatibility)))
 
 
 def prepare_remove(identity, root, *, stop_event=None, on_log=None):

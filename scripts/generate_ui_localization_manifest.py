@@ -368,6 +368,7 @@ _PYTHON_SINKS = {
     "AlignmentD3D11StatusPresentation",
     "ArchiveModelTextureReference",
     "ArchivePreviewResult",
+    "CompatibilityFinding",
     "AssetAuthoringHelperSpec",
     "CompactToolSpec",
     "EmptyStateTreeWidget",
@@ -762,6 +763,10 @@ def _python_source_value(node: ast.AST) -> str:
 
 
 def _python_candidate_nodes(call: ast.Call, sink: str) -> Iterable[ast.AST]:
+    if sink == "CompatibilityFinding":
+        # Mod labels and virtual paths are user data, not translation keys.
+        yield from _python_wrapper_candidates(call, (0, 3), (("status", "mods", "path", "detail"),))
+        return
     if sink == "CompactToolSpec":
         # The remaining fields are stable tool/icon identifiers, not UI text.
         yield from _python_wrapper_candidates(
