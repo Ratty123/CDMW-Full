@@ -62,11 +62,15 @@ initialization outside an ntdll loader callout; this alone is not proof of
 readiness before every affected game read. The fixture also checks mutated
 instructions, handoff flags, forwarding destinations and bootstrap hashes.
 
-The controlled warm-Steam diagnostic now stays bound to the real game, reaches
-the title screen and observes its archive/metadata opens. A circular Windows
-file trace did not retain the process start, so zero dropped events is not
-sufficient first-read evidence. Game redirection remains gated. The source lead
-for the retained wrappers is the exact
+Controlled warm- and cold-Steam diagnostics stay bound to the real game and
+reach the title screen. Independent Windows file-mode recordings retain process
+creation and show the game's first mount-table read after the host receives
+runtime readiness. The early archive queries come from CDMW's own manifest path
+validation; the cold-start call stacks identify that boundary through UAL's
+`GetCommandLineW` wrapper. These observations support the loading map, but do not
+implement a guard for that startup call site or establish redirected item/save
+behavior. Game redirection remains gated. The source lead for the retained
+wrappers is the exact
 [UAL 9.7.1 implementation](https://github.com/ThirteenAG/Ultimate-ASI-Loader/blob/v9.7.1/source/dllmain.cpp);
 the reviewed local binary witnesses, not a project version label, govern support.
 

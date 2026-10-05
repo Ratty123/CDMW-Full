@@ -9,8 +9,11 @@ and physical installation remain the defaults.
 Game file redirection is disabled in both Python and the compiled native runtime.
 The controlled startup probe resolved the verified ASI bootstrap's retained
 forwarding hooks. Steam process binding now has a separate claim/readiness
-handshake. No virtual items or saves have been validated in game. Changing a
-manifest cannot enable the guarded launch mode.
+handshake. Warm- and cold-Steam diagnostics reach the title screen, with
+independent Windows traces showing readiness before the first game archive read.
+The observed startup call site still needs an activation guard, and no virtual
+items or saves have been validated in game. Changing a manifest cannot enable
+the guarded launch mode.
 
 ## Use and ownership
 
@@ -108,13 +111,13 @@ Version text alone is never authorization to activate.
 
 | Boundary | Observation and limitation |
 | --- | --- |
-| ASI bootstrap | Calls `InitializeASI`; CDMW's `DllMain` only disables thread notifications. The exact UAL 9.7.1 build can retain forwarding imports after restoration. CDMW verifies the binary, instructions, phase flags and original forwarding targets before chaining. The controlled diagnostic reports outside the ntdll loader callout. Readiness before the first affected read still needs independent evidence. |
-| File opens | Exact main-image imports of `CreateFileW`, `CreateFileA` and `CreateFile2`; the verified executable's CreateFile2 IAT RVA is `0x51eb158`. Import presence is only a candidate boundary. |
-| Queries/enumeration | Synthetic tests cover `GetFileAttributesW/A/ExW` and `FindFirstFileW/ExW`. The controlled Steam trace sees `CreateFile2` opening PAPGT/PAMT/PAZ/PATHC and W/ExW attribute queries on archive tables. Complete ordering before initialization still needs independent evidence. |
+| ASI bootstrap | Calls `InitializeASI`; CDMW's `DllMain` only disables thread notifications. The exact UAL 9.7.1 build can retain forwarding imports after restoration. CDMW verifies the binary, instructions, phase flags and original forwarding targets before chaining. Independent cold-start stacks locate initialization through UAL's `GetCommandLineW` wrapper on the initial game thread, outside the ntdll loader callout. Guarding this observed startup call site remains pending. |
+| File opens | Exact main-image imports of `CreateFileW`, `CreateFileA` and `CreateFile2`; the verified executable's CreateFile2 IAT RVA is `0x51eb158`. Independent Windows events and native traces match the observed original archive opens. A cold-start mount-table stack passes through CDMW's hook from game RVA `0x13274b6`; this is a file-loading observation, not an item-registration API. |
+| Queries/enumeration | Synthetic tests cover `GetFileAttributesW/A/ExW` and `FindFirstFileW/ExW`. The controlled Steam trace sees `CreateFile2` opening PAPGT/PAMT/PAZ/PATHC and W/ExW attribute queries on archive tables. Early original-file attribute queries match the manifest guard sequence and, in the cold trace, CDMW's validation call stacks. New virtual-directory discovery still requires the controlled redirection test. |
 | Reads and mapping | Approved logical paths map to real immutable files. Windows retains read, seek, mapping and asynchronous-I/O semantics through its handles; no archive parsing occurs in hooks. |
 | Unmapped paths | Original destinations; saves, configuration and executables are outside the redirect map. Mapped write access is refused. |
 | Session | Private local pipe with owner ACL, PID and host checks, random token and exact executable/snapshot hashes. A new Steam game claims the pending launch; the host verifies its exact executable, parent and creation time before binding and granting initialization. Runtime readiness is a separate acknowledgement. |
-| Steam handoff | Steam is asked to launch app 3321460; its command process may exit independently. Ambiguous clients, existing games, changed launcher binaries and a different parent are refused. Synthetic handoff/lifetime tests and controlled warm-Steam diagnostics pass. Cold Steam and virtual item acceptance remain separate. No environment-only activation is used. |
+| Steam handoff | Steam is asked to launch app 3321460; its command process may exit independently. Ambiguous clients, existing games, changed launcher binaries and a different parent are refused. Synthetic handoff/lifetime tests and controlled warm- and cold-Steam diagnostics pass. Virtual item acceptance remains separate. No environment-only activation is used. |
 
 The native runtime refuses foreign import hooks and reports the function and
 owning module. It neither chains through an unverified hook nor overwrites it.
@@ -160,19 +163,27 @@ not yet enabled because the verified startup/redirection boundary is unresolved.
 
 ## Evidence gates and validation
 
-1. **Loading map:** static executable leads, verified bootstrap forwarding and
-   an outside-loader-callout witness; deterministic first-read timing remains
-   blocked.
+1. **Loading map:** static executable leads, verified bootstrap forwarding,
+   an outside-loader-callout witness and independent warm/cold first-read
+   observations. An activation guard for the observed startup call site remains
+   required before promoting game redirection.
 2. **Synthetic prototype:** profile composition, colliding authors, imported assets
    and auxiliary references, update/transfer, recovery, stale state, Qt/Rust input
    projection, native handles and session isolation have focused fixture coverage.
 3. **Controlled game prototype:** the reviewed original-file diagnostic passed
    bootstrap forwarding checks and binds the actual Steam-created game. The
-   user confirmed the title screen; the bounded trace observes mount/texture
-   metadata and archive access. A separate circular Windows file trace retained
-   only part of startup despite reporting zero dropped events, so it cannot
-   establish first-read readiness. No redirected game read or new-item acceptance
-   is claimed.
+   user confirmed the title screen, including a cold Steam launch. Independent
+   Windows file-mode traces retain process creation with no dropped events; the
+   first game mount-table read occurs 0.72-0.75 seconds after CDMW's trace
+   initialization and after the host's readiness acknowledgement. Each of the
+   three complete captures has 228 earlier original-file attribute queries
+   from CDMW's manifest validation and 173 subsequent archive opens/queries
+   matched to native hooks. Cold-start stacks independently attribute all 228
+   early queries to CDMW. The final capture's filename rundown resolves the
+   earlier cached reads to the game executable, Windows disk metadata and the
+   paging file. After all launches, the 286 checked original files and saved-game
+   fingerprints are unchanged. These are original-file diagnostics: no
+   redirected game read or new-item acceptance is claimed.
 4. **Selectable experimental item loading:** blocked pending the earlier timing
    gate, verified Steam behavior, coexistence, acquisition/equipment/crafting and
    save/reload/update/removal acceptance with a disposable backed-up save.
@@ -181,6 +192,16 @@ Source tests, built native binaries, packaged application, visible game behavior
 and save compatibility are separate evidence classes. The diagnostic observations
 do not certify item registration. Machine-specific traces, save backups and game
 payloads stay outside version control.
+
+Independent timing analysis must retain process creation and bind PID reuse to
+that process lifetime. Use file-mode recording with `ProcessThread`, `Loader`,
+`FileIO`, `FileIOInit` and `Filename`; include file-name rundown and
+`FileCreate`/`FileQueryInformation` stacks when attributing early access. Compare
+raw QPC timestamps with the native trace and distinguish CDMW's validation from
+engine loading. Resolve cached/image reads through file keys within the same
+recording; a later filename lookup can misidentify a reused key. A circular
+recording that has overwritten startup, even with zero dropped events, is not
+first-read evidence.
 
 Focused commands from the project root (PowerShell):
 
