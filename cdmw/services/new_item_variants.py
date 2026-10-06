@@ -182,10 +182,16 @@ class VariantPlan:
 
 def _allocate_variant_stems(planner, parts):
     from cdmw.core.archive_format import hashlittle
+    from cdmw.core.equipment_visibility import POSTFIX_PATH, matching_postfixes
     parts = tuple(parts)
     if not parts:
         return {}
     snapshot = planner.snapshot
+    # Portable variants must inherit the template's existing whole-part rules.
+    # Copying those rules into the shared descriptor is not a supported package
+    # operation. Keep their suffix on the allocated identity instead.
+    postfix = (snapshot.payload(POSTFIX_PATH)
+               if planner.independent and snapshot.has_entry(POSTFIX_PATH) else None)
     string_keys = set(snapshot.stringinfo_texts)
     names = set(snapshot.pappt.index())
     dye_keys = set()
@@ -196,9 +202,15 @@ def _allocate_variant_stems(planner, parts):
     for part in parts:
         suffix = hashlib.sha256(part.prefab_path.casefold().encode()).hexdigest()[:8]
         preferred = f"{planner.new_stem}_v{suffix}"
+        inherited = matching_postfixes(postfix, part.stem) if postfix is not None else ()
+        rule_suffix = max(inherited, key=len, default="")
+        # Retain the source spelling as well as its matched rules.
+        rule_suffix = part.stem[-len(rule_suffix):] if rule_suffix else ""
         for attempt in range(1000):
             planner.check()
-            stem = preferred if attempt == 0 else f"{preferred}_{attempt+1}"
+            stem = (preferred if attempt == 0 else f"{preferred}_{attempt+1}") + rule_suffix
+            if postfix is not None and matching_postfixes(postfix, stem) != inherited:
+                continue
             models = tuple(str(PurePosixPath(path).with_name(f"{stem}_m{ordinal}.pac")) for ordinal,path in enumerate(part.pac_paths))
             hashes = {hashlittle(path.encode("utf-8"),0xC5EDE) for path in models}
             paths = [part.record.cloned(stem).prefab_path]

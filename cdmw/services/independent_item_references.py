@@ -1,7 +1,7 @@
 """Verified reference boundaries for resources an independent item adds.
 
-Unchanged game resources remain dependencies. Owned opaque physics and partially
-decoded reflection objects are deliberately outside the experimental format.
+Unchanged game resources remain dependencies. Physics copies require an unchanged
+verified template binding; partially decoded reflection objects remain unsupported.
 """
 import xml.etree.ElementTree as ET
 import struct
@@ -91,8 +91,8 @@ def audit_references(plan, snapshot, *, stop_event=None):
         if plan.spec.variants is not None:
             for variant in plan.manifest.get('variants', ()):
                 if 'output_model' in variant:
-                    mesh_bindings.setdefault(variant['output_model'], []).append(
-                        (variant['model_path'], variant['prefab_path']))
+                    mesh_bindings.setdefault(variant['output_model'].lower(), []).append(
+                        (variant['model_path'].lower(), variant['prefab_path'].lower()))
         else:
             for role, original, target in family.renamed(plan.spec.stem):
                 if role == 'pac':
@@ -125,7 +125,8 @@ def audit_references(plan, snapshot, *, stop_event=None):
         owned = path in outputs
         if path.endswith('.hkx'):
             if owned:
-                raise IndependentItemError('Owned physics files are not yet verified for independent packages. Turn off inherited template physics for the imported model.')
+                from cdmw.services.independent_item_physics import audit_physics_copy
+                audit_physics_copy(path, data, outputs, mesh_bindings, snapshot, require, stop_event=stop_event)
             continue
         if path.endswith('.prefab'):
             from cdmw.core.prefab_binary import decode_prefab_binary

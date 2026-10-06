@@ -11,6 +11,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 - Mod Management adds a separate experimental Virtual loader to prepare and launch private profiles from independent item packages and supported mods. It keeps original game archives unchanged, retains item identities, verifies a save backup before each reviewed launch and refuses changed or incompatible inputs. It requires the verified Windows executable and existing ASI bootstrap; item, effect and other-mod compatibility still require testing.
 - Independent items can scan mounted mods or an extracted mod folder for conflicts, preserve supported unrelated record changes, and prepare a reviewed merge or separate merged package. Required-record conflicts and unsupported inputs are reported explicitly; runtime plugins and in-game compatibility remain unverified.
+- Independent item packages can copy verified template collision physics while preserving unchanged mesh and cloth bindings, including when adding effects or emission. Unknown physics layouts and transfers to changed geometry are refused. Armor physics still needs in-game validation before community support is advertised.
 
 ### Changed
 
@@ -19,7 +20,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 ### Fixed
 
 - Virtual loader preparation runs outside the GUI process to keep CDMW responsive, and batches of independent items reuse their asset collision scan for faster preparation without skipping conflict checks. Windows security blocks now identify the affected runtime file and stop repeated attempts with the same build during that CDMW session.
-- Independent item packages recognize named manager archive folders such as `dmmgen` and `dmmsa`, while still refusing conflicting mounted mods and ignoring unmounted ones. They also protect newer ownership from overlapping operations, allow further items to be authored after installing generated textures, recheck imported model bindings, and consistently remap and validate cloned effect references. Visible effect behavior still needs in-game verification.
+- Independent item packages recognize named manager archive folders such as `dmmgen` and `dmmsa`, while still refusing conflicting mounted mods and ignoring unmounted ones. They also protect newer ownership from overlapping operations, allow further items to be authored after installing generated textures, recheck imported model bindings, preserve inherited equipment visibility rules for copied variants, and consistently remap and validate cloned effect references. Visible effect behavior still needs in-game verification.
 - Create New Item can read available archives after a mod folder was manually deleted; missing required game archives still produce an error. Game-update checks now handle added and replaced textures without the unpacking error.
 
 ## [0.11.0-alpha.23] - 2026-10-04

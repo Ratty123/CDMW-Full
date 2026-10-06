@@ -153,12 +153,36 @@ projects and invokes these same controls and callbacks.
 | PAC XML and DDS | Parsed resource paths and owned textures/icons; composed texture registry | Unknown XML root/reference attributes, unresolved resources or absent registry |
 | PAPPT and prefabs | Existing structured editors and relocation | Incomplete or inferred prefab reference layouts |
 | Owned effects/emitters/presets | Complete reflection decode, bounded fixed-length reference edits and reserved tokens | Missing dependencies or ambiguous reflection boundaries |
-| Physics files | Unchanged game dependencies only | Cloned HKX files are not verified for this format |
+| Collision physics files | Item-owned byte-for-byte copies of the verified Havok 2024.2 convex/compound template layouts | Unknown type dictionaries, malformed boundaries, changed collision data or changed companion mesh |
+| Cloth and jiggle accompanying copied collision physics | Preserve every PAC LOD and its skin/cloth data; retain model-property bindings and pin the referenced PBD catalogue/profiles | Changed geometry or simulation bindings, missing or ambiguous profiles; no physics transfer to a different mesh |
+| Equipment visibility suffixes | Independent variants retain the template's existing matching suffix rules | Changes requiring shared visibility descriptors remain unsupported |
 | Global rendering edits | Unsupported | Any required shared rendering change outside the additive whitelist |
 
 The matrix constrains only experimental package export/install. Existing export
 support is unchanged. Material and equipment experiments retain their existing
 game-validation limits even when their package graph is structurally supported.
+
+### Copying template physics
+
+Owned physics is deliberately limited to unchanged template geometry. The package
+audit checks the exact source HKX and PAC bytes, including all mesh LODs, weights
+and cloth lanes. It permits render-material edits such as emission while requiring
+unchanged model and cloth bindings. Referenced PBD configuration and profile files
+remain hashed game dependencies; their contents are not regenerated or clamped to
+preview values. Export and installation perform the same checks.
+
+The HKX recognizer accepts only the two witnessed 2024.2 convex/compound collision
+type dictionaries. It checks container and ITEM boundaries and does not rewrite
+Havok objects or assume arbitrary binary references can be relocated. These files
+hold collision shapes; cloth motion also requires the preserved mesh data and
+PBD bindings. Copying an HKX alone is insufficient.
+
+An imported replacement with different vertices must leave **Template cloth /
+physics** off until a compatible transfer is implemented and verified. Its rigid
+or skinned attachment is a separate check and is not evidence of cloth physics.
+Source checks cover copying and composition; armor movement, collision behavior,
+coexistence and save/reload still require controlled in-game comparison before
+advertising community support for that equipment.
 
 ## Evidence and remaining checks
 
@@ -169,6 +193,13 @@ localisation; repeated imports, updates, restart-style re-reading, removal and
 reinstallation, and transfer through an identity profile. Corruption, incomplete
 dependencies, incompatible source hashes, collisions, allocation exhaustion,
 stale mappings and rollback/cancellation have focused fixture checks.
+
+`tests/test_independent_item_physics.py` adds malformed/unknown collision refusal,
+mesh and cloth binding checks, pinned PBD dependencies, changed recipient profile
+refusal, and two independently authored physics copies resolved in both orders.
+It also checks that variant name collision retries retain inherited visibility
+rules without modifying the shared descriptor. Synthetic dictionaries in tests
+exercise the boundary checks; they are not additional production format witnesses.
 
 `tests/test_independent_item_regressions.py` covers overlapping overlay operations,
 ledger changes before publication, authoring after a generated-icon installation,
