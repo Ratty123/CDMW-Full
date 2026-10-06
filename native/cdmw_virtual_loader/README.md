@@ -24,7 +24,8 @@ are unchanged. Trace mode observes original files;
 production redirect mode is compiled off; harness mode requires the separate
 fixture executable. Controlled probe mode additionally requires the host's
 `--controlled-probe` opt-in and the verified early startup path. It is a reviewed
-acceptance route, not a public UI launch option. The private named pipe rejects
+acceptance route. CDMW's experimental page now selects it only after creating
+and verifying a save backup and reviewing the launch. The private named pipe rejects
 remote clients and validates its user, server and client. No network listener or environment-only activation
 is used. Session descriptors are not distributable mod packages.
 
@@ -83,8 +84,11 @@ the host to terminate its verified new game on refusal. Trace records distinguis
 the startup guard result from completion of all import hooks.
 
 Controlled game acceptance additionally requires a verified save backup and
-reviewed launch plan through `start_controlled_probe`. The ordinary production
-gate stays closed pending broader item and profile-lifecycle validation. The
+reviewed launch plan. The experimental UI enforces these through
+`prepare_experimental_launch` and `launch_experimental`; `start_controlled_probe`
+remains the low-level acceptance entry point. Save and backup hashes use the
+existing source-guard protocol; they never become redirection targets. The
+general redirect-mode gate stays closed pending broader compatibility validation. The
 source lead for the retained wrappers is the exact
 [UAL 9.7.1 implementation](https://github.com/ThirteenAG/Ultimate-ASI-Loader/blob/v9.7.1/source/dllmain.cpp);
 the reviewed local binary witnesses, not a project version label, govern support.

@@ -24,7 +24,7 @@ def main():
               'sources': {p.name: sha(p) for p in sources},
               'files': {name: sha(build / 'Release' / name) for name in files},
               'game_redirection_approved': False,
-              'evidence': 'Compiled source and synthetic checks; game startup and save compatibility remain unverified.'}
+              'evidence': 'Compiled sources and synthetic checks only; controlled game validation scope is documented separately.'}
     (build / 'Release/provenance.json').write_text(json.dumps(result, indent=2) + '\n', encoding='utf-8')
     print(json.dumps({'artifact': str(build / 'Release'), 'files': result['files']}, indent=2))
 

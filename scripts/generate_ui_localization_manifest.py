@@ -50,6 +50,14 @@ PYTHON_SOURCE_ROOTS = (
 )
 MANUAL_SOURCE_KEYS = frozenset(
     {
+        # Custom virtual-save errors surface through the worker error callback.
+        "The game save folder could not be found. Start the game normally and create a save first.",
+        "Save backups do not support linked folders or files.",
+        "The save folder exceeds the supported backup size or file count.",
+        "The save files changed during backup. Close the game and try again.",
+        "The save backup could not be verified. Prepare the launch again.",
+        "The game save folder changed. Prepare the launch again.",
+        "The saved game changed after backup. Prepare the launch again.",
         # Audited dynamic/default captions without a literal widget sink.
         "Show Settings", "Maintenance", "Open Image", "Scan Sidecar Corpus",
         "Ready .zip", "No tool", "No layer", "No state", "Fit {value_0}%",

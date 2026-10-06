@@ -38,6 +38,19 @@ class VirtualLaunchPlan:
 
 
 @dataclass(frozen=True)
+class VirtualSaveBackup:
+    directory: Path
+    source: Path
+    manifest_sha256: str
+
+
+@dataclass(frozen=True)
+class ExperimentalLaunchReview:
+    plan: VirtualLaunchPlan
+    backup: VirtualSaveBackup
+
+
+@dataclass(frozen=True)
 class VirtualSessionStatus:
     state: str
     detail: str

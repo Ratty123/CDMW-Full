@@ -1,7 +1,8 @@
 """Selectable startup profiles sharing the existing serialized controller lane."""
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import Qt, QTimer, Signal, QUrl
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QFileDialog, QHBoxLayout, QLabel, QMessageBox, QPlainTextEdit, QPushButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
 
 from cdmw.domain.virtual_loader import VirtualProfile
@@ -17,6 +18,7 @@ class VirtualLoaderPage(QWidget):
         self._generation = 0
         self._closed = self._working = self._applying = self._draft_loaded = False
         self._prepared = self._runtime = self._queued = None
+        self._saved_selection = None
         self._session = None
         self._session_timer = QTimer(self)
         self._session_timer.setInterval(1500)
@@ -25,7 +27,7 @@ class VirtualLoaderPage(QWidget):
         help_label = QLabel(self.tr('Prepare items and supported mods for a separate startup profile. Original game archives stay unchanged.'))
         help_label.setWordWrap(True)
         layout.addWidget(help_label)
-        notice = QLabel(self.tr('Experimental: game loading stays blocked until startup and save compatibility are verified.'))
+        notice = QLabel(self.tr('Experimental: item and effect compatibility varies. A verified save backup is required before each launch.'))
         notice.setWordWrap(True)
         notice.setProperty('managementRole', 'notice')
         layout.addWidget(notice)
@@ -46,6 +48,7 @@ class VirtualLoaderPage(QWidget):
         self.prepare_button = self._button(actions, self.tr('Inspect and prepare'), 'virtual_prepare', self._prepare)
         self.save_button = self._button(actions, self.tr('Save virtual profile'), 'virtual_save', self._save)
         self.launch_button = self._button(actions, self.tr('Launch with virtual profile'), 'virtual_launch', self._launch)
+        self.cancel_button = self._button(actions, self.tr('Cancel'), 'virtual_cancel', self._cancel)
         layout.addLayout(actions)
         runtime = QHBoxLayout()
         self.refresh_button = self._button(runtime, self.tr('Refresh status'), 'virtual_refresh', self.refresh)
@@ -55,6 +58,7 @@ class VirtualLoaderPage(QWidget):
         diagnostics = QHBoxLayout()
         self.trace_button = self._button(diagnostics, self.tr('Review startup trace…'), 'virtual_trace', self._trace)
         self.remove_runtime_button = self._button(diagnostics, self.tr('Remove CDMW runtime…'), 'virtual_remove_runtime', self._remove_runtime)
+        self.backups_button = self._button(diagnostics, self.tr('Open save backups'), 'virtual_backups', self._open_backups)
         diagnostics.addStretch(1)
         layout.addLayout(diagnostics)
         self.status = QLabel(self.tr('Prepare a profile to review its contents.'))
@@ -80,12 +84,14 @@ class VirtualLoaderPage(QWidget):
     def _buttons(self):
         ready = not (self._closed or self._working or self.controller.busy)
         for button in (self.add_items, self.add_mod, self.prepare_button, self.refresh_button, self.setup_button, self.recover_button,
-                       self.trace_button, self.remove_runtime_button):
+                       self.trace_button, self.remove_runtime_button, self.backups_button):
             button.setEnabled(ready and bool(self.package_root))
         self.selection.setEnabled(ready)
         self.remove_selected.setEnabled(ready and bool(self.selection.selectedItems()))
         self.save_button.setEnabled(ready and self._prepared is not None)
-        self.launch_button.setEnabled(ready and self._runtime is not None and self._runtime.state == 'ready' and self._prepared is None)
+        self.launch_button.setEnabled(ready and self._runtime is not None and self._runtime.state == 'ready'
+                                      and self._prepared is None and self._profile() == self._saved_selection)
+        self.cancel_button.setEnabled(not self._closed and self._working and not self._applying)
         if self._session:
             for button in (self.save_button, self.launch_button, self.trace_button, self.setup_button, self.remove_runtime_button, self.recover_button):
                 button.setEnabled(False)
@@ -187,6 +193,8 @@ class VirtualLoaderPage(QWidget):
         root = self.package_root
         def done(result):
             state, profile = result
+            self._saved_selection = VirtualProfile(tuple(Path(p) for p in profile['packages']),
+                                                   tuple(Path(p) for p in profile['mods'])) if profile else None
             self._runtime = state
             if not self._draft_loaded:
                 self.selection.clear()
@@ -197,7 +205,7 @@ class VirtualLoaderPage(QWidget):
                 self._runtime = state
             self.status.setText(self.tr(state.detail))
         def task(log, stop):
-            state = runtime_status(root, stop_event=stop)
+            state = runtime_status(root, experimental=True, stop_event=stop)
             profile = None if 'Recover' in state.detail else load_profile(root)
             return state, profile
         self._run(task, done)
@@ -207,11 +215,14 @@ class VirtualLoaderPage(QWidget):
         root = self.package_root
         def done(plan):
             generation = self._generation
-            detail = self.tr('Install the CDMW diagnostic runtime at this exact path?') + '\n\n' + str(plan.root / RUNTIME_PATH) + '\nSHA-256: ' + plan.checksum
-            detail += '\n\n' + self.tr('This does not enable game loading. Existing ASI loaders and plugins are preserved.')
+            detail = self.tr('Install the CDMW virtual runtime at this exact path?') + '\n\n' + str(plan.root / RUNTIME_PATH) + '\nSHA-256: ' + plan.checksum
+            detail += '\n\n' + self.tr('Existing ASI loaders and plugins are preserved. Virtual items are active only when launched through CDMW.')
+            def installed(_value):
+                self._queued = self.refresh
+                QTimer.singleShot(0, self, self._resume)
             if QMessageBox.question(self, self.tr('Review runtime setup…'), detail) == QMessageBox.Yes and generation == self._generation and not self._closed:
                 self._queued = lambda: self._run(lambda log, stop: apply_runtime_setup(plan, confirmed=True, stop_event=stop),
-                                                lambda _value: self.status.setText(self.tr('Runtime setup saved. Game validation is still required.')), applying=True)
+                                                installed, applying=True)
                 QTimer.singleShot(0, self, self._resume)
         self._run(lambda log, stop: prepare_runtime_setup(root, stop_event=stop), done)
 
@@ -221,10 +232,45 @@ class VirtualLoaderPage(QWidget):
         self._run(lambda log, stop: recover_profile(root), lambda _value: self.status.setText(self.tr('Virtual profile recovery completed. Refresh its status.')), applying=True)
 
     def _launch(self):
-        from cdmw.services.virtual_loader_runtime import prepare_launch, launch
-        root = self.package_root
-        self._run(lambda log, stop: launch(prepare_launch(root, stop_event=stop), stop_event=stop),
-                  self._started)
+        from cdmw.services.virtual_loader_runtime import prepare_experimental_launch, launch_experimental
+        if self._profile() != self._saved_selection:
+            return
+        root, generation = self.package_root, self._generation
+        self.status.setText(self.tr('Preparing launch and save backup…'))
+        def done(review):
+            detail = self.tr('Launch this experimental virtual profile?') + '\n\n' + str(review.plan.root)
+            detail += '\n\n' + self.tr('Backup: {value_0}').format(value_0=review.backup.directory)
+            detail += '\n\n' + self.tr('Your saves have been backed up and will not be edited by CDMW. Load and save only while the intended profile is active.')
+            if QMessageBox.question(self, self.tr('Launch with virtual profile'), detail) != QMessageBox.Yes:
+                return
+            def start():
+                if not self._closed and generation == self._generation and root == self.package_root:
+                    self.status.setText(self.tr('Starting the virtual session…'))
+                    self._run(lambda log, stop: launch_experimental(review, confirmed=True, stop_event=stop), self._started)
+            if generation == self._generation and root == self.package_root and not self._closed:
+                self._queued = start
+                QTimer.singleShot(0, self, self._resume)
+        self._run(lambda log, stop: prepare_experimental_launch(root, stop_event=stop), done)
+
+    def _cancel(self):
+        if not self._working or self._applying:
+            return
+        self._generation += 1
+        self._queued = None
+        self.controller.cancel_operation('virtual_loader')
+        self.status.setText(self.tr('Processing stopped by user.'))
+
+    def _open_backups(self):
+        from cdmw.services.virtual_loader_saves import BACKUP_PATH
+        from cdmw.services.virtual_loader_state import target
+        try:
+            folder = target(self.package_root, BACKUP_PATH)
+            if folder.is_dir():
+                QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
+            else:
+                self.status.setText(self.tr('Prepare a launch to create a save backup.'))
+        except (ValueError, OSError) as exc:
+            self.status.setText(str(exc))
 
     def _started(self, result):
         self._session = (self.package_root, result.detail, result.pid)
@@ -289,6 +335,7 @@ class VirtualLoaderPage(QWidget):
         self.package_root = str(root)
         self._generation += 1
         self._queued = self._prepared = self._runtime = None
+        self._saved_selection = None
         self._session = None
         self._session_timer.stop()
         self._draft_loaded = False

@@ -17,7 +17,7 @@ BUILD = Path(__file__).resolve().parents[1] / 'native/cdmw_virtual_loader/build/
 pytestmark = pytest.mark.skipif(os.name != 'nt' or not (BUILD / 'CDMWVirtualLoader.asi').exists(), reason='Requires the explicitly built Windows native virtual runtime')
 
 
-def fixture(tmp_path, *, steam=False):
+def fixture(tmp_path, *, steam=False, extra_guards=()):
     root = tmp_path / 'game with spaces ü'
     (root / 'bin64').mkdir(parents=True)
     for name in ('CDMWVirtualLoader.asi', 'cdmw_virtual_loader_harness.exe'):
@@ -36,10 +36,27 @@ def fixture(tmp_path, *, steam=False):
     launcher = root / 'bin64/cdmw_virtual_steam_fixture.exe' if steam else None
     if launcher:
         shutil.copy2(BUILD / 'cdmw_virtual_loader_harness.exe', launcher)
-    token, manifest = session_manifest(root, profile, mode=2, executable_sha256=hash_file(root / 'bin64/cdmw_virtual_loader_harness.exe'), launcher=launcher)
+    token, manifest = session_manifest(root, profile, mode=2, executable_sha256=hash_file(root / 'bin64/cdmw_virtual_loader_harness.exe'), launcher=launcher, extra_guards=extra_guards)
     request = root / '.cdmw/virtual-loader/request.bin'
     request.write_bytes(manifest)
     return root, request, token
+
+
+@pytest.mark.parametrize('changed', [False, True])
+def test_native_revalidates_external_save_guard_before_launch(tmp_path, changed):
+    save = tmp_path / 'player.save'
+    save.write_bytes(b'backed-up progress')
+    root, request, _token = fixture(tmp_path, extra_guards=((str(save), hash_file(save)),))
+    if changed:
+        save.write_bytes(b'new player progress')
+    result = subprocess.run([str(BUILD / 'cdmw_virtual_session.exe'), str(request)], capture_output=True, timeout=40)
+    if changed:
+        assert result.returncode != 0 and b'source changed' in result.stderr
+        assert not (root / '.cdmw/virtual-loader/harness-result.txt').exists()
+    else:
+        assert result.returncode == 0, result.stderr
+        assert (root / '.cdmw/virtual-loader/harness-result.txt').read_text() == 'native IO passed'
+    assert save.read_bytes() == (b'new player progress' if changed else b'backed-up progress')
 
 
 @pytest.mark.parametrize('steam', [False, True])

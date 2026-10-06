@@ -121,12 +121,13 @@ def test_snapshot_detects_content_changes_even_with_preserved_stamps(tmp_path):
 @pytest.mark.parametrize('mode', [0, 3])
 def test_session_host_runs_from_persistent_storage_outside_app_job(tmp_path, monkeypatch, mode):
     from types import SimpleNamespace
+    root, files = packages(tmp_path, 1)
     root, payload = setup_fixture(tmp_path, monkeypatch)
     (root / runtime.RUNTIME_PATH).write_bytes(payload)
-    profile = {'generation': 'a' * 32, 'files': {'meta/0.papgt': 'b' * 64}}
+    profile = publish_profile(prepare_profile(VirtualProfile(files), root))
     from cdmw.services.independent_item_package import canonical
     stored = root / '.cdmw/virtual-loader/profile.json'
-    stored.parent.mkdir(parents=True)
+    stored.parent.mkdir(parents=True, exist_ok=True)
     stored.write_bytes(canonical(profile))
     monkeypatch.setattr('cdmw.services.process_job_service.breakaway_creation_flags', lambda: 0x1000000)
     captured = []

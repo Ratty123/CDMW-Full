@@ -5,15 +5,19 @@ Independent items. It prepares a private startup profile from `.cditem` packages
 and supported extracted or archive mod folders. Existing authoring, manager export
 and physical installation remain the defaults.
 
-**Current availability: profile preparation and reviewed startup diagnostics.**
-The public game-loading gate remains disabled in Python and the native runtime.
+**Current availability: reviewed experimental launches on the verified Windows
+x64 executable and ASI bootstrap.** Each launch requires a fresh verified save
+backup and review in CDMW. Item and effect compatibility remains experimental;
+only the configurations documented below have controlled game evidence.
+The general redirect mode remains disabled in Python and the native runtime;
+the page uses the guarded controlled-launch mode.
 The controlled startup probe resolved the verified ASI bootstrap's retained
 forwarding hooks. Steam process binding now has a separate claim/readiness
 handshake. Warm- and cold-Steam diagnostics reach the title screen, with
 independent Windows traces showing readiness before the first game archive read.
 The observed startup call site now has an exact-build activation guard. A separate
-reviewed controlled-probe route permits real-game acceptance testing with a
-verified save backup. Its first run redirects the prepared metadata and archive
+reviewed controlled-probe route permits real-game acceptance testing. CDMW's
+experimental launch now enforces its save-backup requirement. Its first run redirects the prepared metadata and archive
 pair while the physical game archive directory remains absent. The user confirms
 both test items appear in the camp equipment shop, equip correctly and return in
 the saved inventory after restarting with the same virtual profile. A subsequent
@@ -22,7 +26,7 @@ their ability to equip. Removing one package also removes its shop entry while
 the other saved item still equips. Restoring the original packages in reverse
 order recovers both saved swords under their original names without repurchase.
 Asset/behavior updates and the broader support matrix still require game
-validation; changing a manifest cannot enable the public launch mode.
+validation; changing a manifest cannot enable the general redirect mode.
 
 ## Use and ownership
 
@@ -31,9 +35,28 @@ validation; changing a manifest cannot enable the public launch mode.
 2. Review the items, allocated identities and composed files. **Save virtual
    profile** publishes the private snapshot and identity ledger together. It does
    not modify the original game archives or their mount/texture metadata.
-3. **Launch with virtual profile** is enabled only when the executable, runtime
-   and game acceptance gates are satisfied. The current prototype reports its
-   blocker and keeps this action disabled.
+3. Use **Review runtime setup…** if CDMW reports that its runtime needs setup.
+   Only CDMW's owned runtime is installed or updated; the exact supported
+   executable and existing ASI bootstrap are required.
+4. With the game closed, choose **Launch with virtual profile**. CDMW verifies a
+   fresh save backup, shows its location for review, then rechecks the selected
+   snapshot and its sources before launching through Steam. Changed saves,
+   packages, game files or identities require a new review. A changed selection
+   must be prepared and saved before it can launch. **Cancel** stops preparation
+   before the session host takes ownership; it does not terminate a launched game.
+5. Load and save with the intended profile active. **Open save backups** opens
+   retained copies for recovery. Closing CDMW leaves a started game running.
+
+Saves are copied from `%LOCALAPPDATA%/Pearl Abyss/CD/save` to
+`<game>/.cdmw/virtual-loader/save-backups/<backup-id>/files`. Every file and the
+complete inventory are verified; linked paths, missing saves and backups over
+4 GiB or 4,096 files are refused. A completed backup is published in one rename;
+cancellation or failure removes only the new temporary copy. Previous backups
+remain available. The session host also checks the reviewed saves and backup
+hashes before launch; save files are never redirected. CDMW never edits or
+automatically restores live saves. To recover manually, close the game, retain
+a copy of the current save folder and restore the selected backup's `files`
+contents to that save folder, preserving its account and slot directories.
 
 There is one saved virtual profile per installation. Changing the selection takes
 effect after preparation and publication, never during a running session. Remove
@@ -118,10 +141,13 @@ The reviewed bootstrap SHA-256 is
 `810111a7f6a6cef892877c9f7c4582ccde2d621d119891f700c5309c370508bf`.
 Version text alone is never authorization to activate.
 
-For controlled acceptance, `start_controlled_probe` requires an explicit reviewed
+For low-level controlled acceptance, `start_controlled_probe` requires an explicit reviewed
 launch plan and confirmation that the caller retained a verified save backup.
 It revalidates the complete prepared profile and starts the native host with the
-separate `--controlled-probe` opt-in. This route is not exposed by the normal UI.
+separate `--controlled-probe` opt-in. The experimental page uses
+`prepare_experimental_launch` and `launch_experimental` to enforce verified save
+backups and review before selecting that same native mode. Existing low-level
+entry points retain their defaults; ordinary launches remain inactive.
 The host checks the exact game/Steam identities and the runtime refuses a changed,
 late or unrecognized startup path before installing file hooks. A trace marker
 records hook installation completion separately from entry into initialization.
@@ -280,9 +306,13 @@ separate discovery experiment.
    equipped after loading the saved game. This passes the same-profile
    save/reload check for the two candle-effect items. The earlier fire-attach
    failure remains unresolved.
-4. **Selectable experimental item loading:** blocked pending broader controlled
-   coexistence, acquisition/equipment/crafting, full supported item/save coverage
-   and asset/behavior update acceptance with a disposable backed-up save.
+4. **Selectable experimental item loading:** available for user-led compatibility
+   tests through the guarded launch and verified backup workflow. Focused tests
+   cover backup integrity, cancellation, changed saves/sources, native save
+   guards, stale selection/review rejection and the Qt/Rust launch controls.
+   This does not certify broader runtime coexistence, other item configurations,
+   saving with removed items or all asset/behavior updates. Those game checks
+   remain separate from the delivered application workflow.
 
 Source tests, built native binaries, packaged application, visible game behavior
 and save compatibility are separate evidence classes. The diagnostic observations

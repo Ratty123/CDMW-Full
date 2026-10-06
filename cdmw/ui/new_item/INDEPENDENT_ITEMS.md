@@ -180,8 +180,10 @@ external archives during installation and rebuild.
 bridge without a visible renderer. They test preservation of authoring choices,
 package export, reviewed installation/removal and shutdown with pending work.
 
-These are source and synthetic-package results. There is no packaged-release,
-visible-game, acquisition/equipment/crafting or save/reload certification yet.
+These tests are source and synthetic-package evidence. Separate controlled game
+results for selected swords, effects and save/reload are recorded in the
+[Virtual loader validation notes](VIRTUAL_LOADER.md#evidence-gates-and-validation);
+they do not certify every supported authoring configuration.
 Before claiming a usable game configuration, test the actual executable version
 and inputs with a disposable save: acquire and equip both colliding-source items,
 check models/icons/localisation/perks/effects and crafting, save/reload, update one,
@@ -200,6 +202,6 @@ impossible.
 Independent item installation itself does not enable a native loader or modify
 the executable. The separate [Virtual loader prototype](VIRTUAL_LOADER.md) reuses
 these packages and identity reservations for private profile preparation and
-reviewed startup diagnostics. Game redirection remains gated on verified startup
-timing and acceptance. Separate definition-file discovery and native registration
+reviewed experimental launches with verified save backups. Exact executable,
+bootstrap and startup guards remain mandatory. Separate definition-file discovery and native registration
 are research tracks, outside the existing installation path.

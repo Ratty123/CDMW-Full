@@ -9,7 +9,7 @@ from uuid import uuid4
 
 from cdmw.core.atomic_file import atomic_write_bytes
 from cdmw.domain.cancellation import raise_if_cancelled
-from cdmw.domain.virtual_loader import VirtualLaunchPlan, VirtualLoaderError, VirtualSessionStatus
+from cdmw.domain.virtual_loader import ExperimentalLaunchReview, VirtualLaunchPlan, VirtualLoaderError, VirtualSessionStatus
 from cdmw.services.independent_item_package import canonical, digest
 from cdmw.services.installation_lane import installation_lane, lock_path
 from cdmw.services.virtual_loader_composition import hash_file
@@ -18,7 +18,7 @@ from cdmw.services.application_shutdown_service import archive_write_scope
 
 GAME_SHA256 = '57da440d72f4db974f25fef047cf84c4dadd999a88cb2a3c5af4c9bd67fde1e7'
 BOOTSTRAP_SHA256 = '810111a7f6a6cef892877c9f7c4582ccde2d621d119891f700c5309c370508bf'
-GAME_REDIRECTION_APPROVED = False  # Requires actual startup, handoff and save evidence.
+GAME_REDIRECTION_APPROVED = False  # General redirect mode stays closed; reviewed experiments use mode 3.
 RUNTIME_PATH = 'bin64/CDMWVirtualLoader.asi'
 OWNER_PATH = '.cdmw/virtual-loader/runtime-owner.json'
 
@@ -68,7 +68,7 @@ def verify_snapshot(root, *, stop_event=None):
     return profile
 
 
-def runtime_status(root, *, stop_event=None):
+def runtime_status(root, *, experimental=False, stop_event=None):
     root = Path(root).resolve()
     if target(root, '.cdmw/virtual-loader/transaction.json').exists():
         return VirtualSessionStatus('blocked', 'Recover the interrupted virtual profile transaction first.')
@@ -86,6 +86,16 @@ def runtime_status(root, *, stop_event=None):
     installed = target(root, RUNTIME_PATH)
     if not installed.is_file() or hash_file(installed, stop_event) != evidence['files']['CDMWVirtualLoader.asi']:
         return VirtualSessionStatus('unavailable', 'The CDMW runtime needs a reviewed setup. Existing ASI loaders are not replaced.', generation)
+    if experimental:
+        from cdmw.services.new_item_service import game_is_running
+        if game_is_running():
+            return VirtualSessionStatus('blocked', 'Close Crimson Desert before starting a virtual session.', generation)
+        try:
+            prepare_runtime_setup(root, stop_event=stop_event)
+        except (ValueError, OSError) as exc:
+            return VirtualSessionStatus('blocked', str(exc), generation)
+        return VirtualSessionStatus('ready' if profile else 'unavailable',
+            'Ready for experimental launch. Item and effect compatibility varies.' if profile else 'Prepare a virtual profile first.', generation)
     if not GAME_REDIRECTION_APPROVED:
         return VirtualSessionStatus('blocked', 'Profiles can be prepared. Game loading is awaiting verified startup timing, Steam handoff and save tests.', generation)
     return VirtualSessionStatus('ready' if profile else 'unavailable', 'Ready to launch.' if profile else 'Prepare a virtual profile first.', generation)
@@ -101,7 +111,7 @@ def prepare_launch(root, *, stop_event=None):
                              generation_path(root, profile['generation']), digest(canonical(profile)))
 
 
-def session_manifest(root, profile, *, mode, executable_sha256, token=None, launcher=None):
+def session_manifest(root, profile, *, mode, executable_sha256, token=None, launcher=None, extra_guards=()):
     """Bounded UTF-16 wire format shared with the native session/runtime harness."""
     root = Path(root).resolve()
     token = token or uuid4().hex
@@ -126,6 +136,10 @@ def session_manifest(root, profile, *, mode, executable_sha256, token=None, laun
     if mode != 2:
         for relative in (RUNTIME_PATH, 'bin64/winmm.dll'):
             guards[str(target(root, relative))] = hash_file(target(root, relative))
+    for path, checksum in extra_guards:
+        if path in guards and guards[path] != checksum:
+            raise VirtualLoaderError('The launch plan changed. Review it again.')
+        guards[path] = checksum
     data.extend(struct.pack('<I', len(guards)))
     for path, checksum in sorted(guards.items()):
         string(path)
@@ -158,8 +172,9 @@ def launch(plan, *, stop_event=None):
     return _start(plan.root, profile, mode=1, stop_event=stop_event)
 
 
-def _start(root, profile, *, mode, stop_event=None):
+def _start(root, profile, *, mode, stop_event=None, extra_guards=()):
     from cdmw.services.new_item_service import game_is_running
+    from cdmw.services.independent_item_install import load_registry
     from cdmw.services.process_job_service import breakaway_creation_flags
     if game_is_running():
         raise VirtualLoaderError('Close Crimson Desert before starting a virtual session.')
@@ -168,7 +183,9 @@ def _start(root, profile, *, mode, stop_event=None):
         raise_if_cancelled(stop_event)
         if read_optional(target(root, '.cdmw/virtual-loader/profile.json')) != canonical(profile):
             raise VirtualLoaderError('The virtual profile changed before launch. Review it again.')
-        token, data = session_manifest(root, profile, mode=mode, executable_sha256=GAME_SHA256, launcher=_steam_launcher())
+        load_profile(root, registry=load_registry(root))
+        token, data = session_manifest(root, profile, mode=mode, executable_sha256=GAME_SHA256,
+                                       launcher=_steam_launcher(), extra_guards=extra_guards)
         path = target(root, '.cdmw/virtual-loader/launches/' + token + '.bin')
         atomic_write_bytes(path, data)
         # A onefile application's extraction directory disappears on exit. The
@@ -182,6 +199,7 @@ def _start(root, profile, *, mode, stop_event=None):
             atomic_write_bytes(host, host_bytes)
     # The native host acquires the same lane and pins the snapshot before it
     # starts its own game. It remains alive if CDMW closes or crashes.
+    raise_if_cancelled(stop_event)
     with path.with_suffix('.log').open('xb') as log:
         command = [str(host), str(path)]
         if mode == 3:
@@ -190,6 +208,48 @@ def _start(root, profile, *, mode, stop_event=None):
             creationflags=breakaway_creation_flags() | int(getattr(subprocess, 'CREATE_NO_WINDOW', 0)),
             stdin=subprocess.DEVNULL, stdout=log, stderr=log, close_fds=True)
     return VirtualSessionStatus('starting', token, profile['generation'], process.pid)
+
+
+def prepare_experimental_launch(root, *, stop_event=None):
+    from cdmw.services.independent_item_install import load_registry
+    from cdmw.services.new_item_service import game_is_running
+    from cdmw.services.virtual_loader_saves import backup_saves
+    root = Path(root).resolve()
+    with installation_lane(root):
+        status = runtime_status(root, experimental=True, stop_event=stop_event)
+        if status.state != 'ready':
+            raise VirtualLoaderError(status.detail)
+        profile = load_profile(root, registry=load_registry(root))
+        if not profile:
+            raise VirtualLoaderError('The launch plan changed. Review it again.')
+        plan = VirtualLaunchPlan(root, profile['generation'], target(root, 'bin64/CrimsonDesert.exe'),
+                                 GAME_SHA256, generation_path(root, profile['generation']), digest(canonical(profile)))
+        backup = backup_saves(plan, stop_event=stop_event)
+        if game_is_running():
+            raise VirtualLoaderError('Close Crimson Desert before starting a virtual session.')
+        raise_if_cancelled(stop_event)
+        return ExperimentalLaunchReview(plan, backup)
+
+
+def launch_experimental(review, *, confirmed=False, stop_event=None):
+    """User-reviewed test launch with enforced save backup and native guards."""
+    from cdmw.services.new_item_service import game_is_running
+    from cdmw.services.virtual_loader_saves import verify_backup
+    if not confirmed:
+        raise PermissionError('Controlled virtual loading requires an explicitly reviewed launch plan and save backup.')
+    with installation_lane(review.plan.root):
+        if game_is_running():
+            raise VirtualLoaderError('Close Crimson Desert before starting a virtual session.')
+        # Revalidate expensive source hashes after review, then the saves as late
+        # as possible. The host independently verifies both sources and backup.
+        checked = prepare_diagnostic_trace(review.plan.root, stop_event=stop_event)
+        if checked != review.plan:
+            raise VirtualLoaderError('The controlled launch plan changed. Review it again.')
+        guards = verify_backup(review, stop_event=stop_event)
+        profile = load_profile(review.plan.root)
+        if digest(canonical(profile)) != checked.manifest_sha256:
+            raise VirtualLoaderError('The controlled launch plan changed. Review it again.')
+    return _start(review.plan.root, profile, mode=3, stop_event=stop_event, extra_guards=guards)
 
 
 def prepare_diagnostic_trace(root, *, stop_event=None):
@@ -216,7 +276,7 @@ def start_diagnostic_trace(root, *, confirmed=False, expected_plan=None, stop_ev
 
 
 def start_controlled_probe(root, *, confirmed=False, expected_plan=None, stop_event=None):
-    """Reviewed real-game acceptance run; never selected by the public UI.
+    """Low-level acceptance run; the UI uses save-verified launch_experimental.
 
     The caller must retain a verified save backup and review the runtime setup.
     The native host/runtime still enforce the exact game, bootstrap, Steam
