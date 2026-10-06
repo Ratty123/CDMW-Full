@@ -65,7 +65,7 @@ class ModManagementTab(QWidget):
         self.merge_page = ModMergeDialog(self.controller, root, self, embedded=True)
         self.update_page = ModUpdateDialog(self.controller, root, self, installed=True, embedded=True)
         from cdmw.ui.tools.mod_management_overview import ModManagementOverview
-        self.overview = ModManagementOverview(self.controller, self)
+        self.overview = ModManagementOverview(self.controller, self, mutations=self.inventory.mutations)
         self.pages.addTab(self.overview, 'Overview')
         self.pages.addTab(self.inventory, 'Installed mods')
         from cdmw.ui.new_item.independent_items_page import IndependentItemsPage
@@ -164,6 +164,7 @@ class ModManagementTab(QWidget):
         self.log.setProperty("followTail", True)
         self.log.setMaximumBlockCount(2000)
         self.log.hide()
+        self.overview.activity.connect(self._append_activity)
         self.controller.log_message.connect(self._operation_log)
         self.controller.status_message.connect(self._operation_status)
         self.controller.operation_progress.connect(self._operation_progress)
@@ -234,7 +235,7 @@ class ModManagementTab(QWidget):
             self._status_changed(message)
 
     def _cancel(self):
-        if self._owns_operation() and not self.inventory._applying and not self.independent_page._applying and not self.virtual_page._applying:
+        if self._owns_operation() and not self.inventory._applying and not self.independent_page._applying and not self.virtual_page._applying and not self.overview._applying:
             self.controller.cancel_operation(self.controller._lane)
 
     def showEvent(self, event):
@@ -281,7 +282,7 @@ class ModManagementTab(QWidget):
         self.operation_bar.setVisible(own)
         self.progress.setVisible(own)
         self.cancel_button.setVisible(own)
-        self.cancel_button.setEnabled(own and not self.inventory._applying and not self.independent_page._applying and not self.virtual_page._applying)
+        self.cancel_button.setEnabled(own and not self.inventory._applying and not self.independent_page._applying and not self.virtual_page._applying and not self.overview._applying)
         if not busy:
             if self._overview_refresh_needed and not self._closed:
                 self._overview_refresh_needed = False

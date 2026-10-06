@@ -1,6 +1,6 @@
 """Thin UI for reviewed portable-item operations on the shared worker lane."""
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QFileDialog, QGroupBox, QHBoxLayout, QInputDialog, QLabel, QMessageBox, QPlainTextEdit, QPushButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFileDialog, QGroupBox, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QMessageBox, QPlainTextEdit, QPushButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
 
 from cdmw.domain.new_item.independent import IndependentItemInstallPlan
 from cdmw.ui.new_item.review_model import ReviewTextWriter
@@ -16,6 +16,7 @@ class IndependentItemsPage(QWidget):
         self._queued = None
         self._generation = 0
         self._comparison = None
+        self._columns_sized = False
         layout = QVBoxLayout(self)
         validation = QLabel("Game and save compatibility is not yet verified.")
         validation.setProperty('managementRole', 'notice')
@@ -30,8 +31,13 @@ class IndependentItemsPage(QWidget):
         setup.addWidget(identity, 1)
         layout.addLayout(setup)
         self.items = QTreeWidget()
+        self.items.setObjectName('independent_item_packages')
         self.items.setHeaderLabels(["Item", "Game ID", "Status"])
         self.items.setRootIsDecorated(False)
+        self.items.header().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.items.header().setStretchLastSection(False)
+        self.items.setSortingEnabled(True)
+        self.items.sortByColumn(0, Qt.SortOrder.AscendingOrder)
         self.items.setSelectionMode(QTreeWidget.SelectionMode.SingleSelection)
         self.items.itemSelectionChanged.connect(self._buttons)
         self.items.setAccessibleDescription('No item packages installed.')
@@ -165,16 +171,22 @@ class IndependentItemsPage(QWidget):
     def _loaded(self, rows):
         selected = self.items.currentItem()
         identity = selected.data(0, Qt.ItemDataRole.UserRole) if selected else None
+        self.items.setSortingEnabled(False)
         self.items.clear()
         for key, title, game_id, status in rows:
             shown = {"Installed": self.tr("Installed"), "Virtual profile": self.tr("Virtual profile"), "Disabled": self.tr("Disabled"), "Removed / reserved": self.tr("Removed / reserved")}[status]
-            item = QTreeWidgetItem([title, str(game_id), shown])
+            item = QTreeWidgetItem([title, '', shown])
+            item.setData(1, Qt.ItemDataRole.DisplayRole, int(game_id))
             item.setData(0, Qt.ItemDataRole.UserRole, key)
             item.setData(0, Qt.ItemDataRole.UserRole + 1, status)
             self.items.addTopLevelItem(item)
             if key == identity:
                 self.items.setCurrentItem(item)
-        self.items.resizeColumnToContents(1)
+        self.items.setSortingEnabled(True)
+        if rows and not self._columns_sized:
+            for column in range(self.items.columnCount()):
+                self.items.resizeColumnToContents(column)
+            self._columns_sized = True
         self.status.setText(self.tr("Identity reservations remain after removal. Saves are never edited automatically."))
 
     def _import(self):

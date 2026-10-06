@@ -845,6 +845,42 @@ fn content_columns_keep_effect_headings_and_values_readable() {
 }
 
 #[test]
+fn independent_item_columns_keep_ids_and_status_readable() {
+    for (width, font) in [(560.0, 14.0), (820.0, 22.0), (1024.0, 28.0)] {
+        let context = egui::Context::default();
+        let mut view = PresentationView::default();
+        let mut table = control("packages", "table", "", json!({
+            "headers":true,"sortable":true,"sort_column":0,"total":1,
+            "columns":[{"index":0,"text":"Item","width":240,"resizable":true},
+                       {"index":1,"text":"Game ID","width":50,"resizable":true},
+                       {"index":2,"text":"Status","width":600,"resizable":true}],
+            "rows":[{"path":[0],"cells":[{"text":"Starfall Bastion Plate"},
+                    {"text":"1990001"},{"text":"Removed / reserved"}]}]
+        }));
+        table.name = "independent_item_packages".into();
+        let mut state = state(table);
+        state.theme["font_pixels"] = json!(font);
+        apply_theme(&context, &state.theme);
+        let size = egui::vec2(width, 600.0);
+        for _ in 0..3 { frame(&context, &mut view, &state, size, vec![]); }
+        let output = context.run_ui(egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+            ..Default::default()
+        }, |ui| view.draw(ui, &state));
+        for expected in ["Item ▴", "Game ID", "Status", "1990001", "Removed / reserved"] {
+            let (clip, text) = output.shapes.iter().find_map(|shape| match &shape.shape {
+                egui::epaint::Shape::Text(text) if text.galley.job.text == expected => Some((shape.clip_rect, text)),
+                _ => None,
+            }).unwrap_or_else(|| panic!("missing {expected}"));
+            assert!(!text.galley.elided, "{expected} is truncated at {width}/{font}");
+            assert!(text.pos.x + text.galley.size().x <= clip.right() + 1.0,
+                    "{expected} is clipped at {width}/{font}");
+        }
+        assert!(view.errors.is_empty());
+    }
+}
+
+#[test]
 fn compact_choice_popup_fits_category_names_and_preserves_selection() {
     for font in [14.0, 22.0] {
         for width in [320.0, 960.0] {

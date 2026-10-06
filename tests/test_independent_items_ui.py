@@ -3,6 +3,7 @@ os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 import threading
 from unittest.mock import patch
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from cdmw.domain.new_item.independent import IndependentItemInstallPlan
@@ -15,6 +16,49 @@ from tests.test_independent_items import authored, setup_game
 from tests.test_archive_overlay_manager import Backups
 from tests.test_mod_management import pump
 from tests.test_new_item_rust_ui import _send
+
+
+def test_item_columns_sort_numerically_resize_and_preserve_selection_on_refresh(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    controller = NewItemStudioController(synchronous=True)
+    page = IndependentItemsPage(controller, tmp_path, Backups(tmp_path))
+    bridge = NewItemPresentationBridge(page)
+    rows = [('installed', 'Zulu', 9, 'Installed'),
+            ('reserved', 'Alpha', 100, 'Removed / reserved'),
+            ('virtual', 'Bastion', 10, 'Virtual profile')]
+    page.show()
+    try:
+        page._loaded(rows)
+        def values(column):
+            return [page.items.topLevelItem(i).text(column) for i in range(3)]
+
+        assert values(0) == ['Alpha', 'Bastion', 'Zulu']
+        for column, expected in ((0, ['Alpha', 'Bastion', 'Zulu']),
+                                 (1, ['9', '10', '100']),
+                                 (2, ['Installed', 'Removed / reserved', 'Virtual profile'])):
+            _send(bridge, page.items, 'sort', {'column': column, 'descending': False})
+            assert values(column) == expected
+            _send(bridge, page.items, 'sort', {'column': column, 'descending': True})
+            assert values(column) == expected[::-1]
+
+        _send(bridge, page.items, 'select', {'path': [2], 'column': 0})
+        assert page.remove_button.isEnabled()
+        assert page.items.currentItem().data(0, Qt.UserRole) == 'installed'
+        for column, width in enumerate((330, 180, 240)):
+            _send(bridge, page.items, 'resize_column', {'column': column, 'width': width})
+        page._loaded(rows[::-1])
+        assert page.items.currentItem().data(0, Qt.UserRole) == 'installed'
+        assert page.remove_button.isEnabled()
+        assert values(2) == ['Virtual profile', 'Removed / reserved', 'Installed']
+        assert [page.items.columnWidth(i) for i in range(3)] == [330, 180, 240]
+        bridge.snapshot()
+        props = bridge.document.registry.current[bridge.document.registry.identify(page.items)]['props']
+        assert props['sortable']
+        assert all(col['resizable'] and not col['stretch'] for col in props['columns'])
+    finally:
+        page.request_shutdown()
+        controller.shutdown()
+        page.close()
 
 
 def test_reviewed_import_and_removal_use_shared_transaction_via_rust(tmp_path):

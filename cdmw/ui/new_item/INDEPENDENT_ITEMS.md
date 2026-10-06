@@ -5,6 +5,11 @@ select **Write item package**. Share the resulting `.cditem` file. Recipients us
 **Mod Management > Independent items > Import packages** to inspect and install
 one or more packages. Existing folder exports and game overlays remain available.
 
+The item list sorts by **Item**, **Game ID** or **Status** when you click a column
+heading; clicking again reverses the order. Game IDs sort numerically. Drag the
+column edges to change widths. Refresh preserves the sort, widths and selected
+package. The default layout keeps IDs and status readable as the pane resizes.
+
 CDMW composes the game's shared files during installation. Separate `.cditem`
 files are portable authoring packages, not standalone archives the game discovers.
 No manual mod merge is required for compatible packages installed through CDMW.

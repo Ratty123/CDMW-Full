@@ -623,8 +623,15 @@ impl PresentationView {
                 .x
                 + 34.0 * s
         });
+        let cleanup = named(overview, "mod_management_clean_missing");
+        let cleanup_width = cleanup.map_or(0.0, |node| {
+            galley(ui, &node.label, 12.0, muted(ui), f32::INFINITY)
+                .size()
+                .x
+                + 24.0 * s
+        });
         let wide = ui.available_width()
-            >= title_width + check_width + missing_width + refresh_width + 38.0 * s;
+            >= title_width + check_width + missing_width + cleanup_width + refresh_width + 48.0 * s;
         let controls = |view: &mut Self, ui: &mut Ui| {
             let mut checked = check.flag("checked");
             let response = ui.add_enabled(
@@ -656,6 +663,17 @@ impl PresentationView {
                 }
                 view.record(ui, missing, &response);
             }
+            if let Some(cleanup) = cleanup {
+                view.management_button(
+                    ui,
+                    cleanup,
+                    cleanup_width.min(ui.max_rect().width()),
+                    None,
+                    false,
+                    false,
+                    12.0,
+                );
+            }
             view.management_button(
                 ui,
                 refresh,
@@ -678,7 +696,7 @@ impl PresentationView {
             self.record(ui, title, &response);
             if wide {
                 ui.add_space(
-                    (ui.available_width() - check_width - missing_width - refresh_width - 24.0 * s)
+                    (ui.available_width() - check_width - missing_width - cleanup_width - refresh_width - 34.0 * s)
                         .max(0.0),
                 );
                 controls(self, ui);

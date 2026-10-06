@@ -59,10 +59,16 @@ Overview shows archive folders with an existing index by default. **Show missing
 references** reveals mod entries left in the mount list whose archive index is absent;
 these are labelled stale references, with unknown ownership unless CDMW tracks them.
 The count remains visible while those entries are hidden. Required missing game archives
-still produce a visible warning. Filtering never changes the mount list or game files.
+still produce a visible warning. **Clean missing references...** reviews the affected
+mod entries and game folder, then removes the confirmed stale references from
+`meta/0.papgt` after creating a verified backup. Cleanup preserves every game entry,
+existing mod index, folder and saved item identity. It requires the game to be closed
+and rechecks the list and absent indexes after backup; changed inputs require a new
+review. A failed write restores the backup, which remains available through the normal
+archive-backup recovery workflow. Filtering never changes the mount list or game files.
 Create New Item can read the remaining data when a non-game folder is absent; missing
 required game archives and present but unindexed folders still block reading. Neither
-operation edits the mount list. A previously absent folder reappearing invalidates a
+read operation edits the mount list. A previously absent folder reappearing invalidates a
 cached read, requiring an archive refresh.
 Game-update comparisons handle both added and replaced textures while preserving
 unrelated texture registrations.

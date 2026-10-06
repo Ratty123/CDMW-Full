@@ -11282,6 +11282,36 @@
       ]
     },
     {
+      "key": "Archive cleanup failed; restore backup {value_0}: {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_reference_cleanup.py",
+          "line": 86,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "Archive cleanup requires a prepared change.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_reference_cleanup.py",
+          "line": 48,
+          "sink": "TypeError"
+        }
+      ]
+    },
+    {
+      "key": "Archive cleanup requires explicit confirmation.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_reference_cleanup.py",
+          "line": 50,
+          "sink": "PermissionError"
+        }
+      ]
+    },
+    {
       "key": "Archive comparison cancelled",
       "origins": [
         {
@@ -11722,6 +11752,11 @@
         {
           "path": "cdmw/services/overlay_inventory_details.py",
           "line": 26,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/archive_reference_cleanup.py",
+          "line": 29,
           "sink": "ValueError"
         }
       ]
@@ -12278,6 +12313,16 @@
           "path": "cdmw/ui/tools/mod_management.py",
           "line": 126,
           "sink": "QGroupBox"
+        }
+      ]
+    },
+    {
+      "key": "Archive reference cleanup cancelled.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_reference_cleanup.py",
+          "line": 58,
+          "sink": "raise_if_cancelled"
         }
       ]
     },
@@ -22712,6 +22757,16 @@
       ]
     },
     {
+      "key": "Checking missing archive references...",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_management_overview.py",
+          "line": 206,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Checking mod contents and their game baseline...",
       "origins": [
         {
@@ -23893,6 +23948,16 @@
           "path": "cdmw/ui/shell/workspace_controller.py",
           "line": 156,
           "sink": "setInformativeText"
+        }
+      ]
+    },
+    {
+      "key": "Choose a game archive folder first.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_reference_cleanup.py",
+          "line": 25,
+          "sink": "ValueError"
         }
       ]
     },
@@ -25832,12 +25897,52 @@
       ]
     },
     {
+      "key": "Clean missing references",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_management_overview.py",
+          "line": 242,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Clean missing references...",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_management_overview.py",
+          "line": 96,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Cleaned missing references: {value_0}. Backup: {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_reference_cleanup.py",
+          "line": 89,
+          "sink": "on_log"
+        }
+      ]
+    },
+    {
       "key": "Cleaned {value_0} stale Modify Original internal session folder(s).",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_modify_original.py",
           "line": 278,
           "sink": "log"
+        }
+      ]
+    },
+    {
+      "key": "Cleaning missing archive references...",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_management_overview.py",
+          "line": 266,
+          "sink": "tr"
         }
       ]
     },
@@ -25858,6 +25963,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 2713,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Cleanup cancelled. The archive list is unchanged.",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_management_overview.py",
+          "line": 255,
+          "sink": "tr"
         }
       ]
     },
@@ -27027,6 +27142,16 @@
         {
           "path": "cdmw/services/archive_overlay_manager.py",
           "line": 817,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "Close Crimson Desert before cleaning archive references.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_reference_cleanup.py",
+          "line": 60,
           "sink": "RuntimeError"
         }
       ]
@@ -50216,7 +50341,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 262,
+          "line": 274,
+          "sink": "tr"
+        },
+        {
+          "path": "cdmw/ui/tools/mod_management_overview.py",
+          "line": 244,
           "sink": "tr"
         }
       ]
@@ -72017,6 +72147,16 @@
       ]
     },
     {
+      "key": "Missing mod references cleaned. Backup:",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_management_overview.py",
+          "line": 273,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Missing native DDS helper",
       "origins": [
         {
@@ -79247,6 +79387,16 @@
       ]
     },
     {
+      "key": "No missing mod references to clean.",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_management_overview.py",
+          "line": 238,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "No model entries match that filter in the currently scanned archive.",
       "origins": [
         {
@@ -82893,6 +83043,16 @@
           "path": "cdmw/ui/archive_browser/attachment_socket_editor.py",
           "line": 498,
           "sink": "QTreeWidgetItem"
+        }
+      ]
+    },
+    {
+      "key": "Only meta/0.papgt will change. Game archives, mod folders and item identities are kept. A verified backup is created first. Close the game before continuing.",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_management_overview.py",
+          "line": 246,
+          "sink": "tr"
         }
       ]
     },
@@ -105502,6 +105662,16 @@
       ]
     },
     {
+      "key": "Remove {value_0} stale mod references from the archive list?",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_management_overview.py",
+          "line": 243,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Removed / reserved",
       "origins": [
         {
@@ -110958,6 +111128,16 @@
           "path": "cdmw/ui/archive_browser/attachment_batch.py",
           "line": 114,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Review and remove stale mod references from the archive list, with a verified backup. No mod folders or item identities are deleted.",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_management_overview.py",
+          "line": 98,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -133002,6 +133182,26 @@
       ]
     },
     {
+      "key": "The archive index for {value_0} is not absent. Check the folder before cleanup.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_reference_cleanup.py",
+          "line": 38,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The archive list changed. Refresh and prepare cleanup again.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_reference_cleanup.py",
+          "line": 34,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "The archive list is empty and no game folder is set. Set the game folder in the Archive Browser first, then come back.",
       "origins": [
         {
@@ -133028,6 +133228,16 @@
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
           "line": 93,
           "sink": "failed"
+        }
+      ]
+    },
+    {
+      "key": "The archive list or missing folders changed. Refresh and prepare cleanup again.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_reference_cleanup.py",
+          "line": 63,
+          "sink": "ValueError"
         }
       ]
     },
@@ -133463,6 +133673,16 @@
           "path": "cdmw/services/mesh_vertex_parameters.py",
           "line": 323,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The cleaned archive list differs from the reviewed change.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_reference_cleanup.py",
+          "line": 79,
+          "sink": "RuntimeError"
         }
       ]
     },
@@ -134888,6 +135108,16 @@
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
           "line": 206,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "The original archive list was not restored.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_reference_cleanup.py",
+          "line": 84,
+          "sink": "RuntimeError"
         }
       ]
     },
@@ -136623,6 +136853,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_wiring_part_01.py",
           "line": 276,
           "sink": "information"
+        }
+      ]
+    },
+    {
+      "key": "There are no missing mod references to clean.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_reference_cleanup.py",
+          "line": 52,
+          "sink": "ValueError"
         }
       ]
     },

@@ -18,6 +18,117 @@ from cdmw.ui.tools.mod_management_overview import ModManagementOverview
 from tests.test_mod_management import pump
 from tests.test_mod_package_retrofit_async import _ToolOwner
 from tests.test_new_item_rust_ui import _send
+from tests.test_archive_reference_cleanup import installation
+
+
+def test_reviewed_missing_reference_cleanup_through_bridge_uses_worker_and_refreshes(installation, monkeypatch):
+    from types import SimpleNamespace
+    from PySide6.QtWidgets import QMessageBox
+    from cdmw.core.papgt_format import parse_papgt
+    from cdmw.services.archive_mutation_service import ArchiveMutationService
+    app = QApplication.instance() or QApplication([])
+    root, target, _records, mutations = installation
+    controller = NewItemStudioController()
+    window = SimpleNamespace(app_context=SimpleNamespace(services=SimpleNamespace(require_archive_mutations=lambda: mutations)))
+    tab = ModManagementTab(window=window, controller=controller, get_package_root=lambda: root)
+    overview = tab.overview
+    bridge = NewItemPresentationBridge(tab)
+    original, activity, threads = target.read_bytes(), [], []
+    overview.activity.connect(activity.append)
+    def review(box):
+        assert target.read_bytes() == original
+        assert str(root) in box.text() and 'meta/0.papgt' in box.text()
+        assert 'dmmgen' in box.text() and 'dmmsa' in box.text()
+        assert box.defaultButton() == box.button(QMessageBox.StandardButton.No)
+        assert not overview.clean_missing.isEnabled()
+        return QMessageBox.StandardButton.Yes
+    original_backup = ArchiveMutationService.backup_files
+    def backup(self, *args, **kwargs):
+        threads.append(threading.get_ident())
+        return original_backup(self, *args, **kwargs)
+    monkeypatch.setattr(ArchiveMutationService, 'backup_files', backup)
+    monkeypatch.setattr(QMessageBox, 'exec', review)
+    monkeypatch.setattr('cdmw.services.new_item_service.game_is_running', lambda: False)
+    tab.show()
+    try:
+        pump(app, lambda: overview.clean_missing.isEnabled())
+        _send(bridge, overview.clean_missing, 'activate')
+        pump(app, lambda: bool(activity) and not controller.busy and bool(overview._mounts)
+             and not any(not row.game and not row.present for row in overview._mounts))
+        assert threads and all(thread != threading.get_ident() for thread in threads)
+        assert [row.name for row in parse_papgt(target.read_bytes())] == ['0037', '0009', '0010', '0008']
+        assert not overview.clean_missing.isEnabled()
+        assert any('Backup:' in message for message in activity)
+        assert 'Required game archives are missing' in overview.status.text()
+    finally:
+        tab.request_shutdown()
+        controller.shutdown()
+        tab.close()
+
+
+@pytest.mark.parametrize('change', ['decline', 'root', 'close'])
+def test_missing_reference_cleanup_does_not_apply_cancelled_or_stale_review(installation, monkeypatch, change):
+    from PySide6.QtWidgets import QMessageBox
+    app = QApplication.instance() or QApplication([])
+    root, target, _records, mutations = installation
+    original = target.read_bytes()
+    controller = NewItemStudioController(synchronous=True)
+    overview = ModManagementOverview(controller, mutations=mutations)
+    def review(_box):
+        if change == 'root':
+            overview.refresh(root.parent / 'different-game')
+        elif change == 'close':
+            overview.request_shutdown()
+        return QMessageBox.StandardButton.No if change == 'decline' else QMessageBox.StandardButton.Yes
+    monkeypatch.setattr(QMessageBox, 'exec', review)
+    try:
+        overview.refresh(root)
+        pump(app, lambda: overview.clean_missing.isEnabled())
+        overview.clean_missing.click()
+        assert target.read_bytes() == original and not mutations.backup_root.exists()
+        assert overview._queued is None
+    finally:
+        overview.request_shutdown()
+        controller.shutdown()
+        overview.close()
+
+
+@pytest.mark.parametrize('change', ['root', 'close'])
+def test_missing_reference_preparation_cancels_and_discards_late_results(installation, monkeypatch, change):
+    from cdmw.services.archive_reference_cleanup import prepare_missing_reference_cleanup
+    app = QApplication.instance() or QApplication([])
+    root, target, _records, mutations = installation
+    original = target.read_bytes()
+    prepared = prepare_missing_reference_cleanup(root)
+    controller = NewItemStudioController()
+    overview = ModManagementOverview(controller, mutations=mutations)
+    entered, release, stops, reviews = threading.Event(), threading.Event(), [], []
+    def prepare(_root, *, stop_event):
+        stops.append(stop_event)
+        entered.set()
+        assert release.wait(5)
+        return prepared
+    monkeypatch.setattr('cdmw.services.archive_reference_cleanup.prepare_missing_reference_cleanup', prepare)
+    monkeypatch.setattr(overview, '_review_cleanup', reviews.append)
+    try:
+        overview.refresh(root)
+        pump(app, lambda: overview.clean_missing.isEnabled())
+        overview.clean_missing.click()
+        pump(app, entered.is_set)
+        if change == 'root':
+            overview.refresh(root.parent / 'different-game')
+        else:
+            overview.request_shutdown()
+        assert stops[0].is_set()
+        release.set()
+        pump(app, lambda: not controller.busy)
+        assert not reviews and overview._queued is None
+        assert target.read_bytes() == original and not mutations.backup_root.exists()
+    finally:
+        release.set()
+        overview.request_shutdown()
+        controller.shutdown()
+        overview.close()
 
 
 def test_grouped_overview_projects_existing_controls_and_preserves_every_route():

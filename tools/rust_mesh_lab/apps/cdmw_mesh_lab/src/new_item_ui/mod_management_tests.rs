@@ -82,6 +82,8 @@ fn fixture(long: bool) -> State {
     overview.children.extend([
         node("mod_management_archives_title", "label", "Archive folders"),
         node("mod_management_show_game", "check", "Show game archives"),
+        node("mod_management_show_missing", "check", "Show missing references"),
+        node("mod_management_clean_missing", "button", "Clean missing references..."),
         node("mod_management_refresh", "button", "Refresh"),
     ]);
     let mut table = node("mod_management_archives", "table", "");
@@ -141,6 +143,7 @@ fn grouped_management_controls_fit_widths_fonts_and_translated_captions() {
                     .filter(|r| r.id.starts_with("mod_management_open_"))
                     .collect();
                 assert_eq!(actions.len(), 6);
+                assert!(view.rects.iter().any(|control| control.id == "mod_management_clean_missing"));
                 for control in &view.rects {
                     let [x, _, w, _] = control.rect;
                     assert!(
@@ -207,8 +210,13 @@ fn grouped_management_clicks_use_original_authority_and_disabled_state() {
         "merge",
         "updates",
         "recovery",
+        "clean_missing",
     ] {
-        let id = format!("mod_management_open_{key}");
+        let id = if key == "clean_missing" {
+            "mod_management_clean_missing".into()
+        } else {
+            format!("mod_management_open_{key}")
+        };
         let rect = view.rects.iter().find(|r| r.id == id).unwrap().rect;
         let point = pos2(rect[0] + rect[2] / 2.0, rect[1] + rect[3] / 2.0);
         for pressed in [true, false] {

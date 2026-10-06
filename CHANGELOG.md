@@ -15,7 +15,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Changed
 
-- Mod Management brings Repackage into the same workspace, with grouped overview actions and consistent panels, buttons and navigation across every tab. Shorter guidance and layouts that adapt to window size and text scaling make the tools easier to use. Archive folders show existing files by default; stale references remain available through Show missing references. Repackage keeps its results inline and supports cancellation.
+- Mod Management brings Repackage into the same workspace, with grouped overview actions and consistent panels, buttons and navigation across every tab. Shorter guidance and layouts that adapt to window size and text scaling make the tools easier to use. Archive folders show existing files by default; Show missing references reveals stale mod entries, and Clean missing references removes them after review and a verified backup. Independent items has sortable columns, numeric Game ID sorting and adjustable widths that keep IDs and status readable. Repackage keeps its results inline and supports cancellation.
 
 ### Fixed
 

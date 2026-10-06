@@ -2,7 +2,7 @@
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView, QCheckBox, QGroupBox, QHBoxLayout, QHeaderView,
-    QLabel, QPushButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
+    QLabel, QMessageBox, QPushButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
 )
 
 from cdmw.services.overlay_inventory_details import mounted_archive_status
@@ -11,11 +11,16 @@ from cdmw.services.overlay_inventory_details import mounted_archive_status
 class ModManagementOverview(QWidget):
     page_requested = Signal(str)
     refresh_requested = Signal()
+    activity = Signal(str)
 
-    def __init__(self, controller, parent=None):
+    def __init__(self, controller, parent=None, *, mutations=None):
         super().__init__(parent)
         self.setObjectName('mod_management_overview')
+        self.controller, self.mutations = controller, mutations
         self._closed = False
+        self._working = self._applying = False
+        self._queued = None
+        self._operation_generation = 0
         self._generation = 0
         self._root = ''
         self._mounts = ()
@@ -88,6 +93,11 @@ class ModManagementOverview(QWidget):
         self.show_missing.setToolTip('Include archive-list entries whose files are no longer present.')
         self.show_missing.toggled.connect(self._render_mounts)
         toolbar.addWidget(self.show_missing)
+        self.clean_missing = QPushButton('Clean missing references...')
+        self.clean_missing.setObjectName('mod_management_clean_missing')
+        self.clean_missing.setToolTip('Review and remove stale mod references from the archive list, with a verified backup. No mod folders or item identities are deleted.')
+        self.clean_missing.clicked.connect(self._clean_missing)
+        toolbar.addWidget(self.clean_missing)
         self.refresh_button = QPushButton('Refresh')
         self.refresh_button.setObjectName('mod_management_refresh')
         self.refresh_button.clicked.connect(self.refresh_requested.emit)
@@ -107,6 +117,8 @@ class ModManagementOverview(QWidget):
         self.status.setWordWrap(True)
         self.status.setTextFormat(Qt.TextFormat.PlainText)
         layout.addWidget(self.status)
+        controller.busy_changed.connect(self._busy_changed)
+        self._cleanup_button()
 
     def set_entries(self, entries):
         self._entries = tuple(entries)
@@ -120,7 +132,13 @@ class ModManagementOverview(QWidget):
         if self._closed:
             return
         self._generation += 1
-        self._root = str(root or '').strip()
+        root = str(root or '').strip()
+        if root != self._root:
+            self._operation_generation += 1
+            self._queued = None
+            if self._working and not self._applying:
+                self.controller.cancel_operation('overlay_manager')
+        self._root = root
         self._mounts = ()
         self._render_mounts()
         self._lookup.cancel()
@@ -172,9 +190,103 @@ class ModManagementOverview(QWidget):
             states[row.name] = 'found' if row.present else 'optional' if row.game and row.optional else 'missing'
             self.mounts.addTopLevelItem(QTreeWidgetItem([row.name, owner, status]))
         self.mounts.setProperty('modManagementFolderStates', states)
+        self._cleanup_button()
+
+    def _cleanup_button(self):
+        self.clean_missing.setEnabled(bool(
+            not self._closed and not self._working and not self.controller.busy
+            and self.mutations is not None and self._root
+            and any(not row.game and not row.present for row in self._mounts)))
+
+    def _clean_missing(self):
+        if not self.clean_missing.isEnabled():
+            return
+        from cdmw.services.archive_reference_cleanup import prepare_missing_reference_cleanup
+        root = self._root
+        self.status.setText(self.tr('Checking missing archive references...'))
+        self._run_cleanup(lambda _log, stop: prepare_missing_reference_cleanup(root, stop_event=stop),
+                          self._review_cleanup)
+
+    def _run_cleanup(self, task, done, *, applying=False):
+        if self._closed or self._working or self.controller.busy:
+            return
+        generation, root = self._operation_generation, self._root
+        self._working, self._applying = True, applying
+        self._cleanup_button()
+
+        def completed(result):
+            self._working = self._applying = False
+            if not self._closed and (generation, root) == (self._operation_generation, self._root):
+                done(result)
+                self._resume_cleanup()
+                self._cleanup_button()
+
+        def failed(message):
+            self._working = self._applying = False
+            self._queued = None
+            self.activity.emit(str(message))
+            if not self._closed and (generation, root) == (self._operation_generation, self._root):
+                self.status.setText(str(message))
+                self._cleanup_button()
+
+        if not self.controller._run('overlay_manager', task, completed, failed):
+            self._working = self._applying = False
+            self._cleanup_button()
+
+    def _review_cleanup(self, preparation):
+        if not preparation.names:
+            self.status.setText(self.tr('No missing mod references to clean.'))
+            self.refresh_requested.emit()
+            return
+        generation, root = self._operation_generation, self._root
+        box = QMessageBox(QMessageBox.Icon.Question, self.tr('Clean missing references'),
+                          self.tr('Remove {value_0} stale mod references from the archive list?').format(value_0=len(preparation.names))
+                          + '\n\n' + self.tr('Game folder:') + ' ' + str(preparation.package_root)
+                          + '\n\n' + '\n'.join(preparation.names)
+                          + '\n\n' + self.tr('Only meta/0.papgt will change. Game archives, mod folders and item identities are kept. A verified backup is created first. Close the game before continuing.'),
+                          QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, self)
+        box.setTextFormat(Qt.TextFormat.PlainText)
+        box.setDefaultButton(QMessageBox.StandardButton.No)
+        accepted = box.exec() == QMessageBox.StandardButton.Yes
+        if not self._closed and (generation, root) == (self._operation_generation, self._root):
+            if accepted:
+                self._queued = (generation, root, preparation)
+            else:
+                self.status.setText(self.tr('Cleanup cancelled. The archive list is unchanged.'))
+
+    def _resume_cleanup(self):
+        if self._closed or self._working or self.controller.busy or self._queued is None:
+            return
+        generation, root, preparation = self._queued
+        self._queued = None
+        if (generation, root) != (self._operation_generation, self._root):
+            return
+        from cdmw.services.archive_reference_cleanup import apply_missing_reference_cleanup
+        mutations = self.mutations
+        self.status.setText(self.tr('Cleaning missing archive references...'))
+
+        def task(log, stop):
+            return apply_missing_reference_cleanup(preparation, confirmed=True, mutations=mutations,
+                                                   on_log=log, stop_event=stop)
+
+        def completed(backup_dir):
+            self.activity.emit(self.tr('Missing mod references cleaned. Backup:') + ' ' + str(backup_dir))
+            self.refresh_requested.emit()
+
+        self._run_cleanup(task, completed, applying=True)
+
+    def _busy_changed(self, _busy):
+        if not self.controller.busy:
+            self._working = self._applying = False
+            self._resume_cleanup()
+        self._cleanup_button()
 
     def request_shutdown(self):
         self._closed = True
+        self._operation_generation += 1
+        self._queued = None
+        if self._working and not self._applying:
+            self.controller.cancel_operation('overlay_manager')
         self.cancel_read()
         self._lookup.request_shutdown()
 

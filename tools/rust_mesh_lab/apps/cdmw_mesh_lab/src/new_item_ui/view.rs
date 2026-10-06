@@ -1508,6 +1508,7 @@ impl PresentationView {
         // Qt's hidden backing view can be much wider than this pane. Preserve
         // content columns and give the remaining space to its stretch columns;
         // scaling all widths equally starves short headings and price editors.
+        let item_packages = node.name == "independent_item_packages";
         let minimums: Vec<f32> = columns.iter().map(|column| {
             let heading = column["text"].as_str().unwrap_or("");
             let heading = if node.flag("sortable") { format!("{heading} ▾") } else { heading.to_owned() };
@@ -1521,7 +1522,15 @@ impl PresentationView {
                     minimum_width(ui, &control).min(180.0)
                 } else if cell["editable"] == true { 64.0 } else { 0.0 }
             }).fold(0.0, f32::max);
-            heading_width.clamp(40.0, 260.0).max(editor_width)
+            let content_width = if item_packages && index > 0 {
+                node.array("rows").iter().map(|row| {
+                    ui.painter().layout_no_wrap(
+                        row["cells"][index]["text"].as_str().unwrap_or("").to_owned(),
+                        TextStyle::Body.resolve(ui.style()), ui.visuals().text_color(),
+                    ).size().x + 2.0 * (ui.spacing().button_padding.x + ui.spacing().item_spacing.x)
+                }).fold(0.0, f32::max)
+            } else { 0.0 };
+            heading_width.clamp(40.0, 260.0).max(editor_width).max(content_width)
         }).collect();
         let manual: Vec<_> = columns.iter().map(|column| self.column_widths
             .get(&(node.id.clone(), column["index"].as_u64().unwrap_or(0))).copied()).collect();
@@ -1546,9 +1555,9 @@ impl PresentationView {
                 if manual[index].is_none() { *width -= (*width - minimums[index]).max(0.0) * factor; }
             }
         } else {
-            let has_stretch = columns.iter().enumerate().any(|(i, column)| column["stretch"] == true && manual[i].is_none());
+            let has_stretch = item_packages || columns.iter().enumerate().any(|(i, column)| column["stretch"] == true && manual[i].is_none());
             let stretch: Vec<_> = columns.iter().enumerate().filter(|(i, column)|
-                manual[*i].is_none() && (!has_stretch || column["stretch"] == true)).map(|(i, _)| i).collect();
+                manual[*i].is_none() && (if item_packages { *i == 0 } else { !has_stretch || column["stretch"] == true })).map(|(i, _)| i).collect();
             let extra = (budget - used) / stretch.len().max(1) as f32;
             for index in stretch { widths[index] += extra; }
         }
