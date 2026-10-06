@@ -1916,6 +1916,48 @@ int run_item_index_job(
     }
 }
 
+int run_path_checksum_job(const fs::path& job_path, const fs::path& result_path) {
+    // Data-only length-prefixed UTF-8 strings, never filesystem paths to open.
+    // Reuse the same PA lookup3 implementation and seed as archive checksums.
+    std::ifstream input(job_path, std::ios::binary);
+    const std::string magic("CDPH\x01\0\0\0", 8);
+    char header[8];
+    if (!input.read(header, 8) || std::string(header, 8) != magic)
+        throw std::runtime_error("invalid path checksum job header");
+    auto read_size = [&]() {
+        unsigned char bytes[4];
+        if (!input.read(reinterpret_cast<char*>(bytes), 4))
+            throw std::runtime_error("truncated path checksum job");
+        return static_cast<std::uint32_t>(bytes[0]) | (static_cast<std::uint32_t>(bytes[1]) << 8)
+            | (static_cast<std::uint32_t>(bytes[2]) << 16) | (static_cast<std::uint32_t>(bytes[3]) << 24);
+    };
+    const auto count = read_size();
+    if (count > 4194304) throw std::runtime_error("path checksum count exceeds limit");
+    std::ofstream output(result_path, std::ios::binary | std::ios::trunc);
+    if (!output) throw std::runtime_error("cannot write path checksum result");
+    auto write_u32 = [&](std::uint32_t value) {
+        char bytes[4];
+        for (int i = 0; i < 4; ++i) bytes[i] = static_cast<char>(value >> (8 * i));
+        output.write(bytes, 4);
+    };
+    output.write(magic.data(), magic.size());
+    write_u32(count);
+    std::uint64_t total = 0;
+    for (std::uint32_t i = 0; i < count; ++i) {
+        const auto length = read_size();
+        total += length;
+        if (length > 32768 || total > 512ull * 1024 * 1024)
+            throw std::runtime_error("path checksum input exceeds limit");
+        std::string path(length, '\0');
+        if (!input.read(path.data(), length)) throw std::runtime_error("truncated path checksum input");
+        write_u32(hashlittle_bytes(path, 0x000C5EDEu));
+    }
+    if (input.peek() != std::char_traits<char>::eof()) throw std::runtime_error("trailing path checksum input");
+    output.close();
+    if (!output) throw std::runtime_error("incomplete path checksum output");
+    return 0;
+}
+
 int run_checksum_job(const fs::path& job_path, const fs::path& report_path) {
     try {
         const std::string job = read_text(job_path);
@@ -2036,10 +2078,13 @@ int main(int argc, char** argv) {
         if (argc >= 4 && std::string(argv[1]) == "checksum-job") {
             return run_checksum_job(fs::path(argv[2]), fs::path(argv[3]));
         }
+        if (argc >= 4 && std::string(argv[1]) == "path-checksum-job") {
+            return run_path_checksum_job(fs::path(argv[2]), fs::path(argv[3]));
+        }
         if (argc >= 5 && std::string(argv[1]) == "entry-read-job") {
             return run_entry_read_job(fs::path(argv[2]), fs::path(argv[3]), fs::path(argv[4]));
         }
-        std::cerr << "usage: cdmw-archive-accelerator --version | scan-job <job.json> <report.json> [progress.json] | browser-state-job <job.json> <report.json> [progress.json] | derived-index-job <entries.tsv> <report.json> [progress.json] | item-index-job <entries.tsv> <work-dir> <report.json> | item-name-map-job <entries.tsv> <work-dir> <report.json> | entry-read-job <job.json> <output.bin> <report.json> | checksum-job <job.json> <report.json>\n";
+        std::cerr << "usage: cdmw-archive-accelerator --version | scan-job <job.json> <report.json> [progress.json] | browser-state-job <job.json> <report.json> [progress.json] | derived-index-job <entries.tsv> <report.json> [progress.json] | item-index-job <entries.tsv> <work-dir> <report.json> | item-name-map-job <entries.tsv> <work-dir> <report.json> | entry-read-job <job.json> <output.bin> <report.json> | checksum-job <job.json> <report.json> | path-checksum-job <paths.bin> <checksums.bin>\n";
         return 1;
     } catch (const std::exception& exc) {
         std::cerr << exc.what() << "\n";

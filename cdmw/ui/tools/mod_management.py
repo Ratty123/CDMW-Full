@@ -178,6 +178,7 @@ class ModManagementTab(QWidget):
             self.pages.setCurrentWidget(page)
 
     def _page_changed(self, _index):
+        self._update_operation_bar()
         if self.pages.currentWidget() is self.independent_page:
             self.independent_page.refresh()
         if self.pages.currentWidget() is self.virtual_page:
@@ -268,6 +269,13 @@ class ModManagementTab(QWidget):
     def _status_changed(self, message, error=False):
         self.status_message_requested.emit(str(message), bool(error))
 
+    def _update_operation_bar(self):
+        # The virtual workspace already owns its status, percentage and Cancel.
+        # Keep the shared controls available when navigating to another page.
+        local_controls = (self.pages.currentWidget() is self.virtual_page
+                          and self.controller._lane == 'virtual_loader')
+        self.operation_bar.setVisible(self.controller.busy and self._owns_operation() and not local_controls)
+
     def _busy_changed(self, busy):
         busy = self.controller.busy  # A completed review may already have queued its confirmed apply.
         if busy and self.controller._lane != 'snapshot':
@@ -279,7 +287,7 @@ class ModManagementTab(QWidget):
                        self.overlay_migration_button):
             button.setEnabled(not busy)
         own = bool(busy and self._owns_operation())
-        self.operation_bar.setVisible(own)
+        self._update_operation_bar()
         self.progress.setVisible(own)
         self.cancel_button.setVisible(own)
         self.cancel_button.setEnabled(own and not self.inventory._applying and not self.independent_page._applying and not self.virtual_page._applying and not self.overview._applying)

@@ -270,7 +270,24 @@ class _AssetHashes:
                     self._hashes[checksum] = None
 
         if self._initial is not None:
-            reserve(self._initial)
+            paths = []
+            for index, path in enumerate(self._initial):
+                if index % 256 == 0:
+                    raise_if_cancelled(stop_event, 'Independent item preparation cancelled.')
+                paths.append(path)
+            hashes = None
+            if len(paths) >= 4096:
+                from cdmw.core.archive_accelerator import path_checksums_native
+                hashes = path_checksums_native(paths, stop_event=stop_event)
+            if hashes is None:
+                reserve(paths)
+            else:
+                for index, (path, checksum) in enumerate(zip(paths, hashes)):
+                    if index % 256 == 0:
+                        raise_if_cancelled(stop_event, 'Independent item preparation cancelled.')
+                    previous = self._hashes.setdefault(checksum, path)
+                    if previous != path:
+                        self._hashes[checksum] = None
             self._initial = None
         reserve(reservations - self._reserved)
         self._reserved.update(reservations)
@@ -283,7 +300,7 @@ class _AssetHashes:
         self._reserved.update(additions)
 
 
-def resolve_items(sources, root, *, target='archive', folders=(), stop_event=None, on_log=None, read_entry=None):
+def resolve_items(sources, root, *, target='archive', folders=(), stop_event=None, on_log=None, read_entry=None, on_progress=None):
     """Resolve recipes without publishing archives, identities, or ownership.
 
     Contributions have no overlay IDs. The selected deployment backend owns
@@ -291,6 +308,11 @@ def resolve_items(sources, root, *, target='archive', folders=(), stop_event=Non
     """
     if target not in ('archive', 'virtual'):
         raise ValueError('Unknown item deployment target.')
+    def progress(value, detail):
+        raise_if_cancelled(stop_event, 'Independent item preparation cancelled.')
+        if on_progress:
+            on_progress(value, 100, detail)
+    progress(0, 'Checking item packages…')
     root = Path(root).resolve()
     observed_state = overlays._observe_state(root)
     def current_bytes(relative):
@@ -319,6 +341,7 @@ def resolve_items(sources, root, *, target='archive', folders=(), stop_event=Non
     state, pending = overlays._state_for_edit(root, None, stop_event)
     decoded = {layer['id']: overlays._unpack_changes(root, layer, pending, stop_event) for layer in state['layers']}
     service = NewItemService()
+    progress(7, 'Reading game data…')
     snapshot = stock_snapshot(root, service=service, read_entry=read_entry, stop_event=stop_event, on_log=on_log,
                               overlay_changes=decoded.values())
     pathc_path = overlays._target(root, 'meta/0.pathc')
@@ -333,6 +356,7 @@ def resolve_items(sources, root, *, target='archive', folders=(), stop_event=Non
     # composed table must never silently hide a manager's replacement.
     # Keep the existing name/layout validation and public error type.
     _external_paths(root, state, stop_event)
+    progress(22, 'Comparing external mods…')
     external = external_mods(root, state, folders=folders, read_entry=read_entry, stop_event=stop_event, snapshot=snapshot)
     if target == 'virtual' and any(row.status == 'Unknown' for row in external.findings):
         raise IndependentItemError('; '.join(row.detail for row in external.findings))
@@ -343,7 +367,9 @@ def resolve_items(sources, root, *, target='archive', folders=(), stop_event=Non
     rows = []
     contributions = []
     revisions = []
-    for identity, package in packages.items():
+    for item_index, (identity, package) in enumerate(packages.items()):
+        progress(30 + 70 * item_index // max(1, len(packages)),
+                 f'Preparing {item_index + 1} of {len(packages)}: {package.title}')
         raise_if_cancelled(stop_event, 'Independent item preparation cancelled.')
         snapshot = baseline.discovery_view()
         for dependency in baseline_dependencies:
@@ -417,6 +443,7 @@ def resolve_items(sources, root, *, target='archive', folders=(), stop_event=Non
         added_paths = {virtual_path(request.path.lower()) for request in plan.additions}
         if added_paths & (reserved_paths | external_paths):
             raise IndependentItemError('An owned asset name is already reserved by another item or mod. The package cannot be installed without changing its identity.')
+        progress(30 + (70 * item_index + 45) // max(1, len(packages)), 'Checking asset identity collisions…')
         asset_hashes.check(added_paths, reserved_paths, stop_event)
         if any(path.endswith('.dds') for path in added_paths) and snapshot.pathc is None:
             raise IndependentItemError('This game has no verified texture registry for the new icon or textures.')
@@ -438,6 +465,7 @@ def resolve_items(sources, root, *, target='archive', folders=(), stop_event=Non
         pending[cache_path] = cached if cached is not None else package_bytes(package, stop_event=stop_event)
         rows.append((identity, package.title, key, 'Update' if prior else 'Install'))
     _validate_registry(registry)
+    progress(100, 'Item identities and dependencies verified.')
     return ResolvedItemSet(root, observed_state, state, pending, decoded, registry, registry_before,
         baseline, external, tuple(rows), tuple(contributions), tuple(revisions), tuple(dict.fromkeys(compatibility)))
 

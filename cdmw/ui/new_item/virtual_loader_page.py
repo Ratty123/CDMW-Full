@@ -3,7 +3,9 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer, Signal, QUrl
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import QFileDialog, QHBoxLayout, QLabel, QMessageBox, QPlainTextEdit, QPushButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (QComboBox, QFileDialog, QHeaderView, QHBoxLayout, QLabel,
+    QMessageBox, QPlainTextEdit, QProgressBar, QPushButton, QSplitter, QToolButton,
+    QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from cdmw.domain.virtual_loader import VirtualProfile
 
@@ -19,64 +21,149 @@ class VirtualLoaderPage(QWidget):
         self._closed = self._working = self._applying = self._draft_loaded = False
         self._prepared = self._runtime = self._queued = None
         self._saved_selection = None
+        self._next_order = 0
+        self._progress_generation = None
         self._session = None
         self._session_timer = QTimer(self)
         self._session_timer.setInterval(1500)
         self._session_timer.timeout.connect(self._poll_session)
         layout = QVBoxLayout(self)
         help_label = QLabel(self.tr('Prepare items and supported mods for a separate startup profile. Original game archives stay unchanged.'))
+        help_label.setObjectName('virtual_loader_intro')
         help_label.setWordWrap(True)
         layout.addWidget(help_label)
         notice = QLabel(self.tr('Experimental: item and effect compatibility varies. A verified save backup is required before each launch.'))
+        notice.setObjectName('virtual_loader_notice')
         notice.setWordWrap(True)
         notice.setProperty('managementRole', 'notice')
         layout.addWidget(notice)
+        self.workspace = QSplitter(Qt.Horizontal)
+        self.workspace.setObjectName('virtual_loader_workspace')
+        self.workspace.setChildrenCollapsible(False)
+        layout.addWidget(self.workspace, 1)
+        packages = QWidget()
+        packages.setObjectName('virtual_loader_packages')
+        left = QVBoxLayout(packages)
+        left.setContentsMargins(0, 0, 0, 0)
+        self.workspace.addWidget(packages)
+        details = QWidget()
+        details.setObjectName('virtual_loader_details')
+        right = QVBoxLayout(details)
+        right.setContentsMargins(0, 0, 0, 0)
+        self.workspace.addWidget(details)
+        self.workspace.setSizes([560, 500])
+        self.workspace.setStretchFactor(0, 1)
+        self.workspace.setStretchFactor(1, 1)
+        sort_row = QHBoxLayout()
+        sort_row.addWidget(QLabel(self.tr('Selected packages')))
+        sort_row.addStretch(1)
+        self.sort_choice = QComboBox()
+        self.sort_choice.setObjectName('virtual_loader_sort')
+        self.sort_choice.addItems([self.tr('Name (A–Z)'), self.tr('Name (Z–A)'), self.tr('Type')])
+        self.sort_choice.setToolTip(self.tr('Sort the list without changing the saved profile or item identities.'))
+        self.sort_choice.currentIndexChanged.connect(self._sort_selection)
+        sort_row.addWidget(self.sort_choice)
+        left.addLayout(sort_row)
         self.selection = QTreeWidget()
         self.selection.setObjectName('virtual_loader_selection')
-        self.selection.setHeaderLabels([self.tr('Type'), self.tr('Package or folder')])
+        self.selection.setHeaderLabels([self.tr('Package or folder'), self.tr('Type')])
         self.selection.setRootIsDecorated(False)
+        self.selection.setUniformRowHeights(True)
+        self.selection.setMinimumHeight(300)
+        self.selection.setSortingEnabled(True)
+        self.selection.sortItems(0, Qt.AscendingOrder)
+        self.selection.header().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.selection.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        self.selection.setToolTip(self.tr('Click a column heading to sort. Hover over a package to see its full path.'))
+        self.selection.setAccessibleDescription(self.tr('Add .cditem packages or supported mod folders to begin.'))
         self.selection.setSelectionMode(QTreeWidget.ExtendedSelection)
         self.selection.itemSelectionChanged.connect(self._buttons)
-        layout.addWidget(self.selection)
+        left.addWidget(self.selection, 1)
         choose = QHBoxLayout()
-        self.add_items = self._button(choose, self.tr('Add item packages…'), 'virtual_add_items', self._add_items)
-        self.add_mod = self._button(choose, self.tr('Add mod folder…'), 'virtual_add_mod', self._add_mod)
-        self.remove_selected = self._button(choose, self.tr('Remove selected'), 'virtual_remove', self._remove)
-        choose.addStretch(1)
-        layout.addLayout(choose)
+        self.add_items = self._button(choose, self.tr('Add item packages…'), 'virtual_add_items', self._add_items,
+            self.tr('Select one or more .cditem files to add to this profile.'))
+        self.add_mod = self._button(choose, self.tr('Add mod folder…'), 'virtual_add_mod', self._add_mod,
+            self.tr('Add an external mod folder for compatibility checking and composition.'))
+        left.addLayout(choose)
+        remove_row = QHBoxLayout()
+        self.remove_selected = self._button(remove_row, self.tr('Remove selected'), 'virtual_remove', self._remove,
+            self.tr('Remove selected entries from this draft. Files and retained item identities are kept.'))
+        self.count = QLabel()
+        self.count.setObjectName('virtual_loader_count')
+        remove_row.addWidget(self.count, 1)
+        left.addLayout(remove_row)
         actions = QHBoxLayout()
-        self.prepare_button = self._button(actions, self.tr('Inspect and prepare'), 'virtual_prepare', self._prepare)
-        self.save_button = self._button(actions, self.tr('Save virtual profile'), 'virtual_save', self._save)
-        self.launch_button = self._button(actions, self.tr('Launch with virtual profile'), 'virtual_launch', self._launch)
-        self.cancel_button = self._button(actions, self.tr('Cancel'), 'virtual_cancel', self._cancel)
-        layout.addLayout(actions)
-        runtime = QHBoxLayout()
-        self.refresh_button = self._button(runtime, self.tr('Refresh status'), 'virtual_refresh', self.refresh)
-        self.setup_button = self._button(runtime, self.tr('Review runtime setup…'), 'virtual_setup', self._setup)
-        self.recover_button = self._button(runtime, self.tr('Recover interrupted profile'), 'virtual_recover', self._recover)
-        layout.addLayout(runtime)
-        diagnostics = QHBoxLayout()
-        self.trace_button = self._button(diagnostics, self.tr('Review startup trace…'), 'virtual_trace', self._trace)
-        self.remove_runtime_button = self._button(diagnostics, self.tr('Remove CDMW runtime…'), 'virtual_remove_runtime', self._remove_runtime)
-        self.backups_button = self._button(diagnostics, self.tr('Open save backups'), 'virtual_backups', self._open_backups)
-        diagnostics.addStretch(1)
-        layout.addLayout(diagnostics)
+        self.prepare_button = self._button(actions, self.tr('Inspect and prepare'), 'virtual_prepare', self._prepare,
+            self.tr('Check compatibility and build private game files for review. This does not save or activate the profile.'))
+        self.save_button = self._button(actions, self.tr('Save virtual profile'), 'virtual_save', self._save,
+            self.tr('Publish the reviewed files and retain their item identities for the next virtual launch.'))
+        right.addLayout(actions)
+        launch = QHBoxLayout()
+        self.launch_button = self._button(launch, self.tr('Launch with virtual profile'), 'virtual_launch', self._launch,
+            self.tr('Verify the saved profile, back up saves, then launch the game with these items active.'))
+        self.cancel_button = self._button(launch, self.tr('Cancel'), 'virtual_cancel', self._cancel,
+            self.tr('Stop the current preparation. The last saved profile remains available.'))
+        right.addLayout(launch)
         self.status = QLabel(self.tr('Prepare a profile to review its contents.'))
         self.status.setObjectName('virtual_loader_status')
         self.status.setTextFormat(Qt.TextFormat.PlainText)
         self.status.setWordWrap(True)
-        layout.addWidget(self.status)
+        right.addWidget(self.status)
+        self.progress = QProgressBar()
+        self.progress.setObjectName('virtual_loader_progress')
+        self.progress.setRange(0, 100)
+        self.progress.setValue(0)
+        self.progress.setToolTip(self.tr('Progress follows completed preparation stages and files. It is not an estimate of remaining time.'))
+        self.progress.hide()
+        right.addWidget(self.progress)
         self.review = QPlainTextEdit()
         self.review.setReadOnly(True)
         self.review.setMaximumBlockCount(2000)
         self.review.setObjectName('virtual_loader_review')
-        layout.addWidget(self.review, 1)
+        self.review.setPlaceholderText(self.tr('The prepared items and compatibility results appear here.'))
+        right.addWidget(self.review, 1)
+        self.tools_toggle = QToolButton()
+        self.tools_toggle.setObjectName('virtual_tools_toggle')
+        self.tools_toggle.setText(self.tr('Runtime and recovery'))
+        self.tools_toggle.setCheckable(True)
+        self.tools_toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.tools_toggle.setArrowType(Qt.RightArrow)
+        self.tools_toggle.setToolTip(self.tr('Show runtime setup, status, diagnostics and recovery tools.'))
+        right.addWidget(self.tools_toggle)
+        self.tools = QWidget()
+        self.tools.setObjectName('virtual_loader_tools')
+        tools_layout = QVBoxLayout(self.tools)
+        tools_layout.setContentsMargins(0, 0, 0, 0)
+        self.tools.hide()
+        self.tools_toggle.toggled.connect(self.tools.setVisible)
+        self.tools_toggle.toggled.connect(lambda checked: self.tools_toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow))
+        right.addWidget(self.tools)
+        runtime = QHBoxLayout()
+        self.refresh_button = self._button(runtime, self.tr('Refresh status'), 'virtual_refresh', self.refresh,
+            self.tr('Recheck the runtime and saved profile without changing your selection.'))
+        self.setup_button = self._button(runtime, self.tr('Review runtime setup…'), 'virtual_setup', self._setup,
+            self.tr('Review installation or update of CDMW’s owned runtime files.'))
+        tools_layout.addLayout(runtime)
+        recovery = QHBoxLayout()
+        self.recover_button = self._button(recovery, self.tr('Recover interrupted profile'), 'virtual_recover', self._recover,
+            self.tr('Recover an interrupted profile save using its retained recovery data.'))
+        self.backups_button = self._button(recovery, self.tr('Open save backups'), 'virtual_backups', self._open_backups,
+            self.tr('Open the verified save copies created before virtual launches.'))
+        tools_layout.addLayout(recovery)
+        diagnostics = QHBoxLayout()
+        self.trace_button = self._button(diagnostics, self.tr('Review startup trace…'), 'virtual_trace', self._trace,
+            self.tr('Review a diagnostic launch using original game files. Virtual items are inactive during tracing.'))
+        self.remove_runtime_button = self._button(diagnostics, self.tr('Remove CDMW runtime…'), 'virtual_remove_runtime', self._remove_runtime,
+            self.tr('Review removal of CDMW’s runtime. Profiles, backups and item identities are retained.'))
+        tools_layout.addLayout(diagnostics)
         controller.busy_changed.connect(self._busy_changed)
+        controller.operation_progress.connect(self._operation_progress)
         self._buttons()
 
-    def _button(self, layout, text, name, action):
+    def _button(self, layout, text, name, action, tooltip):
         button = QPushButton(text)
         button.setObjectName(name)
+        button.setToolTip(tooltip)
         button.clicked.connect(action)
         layout.addWidget(button)
         return button
@@ -87,6 +174,7 @@ class VirtualLoaderPage(QWidget):
                        self.trace_button, self.remove_runtime_button, self.backups_button):
             button.setEnabled(ready and bool(self.package_root))
         self.selection.setEnabled(ready)
+        self.sort_choice.setEnabled(ready)
         self.remove_selected.setEnabled(ready and bool(self.selection.selectedItems()))
         self.save_button.setEnabled(ready and self._prepared is not None)
         self.launch_button.setEnabled(ready and self._runtime is not None and self._runtime.state == 'ready'
@@ -101,6 +189,9 @@ class VirtualLoaderPage(QWidget):
         self._prepared = self._runtime = None
         self._draft_loaded = True
         self.review.clear()
+        self.progress.hide()
+        profile = self._profile()
+        self.count.setText(self.tr('{value_0} packages · {value_1} mod folders').format(value_0=len(profile.packages), value_1=len(profile.mods)))
         self.status.setText(self.tr('Selection changed. Inspect and prepare it again.'))
         self._buttons()
 
@@ -110,8 +201,12 @@ class VirtualLoaderPage(QWidget):
             value = (kind, str(Path(raw).resolve()))
             if value in existing:
                 continue
-            item = QTreeWidgetItem([self.tr('Item package') if kind == 'item' else self.tr('Mod folder'), value[1]])
+            item = QTreeWidgetItem([Path(value[1]).name, self.tr('Item package') if kind == 'item' else self.tr('Mod folder')])
             item.setData(0, Qt.UserRole, value)
+            item.setData(0, Qt.UserRole + 1, self._next_order)
+            self._next_order += 1
+            item.setToolTip(0, value[1])
+            item.setToolTip(1, value[1])
             self.selection.addTopLevelItem(item)
             existing.add(value)
         self._changed()
@@ -132,31 +227,54 @@ class VirtualLoaderPage(QWidget):
         self._changed()
 
     def _profile(self):
-        rows = [self.selection.topLevelItem(i).data(0, Qt.UserRole) for i in range(self.selection.topLevelItemCount())]
+        items = [self.selection.topLevelItem(i) for i in range(self.selection.topLevelItemCount())]
+        # Display sorting must not change allocation order or invalidate a saved profile.
+        rows = [item.data(0, Qt.UserRole) for item in sorted(items, key=lambda item: item.data(0, Qt.UserRole + 1))]
         return VirtualProfile(tuple(Path(path) for kind, path in rows if kind == 'item'), tuple(Path(path) for kind, path in rows if kind == 'mod'))
 
-    def _run(self, task, done, *, applying=False):
+    def _sort_selection(self, index):
+        self.selection.sortItems(1 if index == 2 else 0, Qt.DescendingOrder if index == 1 else Qt.AscendingOrder)
+
+    def _run(self, task, done, *, applying=False, with_progress=False):
         if self._closed or self.controller.busy or not self.package_root:
             return False
         generation, root = self._generation, self.package_root
         self._working, self._applying = True, applying
+        self._progress_generation = generation if with_progress else None
+        if with_progress:
+            self.progress.setRange(0, 100)
+            self.progress.setValue(0)
+            self.progress.show()
         self._buttons()
         def completed(result):
             self._working = self._applying = False
             if not self._closed and generation == self._generation and root == self.package_root:
+                if with_progress:
+                    self.progress.setValue(100)
                 done(result)
                 self._buttons()
         def failed(message):
             self._working = self._applying = False
             if not self._closed and generation == self._generation:
                 self.status.setText(str(message))
+                self.progress.hide()
                 self.activity.emit(str(message))
                 self._buttons()
-        started = self.controller._run('virtual_loader', task, completed, failed)
+        started = self.controller._run('virtual_loader', task, completed, failed, task_accepts_progress=with_progress)
         if not started:
             self._working = self._applying = False
+            self.progress.hide()
             self._buttons()
         return started
+
+    def _operation_progress(self, lane, current, total, detail):
+        if (lane != 'virtual_loader' or self._closed or not self._working
+                or self._progress_generation != self._generation):
+            return
+        if total > 0:
+            self.progress.setValue(max(self.progress.value(), min(99, current * 100 // total)))
+        if detail:
+            self.status.setText(self.tr(detail))
 
     def _prepare(self):
         from cdmw.services.virtual_loader_process import prepare_profile_in_subprocess
@@ -167,7 +285,8 @@ class VirtualLoaderPage(QWidget):
             self._prepared = result
             self.review.setPlainText('\n'.join(result.summary))
             self.status.setText(self.tr('Prepared for review. Save the profile to retain its item identities.'))
-        self._run(lambda log, stop: prepare_profile_in_subprocess(profile, root, stop_event=stop, on_log=log), done)
+        self._run(lambda log, progress, stop: prepare_profile_in_subprocess(
+            profile, root, stop_event=stop, on_log=log, on_progress=progress), done, with_progress=True)
 
     def _save(self):
         from cdmw.services.virtual_loader_state import publish_profile
@@ -198,6 +317,7 @@ class VirtualLoaderPage(QWidget):
             self._runtime = state
             if not self._draft_loaded:
                 self.selection.clear()
+                self._next_order = 0
                 if profile:
                     self._append_selection('item', profile['packages'])
                     self._append_selection('mod', profile['mods'])
@@ -258,6 +378,7 @@ class VirtualLoaderPage(QWidget):
         self._generation += 1
         self._queued = None
         self.controller.cancel_operation('virtual_loader')
+        self.progress.hide()
         self.status.setText(self.tr('Processing stopped by user.'))
 
     def _open_backups(self):
@@ -340,7 +461,10 @@ class VirtualLoaderPage(QWidget):
         self._session_timer.stop()
         self._draft_loaded = False
         self.selection.clear()
+        self._next_order = 0
         self.review.clear()
+        self.count.clear()
+        self.progress.hide()
         self._buttons()
 
     def request_shutdown(self):

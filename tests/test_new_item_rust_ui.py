@@ -89,7 +89,9 @@ def test_independent_output_preserves_draft_and_exports_through_rust_input(studi
     tab.show_step(6)
     _send(bridge, output.independent_mode_button, 'activate')
     assert controller.independent_mode
-    assert output.export_button.text() == 'Write item package'
+    assert output.export_button.text() == 'Write item package (.cditem)'
+    assert '.cditem' in output.independent_mode_button.text()
+    assert output.independent_mode_button.toolTip() and output.update_package_button.toolTip()
     assert not output.folder_controls.isVisible() and not output.overlay_controls.isVisible()
     managed = controller.current_spec()
     assert managed.item_key is None and managed.stem is None and managed.internal_name.startswith('CDI_')

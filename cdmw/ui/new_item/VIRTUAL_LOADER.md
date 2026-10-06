@@ -30,6 +30,18 @@ validation; changing a manifest cannot enable the general redirect mode.
 
 ## Use and ownership
 
+The page uses two adjustable columns: a tall package list on the left and preparation,
+review and launch controls on the right. Long lists and reviews scroll inside their
+own panes. Sort by name or type using the list headings or the sort selector; this
+changes display order only, preserving the prepared selection and identity allocation
+order. Hover over a filename for its complete path. Buttons have brief hover help.
+Runtime setup, diagnostics and recovery are grouped under **Runtime and recovery**.
+
+Preparation shows a percentage and the current stage. The percentage follows completed
+stages and source files, not an estimate of elapsed or remaining time. It reaches 100%
+only after the parent accepts the complete worker result. Cancelled, failed or outdated
+results cannot enable saving.
+
 1. Add packages or mod folders, then choose **Inspect and prepare**. Preparation
    reads the destination, its mounted providers and retained identity reservations.
 2. Review the items, allocated identities and composed files. **Save virtual
@@ -115,8 +127,12 @@ closing the page cancels the helper without waiting on the UI thread. Its privat
 temporary files are removed only after it exits. A bounded data-only result carries
 the same source, provider and ownership guards back to the reviewed save operation.
 The asset collision index is built once per preparation, only when new assets need
-it, and includes retained reservations and earlier items in the batch. File integrity
-checks remain required; larger installations can still take time to prepare.
+it, using the existing native PA hash implementation for large path batches. An older
+or unavailable helper retains the exact scalar checks. Ambiguous hashes, retained
+reservations and earlier items remain part of the index. Source archives are hashed
+afresh with at most two concurrent readers; no content digest is reused across runs.
+The existing revision checks still bracket preparation and protect publication. Large
+installations can still take time because all relevant source files are verified.
 
 The transaction's writable targets are CDMW-owned bookkeeping and private files,
 never original PAMT, PAZ, PAPGT or PATHC files. Physical archive mutation, overlay

@@ -167,6 +167,7 @@ def test_virtual_page_translations_preserve_selection_and_projected_controls(tmp
     try:
         for code in BUILTIN_LANGUAGE_CODES:
             localizer.load_language(code)
+            page.tools_toggle.setChecked(True)
             localizer.apply_registered_roots()
             assert page.prepare_button.text() == localizer.translate('Inspect and prepare')
             assert page.trace_button.text() == localizer.translate('Review startup trace…')
@@ -174,6 +175,7 @@ def test_virtual_page_translations_preserve_selection_and_projected_controls(tmp
             assert page.backups_button.text() == localizer.translate('Open save backups')
             assert page.selection.topLevelItem(0).data(0, Qt.UserRole) == selected
             assert not bridge.snapshot()['unsupported']
+            page.tools_toggle.setChecked(False)
     finally:
         localizer.shutdown()
         page.request_shutdown()
@@ -193,12 +195,14 @@ def test_prepare_helper_receives_immutable_selection_and_discards_late_result(tm
     page._append_selection('item', (package,))
     entered, release, stopped = threading.Event(), threading.Event(), threading.Event()
     captured = []
-    def prepare(profile, root, *, on_log, stop_event):
+    def prepare(profile, root, *, on_log, stop_event, on_progress):
         captured.append((profile, root))
         entered.set()
+        on_progress(25, 100, 'Reading game data…')
         assert release.wait(5)
         if stop_event.is_set():
             stopped.set()
+        on_progress(90, 100, 'This progress is stale')
         return SimpleNamespace(summary=('obsolete',))
     monkeypatch.setattr(virtual_loader_process, 'prepare_profile_in_subprocess', prepare)
     try:
@@ -217,6 +221,7 @@ def test_prepare_helper_receives_immutable_selection_and_discards_late_result(tm
         assert captured[0][1] == str(tmp_path)
         assert stopped.is_set() and page._prepared is None
         assert 'obsolete' not in page.review.toPlainText()
+        assert 'stale' not in page.status.text()
     finally:
         release.set()
         page.request_shutdown()

@@ -196,7 +196,7 @@ def _read_result(request, folder, output_path, stop_event):
                             _revision(result['source'], roots), external, tuple(result['summary']), retained)
 
 
-def prepare_profile_in_subprocess(profile: VirtualProfile, root, *, stop_event=None, on_log=None):
+def prepare_profile_in_subprocess(profile: VirtualProfile, root, *, stop_event=None, on_log=None, on_progress=None):
     """Called from the existing controller worker, with one owned child at a time."""
     raise_if_cancelled(stop_event)
     request = {'schema': _SCHEMA, 'nonce': uuid4().hex, 'root': str(Path(root).resolve()),
@@ -221,6 +221,12 @@ def prepare_profile_in_subprocess(profile: VirtualProfile, root, *, stop_event=N
                     message = decode(line, limit=65536)
                     if on_log is not None and isinstance(message, str):
                         on_log(message)
+                    elif (on_progress is not None and isinstance(message, dict)
+                          and set(message) == {'current', 'total', 'detail'}
+                          and type(message['current']) is int and type(message['total']) is int
+                          and 0 <= message['current'] <= message['total'] == 100
+                          and isinstance(message['detail'], str)):
+                        on_progress(message['current'], 100, message['detail'][:16000])
             except Exception:
                 # Advisory progress must never strand a running owned child.
                 partial = b''
@@ -231,11 +237,16 @@ def prepare_profile_in_subprocess(profile: VirtualProfile, root, *, stop_event=N
         raise_if_cancelled(stop_event)
         if code:
             raise VirtualLoaderError((stderr or stdout).strip()[-1200:] or f'Virtual preparation failed ({code}).')
+        poll()
+        if on_progress:
+            on_progress(98, 100, 'Checking the prepared result…')
         try:
             result = _read_result(request, folder, output_path, stop_event)
         except (OSError, KeyError, TypeError, IndexError) as exc:
             raise VirtualLoaderError('Virtual preparation returned an incomplete result. Prepare again.') from exc
         raise_if_cancelled(stop_event)
+        if on_progress:
+            on_progress(100, 100, 'Virtual profile prepared.')
         return result
 
 
@@ -258,7 +269,11 @@ def run_virtual_profile_worker(input_path, output_path):
         with (input_path.parent / 'progress.jsonl').open('ab', buffering=0) as progress:
             def log(message):
                 progress.write(canonical(str(message)[:16000]) + b'\n')
-            prepared = prepare_profile(profile, root, stop_event=stop, on_log=log)
+            def update(current, total, detail):
+                progress.write(canonical({'current': 96 * current // max(1, total), 'total': 100,
+                                           'detail': str(detail)[:16000]}) + b'\n')
+            prepared = prepare_profile(profile, root, stop_event=stop, on_log=log, on_progress=update)
+            progress.write(canonical({'current': 97, 'total': 100, 'detail': 'Transferring the prepared files…'}) + b'\n')
             _write_result(prepared, request, input_path.parent, output_path, stop)
         return 0
     except RunCancelled:

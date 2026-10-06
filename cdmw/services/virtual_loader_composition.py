@@ -1,5 +1,6 @@
 """Build a complete private archive view without writing the mounted installation."""
 import hashlib
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from uuid import uuid4
 
@@ -25,7 +26,30 @@ def hash_file(path, stop_event=None):
     return result.hexdigest()
 
 
-def prepare_profile(profile: VirtualProfile, root, *, stop_event=None, on_log=None, read_entry=None):
+def _hash_sources(paths, stop_event=None, on_progress=None):
+    """Hash every source afresh with bounded I/O; never reuse a previous digest."""
+    paths = tuple(paths)
+    result = {}
+    with ThreadPoolExecutor(max_workers=2, thread_name_prefix='cdmw-source-hash') as workers:
+        pending = {workers.submit(hash_file, path, stop_event): path for path in paths}
+        try:
+            for index, future in enumerate(as_completed(pending), 1):
+                raise_if_cancelled(stop_event)
+                result[str(pending[future])] = future.result()
+                if on_progress:
+                    on_progress(index, len(paths))
+        finally:
+            for future in pending:
+                future.cancel()
+    return result
+
+
+def prepare_profile(profile: VirtualProfile, root, *, stop_event=None, on_log=None, read_entry=None, on_progress=None):
+    def progress(value, detail):
+        raise_if_cancelled(stop_event)
+        if on_progress:
+            on_progress(value, 100, detail)
+    progress(0, 'Checking item packages…')
     root = Path(root).resolve()
     if len(profile.mods) > 128:
         raise VirtualLoaderError('Select at most 128 external mod folders.')
@@ -36,7 +60,9 @@ def prepare_profile(profile: VirtualProfile, root, *, stop_event=None, on_log=No
     original_packages = tuple((str(path), hash_file(path, stop_event)) for path in packages)
     profile_before = read_optional(target(root, PROFILE_PATH))
     resolved = resolve_items(packages, root, target='virtual', folders=folders,
-                             stop_event=stop_event, on_log=on_log, read_entry=read_entry)
+                             stop_event=stop_event, on_log=on_log, read_entry=read_entry,
+                             on_progress=lambda value, total, detail: progress(3 + 62 * value // max(1, total), detail))
+    progress(66, 'Composing shared game records…')
     layers = [(layer, resolved.decoded[layer['id']]) for layer in resolved.state['layers']]
     # These are transient composition descriptors, never overlay ownership rows.
     virtual_layers = [({'id': package.identity, 'label': package.title, 'active': True, 'dependencies': [],
@@ -82,6 +108,7 @@ def prepare_profile(profile: VirtualProfile, root, *, stop_event=None, on_log=No
     mount = target(root, 'meta/0.papgt').read_bytes()
     name = resolved.state['directory']
     output = {'meta/0.papgt': mount}
+    progress(78, 'Building private game archives…')
     if files:
         entries = [OverlayFile(path, _processed_payload(data, compression_type=flags.get(path, 0) & 15,
                       encrypted=bool(flags.get(path, 0) >> 4), basename=path.rsplit('/', 1)[-1]), len(data), flags.get(path, 0))
@@ -101,7 +128,9 @@ def prepare_profile(profile: VirtualProfile, root, *, stop_event=None, on_log=No
     # Persistent hashes permit complete revalidation after restart; no author IDs
     # or stale source stamps are accepted as launch authority.
     source_paths = dict.fromkeys(path for path, stamp in (*revision.files, *resolved.external.tracker.capture().files) if stamp is not None)
-    sources = {str(path): hash_file(path, stop_event) for path in source_paths}
+    progress(84, 'Verifying source file integrity…')
+    sources = _hash_sources(source_paths, stop_event,
+        lambda value, total: progress(84 + 14 * value // max(1, total), 'Verifying source file integrity…'))
     sources.update(original_packages)
     observed = (*resolved.observed, (PROFILE_PATH, profile_before))
     generation = uuid4().hex
@@ -114,6 +143,7 @@ def prepare_profile(profile: VirtualProfile, root, *, stop_event=None, on_log=No
             'inventories': [(str(folder), inventory) for folder, inventory in resolved.external.inventories],
             'observed': [(p, digest(raw) if raw is not None else None) for p, raw in resolved.observed
                          if p not in ('.cdmw/independent-items.json', PROFILE_PATH)]}
+    progress(98, 'Rechecking preparation inputs…')
     for path, expected in original_packages:
         if hash_file(path, stop_event) != expected:
             raise VirtualLoaderError('A selected package changed during preparation.')
@@ -124,5 +154,6 @@ def prepare_profile(profile: VirtualProfile, root, *, stop_event=None, on_log=No
                f'{len(folders)} external mod folder(s); {len(files)} composed game file(s).',
                'Original game archives will not be changed. Launch remains subject to runtime validation.')
     retained = tuple((p.rsplit('/', 1)[1], value) for p, value in resolved.pending.items() if p.endswith('.cditem'))
+    progress(100, 'Virtual profile prepared.')
     return PreparedSnapshot(root, generation, tuple(output.items()), canonical(resolved.registry), canonical(data),
                             observed, revision, resolved.external, summary, retained)

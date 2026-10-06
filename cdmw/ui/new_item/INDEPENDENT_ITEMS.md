@@ -1,6 +1,6 @@
 # Independent item packages (Experimental)
 
-Choose **Output > Independent item package (Experimental)**, build the plan and
+Choose **Output > Independent item package (Experimental) · .cditem**, build the plan and
 select **Write item package**. Share the resulting `.cditem` file. Recipients use
 **Mod Management > Independent items > Import packages** to inspect and install
 one or more packages. Existing folder exports and game overlays remain available.

@@ -50,6 +50,13 @@ PYTHON_SOURCE_ROOTS = (
 )
 MANUAL_SOURCE_KEYS = frozenset(
     {
+        # Virtual preparation reports these stages through its data-only worker protocol.
+        "Checking item packages…", "Reading game data…", "Comparing external mods…",
+        "Preparing {value_0} of {value_1}: {value_2}", "Checking asset identity collisions…",
+        "Item identities and dependencies verified.", "Composing shared game records…",
+        "Building private game archives…", "Verifying source file integrity…",
+        "Rechecking preparation inputs…", "Checking the prepared result…",
+        "Transferring the prepared files…", "Virtual profile prepared.",
         # The independent-item collision audit forwards this core format error.
         "The template physics uses an unverified collision layout.",
         "Owned physics must accompany its exact model path.",

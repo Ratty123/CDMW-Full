@@ -1069,11 +1069,14 @@ settings in a right sidebar.
 ## Output review and Mod Management
 
 The sidebar groups **Mod folder**, **Game overlay** and **Independent item package
-(Experimental)**, destination, plan status and the selected output action. Its
+(Experimental) · .cditem**, destination, plan status and the selected output action. Its
 settings scroll independently while the plan status and output actions stay visible.
 
 The experimental output writes a separate `.cditem` file for installation through
-**Mod Management > Independent items**. CDMW assigns destination identities and
+**Mod Management > Independent items**, or preparation through **Virtual loader**.
+Choose **Build plan**, then **Write item package (.cditem)**. **Update an existing
+item package** keeps the selected package's identity; writing a new package creates
+a separate item. CDMW assigns destination identities and
 composes shared files automatically. Selecting it preserves the draft and manager
 settings. See [Independent item packages](INDEPENDENT_ITEMS.md) for supported
 formats, update/removal behaviour, identity profiles and validation limits.

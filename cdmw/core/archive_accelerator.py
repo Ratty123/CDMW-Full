@@ -355,6 +355,54 @@ def read_archive_entry_data_native(
     return data, bool(report.get("decompressed", False)), str(report.get("note") or "NativeRaw")
 
 
+def path_checksums_native(paths: Sequence[str], *, stop_event=None):
+    """Batch PATHC identity hashes without two million Python lookup3 loops.
+
+    The existing scalar implementation remains authoritative for small batches
+    and installations with an older helper. No file-content guards are cached.
+    """
+    from array import array
+    import struct
+
+    if not paths:
+        return ()
+    binary = find_native_archive_accelerator()
+    if not _native_archive_accelerator_ready(binary) or len(paths) > 4194304:
+        return None
+    header = b'CDPH\x01\0\0\0' + struct.pack('<I', len(paths))
+    with tempfile.TemporaryDirectory(prefix='cdmw_path_checksums_') as directory:
+        job, result = Path(directory) / 'paths.bin', Path(directory) / 'checksums.bin'
+        total = 0
+        with job.open('wb') as stream:
+            stream.write(header)
+            for index, path in enumerate(paths):
+                if index % 256 == 0:
+                    raise_if_cancelled(stop_event)
+                raw = ('/' + str(path or '').replace('\\', '/').lstrip('/')).encode('utf-8')
+                total += len(raw)
+                if len(raw) > 32768 or total > 512 * 1024 * 1024:
+                    return None
+                stream.write(struct.pack('<I', len(raw)))
+                stream.write(raw)
+        try:
+            code, _, _ = run_process_with_cancellation(
+                [str(binary), 'path-checksum-job', str(job), str(result), *_native_diagnostic_args()],
+                stop_event=stop_event, timeout_seconds=300, background=True)
+            raise_if_cancelled(stop_event)
+            if code or not result.is_file() or result.stat().st_size != len(header) + 4 * len(paths):
+                return None
+            with result.open('rb') as stream:
+                if stream.read(len(header)) != header:
+                    return None
+                values = array('I')
+                values.fromfile(stream, len(paths))
+            if sys.byteorder != 'little':
+                values.byteswap()
+            return values
+        except (OSError, subprocess.SubprocessError):
+            return None
+
+
 def checksum_files_native(
     paths: Sequence[Path],
     *,

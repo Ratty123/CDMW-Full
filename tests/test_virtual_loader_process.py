@@ -33,9 +33,13 @@ def test_real_child_preserves_output_and_publication_guards(tmp_path, change):
     profile = VirtualProfile(files, (mod,))
     original = prepare_profile(profile, root)
     before = game_bytes(root)
-    logs = []
-    result = owner.prepare_profile_in_subprocess(profile, root, on_log=logs.append)
+    logs, progress = [], []
+    result = owner.prepare_profile_in_subprocess(profile, root, on_log=logs.append,
+        on_progress=lambda n, total, detail: progress.append((n, total, detail)))
     assert logs and any('Composing' in message for message in logs)
+    assert progress and progress[-1][0] == 100
+    assert [n for n, _, _ in progress] == sorted(n for n, _, _ in progress)
+    assert all(total == 100 and detail for _, total, detail in progress)
     assert result.files == original.files
     assert result.registry == original.registry
     assert result.observed == original.observed
