@@ -57,6 +57,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         from cdmw.services.effect_catalogue_process import run_effect_catalogue_worker
 
         return run_effect_catalogue_worker(Path(args.input), Path(args.output))
+    if args.virtual_profile_worker:
+        from cdmw.services.virtual_loader_process import run_virtual_profile_worker
+
+        return run_virtual_profile_worker(Path(args.input), Path(args.output))
 
     # Before anything can spawn a helper. The helper modes above return early
     # on purpose: they are already children of a bound app process, and their

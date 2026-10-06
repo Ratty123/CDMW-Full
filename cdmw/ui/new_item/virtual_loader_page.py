@@ -159,7 +159,7 @@ class VirtualLoaderPage(QWidget):
         return started
 
     def _prepare(self):
-        from cdmw.services.virtual_loader_composition import prepare_profile
+        from cdmw.services.virtual_loader_process import prepare_profile_in_subprocess
         root, profile = self.package_root, self._profile()
         self._prepared = None
         self.status.setText(self.tr('Preparing virtual profile…'))
@@ -167,7 +167,7 @@ class VirtualLoaderPage(QWidget):
             self._prepared = result
             self.review.setPlainText('\n'.join(result.summary))
             self.status.setText(self.tr('Prepared for review. Save the profile to retain its item identities.'))
-        self._run(lambda log, stop: prepare_profile(profile, root, stop_event=stop, on_log=log), done)
+        self._run(lambda log, stop: prepare_profile_in_subprocess(profile, root, stop_event=stop, on_log=log), done)
 
     def _save(self):
         from cdmw.services.virtual_loader_state import publish_profile

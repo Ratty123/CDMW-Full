@@ -25,6 +25,25 @@ class CompatibilityFinding:
     detail: str
 
 
+@dataclass(frozen=True)
+class ExternalModRevision:
+    """Publication guards without the comparison's large parsed working set."""
+    root: Path
+    source_revision: object
+    archives: tuple
+    inventories: tuple
+
+    def validate(self, stop_event=None):
+        self.source_revision.validate(stop_event)
+        for name, expected in self.archives:
+            raise_if_cancelled(stop_event)
+            if tuple(sorted(path.name for path in (self.root / name).glob('*.pamt'))) != expected:
+                raise OverlayConflict(f'Archive folder changed: {name}. Scan again.')
+        for folder, inventory in self.inventories:
+            if _inventory(folder, stop_event) != inventory:
+                raise OverlayConflict(f'Mod folder changed: {folder}. Scan again.')
+
+
 @dataclass
 class ExternalMods:
     root: Path
@@ -117,13 +136,10 @@ class ExternalMods:
         return tuple(dict.fromkeys(label for path in paths for label, _ in self.providers.get(path, ())))
 
     def validate(self, stop_event=None):
-        self.tracker.capture().validate(stop_event)
-        for name, expected in self.archives.items():
-            if tuple(sorted(path.name for path in (self.root / name).glob('*.pamt'))) != expected:
-                raise OverlayConflict(f'Archive folder changed: {name}. Scan again.')
-        for folder, inventory in self.inventories:
-            if _inventory(folder, stop_event) != inventory:
-                raise OverlayConflict(f'Mod folder changed: {folder}. Scan again.')
+        self.capture().validate(stop_event)
+
+    def capture(self):
+        return ExternalModRevision(self.root, self.tracker.capture(), tuple(self.archives.items()), tuple(self.inventories))
 
     def remember(self, state):
         from cdmw.services.archive_overlay_manager import _stamp

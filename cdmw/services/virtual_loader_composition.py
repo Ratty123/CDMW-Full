@@ -100,7 +100,8 @@ def prepare_profile(profile: VirtualProfile, root, *, stop_event=None, on_log=No
     resolved.external.validate(stop_event)
     # Persistent hashes permit complete revalidation after restart; no author IDs
     # or stale source stamps are accepted as launch authority.
-    sources = {str(path): hash_file(path, stop_event) for path, stamp in (*revision.files, *resolved.external.tracker.capture().files) if stamp is not None}
+    source_paths = dict.fromkeys(path for path, stamp in (*revision.files, *resolved.external.tracker.capture().files) if stamp is not None)
+    sources = {str(path): hash_file(path, stop_event) for path in source_paths}
     sources.update(original_packages)
     observed = (*resolved.observed, (PROFILE_PATH, profile_before))
     generation = uuid4().hex

@@ -107,6 +107,17 @@ generations remain recovery evidence; this prototype does not prune them.
 
 Preparation captures package hashes, source revisions, mounted provider
 inventories and ownership state. Publication and launch reject changed inputs.
+
+**Inspect and prepare** runs its CPU-heavy work in an owned background process
+so table parsing and composition do not contend with the GUI's Python execution.
+The existing controller owns progress, cancellation and stale-result rejection;
+closing the page cancels the helper without waiting on the UI thread. Its private
+temporary files are removed only after it exits. A bounded data-only result carries
+the same source, provider and ownership guards back to the reviewed save operation.
+The asset collision index is built once per preparation, only when new assets need
+it, and includes retained reservations and earlier items in the batch. File integrity
+checks remain required; larger installations can still take time to prepare.
+
 The transaction's writable targets are CDMW-owned bookkeeping and private files,
 never original PAMT, PAZ, PAPGT or PATHC files. Physical archive mutation, overlay
 installation/removal, recovery and virtual publication share a cross-process

@@ -180,3 +180,45 @@ def test_virtual_page_translations_preserve_selection_and_projected_controls(tmp
         controller.shutdown()
         page.deleteLater()
         app.sendPostedEvents(None, QEvent.DeferredDelete)
+
+
+@pytest.mark.parametrize('action', ['cancel', 'root', 'close'])
+def test_prepare_helper_receives_immutable_selection_and_discards_late_result(tmp_path, monkeypatch, action):
+    from types import SimpleNamespace
+    from cdmw.services import virtual_loader_process
+    app = QApplication.instance() or QApplication([])
+    controller = NewItemStudioController()
+    page = VirtualLoaderPage(controller, tmp_path)
+    package = tmp_path / 'item.cditem'
+    page._append_selection('item', (package,))
+    entered, release, stopped = threading.Event(), threading.Event(), threading.Event()
+    captured = []
+    def prepare(profile, root, *, on_log, stop_event):
+        captured.append((profile, root))
+        entered.set()
+        assert release.wait(5)
+        if stop_event.is_set():
+            stopped.set()
+        return SimpleNamespace(summary=('obsolete',))
+    monkeypatch.setattr(virtual_loader_process, 'prepare_profile_in_subprocess', prepare)
+    try:
+        page._prepare()
+        pump(app, entered.is_set)
+        assert controller.busy and page.cancel_button.isEnabled()
+        if action == 'root':
+            page.set_game_root(tmp_path / 'other')
+        elif action == 'close':
+            page.request_shutdown()
+        else:
+            page._cancel()
+        release.set()
+        pump(app, lambda: not controller.busy)
+        assert captured[0][0].packages == (package,)
+        assert captured[0][1] == str(tmp_path)
+        assert stopped.is_set() and page._prepared is None
+        assert 'obsolete' not in page.review.toPlainText()
+    finally:
+        release.set()
+        page.request_shutdown()
+        controller.shutdown()
+        page.close()

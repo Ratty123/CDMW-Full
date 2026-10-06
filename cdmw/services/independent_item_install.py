@@ -5,6 +5,7 @@ including its game-closed check, backup verification, rollback and write lane.
 """
 from copy import deepcopy
 from dataclasses import dataclass, replace
+from itertools import chain
 import json
 from pathlib import Path
 import re
@@ -245,6 +246,43 @@ class ResolvedItemSet:
     summary: tuple
 
 
+class _AssetHashes:
+    """One lazy collision index per preparation, never a cross-request cache."""
+
+    def __init__(self, paths):
+        self._initial = paths
+        self._hashes = {}
+        self._reserved = set()
+
+    def check(self, additions, reservations, stop_event=None):
+        if not additions:
+            return
+        from cdmw.core.pathc_format import pathc_checksum
+
+        def reserve(paths):
+            for index, path in enumerate(paths):
+                if index % 256 == 0:
+                    raise_if_cancelled(stop_event, 'Independent item preparation cancelled.')
+                checksum = pathc_checksum(path)
+                previous = self._hashes.setdefault(checksum, path)
+                if previous != path:
+                    # Retain ambiguity instead of choosing whichever path was last.
+                    self._hashes[checksum] = None
+
+        if self._initial is not None:
+            reserve(self._initial)
+            self._initial = None
+        reserve(reservations - self._reserved)
+        self._reserved.update(reservations)
+        for path in sorted(additions):
+            raise_if_cancelled(stop_event, 'Independent item preparation cancelled.')
+            checksum = pathc_checksum(path)
+            if checksum in self._hashes and self._hashes[checksum] != path:
+                raise IndependentItemError(f'An asset hash collides with another resource: {path}.')
+            self._hashes[checksum] = path
+        self._reserved.update(additions)
+
+
 def resolve_items(sources, root, *, target='archive', folders=(), stop_event=None, on_log=None, read_entry=None):
     """Resolve recipes without publishing archives, identities, or ownership.
 
@@ -299,6 +337,7 @@ def resolve_items(sources, root, *, target='archive', folders=(), stop_event=Non
     if target == 'virtual' and any(row.status == 'Unknown' for row in external.findings):
         raise IndependentItemError('; '.join(row.detail for row in external.findings))
     external_paths = external.paths
+    asset_hashes = _AssetHashes(chain(baseline.entries, external_paths))
     external_keys = reserved_external_keys(external, snapshot, stop_event=stop_event)
     compatibility = []
     rows = []
@@ -378,13 +417,7 @@ def resolve_items(sources, root, *, target='archive', folders=(), stop_event=Non
         added_paths = {virtual_path(request.path.lower()) for request in plan.additions}
         if added_paths & (reserved_paths | external_paths):
             raise IndependentItemError('An owned asset name is already reserved by another item or mod. The package cannot be installed without changing its identity.')
-        from cdmw.core.pathc_format import pathc_checksum
-        hashes = {pathc_checksum(path): path for path in set(snapshot.entries) | reserved_paths | external_paths}
-        for path in sorted(added_paths):
-            checksum = pathc_checksum(path)
-            if checksum in hashes and hashes[checksum] != path:
-                raise IndependentItemError(f'An asset hash collides with another resource: {path}.')
-            hashes[checksum] = path
+        asset_hashes.check(added_paths, reserved_paths, stop_event)
         if any(path.endswith('.dds') for path in added_paths) and snapshot.pathc is None:
             raise IndependentItemError('This game has no verified texture registry for the new icon or textures.')
         changes = _capture(plan, snapshot, root, state, pathc_before)
