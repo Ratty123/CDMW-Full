@@ -131,6 +131,15 @@ reviews; it does not terminate a launched game. The verified host executable is
 copied into persistent CDMW storage before launch, outside the onefile app's
 temporary extraction directory and helper lifetime job.
 
+If Windows refuses a runtime file with error 225 or 226, CDMW reports the file and
+build hash and blocks further attempts with those same bytes for the rest of the
+app session. No quarantine restoration, exclusion, security setting change or
+fallback launch is performed. Resolve the detection before restarting CDMW to
+retry. A matching build hash establishes provenance, not that an antivirus result
+is a false positive; use [Microsoft's developer submission portal](https://www.microsoft.com/en-us/wdsi/filesubmission)
+for detection review. Launch still verifies the profile's recorded game and mod
+files, which can involve reading large archives before the host starts.
+
 ## Diagnostic setup and loading map
 
 **Review runtime setup** shows the exact `bin64/CDMWVirtualLoader.asi` target and

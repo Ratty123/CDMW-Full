@@ -18,7 +18,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
-- Virtual loader preparation runs outside the GUI process to keep CDMW responsive, and batches of independent items reuse their asset collision scan for faster preparation without skipping conflict checks.
+- Virtual loader preparation runs outside the GUI process to keep CDMW responsive, and batches of independent items reuse their asset collision scan for faster preparation without skipping conflict checks. Windows security blocks now identify the affected runtime file and stop repeated attempts with the same build during that CDMW session.
 - Independent item packages recognize named manager archive folders such as `dmmgen` and `dmmsa`, while still refusing conflicting mounted mods and ignoring unmounted ones. They also protect newer ownership from overlapping operations, allow further items to be authored after installing generated textures, recheck imported model bindings, and consistently remap and validate cloned effect references. Visible effect behavior still needs in-game verification.
 - Create New Item can read available archives after a mod folder was manually deleted; missing required game archives still produce an error. Game-update checks now handle added and replaced textures without the unpacking error.
 

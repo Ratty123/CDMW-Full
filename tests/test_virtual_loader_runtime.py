@@ -9,7 +9,7 @@ from cdmw.services.independent_item_package import digest
 from cdmw.services.virtual_loader_state import publish_profile
 from cdmw.services.virtual_loader_composition import prepare_profile
 from cdmw.domain.virtual_loader import VirtualProfile, VirtualLoaderError
-from tests.test_virtual_loader import packages
+from tests.test_virtual_loader import packages, game_bytes
 
 
 def setup_fixture(tmp_path, monkeypatch):
@@ -22,7 +22,7 @@ def setup_fixture(tmp_path, monkeypatch):
     payload = b'fixture diagnostic runtime'
     (bundle / 'CDMWVirtualLoader.asi').write_bytes(payload)
     (bundle / 'cdmw_virtual_session.exe').write_bytes(b'fixture host')
-    evidence = {'files': {'CDMWVirtualLoader.asi': digest(payload)}}
+    evidence = {'files': {'CDMWVirtualLoader.asi': digest(payload), 'cdmw_virtual_session.exe': digest(b'fixture host')}}
     monkeypatch.setattr(runtime, 'native_bundle', lambda **kw: (bundle, evidence))
     monkeypatch.setattr(runtime, 'GAME_SHA256', digest(b'fixture executable'))
     monkeypatch.setattr(runtime, 'BOOTSTRAP_SHA256', digest(b'fixture bootstrap'))
@@ -185,3 +185,66 @@ def test_controlled_probe_requires_review_rechecks_inputs_and_keeps_release_bloc
     with pytest.raises(VirtualLoaderError, match='plan changed'):
         runtime.start_controlled_probe(root, confirmed=True, expected_plan=plan)
     assert len(calls) == 1
+
+
+@pytest.mark.parametrize('code', [225, 226])
+@pytest.mark.parametrize('stage', ['bundle', 'retained', 'spawn'])
+def test_security_refusal_identifies_build_and_blocks_retries_before_source_scan(tmp_path, monkeypatch, code, stage):
+    from cdmw.services.independent_item_package import canonical
+    original_bundle = runtime.native_bundle
+    root, files = packages(tmp_path, 1)
+    setup_fixture(tmp_path, monkeypatch)
+    runtime.apply_runtime_setup(runtime.prepare_runtime_setup(root), confirmed=True)
+    profile = publish_profile(prepare_profile(VirtualProfile(files), root))
+    # Exercise the actual bundled-provenance path, without executing a helper.
+    folder = tmp_path / 'native/cdmw_virtual_loader'
+    folder.mkdir(parents=True)
+    hashes = {}
+    for file in (tmp_path / 'bundle').iterdir():
+        data = file.read_bytes()
+        (folder / file.name).write_bytes(data)
+        hashes[file.name] = digest(data)
+    (folder / 'provenance.json').write_bytes(canonical({'format': 'cdmw_virtual_runtime_v1', 'files': hashes}))
+    monkeypatch.setattr(runtime, 'native_bundle', original_bundle)
+    monkeypatch.setattr(runtime.sys, 'frozen', True, raising=False)
+    monkeypatch.setattr(runtime.sys, '_MEIPASS', str(tmp_path), raising=False)
+    monkeypatch.setattr(runtime, '_security_blocks', {})
+    before, starts = game_bytes(root), []
+    error = OSError('Windows refused this runtime')
+    error.winerror = code
+    def fail(*_args, **_kwargs):
+        raise error
+    if stage == 'bundle':
+        hash_file = runtime.hash_file
+        monkeypatch.setattr(runtime, 'hash_file', lambda path, *a: fail() if Path(path).name == 'cdmw_virtual_session.exe' else hash_file(path, *a))
+    elif stage == 'retained':
+        read = runtime.read_optional
+        monkeypatch.setattr(runtime, 'read_optional', lambda path: fail() if Path(path).parent.name == 'hosts' else read(path))
+    def spawn(*args, **kwargs):
+        starts.append(args)
+        fail()
+    monkeypatch.setattr(runtime.subprocess, 'Popen', spawn)
+    with pytest.raises(VirtualLoaderError, match='Windows security software blocked') as caught:
+        runtime._start(root, profile, mode=3)
+    assert caught.value.__cause__ is error
+    assert hashes['cdmw_virtual_session.exe'] in str(caught.value)
+    assert 'File:' in str(caught.value) and 'Protection history' in str(caught.value)
+    assert len(starts) == int(stage == 'spawn')
+    assert game_bytes(root) == before
+    # Repeated launch review must fail before any multi-gigabyte validation.
+    monkeypatch.setattr(runtime, 'verify_snapshot', lambda *_a, **_k: pytest.fail('Repeated expensive source scan'))
+    with pytest.raises(VirtualLoaderError, match='Windows security software blocked'):
+        runtime.prepare_diagnostic_trace(root)
+    status = runtime.runtime_status(root, experimental=True)
+    assert status.state == 'blocked' and 'Protection history' in status.detail
+    assert len(starts) == int(stage == 'spawn')
+
+
+def test_non_security_io_error_does_not_poison_runtime_status(tmp_path, monkeypatch):
+    monkeypatch.setattr(runtime, '_security_blocks', {})
+    error = PermissionError('ordinary file permission error')
+    error.winerror = 5
+    with pytest.raises(PermissionError) as caught:
+        with runtime._runtime_file_access(tmp_path / 'host.exe', 'a' * 64):
+            raise error
+    assert caught.value is error and not runtime._security_blocks

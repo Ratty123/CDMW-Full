@@ -1,4 +1,5 @@
 """Audited startup handoff. Game redirection is gated independently of preparation."""
+from contextlib import contextmanager
 from dataclasses import dataclass
 import os
 from pathlib import Path
@@ -21,6 +22,32 @@ BOOTSTRAP_SHA256 = '810111a7f6a6cef892877c9f7c4582ccde2d621d119891f700c5309c3705
 GAME_REDIRECTION_APPROVED = False  # General redirect mode stays closed; reviewed experiments use mode 3.
 RUNTIME_PATH = 'bin64/CDMWVirtualLoader.asi'
 OWNER_PATH = '.cdmw/virtual-loader/runtime-owner.json'
+_security_blocks = {}  # Actual Windows refusals, keyed by build hash for this app session only.
+
+
+class _RuntimeSecurityBlock(VirtualLoaderError):
+    pass
+
+
+@contextmanager
+def _runtime_file_access(path, checksum):
+    """Do not retry a runtime Windows already refused, or suggest an exclusion."""
+    if checksum in _security_blocks:
+        raise _RuntimeSecurityBlock(_security_blocks[checksum])
+    try:
+        yield
+    except OSError as exc:
+        if getattr(exc, 'winerror', None) not in (225, 226):
+            raise
+        detail = (
+            'Windows security software blocked a CDMW virtual-loader runtime file. '
+            'The launch was stopped. Check Windows Security Protection history and '
+            'have this build reviewed; CDMW cannot establish that this is a false positive. '
+            'After the detection is resolved, restart CDMW to retry.\n'
+            f'File: {path}\nSHA-256: {checksum}'
+        )
+        _security_blocks[checksum] = detail
+        raise _RuntimeSecurityBlock(detail) from exc
 
 
 def native_bundle(*, stop_event=None):
@@ -39,8 +66,9 @@ def native_bundle(*, stop_event=None):
         if any(hash_file(source / name, stop_event) != expected for name, expected in evidence.get('sources', {}).items()):
             raise VirtualLoaderError('The native runtime sources changed. Rebuild the runtime before using it.')
     for name, expected in evidence['files'].items():
-        if hash_file(folder / name, stop_event) != expected:
-            raise VirtualLoaderError('The virtual runtime does not match its build provenance.')
+        with _runtime_file_access(folder / name, expected):
+            if hash_file(folder / name, stop_event) != expected:
+                raise VirtualLoaderError('The virtual runtime does not match its build provenance.')
     return folder, evidence
 
 
@@ -81,6 +109,8 @@ def runtime_status(root, *, experimental=False, stop_event=None):
         return VirtualSessionStatus('blocked', 'This executable build has not been verified for the virtual loader.', generation)
     try:
         folder, evidence = native_bundle(stop_event=stop_event)
+    except _RuntimeSecurityBlock as exc:
+        return VirtualSessionStatus('blocked', str(exc), generation)
     except ValueError as exc:
         return VirtualSessionStatus('unavailable', str(exc), generation)
     installed = target(root, RUNTIME_PATH)
@@ -178,7 +208,8 @@ def _start(root, profile, *, mode, stop_event=None, extra_guards=()):
     from cdmw.services.process_job_service import breakaway_creation_flags
     if game_is_running():
         raise VirtualLoaderError('Close Crimson Desert before starting a virtual session.')
-    folder, _evidence = native_bundle(stop_event=stop_event)
+    folder, evidence = native_bundle(stop_event=stop_event)
+    host_checksum = evidence['files']['cdmw_virtual_session.exe']
     with installation_lane(root):
         raise_if_cancelled(stop_event)
         if read_optional(target(root, '.cdmw/virtual-loader/profile.json')) != canonical(profile):
@@ -190,13 +221,17 @@ def _start(root, profile, *, mode, stop_event=None, extra_guards=()):
         atomic_write_bytes(path, data)
         # A onefile application's extraction directory disappears on exit. The
         # user-owned session must run from persistent verified CDMW storage.
-        host_bytes = (folder / 'cdmw_virtual_session.exe').read_bytes()
-        host = target(root, '.cdmw/virtual-loader/hosts/' + digest(host_bytes) + '.exe')
-        existing = read_optional(host)
-        if existing is not None and existing != host_bytes:
-            raise VirtualLoaderError('The retained session host changed outside CDMW.')
-        if existing is None:
-            atomic_write_bytes(host, host_bytes)
+        with _runtime_file_access(folder / 'cdmw_virtual_session.exe', host_checksum):
+            host_bytes = (folder / 'cdmw_virtual_session.exe').read_bytes()
+        if digest(host_bytes) != host_checksum:
+            raise VirtualLoaderError('The virtual runtime does not match its build provenance.')
+        host = target(root, '.cdmw/virtual-loader/hosts/' + host_checksum + '.exe')
+        with _runtime_file_access(host, host_checksum):
+            existing = read_optional(host)
+            if existing is not None and existing != host_bytes:
+                raise VirtualLoaderError('The retained session host changed outside CDMW.')
+            if existing is None:
+                atomic_write_bytes(host, host_bytes)
     # The native host acquires the same lane and pins the snapshot before it
     # starts its own game. It remains alive if CDMW closes or crashes.
     raise_if_cancelled(stop_event)
@@ -204,9 +239,10 @@ def _start(root, profile, *, mode, stop_event=None, extra_guards=()):
         command = [str(host), str(path)]
         if mode == 3:
             command.append('--controlled-probe')
-        process = subprocess.Popen(command, cwd=str(root),
-            creationflags=breakaway_creation_flags() | int(getattr(subprocess, 'CREATE_NO_WINDOW', 0)),
-            stdin=subprocess.DEVNULL, stdout=log, stderr=log, close_fds=True)
+        with _runtime_file_access(host, host_checksum):
+            process = subprocess.Popen(command, cwd=str(root),
+                creationflags=breakaway_creation_flags() | int(getattr(subprocess, 'CREATE_NO_WINDOW', 0)),
+                stdin=subprocess.DEVNULL, stdout=log, stderr=log, close_fds=True)
     return VirtualSessionStatus('starting', token, profile['generation'], process.pid)
 
 
