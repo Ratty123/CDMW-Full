@@ -1,5 +1,17 @@
 [
   {
+    "path": "cdmw/services/mesh_physics_profiles.py",
+    "symbol": "load_document",
+    "source": "{value_0}pbdconfig.xml",
+    "reason": "Exact archive dependency path passed to the physics document reader, not a user-facing message."
+  },
+  {
+    "path": "cdmw/ui/texture_workflow/job.py",
+    "symbol": "_revision",
+    "source": "removed",
+    "reason": "Internal missing-file revision stamp used for stale-result checks, not a visible status label."
+  },
+  {
     "path": "cdmw/services/independent_item_references.py",
     "symbol": "payload",
     "source": "effect/binary__/releasebin/{value_0}.pae",

@@ -3836,7 +3836,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 266,
+          "line": 304,
           "sink": "PermissionError"
         }
       ]
@@ -4151,7 +4151,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 343,
+          "line": 359,
           "sink": "OverlayConflict"
         }
       ]
@@ -4341,7 +4341,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 225,
+          "line": 237,
           "sink": "ValueError"
         }
       ]
@@ -7781,7 +7781,7 @@
       "origins": [
         {
           "path": "cdmw/app/bootstrap.py",
-          "line": 103,
+          "line": 107,
           "sink": "update_pyinstaller_boot_splash"
         }
       ]
@@ -11596,7 +11596,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 123,
+          "line": 41,
           "sink": "OverlayConflict"
         }
       ]
@@ -12306,12 +12306,12 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 167,
+          "line": 183,
           "sink": "OverlayConflict"
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 183,
+          "line": 199,
           "sink": "OverlayConflict"
         }
       ]
@@ -16531,7 +16531,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 218,
+          "line": 234,
           "sink": "OverlayConflict"
         }
       ]
@@ -18976,7 +18976,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 482,
+          "line": 498,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -19006,7 +19006,7 @@
       "origins": [
         {
           "path": "cdmw/app/bootstrap.py",
-          "line": 76,
+          "line": 80,
           "sink": "RuntimeError"
         }
       ]
@@ -20576,7 +20576,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 326,
+          "line": 338,
           "sink": "ValueError"
         }
       ]
@@ -24951,7 +24951,7 @@
       "origins": [
         {
           "path": "cdmw/app/bootstrap.py",
-          "line": 84,
+          "line": 88,
           "sink": "error"
         }
       ]
@@ -25011,7 +25011,7 @@
       "origins": [
         {
           "path": "cdmw/app/bootstrap.py",
-          "line": 82,
+          "line": 86,
           "sink": "error"
         }
       ]
@@ -25346,7 +25346,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 79,
+          "line": 107,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -27036,7 +27036,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 92,
+          "line": 122,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -28626,7 +28626,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 323,
+          "line": 339,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -28676,7 +28676,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 427,
+          "line": 443,
           "sink": "python-return:text"
         }
       ]
@@ -28686,7 +28686,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 427,
+          "line": 443,
           "sink": "python-return:text"
         }
       ]
@@ -29131,17 +29131,17 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 467,
+          "line": 483,
           "sink": "CompatibilityFinding"
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 487,
+          "line": 503,
           "sink": "CompatibilityFinding"
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 499,
+          "line": 515,
           "sink": "CompatibilityFinding"
         },
         {
@@ -29181,7 +29181,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 427,
+          "line": 443,
           "sink": "python-return:text"
         }
       ]
@@ -29811,12 +29811,12 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 237,
+          "line": 275,
           "sink": "PermissionError"
         },
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 284,
+          "line": 322,
           "sink": "PermissionError"
         }
       ]
@@ -30115,6 +30115,21 @@
           "sink": "setDetailedText"
         }
       ]
+    },
+    {
+      "key": "Copied template physics requires unchanged cloth and model-property bindings.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_physics.py",
+          "line": 60,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Copied template physics requires unchanged mesh geometry and skin/cloth bindings. Disable template physics for a replacement model.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Copied the current selection from '{value_0}'.",
@@ -30871,7 +30886,7 @@
       "origins": [
         {
           "path": "cdmw/app/bootstrap.py",
-          "line": 74,
+          "line": 78,
           "sink": "update_pyinstaller_boot_splash"
         }
       ]
@@ -35841,7 +35856,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 320,
+          "line": 358,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -38261,7 +38276,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 313,
+          "line": 325,
           "sink": "ValueError"
         }
       ]
@@ -41936,7 +41951,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 323,
+          "line": 339,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -54821,7 +54836,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 323,
+          "line": 339,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -57461,7 +57476,17 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 308,
+          "line": 265,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/independent_item_install.py",
+          "line": 278,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/independent_item_install.py",
+          "line": 347,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -57495,6 +57520,11 @@
           "sink": "tr"
         }
       ]
+    },
+    {
+      "key": "Independent packages can only copy unchanged template physics.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Independent packages cannot include a mod base.",
@@ -58456,7 +58486,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 439,
+          "line": 455,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -62701,7 +62731,7 @@
       "origins": [
         {
           "path": "cdmw/app/bootstrap.py",
-          "line": 86,
+          "line": 90,
           "sink": "error"
         }
       ]
@@ -64926,7 +64956,7 @@
       "origins": [
         {
           "path": "cdmw/app/bootstrap.py",
-          "line": 108,
+          "line": 112,
           "sink": "update_pyinstaller_boot_splash"
         },
         {
@@ -67811,7 +67841,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 482,
+          "line": 498,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -67821,7 +67851,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 427,
+          "line": 443,
           "sink": "python-return:text"
         }
       ]
@@ -72266,7 +72296,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 52,
+          "line": 71,
           "sink": "raise_if_cancelled"
         },
         {
@@ -72306,12 +72336,12 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 69,
+          "line": 88,
           "sink": "OverlayConflict"
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 106,
+          "line": 125,
           "sink": "OverlayConflict"
         }
       ]
@@ -72381,7 +72411,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 126,
+          "line": 44,
           "sink": "OverlayConflict"
         }
       ]
@@ -77366,7 +77396,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 279,
+          "line": 291,
           "sink": "ValueError"
         }
       ]
@@ -77786,7 +77816,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 216,
+          "line": 228,
           "sink": "ValueError"
         }
       ]
@@ -78381,7 +78411,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 501,
+          "line": 517,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -79436,7 +79466,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 501,
+          "line": 517,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -79446,7 +79476,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 427,
+          "line": 443,
           "sink": "python-return:text"
         }
       ]
@@ -87717,6 +87747,16 @@
       ]
     },
     {
+      "key": "Owned physics has no unambiguous template mesh binding.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Owned physics must accompany its exact model path.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Owner-array Links",
       "origins": [
         {
@@ -91082,6 +91122,16 @@
       ]
     },
     {
+      "key": "Physics settings inside a render material are unverified.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_physics.py",
+          "line": 26,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Physics sidecar contains too many part bindings.",
       "origins": [
         {
@@ -93481,12 +93531,12 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 97,
+          "line": 127,
           "sink": "VirtualSessionStatus"
         },
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 101,
+          "line": 131,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -99201,7 +99251,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 100,
+          "line": 130,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -101591,7 +101641,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 97,
+          "line": 127,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -101651,7 +101701,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 101,
+          "line": 131,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -103111,7 +103161,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 74,
+          "line": 102,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -107256,7 +107306,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 340,
+          "line": 356,
           "sink": "OverlayConflict"
         }
       ]
@@ -107266,7 +107316,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 346,
+          "line": 362,
           "sink": "OverlayConflict"
         }
       ]
@@ -107311,7 +107361,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 316,
+          "line": 332,
           "sink": "OverlayConflict"
         }
       ]
@@ -111076,7 +111126,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 427,
+          "line": 443,
           "sink": "python-return:text"
         }
       ]
@@ -112596,7 +112646,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 354,
+          "line": 392,
           "sink": "PermissionError"
         }
       ]
@@ -112606,7 +112656,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 409,
+          "line": 447,
           "sink": "PermissionError"
         }
       ]
@@ -117881,7 +117931,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 173,
+          "line": 189,
           "sink": "OverlayConflict"
         }
       ]
@@ -120321,7 +120371,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 323,
+          "line": 339,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -127651,7 +127701,7 @@
       "origins": [
         {
           "path": "cdmw/app/bootstrap.py",
-          "line": 100,
+          "line": 104,
           "sink": "update_pyinstaller_boot_splash"
         }
       ]
@@ -129686,7 +129736,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 306,
+          "line": 322,
           "sink": "OverlayConflict"
         }
       ]
@@ -132516,7 +132566,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 88,
+          "line": 118,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -134016,12 +134066,12 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 316,
+          "line": 354,
           "sink": "VirtualSessionStatus"
         },
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 320,
+          "line": 358,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -134648,6 +134698,21 @@
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
           "line": 146,
           "sink": "on_error"
+        }
+      ]
+    },
+    {
+      "key": "The model property file exceeds the physics audit limit.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_physics.py",
+          "line": 13,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/independent_item_physics.py",
+          "line": 23,
+          "sink": "ValueError"
         }
       ]
     },
@@ -135451,7 +135516,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 385,
+          "line": 401,
           "sink": "OverlayConflict"
         }
       ]
@@ -135461,7 +135526,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 461,
+          "line": 477,
           "sink": "OverlayConflict"
         }
       ]
@@ -135511,7 +135576,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 320,
+          "line": 358,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -135801,7 +135866,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 328,
+          "line": 340,
           "sink": "ValueError"
         }
       ]
@@ -135826,12 +135891,12 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 301,
+          "line": 339,
           "sink": "VirtualSessionStatus"
         },
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 313,
+          "line": 351,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -136287,6 +136352,16 @@
       ]
     },
     {
+      "key": "The template cloth dependency could not be verified: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_physics.py",
+          "line": 71,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "The template exceeds the bounded preview component limit.",
       "origins": [
         {
@@ -136315,6 +136390,11 @@
           "sink": "setToolTip"
         }
       ]
+    },
+    {
+      "key": "The template physics uses an unverified collision layout.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "The template's prefabs could not be read for the placement viewport: {value_0}",
@@ -136496,7 +136576,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 320,
+          "line": 358,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -137001,7 +137081,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 427,
+          "line": 443,
           "sink": "python-return:text"
         }
       ]
@@ -137096,7 +137176,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 81,
+          "line": 109,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -137106,7 +137186,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 448,
+          "line": 464,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -137136,7 +137216,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 189,
+          "line": 205,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -140776,17 +140856,17 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 189,
+          "line": 205,
           "sink": "CompatibilityFinding"
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 439,
+          "line": 455,
           "sink": "CompatibilityFinding"
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 448,
+          "line": 464,
           "sink": "CompatibilityFinding"
         },
         {
@@ -140971,7 +141051,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 255,
+          "line": 293,
           "sink": "ValueError"
         }
       ]
@@ -141001,7 +141081,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_references.py",
-          "line": 144,
+          "line": 145,
           "sink": "ValueError"
         }
       ]
@@ -141121,7 +141201,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 427,
+          "line": 443,
           "sink": "python-return:text"
         }
       ]
@@ -141432,6 +141512,16 @@
       ]
     },
     {
+      "key": "Unsupported XML declaration.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_physics.py",
+          "line": 16,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Unsupported archive Refit coordinate space",
       "origins": [
         {
@@ -141596,7 +141686,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 519,
+          "line": 535,
           "sink": "OverlayConflict"
         }
       ]
@@ -141626,7 +141716,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 153,
+          "line": 169,
           "sink": "OverlayConflict"
         }
       ]
@@ -144536,7 +144626,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 310,
+          "line": 322,
           "sink": "add"
         }
       ]
@@ -144546,7 +144636,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 288,
+          "line": 300,
           "sink": "add"
         }
       ]
@@ -144556,7 +144646,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 317,
+          "line": 329,
           "sink": "add"
         }
       ]
@@ -144566,7 +144656,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 330,
+          "line": 342,
           "sink": "add"
         }
       ]
@@ -144586,7 +144676,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 300,
+          "line": 312,
           "sink": "add"
         }
       ]
@@ -145986,17 +146076,17 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 302,
+          "line": 340,
           "sink": "VirtualSessionStatus"
         },
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 314,
+          "line": 352,
           "sink": "VirtualSessionStatus"
         },
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 320,
+          "line": 358,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -149616,7 +149706,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_references.py",
-          "line": 141,
+          "line": 142,
           "sink": "ValueError"
         }
       ]
@@ -173791,7 +173881,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 134,
+          "line": 150,
           "sink": "OverlayConflict"
         }
       ]
@@ -176980,13 +177070,18 @@
           "sink": "source"
         },
         {
+          "path": "cdmw/services/independent_item_physics.py",
+          "line": 52,
+          "sink": "payload"
+        },
+        {
           "path": "cdmw/services/mesh_hair_output.py",
           "line": 367,
           "sink": "read"
         },
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 317,
+          "line": 329,
           "sink": "payload"
         }
       ]
@@ -177336,7 +177431,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 361,
+          "line": 377,
           "sink": "OverlayConflict"
         }
       ]
@@ -177441,7 +177536,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 78,
+          "line": 97,
           "sink": "OverlayConflict"
         }
       ]
@@ -177466,7 +177561,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 290,
+          "line": 306,
           "sink": "OverlayConflict"
         }
       ]
@@ -177476,7 +177571,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 221,
+          "line": 237,
           "sink": "OverlayConflict"
         }
       ]
@@ -177621,17 +177716,17 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 57,
+          "line": 76,
           "sink": "OverlayConflict"
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 62,
+          "line": 81,
           "sink": "OverlayConflict"
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 66,
+          "line": 85,
           "sink": "OverlayConflict"
         }
       ]
@@ -178286,7 +178381,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 389,
+          "line": 405,
           "sink": "on_log"
         }
       ]
@@ -178391,12 +178486,12 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 275,
+          "line": 291,
           "sink": "OverlayConflict"
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 282,
+          "line": 298,
           "sink": "OverlayConflict"
         }
       ]
@@ -178406,7 +178501,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 327,
+          "line": 343,
           "sink": "OverlayConflict"
         }
       ]
@@ -178552,16 +178647,6 @@
       ]
     },
     {
-      "key": "{value_0}_v{value_1}",
-      "origins": [
-        {
-          "path": "cdmw/services/new_item_variants.py",
-          "line": 211,
-          "sink": "add"
-        }
-      ]
-    },
-    {
       "key": "{value_0}_xml",
       "origins": [
         {
@@ -178575,19 +178660,14 @@
           "sink": "read"
         },
         {
+          "path": "cdmw/services/mesh_physics_profiles.py",
+          "line": 148,
+          "sink": "load_document"
+        },
+        {
           "path": "cdmw/services/shader_controls_preview.py",
           "line": 162,
           "sink": "payload"
-        }
-      ]
-    },
-    {
-      "key": "{value_0}_{value_1}",
-      "origins": [
-        {
-          "path": "cdmw/services/new_item_variants.py",
-          "line": 211,
-          "sink": "add"
         }
       ]
     },
@@ -178883,6 +178963,18 @@
     }
   ],
   "exclusions": [
+    {
+      "path": "cdmw/services/mesh_physics_profiles.py",
+      "symbol": "load_document",
+      "source": "{value_0}pbdconfig.xml",
+      "reason": "Exact archive dependency path passed to the physics document reader, not a user-facing message."
+    },
+    {
+      "path": "cdmw/ui/texture_workflow/job.py",
+      "symbol": "_revision",
+      "source": "removed",
+      "reason": "Internal missing-file revision stamp used for stale-result checks, not a visible status label."
+    },
     {
       "path": "cdmw/services/independent_item_references.py",
       "symbol": "payload",

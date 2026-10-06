@@ -50,6 +50,12 @@ PYTHON_SOURCE_ROOTS = (
 )
 MANUAL_SOURCE_KEYS = frozenset(
     {
+        # The independent-item collision audit forwards this core format error.
+        "The template physics uses an unverified collision layout.",
+        "Owned physics must accompany its exact model path.",
+        "Owned physics has no unambiguous template mesh binding.",
+        "Independent packages can only copy unchanged template physics.",
+        "Copied template physics requires unchanged mesh geometry and skin/cloth bindings. Disable template physics for a replacement model.",
         # Custom virtual-save errors surface through the worker error callback.
         "The game save folder could not be found. Start the game normally and create a save first.",
         "Save backups do not support linked folders or files.",
