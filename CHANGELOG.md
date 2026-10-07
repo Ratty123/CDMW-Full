@@ -20,6 +20,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- Texture Editor brushes keep consistent spacing across mouse movements, honour low Flow values and reach the mouse-release position. Quick Mask uses the same spacing and flow corrections.
 - Virtual loader preparation runs outside the GUI process to keep CDMW responsive. Faster preparation and launch verification retain collision and changed-file checks. Launch no longer repeats the full game-file scan, and status polling no longer makes the page flicker or repeatedly refresh its inventory. Windows security blocks identify the affected runtime file and stop repeated attempts with the same build during that CDMW session.
 - Independent item packages recognize named manager archive folders such as `dmmgen` and `dmmsa`, while still refusing conflicting mounted mods and ignoring unmounted ones. They also protect newer ownership from overlapping operations, allow further items to be authored after installing generated textures, recheck imported model bindings, preserve inherited equipment visibility rules for copied variants, and consistently remap and validate cloned effect references. Visible effect behavior still needs in-game verification.
 - Create New Item can read available archives after a mod folder was manually deleted; missing required game archives still produce an error. Game-update checks now handle added and replaced textures without the unpacking error.

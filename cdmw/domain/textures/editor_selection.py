@@ -339,7 +339,8 @@ def apply_texture_editor_selection_stroke(
         document.height,
         getattr(tool_settings, "symmetry_mode", "off"),
     )
-    strength_percent = max(0, min(100, int(round(tool_settings.opacity * max(0.05, tool_settings.flow / 100.0)))))
+    flow = max(0.0, min(1.0, tool_settings.flow / 100.0))
+    strength_percent = max(0.0, min(100.0, tool_settings.opacity)) * flow
     stamp = _build_effective_brush_stamp(tool_settings, size=effective_size, strength_percent=strength_percent)
     for point in stroke_points:
         clipped = _clip_stamp_region((int(point[0]), int(point[1])), stamp, document.width, document.height)

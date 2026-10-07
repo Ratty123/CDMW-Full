@@ -1086,6 +1086,10 @@ class TextureEditorCanvas(QWidget):
         elif self._tool == "lasso" and len(self._lasso_points) >= 3:
             self.selection_committed.emit({"mode": "lasso", "points": list(self._lasso_points)})
         elif self._drag_points:
+            if self._tool in self._brush_tools():
+                point = self._widget_to_image_point(event.position())
+                if point is not None and point != self._drag_points[-1]:
+                    self._drag_points.append(point)
             self.stroke_committed.emit({"tool": self._tool, "points": list(self._drag_points)})
             if self._tool in self._brush_tools():
                 self._last_stroke_point = self._drag_points[-1]

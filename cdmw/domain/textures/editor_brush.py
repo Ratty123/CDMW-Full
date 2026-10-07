@@ -78,7 +78,7 @@ def _load_custom_brush_tip_alpha(path_text: str, mtime_ns: int) -> Optional[np.n
 def _build_custom_brush_stamp(
     path_text: str,
     size: float,
-    strength_percent: int,
+    strength_percent: float,
     *,
     roundness: int = 100,
     angle_degrees: int = 0,
@@ -140,7 +140,7 @@ def _smooth_stroke_points(
 def _build_brush_stamp(
     size: float,
     hardness: int,
-    strength_percent: int,
+    strength_percent: float,
     tip: str = "round",
     pattern: str = "solid",
     roundness: int = 100,
@@ -202,7 +202,7 @@ def _build_effective_brush_stamp(
     tool_settings: TextureEditorToolSettings,
     *,
     size: float,
-    strength_percent: int,
+    strength_percent: float,
 ) -> np.ndarray:
     brush_tip = str(getattr(tool_settings, "brush_tip", "round") or "round")
     if brush_tip == "image_stamp":
@@ -242,18 +242,23 @@ def _interpolate_stroke(
     smoothed = _smooth_stroke_points(points, smoothing)
     if len(smoothed) == 1:
         return [(int(round(smoothed[0][0])), int(round(smoothed[0][1])))]
-    output: List[Tuple[int, int]] = []
+    output = [(int(round(smoothed[0][0])), int(round(smoothed[0][1])))]
     step = max(1.0, float(spacing))
+    distance_to_next = step
     for start, end in zip(smoothed[:-1], smoothed[1:]):
         x0, y0 = start
         x1, y1 = end
         dx = float(x1 - x0)
         dy = float(y1 - y0)
         distance = math.hypot(dx, dy)
-        steps = max(1, int(math.ceil(distance / step)))
-        for index in range(steps):
-            t = index / steps
+        if distance == 0.0:
+            continue
+        # Carry the remaining spacing across mouse events, including corners.
+        while distance_to_next <= distance:
+            t = distance_to_next / distance
             output.append((int(round(x0 + dx * t)), int(round(y0 + dy * t))))
+            distance_to_next += step
+        distance_to_next -= distance
     output.append((int(round(smoothed[-1][0])), int(round(smoothed[-1][1]))))
     deduped: List[Tuple[int, int]] = []
     for point in output:
@@ -458,7 +463,8 @@ def _prepare_stroke_context(
             document.height,
             getattr(tool_settings, "symmetry_mode", "off"),
         )
-    strength = max(0, min(100, int(round(tool_settings.opacity * max(0.05, tool_settings.flow / 100.0)))))
+    flow = max(0.0, min(1.0, tool_settings.flow / 100.0))
+    strength = max(0.0, min(100.0, tool_settings.opacity)) * flow
     stamp = _build_effective_brush_stamp(tool_settings, size=effective_size, strength_percent=strength)
     if tool_settings.tool in {"clone", "heal"} and source_snapshot is None:
         return updated, None
