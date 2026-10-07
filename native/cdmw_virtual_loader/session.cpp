@@ -4,9 +4,79 @@
 #include <iostream>
 #include <fstream>
 #include <tlhelp32.h>
+#include <algorithm>
+#include <atomic>
+#include <chrono>
+#include <mutex>
+#include <thread>
 
 using namespace cdmw::vfs;
 namespace {
+void verify_contents(const Manifest& manifest, std::vector<Handle>& pins) {
+    struct Input { fs::path path; Hash sha; const char* error; bool retain; };
+    std::vector<Input> inputs;
+    const auto root = normalize(manifest.root) + L"\\";
+    for (const auto& guard : manifest.guards) {
+        if (!guard.present) { require(!fs::exists(guard.path), "An absent source appeared after review"); continue; }
+        inputs.push_back({guard.path, guard.sha, "A game, package or ownership source changed after review",
+                          manifest.mode != Mode::trace && normalize(guard.path).starts_with(root)});
+    }
+    for (const auto& file : manifest.files)
+        inputs.push_back({file.path, file.sha, "Snapshot checksum mismatch", true});
+
+    uint64_t total = 0;
+    for (const auto& input : inputs) {
+        // Pin the path before hashing, closing the old hash-then-pin replacement
+        // gap. Save files outside the installation are released after their read.
+        if (input.retain) {
+            Handle pin(CreateFileW(input.path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
+            require(bool(pin), "Cannot pin launch input");
+            pins.push_back(std::move(pin));
+        }
+        total += fs::file_size(input.path);
+    }
+    std::atomic<size_t> next{0};
+    std::atomic<uint64_t> bytes{0};
+    std::atomic<int> active{2};
+    std::atomic<bool> failed{false};
+    std::mutex error_mutex;
+    std::exception_ptr error;
+    std::vector<std::jthread> workers;
+    for (int i = 0; i < 2; ++i) workers.emplace_back([&] {
+        try {
+            while (!failed.load()) {
+                const auto index = next.fetch_add(1);
+                if (index >= inputs.size()) break;
+                const auto& input = inputs[index];
+                const auto actual = hash_file(input.path, [&](uint64_t count) {
+                    require(!failed.load(), "Launch verification stopped");
+                    bytes.fetch_add(count);
+                });
+                require(actual == input.sha, input.error);
+            }
+        } catch (...) {
+            std::lock_guard lock(error_mutex);
+            if (!error) error = std::current_exception();
+            failed.store(true);
+        }
+        active.fetch_sub(1);
+    });
+    int previous = -1;
+    while (active.load()) {
+        const auto percent = static_cast<int>(90.0 * std::min(bytes.load(), total) / std::max<uint64_t>(1, total));
+        if (percent != previous) {
+            status(manifest, "starting", 0, "Verifying launch files...", percent);
+            previous = percent;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    workers.clear(); // Join before releasing handles or propagating a refusal.
+    if (error) std::rethrow_exception(error);
+    for (const auto& guard : manifest.guards)
+        if (!guard.present) require(!fs::exists(guard.path), "An absent source appeared after review");
+    status(manifest, "starting", 0, "Verifying launch files...", 90);
+}
+
 struct Security {
     PSECURITY_DESCRIPTOR descriptor{};
     SECURITY_ATTRIBUTES attributes{sizeof(SECURITY_ATTRIBUTES), nullptr, FALSE};
@@ -119,27 +189,13 @@ int wmain(int argc, wchar_t** argv) {
         require(LockFileEx(lane.value, LOCKFILE_EXCLUSIVE_LOCK | LOCKFILE_FAIL_IMMEDIATELY, 0, 1, 0, &runtime_byte), "An active game holds the runtime lease");
         require(UnlockFileEx(lane.value, 0, 1, 0, &runtime_byte), "Cannot transfer runtime lease");
         manifest.host_pid = GetCurrentProcessId();
-        status(manifest, "starting", 0, "Checking mod contents and their game baseline...");
+        status(manifest, "starting", 0, "Verifying launch files...", 0);
         if (!manifest.launcher.empty()) {
             Handle pin(CreateFileW(manifest.launcher.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
             require(bool(pin) && hash_file(manifest.launcher) == manifest.launcher_sha, "The reviewed Steam client changed");
             pins.push_back(std::move(pin));
         }
-        for (const auto& guard : manifest.guards) {
-            if (!guard.present) { require(!fs::exists(guard.path), "An absent source appeared after review"); continue; }
-            require(hash_file(guard.path) == guard.sha, "A game, package or ownership source changed after review");
-            // Trace mode only observes the unmodified game. Redirected sessions
-            // pin game inputs against replacement after the last validation.
-            if (manifest.mode != Mode::trace && normalize(guard.path).starts_with(normalize(manifest.root) + L"\\")) {
-                Handle pin(CreateFileW(guard.path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
-                require(bool(pin), "Cannot pin game source"); pins.push_back(std::move(pin));
-            }
-        }
-        for (const auto& file : manifest.files) {
-            require(hash_file(file.path) == file.sha, "Snapshot checksum mismatch");
-            Handle pin(CreateFileW(file.path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
-            require(bool(pin), "Snapshot cannot be pinned"); pins.push_back(std::move(pin));
-        }
+        verify_contents(manifest, pins);
         Security security;
         require_game_closed(manifest);
         Handle pipe(CreateNamedPipeW(pipe_name(manifest).c_str(), PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED | FILE_FLAG_FIRST_PIPE_INSTANCE,
@@ -163,11 +219,11 @@ int wmain(int argc, wchar_t** argv) {
             Handle main_thread(child.hThread);
             manifest.pid = child.dwProcessId;
             write_manifest(manifest.root / L".cdmw/virtual-loader/session.bin", manifest);
-            status(manifest, "starting");
+            status(manifest, "starting", 0, "Waiting for runtime readiness...", 95);
             require(ResumeThread(main_thread.value) != DWORD(-1), "Cannot resume fixture process");
         } else {
             write_manifest(manifest.root / L".cdmw/virtual-loader/session.bin", manifest);
-            status(manifest, "starting");
+            status(manifest, "starting", 0, "Waiting for Steam to start the game...", 95);
             FILETIME now{}; GetSystemTimeAsFileTime(&now);
             launched = (ULONGLONG(now.dwHighDateTime) << 32) | now.dwLowDateTime;
             std::wstring command = L"\"" + manifest.launcher.wstring() + L"\"" +
@@ -189,7 +245,7 @@ int wmain(int argc, wchar_t** argv) {
             process.value = verified.value; verified.value = INVALID_HANDLE_VALUE;
             manifest.pid = client;
             write_manifest(manifest.root / L".cdmw/virtual-loader/session.bin", manifest);
-            status(manifest, "starting");
+            status(manifest, "starting", 0, "Waiting for runtime readiness...", 98);
             ResetEvent(event.value); OVERLAPPED grant{}; grant.hEvent = event.value;
             const std::array<DWORD, 3> message{grant_magic, manifest.pid, 0}; DWORD bytes{};
             if (!WriteFile(pipe.value, message.data(), sizeof message, &bytes, &grant)) {
@@ -202,7 +258,7 @@ int wmain(int argc, wchar_t** argv) {
         require(client == manifest.pid, "Wrong runtime process");
         const auto message = receive(pipe.value, event.value, process.value);
         require(message[0] == ready_magic && message[1] == manifest.pid && message[2] == 0, "Runtime refused activation");
-        ready = true; status(manifest, manifest.mode == Mode::trace ? "tracing" : "running");
+        ready = true; status(manifest, manifest.mode == Mode::trace ? "tracing" : "running", 0, "", 100);
         WaitForSingleObject(process.value, INFINITE);
         DWORD exit_code{}; GetExitCodeProcess(process.value, &exit_code);
         status(manifest, "stopped", exit_code);

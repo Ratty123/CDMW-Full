@@ -59,6 +59,54 @@ def test_native_revalidates_external_save_guard_before_launch(tmp_path, changed)
     assert save.read_bytes() == (b'new player progress' if changed else b'backed-up progress')
 
 
+@pytest.mark.parametrize('changed', [False, True])
+def test_native_baseline_guard_progress_and_pins_survive_parallel_verification(tmp_path, changed):
+    baseline = tmp_path / 'game with spaces ü' / '0010/0.paz'
+    baseline.parent.mkdir(parents=True)
+    baseline.write_bytes(b'x' * (32 * 1024 * 1024))
+    root, request, token = fixture(tmp_path, extra_guards=((str(baseline), hash_file(baseline)),))
+    if changed:
+        stamp = baseline.stat()
+        with baseline.open('r+b') as stream:
+            stream.write(b'y')
+        os.utime(baseline, ns=(stamp.st_atime_ns, stamp.st_mtime_ns))
+    wait = root / '.cdmw/virtual-loader/harness-wait.flag'
+    wait.touch()
+    report = root / f'.cdmw/virtual-loader/session-{token}.json'
+    host = subprocess.Popen([str(BUILD / 'cdmw_virtual_session.exe'), str(request)],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=subprocess.CREATE_NO_WINDOW)
+    values = []
+    try:
+        deadline = time.monotonic() + 20
+        running = False
+        while host.poll() is None and time.monotonic() < deadline:
+            if report.exists():
+                state = json.loads(report.read_bytes())
+                if 'progress' in state:
+                    values.append(state['progress'])
+                if state['state'] == 'running':
+                    running = True
+                    with pytest.raises(PermissionError):
+                        baseline.write_bytes(b'changed while pinned')
+                    wait.unlink()
+                    break
+            time.sleep(.01)
+        out, err = host.communicate(timeout=10)
+        if changed:
+            assert host.returncode != 0 and b'source changed' in err
+            assert not (root / '.cdmw/virtual-loader/harness-result.txt').exists()
+        else:
+            assert running and host.returncode == 0, err
+            assert values and values[-1] == 100 and values == sorted(values)
+            assert all(0 <= value <= 100 for value in values)
+        assert baseline.stat().st_size == 32 * 1024 * 1024
+    finally:
+        wait.unlink(missing_ok=True)
+        if host.poll() is None:
+            host.terminate()
+        host.communicate(timeout=10)
+
+
 @pytest.mark.parametrize('steam', [False, True])
 def test_native_session_redirects_real_handles_without_touching_original(tmp_path, steam):
     root, request, token = fixture(tmp_path, steam=steam)

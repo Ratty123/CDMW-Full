@@ -3,6 +3,7 @@
 #include <array>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -43,13 +44,13 @@ struct Handle {
 Manifest read_manifest(const fs::path&);
 void write_manifest(const fs::path&, const Manifest&);
 void validate(const Manifest&);
-Hash hash_file(const fs::path&);
+Hash hash_file(const fs::path&, const std::function<void(uint64_t)>& on_read = {});
 std::string hex(const Hash&);
 std::wstring normalize(const fs::path&);
 fs::path own_executable();
 fs::path executable(const Manifest&);
 std::wstring pipe_name(const Manifest&);
 inline constexpr DWORD claim_magic = 0x324d4443, grant_magic = 0x32474656, ready_magic = 0x31534656;
-void status(const Manifest&, const char* state, DWORD error = 0, const char* detail = "");
+void status(const Manifest&, const char* state, DWORD error = 0, const char* detail = "", int progress = -1);
 void require(bool, const char*);
 }

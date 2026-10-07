@@ -73,6 +73,19 @@ def native_bundle(*, stop_event=None):
 
 
 def verify_snapshot(root, *, stop_event=None):
+    return _verify_snapshot(root, stop_event=stop_event, all_sources=True)
+
+
+def _snapshot_preflight(root, *, stop_event=None, on_progress=None):
+    """Check the saved view and selection; the host hashes every source before Steam.
+
+    Never use this as launch authority on its own. The complete source guards
+    still travel in session_manifest and the host refuses any content mismatch.
+    """
+    return _verify_snapshot(root, stop_event=stop_event, all_sources=False, on_progress=on_progress)
+
+
+def _verify_snapshot(root, *, stop_event, all_sources, on_progress=None):
     from cdmw.services.independent_item_install import load_registry
     from cdmw.services.mod_merge_service import _inventory
     root = Path(root).resolve()
@@ -80,12 +93,24 @@ def verify_snapshot(root, *, stop_event=None):
     if not profile:
         raise VirtualLoaderError('Prepare a virtual profile first.')
     directory = generation_path(root, profile['generation'])
+    selected = set(profile['packages'])
+    sources = [(path, checksum) for path, checksum in profile['sources'] if all_sources or path in selected]
+    total, current = len(profile['files']) + len(sources), 0
+    def progress():
+        raise_if_cancelled(stop_event)
+        if on_progress:
+            on_progress(current, total, 'Checking the saved virtual files…')
+    progress()
     for relative, checksum in profile['files'].items():
         if hash_file(target(directory, 'files/' + relative), stop_event) != checksum:
             raise VirtualLoaderError('A prepared virtual file changed. Prepare the profile again.')
-    for path, checksum in profile['sources']:
+        current += 1
+        progress()
+    for path, checksum in sources:
         if hash_file(Path(path), stop_event) != checksum:
             raise VirtualLoaderError('A game or mod source changed. Prepare the profile again.')
+        current += 1
+        progress()
     for folder, expected in profile['inventories']:
         if canonical(_inventory(Path(folder), stop_event)) != canonical(expected):
             raise VirtualLoaderError('A mounted archive or selected mod folder changed. Prepare the profile again.')
@@ -246,12 +271,14 @@ def _start(root, profile, *, mode, stop_event=None, extra_guards=()):
     return VirtualSessionStatus('starting', token, profile['generation'], process.pid)
 
 
-def prepare_experimental_launch(root, *, stop_event=None):
+def prepare_experimental_launch(root, *, stop_event=None, on_progress=None):
     from cdmw.services.independent_item_install import load_registry
     from cdmw.services.new_item_service import game_is_running
     from cdmw.services.virtual_loader_saves import backup_saves
     root = Path(root).resolve()
     with installation_lane(root):
+        if on_progress:
+            on_progress(0, 100, 'Checking the launch runtime…')
         status = runtime_status(root, experimental=True, stop_event=stop_event)
         if status.state != 'ready':
             raise VirtualLoaderError(status.detail)
@@ -260,31 +287,49 @@ def prepare_experimental_launch(root, *, stop_event=None):
             raise VirtualLoaderError('The launch plan changed. Review it again.')
         plan = VirtualLaunchPlan(root, profile['generation'], target(root, 'bin64/CrimsonDesert.exe'),
                                  GAME_SHA256, generation_path(root, profile['generation']), digest(canonical(profile)))
+        if on_progress:
+            on_progress(45, 100, 'Backing up saved games…')
         backup = backup_saves(plan, stop_event=stop_event)
         if game_is_running():
             raise VirtualLoaderError('Close Crimson Desert before starting a virtual session.')
         raise_if_cancelled(stop_event)
+        if on_progress:
+            on_progress(100, 100, 'Save backup verified. Ready for launch review.')
         return ExperimentalLaunchReview(plan, backup)
 
 
-def launch_experimental(review, *, confirmed=False, stop_event=None):
+def launch_experimental(review, *, confirmed=False, stop_event=None, on_progress=None):
     """User-reviewed test launch with enforced save backup and native guards."""
     from cdmw.services.new_item_service import game_is_running
     from cdmw.services.virtual_loader_saves import verify_backup
     if not confirmed:
         raise PermissionError('Controlled virtual loading requires an explicitly reviewed launch plan and save backup.')
+    def progress(value, detail):
+        raise_if_cancelled(stop_event)
+        if on_progress:
+            on_progress(value, 100, detail)
     with installation_lane(review.plan.root):
         if game_is_running():
             raise VirtualLoaderError('Close Crimson Desert before starting a virtual session.')
-        # Revalidate expensive source hashes after review, then the saves as late
-        # as possible. The host independently verifies both sources and backup.
-        checked = prepare_diagnostic_trace(review.plan.root, stop_event=stop_event)
+        progress(0, 'Checking the launch runtime…')
+        setup = prepare_runtime_setup(review.plan.root, stop_event=stop_event)
+        if setup.previous is None or digest(setup.previous) != setup.checksum:
+            raise VirtualLoaderError('Install the reviewed diagnostic runtime before starting a trace.')
+        # The host owns the complete, pinned content check under its installation
+        # lease before starting Steam. Do not read the entire game a second time
+        # here. Preserve immediate feedback for changed packages and snapshots.
+        profile = _snapshot_preflight(review.plan.root, stop_event=stop_event,
+            on_progress=lambda value, total, detail: progress(10 + 65 * value // max(1, total), detail))
+        checked = VirtualLaunchPlan(review.plan.root, profile['generation'], target(review.plan.root, 'bin64/CrimsonDesert.exe'),
+            GAME_SHA256, generation_path(review.plan.root, profile['generation']), digest(canonical(profile)))
         if checked != review.plan:
             raise VirtualLoaderError('The controlled launch plan changed. Review it again.')
+        progress(80, 'Verifying the save backup…')
         guards = verify_backup(review, stop_event=stop_event)
         profile = load_profile(review.plan.root)
         if digest(canonical(profile)) != checked.manifest_sha256:
             raise VirtualLoaderError('The controlled launch plan changed. Review it again.')
+    progress(95, 'Starting the session host…')
     return _start(review.plan.root, profile, mode=3, stop_event=stop_event, extra_guards=guards)
 
 
@@ -345,17 +390,20 @@ def session_status(root, token, *, host_pid=None):
     pid = value.get('pid')
     if type(pid) is not int or pid < 0:
         raise VirtualLoaderError('Invalid runtime process identity.')
+    progress = value.get('progress')
+    if progress is not None and (type(progress) is not int or not 0 <= progress <= 100):
+        raise VirtualLoaderError('Invalid runtime session progress.')
     if state == 'starting' and pid == 0:
         expected_host = value.get('host_pid', host_pid)
         if not _process_alive(expected_host):
             return VirtualSessionStatus('blocked', 'The session host exited before reporting readiness. Review the launch diagnostics.')
-        return VirtualSessionStatus('starting', value.get('detail') or 'Waiting for runtime readiness.')
+        return VirtualSessionStatus('starting', value.get('detail') or 'Waiting for runtime readiness.', progress=progress)
     if state in ('starting', 'running', 'tracing') and not _process_alive(pid):
         return VirtualSessionStatus('stopped', 'The game session ended.', pid=pid)
     details = {'starting': 'Waiting for runtime readiness.', 'running': 'The virtual session is running.',
                'tracing': 'Diagnostic trace running. Virtual files are not active.', 'stopped': 'The game session ended.',
                'blocked': 'The runtime refused this session. Review its diagnostics before retrying.'}
-    return VirtualSessionStatus(state, value.get('detail') or details[state], pid=pid)
+    return VirtualSessionStatus(state, value.get('detail') or details[state], pid=pid, progress=progress)
 
 
 def _process_alive(pid):

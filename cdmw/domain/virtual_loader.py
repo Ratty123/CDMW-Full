@@ -56,3 +56,4 @@ class VirtualSessionStatus:
     detail: str
     generation: str = ''
     pid: int | None = None
+    progress: int | None = None

@@ -27,7 +27,7 @@ fs::path own_executable() {
 }
 fs::path executable(const Manifest& m) { return m.root / L"bin64" / (m.mode == Mode::harness ? L"cdmw_virtual_loader_harness.exe" : L"CrimsonDesert.exe"); }
 std::wstring pipe_name(const Manifest& m) { return L"\\\\.\\pipe\\cdmw-virtual-" + m.token; }
-Hash hash_file(const fs::path& path) {
+Hash hash_file(const fs::path& path, const std::function<void(uint64_t)>& on_read) {
     BCRYPT_ALG_HANDLE algorithm{};
     require(BCryptOpenAlgorithmProvider(&algorithm, BCRYPT_SHA256_ALGORITHM, nullptr, 0) >= 0, "SHA256 unavailable");
     BCRYPT_HASH_HANDLE hash{};
@@ -36,14 +36,15 @@ Hash hash_file(const fs::path& path) {
     }
     Hash result{};
     try {
-        Handle file(CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
+        Handle file(CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_FLAG_SEQUENTIAL_SCAN, nullptr));
         require(bool(file), "Cannot pin input file for hashing");
-        std::array<unsigned char, 65536> buffer{};
+        std::vector<unsigned char> buffer(1024 * 1024);
         DWORD count{};
         for (;;) {
             require(ReadFile(file.value, buffer.data(), static_cast<DWORD>(buffer.size()), &count, nullptr), "Input read failed");
             if (!count) break;
             require(BCryptHashData(hash, buffer.data(), count, 0) >= 0, "SHA256 update failed");
+            if (on_read) on_read(count);
         }
         require(BCryptFinishHash(hash, result.data(), static_cast<ULONG>(result.size()), 0) >= 0, "SHA256 finalization failed");
     } catch (...) { BCryptDestroyHash(hash); BCryptCloseAlgorithmProvider(algorithm, 0); throw; }
@@ -141,12 +142,14 @@ void write_manifest(const fs::path& path, const Manifest& m) {
       out.flush(); require(bool(out), "Cannot write session manifest"); }
     require(MoveFileExW(temporary.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH), "Cannot publish session manifest");
 }
-void status(const Manifest& m, const char* state, DWORD error, const char* detail) {
+void status(const Manifest& m, const char* state, DWORD error, const char* detail, int progress) {
     auto path = m.root / L".cdmw/virtual-loader" / (L"session-" + m.token + L".json");
     auto temp = path; temp += L".tmp";
     { std::ofstream out(temp); out << "{\"state\":\"" << state << "\",\"pid\":" << m.pid << ",\"host_pid\":" << m.host_pid << ",\"error\":" << error << ",\"detail\":\"";
       for (auto at = detail; *at; ++at) { if (*at == '\\' || *at == '\"') out << '\\'; if (static_cast<unsigned char>(*at) >= 32) out << *at; }
-      out << "\"}"; out.flush(); }
+      out << "\"";
+      if (progress >= 0 && progress <= 100) out << ",\"progress\":" << progress;
+      out << "}"; out.flush(); }
     MoveFileExW(temp.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
 }
 }

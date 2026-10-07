@@ -57,6 +57,12 @@ MANUAL_SOURCE_KEYS = frozenset(
         "Building private game archives…", "Verifying source file integrity…",
         "Rechecking preparation inputs…", "Checking the prepared result…",
         "Transferring the prepared files…", "Virtual profile prepared.",
+        "Checking the saved virtual files…", "Checking the launch runtime…",
+        "Backing up saved games…", "Save backup verified. Ready for launch review.",
+        "Verifying the save backup…", "Starting the session host…",
+        "Verifying launch files...", "Waiting for Steam to start the game...",
+        "Waiting for runtime readiness...", "Invalid runtime session progress.",
+        "Cannot pin launch input", "Launch verification stopped",
         # The independent-item collision audit forwards this core format error.
         "The template physics uses an unverified collision layout.",
         "Owned physics must accompany its exact model path.",

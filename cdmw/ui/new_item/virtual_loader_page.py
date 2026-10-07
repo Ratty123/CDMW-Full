@@ -24,6 +24,9 @@ class VirtualLoaderPage(QWidget):
         self._next_order = 0
         self._progress_generation = None
         self._session = None
+        self._session_lookup = controller.create_lookup_lane()
+        self._session_lookup.completed.connect(self._session_status_ready)
+        self._session_lookup.failed.connect(self._session_status_failed)
         self._session_timer = QTimer(self)
         self._session_timer.setInterval(1500)
         self._session_timer.timeout.connect(self._poll_session)
@@ -113,7 +116,7 @@ class VirtualLoaderPage(QWidget):
         self.progress.setObjectName('virtual_loader_progress')
         self.progress.setRange(0, 100)
         self.progress.setValue(0)
-        self.progress.setToolTip(self.tr('Progress follows completed preparation stages and files. It is not an estimate of remaining time.'))
+        self.progress.setToolTip(self.tr('Progress follows completed stages and files. It is not an estimate of remaining time.'))
         self.progress.hide()
         right.addWidget(self.progress)
         self.review = QPlainTextEdit()
@@ -366,11 +369,13 @@ class VirtualLoaderPage(QWidget):
             def start():
                 if not self._closed and generation == self._generation and root == self.package_root:
                     self.status.setText(self.tr('Starting the virtual session…'))
-                    self._run(lambda log, stop: launch_experimental(review, confirmed=True, stop_event=stop), self._started)
+                    self._run(lambda log, progress, stop: launch_experimental(
+                        review, confirmed=True, stop_event=stop, on_progress=progress), self._started, with_progress=True)
             if generation == self._generation and root == self.package_root and not self._closed:
                 self._queued = start
                 QTimer.singleShot(0, self, self._resume)
-        self._run(lambda log, stop: prepare_experimental_launch(root, stop_event=stop), done)
+        self._run(lambda log, progress, stop: prepare_experimental_launch(
+            root, stop_event=stop, on_progress=progress), done, with_progress=True)
 
     def _cancel(self):
         if not self._working or self._applying:
@@ -394,21 +399,43 @@ class VirtualLoaderPage(QWidget):
             self.status.setText(str(exc))
 
     def _started(self, result):
+        self._session_lookup.cancel()
         self._session = (self.package_root, result.detail, result.pid)
         self.status.setText(self.tr('Starting the virtual session…'))
+        self.progress.setRange(0, 100)
+        self.progress.setValue(0)
+        self.progress.show()
         self._session_timer.start()
+        self._poll_session()
 
     def _poll_session(self):
-        if not self._session or self.controller.busy or self._closed:
+        if not self._session or self._session_lookup.busy or self._closed:
             return
         from cdmw.services.virtual_loader_runtime import session_status
         root, token, host_pid = self._session
-        def done(state):
+        self._session_lookup.request(self._session,
+            lambda stop: session_status(root, token, host_pid=host_pid))
+
+    def _session_status_ready(self, key, state):
+        if self._closed or key != self._session:
+            return
+        if not self._working:
             self.status.setText(self.tr(state.detail))
-            if state.state in ('stopped', 'blocked'):
-                self._session_timer.stop()
-                self._session = None
-        self._run(lambda log, stop: session_status(root, token, host_pid=host_pid), done)
+            if state.state == 'starting':
+                self.progress.setRange(0, 100 if state.progress is not None else 0)
+                if state.progress is not None:
+                    self.progress.setValue(state.progress)
+                self.progress.show()
+            else:
+                self.progress.hide()
+        if state.state in ('stopped', 'blocked'):
+            self._session_timer.stop()
+            self._session = None
+            self._buttons()
+
+    def _session_status_failed(self, key, message):
+        if not self._closed and key == self._session and not self._working:
+            self.status.setText(self.tr(str(message)))
 
     def _trace(self):
         from cdmw.services.virtual_loader_runtime import prepare_diagnostic_trace, start_diagnostic_trace
@@ -459,6 +486,7 @@ class VirtualLoaderPage(QWidget):
         self._saved_selection = None
         self._session = None
         self._session_timer.stop()
+        self._session_lookup.cancel()
         self._draft_loaded = False
         self.selection.clear()
         self._next_order = 0
@@ -472,5 +500,6 @@ class VirtualLoaderPage(QWidget):
         self._generation += 1
         self._queued = None
         self._session_timer.stop()
+        self._session_lookup.request_shutdown()
         if self._working and not self._applying:
             self.controller.cancel_operation('virtual_loader')

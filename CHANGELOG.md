@@ -15,12 +15,12 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Changed
 
-- Create New Item makes its `.cditem` output explicit. Virtual loader has two adjustable columns, a taller sortable package list, preparation percentages and button hover help, with runtime and recovery tools grouped separately.
+- Create New Item makes its `.cditem` output explicit. Virtual loader has two adjustable columns, a taller sortable package list, preparation and launch progress, and button hover help, with runtime and recovery tools grouped separately.
 - Mod Management brings Repackage into the same workspace, with grouped overview actions and consistent panels, buttons and navigation across every tab. Shorter guidance and layouts that adapt to window size and text scaling make the tools easier to use. Archive folders show existing files by default; Show missing references reveals stale mod entries, and Clean missing references removes them after review and a verified backup. Independent items has sortable columns, numeric Game ID sorting and adjustable widths that keep IDs and status readable. Repackage keeps its results inline and supports cancellation.
 
 ### Fixed
 
-- Virtual loader preparation runs outside the GUI process to keep CDMW responsive. Native asset hashing and bounded parallel source verification speed up preparation while retaining collision and changed-file checks. Windows security blocks now identify the affected runtime file and stop repeated attempts with the same build during that CDMW session.
+- Virtual loader preparation runs outside the GUI process to keep CDMW responsive. Faster preparation and launch verification retain collision and changed-file checks. Launch no longer repeats the full game-file scan, and status polling no longer makes the page flicker or repeatedly refresh its inventory. Windows security blocks identify the affected runtime file and stop repeated attempts with the same build during that CDMW session.
 - Independent item packages recognize named manager archive folders such as `dmmgen` and `dmmsa`, while still refusing conflicting mounted mods and ignoring unmounted ones. They also protect newer ownership from overlapping operations, allow further items to be authored after installing generated textures, recheck imported model bindings, preserve inherited equipment visibility rules for copied variants, and consistently remap and validate cloned effect references. Visible effect behavior still needs in-game verification.
 - Create New Item can read available archives after a mod folder was manually deleted; missing required game archives still produce an error. Game-update checks now handle added and replaced textures without the unpacking error.
 

@@ -29,6 +29,16 @@ and verifying a save backup and reviewing the launch. The private named pipe rej
 remote clients and validates its user, server and client. No network listener or environment-only activation
 is used. Session descriptors are not distributable mod packages.
 
+The experimental UI checks its saved output, selected packages, inventories and
+save backup before handing off. The host owns the full source-content verification
+under the installation lease; the UI does not repeat the complete archive scan.
+Two readers hash the guarded inputs and snapshot with sequential I/O, reporting
+byte-based progress. Game inputs are pinned before hashing and retained for the
+session. A mismatch prevents process creation. No cached digest or timestamp-only
+check replaces the expected hashes. Status reports add an optional `progress`
+percentage; older reports remain readable. Verification reaches 90%, Steam handoff
+95%, runtime binding 98%, and acknowledged readiness 100%.
+
 The host validates inputs, refuses an existing game, publishes a pending request,
 then asks Steam to launch app 3321460. The runtime claims that request through the
 private pipe. The host binds only a newly created process with the exact game

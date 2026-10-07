@@ -32,6 +32,7 @@ def test_experimental_launch_projects_review_and_preserves_profile_selection(tmp
         calls.append(kwargs)
         return VirtualSessionStatus('starting', 'a' * 32, load_profile(root)['generation'], 123)
     monkeypatch.setattr(runtime, '_start', start)
+    monkeypatch.setattr(runtime, '_process_alive', lambda pid: pid == 123)
     def question(_parent, _title, detail):
         reviews.append(detail)
         if response == 'stale':
@@ -70,7 +71,7 @@ def test_close_during_save_backup_cancels_launch_review(tmp_path, monkeypatch, a
     page._saved_selection = VirtualProfile()
     page._runtime = VirtualSessionStatus('ready', '')
     entered, release, cancelled = threading.Event(), threading.Event(), threading.Event()
-    def prepare(root, *, stop_event):
+    def prepare(root, *, stop_event, on_progress):
         entered.set()
         assert release.wait(5)
         if stop_event.is_set():

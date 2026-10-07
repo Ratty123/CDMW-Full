@@ -42,6 +42,12 @@ stages and source files, not an estimate of elapsed or remaining time. It reache
 only after the parent accepts the complete worker result. Cancelled, failed or outdated
 results cannot enable saving.
 
+Launch reports runtime checks, save backup, file verification, Steam handoff and
+runtime readiness. The host's verification percentage follows bytes actually read;
+100% means the runtime acknowledged readiness, not that the title screen has loaded.
+Session status uses a separate read-only lookup, so polling does not toggle the page's
+busy state or repeatedly refresh Mod Management's inventory.
+
 1. Add packages or mod folders, then choose **Inspect and prepare**. Preparation
    reads the destination, its mounted providers and retained identity reservations.
 2. Review the items, allocated identities and composed files. **Save virtual
@@ -153,8 +159,14 @@ app session. No quarantine restoration, exclusion, security setting change or
 fallback launch is performed. Resolve the detection before restarting CDMW to
 retry. A matching build hash establishes provenance, not that an antivirus result
 is a false positive; use [Microsoft's developer submission portal](https://www.microsoft.com/en-us/wdsi/filesubmission)
-for detection review. Launch still verifies the profile's recorded game and mod
-files, which can involve reading large archives before the host starts.
+for detection review. Launch still verifies every recorded game and mod file.
+The UI worker checks the selected packages, prepared output, inventories and save
+backup. The native host performs the full source-content check once under its
+installation lease, using two bounded readers with sequential I/O and byte progress.
+It pins game inputs before hashing and keeps those handles through the session;
+Steam cannot start until all checks pass. No timestamp-only shortcut or cached
+content digest substitutes for the recorded hashes. Standalone snapshot verification
+and diagnostic entry points retain their complete checks.
 
 ## Diagnostic setup and loading map
 
