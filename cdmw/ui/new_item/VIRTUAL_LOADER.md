@@ -7,7 +7,7 @@ and physical installation remain the defaults.
 
 **Current availability: reviewed experimental launches on the verified Windows
 x64 executable and ASI bootstrap.** Each launch requires a fresh verified save
-backup and review in CDMW. Item and effect compatibility remains experimental;
+backup and an explicit **Launch game** click in CDMW. Item and effect compatibility remains experimental;
 only the configurations documented below have controlled game evidence.
 The general redirect mode remains disabled in Python and the native runtime;
 the page uses the guarded controlled-launch mode.
@@ -30,17 +30,19 @@ validation; changing a manifest cannot enable the general redirect mode.
 
 ## Use and ownership
 
-The page uses two adjustable columns: a tall package list on the left and preparation,
-review and launch controls on the right. Long lists and reviews scroll inside their
+The page uses two adjustable columns: a tall package list on the left and apply,
+results and launch controls on the right. Long lists and results scroll inside their
 own panes. Sort by name or type using the list headings or the sort selector; this
 changes display order only, preserving the prepared selection and identity allocation
 order. Hover over a filename for its complete path. Buttons have brief hover help.
-Runtime setup, diagnostics and recovery are grouped under **Runtime and recovery**.
+Optional loader setup, diagnostics and recovery are grouped under **Advanced**.
 
 Preparation shows a percentage and the current stage. The percentage follows completed
 stages and source files, not an estimate of elapsed or remaining time. It reaches 100%
-only after the parent accepts the complete worker result. Cancelled, failed or outdated
-results cannot enable saving.
+only after the parent accepts the complete worker result. Apply then saves the
+profile automatically. Saving has its own busy indicator; completion hides the bar
+and shows **Profile applied. Ready to launch.** Cancelled, failed or outdated
+preparation results cannot publish a profile or enable launch.
 
 Launch reports runtime checks, save backup, file verification, Steam handoff and
 runtime readiness. The host's verification percentage follows bytes actually read;
@@ -48,21 +50,24 @@ runtime readiness. The host's verification percentage follows bytes actually rea
 Session status uses a separate read-only lookup, so polling does not toggle the page's
 busy state or repeatedly refresh Mod Management's inventory.
 
-1. Add packages or mod folders, then choose **Inspect and prepare**. Preparation
-   reads the destination, its mounted providers and retained identity reservations.
-2. Review the items, allocated identities and composed files. **Save virtual
-   profile** publishes the private snapshot and identity ledger together. It does
-   not modify the original game archives or their mount/texture metadata.
-3. Use **Review runtime setup…** if CDMW reports that its runtime needs setup.
-   Only CDMW's owned runtime is installed or updated; the exact supported
-   executable and existing ASI bootstrap are required.
-4. With the game closed, choose **Launch with virtual profile**. CDMW verifies a
-   fresh save backup, shows its location for review, then rechecks the selected
-   snapshot and its sources before launching through Steam. Changed saves,
-   packages, game files or identities require a new review. A changed selection
-   must be prepared and saved before it can launch. **Cancel** stops preparation
-   before the session host takes ownership; it does not terminate a launched game.
-5. Load and save with the intended profile active. **Open save backups** opens
+1. With the game closed, add packages or mod folders and choose **Apply profile**.
+   CDMW checks the loader, prepares compatible inputs, then publishes the private
+   snapshot and identity ledger together. Original game archives and their
+   mount/texture metadata are unchanged. No separate Save step is needed.
+2. The first loader installation asks for confirmation in this flow and explains
+   automatic future updates. Later Apply or Launch clicks update only an unchanged,
+   recorded CDMW-owned loader, retaining a verified backup and rollback. A current
+   loader is left untouched. Modified or unowned loader files, an incompatible
+   executable/bootstrap or a running game stop the operation with an explanation.
+3. When the profile is ready, choose **Launch game**. CDMW verifies a fresh save
+   backup, logs its location and rechecks the profile before starting through Steam.
+   The click authorizes this launch; no second confirmation interrupts the flow.
+   Missing or outdated loaders are handled here too, including after reopening CDMW.
+   Changed saves, packages, game files or identities still block launch. A changed
+   selection needs **Apply profile** again. **Cancel** stops preparation or launch
+   preparation; saving and loader publication finish atomically. It does not
+   terminate a game after the session host takes ownership.
+4. Load and save with the intended profile active. **Open save backups** opens
    retained copies for recovery. Closing CDMW leaves a started game running.
 
 Saves are copied from `%LOCALAPPDATA%/Pearl Abyss/CD/save` to
@@ -126,12 +131,12 @@ generations remain recovery evidence; this prototype does not prune them.
 Preparation captures package hashes, source revisions, mounted provider
 inventories and ownership state. Publication and launch reject changed inputs.
 
-**Inspect and prepare** runs its CPU-heavy work in an owned background process
+**Apply profile** runs its CPU-heavy preparation in an owned background process
 so table parsing and composition do not contend with the GUI's Python execution.
 The existing controller owns progress, cancellation and stale-result rejection;
 closing the page cancels the helper without waiting on the UI thread. Its private
 temporary files are removed only after it exits. A bounded data-only result carries
-the same source, provider and ownership guards back to the reviewed save operation.
+the same source, provider and ownership guards back to automatic profile publication.
 The asset collision index is built once per preparation, only when new assets need
 it, using the existing native PA hash implementation for large path batches. An older
 or unavailable helper retains the exact scalar checks. Ambiguous hashes, retained
@@ -194,7 +199,7 @@ launch plan and confirmation that the caller retained a verified save backup.
 It revalidates the complete prepared profile and starts the native host with the
 separate `--controlled-probe` opt-in. The experimental page uses
 `prepare_experimental_launch` and `launch_experimental` to enforce verified save
-backups and review before selecting that same native mode. Existing low-level
+backups before selecting that same native mode after the user's Launch click. Existing low-level
 entry points retain their defaults; ordinary launches remain inactive.
 The host checks the exact game/Steam identities and the runtime refuses a changed,
 late or unrecognized startup path before installing file hooks. A trace marker

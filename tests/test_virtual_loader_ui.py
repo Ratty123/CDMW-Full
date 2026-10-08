@@ -17,44 +17,42 @@ from tests.test_mod_management import pump
 from tests.test_new_item_rust_ui import _send
 
 
-@pytest.mark.parametrize('response', ['yes', 'no', 'stale'])
-def test_experimental_launch_projects_review_and_preserves_profile_selection(tmp_path, monkeypatch, response):
+@pytest.mark.parametrize('update', [False, True])
+def test_launch_click_updates_owned_loader_and_starts_with_verified_backup(tmp_path, monkeypatch, update):
     from cdmw.domain.virtual_loader import VirtualSessionStatus
     from cdmw.services import virtual_loader_runtime as runtime
     from tests.test_virtual_loader_saves import experimental_fixture
+    from cdmw.services.independent_item_package import digest
     root, _files, _save = experimental_fixture(tmp_path, monkeypatch)
     app = QApplication.instance() or QApplication([])
     controller = NewItemStudioController(synchronous=True)
     page = VirtualLoaderPage(controller, root)
     bridge = NewItemPresentationBridge(page)
-    before, calls, reviews = game_bytes(root), [], []
+    before, calls, messages = game_bytes(root), [], []
+    page.activity.connect(messages.append)
+    if update:
+        folder, evidence = runtime.native_bundle()
+        payload = b'new verified loader'
+        (folder / 'CDMWVirtualLoader.asi').write_bytes(payload)
+        evidence['files']['CDMWVirtualLoader.asi'] = digest(payload)
+        before[runtime.RUNTIME_PATH] = payload
     def start(*args, **kwargs):
         calls.append(kwargs)
         return VirtualSessionStatus('starting', 'a' * 32, load_profile(root)['generation'], 123)
     monkeypatch.setattr(runtime, '_start', start)
     monkeypatch.setattr(runtime, '_process_alive', lambda pid: pid == 123)
-    def question(_parent, _title, detail):
-        reviews.append(detail)
-        if response == 'stale':
-            page._append_selection('item', (tmp_path / 'different.cditem',))
-        return QMessageBox.No if response == 'no' else QMessageBox.Yes
-    monkeypatch.setattr(QMessageBox, 'question', question)
+    monkeypatch.setattr(QMessageBox, 'question', lambda *a: pytest.fail('Routine launch must not ask for another confirmation'))
     try:
         page.refresh()
         assert page.launch_button.isEnabled()
         assert not bridge.snapshot()['unsupported']
         _send(bridge, page.launch_button, 'activate')
         pump(app, lambda: page._queued is None and not page._working)
-        assert len(reviews) == 1 and 'save-backups' in reviews[0]
-        assert len(calls) == (1 if response == 'yes' else 0)
+        assert len(calls) == 1
+        assert any('save-backups' in message for message in messages)
         assert game_bytes(root) == before
-        if response == 'yes':
-            assert calls[0]['mode'] == 3 and calls[0]['extra_guards']
-            assert page._session and not page.launch_button.isEnabled()
-        else:
-            page._append_selection('item', (tmp_path / 'other.cditem',))
-            page.refresh()
-            assert not page.launch_button.isEnabled()  # Never launch a different saved selection.
+        assert calls[0]['mode'] == 3 and calls[0]['extra_guards']
+        assert page._session and not page.launch_button.isEnabled() and not page.apply_button.isEnabled()
     finally:
         page.request_shutdown()
         controller.shutdown()
@@ -78,6 +76,7 @@ def test_close_during_save_backup_cancels_launch_review(tmp_path, monkeypatch, a
             cancelled.set()
         return object()
     monkeypatch.setattr(runtime, 'prepare_experimental_launch', prepare)
+    monkeypatch.setattr(page, '_ensure_runtime', lambda continuation: continuation())
     try:
         with patch.object(QMessageBox, 'question') as question:
             page._launch()
@@ -97,11 +96,15 @@ def test_close_during_save_backup_cancels_launch_review(tmp_path, monkeypatch, a
         page.close()
 
 
-def test_selectable_page_projects_real_controls_and_saves_reviewed_profile(tmp_path):
+def test_apply_click_projects_real_controls_saves_and_enables_launch(tmp_path, monkeypatch):
+    from cdmw.services import virtual_loader_runtime as runtime
+    from tests.test_virtual_loader_runtime import setup_fixture
     app = QApplication.instance() or QApplication([])
     root, files = packages(tmp_path, 1)
+    setup_fixture(tmp_path, monkeypatch)
+    runtime.apply_runtime_setup(runtime.prepare_runtime_setup(root), confirmed=True)
     before = game_bytes(root)
-    controller = NewItemStudioController(synchronous=True)
+    controller = NewItemStudioController()
     tab = ModManagementTab(controller=controller, get_package_root=lambda: str(root))
     bridge = NewItemPresentationBridge(tab)
     try:
@@ -109,21 +112,78 @@ def test_selectable_page_projects_real_controls_and_saves_reviewed_profile(tmp_p
         assert titles[titles.index('Independent items') + 1] == 'Virtual loader (Experimental)'
         tab.open_page('virtual')
         page = tab.virtual_page
+        pump(app, lambda: not controller.busy and page._queued is None)
         page._append_selection('item', files)
         state = bridge.snapshot()
         assert not state['unsupported']
-        _send(bridge, page.prepare_button, 'activate')
-        assert page._prepared is not None and page.save_button.isEnabled()
-        assert not page.launch_button.isEnabled()
-        with patch.object(QMessageBox, 'question', return_value=QMessageBox.Yes):
-            _send(bridge, page.save_button, 'activate')
+        with patch.object(QMessageBox, 'question', side_effect=AssertionError('Apply must not ask to save again')):
+            _send(bridge, page.apply_button, 'activate')
+            pump(app, lambda: page._queued is None and not page._working and not controller.busy)
         assert len(load_profile(root)['items']) == 1
         assert game_bytes(root) == before
         assert page._prepared is None
+        assert page.launch_button.isEnabled() and page.progress.isHidden()
+        assert page.status.text() == 'Profile applied. Ready to launch.'
+        page._append_selection('item', (tmp_path / 'different.cditem',))
+        assert not page.launch_button.isEnabled()
     finally:
         tab.request_shutdown()
         controller.shutdown()
         tab.close()
+
+
+@pytest.mark.parametrize('response', ['yes', 'no', 'stale', 'stale_no'])
+def test_apply_handles_first_loader_install_inline_and_honours_decline_or_stale_review(tmp_path, monkeypatch, response):
+    from cdmw.services import virtual_loader_runtime as runtime
+    from tests.test_virtual_loader_runtime import setup_fixture
+    root, files = packages(tmp_path, 1)
+    setup_fixture(tmp_path, monkeypatch)
+    app = QApplication.instance() or QApplication([])
+    controller = NewItemStudioController()
+    page = VirtualLoaderPage(controller, root)
+    reviews = []
+    def question(_parent, title, detail):
+        reviews.append((title, detail))
+        if response.startswith('stale'):
+            page.set_game_root(tmp_path / 'different-game')
+        return QMessageBox.No if response.endswith('no') else QMessageBox.Yes
+    monkeypatch.setattr(QMessageBox, 'question', question)
+    try:
+        page._append_selection('item', files)
+        _send(NewItemPresentationBridge(page), page.apply_button, 'activate')
+        pump(app, lambda: page._queued is None and not page._working and not controller.busy)
+        assert len(reviews) == 1 and 'Future updates' in reviews[0][1]
+        assert (root / runtime.RUNTIME_PATH).exists() == (response == 'yes')
+        assert bool(load_profile(root)) == (response == 'yes')
+        assert page.launch_button.isEnabled() == (response == 'yes')
+        assert page.progress.isHidden()
+        if response.startswith('stale'):
+            assert 'cancelled' not in page.status.text()
+    finally:
+        page.request_shutdown()
+        controller.shutdown()
+        page.close()
+
+
+def test_failed_apply_keeps_previous_profile_and_does_not_enable_launch(tmp_path, monkeypatch):
+    from tests.test_virtual_loader_saves import experimental_fixture
+    root, files, _save = experimental_fixture(tmp_path, monkeypatch)
+    before = (root / '.cdmw/virtual-loader/profile.json').read_bytes()
+    app = QApplication.instance() or QApplication([])
+    controller = NewItemStudioController(synchronous=True)
+    page = VirtualLoaderPage(controller, root)
+    try:
+        page.refresh()
+        files[0].write_bytes(b'broken package')
+        _send(NewItemPresentationBridge(page), page.apply_button, 'activate')
+        pump(app, lambda: page._queued is None and not page._working)
+        assert (root / '.cdmw/virtual-loader/profile.json').read_bytes() == before
+        assert not page.launch_button.isEnabled() and page.apply_button.isEnabled()
+        assert page.progress.isHidden() and 'Ready to launch' not in page.status.text()
+    finally:
+        page.request_shutdown()
+        controller.shutdown()
+        page.close()
 
 
 def test_root_change_and_close_reject_late_results_and_cancel_work(tmp_path):
@@ -170,9 +230,9 @@ def test_virtual_page_translations_preserve_selection_and_projected_controls(tmp
             localizer.load_language(code)
             page.tools_toggle.setChecked(True)
             localizer.apply_registered_roots()
-            assert page.prepare_button.text() == localizer.translate('Inspect and prepare')
+            assert page.apply_button.text() == localizer.translate('Apply profile')
             assert page.trace_button.text() == localizer.translate('Review startup trace…')
-            assert page.launch_button.text() == localizer.translate('Launch with virtual profile')
+            assert page.launch_button.text() == localizer.translate('Launch game')
             assert page.backups_button.text() == localizer.translate('Open save backups')
             assert page.selection.topLevelItem(0).data(0, Qt.UserRole) == selected
             assert not bridge.snapshot()['unsupported']

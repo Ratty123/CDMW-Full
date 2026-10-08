@@ -91,12 +91,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 447,
+          "line": 476,
           "sink": "question"
         },
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 460,
+          "line": 489,
           "sink": "question"
         }
       ]
@@ -3836,7 +3836,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 349,
+          "line": 353,
           "sink": "PermissionError"
         }
       ]
@@ -5911,7 +5911,7 @@
         },
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 218,
+          "line": 216,
           "sink": "tr"
         }
       ]
@@ -5946,7 +5946,7 @@
         },
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 223,
+          "line": 221,
           "sink": "tr"
         }
       ]
@@ -5968,6 +5968,16 @@
           "path": "cdmw/ui/new_item/effect_workspace_authoring.py",
           "line": 29,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Add packages, apply the profile, then launch the game. Original game archives stay unchanged.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 34,
+          "sink": "tr"
         }
       ]
     },
@@ -6253,6 +6263,11 @@
           "path": "cdmw/ui/new_item/translucency_editor.py",
           "line": 103,
           "sink": "QGroupBox"
+        },
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 128,
+          "sink": "tr"
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
@@ -9632,6 +9647,16 @@
       ]
     },
     {
+      "key": "Apply or launch to set up the virtual loader.",
+      "origins": [
+        {
+          "path": "cdmw/services/virtual_loader_runtime.py",
+          "line": 150,
+          "sink": "VirtualSessionStatus"
+        }
+      ]
+    },
+    {
       "key": "Apply placement",
       "origins": [
         {
@@ -9653,6 +9678,16 @@
           "path": "cdmw/ui/new_item/tab.py",
           "line": 730,
           "sink": "setWindowTitle"
+        }
+      ]
+    },
+    {
+      "key": "Apply profile",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 99,
+          "sink": "tr"
         }
       ]
     },
@@ -9743,6 +9778,31 @@
           "path": "cdmw/services/new_item_transparency_paint.py",
           "line": 50,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Apply the profile to use this selection.",
+      "origins": [
+        {
+          "path": "cdmw/services/virtual_loader_runtime.py",
+          "line": 153,
+          "sink": "VirtualSessionStatus"
+        },
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 108,
+          "sink": "tr"
+        },
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 196,
+          "sink": "tr"
+        },
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 343,
+          "sink": "tr"
         }
       ]
     },
@@ -15221,7 +15281,7 @@
         },
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 365,
+          "line": 398,
           "sink": "tr"
         }
       ]
@@ -19306,7 +19366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 462,
+          "line": 491,
           "sink": "tr"
         }
       ]
@@ -20306,7 +20366,7 @@
         },
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 107,
+          "line": 105,
           "sink": "tr"
         },
         {
@@ -22437,7 +22497,7 @@
       ]
     },
     {
-      "key": "Check compatibility and build private game files for review. This does not save or activate the profile.",
+      "key": "Check compatibility, prepare and save this selection, and update the virtual loader automatically.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
@@ -22976,7 +23036,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 314,
+          "line": 318,
           "sink": "progress"
         }
       ]
@@ -23028,6 +23088,21 @@
           "path": "cdmw/services/new_item_mounted_base.py",
           "line": 108,
           "sink": "report"
+        }
+      ]
+    },
+    {
+      "key": "Checking virtual loader…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 356,
+          "sink": "tr"
+        },
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 372,
+          "sink": "tr"
         }
       ]
     },
@@ -27276,7 +27351,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 147,
+          "line": 144,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -30071,12 +30146,12 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 306,
+          "line": 310,
           "sink": "PermissionError"
         },
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 367,
+          "line": 371,
           "sink": "PermissionError"
         }
       ]
@@ -36126,7 +36201,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 406,
+          "line": 410,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -42173,16 +42248,6 @@
           "path": "cdmw/ui/replace_assistant/build.py",
           "line": 238,
           "sink": "getOpenFileName:filter-label"
-        }
-      ]
-    },
-    {
-      "key": "Existing ASI loaders and plugins are preserved. Virtual items are active only when launched through CDMW.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 342,
-          "sink": "tr"
         }
       ]
     },
@@ -57806,7 +57871,7 @@
         },
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 218,
+          "line": 216,
           "sink": "tr"
         }
       ]
@@ -58582,16 +58647,6 @@
       ]
     },
     {
-      "key": "Inspect and prepare",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 99,
-          "sink": "tr"
-        }
-      ]
-    },
-    {
       "key": "Inspect dependencies / references",
       "origins": [
         {
@@ -58772,6 +58827,16 @@
       ]
     },
     {
+      "key": "Install CDMW’s virtual loader for this game? Future updates to this loader are automatic. Original game archives and other loaders stay unchanged.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 362,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Install an independent item before comparing other mods.",
       "origins": [
         {
@@ -58913,16 +58978,6 @@
           "path": "cdmw/ui/new_item/independent_items_page.py",
           "line": 48,
           "sink": "setToolTip"
-        }
-      ]
-    },
-    {
-      "key": "Install the CDMW virtual runtime at this exact path?",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 341,
-          "sink": "tr"
         }
       ]
     },
@@ -61126,7 +61181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 207,
+          "line": 205,
           "sink": "tr"
         }
       ]
@@ -62682,11 +62737,11 @@
       ]
     },
     {
-      "key": "Launch this experimental virtual profile?",
+      "key": "Launch game",
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 364,
+          "line": 103,
           "sink": "tr"
         }
       ]
@@ -62695,21 +62750,6 @@
       "key": "Launch verification stopped",
       "origins": [],
       "manual": true
-    },
-    {
-      "key": "Launch with virtual profile",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 105,
-          "sink": "tr"
-        },
-        {
-          "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 367,
-          "sink": "tr"
-        }
-      ]
     },
     {
       "key": "Launching Mesh Editor...",
@@ -64688,6 +64728,26 @@
           "path": "tools/placement_studio/window_clips.py",
           "line": 390,
           "sink": "showMessage"
+        }
+      ]
+    },
+    {
+      "key": "Loader setup cancelled. Apply or launch to try again.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 366,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Loader setup…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 145,
+          "sink": "tr"
         }
       ]
     },
@@ -72691,7 +72751,7 @@
         },
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 207,
+          "line": 205,
           "sink": "tr"
         },
         {
@@ -84806,7 +84866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 153,
+          "line": 151,
           "sink": "tr"
         }
       ]
@@ -85111,7 +85171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 154,
+          "line": 152,
           "sink": "tr"
         }
       ]
@@ -93881,17 +93941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 397,
-          "sink": "tr"
-        }
-      ]
-    },
-    {
-      "key": "Prepare a profile to review its contents.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 110,
+          "line": 426,
           "sink": "tr"
         }
       ]
@@ -93911,12 +93961,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 152,
-          "sink": "VirtualSessionStatus"
-        },
-        {
-          "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 156,
+          "line": 160,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -93968,16 +94013,6 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 54,
           "sink": "python-return:_build_start_sections"
-        }
-      ]
-    },
-    {
-      "key": "Prepare items and supported mods for a separate startup profile. Original game archives stay unchanged.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 34,
-          "sink": "tr"
         }
       ]
     },
@@ -94038,16 +94073,6 @@
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
           "line": 152,
           "sink": "ValueError"
-        }
-      ]
-    },
-    {
-      "key": "Prepared for review. Save the profile to retain its item identities.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 290,
-          "sink": "tr"
         }
       ]
     },
@@ -94696,7 +94721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 362,
+          "line": 396,
           "sink": "tr"
         }
       ]
@@ -95306,7 +95331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 286,
+          "line": 298,
           "sink": "tr"
         }
       ]
@@ -99211,7 +99236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 387,
+          "line": 416,
           "sink": "tr"
         }
       ]
@@ -99323,6 +99348,26 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 599,
           "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
+      "key": "Profile applied.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 317,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Profile applied. Ready to launch.",
+      "origins": [
+        {
+          "path": "cdmw/services/virtual_loader_runtime.py",
+          "line": 153,
+          "sink": "VirtualSessionStatus"
         }
       ]
     },
@@ -99641,7 +99686,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 155,
+          "line": 159,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -99681,7 +99726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 119,
+          "line": 117,
           "sink": "tr"
         }
       ]
@@ -100223,16 +100268,6 @@
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
           "line": 73,
           "sink": "python-return:_archive_texture_reference_group_label"
-        }
-      ]
-    },
-    {
-      "key": "Publish the reviewed files and retain their item identities for the next virtual launch.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 102,
-          "sink": "tr"
         }
       ]
     },
@@ -102057,16 +102092,6 @@
       "manual": true
     },
     {
-      "key": "Ready for experimental launch. Item and effect compatibility varies.",
-      "origins": [
-        {
-          "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 152,
-          "sink": "VirtualSessionStatus"
-        }
-      ]
-    },
-    {
       "key": "Ready mod package export is enabled. The workflow should also emit a mod package folder with preserved paths.",
       "origins": [
         {
@@ -102121,7 +102146,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 156,
+          "line": 160,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -103041,7 +103066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 146,
+          "line": 144,
           "sink": "tr"
         }
       ]
@@ -103591,7 +103616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 152,
+          "line": 150,
           "sink": "tr"
         }
       ]
@@ -103601,7 +103626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 151,
+          "line": 149,
           "sink": "tr"
         }
       ]
@@ -104856,7 +104881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 145,
+          "line": 143,
           "sink": "tr"
         }
       ]
@@ -105671,12 +105696,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 159,
+          "line": 157,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 460,
+          "line": 489,
           "sink": "tr"
         }
       ]
@@ -105786,7 +105811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 458,
+          "line": 487,
           "sink": "tr"
         }
       ]
@@ -111446,7 +111471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 158,
+          "line": 156,
           "sink": "tr"
         }
       ]
@@ -111526,7 +111551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 148,
+          "line": 146,
           "sink": "tr"
         }
       ]
@@ -111566,7 +111591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 160,
+          "line": 158,
           "sink": "tr"
         }
       ]
@@ -111592,21 +111617,6 @@
       ]
     },
     {
-      "key": "Review runtime setup…",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 147,
-          "sink": "tr"
-        },
-        {
-          "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 346,
-          "sink": "tr"
-        }
-      ]
-    },
-    {
       "key": "Review saved installs against the current game.",
       "origins": [
         {
@@ -111621,12 +111631,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 157,
+          "line": 155,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 447,
+          "line": 476,
           "sink": "tr"
         }
       ]
@@ -113142,16 +113152,6 @@
       "manual": true
     },
     {
-      "key": "Runtime and recovery",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 130,
-          "sink": "tr"
-        }
-      ]
-    },
-    {
       "key": "Runtime pose modifiers, keyed by .pab skeleton. The panel shows only the settings that apply to the character on screen — 223 of 2,779 for the player.",
       "origins": [
         {
@@ -113176,7 +113176,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 440,
+          "line": 444,
           "sink": "PermissionError"
         }
       ]
@@ -113186,7 +113186,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 495,
+          "line": 508,
           "sink": "PermissionError"
         }
       ]
@@ -113887,31 +113887,6 @@
       ]
     },
     {
-      "key": "Save this virtual profile and its retained item identities?",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 299,
-          "sink": "tr"
-        }
-      ]
-    },
-    {
-      "key": "Save virtual profile",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 101,
-          "sink": "tr"
-        },
-        {
-          "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 300,
-          "sink": "tr"
-        }
-      ]
-    },
-    {
       "key": "Saved",
       "origins": [
         {
@@ -114243,6 +114218,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
           "line": 406,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Saving profile…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 311,
+          "sink": "tr"
         }
       ]
     },
@@ -120522,16 +120507,6 @@
       ]
     },
     {
-      "key": "Selection changed. Inspect and prepare it again.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 198,
-          "sink": "tr"
-        }
-      ]
-    },
-    {
       "key": "Selection changes use live Preview highlight commands and do not rebuild the preview package.",
       "origins": [
         {
@@ -121298,6 +121273,16 @@
           "path": "cdmw/ui/texture_workflow/editor_dialogs.py",
           "line": 27,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Set up virtual loader?",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 364,
+          "sink": "tr"
         }
       ]
     },
@@ -123166,7 +123151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 134,
+          "line": 132,
           "sink": "tr"
         }
       ]
@@ -127731,7 +127716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 445,
+          "line": 474,
           "sink": "tr"
         }
       ]
@@ -128116,7 +128101,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 332,
+          "line": 336,
           "sink": "progress"
         }
       ]
@@ -128126,12 +128111,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 371,
+          "line": 401,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 404,
+          "line": 433,
           "sink": "tr"
         }
       ]
@@ -128952,6 +128937,16 @@
       ]
     },
     {
+      "key": "Stop preparation before the profile is saved, or stop launch before the session host starts.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 106,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Stop requested by user.",
       "origins": [
         {
@@ -128998,16 +128993,6 @@
           "path": "cdmw/ui/texture_workflow/workers.py",
           "line": 426,
           "sink": "set_status_message"
-        }
-      ]
-    },
-    {
-      "key": "Stop the current preparation. The last saved profile remains available.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 108,
-          "sink": "tr"
         }
       ]
     },
@@ -133151,7 +133136,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 143,
+          "line": 157,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -134691,12 +134676,12 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 402,
+          "line": 406,
           "sink": "VirtualSessionStatus"
         },
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 406,
+          "line": 410,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -135876,7 +135861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 126,
+          "line": 124,
           "sink": "tr"
         }
       ]
@@ -136221,7 +136206,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 406,
+          "line": 410,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -136536,12 +136521,12 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 384,
+          "line": 388,
           "sink": "VirtualSessionStatus"
         },
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 399,
+          "line": 403,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -137217,11 +137202,21 @@
       ]
     },
     {
+      "key": "The virtual loader will update automatically when you apply or launch.",
+      "origins": [
+        {
+          "path": "cdmw/services/virtual_loader_runtime.py",
+          "line": 152,
+          "sink": "VirtualSessionStatus"
+        }
+      ]
+    },
+    {
       "key": "The virtual session is running.",
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 406,
+          "line": 410,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -143037,6 +143032,16 @@
       ]
     },
     {
+      "key": "Updating virtual loader…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 373,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Updating {value_0}",
       "origins": [
         {
@@ -145441,7 +145446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 106,
+          "line": 104,
           "sink": "tr"
         }
       ]
@@ -145486,7 +145491,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 327,
+          "line": 331,
           "sink": "progress"
         }
       ]
@@ -146026,17 +146031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 355,
-          "sink": "tr"
-        }
-      ]
-    },
-    {
-      "key": "Virtual profile saved. Removed items keep their identities for existing saves.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 304,
+          "line": 385,
           "sink": "tr"
         }
       ]
@@ -146796,17 +146791,17 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 385,
+          "line": 389,
           "sink": "VirtualSessionStatus"
         },
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 400,
+          "line": 404,
           "sink": "VirtualSessionStatus"
         },
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 406,
+          "line": 410,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -150623,16 +150618,6 @@
           "path": "tools/placement_studio/window_rig_behaviour.py",
           "line": 219,
           "sink": "setToolTip"
-        }
-      ]
-    },
-    {
-      "key": "Your saves have been backed up and will not be edited by CDMW. Load and save only while the intended profile is active.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 366,
-          "sink": "tr"
         }
       ]
     },
@@ -172747,16 +172732,6 @@
       ]
     },
     {
-      "key": "{value_0}\n\n{value_1}\nSHA-256: {value_2}",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 346,
-          "sink": "question"
-        }
-      ]
-    },
-    {
       "key": "{value_0}\nAction: {value_1} | Semantic: {value_2}/{value_3} | Confidence: {value_4}%",
       "origins": [
         {
@@ -176021,7 +175996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/virtual_loader_page.py",
-          "line": 197,
+          "line": 195,
           "sink": "tr"
         }
       ]

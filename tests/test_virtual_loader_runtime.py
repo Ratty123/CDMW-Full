@@ -66,6 +66,83 @@ def test_runtime_setup_failure_rolls_back_new_files(tmp_path, monkeypatch):
     assert not (root / runtime.OWNER_PATH).exists()
 
 
+def test_owned_runtime_updates_without_review_and_current_runtime_is_a_noop(tmp_path, monkeypatch):
+    root, original = setup_fixture(tmp_path, monkeypatch)
+    runtime.apply_runtime_setup(runtime.prepare_runtime_setup(root), confirmed=True)
+    backups = root / '.cdmw/virtual-loader/runtime-backups'
+    before = set(backups.iterdir())
+    current = runtime.prepare_runtime_setup(root)
+    assert current.owned
+    runtime.apply_runtime_setup(current)
+    assert set(backups.iterdir()) == before
+    folder, evidence = runtime.native_bundle()
+    payload = b'verified loader update'
+    (folder / 'CDMWVirtualLoader.asi').write_bytes(payload)
+    evidence['files']['CDMWVirtualLoader.asi'] = digest(payload)
+    assert runtime.runtime_status(root, experimental=True).state == 'update_required'
+    runtime.apply_runtime_setup(runtime.prepare_runtime_setup(root))
+    assert (root / runtime.RUNTIME_PATH).read_bytes() == payload
+    added = set(backups.iterdir()) - before
+    assert len(added) == 1 and (added.pop() / 'CDMWVirtualLoader.asi').read_bytes() == original
+    assert runtime.prepare_runtime_setup(root).owned
+
+
+@pytest.mark.parametrize('change', ['runtime', 'owner', 'missing_owner', 'running', 'bundle'])
+def test_automatic_runtime_update_rechecks_ownership_and_inputs(tmp_path, monkeypatch, change):
+    root, _ = setup_fixture(tmp_path, monkeypatch)
+    runtime.apply_runtime_setup(runtime.prepare_runtime_setup(root), confirmed=True)
+    folder, evidence = runtime.native_bundle()
+    payload = b'verified loader update'
+    (folder / 'CDMWVirtualLoader.asi').write_bytes(payload)
+    evidence['files']['CDMWVirtualLoader.asi'] = digest(payload)
+    plan = runtime.prepare_runtime_setup(root)
+    if change == 'runtime':
+        (root / runtime.RUNTIME_PATH).write_bytes(b'externally modified loader')
+    elif change == 'owner':
+        (root / runtime.OWNER_PATH).write_text(json.dumps({'format': 'unknown', 'sha256': digest(plan.previous)}))
+    elif change == 'missing_owner':
+        (root / runtime.OWNER_PATH).unlink()
+    elif change == 'running':
+        monkeypatch.setattr('cdmw.services.new_item_service.game_is_running', lambda: True)
+    else:
+        (folder / 'CDMWVirtualLoader.asi').write_bytes(b'changed bundle')
+    before = (root / runtime.RUNTIME_PATH).read_bytes()
+    with pytest.raises(VirtualLoaderError):
+        runtime.apply_runtime_setup(plan)
+    assert (root / runtime.RUNTIME_PATH).read_bytes() == before
+
+
+@pytest.mark.parametrize('owner', [b'not json', b'null', b'[]'])
+def test_invalid_runtime_ownership_requires_setup_instead_of_crashing(tmp_path, monkeypatch, owner):
+    root, _ = setup_fixture(tmp_path, monkeypatch)
+    runtime.apply_runtime_setup(runtime.prepare_runtime_setup(root), confirmed=True)
+    (root / runtime.OWNER_PATH).write_bytes(owner)
+    plan = runtime.prepare_runtime_setup(root)
+    assert not plan.owned
+    assert runtime.runtime_status(root, experimental=True).state == 'setup_required'
+    with pytest.raises(PermissionError):
+        runtime.apply_runtime_setup(plan)
+
+
+def test_automatic_runtime_update_failure_restores_previous_loader_and_owner(tmp_path, monkeypatch):
+    root, payload = setup_fixture(tmp_path, monkeypatch)
+    runtime.apply_runtime_setup(runtime.prepare_runtime_setup(root), confirmed=True)
+    previous_owner = (root / runtime.OWNER_PATH).read_bytes()
+    folder, evidence = runtime.native_bundle()
+    (folder / 'CDMWVirtualLoader.asi').write_bytes(b'updated loader')
+    evidence['files']['CDMWVirtualLoader.asi'] = digest(b'updated loader')
+    original = runtime.atomic_write_bytes
+    def fail_receipt(path, data):
+        if path == root / runtime.OWNER_PATH:
+            raise OSError('injected receipt failure')
+        original(path, data)
+    monkeypatch.setattr(runtime, 'atomic_write_bytes', fail_receipt)
+    with pytest.raises(OSError, match='injected'):
+        runtime.apply_runtime_setup(runtime.prepare_runtime_setup(root))
+    assert (root / runtime.RUNTIME_PATH).read_bytes() == payload
+    assert (root / runtime.OWNER_PATH).read_bytes() == previous_owner
+
+
 def test_status_detects_early_host_exit_and_closed_game(tmp_path, monkeypatch):
     token = 'a' * 32
     monkeypatch.setattr(runtime, '_process_alive', lambda pid: False)

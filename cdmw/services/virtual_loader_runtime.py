@@ -138,19 +138,23 @@ def runtime_status(root, *, experimental=False, stop_event=None):
         return VirtualSessionStatus('blocked', str(exc), generation)
     except ValueError as exc:
         return VirtualSessionStatus('unavailable', str(exc), generation)
-    installed = target(root, RUNTIME_PATH)
-    if not installed.is_file() or hash_file(installed, stop_event) != evidence['files']['CDMWVirtualLoader.asi']:
-        return VirtualSessionStatus('unavailable', 'The CDMW runtime needs a reviewed setup. Existing ASI loaders are not replaced.', generation)
     if experimental:
         from cdmw.services.new_item_service import game_is_running
         if game_is_running():
             return VirtualSessionStatus('blocked', 'Close Crimson Desert before starting a virtual session.', generation)
         try:
-            prepare_runtime_setup(root, stop_event=stop_event)
+            setup = prepare_runtime_setup(root, stop_event=stop_event)
         except (ValueError, OSError) as exc:
             return VirtualSessionStatus('blocked', str(exc), generation)
+        if not setup.owned:
+            return VirtualSessionStatus('setup_required', 'Apply or launch to set up the virtual loader.', generation)
+        if digest(setup.previous) != setup.checksum:
+            return VirtualSessionStatus('update_required', 'The virtual loader will update automatically when you apply or launch.', generation)
         return VirtualSessionStatus('ready' if profile else 'unavailable',
-            'Ready for experimental launch. Item and effect compatibility varies.' if profile else 'Prepare a virtual profile first.', generation)
+            'Profile applied. Ready to launch.' if profile else 'Apply the profile to use this selection.', generation)
+    installed = target(root, RUNTIME_PATH)
+    if not installed.is_file() or hash_file(installed, stop_event) != evidence['files']['CDMWVirtualLoader.asi']:
+        return VirtualSessionStatus('unavailable', 'The CDMW runtime needs a reviewed setup. Existing ASI loaders are not replaced.', generation)
     if not GAME_REDIRECTION_APPROVED:
         return VirtualSessionStatus('blocked', 'Profiles can be prepared. Game loading is awaiting verified startup timing, Steam handoff and save tests.', generation)
     return VirtualSessionStatus('ready' if profile else 'unavailable', 'Ready to launch.' if profile else 'Prepare a virtual profile first.', generation)
@@ -470,6 +474,17 @@ class RuntimeSetup:
     previous_owner: bytes | None
     checksum: str
 
+    @property
+    def owned(self):
+        if self.previous is None or self.previous_owner is None:
+            return False
+        try:
+            owner = decode(self.previous_owner)
+        except ValueError:
+            return False
+        return (isinstance(owner, dict) and owner.get('format') == 'cdmw_virtual_runtime_owner_v1'
+                and owner.get('sha256') == digest(self.previous))
+
 
 def prepare_runtime_setup(root, *, stop_event=None):
     root = Path(root).resolve()
@@ -483,15 +498,16 @@ def prepare_runtime_setup(root, *, stop_event=None):
     previous = read_optional(target(root, RUNTIME_PATH))
     owner = read_optional(target(root, OWNER_PATH))
     checksum = evidence['files']['CDMWVirtualLoader.asi']
-    if previous is not None and digest(previous) != checksum and (owner is None or decode(owner).get('sha256') != digest(previous)):
+    plan = RuntimeSetup(root, (folder / 'CDMWVirtualLoader.asi').read_bytes(), previous, owner, checksum)
+    if previous is not None and digest(previous) != checksum and not plan.owned:
         raise VirtualLoaderError('A file with the runtime name is not owned by this setup. It will not be overwritten.')
-    return RuntimeSetup(root, (folder / 'CDMWVirtualLoader.asi').read_bytes(), previous, owner, checksum)
+    return plan
 
 
 @archive_write_scope()
 def apply_runtime_setup(plan, *, confirmed=False, stop_event=None):
     from cdmw.services.new_item_service import game_is_running
-    if not confirmed:
+    if not confirmed and not plan.owned:
         raise PermissionError('Runtime setup requires review of its exact target and checksum.')
     with installation_lane(plan.root):
         if game_is_running():
@@ -499,6 +515,8 @@ def apply_runtime_setup(plan, *, confirmed=False, stop_event=None):
         if digest(plan.payload) != plan.checksum or prepare_runtime_setup(plan.root, stop_event=stop_event) != plan:
             raise VirtualLoaderError('The runtime setup changed after review.')
         raise_if_cancelled(stop_event)
+        if plan.owned and digest(plan.previous) == plan.checksum:
+            return plan.checksum
         recovery = target(plan.root, '.cdmw/virtual-loader/runtime-backups/' + uuid4().hex)
         recovery.mkdir(parents=True)
         for name, raw in (('CDMWVirtualLoader.asi', plan.previous), ('owner.json', plan.previous_owner)):

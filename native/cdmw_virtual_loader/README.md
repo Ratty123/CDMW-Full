@@ -25,7 +25,7 @@ production redirect mode is compiled off; harness mode requires the separate
 fixture executable. Controlled probe mode additionally requires the host's
 `--controlled-probe` opt-in and the verified early startup path. It is a reviewed
 acceptance route. CDMW's experimental page now selects it only after creating
-and verifying a save backup and reviewing the launch. The private named pipe rejects
+and verifying a save backup following the user's Launch click. The private named pipe rejects
 remote clients and validates its user, server and client. No network listener or environment-only activation
 is used. Session descriptors are not distributable mod packages.
 
@@ -38,6 +38,13 @@ session. A mismatch prevents process creation. No cached digest or timestamp-onl
 check replaces the expected hashes. Status reports add an optional `progress`
 percentage; older reports remain readable. Verification reaches 90%, Steam handoff
 95%, runtime binding 98%, and acknowledged readiness 100%.
+
+The UI's Apply action prepares and publishes the profile in one flow. Apply and
+Launch also handle loader setup: the first installation requires confirmation;
+later updates require matching recorded ownership, preserve recovery copies and
+roll back on failure. Unowned or modified files are refused. The current loader
+is not rewritten. A routine launch verifies its backup and proceeds without a
+second dialog; the launch service still requires explicit confirmation from its caller.
 
 The host validates inputs, refuses an existing game, publishes a pending request,
 then asks Steam to launch app 3321460. The runtime claims that request through the

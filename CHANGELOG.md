@@ -15,7 +15,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Changed
 
-- Create New Item makes its `.cditem` output explicit. Virtual loader has two adjustable columns, a taller sortable package list, preparation and launch progress, and button hover help, with runtime and recovery tools grouped separately.
+- Create New Item makes its `.cditem` output explicit. Virtual loader uses **Apply profile** to prepare and save a selection, then **Launch game** to back up saves and start it. First-time loader setup asks once in the same flow; later verified CDMW loader updates are automatic. Clear readiness messages, progress, a sortable package list and adjustable panes keep the workflow visible, with optional setup and recovery under Advanced.
 - Mod Management brings Repackage into the same workspace, with grouped overview actions and consistent panels, buttons and navigation across every tab. Shorter guidance and layouts that adapt to window size and text scaling make the tools easier to use. Archive folders show existing files by default; Show missing references reveals stale mod entries, and Clean missing references removes them after review and a verified backup. Independent items has sortable columns, numeric Game ID sorting and adjustable widths that keep IDs and status readable. Repackage keeps its results inline and supports cancellation.
 
 ### Fixed
