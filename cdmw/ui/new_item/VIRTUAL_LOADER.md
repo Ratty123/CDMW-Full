@@ -1,9 +1,11 @@
 # Virtual loader (Experimental)
 
-Mod Management has a separate **Virtual loader (Experimental)** page beside
-Independent items. It prepares a private startup profile from `.cditem` packages
-and supported extracted or archive mod folders. Existing authoring, manager export
-and physical installation remain the defaults.
+Mod Management opens a combined **Mods** list. New `.cditem` packages and supported
+extracted or archive mod folders use **Apply changes**, then **Launch game**.
+The list identifies their experimental CDMW launch route alongside physical installs
+and external archive folders. Existing authoring and manager exports remain available;
+physical install and identity tools are under **Advanced**. Existing installs never
+move between physical and virtual ownership automatically.
 
 **Current availability: reviewed experimental launches on the verified Windows
 x64 executable and ASI bootstrap.** Each launch requires a fresh verified save
@@ -50,7 +52,7 @@ runtime readiness. The host's verification percentage follows bytes actually rea
 Session status uses a separate read-only lookup, so polling does not toggle the page's
 busy state or repeatedly refresh Mod Management's inventory.
 
-1. With the game closed, add packages or mod folders and choose **Apply profile**.
+1. With the game closed, add packages or mod folders and choose **Apply changes**.
    CDMW checks the loader, prepares compatible inputs, then publishes the private
    snapshot and identity ledger together. Original game archives and their
    mount/texture metadata are unchanged. No separate Save step is needed.
@@ -64,7 +66,7 @@ busy state or repeatedly refresh Mod Management's inventory.
    The click authorizes this launch; no second confirmation interrupts the flow.
    Missing or outdated loaders are handled here too, including after reopening CDMW.
    Changed saves, packages, game files or identities still block launch. A changed
-   selection needs **Apply profile** again. **Cancel** stops preparation or launch
+   selection needs **Apply changes** again. **Cancel** stops preparation or launch
    preparation; saving and loader publication finish atomically. It does not
    terminate a game after the session host takes ownership.
 4. Load and save with the intended profile active. **Open save backups** opens
@@ -87,12 +89,12 @@ an item from the selection and save a new profile to remove its virtual
 contribution. Its identity remains reserved because saves may reference it.
 
 The same UUID cannot be active through both installation routes. To move a
-physically installed item, use Independent items' existing reviewed **Remove**
+physically installed item, use the mod list's existing reviewed **Remove**
 operation first; disabling it is insufficient. Then select the same package here.
 Moving back requires removing it from the saved virtual profile before physical
 installation. Nothing moves automatically, and CDMW does not edit saves.
 
-Independent items' `.cdprofile` export/import transfers the same identity ledger
+Advanced's Item package tools `.cdprofile` export/import transfers the same identity ledger
 for both routes. Virtual ownership is separate from physical overlay ownership;
 it does not create fake installed-overlay IDs. After transferring identities,
 prepare the packages again against the destination's actual game data.
@@ -131,7 +133,7 @@ generations remain recovery evidence; this prototype does not prune them.
 Preparation captures package hashes, source revisions, mounted provider
 inventories and ownership state. Publication and launch reject changed inputs.
 
-**Apply profile** runs its CPU-heavy preparation in an owned background process
+**Apply changes** runs its CPU-heavy preparation in an owned background process
 so table parsing and composition do not contend with the GUI's Python execution.
 The existing controller owns progress, cancellation and stale-result rejection;
 closing the page cancels the helper without waiting on the UI thread. Its private

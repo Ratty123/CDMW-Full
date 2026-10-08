@@ -117,9 +117,16 @@ impl PresentationView {
                         ui.visuals_mut().widgets.inactive.weak_bg_fill = input_fill;
                             ui.visuals_mut().widgets.inactive.corner_radius = CornerRadius::same(4);
                             let selected = pages.number("selected", 0.0) as usize;
+                            // The main list is already named by its selected tab;
+                            // reserve that space for rows at larger text sizes.
+                            let main_list = pages
+                                .children
+                                .iter()
+                                .any(|page| page.name == "virtual_loader_page");
                             if let Some(title) = pages
                                 .array("tabs")
                                 .get(selected)
+                                .filter(|_| !main_list)
                                 .and_then(|tab| tab["text"].as_str())
                             {
                                 ui.label(RichText::new(title).font(font(ui, 18.0)).strong());

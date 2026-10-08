@@ -1,11 +1,13 @@
 # Independent item packages (Experimental)
 
 Choose **Output > Independent item package (Experimental) · .cditem**, build the plan and
-select **Write item package**. Share the resulting `.cditem` file. Recipients use
-**Mod Management > Independent items > Import packages** to inspect and install
-one or more packages. Existing folder exports and game overlays remain available.
+select **Write item package**. Share the resulting `.cditem` file. Recipients add it
+to **Mod Management > Mods**, choose **Apply changes**, then **Launch game** for
+experimental virtual loading. Physical installation remains available through
+**Advanced > Item package tools > Import packages**. Existing folder exports and
+game overlays remain available.
 
-The item list sorts by **Item**, **Game ID** or **Status** when you click a column
+The advanced item identity list sorts by **Item**, **Game ID** or **Status** when you click a column
 heading; clicking again reverses the order. Game IDs sort numerically. Drag the
 column edges to change widths. Refresh preserves the sort, widths and selected
 package. The default layout keeps IDs and status readable as the pane resizes.
@@ -81,7 +83,7 @@ does not import files from the recipient's computer.
 
 ## Compare and compose other mods
 
-In **Mod Management > Independent items**, **Scan installed mods** compares the
+In **Mod Management > Advanced > Item package tools**, **Scan installed mods** compares the
 installed item set with all mounted external archive providers. **Scan mod
 folder...** additionally inspects an extracted, uninstalled mod folder, including
 loose game-relative files, `files/` layouts and PAMT/PAZ packages. Scans are read-only.
@@ -235,8 +237,8 @@ definitions. Its inventory type identifiers must not be equated with these table
 keys. These observations do not prove that an engine-level registration route is
 impossible.
 
-Independent item installation itself does not enable a native loader or modify
-the executable. The separate [Virtual loader prototype](VIRTUAL_LOADER.md) reuses
+Physical independent item installation does not enable a native loader or modify
+the executable. [Virtual loading](VIRTUAL_LOADER.md) reuses
 these packages and identity reservations for private profile preparation and
 reviewed experimental launches with verified save backups. Exact executable,
 bootstrap and startup guards remain mandatory. Separate definition-file discovery and native registration

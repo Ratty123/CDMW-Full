@@ -1,7 +1,7 @@
 """Utilities entry for existing mod merge, update and overlay workflows."""
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import Qt, QTimer, QSignalBlocker, Signal
 from PySide6.QtWidgets import (
     QFileDialog, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QProgressBar,
     QPushButton, QTabWidget, QToolButton, QVBoxLayout, QWidget,
@@ -53,6 +53,8 @@ class ModManagementTab(QWidget):
         layout.addLayout(source_row)
         self.pages = QTabWidget()
         self.pages.setObjectName('mod_management_pages')
+        self.advanced_pages = QTabWidget()
+        self.advanced_pages.setObjectName('mod_management_advanced_pages')
         from cdmw.ui.new_item.overlay_manager_dialog import OverlayManagerDialog
         from cdmw.ui.new_item.mod_merge_dialog import ModMergeDialog
         from cdmw.ui.new_item.mod_update_dialog import ModUpdateDialog
@@ -66,28 +68,31 @@ class ModManagementTab(QWidget):
         self.update_page = ModUpdateDialog(self.controller, root, self, installed=True, embedded=True)
         from cdmw.ui.tools.mod_management_overview import ModManagementOverview
         self.overview = ModManagementOverview(self.controller, self, mutations=self.inventory.mutations)
-        self.pages.addTab(self.overview, 'Overview')
-        self.pages.addTab(self.inventory, 'Installed mods')
+        self.advanced_pages.addTab(self.overview, 'Overview')
+        self.advanced_pages.addTab(self.inventory, 'Installed mod details')
         from cdmw.ui.new_item.independent_items_page import IndependentItemsPage
         self.independent_page = IndependentItemsPage(self.controller, root, mutations() if callable(mutations) else None, self)
-        self.pages.addTab(self.independent_page, 'Independent items')
+        self.advanced_pages.addTab(self.independent_page, 'Item package tools')
         self.independent_page.activity.connect(self._append_activity)
-        from cdmw.ui.new_item.virtual_loader_page import VirtualLoaderPage
-        self.virtual_page = VirtualLoaderPage(self.controller, root, self)
-        self.pages.addTab(self.virtual_page, 'Virtual loader (Experimental)')
+        from cdmw.ui.tools.mod_management_list import ModManagementList
+        self.virtual_page = ModManagementList(self.controller, root, self.inventory, self.independent_page, self)
+        self.pages.addTab(self.virtual_page, 'Mods')
+        self.pages.addTab(self.advanced_pages, 'Advanced')
+        self.virtual_page.details_requested.connect(self._show_mod_details)
         self.virtual_page.activity.connect(self._append_activity)
         from cdmw.ui.tools.mod_package_retrofit_tasks import ModPackageRetrofitToolWidget
         self.repackage_page = ModPackageRetrofitToolWidget()
-        self.pages.addTab(self.repackage_page, 'Repackage')
-        self.pages.addTab(self.merge_page, 'Merge')
-        self.pages.addTab(self.update_page, 'Game updates')
+        self.advanced_pages.addTab(self.repackage_page, 'Repackage')
+        self.advanced_pages.addTab(self.merge_page, 'Merge')
+        self.advanced_pages.addTab(self.update_page, 'Game updates')
         recovery_page = QWidget()
         recovery_layout = QVBoxLayout(recovery_page)
-        self.pages.addTab(recovery_page, 'Recovery')
-        self._page_by_key = {'overview': self.overview, 'installed': self.inventory, 'independent': self.independent_page, 'virtual': self.virtual_page,
+        self.advanced_pages.addTab(recovery_page, 'Recovery')
+        self._page_by_key = {'mods': self.virtual_page, 'overview': self.overview, 'installed': self.inventory, 'independent': self.independent_page, 'virtual': self.virtual_page,
                              'repackage': self.repackage_page, 'merge': self.merge_page, 'updates': self.update_page,
                              'recovery': recovery_page}
         self.pages.currentChanged.connect(self._page_changed)
+        self.advanced_pages.currentChanged.connect(self._page_changed)
         self.overview.page_requested.connect(self.open_page)
         self.overview.refresh_requested.connect(self.refresh)
         self.inventory.inventory_changed.connect(self.overview.set_entries)
@@ -175,15 +180,32 @@ class ModManagementTab(QWidget):
     def open_page(self, key):
         page = self._page_by_key.get(key)
         if page is not None and not self._closed:
-            self.pages.setCurrentWidget(page)
+            with QSignalBlocker(self.pages), QSignalBlocker(self.advanced_pages):
+                if page is self.virtual_page:
+                    self.pages.setCurrentWidget(page)
+                else:
+                    self.advanced_pages.setCurrentWidget(page)
+                    self.pages.setCurrentWidget(self.advanced_pages)
+            self._page_changed(0)
+
+    def _current_page(self):
+        return self.advanced_pages.currentWidget() if self.pages.currentWidget() is self.advanced_pages else self.pages.currentWidget()
+
+    def _show_mod_details(self, identity):
+        self.open_page('installed')
+        for row, entry in enumerate(self.inventory._entries):
+            if entry.id == identity:
+                self.inventory.search.clear()
+                self.inventory.table.selectRow(row)
+                break
 
     def _page_changed(self, _index):
         self._update_operation_bar()
-        if self.pages.currentWidget() is self.independent_page:
+        if self._current_page() is self.independent_page:
             self.independent_page.refresh()
         if self.pages.currentWidget() is self.virtual_page:
             self.virtual_page.refresh()
-        if self.pages.currentWidget() is not self.repackage_page or self.repackage_ui is not None:
+        if self._current_page() is not self.repackage_page or self.repackage_ui is not None:
             return
         if self._repackage_owner is None:
             if self.repackage_page.layout() is None:
@@ -261,7 +283,7 @@ class ModManagementTab(QWidget):
         self.inventory.refresh()
         self.independent_page.set_game_root(root)
         self.virtual_page.set_game_root(root)
-        if self.pages.currentWidget() is self.independent_page:
+        if self._current_page() is self.independent_page:
             self.independent_page.refresh()
         if self.pages.currentWidget() is self.virtual_page:
             self.virtual_page.refresh()
@@ -318,10 +340,10 @@ class ModManagementTab(QWidget):
             QMessageBox.information(self, title, message)
 
     def _merge_mods(self) -> None:
-        self.pages.setCurrentWidget(self.merge_page)
+        self.open_page('merge')
 
     def _update_mods(self) -> None:
-        self.pages.setCurrentWidget(self.update_page)
+        self.open_page('updates')
 
     def _overlay_services(self, title: str):
         """The mutation service (for the backup) and the package root, or None with a word."""
@@ -380,7 +402,7 @@ class ModManagementTab(QWidget):
         self.controller.start_overlay_migration(mutations, root)
 
     def _remove_overlay(self) -> None:
-        self.pages.setCurrentWidget(self.inventory)
+        self.open_page('installed')
         self.inventory.refresh()
 
     def iter_shutdown_workers(self):

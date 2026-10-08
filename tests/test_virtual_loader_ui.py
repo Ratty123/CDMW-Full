@@ -109,7 +109,7 @@ def test_apply_click_projects_real_controls_saves_and_enables_launch(tmp_path, m
     bridge = NewItemPresentationBridge(tab)
     try:
         titles = [tab.pages.tabText(i) for i in range(tab.pages.count())]
-        assert titles[titles.index('Independent items') + 1] == 'Virtual loader (Experimental)'
+        assert titles == ['Mods', 'Advanced']
         tab.open_page('virtual')
         page = tab.virtual_page
         pump(app, lambda: not controller.busy and page._queued is None)

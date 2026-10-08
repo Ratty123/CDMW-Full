@@ -31,6 +31,7 @@ def test_reviewed_missing_reference_cleanup_through_bridge_uses_worker_and_refre
     controller = NewItemStudioController()
     window = SimpleNamespace(app_context=SimpleNamespace(services=SimpleNamespace(require_archive_mutations=lambda: mutations)))
     tab = ModManagementTab(window=window, controller=controller, get_package_root=lambda: root)
+    tab.open_page('overview')
     overview = tab.overview
     bridge = NewItemPresentationBridge(tab)
     original, activity, threads = target.read_bytes(), [], []
@@ -136,6 +137,7 @@ def test_grouped_overview_projects_existing_controls_and_preserves_every_route()
 
     app = QApplication.instance() or QApplication([])
     tab = ModManagementTab()
+    tab.open_page('overview')
     bridge = NewItemPresentationBridge(tab)
     try:
         groups = tab.overview.findChildren(QGroupBox)
@@ -173,8 +175,8 @@ def test_grouped_overview_projects_existing_controls_and_preserves_every_route()
         assert tab.overview.mounts.topLevelItemCount() == 3
         for key, button in tab.overview.actions.items():
             _send(bridge, button, 'activate')
-            assert tab.pages.currentWidget() is tab._page_by_key[key]
-            _send(bridge, tab.pages, 'tab', 0)
+            assert tab._current_page() is tab._page_by_key[key]
+            _send(bridge, tab.advanced_pages, 'tab', 0)
     finally:
         tab.request_shutdown()
         pump(app, lambda: not tab.iter_shutdown_workers())
@@ -303,6 +305,7 @@ def test_rust_repackage_page_scans_converts_and_keeps_inline_results(tmp_path):
     original = hashlib.sha256(payload.read_bytes()).digest()
     owner = _ToolOwner(tmp_path)
     tab = ModManagementTab(repackage_owner=owner)
+    tab.open_page('overview')
     bridge = NewItemPresentationBridge(tab)
     tab.show()
     try:
@@ -324,7 +327,7 @@ def test_rust_repackage_page_scans_converts_and_keeps_inline_results(tmp_path):
         assert len(outputs) == 1 and outputs[0].read_bytes() == payload.read_bytes()
         assert hashlib.sha256(payload.read_bytes()).digest() == original
         assert not bridge.snapshot()['unsupported']
-        _send(bridge, tab.pages, 'tab', 0)
+        _send(bridge, tab.advanced_pages, 'tab', 0)
         _send(bridge, tab.overview.actions['repackage'], 'activate')
         assert tab.repackage_ui is ui and 'Example' in ui.diff_preview.toPlainText()
     finally:
@@ -399,13 +402,13 @@ def test_localized_overview_and_late_repackage_keep_navigation_and_settings(tmp_
             localizer.apply_registered_roots()
             assert tab.choose_game.text() == localizer.translate('Change…')
             assert tab.overview.actions['installed'].text() == localizer.translate('Installed mods')
-            assert tab.pages.tabText(tab.pages.indexOf(tab.repackage_page)) == localizer.translate('Repackage')
+            assert tab.advanced_pages.tabText(tab.advanced_pages.indexOf(tab.repackage_page)) == localizer.translate('Repackage')
             tab.open_page('repackage')
             app.processEvents()
             localizer.apply_registered_roots()
             assert ui.scan_button.text() == localizer.translate('Scan')
             assert ui.output_edit.text() == str(tmp_path / 'kept-output')
-            assert tab.pages.currentWidget() is tab.repackage_page
+            assert tab._current_page() is tab.repackage_page
         assert not NewItemPresentationBridge(tab).snapshot()['unsupported']
     finally:
         localizer.shutdown()
@@ -435,7 +438,7 @@ def test_game_folder_choice_updates_all_game_pages_and_preserves_repackage(tmp_p
         assert tab.independent_page.package_root == chosen
         assert tab.merge_page.game_root.text() == chosen
         assert tab.update_page.game_root.text() == chosen
-        assert tab.pages.currentWidget() is tab.repackage_page
+        assert tab._current_page() is tab.repackage_page
         assert tab.repackage_ui.output_edit.text() == str(tmp_path / 'kept-output')
         tab.open_page('overview')
         generation = tab.overview._generation

@@ -59,3 +59,54 @@ fn virtual_loader_uses_tall_local_panes_and_keeps_actions_visible() {
         }
     }
 }
+
+#[test]
+fn unified_mod_list_uses_full_width_and_keeps_apply_and_launch_visible() {
+    let mut actions = control("actions", "row", "", json!({}));
+    actions.children = [
+        ("add", "Add item packages…"), ("folder", "Add mod folder…"),
+        ("apply", "Apply changes"), ("launch", "Launch game"), ("cancel", "Cancel"),
+    ].into_iter().map(|(name, label)| control(name, "button", label, json!({}))).collect();
+    let mut list = control("mods", "table", "", json!({"headers":true,"sortable":true,
+        "columns":[{"text":"Mod","width":340},{"text":"Type","width":170},
+            {"text":"Loads with","width":180},{"text":"Status","stretch":true}],
+        "total":40,"rows":(0..40).map(|i| json!({"path":[i],"cells":[
+            {"text":format!("Mod {i:02}")},{"text":"Item package"},{"text":"CDMW launch"},{"text":"Applied"}]})).collect::<Vec<_>>() }));
+    list.stretch = 1;
+    let mut page = control("virtual_loader_page", "column", "", json!({}));
+    page.children = vec![control("notice", "label", "", json!({"text":"Experimental"})), actions,
+        control("search", "text", "", json!({"placeholder":"Search mods…"})), list,
+        control("remove", "button", "Remove selected", json!({})),
+        control("status", "label", "", json!({"text":"Profile applied. Ready to launch."})),
+        control("details", "button", "Loader details", json!({"checkable":true}))];
+    let mut pages = control("mod_management_pages", "tabs", "", json!({"selected":0,
+        "tabs":[{"text":"Mods"},{"text":"Advanced"}]}));
+    pages.children.push(page);
+    let mut root = control("mod_management_workspace", "column", "", json!({}));
+    root.children = vec![control("SectionTitle", "label", "", json!({"text":"Mod Management"})),
+        control("mod_management_game_label", "label", "", json!({"text":"Game folder"})),
+        control("mod_management_game_folder", "text", "", json!({"text":"C:/games/Crimson Desert"})),
+        control("mod_management_choose_game", "button", "Change…", json!({})), pages];
+    let state: State = serde_json::from_value(json!({"protocol":PROTOCOL,
+        "session":"unified-mod-list","generation":1,"root":root})).unwrap();
+    for (width, height, font_size) in [(900., 700., 14.), (1400., 900., 20.), (2560., 1440., 28.)] {
+        let context = egui::Context::default();
+        apply_theme(&context, &json!({"font_pixels":font_size}));
+        let mut view = PresentationView::default();
+        for _ in 0..4 {
+            let mut output = context.run_ui(egui::RawInput {
+                screen_rect:Some(Rect::from_min_size(egui::Pos2::ZERO, vec2(width,height))), ..Default::default()
+            }, |ui| view.draw(ui, &state));
+            output.textures_delta.clear();
+        }
+        assert!(view.errors.is_empty(), "{:?}", view.errors);
+        let list_rect = view.rects.iter().find(|r| r.id == "mods").unwrap().rect;
+        assert!(list_rect[2] > width * 0.85, "{list_rect:?}");
+        assert!(list_rect[3] > height * 0.25, "{list_rect:?}");
+        for id in ["add", "folder", "apply", "launch", "cancel", "search", "mods", "remove", "details"] {
+            let item = view.rects.iter().find(|r| r.id == id).unwrap();
+            assert!(item.rect[1] + item.rect[3] <= height + 1.0, "{id}: {item:?}");
+            assert!(item.rect[0] + item.rect[2] <= width + 1.0, "{id}: {item:?}");
+        }
+    }
+}

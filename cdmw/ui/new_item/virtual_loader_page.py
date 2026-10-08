@@ -12,6 +12,7 @@ from cdmw.domain.virtual_loader import VirtualProfile
 
 class VirtualLoaderPage(QWidget):
     activity = Signal(str)
+    profile_applied = Signal()
 
     def __init__(self, controller, root, parent=None):
         super().__init__(parent)
@@ -21,6 +22,7 @@ class VirtualLoaderPage(QWidget):
         self._closed = self._working = self._applying = self._draft_loaded = False
         self._prepared = self._runtime = self._queued = None
         self._saved_selection = None
+        self._error = ''
         self._next_order = 0
         self._progress_generation = None
         self._session = None
@@ -187,6 +189,7 @@ class VirtualLoaderPage(QWidget):
 
     def _changed(self):
         self._generation += 1
+        self._error = ''
         self._prepared = self._runtime = self._queued = None
         self._draft_loaded = True
         self.review.clear()
@@ -258,6 +261,7 @@ class VirtualLoaderPage(QWidget):
             self._working = self._applying = False
             if not self._closed and generation == self._generation:
                 self._queued = None
+                self._error = str(message)
                 self.status.setText(self.tr(str(message)))
                 self.progress.hide()
                 self.activity.emit(str(message))
@@ -288,6 +292,7 @@ class VirtualLoaderPage(QWidget):
         QTimer.singleShot(0, self, self._resume)
 
     def _apply(self):
+        self._error = ''
         self._prepared = self._runtime = None
         self._ensure_runtime(self._prepare)
 
@@ -315,6 +320,7 @@ class VirtualLoaderPage(QWidget):
             self._prepared = None
             self.progress.hide()
             self.activity.emit(self.tr('Profile applied.'))
+            self.profile_applied.emit()
             self._queue(self.refresh)
         self._run(lambda log, stop: publish_profile(prepared, stop_event=stop), done, applying=True)
 
@@ -515,6 +521,7 @@ class VirtualLoaderPage(QWidget):
         self._generation += 1
         self._queued = self._prepared = self._runtime = None
         self._saved_selection = None
+        self._error = ''
         self._session = None
         self._session_timer.stop()
         self._session_lookup.cancel()

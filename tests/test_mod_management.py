@@ -139,7 +139,7 @@ def test_utilities_opens_installed_textured_model_without_a_studio_snapshot(tmp_
         assert dialog.preview_empty.isVisibleTo(dialog)
         dialog.table.selectRow(0)
         assert len(requested) == 1
-        assert utility.pages.currentWidget() is dialog and not dialog.isWindow()
+        assert utility._current_page() is dialog and not dialog.isWindow()
         assert dialog.preview.isVisibleTo(dialog)
         assert not dialog.preview_empty.isVisibleTo(dialog)
         token, source = requested[-1]
@@ -251,7 +251,8 @@ def test_inventory_and_selection_work_while_snapshot_is_still_loading(tmp_path, 
         assert inventory._selected_entry() is None and not requested
         assert not inventory.toggle_button.isEnabled()
         bridge = NewItemPresentationBridge(tab)
-        _send(bridge, tab.pages, 'tab', tab.pages.indexOf(inventory))
+        _send(bridge, tab.pages, 'tab', tab.pages.indexOf(tab.advanced_pages))
+        _send(bridge, tab.advanced_pages, 'tab', tab.advanced_pages.indexOf(inventory))
         _send(bridge, inventory.table, 'select', {'path': [0], 'column': 0, 'mode': 'click'})
         assert inventory._selected_entry().id == 'a'
         assert len(requested) == 1
@@ -421,10 +422,11 @@ def test_rust_workspace_navigation_filter_and_scoped_activity(tmp_path, monkeypa
         assert tab.inventory._selected_entry() is None
         assert not bridge.snapshot()['unsupported']
         assert not dialogs.dialogs(), 'Inline pages must never become Rust modal dialogs.'
-        assert tab.pages.currentWidget() is tab.overview
+        assert tab.pages.currentWidget() is tab.virtual_page
+        tab.open_page('overview')
         assert tab.overview.counts['enabled'].text() == '2'
         _send(bridge, tab.overview.actions['installed'], 'activate')
-        assert tab.pages.currentWidget() is tab.inventory
+        assert tab._current_page() is tab.inventory
         _send(bridge, tab.inventory.search, 'text', 'Beta')
         assert tab.inventory.table.isRowHidden(0)
         assert tab.inventory._selected_entry() is None
@@ -436,8 +438,12 @@ def test_rust_workspace_navigation_filter_and_scoped_activity(tmp_path, monkeypa
         _send(bridge, tab.inventory.search, 'text', '')
         assert tab.inventory._selected_entry() is None
         for page in tab._page_by_key.values():
-            _send(bridge, tab.pages, 'tab', tab.pages.indexOf(page))
-            assert tab.pages.currentWidget() is page
+            if page is tab.virtual_page:
+                _send(bridge, tab.pages, 'tab', 0)
+            else:
+                _send(bridge, tab.pages, 'tab', 1)
+                _send(bridge, tab.advanced_pages, 'tab', tab.advanced_pages.indexOf(page))
+            assert tab._current_page() is page
             assert not bridge.snapshot()['unsupported']
             assert not dialogs.dialogs()
         tab.controller.log_message.emit('Planning a different New Item')
@@ -445,7 +451,8 @@ def test_rust_workspace_navigation_filter_and_scoped_activity(tmp_path, monkeypa
         tab.inventory._preview_status('The preview could not be built: missing model')
         assert 'missing model' in tab.inventory.preview_status.text()
         assert 'missing model' in tab.log.toPlainText()
-        _send(bridge, tab.pages, 'tab', tab.pages.indexOf(tab._page_by_key['recovery']))
+        _send(bridge, tab.pages, 'tab', 1)
+        _send(bridge, tab.advanced_pages, 'tab', tab.advanced_pages.indexOf(tab._page_by_key['recovery']))
         tab.inventory._preview_status('Full textures loaded.')
         state = bridge.snapshot()
         for text in ('Full textures loaded.', 'Copy activity', '"Activity"'):

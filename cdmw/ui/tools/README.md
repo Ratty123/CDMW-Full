@@ -1,11 +1,21 @@
 # Tools
 
 Owns utility workspaces that do not belong to Assets, Textures, or Research. **Utilities
-> Mod Management** owns installed mods, independent item packages, Repackage, Merge,
-Game updates and Recovery. The visible tab uses the existing Rust presentation bridge
-over an offscreen `ModManagementTab`. Overview shows enabled/disabled installs, entries
-needing review and mounted folders. Its compact action groups are Install & manage,
-Package tools and Maintenance; explanations appear on hover. The Rust layout measures
+> Mod Management** opens one **Mods** list for item packages, CDMW installs and
+externally managed archive folders. Type, Loads with and Status explain each row.
+Add supported packages or folders, choose **Apply changes**, then **Launch game**.
+New selections use the experimental virtual loader; existing installs retain their
+loading method and identities. Installed-only games launch without virtual setup.
+CDMW-owned installs can be enabled, disabled or removed from the list using the
+existing reviewed backup workflow. External folders remain managed by their original
+manager. Missing references and removed identity reservations are maintenance records,
+not active mods, and remain available under **Advanced**.
+
+Advanced retains installed previews, item package/identity tools, archive health,
+Repackage, Merge, Game updates and Recovery. Compatibility and unsupported-input
+checks remain mandatory; the combined list does not expand format or in-game support.
+The visible workspace uses the existing Rust presentation bridge over an offscreen
+`ModManagementTab`. The Rust layout measures
 translated labels at the current font size, stacks the groups when they no longer fit
 side by side, and scrolls when the window is short. All management pages share these
 panel, input, button and navigation styles. Form sections and inventory/preview panes
@@ -13,7 +23,7 @@ stack at narrow widths or larger text sizes; tables retain horizontal scrolling 
 additional columns. Explanations stay concise, with longer guidance in hover help.
 The shared game-folder selector
 updates the existing archive setting. Installed mods provides a searchable inventory
-with a resizable preview and Files and history inspector. All workflows are embedded
+with a resizable preview and Files and history inspector under Advanced. All workflows are embedded
 pages; pickers and mutation confirmations still use dialogs.
 
 Activity is collapsed by default and includes management operations and its own preview,
@@ -76,7 +86,7 @@ The shell tracks the tab's operations, lookups and overlay preview during shutdo
 
 ## Retrofit and Repackage
 
-**Mod Management > Repackage** converts existing folders or ZIPs for supported managers.
+**Mod Management > Advanced > Repackage** converts existing folders or ZIPs for supported managers.
 It is constructed on first use and keeps its selection, output settings and inline
 results when switching pages. Existing Repackage menu actions and saved navigation
 open this page. Old Archive Browser imports remain compatibility wrappers.
