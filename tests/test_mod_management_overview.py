@@ -132,23 +132,15 @@ def test_missing_reference_preparation_cancels_and_discards_late_results(install
         overview.close()
 
 
-def test_grouped_overview_projects_existing_controls_and_preserves_every_route():
-    from PySide6.QtWidgets import QGroupBox, QLabel
-
+def test_health_workspace_combines_overview_and_recovery_without_duplicate_navigation():
     app = QApplication.instance() or QApplication([])
     tab = ModManagementTab()
     tab.open_page('overview')
     bridge = NewItemPresentationBridge(tab)
     try:
-        groups = tab.overview.findChildren(QGroupBox)
-        assert [(group.title(), [button.objectName() for button in group.findChildren(type(tab.choose_game))])
-                for group in groups] == [
-            ('Install && manage', ['mod_management_open_independent', 'mod_management_open_installed']),
-            ('Package tools', ['mod_management_open_repackage', 'mod_management_open_merge']),
-            ('Maintenance', ['mod_management_open_updates', 'mod_management_open_recovery']),
-        ]
-        assert all(label.objectName() != 'HintLabel' for label in tab.overview.findChildren(QLabel))
-        assert all(button.toolTip() for button in tab.overview.actions.values())
+        assert [tab.advanced_pages.tabText(i) for i in range(tab.advanced_pages.count())] == [
+            'Health and recovery', 'Prepare packages', 'Item identities']
+        assert tab._page_by_key['recovery'].isHidden()
         tab.overview._loaded((tab.overview._generation, ''), (
             MountedArchive('0037', False, True, False),
             MountedArchive('dmmgen', False, False, False),
@@ -164,7 +156,7 @@ def test_grouped_overview_projects_existing_controls_and_preserves_every_route()
         projected = {node['name']: node for node in nodes(state['root'])}
         assert state['root']['name'] == 'mod_management_workspace'
         assert not state['unsupported']
-        assert projected['mod_management_group_installs']['label'] == 'Install & manage'
+        assert not any(name.startswith('mod_management_open_') for name in projected)
         assert projected['mod_management_archives']['props']['folder_states'] == {'0037': 'found'}
         assert projected['mod_management_status']['props']['management_warning'] is False
         _send(bridge, tab.overview.show_missing, 'toggle', True)
@@ -173,10 +165,16 @@ def test_grouped_overview_projects_existing_controls_and_preserves_every_route()
         assert tab.overview.mounts.topLevelItem(1).text(2) == 'Stale reference'
         _send(bridge, tab.overview.show_game, 'toggle', True)
         assert tab.overview.mounts.topLevelItemCount() == 3
-        for key, button in tab.overview.actions.items():
-            _send(bridge, button, 'activate')
-            assert tab._current_page() is tab._page_by_key[key]
-            _send(bridge, tab.advanced_pages, 'tab', 0)
+        _send(bridge, tab.recovery, 'activate')
+        state = bridge.snapshot()
+        identifiers = {node['id'] for node in nodes(state['root']) if 'id' in node}
+        for control in (tab.inventory.rebuild_button, tab.inventory.start_fresh_button, tab.overlay_migration_button):
+            assert bridge.document.registry.identify(control) in identifiers
+        _send(bridge, tab.recovery, 'activate')
+        assert tab._page_by_key['recovery'].isHidden()
+        tab.open_page('recovery')
+        assert tab.advanced_pages.currentWidget() is tab.advanced_pages.health
+        assert not tab._page_by_key['recovery'].isHidden()
     finally:
         tab.request_shutdown()
         pump(app, lambda: not tab.iter_shutdown_workers())
@@ -262,9 +260,7 @@ def test_all_management_pages_keep_their_actions_and_editable_controls(tmp_path)
         for key in ('installed', 'independent', 'repackage', 'merge', 'updates', 'recovery'):
             tab.open_page(key)
             if key == 'installed':
-                controls = [tab.inventory.search, tab.inventory.table, tab.inventory.inspector,
-                            tab.inventory.toggle_button, tab.inventory.remove_button, tab.inventory.refresh_button,
-                            tab.inventory.update_button, tab.inventory.preview_retry]
+                controls = [tab.back_to_mods, tab.inventory.inspector, tab.inventory.preview_retry]
             elif key == 'independent':
                 page = tab.independent_page
                 controls = [page.items, page.import_button, page.remove_button, page.refresh_button,
@@ -286,13 +282,51 @@ def test_all_management_pages_keep_their_actions_and_editable_controls(tmp_path)
                 identifier = bridge.document.registry.identify(widget)
                 assert identifier in projected, (key, type(widget).__name__, widget.objectName())
                 assert projected[identifier]['enabled'] == widget.isEnabled()
-            assert len([node for node in projected.values() if node['kind'] == 'group']) >= 2, key
-        _send(bridge, tab.recovery, 'activate')
-        assert not tab.overlay_migration_button.isHidden()
+            if key == 'installed':
+                assert bridge.document.registry.identify(tab.inventory.table) not in projected
+            else:
+                assert len([node for node in projected.values() if node['kind'] == 'group']) >= 2, key
+        assert tab.recovery.isChecked()
     finally:
         tab.request_shutdown()
         pump(app, lambda: not tab.iter_shutdown_workers())
         tab.deleteLater()
+        app.sendPostedEvents(None, QEvent.DeferredDelete)
+
+
+def test_package_task_selector_keeps_inputs_and_projects_only_the_selected_workflow(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    owner = _ToolOwner(tmp_path)
+    tab = ModManagementTab(repackage_owner=owner)
+    bridge = NewItemPresentationBridge(tab)
+    try:
+        _send(bridge, tab.pages, 'tab', 1)
+        _send(bridge, tab.advanced_pages, 'tab', 1)
+        ui = tab.repackage_ui
+        assert ui is not None
+        _send(bridge, ui.output_edit, 'text', str(tmp_path / 'converted'))
+        for index, page in ((1, tab.merge_page), (2, tab.update_page)):
+            _send(bridge, tab.advanced_pages.task, 'choose', index)
+            assert tab._current_page() is page
+            _send(bridge, page.title, 'text', f'Kept name {index}')
+            _send(bridge, page.destination, 'text', str(tmp_path / f'output-{index}'))
+            state = bridge.snapshot()
+            assert not state['unsupported']
+            assert 'mod_management_package_task' in str(state['root'])
+            assert not tab.controller.busy, 'Switching tasks must not start a scan or write.'
+        _send(bridge, tab.advanced_pages.task, 'choose', 0)
+        assert tab.repackage_ui is ui and ui.output_edit.text() == str(tmp_path / 'converted')
+        assert tab._current_page() is tab.repackage_page
+        for index, key in ((1, 'merge'), (2, 'updates')):
+            tab.open_page(key)
+            assert tab.advanced_pages.task.currentIndex() == index
+            assert tab._current_page().title.text() == f'Kept name {index}'
+        assert tab.advanced_pages.count() == 3
+    finally:
+        tab.request_shutdown()
+        pump(app, lambda: not tab.iter_shutdown_workers())
+        tab.deleteLater()
+        owner.deleteLater()
         app.sendPostedEvents(None, QEvent.DeferredDelete)
 
 
@@ -309,7 +343,7 @@ def test_rust_repackage_page_scans_converts_and_keeps_inline_results(tmp_path):
     bridge = NewItemPresentationBridge(tab)
     tab.show()
     try:
-        _send(bridge, tab.overview.actions['repackage'], 'activate')
+        _send(bridge, tab.advanced_pages, 'tab', 1)
         ui = tab.repackage_ui
         assert ui is not None and not bridge.snapshot()['unsupported']
         _send(bridge, ui.source_edit, 'text', str(source))
@@ -328,7 +362,7 @@ def test_rust_repackage_page_scans_converts_and_keeps_inline_results(tmp_path):
         assert hashlib.sha256(payload.read_bytes()).digest() == original
         assert not bridge.snapshot()['unsupported']
         _send(bridge, tab.advanced_pages, 'tab', 0)
-        _send(bridge, tab.overview.actions['repackage'], 'activate')
+        _send(bridge, tab.advanced_pages, 'tab', 1)
         assert tab.repackage_ui is ui and 'Example' in ui.diff_preview.toPlainText()
     finally:
         tab.request_shutdown()
@@ -401,8 +435,20 @@ def test_localized_overview_and_late_repackage_keep_navigation_and_settings(tmp_
             app.processEvents()
             localizer.apply_registered_roots()
             assert tab.choose_game.text() == localizer.translate('Change…')
-            assert tab.overview.actions['installed'].text() == localizer.translate('Installed mods')
-            assert tab.advanced_pages.tabText(tab.advanced_pages.indexOf(tab.repackage_page)) == localizer.translate('Repackage')
+            assert tab.advanced_pages.tabText(0) == localizer.translate('Health and recovery')
+            assert tab.advanced_pages.tabText(1) == localizer.translate('Prepare packages')
+            assert tab.advanced_pages.tabText(2) == localizer.translate('Item identities')
+            tab.open_page('repackage')
+            for index, title, detail in (
+                (0, 'Convert for a mod manager', 'Change a folder or ZIP to another manager’s package format.'),
+                (1, 'Combine mod folders', 'Check two or more folders for conflicts, then write one combined package.'),
+                (2, 'Update for the current game', 'Compare a mod with the current game, then write an updated package.'),
+            ):
+                tab.advanced_pages.task.setCurrentIndex(index)
+                app.processEvents()
+                localizer.apply_registered_roots()
+                assert tab.advanced_pages.task.currentText() == localizer.translate(title)
+                assert tab.advanced_pages.description.text() == localizer.translate(detail)
             tab.open_page('repackage')
             app.processEvents()
             localizer.apply_registered_roots()

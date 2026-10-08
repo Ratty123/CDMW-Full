@@ -71,6 +71,7 @@ class OverlayManagerDialog(QDialog):
         split.setObjectName('mod_management_inventory_splitter')
         split.setChildrenCollapsible(False)
         inventory_panel = QGroupBox('Installed mods')
+        self.inventory_panel = inventory_panel
         inventory_layout = QVBoxLayout(inventory_panel)
         inventory_layout.addWidget(self.search)
         inventory_layout.addWidget(self.table, 1)

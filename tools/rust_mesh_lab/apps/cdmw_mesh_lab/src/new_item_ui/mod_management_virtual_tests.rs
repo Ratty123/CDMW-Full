@@ -81,7 +81,9 @@ fn unified_mod_list_uses_full_width_and_keeps_apply_and_launch_visible() {
         control("details", "button", "Loader details", json!({"checkable":true}))];
     let mut pages = control("mod_management_pages", "tabs", "", json!({"selected":0,
         "tabs":[{"text":"Mods"},{"text":"Advanced"}]}));
-    pages.children.push(page);
+    let mut stack = control("mod_management_mods", "column", "", json!({}));
+    stack.children.push(page);
+    pages.children.push(stack);
     let mut root = control("mod_management_workspace", "column", "", json!({}));
     root.children = vec![control("SectionTitle", "label", "", json!({"text":"Mod Management"})),
         control("mod_management_game_label", "label", "", json!({"text":"Game folder"})),

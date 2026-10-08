@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, Qt
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from cdmw.domain.virtual_loader import VirtualProfile
@@ -43,7 +43,7 @@ def test_one_list_labels_routes_without_duplicate_owned_archive_and_keeps_draft_
     tab = ModManagementTab(get_package_root=lambda: str(root))
     try:
         assert [tab.pages.tabText(i) for i in range(tab.pages.count())] == ['Mods', 'Advanced']
-        assert tab.pages.currentWidget() is tab.virtual_page
+        assert tab._current_page() is tab.virtual_page
         page = load_installed(tab, root)
         identities, mounts, can_launch = page._sources
         page._sources = identities, (*mounts, MountedArchive('external', False, True, False)), can_launch
@@ -71,6 +71,44 @@ def test_one_list_labels_routes_without_duplicate_owned_archive_and_keeps_draft_
     finally:
         tab.shutdown()
         tab.close()
+
+
+def test_details_open_from_main_list_and_return_without_losing_selection(tmp_path, monkeypatch):
+    from cdmw.ui.new_item.item_preview import ItemPreviewFrame
+    app = QApplication.instance() or QApplication([])
+    monkeypatch.setattr(ItemPreviewFrame, '_start_package', lambda *_args, **_kwargs: None)
+    root, files = packages(tmp_path, 1)
+    Backups(tmp_path).apply(prepare_install(files, root).preparation)
+    tab = ModManagementTab(get_package_root=lambda: str(root))
+    bridge = NewItemPresentationBridge(tab)
+    try:
+        page = load_installed(tab, root)
+        item = next(item for key, item in rows(page).items() if key[0] == 'installed')
+        page.selection.setCurrentItem(item)
+        page.search.setText(item.text(0))
+        _send(bridge, page.details_button, 'activate')
+        assert tab.pages.currentWidget() is tab.mods_pages
+        assert tab._current_page() is tab.inventory
+        assert tab.inventory._selected_entry().id == item.data(0, Qt.UserRole)[1]
+        state = bridge.snapshot()
+        assert not state['unsupported']
+        def identifiers(node):
+            yield node.get('id')
+            for child in node['children']:
+                yield from identifiers(child)
+        projected = set(identifiers(state['root']))
+        assert bridge.document.registry.identify(tab.inventory.inspector) in projected
+        assert bridge.document.registry.identify(tab.inventory.table) not in projected
+        assert bridge.document.registry.identify(tab.inventory.search) not in projected
+        _send(bridge, tab.back_to_mods, 'activate')
+        assert tab._current_page() is page
+        assert page.search.text() == item.text(0) and item.isSelected()
+    finally:
+        tab.request_shutdown()
+        pump(app, lambda: not tab.iter_shutdown_workers())
+        bridge.close()
+        tab.deleteLater()
+        app.sendPostedEvents(None, QEvent.DeferredDelete)
 
 
 def test_item_removal_from_combined_list_uses_review_backup_and_retains_identity(tmp_path, monkeypatch):

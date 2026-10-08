@@ -4,7 +4,7 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QTimer, QSignalBlocker, Signal
 from PySide6.QtWidgets import (
     QFileDialog, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QProgressBar,
-    QPushButton, QTabWidget, QToolButton, QVBoxLayout, QWidget,
+    QPushButton, QStackedWidget, QTabWidget, QVBoxLayout, QWidget,
 )
 
 from cdmw.ui.new_item.controller import NewItemStudioController
@@ -53,8 +53,6 @@ class ModManagementTab(QWidget):
         layout.addLayout(source_row)
         self.pages = QTabWidget()
         self.pages.setObjectName('mod_management_pages')
-        self.advanced_pages = QTabWidget()
-        self.advanced_pages.setObjectName('mod_management_advanced_pages')
         from cdmw.ui.new_item.overlay_manager_dialog import OverlayManagerDialog
         from cdmw.ui.new_item.mod_merge_dialog import ModMergeDialog
         from cdmw.ui.new_item.mod_update_dialog import ModUpdateDialog
@@ -68,32 +66,34 @@ class ModManagementTab(QWidget):
         self.update_page = ModUpdateDialog(self.controller, root, self, installed=True, embedded=True)
         from cdmw.ui.tools.mod_management_overview import ModManagementOverview
         self.overview = ModManagementOverview(self.controller, self, mutations=self.inventory.mutations)
-        self.advanced_pages.addTab(self.overview, 'Overview')
-        self.advanced_pages.addTab(self.inventory, 'Installed mod details')
         from cdmw.ui.new_item.independent_items_page import IndependentItemsPage
         self.independent_page = IndependentItemsPage(self.controller, root, mutations() if callable(mutations) else None, self)
-        self.advanced_pages.addTab(self.independent_page, 'Item package tools')
         self.independent_page.activity.connect(self._append_activity)
         from cdmw.ui.tools.mod_management_list import ModManagementList
         self.virtual_page = ModManagementList(self.controller, root, self.inventory, self.independent_page, self)
-        self.pages.addTab(self.virtual_page, 'Mods')
-        self.pages.addTab(self.advanced_pages, 'Advanced')
+        self.mods_pages = QStackedWidget()
+        self.mods_pages.setObjectName('mod_management_mods')
+        self.mods_pages.addWidget(self.virtual_page)
+        self.details_page = QWidget()
+        details_layout = QVBoxLayout(self.details_page)
+        details_layout.setContentsMargins(0, 0, 0, 0)
+        self.back_to_mods = QPushButton('Back to mod list')
+        self.back_to_mods.clicked.connect(lambda: self.open_page('mods'))
+        details_layout.addWidget(self.back_to_mods)
+        details_layout.addWidget(self.inventory, 1)
+        self.inventory.inventory_panel.hide()
+        self.mods_pages.addWidget(self.details_page)
+        self.pages.addTab(self.mods_pages, 'Mods')
         self.virtual_page.details_requested.connect(self._show_mod_details)
         self.virtual_page.activity.connect(self._append_activity)
         from cdmw.ui.tools.mod_package_retrofit_tasks import ModPackageRetrofitToolWidget
         self.repackage_page = ModPackageRetrofitToolWidget()
-        self.advanced_pages.addTab(self.repackage_page, 'Repackage')
-        self.advanced_pages.addTab(self.merge_page, 'Merge')
-        self.advanced_pages.addTab(self.update_page, 'Game updates')
         recovery_page = QWidget()
         recovery_layout = QVBoxLayout(recovery_page)
-        self.advanced_pages.addTab(recovery_page, 'Recovery')
+        recovery_layout.setContentsMargins(0, 0, 0, 0)
         self._page_by_key = {'mods': self.virtual_page, 'overview': self.overview, 'installed': self.inventory, 'independent': self.independent_page, 'virtual': self.virtual_page,
                              'repackage': self.repackage_page, 'merge': self.merge_page, 'updates': self.update_page,
                              'recovery': recovery_page}
-        self.pages.currentChanged.connect(self._page_changed)
-        self.advanced_pages.currentChanged.connect(self._page_changed)
-        self.overview.page_requested.connect(self.open_page)
         self.overview.refresh_requested.connect(self.refresh)
         self.inventory.inventory_changed.connect(self.overview.set_entries)
         layout.addWidget(self.pages, 1)
@@ -110,11 +110,6 @@ class ModManagementTab(QWidget):
         self.update_button = QPushButton('Check mods for game updates', self)
         self.update_button.clicked.connect(self._update_mods)
         self.update_button.hide()
-        self.recovery = QToolButton()
-        self.recovery.setText("Archive recovery")
-        self.recovery.setCheckable(True)
-        self.recovery.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        self.recovery.setArrowType(Qt.ArrowType.RightArrow)
         saved = QGroupBox('Saved installs')
         saved_layout = QVBoxLayout(saved)
         recovery_layout.addWidget(saved)
@@ -133,7 +128,6 @@ class ModManagementTab(QWidget):
         legacy_help = QLabel('For items previously written into shipped archives.')
         legacy_help.setWordWrap(True)
         legacy_layout.addWidget(legacy_help)
-        legacy_layout.addWidget(self.recovery)
         recovery_layout.addWidget(legacy)
         self.overlay_migration_button = QPushButton("Move installed items into the overlay...")
         self.overlay_migration_button.setToolTip(
@@ -141,12 +135,15 @@ class ModManagementTab(QWidget):
             "backup of it is carried into the overlay directory, and the archives themselves go back to that backup, "
             "so the game reads the same thing while the files it shipped are its own again.")
         self.overlay_migration_button.clicked.connect(self._migrate_overlay)
-        self.overlay_migration_button.hide()
-        self.recovery.toggled.connect(self.overlay_migration_button.setVisible)
-        self.recovery.toggled.connect(lambda expanded: self.recovery.setArrowType(
-            Qt.ArrowType.DownArrow if expanded else Qt.ArrowType.RightArrow))
         legacy_layout.addWidget(self.overlay_migration_button)
-        recovery_layout.addStretch(1)
+        from cdmw.ui.tools.mod_management_advanced import ModManagementAdvanced
+        self.advanced_pages = ModManagementAdvanced(self.overview, recovery_page, self.independent_page,
+                                                    self.repackage_page, self.merge_page, self.update_page, self)
+        self.recovery = self.advanced_pages.repair_toggle
+        self.pages.addTab(self.advanced_pages, 'Advanced')
+        self.pages.currentChanged.connect(self._page_changed)
+        self.advanced_pages.currentChanged.connect(self._page_changed)
+        self.advanced_pages.task_changed.connect(lambda: self._page_changed(0))
         self.operation_bar = QWidget()
         self.operation_bar.setObjectName('mod_management_operation_bar')
         activity_row = QHBoxLayout(self.operation_bar)
@@ -181,15 +178,18 @@ class ModManagementTab(QWidget):
         page = self._page_by_key.get(key)
         if page is not None and not self._closed:
             with QSignalBlocker(self.pages), QSignalBlocker(self.advanced_pages):
-                if page is self.virtual_page:
-                    self.pages.setCurrentWidget(page)
+                if page in (self.virtual_page, self.inventory):
+                    self.mods_pages.setCurrentWidget(self.virtual_page if page is self.virtual_page else self.details_page)
+                    self.pages.setCurrentWidget(self.mods_pages)
                 else:
-                    self.advanced_pages.setCurrentWidget(page)
+                    self.advanced_pages.open_page(page)
                     self.pages.setCurrentWidget(self.advanced_pages)
             self._page_changed(0)
 
     def _current_page(self):
-        return self.advanced_pages.currentWidget() if self.pages.currentWidget() is self.advanced_pages else self.pages.currentWidget()
+        if self.pages.currentWidget() is self.advanced_pages:
+            return self.advanced_pages.current_page()
+        return self.virtual_page if self.mods_pages.currentWidget() is self.virtual_page else self.inventory
 
     def _show_mod_details(self, identity):
         self.open_page('installed')
@@ -203,7 +203,7 @@ class ModManagementTab(QWidget):
         self._update_operation_bar()
         if self._current_page() is self.independent_page:
             self.independent_page.refresh()
-        if self.pages.currentWidget() is self.virtual_page:
+        if self._current_page() is self.virtual_page:
             self.virtual_page.refresh()
         if self._current_page() is not self.repackage_page or self.repackage_ui is not None:
             return
@@ -285,7 +285,7 @@ class ModManagementTab(QWidget):
         self.virtual_page.set_game_root(root)
         if self._current_page() is self.independent_page:
             self.independent_page.refresh()
-        if self.pages.currentWidget() is self.virtual_page:
+        if self._current_page() is self.virtual_page:
             self.virtual_page.refresh()
 
     def _status_changed(self, message, error=False):
@@ -294,7 +294,7 @@ class ModManagementTab(QWidget):
     def _update_operation_bar(self):
         # The virtual workspace already owns its status, percentage and Cancel.
         # Keep the shared controls available when navigating to another page.
-        local_controls = (self.pages.currentWidget() is self.virtual_page
+        local_controls = (self._current_page() is self.virtual_page
                           and self.controller._lane == 'virtual_loader')
         self.operation_bar.setVisible(self.controller.busy and self._owns_operation() and not local_controls)
 

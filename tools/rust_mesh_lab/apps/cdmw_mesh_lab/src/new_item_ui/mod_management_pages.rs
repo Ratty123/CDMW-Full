@@ -1,4 +1,4 @@
-//! Shared presentation for the six management workflows. Controls and events
+//! Shared presentation for management tasks. Controls and events
 //! still belong to their Qt pages; this module only lays out and paints them.
 use super::*;
 
@@ -116,6 +116,31 @@ impl PresentationView {
                 for child in &node.children {
                     self.node(ui, child);
                 }
+            }
+            "choice" if !node.flag("editable") => {
+                let response = egui::ComboBox::from_id_salt("management-choice")
+                    .selected_text(node.text("text"))
+                    .wrap()
+                    .width(ui.available_width())
+                    .height((350.0 * s).min(ui.ctx().content_rect().height() - 32.0))
+                    .show_ui(ui, |ui| {
+                        let width = ui.available_width().min(ui.ctx().content_rect().width() - 32.0);
+                        ui.set_width(width);
+                        for option in node.array("options") {
+                            let selected = option["index"].as_f64().unwrap_or(-1.0)
+                                == node.number("selected", -1.0);
+                            let response = ui.add_enabled(
+                                option["enabled"] != false,
+                                egui::Button::selectable(selected, option["text"].as_str().unwrap_or("")).wrap(),
+                            );
+                            if response.clicked() {
+                                self.input(node, "choose", option["index"].clone());
+                                ui.close();
+                            }
+                        }
+                    })
+                    .response;
+                self.record(ui, node, &response);
             }
             "split" => {
                 if ui.available_width() < 800.0 * s {

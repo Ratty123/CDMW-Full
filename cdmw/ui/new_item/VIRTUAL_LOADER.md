@@ -32,12 +32,13 @@ validation; changing a manifest cannot enable the general redirect mode.
 
 ## Use and ownership
 
-The page uses two adjustable columns: a tall package list on the left and apply,
-results and launch controls on the right. Long lists and results scroll inside their
-own panes. Sort by name or type using the list headings or the sort selector; this
+The main list uses the full width, with Apply and Launch above it and contextual
+actions below. Sort by name, type, loading method or status using the list headings; this
 changes display order only, preserving the prepared selection and identity allocation
 order. Hover over a filename for its complete path. Buttons have brief hover help.
-Optional loader setup, diagnostics and recovery are grouped under **Advanced**.
+Optional loader setup, diagnostics and recovery are under **Loader details** below the list.
+The workspace's **Advanced** tab groups archive health and recovery, separate package
+preparation, and item identity tools.
 
 Preparation shows a percentage and the current stage. The percentage follows completed
 stages and source files, not an estimate of elapsed or remaining time. It reaches 100%
@@ -94,7 +95,7 @@ operation first; disabling it is insufficient. Then select the same package here
 Moving back requires removing it from the saved virtual profile before physical
 installation. Nothing moves automatically, and CDMW does not edit saves.
 
-Advanced's Item package tools `.cdprofile` export/import transfers the same identity ledger
+Advanced's Item identities `.cdprofile` export/import transfers the same identity ledger
 for both routes. Virtual ownership is separate from physical overlay ownership;
 it does not create fake installed-overlay IDs. After transferring identities,
 prepare the packages again against the destination's actual game data.

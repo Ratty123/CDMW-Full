@@ -95,6 +95,11 @@ impl PresentationView {
                 .id_salt((
                     "mod-management-page",
                     pages.number("selected", 0.0) as usize,
+                    named(pages, "mod_management_advanced_pages")
+                        .map(|node| node.number("selected", 0.0) as usize),
+                    named(pages, "mod_management_package_task")
+                        .map(|node| node.number("selected", 0.0) as usize),
+                    named(pages, "virtual_loader_page").is_some(),
                 ))
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
@@ -116,22 +121,8 @@ impl PresentationView {
                         ui.visuals_mut().widgets.inactive.bg_fill = input_fill;
                         ui.visuals_mut().widgets.inactive.weak_bg_fill = input_fill;
                             ui.visuals_mut().widgets.inactive.corner_radius = CornerRadius::same(4);
-                            let selected = pages.number("selected", 0.0) as usize;
-                            // The main list is already named by its selected tab;
-                            // reserve that space for rows at larger text sizes.
-                            let main_list = pages
-                                .children
-                                .iter()
-                                .any(|page| page.name == "virtual_loader_page");
-                            if let Some(title) = pages
-                                .array("tabs")
-                                .get(selected)
-                                .filter(|_| !main_list)
-                                .and_then(|tab| tab["text"].as_str())
-                            {
-                                ui.label(RichText::new(title).font(font(ui, 18.0)).strong());
-                                ui.add_space(4.0 * s);
-                            }
+                            // Navigation already names the active workspace.
+                            // Keep that space for its controls at larger fonts.
                             self.management_page = true;
                             for page in &pages.children {
                                 self.node(ui, page);
@@ -265,8 +256,9 @@ impl PresentationView {
 
     fn management_tabs(&mut self, ui: &mut Ui, pages: &Node) {
         let s = scale(ui);
+        let inset = if pages.name == "mod_management_advanced_pages" { 0.0 } else { 18.0 * s };
         Frame::NONE
-            .inner_margin(margin(18.0 * s, 0.0))
+            .inner_margin(margin(inset, 0.0))
             .show(ui, |ui| {
                 ui.spacing_mut().item_spacing = vec2(2.0 * s, 0.0);
                 ui.horizontal_wrapped(|ui| {

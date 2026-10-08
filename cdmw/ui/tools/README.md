@@ -11,8 +11,19 @@ existing reviewed backup workflow. External folders remain managed by their orig
 manager. Missing references and removed identity reservations are maintenance records,
 not active mods, and remain available under **Advanced**.
 
-Advanced retains installed previews, item package/identity tools, archive health,
-Repackage, Merge, Game updates and Recovery. Compatibility and unsupported-input
+Select a CDMW install and choose **Details** to open its preview and file history;
+**Back to mod list** retains the list's search and selection. Advanced has three areas:
+
+- **Health and recovery** combines archive status, missing-reference cleanup and
+  expandable repair actions. Rebuild/reapply repairs saved installs in place.
+- **Prepare packages** has one task selector: convert for a mod manager, combine mod
+  folders, or update for the current game. Each task retains its inputs when switching.
+  These operations write separate output packages; they do not apply them to the game.
+- **Item identities** inspects installed/reserved IDs and transfers identity profiles
+  with saves. Its shared-file tools rebuild installed data or export that installed set.
+  The explicit **Install into game archives** action retains the older physical route.
+
+Compatibility and unsupported-input
 checks remain mandatory; the combined list does not expand format or in-game support.
 The visible workspace uses the existing Rust presentation bridge over an offscreen
 `ModManagementTab`. The Rust layout measures
@@ -22,8 +33,8 @@ panel, input, button and navigation styles. Form sections and inventory/preview 
 stack at narrow widths or larger text sizes; tables retain horizontal scrolling for
 additional columns. Explanations stay concise, with longer guidance in hover help.
 The shared game-folder selector
-updates the existing archive setting. Installed mods provides a searchable inventory
-with a resizable preview and Files and history inspector under Advanced. All workflows are embedded
+updates the existing archive setting. Installed mod details use the existing preview
+and Files and history inspector without a second mod list. All workflows are embedded
 pages; pickers and mutation confirmations still use dialogs.
 
 Activity is collapsed by default and includes management operations and its own preview,
@@ -86,7 +97,7 @@ The shell tracks the tab's operations, lookups and overlay preview during shutdo
 
 ## Retrofit and Repackage
 
-**Mod Management > Advanced > Repackage** converts existing folders or ZIPs for supported managers.
+**Mod Management > Advanced > Prepare packages > Convert for a mod manager** converts existing folders or ZIPs for supported managers.
 It is constructed on first use and keeps its selection, output settings and inline
 results when switching pages. Existing Repackage menu actions and saved navigation
 open this page. Old Archive Browser imports remain compatibility wrappers.

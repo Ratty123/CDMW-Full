@@ -1,7 +1,7 @@
-"""Installation overview and navigation for the shared Mod Management workspace."""
+"""Archive health and reviewed cleanup for the shared Mod Management workspace."""
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QAbstractItemView, QCheckBox, QGroupBox, QHBoxLayout, QHeaderView,
+    QAbstractItemView, QCheckBox, QHBoxLayout, QHeaderView,
     QLabel, QMessageBox, QPushButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
 )
 
@@ -9,7 +9,6 @@ from cdmw.services.overlay_inventory_details import mounted_archive_status
 
 
 class ModManagementOverview(QWidget):
-    page_requested = Signal(str)
     refresh_requested = Signal()
     activity = Signal(str)
 
@@ -47,35 +46,9 @@ class ModManagementOverview(QWidget):
             self.counts[key] = value
         summary.addStretch(1)
         layout.addLayout(summary)
-        groups = QHBoxLayout()
-        self.actions = {}
-        choices = {
-            'independent': ('Install item package', 'Install or update .cditem files and keep their save identities.'),
-            'installed': ('Installed mods', 'Preview items, enable or disable mods, and remove selected installs.'),
-            'repackage': ('Repackage mods', 'Convert folders or ZIPs for another mod manager.'),
-            'merge': ('Merge mods', 'Combine compatible mod folders into one package.'),
-            'updates': ('Check game updates', 'Compare recorded changes with your current game files.'),
-            'recovery': ('Recovery', 'Rebuild saved installs or review an installation that needs attention.'),
-        }
-        for name, title, keys in (
-            ('installs', 'Install && manage', ('independent', 'installed')),
-            ('packages', 'Package tools', ('repackage', 'merge')),
-            ('maintenance', 'Maintenance', ('updates', 'recovery')),
-        ):
-            group = QGroupBox(title)
-            group.setObjectName('mod_management_group_' + name)
-            body = QVBoxLayout(group)
-            for key in keys:
-                label, detail = choices[key]
-                button = QPushButton(label)
-                button.setObjectName('mod_management_open_' + key)
-                button.setToolTip(detail)
-                button.setProperty('newItemPrimary', key == 'independent')
-                button.clicked.connect(lambda _checked=False, page=key: self.page_requested.emit(page))
-                body.addWidget(button)
-                self.actions[key] = button
-            groups.addWidget(group, 1)
-        layout.addLayout(groups)
+        help_text = QLabel('Check archive health here. Manage individual mods from the Mods list.')
+        help_text.setWordWrap(True)
+        layout.addWidget(help_text)
         toolbar = QHBoxLayout()
         title = QLabel('Archive folders')
         title.setObjectName('mod_management_archives_title')
@@ -84,25 +57,27 @@ class ModManagementOverview(QWidget):
         title.setFont(font)
         toolbar.addWidget(title)
         toolbar.addStretch(1)
-        self.show_game = QCheckBox('Show game archives')
-        self.show_game.setObjectName('mod_management_show_game')
-        self.show_game.toggled.connect(self._render_mounts)
-        toolbar.addWidget(self.show_game)
-        self.show_missing = QCheckBox('Show missing references')
-        self.show_missing.setObjectName('mod_management_show_missing')
-        self.show_missing.setToolTip('Include archive-list entries whose files are no longer present.')
-        self.show_missing.toggled.connect(self._render_mounts)
-        toolbar.addWidget(self.show_missing)
-        self.clean_missing = QPushButton('Clean missing references...')
-        self.clean_missing.setObjectName('mod_management_clean_missing')
-        self.clean_missing.setToolTip('Review and remove stale mod references from the archive list, with a verified backup. No mod folders or item identities are deleted.')
-        self.clean_missing.clicked.connect(self._clean_missing)
-        toolbar.addWidget(self.clean_missing)
         self.refresh_button = QPushButton('Refresh')
         self.refresh_button.setObjectName('mod_management_refresh')
         self.refresh_button.clicked.connect(self.refresh_requested.emit)
         toolbar.addWidget(self.refresh_button)
         layout.addLayout(toolbar)
+        filters = QHBoxLayout()
+        self.show_game = QCheckBox('Show game archives')
+        self.show_game.setObjectName('mod_management_show_game')
+        self.show_game.toggled.connect(self._render_mounts)
+        filters.addWidget(self.show_game)
+        self.show_missing = QCheckBox('Show missing references')
+        self.show_missing.setObjectName('mod_management_show_missing')
+        self.show_missing.setToolTip('Include archive-list entries whose files are no longer present.')
+        self.show_missing.toggled.connect(self._render_mounts)
+        filters.addWidget(self.show_missing)
+        self.clean_missing = QPushButton('Clean missing references...')
+        self.clean_missing.setObjectName('mod_management_clean_missing')
+        self.clean_missing.setToolTip('Review and remove stale mod references from the archive list, with a verified backup. No mod folders or item identities are deleted.')
+        self.clean_missing.clicked.connect(self._clean_missing)
+        filters.addStretch(1)
+        layout.addLayout(filters)
         self.mounts = QTreeWidget()
         self.mounts.setObjectName('mod_management_archives')
         self.mounts.setHeaderLabels(['Folder', 'Managed by', 'Status'])
@@ -117,6 +92,7 @@ class ModManagementOverview(QWidget):
         self.status.setWordWrap(True)
         self.status.setTextFormat(Qt.TextFormat.PlainText)
         layout.addWidget(self.status)
+        layout.addWidget(self.clean_missing)
         controller.busy_changed.connect(self._busy_changed)
         self._cleanup_button()
 

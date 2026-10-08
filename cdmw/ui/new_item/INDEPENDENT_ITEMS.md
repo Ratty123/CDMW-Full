@@ -4,7 +4,7 @@ Choose **Output > Independent item package (Experimental) · .cditem**, build th
 select **Write item package**. Share the resulting `.cditem` file. Recipients add it
 to **Mod Management > Mods**, choose **Apply changes**, then **Launch game** for
 experimental virtual loading. Physical installation remains available through
-**Advanced > Item package tools > Import packages**. Existing folder exports and
+**Advanced > Item identities > Install into game archives**. Existing folder exports and
 game overlays remain available.
 
 The advanced item identity list sorts by **Item**, **Game ID** or **Status** when you click a column
@@ -83,7 +83,7 @@ does not import files from the recipient's computer.
 
 ## Compare and compose other mods
 
-In **Mod Management > Advanced > Item package tools**, **Scan installed mods** compares the
+In **Mod Management > Advanced > Item identities**, **Scan installed mods** compares the
 installed item set with all mounted external archive providers. **Scan mod
 folder...** additionally inspects an extracted, uninstalled mod folder, including
 loose game-relative files, `files/` layouts and PAMT/PAZ packages. Scans are read-only.
@@ -91,7 +91,7 @@ They report compatible data, shared files that can be merged, record conflicts,
 and unsupported inputs. This is an on-demand file-data comparison, not a runtime
 plugin analyser or continuous external-manager monitor.
 
-**Merge shared files...** prepares a reviewed rebuild for mounted mods. It uses
+**Rebuild installed shared files…** prepares a reviewed rebuild for mounted mods. It uses
 the existing verified backup and recovery transaction, preserves independent
 item identities and journals, and never edits external archives. The composed
 CDMW archive is mounted first. Removing the last CDMW item restores the external
@@ -99,7 +99,7 @@ mount order; a foreign archive originally below the shipped game remains below i
 The current underlay is read again during rebuild, so unmounting a foreign mod
 does not resurrect its old contribution from recovery history.
 
-**Write merged mod...** writes a separate archive-format package through the
+**Export installed items…** writes a separate archive-format package through the
 existing Merge exporter. Inputs remain unchanged. Use that package instead of
 the source mods and composed CDMW overlay, and retain the identity profile for
 saves. Export is not installation and does not transfer CDMW's per-item management
