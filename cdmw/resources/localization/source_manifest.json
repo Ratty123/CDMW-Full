@@ -4031,7 +4031,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 866,
+          "line": 874,
           "sink": "ValueError"
         }
       ]
@@ -4041,7 +4041,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 870,
+          "line": 878,
           "sink": "ValueError"
         }
       ]
@@ -8061,7 +8061,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 666,
+          "line": 671,
           "sink": "OverlayConflict"
         }
       ]
@@ -8161,7 +8161,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 107,
+          "line": 112,
           "sink": "ValueError"
         }
       ]
@@ -8181,7 +8181,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 312,
+          "line": 317,
           "sink": "ValueError"
         }
       ]
@@ -8711,7 +8711,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 158,
+          "line": 163,
           "sink": "OverlayConflict"
         }
       ]
@@ -8721,7 +8721,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 529,
+          "line": 534,
           "sink": "OverlayConflict"
         }
       ]
@@ -12766,7 +12766,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 401,
+          "line": 406,
           "sink": "ValueError"
         }
       ]
@@ -12776,7 +12776,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 403,
+          "line": 408,
           "sink": "ValueError"
         }
       ]
@@ -14621,7 +14621,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 399,
+          "line": 404,
           "sink": "OverlayConflict"
         }
       ]
@@ -22931,7 +22931,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 735,
+          "line": 743,
           "sink": "on_log"
         }
       ]
@@ -22996,7 +22996,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 695,
+          "line": 703,
           "sink": "on_log"
         }
       ]
@@ -23356,7 +23356,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 396,
+          "line": 401,
           "sink": "ValueError"
         }
       ]
@@ -27456,12 +27456,12 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 564,
+          "line": 569,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 858,
+          "line": 866,
           "sink": "RuntimeError"
         }
       ]
@@ -29231,7 +29231,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 615,
+          "line": 620,
           "sink": "on_log"
         }
       ]
@@ -32806,7 +32806,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 890,
+          "line": 901,
           "sink": "RuntimeError"
         }
       ]
@@ -42546,12 +42546,12 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 418,
+          "line": 423,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 425,
+          "line": 430,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -59606,7 +59606,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 276,
+          "line": 281,
           "sink": "ValueError"
         }
       ]
@@ -59666,7 +59666,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 100,
+          "line": 105,
           "sink": "ValueError"
         }
       ]
@@ -59906,7 +59906,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 270,
+          "line": 275,
           "sink": "ValueError"
         }
       ]
@@ -59916,7 +59916,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 105,
+          "line": 110,
           "sink": "ValueError"
         }
       ]
@@ -59926,7 +59926,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 98,
+          "line": 103,
           "sink": "ValueError"
         }
       ]
@@ -59936,7 +59936,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 95,
+          "line": 100,
           "sink": "ValueError"
         }
       ]
@@ -59946,7 +59946,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 252,
+          "line": 257,
           "sink": "ValueError"
         }
       ]
@@ -59956,7 +59956,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 53,
+          "line": 58,
           "sink": "ValueError"
         }
       ]
@@ -59966,7 +59966,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 283,
+          "line": 288,
           "sink": "ValueError"
         }
       ]
@@ -59976,7 +59976,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 103,
+          "line": 108,
           "sink": "ValueError"
         }
       ]
@@ -60141,12 +60141,12 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 374,
+          "line": 379,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 557,
+          "line": 562,
           "sink": "ValueError"
         }
       ]
@@ -61246,7 +61246,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 740,
+          "line": 748,
           "sink": "OverlayConflict"
         }
       ]
@@ -66556,7 +66556,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 383,
+          "line": 388,
           "sink": "ValueError"
         }
       ]
@@ -75546,7 +75546,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 392,
+          "line": 397,
           "sink": "OverlayConflict"
         }
       ]
@@ -80866,7 +80866,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 520,
+          "line": 525,
           "sink": "ValueError"
         }
       ]
@@ -83546,7 +83546,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 718,
+          "line": 726,
           "sink": "ValueError"
         }
       ]
@@ -87501,7 +87501,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 650,
+          "line": 655,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -87511,7 +87511,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 886,
+          "line": 897,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -87521,7 +87521,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 921,
+          "line": 932,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -87531,7 +87531,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 910,
+          "line": 921,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -87541,7 +87541,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 701,
+          "line": 709,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -87551,7 +87551,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 938,
+          "line": 949,
           "sink": "RuntimeError"
         }
       ]
@@ -87571,7 +87571,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 849,
+          "line": 857,
           "sink": "TypeError"
         }
       ]
@@ -87581,7 +87581,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 851,
+          "line": 859,
           "sink": "PermissionError"
         }
       ]
@@ -87606,12 +87606,12 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 608,
+          "line": 613,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 627,
+          "line": 632,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -87626,12 +87626,12 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 156,
+          "line": 161,
           "sink": "OverlayConflict"
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 708,
+          "line": 716,
           "sink": "OverlayConflict"
         }
       ]
@@ -87656,7 +87656,7 @@
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 67,
+          "line": 72,
           "sink": "ValueError"
         }
       ]
@@ -87811,7 +87811,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 267,
+          "line": 272,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -87821,7 +87821,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 261,
+          "line": 266,
           "sink": "ValueError"
         }
       ]
@@ -87831,7 +87831,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 290,
+          "line": 295,
           "sink": "ValueError"
         }
       ]
@@ -87841,7 +87841,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 287,
+          "line": 292,
           "sink": "ValueError"
         }
       ]
@@ -87936,7 +87936,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 60,
+          "line": 65,
           "sink": "ValueError"
         }
       ]
@@ -88111,7 +88111,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 591,
+          "line": 596,
           "sink": "RuntimeError"
         }
       ]
@@ -88121,7 +88121,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 124,
+          "line": 129,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -88141,7 +88141,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 947,
+          "line": 958,
           "sink": "on_log"
         }
       ]
@@ -94361,7 +94361,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 868,
+          "line": 876,
           "sink": "ValueError"
         }
       ]
@@ -95081,7 +95081,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 751,
+          "line": 759,
           "sink": "on_log"
         }
       ]
@@ -110861,7 +110861,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 582,
+          "line": 587,
           "sink": "RuntimeError"
         }
       ]
@@ -110891,7 +110891,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 594,
+          "line": 599,
           "sink": "on_log"
         }
       ]
@@ -112401,7 +112401,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 936,
+          "line": 947,
           "sink": "RuntimeError"
         }
       ]
@@ -126701,7 +126701,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 842,
+          "line": 850,
           "sink": "OverlayConflict"
         }
       ]
@@ -127036,7 +127036,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 819,
+          "line": 827,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -127561,7 +127561,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 913,
+          "line": 924,
           "sink": "RuntimeError"
         }
       ]
@@ -127601,7 +127601,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 920,
+          "line": 931,
           "sink": "RuntimeError"
         }
       ]
@@ -127981,7 +127981,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 527,
+          "line": 532,
           "sink": "OverlayConflict"
         }
       ]
@@ -128171,7 +128171,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 562,
+          "line": 567,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -128181,7 +128181,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 550,
+          "line": 555,
           "sink": "ValueError"
         }
       ]
@@ -128191,7 +128191,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 548,
+          "line": 553,
           "sink": "PermissionError"
         }
       ]
@@ -134387,6 +134387,16 @@
       ]
     },
     {
+      "key": "The composed overlay history exceeds the supported size; this change cannot be published.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 51,
+          "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
       "key": "The config file and cache are stored beside the executable or local source checkout. See",
       "origins": [
         {
@@ -134576,7 +134586,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 432,
+          "line": 437,
           "sink": "ValueError"
         }
       ]
@@ -134751,7 +134761,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 407,
+          "line": 412,
           "sink": "OverlayConflict"
         }
       ]
@@ -135211,7 +135221,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 244,
+          "line": 249,
           "sink": "ValueError"
         }
       ]
@@ -135221,7 +135231,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 241,
+          "line": 246,
           "sink": "ValueError"
         }
       ]
@@ -135296,7 +135306,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 146,
+          "line": 151,
           "sink": "OverlayConflict"
         }
       ]
@@ -135306,7 +135316,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 143,
+          "line": 148,
           "sink": "OverlayConflict"
         }
       ]
@@ -135776,7 +135786,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 802,
+          "line": 810,
           "sink": "ValueError"
         }
       ]
@@ -135786,7 +135796,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 805,
+          "line": 813,
           "sink": "ValueError"
         }
       ]
@@ -135796,7 +135806,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 796,
+          "line": 804,
           "sink": "ValueError"
         }
       ]
@@ -135806,7 +135816,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 853,
+          "line": 861,
           "sink": "ValueError"
         }
       ]
@@ -135896,7 +135906,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 523,
+          "line": 528,
           "sink": "OverlayConflict"
         }
       ]
@@ -135906,7 +135916,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 86,
+          "line": 91,
           "sink": "ValueError"
         }
       ]
@@ -135916,7 +135926,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 587,
+          "line": 592,
           "sink": "RuntimeError"
         }
       ]
@@ -135936,7 +135946,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 721,
+          "line": 729,
           "sink": "ValueError"
         }
       ]
@@ -135946,17 +135956,17 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 371,
+          "line": 376,
           "sink": "OverlayConflict"
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 569,
+          "line": 574,
           "sink": "OverlayConflict"
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 760,
+          "line": 768,
           "sink": "OverlayConflict"
         }
       ]
@@ -136416,12 +136426,12 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 377,
+          "line": 382,
           "sink": "OverlayConflict"
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 571,
+          "line": 576,
           "sink": "OverlayConflict"
         }
       ]
@@ -136661,12 +136671,12 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 772,
+          "line": 780,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 787,
+          "line": 795,
           "sink": "ValueError"
         }
       ]
@@ -137026,7 +137036,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 812,
+          "line": 820,
           "sink": "OverlayConflict"
         }
       ]
@@ -137036,12 +137046,12 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 884,
+          "line": 895,
           "sink": "OverlayConflict"
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 901,
+          "line": 912,
           "sink": "OverlayConflict"
         }
       ]
@@ -137051,7 +137061,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 137,
+          "line": 142,
           "sink": "OverlayConflict"
         }
       ]
@@ -137061,7 +137071,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 838,
+          "line": 846,
           "sink": "OverlayConflict"
         }
       ]
@@ -138296,7 +138306,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 730,
+          "line": 738,
           "sink": "OverlayConflict"
         }
       ]
@@ -142711,7 +142721,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 89,
+          "line": 94,
           "sink": "ValueError"
         }
       ]
@@ -142721,7 +142731,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 264,
+          "line": 269,
           "sink": "ValueError"
         }
       ]
@@ -142731,7 +142741,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 273,
+          "line": 278,
           "sink": "ValueError"
         }
       ]
@@ -145201,7 +145211,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 691,
+          "line": 699,
           "sink": "on_log"
         }
       ]
@@ -174891,12 +174901,12 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 878,
+          "line": 889,
           "sink": "OverlayConflict"
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 897,
+          "line": 908,
           "sink": "OverlayConflict"
         }
       ]
@@ -174936,7 +174946,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 128,
+          "line": 133,
           "sink": "OverlayConflict"
         }
       ]
@@ -174946,7 +174956,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 388,
+          "line": 393,
           "sink": "OverlayConflict"
         }
       ]
@@ -175666,7 +175676,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 713,
+          "line": 721,
           "sink": "OverlayConflict"
         }
       ]
@@ -177036,7 +177046,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 613,
+          "line": 618,
           "sink": "OverlayConflict"
         }
       ]

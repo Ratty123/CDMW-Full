@@ -46,6 +46,11 @@ def _json(data):
     return (json.dumps(data, ensure_ascii=False, indent=2) + '\n').encode('utf-8')
 
 
+def _check_inventory_capacity(data):
+    if len(data) > _MAX_STATE_BYTES:
+        raise OverlayConflict('The composed overlay history exceeds the supported size; this change cannot be published.')
+
+
 def _relative(raw):
     path = str(raw).replace('\\', '/')
     parts = PurePosixPath(path)
@@ -674,7 +679,10 @@ def _compose(root, state, pending, label, removed_id, stop_event, on_log, *, dec
             writes[path] = current[path]
     state['published'] = {p: _digest(v) for p, v in writes.items() if p.startswith(name + '/') or p in meta_paths}
     state['published'].update({p: None for p in deletes})
-    writes[INDEX_PATH] = _json(state)
+    # Compilation provenance and retired layers repeat many nested records.
+    # Whitespace has no wire semantics; keep the reader's existing byte budget.
+    writes[INDEX_PATH] = (json.dumps(state, ensure_ascii=False, separators=(',', ':')) + '\n').encode('utf-8')
+    _check_inventory_capacity(writes[INDEX_PATH])
     paths = tuple(sorted(e.path for e in archive))
     before = tuple((path, _target(root, path).read_bytes() if _target(root, path).is_file() else None) for path in dict.fromkeys((*writes, *deletes)))
     return OverlayChangePreparation(root, name, label, removed_id, tuple(layer['label'] for layer in active),
@@ -868,6 +876,9 @@ def apply_overlay_change(preparation, *, confirmed, backup, restore_backup, game
         raise ValueError('Prepared overlay targets do not match their original files.')
     if set(preparation.deletes) - {name + '/0.pamt', name + '/0.paz', name + '/' + OVERLAY_OWNER_MARKER, 'meta/0.pathc'}:
         raise ValueError('A prepared overlay removal names an unowned file.')
+    for relative, payload in preparation.writes:
+        if relative == INDEX_PATH:
+            _check_inventory_capacity(payload)
     originals = {}
     _verify_source_directories(root, preparation)
     _verify_observed_state(root, preparation.observed_state, 'after preparation')

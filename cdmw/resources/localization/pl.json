@@ -11414,6 +11414,7 @@
     "The colour the parts glow in": "Kolor, którym świecą części",
     "The compare row has no usable transform values to copy.": "Wiersz porównania nie zawiera użytecznych wartości transformacji do skopiowania.",
     "The compared source data is unchanged.": "Porównane dane źródłowe nie uległy zmianie.",
+    "The composed overlay history exceeds the supported size; this change cannot be published.": "The composed overlay history exceeds the supported size; this change cannot be published.",
     "The config file and cache are stored beside the executable or local source checkout. See": "Plik konfiguracyjny i pamięć podręczna są przechowywane obok pliku wykonywalnego lub źródła lokalnego. Zobacz",
     "The configured archive package root does not exist:\n\n{value_0}\n\nFix it under Settings -> Archive Locations, then reopen this tab.": "Skonfigurowany katalog główny pakietu archiwum nie istnieje:\n\n{value_0}\n\nNapraw to w Ustawieniach -> Lokalizacje archiwów, a następnie otwórz ponownie tę kartę.",
     "The current Archive Browser selection is not a loaded existing item icon target.": "Bieżący wybór Archive Browser nie jest załadowanym istniejącym celem ikony elementu.",

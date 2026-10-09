@@ -11414,6 +11414,7 @@
     "The colour the parts glow in": "파트가 빛나는 색",
     "The compare row has no usable transform values to copy.": "비교 행에는 복사할 수 있는 변환 값이 없습니다.",
     "The compared source data is unchanged.": "비교한 소스 데이터에 변경 사항이 없습니다.",
+    "The composed overlay history exceeds the supported size; this change cannot be published.": "The composed overlay history exceeds the supported size; this change cannot be published.",
     "The config file and cache are stored beside the executable or local source checkout. See": "구성 파일과 캐시는 실행 파일 또는 로컬 소스 체크아웃 옆에 저장됩니다. 참조",
     "The configured archive package root does not exist:\n\n{value_0}\n\nFix it under Settings -> Archive Locations, then reopen this tab.": "구성된 아카이브 패키지 루트가 존재하지 않습니다.\n\n{value_0}\n\n설정 -> 보관 위치에서 문제를 해결한 다음 이 탭을 다시 여세요.",
     "The current Archive Browser selection is not a loaded existing item icon target.": "현재 Archive Browser 선택은 로드된 기존 항목 아이콘 대상이 아닙니다.",

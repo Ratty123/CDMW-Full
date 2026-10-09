@@ -385,6 +385,55 @@ advertising community support for that equipment.
 
 ## Evidence and remaining checks
 
+### Capacity and retained history
+
+The current ceilings are admission budgets, not a promise that every combination
+at the ceiling fits memory or every retained installation:
+
+| Resource | Current bound |
+| --- | --- |
+| Selected packages | 128 per batch/profile |
+| Expanded selected package content | 1 GiB total, including manifests |
+| One resource blob | 256 MiB |
+| Package manifest / identity ledger | 4 MiB each |
+| Members in one `.cditem` ZIP | 4,096 including `item.json` |
+| Physical overlay inventory | 4 MiB, including retained history and compiler records |
+| Field operations / target row | 4,096 active assignments / 64 KiB |
+| Declared package graph | 4,096 providers and 4,096 combined exports, pins and references |
+| Item allocation namespace | Existing range 1,990,000–1,999,999; occupied and retired IDs stay reserved |
+
+Both graph limits apply together. Stem capacity also depends on the template's
+fixed-width naming family and existing reservations. No integer ranges, stem
+lengths or unknown-format acceptance are widened to bypass exhaustion.
+
+Physical inventory output uses compact JSON and checks the existing reader limit
+before returning a preparation and again before backup/publication. A refused
+rebuild leaves the prior installation readable. Retired layers, journals and
+bindings still accumulate. Virtual generations and save/recovery backups are
+also retained; there is no automatic history deletion or shared-blob store.
+Storage growth and reusable content should be measured before changing retention
+or sharing semantics.
+
+For reproducible source measurements using owned fixtures only:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/benchmark_independent_items.py --counts 1 8 32 128 --generations 3 --output workspace/reports/cditem-scale.json
+.\.venv\Scripts\python.exe scripts/benchmark_independent_items.py --counts 1 8 32 --kinds icon --generations 3 --output workspace/reports/cditem-scale-icons.json
+```
+
+Choose a new report path for each run. The harness accepts no game directory,
+creates its own temporary fixtures, and measures each case in a separate child
+process. It records preparation/publication time, peak process resident memory,
+expanded/ZIP inputs, retained storage, final inventory readability, unchanged
+stock archive bytes and cancellation at a specific composition checkpoint.
+Icon cases use complete 256×256 BC3 data matching the fixture's source registry.
+The results are machine-local evidence, not real-game proof, a 1 GiB memory test,
+a large-mesh benchmark or a worst-case cancellation bound. Keep reports outside
+version control. Deduplication, streaming large resources and safe history
+collection remain separate work; this harness makes their effects measurable.
+
+### Focused contracts
+
 `tests/test_independent_items.py` constructs separate authoring environments with
 deliberately identical source IDs and names. It covers both template installation
 orders, imported model/icon paths, owned effects, priced perks, recipes and
