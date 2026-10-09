@@ -391,6 +391,20 @@ advertising community support for that equipment.
 
 ## Evidence and remaining checks
 
+The long-term goal is to represent every mod category through typed adapters and
+verified consumers. The current envelope does not make unknown formats usable by
+the game or make contradictory requirements compatible in one game context.
+Unknown required behavior refuses; new domains need their own parsing, reference,
+serialization, activation, teardown and persistence evidence.
+
+Save/profile lineage is not implemented. Exact backup hashes, stable IDs and
+installation dependency checks do not identify the providers needed by arbitrary
+saves. The [save admission boundaries](VIRTUAL_LOADER.md#save-lineage-and-migration-admission)
+describe the missing origin evidence and absent-provider experiment. Game-update
+admission likewise retains exact source hashes until a record-level adapter has
+independent layout and semantic witnesses. No general runtime command API or
+unrestricted native-plugin compatibility guarantee is supplied by `.cditem`.
+
 ### Capacity and retained history
 
 The current ceilings are admission budgets, not a promise that every combination

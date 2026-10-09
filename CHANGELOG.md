@@ -35,6 +35,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - Independent item packages recognize named manager archive folders such as `dmmgen` and `dmmsa`, while still refusing conflicting mounted mods and ignoring unmounted ones. They also protect newer ownership from overlapping operations, allow further items to be authored after installing generated textures, recheck imported model bindings, preserve inherited equipment visibility rules for copied variants, and consistently remap and validate cloned effect references. Visible effect behavior still needs in-game verification.
 - Create New Item can read available archives after a mod folder was manually deleted; missing required game archives still produce an error. Game-update checks now handle added and replaced textures without the unpacking error.
 
+### Docs
+
+- Independent items and Virtual Loader now distinguish verified save backups from save compatibility, explain the missing profile-origin checks and describe the evidence required for broader mod support.
+
 ## [0.11.0-alpha.23] - 2026-10-04
 
 Adds guided private problem reporting, mounted-item packaging and expanded Mesh

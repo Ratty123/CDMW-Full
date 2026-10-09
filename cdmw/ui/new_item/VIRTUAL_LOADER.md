@@ -100,6 +100,41 @@ for both routes. Virtual ownership is separate from physical overlay ownership;
 it does not create fake installed-overlay IDs. After transferring identities,
 prepare the packages again against the destination's actual game data.
 
+## Save lineage and migration admission
+
+Current launch checks prove that the reviewed save files and their backup have
+not changed before the session starts. They do not determine which profile
+created a save, which providers it needs, or whether a changed profile can read
+it safely. In the backup manifest, `profile_sha256` and `generation` identify the
+**proposed launch**, not the save's origin. The `.cdprofile` identity ledger also
+contains no per-save origin or compatibility certificate.
+
+| Situation | Current result |
+| --- | --- |
+| Save, backup or proposed profile changes after review | Launch refuses and requires a fresh review |
+| Selected package requires a missing installation provider | Profile composition refuses through its declared package graph |
+| A save requires a provider absent from the selected profile | Unknown: no save parser or verified origin record identifies that requirement |
+| Profile changes an existing item's saved behavior or representation | Unknown: stable integer IDs do not establish a valid state migration |
+| A provider returns after saving without it | Unknown: restoring its ID cannot recreate state the intervening save discarded |
+| Another launch route or game installation writes the same save folder | Outside the virtual file map; no save isolation or lineage enforcement exists |
+
+A future admission gate needs an evidence-backed association between the exact
+save bytes, their producing context, executable/build contract, package content,
+allocation bindings and persistence schema. Unknown origin must stay unknown.
+A known mismatch must refuse unless a separately verified migration covers that
+exact transition. Missing-provider policies must state whether launch refuses,
+an isolated context is required, or a proven migration is available. Package
+metadata alone cannot authorize a state conversion. No such migration is
+currently implemented; CDMW never rewrites a save to remove missing objects.
+
+The first persistence witness must distinguish three experiments on disposable
+copies: load with a provider absent without saving; write a new save while it is
+absent; then restore the provider and load **that newly written save**. Record
+the exact profile/ID mappings, executable and save hashes plus the observed
+objects and state at each step. Recovering the original pre-removal save only
+tests restoration of that original save. It does not prove the latter two cases.
+Use separate copies for each experiment and keep the original recovery copy.
+
 ## Supported inputs
 
 | Input or operation | Current preparation support | Refusal boundary |
