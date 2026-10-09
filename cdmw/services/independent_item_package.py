@@ -260,12 +260,15 @@ def package_metadata(package):
             "blobs": {key: len(data) for key, data in sorted(package.blobs.items())}}
 
 
-def package_bytes(package, *, stop_event=None):
+def _write_package_archive(package, stream, stop_event):
     meta = package_metadata(package)
     data = canonical(meta)
     if len(data) > MAX_MANIFEST or len(package.blobs) + 1 > MAX_FILES:
         raise IndependentItemError("Item package metadata exceeds the supported size.")
-    stream = io.BytesIO()
+    if any(len(payload) > MAX_BLOB for payload in package.blobs.values()):
+        raise IndependentItemError("An item resource exceeds the package size limit.")
+    if len(data) + sum(map(len, package.blobs.values())) > MAX_TOTAL:
+        raise IndependentItemError("Item package exceeds the supported size.")
     with zipfile.ZipFile(stream, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         def member(name, payload):
             # Artifact identity must not depend on the wall clock or host OS.
@@ -285,6 +288,11 @@ def package_bytes(package, *, stop_event=None):
             raise_if_cancelled(stop_event, "Item package export cancelled.")
             member("assets/" + key, payload)
     raise_if_cancelled(stop_event, "Item package export cancelled.")
+
+
+def package_bytes(package, *, stop_event=None):
+    stream = io.BytesIO()
+    _write_package_archive(package, stream, stop_event)
     return stream.getvalue()
 
 
@@ -292,6 +300,14 @@ def _read_member(archive, member, stop_event):
     # Package members stay bounded by the validated directory above. Chunked
     # decoding adds cooperative cancellation without dropping ZIP CRC checks.
     result = io.BytesIO()
+    expected = (archive.getinfo(member) if isinstance(member, str) else member).file_size
+    raise_if_cancelled(stop_event)
+    if expected:
+        # Reserve once within the validated directory budget. Incremental growth
+        # can temporarily retain two large buffers; getvalue can share this one.
+        result.seek(expected - 1)
+        result.write(b'\0')
+        result.seek(0)
     with archive.open(member, 'r') as reader:
         while True:
             raise_if_cancelled(stop_event)
@@ -299,8 +315,30 @@ def _read_member(archive, member, stop_event):
             raise_if_cancelled(stop_event)
             if not chunk:
                 break
+            if result.tell() + len(chunk) > expected:
+                raise IndependentItemError("Item resource failed its checksum or size check.")
             result.write(chunk)
+    if result.tell() != expected:
+        # A lying central-directory size must never turn unwritten allocation
+        # into accepted zero padding. CRC alone need not catch a short member.
+        raise IndependentItemError("Item resource failed its checksum or size check.")
     return result.getvalue()
+
+
+def _artifact_hash(source, stop_event):
+    fingerprint, total = hashlib.sha256(), 0
+    # Invalidate a BufferedReader's cached range after external writes.
+    source.seek(0, 2)
+    source.seek(0)
+    while chunk := source.read(_ZIP_CHUNK_BYTES):
+        raise_if_cancelled(stop_event)
+        total += len(chunk)
+        if total > MAX_TOTAL + MAX_MANIFEST:
+            raise IndependentItemError('Item package exceeds the supported size.')
+        fingerprint.update(chunk)
+    raise_if_cancelled(stop_event)
+    source.seek(0)
+    return fingerprint.hexdigest()
 
 
 def read_package(source, *, stop_event=None):
@@ -315,21 +353,7 @@ def read_package(source, *, stop_event=None):
             if len(source) > MAX_TOTAL + MAX_MANIFEST:
                 raise IndependentItemError("Item package exceeds the supported size.")
             source = io.BytesIO(source)
-        def artifact_hash():
-            fingerprint = hashlib.sha256()
-            total = 0
-            # Invalidate a BufferedReader's cached range after external writes.
-            source.seek(0, 2)
-            source.seek(0)
-            while chunk := source.read(1024 * 1024):
-                raise_if_cancelled(stop_event)
-                total += len(chunk)
-                if total > MAX_TOTAL + MAX_MANIFEST:
-                    raise IndependentItemError('Item package exceeds the supported size.')
-                fingerprint.update(chunk)
-            source.seek(0)
-            return fingerprint.hexdigest()
-        artifact = artifact_hash()
+        artifact = _artifact_hash(source, stop_event)
         with zipfile.ZipFile(source) as archive:
             infos = archive.infolist()
             names = [i.filename for i in infos]
@@ -358,9 +382,11 @@ def read_package(source, *, stop_event=None):
                 raise_if_cancelled(stop_event)
                 if info.filename != "item.json":
                     blobs[info.filename[7:]] = _read_member(archive, info, stop_event)
-        if not immutable and artifact_hash() != artifact:
+        if not immutable and _artifact_hash(source, stop_event) != artifact:
             raise IndependentItemError('The package changed while it was being read.')
-        return replace(_package(meta, blobs), artifact_digest=artifact)
+        result = replace(_package(meta, blobs), artifact_digest=artifact)
+        raise_if_cancelled(stop_event)
+        return result
     except (zipfile.BadZipFile, KeyError, TypeError, ValueError, UnicodeError, RecursionError) as exc:
         if isinstance(exc, IndependentItemError):
             raise
@@ -371,28 +397,32 @@ def write_package(package, path, *, expected_digest=None, stop_event=None):
     path = Path(path).resolve()
     if path.suffix.lower() != ".cditem":
         raise IndependentItemError("Independent item packages use the .cditem extension.")
-    if path.is_file() and path.stat().st_size > MAX_TOTAL + MAX_MANIFEST:
-        raise IndependentItemError("Item package exceeds the supported size.")
-    previous = path.read_bytes() if path.is_file() else None
-    if previous is not None:
-        old = read_package(previous)
+    previous = None
+    if path.is_file():
+        old = read_package(path, stop_event=stop_event)
         if expected_digest != old.digest or old.identity != package.identity:
             raise IndependentItemError("Select the existing package explicitly before updating it.")
         if package_metadata(old)['version'] == 2 and package_metadata(package)['version'] == 1:
             raise IndependentItemError('A v2 package requires a v2-aware editor. Refusing to discard its modules or provenance.')
+        previous = old.artifact_digest
+        del old  # Retain its exact artifact guard, not every decompressed resource.
     elif expected_digest is not None:
         raise IndependentItemError("The package selected for update is missing.")
-    data = package_bytes(package, stop_event=stop_event)
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary = tempfile.mkstemp(prefix=".cditem-", suffix=".tmp", dir=path.parent)
     try:
         with os.fdopen(fd, "wb") as handle:
-            handle.write(data)
+            _write_package_archive(package, handle, stop_event)
             handle.flush()
             os.fsync(handle.fileno())
         raise_if_cancelled(stop_event)
-        if (path.read_bytes() if path.is_file() else None) != previous:
+        current = None
+        if path.is_file():
+            with path.open('rb') as handle:
+                current = _artifact_hash(handle, stop_event)
+        if current != previous:
             raise IndependentItemError("The destination changed during package export.")
+        raise_if_cancelled(stop_event)
         os.replace(temporary, path)
     finally:
         Path(temporary).unlink(missing_ok=True)

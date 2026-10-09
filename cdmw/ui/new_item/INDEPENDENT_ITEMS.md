@@ -122,11 +122,16 @@ artifacts. File reads hash before and after parsing to catch changed content eve
 when length and modification time are unchanged. Optional metadata is included
 in canonical content identity; no cryptographic authenticity claim is made.
 ZIP members are decoded and encoded in 1 MiB chunks with cancellation checks,
-including after the final read/write. ZIP CRC verification remains mandatory.
+including while validating an existing export and immediately before replacing
+it. ZIP CRC and declared resource lengths are checked. File exports write to a
+sibling temporary file, then recheck the previous artifact before replacement;
+cancellation, write failure or a changed destination preserves the existing file.
 Compression boundaries may change exact artifact bytes while preserving the
 canonical content and UUID; recorded artifact digests always describe actual bytes.
-Member contents are still retained in memory for validation and compilation;
-chunked I/O does not make the full pipeline use constant memory.
+File export avoids holding an additional complete compressed ZIP in memory.
+Imports still retain decoded member contents for validation and compilation,
+and `package_bytes()` deliberately returns an in-memory ZIP. The full pipeline
+does not use constant memory.
 
 Physical contributions and complete virtual profiles carry a checksummed
 compilation record. It links compiler and adapter revisions, package content and
@@ -242,8 +247,10 @@ The v1 ledger remains in use for installations containing only item reservations
 
 Imports reject duplicate/unsafe paths, symlinks, encryption, unknown fields or
 versions, malformed types, missing/unreferenced blobs and checksum/size failures.
-Limits are 4 MiB of metadata, 256 MiB per resource, 1 GiB total and 4,096 entries;
-one installation batch accepts up to 128 packages.
+Reader and writer limits are 4 MiB of metadata, 256 MiB per resource, 1 GiB of
+expanded metadata and resources combined, and 4,096 entries. Exports exceeding
+these limits are refused before replacement. One installation batch accepts up
+to 128 packages.
 
 Owned DDS textures must contain a complete supported single-surface, 2D block-
 compressed payload and every declared mip. Registration compares the full DX10
@@ -449,8 +456,21 @@ stock archive bytes and cancellation at a specific composition checkpoint.
 Icon cases use complete 256×256 BC3 data matching the fixture's source registry.
 The results are machine-local evidence, not real-game proof, a 1 GiB memory test,
 a large-mesh benchmark or a worst-case cancellation bound. Keep reports outside
-version control. Deduplication, streaming large resources and safe history
-collection remain separate work; this harness makes their effects measurable.
+version control.
+
+For isolated package import, file export and update measurements:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/benchmark_independent_package_io.py --mib 16 128 --output workspace/reports/cditem-package-io.json
+```
+
+This harness uses deterministic, incompressible opaque resources in both v1 and
+v2 containers. Each case runs in a fresh process and verifies the resulting
+identity and resource bytes. Peak memory includes fixture setup; elapsed time
+covers the requested operation, and write readback runs after memory measurement.
+The payload is not a valid game icon or model, so these results establish codec
+behavior only. Large-mesh and full-pipeline memory, shared-blob storage and safe
+history collection remain separate work.
 
 ### Focused contracts
 

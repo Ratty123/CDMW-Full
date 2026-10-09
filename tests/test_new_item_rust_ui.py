@@ -75,6 +75,8 @@ def test_json_lines_preserve_split_unicode_and_reject_oversize_duplicate_and_non
 
 
 def test_independent_output_preserves_draft_and_exports_through_rust_input(studio, tmp_path):
+    import weakref
+    from cdmw.services import independent_item_package as package_owner
     from cdmw.services.independent_item_package import read_package
     from tests.test_independent_items import setup_game
     _fixture, tab, bridge = studio
@@ -109,9 +111,20 @@ def test_independent_output_preserves_draft_and_exports_through_rust_input(studi
             patch.object(QMessageBox, 'information'):
         _send(bridge, output.export_button, 'activate')
     assert read_package(duplicate).identity != package.identity
+    read, build = package_owner.read_package, package_owner.from_plan
+    previous_objects, released_before_build = [], []
+    def tracked_read(*args, **kwargs):
+        result = read(*args, **kwargs)
+        previous_objects.append(weakref.ref(result))
+        return result
+    def tracked_build(*args, **kwargs):
+        released_before_build.append(bool(previous_objects) and all(ref() is None for ref in previous_objects))
+        return build(*args, **kwargs)
     with patch('cdmw.ui.new_item.panels_output.QFileDialog.getOpenFileName', return_value=(str(target), '')), \
-            patch.object(QMessageBox, 'information'):
+            patch.object(QMessageBox, 'information'), patch.object(package_owner, 'read_package', tracked_read), \
+            patch.object(package_owner, 'from_plan', tracked_build):
         _send(bridge, output.update_package_button, 'activate')
+    assert released_before_build == [True]
     assert read_package(target).identity == package.identity == controller.draft.independent_identity
     _send(bridge, output.folder_mode_button, 'activate')
     assert not controller.independent_mode and output.manager.currentText() == 'JMM'

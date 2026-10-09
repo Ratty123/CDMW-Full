@@ -330,8 +330,10 @@ class NewItemTaskControllerMixin:
         def task(log, stop):
             from cdmw.services.independent_item_package import from_plan, read_package, write_package
             previous = read_package(path, stop_event=stop) if update else None
-            package = from_plan(plan, previous.identity if previous else identity, stop_event=stop)
-            return write_package(package, path, expected_digest=previous.digest if previous else None, stop_event=stop)
+            export_identity, previous_digest = (previous.identity, previous.digest) if previous else (identity, None)
+            del previous  # Old resources are not inputs to the newly authored plan.
+            package = from_plan(plan, export_identity, stop_event=stop)
+            return write_package(package, path, expected_digest=previous_digest, stop_event=stop)
         def done(result):
             if revision == self._draft_revision:
                 self.draft.independent_identity = result.identity
