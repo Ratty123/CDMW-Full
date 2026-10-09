@@ -133,6 +133,11 @@ generations remain recovery evidence; this prototype does not prune them.
 
 Preparation captures package hashes, source revisions, mounted provider
 inventories and ownership state. Publication and launch reject changed inputs.
+Each new profile also records its compiler and adapter revisions. A profile with
+an older, different or unrecorded compiler remains readable for recovery but cannot
+launch: use **Apply changes** to regenerate it while retaining item identities.
+Older CDMW versions that cannot read this profile record refuse it rather than
+assuming compatibility. The `.cditem` and `.cdprofile` wire formats are unchanged.
 
 **Apply changes** runs its CPU-heavy preparation in an owned background process
 so table parsing and composition do not contend with the GUI's Python execution.

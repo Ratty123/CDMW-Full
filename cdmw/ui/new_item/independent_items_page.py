@@ -56,6 +56,13 @@ class IndependentItemsPage(QWidget):
         for button in (self.import_button, self.remove_button, self.refresh_button):
             row.addWidget(button)
         package_layout.addLayout(row)
+        self.rebuild_button = QPushButton("Rebuild selected item…")
+        self.rebuild_button.setToolTip("Regenerate this item from its saved package while keeping the same item IDs. Review the changes before applying them.")
+        self.rebuild_button.clicked.connect(self._rebuild)
+        rebuild_row = QHBoxLayout()
+        rebuild_row.addWidget(self.rebuild_button)
+        rebuild_row.addStretch(1)
+        package_layout.addLayout(rebuild_row)
         profile_help = QLabel('Keep this profile with your saves when moving computers.')
         profile_help.setWordWrap(True)
         identity_layout.addWidget(profile_help)
@@ -112,6 +119,7 @@ class IndependentItemsPage(QWidget):
         selected = self.items.currentItem()
         self.import_button.setEnabled(ready and self.mutations is not None)
         self.remove_button.setEnabled(ready and self.mutations is not None and selected is not None and selected.data(0, Qt.ItemDataRole.UserRole + 1) == 'Installed')
+        self.rebuild_button.setEnabled(self.remove_button.isEnabled())
         self.refresh_button.setEnabled(ready)
         self.export_profile_button.setEnabled(ready)
         self.import_profile_button.setEnabled(ready and self.mutations is not None)
@@ -274,6 +282,14 @@ class IndependentItemsPage(QWidget):
         from cdmw.services.independent_item_install import prepare_remove
         identity, root = item.data(0, Qt.ItemDataRole.UserRole), self.package_root
         self._run(lambda log, stop: prepare_remove(identity, root, stop_event=stop, on_log=log), self._review)
+
+    def _rebuild(self):
+        item = self.items.currentItem()
+        if item is None:
+            return
+        from cdmw.services.independent_item_install import prepare_rebuild
+        identity, root = item.data(0, Qt.ItemDataRole.UserRole), self.package_root
+        self._run(lambda log, stop: prepare_rebuild(identity, root, stop_event=stop, on_log=log), self._review)
 
     def _review(self, result):
         generation, root = self._generation, self.package_root

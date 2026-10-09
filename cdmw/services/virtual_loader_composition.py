@@ -8,6 +8,7 @@ from cdmw.core.archive_overlay import OverlayFile, build_overlay_archive
 from cdmw.services.archive_overlay_install import _processed_payload
 from cdmw.core.papgt_format import PAPGT_DEFAULT_FLAGS, papgt_with_directory
 from cdmw.domain.cancellation import raise_if_cancelled
+from cdmw.domain.new_item.compilation import compiler_stamp
 from cdmw.domain.virtual_loader import PreparedSnapshot, VirtualLoaderError, VirtualProfile
 from cdmw.services import archive_overlay_manager as overlays
 from cdmw.services.independent_item_install import resolve_items
@@ -134,7 +135,7 @@ def prepare_profile(profile: VirtualProfile, root, *, stop_event=None, on_log=No
     sources.update(original_packages)
     observed = (*resolved.observed, (PROFILE_PATH, profile_before))
     generation = uuid4().hex
-    data = {'format': FORMAT, 'generation': generation,
+    data = {'format': FORMAT, 'generation': generation, 'compiler': compiler_stamp(),
             'items': {package.identity: {k: resolved.registry['items'][package.identity][k] for k in ('digest', 'binding_hash')}
                       for package, _ in resolved.contributions},
             'packages': [str(p) for p in packages], 'mods': [str(f) for f in folders],

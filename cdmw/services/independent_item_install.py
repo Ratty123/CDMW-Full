@@ -17,6 +17,7 @@ from cdmw.core.stringinfo_table import stringinfo_key
 from cdmw.domain.archives.overlay_merge import _table
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.new_item.allocation import DEFAULT_ITEM_KEY_RANGE
+from cdmw.domain.new_item.compilation import compiler_stamp, validate_compiler_stamp
 from cdmw.domain.new_item.independent import IdentityBindings, IndependentItemError, IndependentItemInstallPlan, package_id
 from cdmw.domain.new_item.rules import has_errors
 from cdmw.services import archive_overlay_manager as overlays
@@ -109,6 +110,8 @@ def load_registry(root):
     for layer in (state or {}).get('layers', ()):
         identity = layer.get('independent_identity')
         if identity:
+            if 'independent_compiler' in layer:
+                validate_compiler_stamp(layer['independent_compiler'])
             row = registry['items'].get(identity)
             if row is None:
                 raise IndependentItemError('An independent item reservation is missing. Restore the matching identity backup before continuing.')
@@ -300,7 +303,7 @@ class _AssetHashes:
         self._reserved.update(additions)
 
 
-def resolve_items(sources, root, *, target='archive', folders=(), stop_event=None, on_log=None, read_entry=None, on_progress=None):
+def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False, stop_event=None, on_log=None, read_entry=None, on_progress=None):
     """Resolve recipes without publishing archives, identities, or ownership.
 
     Contributions have no overlay IDs. The selected deployment backend owns
@@ -379,7 +382,9 @@ def resolve_items(sources, root, *, target='archive', folders=(), stop_event=Non
         if target == 'virtual' and previous_layer and (previous_layer['active'] or previous_layer.get('disabled')):
             raise IndependentItemError(f'{package.title}: remove the installed contribution before using this item in a virtual profile. Its identity will be retained.')
         _check_dependencies(package, snapshot, stop_event)
-        if previous_layer and previous_layer['active'] and prior['digest'] == package.digest:
+        if previous_layer and previous_layer['active'] and prior['digest'] == package.digest and not rebuild:
+            if previous_layer.get('independent_compiler') != compiler_stamp():
+                raise IndependentItemError(f'{package.title}: the installed compiler is different or unrecorded. Use Rebuild selected item to regenerate it while retaining its IDs.')
             check_package_dependencies(package, snapshot, external, decoded[previous_layer['id']], stop_event=stop_event)
             rows.append((identity, package.title, prior['values']['iteminfo']['item'], 'Already installed'))
             continue
@@ -463,21 +468,22 @@ def resolve_items(sources, root, *, target='archive', folders=(), stop_event=Non
             if existing.identity != identity or existing.digest != package.digest:
                 raise IndependentItemError('The retained recovery package has changed outside CDMW.')
         pending[cache_path] = cached if cached is not None else package_bytes(package, stop_event=stop_event)
-        rows.append((identity, package.title, key, 'Update' if prior else 'Install'))
+        status = 'Rebuild' if rebuild and prior and prior['digest'] == package.digest else 'Update' if prior else 'Install'
+        rows.append((identity, package.title, key, status))
     _validate_registry(registry)
     progress(100, 'Item identities and dependencies verified.')
     return ResolvedItemSet(root, observed_state, state, pending, decoded, registry, registry_before,
         baseline, external, tuple(rows), tuple(contributions), tuple(revisions), tuple(dict.fromkeys(compatibility)))
 
 
-def prepare_install(sources, root, *, stop_event=None, on_log=None, read_entry=None):
-    result = resolve_items(sources, root, stop_event=stop_event, on_log=on_log, read_entry=read_entry)
+def prepare_install(sources, root, *, rebuild=False, stop_event=None, on_log=None, read_entry=None):
+    result = resolve_items(sources, root, rebuild=rebuild, stop_event=stop_event, on_log=on_log, read_entry=read_entry)
     root, state, pending, decoded, registry = result.root, result.state, result.pending, result.decoded, result.registry
     for package, changes in result.contributions:
         row = registry['items'][package.identity]
         layer = overlays._add_layer(state, pending, package.title, changes, item_keys=tuple(row['values']['iteminfo'].values()))
         layer.update(independent_identity=package.identity, independent_digest=package.digest,
-                     independent_bindings=row['binding_hash'])
+                     independent_bindings=row['binding_hash'], independent_compiler=compiler_stamp())
         row['layer'] = layer['id']
         decoded[layer['id']] = changes
     if canonical(registry) == result.registry_before and not result.external.paths:
@@ -491,6 +497,32 @@ def prepare_install(sources, root, *, stop_event=None, on_log=None, read_entry=N
         return IndependentItemInstallPlan(None, result.rows, ('All selected items are already installed.',))
     return IndependentItemInstallPlan(preparation, result.rows,
         (*tuple(f'{status}: {title} (item {key})' for _, title, key, status in result.rows), *result.summary))
+
+
+def prepare_rebuild(identity, root, *, stop_event=None, on_log=None):
+    """Recompile a retained physical package, preserving its reserved identities."""
+    root = Path(root).resolve()
+    observed = overlays._observe_state(root)
+    registry = load_registry(root)
+    row = registry['items'].get(package_id(identity))
+    state = overlays._load_index(root)
+    layer = next((item for item in (state or {}).get('layers', ())
+                  if row and item['id'] == row['layer'] and item['active']), None)
+    if layer is None:
+        raise IndependentItemError('Select an installed physical item to rebuild.')
+    raise_if_cancelled(stop_event)
+    relative = f'.cdmw/independent-items/{identity}-{row["digest"]}.cditem'
+    path = overlays._target(root, relative)
+    if not path.is_file() or path.stat().st_size > MAX_TOTAL + MAX_MANIFEST:
+        raise IndependentItemError('The retained rebuild package is missing or too large.')
+    data = path.read_bytes()
+    package = read_package(data, stop_event=stop_event)
+    if package.identity != identity or package.digest != row['digest']:
+        raise IndependentItemError('The retained rebuild package has changed outside CDMW.')
+    result = prepare_install([data], root, rebuild=True, stop_event=stop_event, on_log=on_log)
+    preparation = overlays._pin_preparation(result.preparation, observed, error_type=IndependentItemError)
+    summary = (*result.summary, 'Recompiled from the retained package with the current compiler. Existing item IDs and asset reservations are preserved.')
+    return replace(result, preparation=preparation, summary=summary)
 
 
 def prepare_remove(identity, root, *, stop_event=None, on_log=None):

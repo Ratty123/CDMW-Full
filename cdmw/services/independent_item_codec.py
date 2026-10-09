@@ -98,7 +98,7 @@ def _matches(value, schema):
     return False  # Includes v1's deliberately unavailable mask types.
 
 
-def _text(value):
+def _checked_recipe_text(value):
     if type(value) is not str or len(value) > 65536 or '\0' in value:
         raise IndependentItemError('Invalid item recipe text.')
     return value
@@ -132,11 +132,11 @@ def encode(value, depth=0):
     if isinstance(value, dict):
         if len(value) > 10000:
             raise IndependentItemError('Item recipe contains too many values.')
-        return {'map': {_text(k): encode(v, depth + 1) for k, v in value.items()}}
+        return {'map': {_checked_recipe_text(k): encode(v, depth + 1) for k, v in value.items()}}
     if value is None or type(value) in (bool, int):
         return value
     if type(value) is str:
-        return _text(value)
+        return _checked_recipe_text(value)
     if type(value) is float and math.isfinite(value):
         return value
     raise IndependentItemError('The item contains a setting that cannot be shared safely.')
@@ -153,7 +153,7 @@ def decode(value, depth=0):
         if set(value) == {'map'} and isinstance(value['map'], dict):
             if len(value['map']) > 10000:
                 raise IndependentItemError('Item recipe contains too many values.')
-            return {_text(k): decode(v, depth + 1) for k, v in value['map'].items()}
+            return {_checked_recipe_text(k): decode(v, depth + 1) for k, v in value['map'].items()}
         name = value.get('type', value.get('enum', ''))
         if type(name) is not str:
             raise IndependentItemError('Unknown item recipe type.')

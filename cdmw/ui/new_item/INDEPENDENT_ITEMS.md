@@ -38,11 +38,20 @@ and included in dependency validation. The original shared table records are
 preserved, apart from supported additive shop stock and item-group membership.
 
 Updates retain prior identities and atomically replace the selected item's
-contribution. Importing identical content is a no-op. Removal deletes only that
+contribution. Importing identical content is a no-op when the installed compiler
+record matches the current compiler. Removal deletes only that
 contribution from composed output. All issued identities and asset paths remain
 reserved, including retired auxiliary records. Normal CDMW overlay installation
 also refuses to take an independent package's reserved item keys. External tools
 cannot be forced to honour these reservations; detected overlaps are refused.
+
+**Advanced > Item identities > Rebuild selected item…** regenerates an installed
+item from its retained package with the current compiler. It preserves the UUID,
+item IDs and asset reservations, then uses the normal change review and verified
+backup flow. Cancellation leaves the installation unchanged; failed publication
+restores the previous output and ownership. Missing or changed recovery packages
+are refused. An older or unrecorded compiler requires this explicit rebuild before
+an identical-package import can be treated as already installed.
 
 Saves can still reference removed items. CDMW does not edit saves. Export an
 **identity profile** (`.cdprofile`) with saves when moving computers, import it
@@ -66,6 +75,13 @@ v1 cannot represent refuse instead of silently losing behavior. Reading and
 rewriting a package preserve its UUID and canonical content digest. Synthetic
 fixtures captured from revision `d08bd77343e1` cover the known vocabulary; earlier
 shipped schema variants still need historical examples before claiming support.
+
+Physical ownership layers record the compiler revision, adapter revisions and
+frozen wire-schema digest independently of package content and identity bindings.
+Planner semantic changes require a compiler revision change; output or admission
+changes in a named adapter require its revision change. Existing layers without
+this record remain readable for recovery and removal, but cannot claim current
+compilation. This does not change the v1 package or identity-profile schema.
 
 Imports reject duplicate/unsafe paths, symlinks, encryption, unknown fields or
 versions, malformed types, missing/unreferenced blobs and checksum/size failures.

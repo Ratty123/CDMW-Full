@@ -3836,7 +3836,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 353,
+          "line": 359,
           "sink": "PermissionError"
         }
       ]
@@ -4351,7 +4351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 293,
+          "line": 309,
           "sink": "tr"
         }
       ]
@@ -9542,6 +9542,16 @@
       ]
     },
     {
+      "key": "Apply changes again to rebuild this profile with the current compiler. Existing item IDs will be retained.",
+      "origins": [
+        {
+          "path": "cdmw/services/virtual_loader_runtime.py",
+          "line": 135,
+          "sink": "VirtualSessionStatus"
+        }
+      ]
+    },
+    {
       "key": "Apply cloth settings",
       "origins": [
         {
@@ -9696,7 +9706,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 150,
+          "line": 156,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -9831,7 +9841,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 153,
+          "line": 159,
           "sink": "VirtualSessionStatus"
         },
         {
@@ -9876,7 +9886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 294,
+          "line": 310,
           "sink": "tr"
         }
       ]
@@ -18526,7 +18536,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 111,
+          "line": 112,
           "sink": "progress"
         }
       ]
@@ -19481,7 +19491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 290,
+          "line": 306,
           "sink": "tr"
         }
       ]
@@ -21536,7 +21546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_advanced.py",
-          "line": 65,
+          "line": 66,
           "sink": "tr"
         }
       ]
@@ -22716,7 +22726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 74,
+          "line": 81,
           "sink": "QLabel"
         }
       ]
@@ -22766,7 +22776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_advanced.py",
-          "line": 66,
+          "line": 67,
           "sink": "tr"
         }
       ]
@@ -22856,7 +22866,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 446,
+          "line": 451,
           "sink": "progress"
         }
       ]
@@ -22996,12 +23006,12 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 315,
+          "line": 318,
           "sink": "progress"
         },
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 52,
+          "line": 53,
           "sink": "progress"
         }
       ]
@@ -23081,7 +23091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 211,
+          "line": 219,
           "sink": "tr"
         }
       ]
@@ -23151,7 +23161,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 318,
+          "line": 324,
           "sink": "progress"
         }
       ]
@@ -24401,7 +24411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 250,
+          "line": 258,
           "sink": "tr"
         }
       ]
@@ -24516,7 +24526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 258,
+          "line": 266,
           "sink": "tr"
         }
       ]
@@ -25666,7 +25676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 142,
+          "line": 150,
           "sink": "tr"
         }
       ]
@@ -25711,7 +25721,7 @@
         },
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 132,
+          "line": 138,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -27471,7 +27481,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 144,
+          "line": 150,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -28386,7 +28396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_advanced.py",
-          "line": 43,
+          "line": 44,
           "sink": "tr"
         }
       ]
@@ -28406,7 +28416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 253,
+          "line": 261,
           "sink": "getText"
         }
       ]
@@ -28756,7 +28766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_advanced.py",
-          "line": 67,
+          "line": 68,
           "sink": "tr"
         }
       ]
@@ -28871,7 +28881,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 359,
+          "line": 362,
           "sink": "progress"
         }
       ]
@@ -28896,7 +28906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 223,
+          "line": 231,
           "sink": "tr"
         }
       ]
@@ -28966,7 +28976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 231,
+          "line": 239,
           "sink": "tr"
         }
       ]
@@ -29211,7 +29221,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 65,
+          "line": 66,
           "sink": "progress"
         }
       ]
@@ -30251,12 +30261,12 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 310,
+          "line": 316,
           "sink": "PermissionError"
         },
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 371,
+          "line": 377,
           "sink": "PermissionError"
         }
       ]
@@ -30391,7 +30401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_advanced.py",
-          "line": 42,
+          "line": 43,
           "sink": "tr"
         }
       ]
@@ -36321,7 +36331,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 410,
+          "line": 416,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -36851,7 +36861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 190,
+          "line": 198,
           "sink": "tr"
         },
         {
@@ -44211,7 +44221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 316,
+          "line": 332,
           "sink": "tr"
         }
       ]
@@ -44221,7 +44231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 63,
+          "line": 70,
           "sink": "QPushButton"
         }
       ]
@@ -44231,7 +44241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 85,
+          "line": 92,
           "sink": "QPushButton"
         }
       ]
@@ -46871,7 +46881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 288,
+          "line": 304,
           "sink": "tr"
         }
       ]
@@ -50731,7 +50741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 287,
+          "line": 303,
           "sink": "tr"
         },
         {
@@ -55416,12 +55426,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 316,
+          "line": 332,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 326,
+          "line": 342,
           "sink": "tr"
         }
       ]
@@ -55431,7 +55441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 323,
+          "line": 339,
           "sink": "tr"
         }
       ]
@@ -55441,7 +55451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 203,
+          "line": 211,
           "sink": "tr"
         }
       ]
@@ -56461,7 +56471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 326,
+          "line": 342,
           "sink": "tr"
         }
       ]
@@ -56471,7 +56481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 65,
+          "line": 72,
           "sink": "QPushButton"
         }
       ]
@@ -56481,7 +56491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 206,
+          "line": 214,
           "sink": "tr"
         }
       ]
@@ -57976,7 +57986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 311,
+          "line": 327,
           "sink": "tr"
         }
       ]
@@ -57996,32 +58006,32 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 265,
+          "line": 268,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 276,
+          "line": 279,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 287,
+          "line": 290,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 295,
+          "line": 298,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 312,
+          "line": 315,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 373,
+          "line": 376,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -58041,7 +58051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 206,
+          "line": 214,
           "sink": "tr"
         },
         {
@@ -59231,7 +59241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 190,
+          "line": 198,
           "sink": "tr"
         },
         {
@@ -59391,7 +59401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 71,
+          "line": 78,
           "sink": "QGroupBox"
         }
       ]
@@ -61216,7 +61226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_advanced.py",
-          "line": 60,
+          "line": 61,
           "sink": "addTab"
         }
       ]
@@ -61226,7 +61236,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 468,
+          "line": 474,
           "sink": "progress"
         }
       ]
@@ -62161,7 +62171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 59,
+          "line": 66,
           "sink": "QLabel"
         }
       ]
@@ -68486,7 +68496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 266,
+          "line": 274,
           "sink": "tr"
         }
       ]
@@ -72976,7 +72986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 253,
+          "line": 261,
           "sink": "tr"
         }
       ]
@@ -93166,7 +93176,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 832,
+          "line": 837,
           "sink": "log"
         }
       ]
@@ -94131,7 +94141,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 160,
+          "line": 166,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -94191,7 +94201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_advanced.py",
-          "line": 59,
+          "line": 60,
           "sink": "addTab"
         }
       ]
@@ -95556,7 +95566,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 371,
+          "line": 374,
           "sink": "progress"
         }
       ]
@@ -95611,7 +95621,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 851,
+          "line": 856,
           "sink": "add"
         }
       ]
@@ -99536,7 +99546,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 153,
+          "line": 159,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -99856,7 +99866,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 159,
+          "line": 165,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -101636,7 +101646,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 344,
+          "line": 347,
           "sink": "progress"
         }
       ]
@@ -102316,7 +102326,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 160,
+          "line": 166,
           "sink": "VirtualSessionStatus"
         },
         {
@@ -102781,7 +102791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 82,
+          "line": 89,
           "sink": "QPushButton"
         }
       ]
@@ -102893,6 +102903,16 @@
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
           "line": 353,
           "sink": "emit"
+        }
+      ]
+    },
+    {
+      "key": "Rebuild selected item…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/independent_items_page.py",
+          "line": 59,
+          "sink": "QPushButton"
         }
       ]
     },
@@ -103246,7 +103266,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 146,
+          "line": 147,
           "sink": "progress"
         }
       ]
@@ -103811,7 +103831,7 @@
         },
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 127,
+          "line": 130,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -105187,6 +105207,16 @@
       ]
     },
     {
+      "key": "Regenerate this item from its saved package while keeping the same item IDs. Review the changes before applying them.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/independent_items_page.py",
+          "line": 60,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Regex",
       "origins": [
         {
@@ -106166,7 +106196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 190,
+          "line": 198,
           "sink": "tr"
         }
       ]
@@ -111696,7 +111726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 291,
+          "line": 307,
           "sink": "tr"
         }
       ]
@@ -113336,7 +113366,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 444,
+          "line": 450,
           "sink": "PermissionError"
         }
       ]
@@ -113346,7 +113376,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 511,
+          "line": 517,
           "sink": "PermissionError"
         }
       ]
@@ -114856,7 +114886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 94,
+          "line": 101,
           "sink": "setPlaceholderText"
         }
       ]
@@ -114866,7 +114896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 78,
+          "line": 85,
           "sink": "QPushButton"
         }
       ]
@@ -114896,7 +114926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 80,
+          "line": 87,
           "sink": "QPushButton"
         }
       ]
@@ -117466,7 +117496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 215,
+          "line": 223,
           "sink": "tr"
         }
       ]
@@ -128281,7 +128311,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 336,
+          "line": 342,
           "sink": "progress"
         }
       ]
@@ -133326,7 +133356,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 157,
+          "line": 163,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -134866,12 +134896,12 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 406,
+          "line": 412,
           "sink": "VirtualSessionStatus"
         },
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 410,
+          "line": 416,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -136396,7 +136426,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 410,
+          "line": 416,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -136721,12 +136751,12 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 388,
+          "line": 394,
           "sink": "VirtualSessionStatus"
         },
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 403,
+          "line": 409,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -137406,7 +137436,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 152,
+          "line": 158,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -137416,7 +137446,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 410,
+          "line": 416,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -137616,7 +137646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_advanced.py",
-          "line": 53,
+          "line": 54,
           "sink": "QLabel"
         }
       ]
@@ -138036,7 +138066,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 134,
+          "line": 140,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -141926,7 +141956,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 310,
+          "line": 313,
           "sink": "ValueError"
         }
       ]
@@ -142931,7 +142961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_advanced.py",
-          "line": 44,
+          "line": 45,
           "sink": "tr"
         }
       ]
@@ -143026,7 +143056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 83,
+          "line": 90,
           "sink": "setToolTip"
         }
       ]
@@ -144471,7 +144501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 267,
+          "line": 275,
           "sink": "tr"
         }
       ]
@@ -145696,12 +145726,12 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 131,
+          "line": 132,
           "sink": "progress"
         },
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 133,
+          "line": 134,
           "sink": "progress"
         }
       ]
@@ -145726,7 +145756,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 331,
+          "line": 337,
           "sink": "progress"
         }
       ]
@@ -146236,7 +146266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 190,
+          "line": 198,
           "sink": "tr"
         }
       ]
@@ -146246,7 +146276,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 157,
+          "line": 158,
           "sink": "progress"
         }
       ]
@@ -147016,17 +147046,17 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 389,
-          "sink": "VirtualSessionStatus"
-        },
-        {
-          "path": "cdmw/services/virtual_loader_runtime.py",
-          "line": 404,
+          "line": 395,
           "sink": "VirtualSessionStatus"
         },
         {
           "path": "cdmw/services/virtual_loader_runtime.py",
           "line": 410,
+          "sink": "VirtualSessionStatus"
+        },
+        {
+          "path": "cdmw/services/virtual_loader_runtime.py",
+          "line": 416,
           "sink": "VirtualSessionStatus"
         }
       ]
@@ -149761,7 +149791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 253,
+          "line": 261,
           "sink": "tr"
         },
         {
@@ -149876,7 +149906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 86,
+          "line": 93,
           "sink": "setToolTip"
         }
       ]

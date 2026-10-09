@@ -9,6 +9,7 @@ import re
 
 from cdmw.core.atomic_file import atomic_write_bytes
 from cdmw.domain.cancellation import raise_if_cancelled
+from cdmw.domain.new_item.compilation import validate_compiler_stamp
 from cdmw.domain.virtual_loader import VirtualLoaderError
 from cdmw.services.application_shutdown_service import archive_write_scope
 from cdmw.services.independent_item_package import canonical, digest, MAX_MANIFEST, package_id
@@ -64,8 +65,13 @@ def decode(data, *, limit=MAX_MANIFEST):
 
 def validate_profile(value):
     expected = {'format', 'generation', 'items', 'packages', 'mods', 'files', 'sources', 'inventories', 'observed'}
-    if not isinstance(value, dict) or set(value) != expected or value['format'] != FORMAT:
+    if not isinstance(value, dict) or set(value) not in (expected, expected | {'compiler'}) or value['format'] != FORMAT:
         raise VirtualLoaderError('Unsupported virtual profile.')
+    if 'compiler' in value:
+        try:
+            validate_compiler_stamp(value['compiler'])
+        except ValueError as exc:
+            raise VirtualLoaderError(str(exc)) from exc
     package_id(value['generation'])
     if not isinstance(value['items'], dict) or len(value['items']) > 128:
         raise VirtualLoaderError('Invalid virtual ownership.')

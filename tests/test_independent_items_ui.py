@@ -3,6 +3,7 @@ os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 import threading
 from unittest.mock import patch
 
+import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QMessageBox
 
@@ -83,6 +84,50 @@ def test_reviewed_import_and_removal_use_shared_transaction_via_rust(tmp_path):
             page.items.setCurrentItem(page.items.topLevelItem(0))
             _send(bridge, page.remove_button, 'activate')
         assert inventory(root)[0][3] == 'Removed / reserved'
+    finally:
+        page.request_shutdown()
+        controller.shutdown()
+        page.close()
+
+
+@pytest.mark.parametrize('decision', ['apply', 'cancel', 'changed_root'])
+def test_rebuild_selected_item_uses_review_and_retains_ids_through_rust_bridge(tmp_path, decision):
+    from cdmw.services.independent_item_install import load_registry, prepare_install
+    from cdmw.services.independent_item_package import package_bytes
+    from tests.test_independent_item_regressions import files_in
+
+    app = QApplication.instance() or QApplication([])
+    _, package = authored(tmp_path / 'source')
+    setup_game(tmp_path / 'recipient')
+    root, backups = tmp_path / 'recipient/game', Backups(tmp_path)
+    backups.apply(prepare_install([package_bytes(package)], root).preparation)
+    prior = load_registry(root)['items'][package.identity]
+    before = files_in(root)
+    controller = NewItemStudioController(synchronous=True)
+    page = IndependentItemsPage(controller, root, backups)
+    bridge = NewItemPresentationBridge(page)
+    page.show()
+    page._loaded(inventory(root))
+    page.items.setCurrentItem(page.items.topLevelItem(0))
+
+    def review(_box):
+        if decision == 'changed_root':
+            page.set_game_root(tmp_path / 'other-game')
+        return QMessageBox.StandardButton.No if decision == 'cancel' else QMessageBox.StandardButton.Yes
+
+    try:
+        assert page.rebuild_button.isEnabled()
+        with patch.object(QMessageBox, 'exec', review), \
+                patch('cdmw.services.new_item_service.game_is_running', return_value=False):
+            _send(bridge, page.rebuild_button, 'activate')
+        app.processEvents()
+        current = load_registry(root)['items'][package.identity]
+        if decision == 'apply':
+            assert current['layer'] != prior['layer']
+            assert current['values'] == prior['values'] and current['binding_hash'] == prior['binding_hash']
+            assert backups.count == 2
+        else:
+            assert files_in(root) == before and backups.count == 1
     finally:
         page.request_shutdown()
         controller.shutdown()
