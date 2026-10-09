@@ -58,6 +58,15 @@ replacement game tables, author machine paths, export history or executable code
 All owned identifiers are symbolic until installation. Game-dependent numeric
 choices, such as the template and crafting materials, remain pinned dependencies.
 
+The v1 vocabulary is fixed in `cdmw/domain/new_item/independent_wire_v1.py`.
+Internal class names, newly added fields and enum members do not extend it.
+The codec explicitly translates that vocabulary to current authoring models;
+internal field renames or new defaults require a reviewed adapter. Values that
+v1 cannot represent refuse instead of silently losing behavior. Reading and
+rewriting a package preserve its UUID and canonical content digest. Synthetic
+fixtures captured from revision `d08bd77343e1` cover the known vocabulary; earlier
+shipped schema variants still need historical examples before claiming support.
+
 Imports reject duplicate/unsafe paths, symlinks, encryption, unknown fields or
 versions, malformed types, missing/unreferenced blobs and checksum/size failures.
 Limits are 4 MiB of metadata, 256 MiB per resource, 1 GiB total and 4,096 entries;

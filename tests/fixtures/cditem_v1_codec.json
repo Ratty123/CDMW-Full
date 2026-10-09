@@ -1,0 +1,1808 @@
+{
+  "source_revision": "d08bd77343e1f7453aab8f3784293d1960e2eaec",
+  "values": [
+    {
+      "type": "SocketSlot",
+      "fields": {
+        "material_key": 1,
+        "amount": 1,
+        "extra": 0
+      }
+    },
+    {
+      "type": "EquipmentBonus",
+      "fields": {
+        "buff_key": 1,
+        "parameter": 1
+      }
+    },
+    {
+      "type": "LevelBonuses",
+      "fields": {
+        "level": 1,
+        "bonuses": []
+      }
+    },
+    {
+      "type": "RecipeInput",
+      "fields": {
+        "key": 1,
+        "quantity": 1,
+        "enhancement": 0,
+        "kind": "item",
+        "coupon_quantity": 0
+      }
+    },
+    {
+      "type": "RecipeOutput",
+      "fields": {
+        "reward_index": 1,
+        "entry_index": 1,
+        "quantity": 1,
+        "enhancement": 1,
+        "maximum": null
+      }
+    },
+    {
+      "type": "RecipeOverride",
+      "fields": {
+        "recipe_key": 1,
+        "inputs": null,
+        "tool_key": null,
+        "knowledge_key": null,
+        "outputs": null
+      }
+    },
+    {
+      "type": "RewardAcquisition",
+      "fields": {
+        "consumer_item_key": 1,
+        "use_index": 1,
+        "entry_index": 1,
+        "mode": "insert",
+        "minimum": 1,
+        "maximum": 1,
+        "enhancement": -1,
+        "weight": null
+      }
+    },
+    {
+      "type": "DyeAssignment",
+      "fields": {
+        "target_submesh": "fixture",
+        "source_submesh": "fixture",
+        "slots": [
+          1,
+          1,
+          1
+        ],
+        "mask_path": ""
+      }
+    },
+    {
+      "type": "VariantAppearance",
+      "fields": {
+        "prefab_path": "fixture",
+        "model_path": "fixture",
+        "custom_model": false,
+        "material_route": "plain_pbr",
+        "keep_template_physics": false,
+        "dyes": [],
+        "glow_parts": [],
+        "glow_color": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "glow_intensity": 4.0,
+        "glow_animation": {
+          "type": "GlowAnimation",
+          "fields": {
+            "flow_u": 0.0,
+            "flow_v": 0.0,
+            "pulse_frequency": 0.0,
+            "pulse_minimum": 0.0
+          }
+        },
+        "glow_rgb": null,
+        "translucency": null,
+        "template_transform": [],
+        "shader_controls": [],
+        "body_visibility": {
+          "type": "BodyVisibilityChoice",
+          "fields": {
+            "keep_skin": false,
+            "keep_hair": false
+          }
+        },
+        "surface_settings": []
+      }
+    },
+    {
+      "enum": "ModelSource",
+      "value": "template"
+    },
+    {
+      "enum": "IconSource",
+      "value": "template"
+    },
+    {
+      "enum": "MaterialRoute",
+      "value": "builder"
+    },
+    {
+      "enum": "SheathedModel",
+      "value": "template"
+    },
+    {
+      "enum": "ItemGroupsChoice",
+      "value": "ordinary"
+    },
+    {
+      "enum": "EnhancementRows",
+      "value": "template"
+    },
+    {
+      "enum": "PlacementKind",
+      "value": "none"
+    },
+    {
+      "type": "StatEdit",
+      "fields": {
+        "level": 1,
+        "status_key": 1,
+        "value": 1
+      }
+    },
+    {
+      "type": "BuyPriceEdit",
+      "fields": {
+        "level": 1,
+        "item_key": 1,
+        "price": 1
+      }
+    },
+    {
+      "type": "PriceEdit",
+      "fields": {
+        "item_key": 1,
+        "price": 1
+      }
+    },
+    {
+      "type": "Placement",
+      "fields": {
+        "kind": {
+          "enum": "PlacementKind",
+          "value": "none"
+        },
+        "store_name": "",
+        "old_item_name": "",
+        "price": null,
+        "keep_requirement": false,
+        "stock_count": null,
+        "stock_index": null
+      }
+    },
+    {
+      "type": "GlowChoice",
+      "fields": {
+        "parts": [],
+        "color": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "intensity": 4.0,
+        "animation": {
+          "type": "GlowAnimation",
+          "fields": {
+            "flow_u": 0.0,
+            "flow_v": 0.0,
+            "pulse_frequency": 0.0,
+            "pulse_minimum": 0.0
+          }
+        },
+        "rgb": null
+      }
+    },
+    {
+      "type": "NewItemSpec",
+      "fields": {
+        "template_key": 1,
+        "internal_name": "fixture",
+        "display_names": {
+          "map": {}
+        },
+        "descriptions": {
+          "map": {}
+        },
+        "item_key": null,
+        "stem": null,
+        "name_key": null,
+        "desc_key": null,
+        "model_source": {
+          "enum": "ModelSource",
+          "value": "template"
+        },
+        "material_route": {
+          "enum": "MaterialRoute",
+          "value": "plain_pbr"
+        },
+        "sheathed_model": {
+          "enum": "SheathedModel",
+          "value": "own_model"
+        },
+        "keep_template_physics": false,
+        "glow": null,
+        "icon": {
+          "enum": "IconSource",
+          "value": "template"
+        },
+        "stat_edits": [],
+        "buy_price_edits": [],
+        "price_edits": [],
+        "include_perk_prices": true,
+        "max_stack_count": null,
+        "placement": {
+          "type": "Placement",
+          "fields": {
+            "kind": {
+              "enum": "PlacementKind",
+              "value": "none"
+            },
+            "store_name": "",
+            "old_item_name": "",
+            "price": null,
+            "keep_requirement": false,
+            "stock_count": null,
+            "stock_index": null
+          }
+        },
+        "shop_placements": null,
+        "item_groups": {
+          "enum": "ItemGroupsChoice",
+          "value": "template"
+        },
+        "explicit_item_groups": [],
+        "enhancement": {
+          "enum": "EnhancementRows",
+          "value": "template"
+        },
+        "socket_items": null,
+        "socket_slots": null,
+        "equipment_bonuses": null,
+        "recipes": null,
+        "reward_acquisitions": null,
+        "variants": null,
+        "effect": null,
+        "effect_scale": 1.0,
+        "effect_offset": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "effect_rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "effect_look": {
+          "type": "EffectLook",
+          "fields": {
+            "color": null,
+            "intensity": 1.0,
+            "size": 1.0,
+            "rate": 1.0,
+            "lifetime": 1.0,
+            "emitters": [],
+            "emitter_order": null
+          }
+        },
+        "effect_layers": null,
+        "translucency": null,
+        "template_transform": [],
+        "shader_controls": [],
+        "body_visibility": {
+          "type": "BodyVisibilityChoice",
+          "fields": {
+            "keep_skin": false,
+            "keep_hair": false
+          }
+        },
+        "surface_settings": []
+      }
+    },
+    {
+      "type": "EmitterEdit",
+      "fields": {
+        "index": 1,
+        "enabled": true,
+        "color": null,
+        "intensity": 1.0,
+        "size": 1.0,
+        "rate": 1.0,
+        "lifetime": 1.0,
+        "values": [],
+        "color_curve": [],
+        "size_curve": [],
+        "opacity_curve": [],
+        "texture": ""
+      }
+    },
+    {
+      "type": "EffectLook",
+      "fields": {
+        "color": null,
+        "intensity": 1.0,
+        "size": 1.0,
+        "rate": 1.0,
+        "lifetime": 1.0,
+        "emitters": [],
+        "emitter_order": null
+      }
+    },
+    {
+      "type": "EffectLayer",
+      "fields": {
+        "stem": "fixture",
+        "name": "",
+        "enabled": true,
+        "scale": 1.0,
+        "offset": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "look": {
+          "type": "EffectLook",
+          "fields": {
+            "color": null,
+            "intensity": 1.0,
+            "size": 1.0,
+            "rate": 1.0,
+            "lifetime": 1.0,
+            "emitters": [],
+            "emitter_order": null
+          }
+        },
+        "kind": "level"
+      }
+    },
+    {
+      "type": "TranslucencyChoice",
+      "fields": {
+        "parts": [],
+        "thickness": 0.1,
+        "extinction": 0.3,
+        "part_settings": [],
+        "surface_settings": [],
+        "masks": []
+      }
+    },
+    {
+      "type": "BodyVisibilityChoice",
+      "fields": {
+        "keep_skin": false,
+        "keep_hair": false
+      }
+    },
+    {
+      "type": "SurfaceEdit",
+      "fields": {
+        "color": null,
+        "roughness": null,
+        "metallic": null
+      }
+    },
+    {
+      "type": "GlowAnimation",
+      "fields": {
+        "flow_u": 0.0,
+        "flow_v": 0.0,
+        "pulse_frequency": 0.0,
+        "pulse_minimum": 0.0
+      }
+    },
+    {
+      "type": "RgbGlow",
+      "fields": {
+        "intensity": 1.0,
+        "reveal": 1.0,
+        "softness": 0.1,
+        "inverse": false
+      }
+    },
+    {
+      "type": "EmissionChoice",
+      "fields": {
+        "color": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "intensity": 4.0,
+        "animation": {
+          "type": "GlowAnimation",
+          "fields": {
+            "flow_u": 0.0,
+            "flow_v": 0.0,
+            "pulse_frequency": 0.0,
+            "pulse_minimum": 0.0
+          }
+        },
+        "rgb": null
+      }
+    },
+    {
+      "type": "ShaderField",
+      "fields": {
+        "name": "fixture",
+        "label": "fixture",
+        "default": [],
+        "minimum": 0.5,
+        "maximum": 0.5,
+        "kind": "Float",
+        "item_id": "0"
+      }
+    },
+    {
+      "type": "ShaderFamily",
+      "fields": {
+        "shader": "fixture",
+        "label": "fixture",
+        "note": "fixture",
+        "fields": [],
+        "mask": "",
+        "default_mask": ""
+      }
+    },
+    {
+      "type": "ShaderControls",
+      "fields": {
+        "shader": "fixture",
+        "values": [],
+        "transparency_mask": null,
+        "surface_response_mask": null,
+        "coverage_mapping": "raw",
+        "colour_coverage": null,
+        "cutout_mask": null
+      }
+    }
+  ],
+  "manifest": {
+    "format": "cdmw_independent_item",
+    "version": 1,
+    "identity": "00000000000000000000000000000001",
+    "title": "Synthetic historical wire fixture",
+    "recipe": {
+      "spec": {
+        "type": "NewItemSpec",
+        "fields": {
+          "template_key": 1,
+          "internal_name": "fixture",
+          "display_names": {
+            "map": {}
+          },
+          "descriptions": {
+            "map": {}
+          },
+          "item_key": null,
+          "stem": null,
+          "name_key": null,
+          "desc_key": null,
+          "model_source": {
+            "enum": "ModelSource",
+            "value": "template"
+          },
+          "material_route": {
+            "enum": "MaterialRoute",
+            "value": "plain_pbr"
+          },
+          "sheathed_model": {
+            "enum": "SheathedModel",
+            "value": "own_model"
+          },
+          "keep_template_physics": false,
+          "glow": null,
+          "icon": {
+            "enum": "IconSource",
+            "value": "template"
+          },
+          "stat_edits": [],
+          "buy_price_edits": [],
+          "price_edits": [],
+          "include_perk_prices": true,
+          "max_stack_count": null,
+          "placement": {
+            "type": "Placement",
+            "fields": {
+              "kind": {
+                "enum": "PlacementKind",
+                "value": "none"
+              },
+              "store_name": "",
+              "old_item_name": "",
+              "price": null,
+              "keep_requirement": false,
+              "stock_count": null,
+              "stock_index": null
+            }
+          },
+          "shop_placements": null,
+          "item_groups": {
+            "enum": "ItemGroupsChoice",
+            "value": "template"
+          },
+          "explicit_item_groups": [],
+          "enhancement": {
+            "enum": "EnhancementRows",
+            "value": "template"
+          },
+          "socket_items": null,
+          "socket_slots": null,
+          "equipment_bonuses": null,
+          "recipes": null,
+          "reward_acquisitions": null,
+          "variants": null,
+          "effect": null,
+          "effect_scale": 1.0,
+          "effect_offset": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "effect_rotation_degrees": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "effect_look": {
+            "type": "EffectLook",
+            "fields": {
+              "color": null,
+              "intensity": 1.0,
+              "size": 1.0,
+              "rate": 1.0,
+              "lifetime": 1.0,
+              "emitters": [],
+              "emitter_order": null
+            }
+          },
+          "effect_layers": null,
+          "translucency": null,
+          "template_transform": [],
+          "shader_controls": [],
+          "body_visibility": {
+            "type": "BodyVisibilityChoice",
+            "fields": {
+              "keep_skin": false,
+              "keep_hair": false
+            }
+          },
+          "surface_settings": []
+        }
+      },
+      "model": null,
+      "variants": [],
+      "icon": null
+    },
+    "dependencies": {
+      "gamedata/binary__/client/bin/iteminfo.pabgb": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "blobs": {}
+  },
+  "manifest_sha256": "7746a2d74e82fd1a7bbf4920077fb0ef0149c4c6727b2b485d520c44bf87e7bf",
+  "populated_values": [
+    {
+      "type": "SocketSlot",
+      "fields": {
+        "material_key": 1,
+        "amount": 1,
+        "extra": 1
+      }
+    },
+    {
+      "type": "EquipmentBonus",
+      "fields": {
+        "buff_key": 1,
+        "parameter": 1
+      }
+    },
+    {
+      "type": "LevelBonuses",
+      "fields": {
+        "level": 1,
+        "bonuses": [
+          {
+            "type": "EquipmentBonus",
+            "fields": {
+              "buff_key": 1,
+              "parameter": 1
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "RecipeInput",
+      "fields": {
+        "key": 1,
+        "quantity": 1,
+        "enhancement": 1,
+        "kind": "fixture",
+        "coupon_quantity": 1
+      }
+    },
+    {
+      "type": "RecipeOutput",
+      "fields": {
+        "reward_index": 1,
+        "entry_index": 1,
+        "quantity": 1,
+        "enhancement": 1,
+        "maximum": 1
+      }
+    },
+    {
+      "type": "RecipeOverride",
+      "fields": {
+        "recipe_key": 1,
+        "inputs": [
+          {
+            "type": "RecipeInput",
+            "fields": {
+              "key": 1,
+              "quantity": 1,
+              "enhancement": 1,
+              "kind": "fixture",
+              "coupon_quantity": 1
+            }
+          }
+        ],
+        "tool_key": 1,
+        "knowledge_key": 1,
+        "outputs": [
+          {
+            "type": "RecipeOutput",
+            "fields": {
+              "reward_index": 1,
+              "entry_index": 1,
+              "quantity": 1,
+              "enhancement": 1,
+              "maximum": 1
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "RewardAcquisition",
+      "fields": {
+        "consumer_item_key": 1,
+        "use_index": 1,
+        "entry_index": 1,
+        "mode": "fixture",
+        "minimum": 1,
+        "maximum": 1,
+        "enhancement": 1,
+        "weight": 1
+      }
+    },
+    {
+      "type": "DyeAssignment",
+      "fields": {
+        "target_submesh": "fixture",
+        "source_submesh": "fixture",
+        "slots": [
+          1,
+          1,
+          1
+        ],
+        "mask_path": "fixture"
+      }
+    },
+    {
+      "type": "VariantAppearance",
+      "fields": {
+        "prefab_path": "fixture",
+        "model_path": "fixture",
+        "custom_model": false,
+        "material_route": "fixture",
+        "keep_template_physics": false,
+        "dyes": [
+          {
+            "type": "DyeAssignment",
+            "fields": {
+              "target_submesh": "fixture",
+              "source_submesh": "fixture",
+              "slots": [
+                1,
+                1,
+                1
+              ],
+              "mask_path": "fixture"
+            }
+          }
+        ],
+        "glow_parts": [
+          "fixture"
+        ],
+        "glow_color": [
+          0.5,
+          0.5,
+          0.5
+        ],
+        "glow_intensity": 0.5,
+        "glow_animation": {
+          "type": "GlowAnimation",
+          "fields": {
+            "flow_u": 0.5,
+            "flow_v": 0.5,
+            "pulse_frequency": 0.5,
+            "pulse_minimum": 0.5
+          }
+        },
+        "glow_rgb": {
+          "type": "RgbGlow",
+          "fields": {
+            "intensity": 0.5,
+            "reveal": 0.5,
+            "softness": 0.5,
+            "inverse": false
+          }
+        },
+        "translucency": {
+          "type": "TranslucencyChoice",
+          "fields": {
+            "parts": [
+              "fixture"
+            ],
+            "thickness": 0.5,
+            "extinction": 0.5,
+            "part_settings": [
+              [
+                "fixture",
+                0.5,
+                0.5
+              ]
+            ],
+            "surface_settings": [
+              [
+                "fixture",
+                0.5,
+                0.5
+              ]
+            ],
+            "masks": []
+          }
+        },
+        "template_transform": [
+          0.5
+        ],
+        "shader_controls": [
+          [
+            "fixture",
+            {
+              "type": "ShaderControls",
+              "fields": {
+                "shader": "fixture",
+                "values": [
+                  [
+                    "fixture",
+                    [
+                      0.5
+                    ]
+                  ]
+                ],
+                "transparency_mask": null,
+                "surface_response_mask": null,
+                "coverage_mapping": "fixture",
+                "colour_coverage": 0.5,
+                "cutout_mask": null
+              }
+            }
+          ]
+        ],
+        "body_visibility": {
+          "type": "BodyVisibilityChoice",
+          "fields": {
+            "keep_skin": false,
+            "keep_hair": false
+          }
+        },
+        "surface_settings": [
+          [
+            "fixture",
+            {
+              "type": "SurfaceEdit",
+              "fields": {
+                "color": [
+                  0.5,
+                  0.5,
+                  0.5
+                ],
+                "roughness": 0.5,
+                "metallic": 0.5
+              }
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "type": "StatEdit",
+      "fields": {
+        "level": 1,
+        "status_key": 1,
+        "value": 1
+      }
+    },
+    {
+      "type": "BuyPriceEdit",
+      "fields": {
+        "level": 1,
+        "item_key": 1,
+        "price": 1
+      }
+    },
+    {
+      "type": "PriceEdit",
+      "fields": {
+        "item_key": 1,
+        "price": 1
+      }
+    },
+    {
+      "type": "Placement",
+      "fields": {
+        "kind": {
+          "enum": "PlacementKind",
+          "value": "none"
+        },
+        "store_name": "fixture",
+        "old_item_name": "fixture",
+        "price": 1,
+        "keep_requirement": false,
+        "stock_count": 1,
+        "stock_index": 1
+      }
+    },
+    {
+      "type": "GlowChoice",
+      "fields": {
+        "parts": [
+          "fixture"
+        ],
+        "color": [
+          0.5,
+          0.5,
+          0.5
+        ],
+        "intensity": 0.5,
+        "animation": {
+          "type": "GlowAnimation",
+          "fields": {
+            "flow_u": 0.5,
+            "flow_v": 0.5,
+            "pulse_frequency": 0.5,
+            "pulse_minimum": 0.5
+          }
+        },
+        "rgb": {
+          "type": "RgbGlow",
+          "fields": {
+            "intensity": 0.5,
+            "reveal": 0.5,
+            "softness": 0.5,
+            "inverse": false
+          }
+        }
+      }
+    },
+    {
+      "type": "NewItemSpec",
+      "fields": {
+        "template_key": 1,
+        "internal_name": "fixture",
+        "display_names": {
+          "map": {
+            "fixture": "fixture"
+          }
+        },
+        "descriptions": {
+          "map": {
+            "fixture": "fixture"
+          }
+        },
+        "item_key": 1,
+        "stem": "fixture",
+        "name_key": "fixture",
+        "desc_key": "fixture",
+        "model_source": {
+          "enum": "ModelSource",
+          "value": "template"
+        },
+        "material_route": {
+          "enum": "MaterialRoute",
+          "value": "builder"
+        },
+        "sheathed_model": {
+          "enum": "SheathedModel",
+          "value": "template"
+        },
+        "keep_template_physics": false,
+        "glow": {
+          "type": "GlowChoice",
+          "fields": {
+            "parts": [
+              "fixture"
+            ],
+            "color": [
+              0.5,
+              0.5,
+              0.5
+            ],
+            "intensity": 0.5,
+            "animation": {
+              "type": "GlowAnimation",
+              "fields": {
+                "flow_u": 0.5,
+                "flow_v": 0.5,
+                "pulse_frequency": 0.5,
+                "pulse_minimum": 0.5
+              }
+            },
+            "rgb": {
+              "type": "RgbGlow",
+              "fields": {
+                "intensity": 0.5,
+                "reveal": 0.5,
+                "softness": 0.5,
+                "inverse": false
+              }
+            }
+          }
+        },
+        "icon": {
+          "enum": "IconSource",
+          "value": "template"
+        },
+        "stat_edits": [
+          {
+            "type": "StatEdit",
+            "fields": {
+              "level": 1,
+              "status_key": 1,
+              "value": 1
+            }
+          }
+        ],
+        "buy_price_edits": [
+          {
+            "type": "BuyPriceEdit",
+            "fields": {
+              "level": 1,
+              "item_key": 1,
+              "price": 1
+            }
+          }
+        ],
+        "price_edits": [
+          {
+            "type": "PriceEdit",
+            "fields": {
+              "item_key": 1,
+              "price": 1
+            }
+          }
+        ],
+        "include_perk_prices": false,
+        "max_stack_count": 1,
+        "placement": {
+          "type": "Placement",
+          "fields": {
+            "kind": {
+              "enum": "PlacementKind",
+              "value": "none"
+            },
+            "store_name": "fixture",
+            "old_item_name": "fixture",
+            "price": 1,
+            "keep_requirement": false,
+            "stock_count": 1,
+            "stock_index": 1
+          }
+        },
+        "shop_placements": [
+          {
+            "type": "Placement",
+            "fields": {
+              "kind": {
+                "enum": "PlacementKind",
+                "value": "none"
+              },
+              "store_name": "fixture",
+              "old_item_name": "fixture",
+              "price": 1,
+              "keep_requirement": false,
+              "stock_count": 1,
+              "stock_index": 1
+            }
+          }
+        ],
+        "item_groups": {
+          "enum": "ItemGroupsChoice",
+          "value": "ordinary"
+        },
+        "explicit_item_groups": [
+          1
+        ],
+        "enhancement": {
+          "enum": "EnhancementRows",
+          "value": "template"
+        },
+        "socket_items": [
+          1
+        ],
+        "socket_slots": [
+          {
+            "type": "SocketSlot",
+            "fields": {
+              "material_key": 1,
+              "amount": 1,
+              "extra": 1
+            }
+          }
+        ],
+        "equipment_bonuses": [
+          {
+            "type": "LevelBonuses",
+            "fields": {
+              "level": 1,
+              "bonuses": [
+                {
+                  "type": "EquipmentBonus",
+                  "fields": {
+                    "buff_key": 1,
+                    "parameter": 1
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "recipes": [
+          {
+            "type": "RecipeOverride",
+            "fields": {
+              "recipe_key": 1,
+              "inputs": [
+                {
+                  "type": "RecipeInput",
+                  "fields": {
+                    "key": 1,
+                    "quantity": 1,
+                    "enhancement": 1,
+                    "kind": "fixture",
+                    "coupon_quantity": 1
+                  }
+                }
+              ],
+              "tool_key": 1,
+              "knowledge_key": 1,
+              "outputs": [
+                {
+                  "type": "RecipeOutput",
+                  "fields": {
+                    "reward_index": 1,
+                    "entry_index": 1,
+                    "quantity": 1,
+                    "enhancement": 1,
+                    "maximum": 1
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "reward_acquisitions": [
+          {
+            "type": "RewardAcquisition",
+            "fields": {
+              "consumer_item_key": 1,
+              "use_index": 1,
+              "entry_index": 1,
+              "mode": "fixture",
+              "minimum": 1,
+              "maximum": 1,
+              "enhancement": 1,
+              "weight": 1
+            }
+          }
+        ],
+        "variants": [
+          {
+            "type": "VariantAppearance",
+            "fields": {
+              "prefab_path": "fixture",
+              "model_path": "fixture",
+              "custom_model": false,
+              "material_route": "fixture",
+              "keep_template_physics": false,
+              "dyes": [
+                {
+                  "type": "DyeAssignment",
+                  "fields": {
+                    "target_submesh": "fixture",
+                    "source_submesh": "fixture",
+                    "slots": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "mask_path": "fixture"
+                  }
+                }
+              ],
+              "glow_parts": [
+                "fixture"
+              ],
+              "glow_color": [
+                0.5,
+                0.5,
+                0.5
+              ],
+              "glow_intensity": 0.5,
+              "glow_animation": {
+                "type": "GlowAnimation",
+                "fields": {
+                  "flow_u": 0.5,
+                  "flow_v": 0.5,
+                  "pulse_frequency": 0.5,
+                  "pulse_minimum": 0.5
+                }
+              },
+              "glow_rgb": {
+                "type": "RgbGlow",
+                "fields": {
+                  "intensity": 0.5,
+                  "reveal": 0.5,
+                  "softness": 0.5,
+                  "inverse": false
+                }
+              },
+              "translucency": {
+                "type": "TranslucencyChoice",
+                "fields": {
+                  "parts": [
+                    "fixture"
+                  ],
+                  "thickness": 0.5,
+                  "extinction": 0.5,
+                  "part_settings": [
+                    [
+                      "fixture",
+                      0.5,
+                      0.5
+                    ]
+                  ],
+                  "surface_settings": [
+                    [
+                      "fixture",
+                      0.5,
+                      0.5
+                    ]
+                  ],
+                  "masks": []
+                }
+              },
+              "template_transform": [
+                0.5
+              ],
+              "shader_controls": [
+                [
+                  "fixture",
+                  {
+                    "type": "ShaderControls",
+                    "fields": {
+                      "shader": "fixture",
+                      "values": [
+                        [
+                          "fixture",
+                          [
+                            0.5
+                          ]
+                        ]
+                      ],
+                      "transparency_mask": null,
+                      "surface_response_mask": null,
+                      "coverage_mapping": "fixture",
+                      "colour_coverage": 0.5,
+                      "cutout_mask": null
+                    }
+                  }
+                ]
+              ],
+              "body_visibility": {
+                "type": "BodyVisibilityChoice",
+                "fields": {
+                  "keep_skin": false,
+                  "keep_hair": false
+                }
+              },
+              "surface_settings": [
+                [
+                  "fixture",
+                  {
+                    "type": "SurfaceEdit",
+                    "fields": {
+                      "color": [
+                        0.5,
+                        0.5,
+                        0.5
+                      ],
+                      "roughness": 0.5,
+                      "metallic": 0.5
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        ],
+        "effect": "fixture",
+        "effect_scale": 0.5,
+        "effect_offset": [
+          0.5,
+          0.5,
+          0.5
+        ],
+        "effect_rotation_degrees": [
+          0.5,
+          0.5,
+          0.5
+        ],
+        "effect_look": {
+          "type": "EffectLook",
+          "fields": {
+            "color": [
+              0.5,
+              0.5,
+              0.5
+            ],
+            "intensity": 0.5,
+            "size": 0.5,
+            "rate": 0.5,
+            "lifetime": 0.5,
+            "emitters": [
+              {
+                "type": "EmitterEdit",
+                "fields": {
+                  "index": 1,
+                  "enabled": false,
+                  "color": [
+                    0.5,
+                    0.5,
+                    0.5
+                  ],
+                  "intensity": 0.5,
+                  "size": 0.5,
+                  "rate": 0.5,
+                  "lifetime": 0.5,
+                  "values": [
+                    [
+                      "fixture",
+                      [
+                        0.5
+                      ]
+                    ]
+                  ],
+                  "color_curve": [
+                    [
+                      0.5,
+                      0.5,
+                      0.5
+                    ]
+                  ],
+                  "size_curve": [
+                    0.5
+                  ],
+                  "opacity_curve": [
+                    0.5
+                  ],
+                  "texture": "fixture"
+                }
+              }
+            ],
+            "emitter_order": [
+              1
+            ]
+          }
+        },
+        "effect_layers": [
+          {
+            "type": "EffectLayer",
+            "fields": {
+              "stem": "fixture",
+              "name": "fixture",
+              "enabled": false,
+              "scale": 0.5,
+              "offset": [
+                0.5,
+                0.5,
+                0.5
+              ],
+              "rotation": [
+                0.5,
+                0.5,
+                0.5
+              ],
+              "look": {
+                "type": "EffectLook",
+                "fields": {
+                  "color": [
+                    0.5,
+                    0.5,
+                    0.5
+                  ],
+                  "intensity": 0.5,
+                  "size": 0.5,
+                  "rate": 0.5,
+                  "lifetime": 0.5,
+                  "emitters": [
+                    {
+                      "type": "EmitterEdit",
+                      "fields": {
+                        "index": 1,
+                        "enabled": false,
+                        "color": [
+                          0.5,
+                          0.5,
+                          0.5
+                        ],
+                        "intensity": 0.5,
+                        "size": 0.5,
+                        "rate": 0.5,
+                        "lifetime": 0.5,
+                        "values": [
+                          [
+                            "fixture",
+                            [
+                              0.5
+                            ]
+                          ]
+                        ],
+                        "color_curve": [
+                          [
+                            0.5,
+                            0.5,
+                            0.5
+                          ]
+                        ],
+                        "size_curve": [
+                          0.5
+                        ],
+                        "opacity_curve": [
+                          0.5
+                        ],
+                        "texture": "fixture"
+                      }
+                    }
+                  ],
+                  "emitter_order": [
+                    1
+                  ]
+                }
+              },
+              "kind": "fixture"
+            }
+          }
+        ],
+        "translucency": {
+          "type": "TranslucencyChoice",
+          "fields": {
+            "parts": [
+              "fixture"
+            ],
+            "thickness": 0.5,
+            "extinction": 0.5,
+            "part_settings": [
+              [
+                "fixture",
+                0.5,
+                0.5
+              ]
+            ],
+            "surface_settings": [
+              [
+                "fixture",
+                0.5,
+                0.5
+              ]
+            ],
+            "masks": []
+          }
+        },
+        "template_transform": [
+          0.5
+        ],
+        "shader_controls": [
+          [
+            "fixture",
+            {
+              "type": "ShaderControls",
+              "fields": {
+                "shader": "fixture",
+                "values": [
+                  [
+                    "fixture",
+                    [
+                      0.5
+                    ]
+                  ]
+                ],
+                "transparency_mask": null,
+                "surface_response_mask": null,
+                "coverage_mapping": "fixture",
+                "colour_coverage": 0.5,
+                "cutout_mask": null
+              }
+            }
+          ]
+        ],
+        "body_visibility": {
+          "type": "BodyVisibilityChoice",
+          "fields": {
+            "keep_skin": false,
+            "keep_hair": false
+          }
+        },
+        "surface_settings": [
+          [
+            "fixture",
+            {
+              "type": "SurfaceEdit",
+              "fields": {
+                "color": [
+                  0.5,
+                  0.5,
+                  0.5
+                ],
+                "roughness": 0.5,
+                "metallic": 0.5
+              }
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "type": "EmitterEdit",
+      "fields": {
+        "index": 1,
+        "enabled": false,
+        "color": [
+          0.5,
+          0.5,
+          0.5
+        ],
+        "intensity": 0.5,
+        "size": 0.5,
+        "rate": 0.5,
+        "lifetime": 0.5,
+        "values": [
+          [
+            "fixture",
+            [
+              0.5
+            ]
+          ]
+        ],
+        "color_curve": [
+          [
+            0.5,
+            0.5,
+            0.5
+          ]
+        ],
+        "size_curve": [
+          0.5
+        ],
+        "opacity_curve": [
+          0.5
+        ],
+        "texture": "fixture"
+      }
+    },
+    {
+      "type": "EffectLook",
+      "fields": {
+        "color": [
+          0.5,
+          0.5,
+          0.5
+        ],
+        "intensity": 0.5,
+        "size": 0.5,
+        "rate": 0.5,
+        "lifetime": 0.5,
+        "emitters": [
+          {
+            "type": "EmitterEdit",
+            "fields": {
+              "index": 1,
+              "enabled": false,
+              "color": [
+                0.5,
+                0.5,
+                0.5
+              ],
+              "intensity": 0.5,
+              "size": 0.5,
+              "rate": 0.5,
+              "lifetime": 0.5,
+              "values": [
+                [
+                  "fixture",
+                  [
+                    0.5
+                  ]
+                ]
+              ],
+              "color_curve": [
+                [
+                  0.5,
+                  0.5,
+                  0.5
+                ]
+              ],
+              "size_curve": [
+                0.5
+              ],
+              "opacity_curve": [
+                0.5
+              ],
+              "texture": "fixture"
+            }
+          }
+        ],
+        "emitter_order": [
+          1
+        ]
+      }
+    },
+    {
+      "type": "EffectLayer",
+      "fields": {
+        "stem": "fixture",
+        "name": "fixture",
+        "enabled": false,
+        "scale": 0.5,
+        "offset": [
+          0.5,
+          0.5,
+          0.5
+        ],
+        "rotation": [
+          0.5,
+          0.5,
+          0.5
+        ],
+        "look": {
+          "type": "EffectLook",
+          "fields": {
+            "color": [
+              0.5,
+              0.5,
+              0.5
+            ],
+            "intensity": 0.5,
+            "size": 0.5,
+            "rate": 0.5,
+            "lifetime": 0.5,
+            "emitters": [
+              {
+                "type": "EmitterEdit",
+                "fields": {
+                  "index": 1,
+                  "enabled": false,
+                  "color": [
+                    0.5,
+                    0.5,
+                    0.5
+                  ],
+                  "intensity": 0.5,
+                  "size": 0.5,
+                  "rate": 0.5,
+                  "lifetime": 0.5,
+                  "values": [
+                    [
+                      "fixture",
+                      [
+                        0.5
+                      ]
+                    ]
+                  ],
+                  "color_curve": [
+                    [
+                      0.5,
+                      0.5,
+                      0.5
+                    ]
+                  ],
+                  "size_curve": [
+                    0.5
+                  ],
+                  "opacity_curve": [
+                    0.5
+                  ],
+                  "texture": "fixture"
+                }
+              }
+            ],
+            "emitter_order": [
+              1
+            ]
+          }
+        },
+        "kind": "fixture"
+      }
+    },
+    {
+      "type": "TranslucencyChoice",
+      "fields": {
+        "parts": [
+          "fixture"
+        ],
+        "thickness": 0.5,
+        "extinction": 0.5,
+        "part_settings": [
+          [
+            "fixture",
+            0.5,
+            0.5
+          ]
+        ],
+        "surface_settings": [
+          [
+            "fixture",
+            0.5,
+            0.5
+          ]
+        ],
+        "masks": []
+      }
+    },
+    {
+      "type": "BodyVisibilityChoice",
+      "fields": {
+        "keep_skin": false,
+        "keep_hair": false
+      }
+    },
+    {
+      "type": "SurfaceEdit",
+      "fields": {
+        "color": [
+          0.5,
+          0.5,
+          0.5
+        ],
+        "roughness": 0.5,
+        "metallic": 0.5
+      }
+    },
+    {
+      "type": "GlowAnimation",
+      "fields": {
+        "flow_u": 0.5,
+        "flow_v": 0.5,
+        "pulse_frequency": 0.5,
+        "pulse_minimum": 0.5
+      }
+    },
+    {
+      "type": "RgbGlow",
+      "fields": {
+        "intensity": 0.5,
+        "reveal": 0.5,
+        "softness": 0.5,
+        "inverse": false
+      }
+    },
+    {
+      "type": "EmissionChoice",
+      "fields": {
+        "color": [
+          0.5,
+          0.5,
+          0.5
+        ],
+        "intensity": 0.5,
+        "animation": {
+          "type": "GlowAnimation",
+          "fields": {
+            "flow_u": 0.5,
+            "flow_v": 0.5,
+            "pulse_frequency": 0.5,
+            "pulse_minimum": 0.5
+          }
+        },
+        "rgb": {
+          "type": "RgbGlow",
+          "fields": {
+            "intensity": 0.5,
+            "reveal": 0.5,
+            "softness": 0.5,
+            "inverse": false
+          }
+        }
+      }
+    },
+    {
+      "type": "ShaderField",
+      "fields": {
+        "name": "fixture",
+        "label": "fixture",
+        "default": [
+          0.5
+        ],
+        "minimum": 0.5,
+        "maximum": 0.5,
+        "kind": "fixture",
+        "item_id": "fixture"
+      }
+    },
+    {
+      "type": "ShaderFamily",
+      "fields": {
+        "shader": "fixture",
+        "label": "fixture",
+        "note": "fixture",
+        "fields": [
+          {
+            "type": "ShaderField",
+            "fields": {
+              "name": "fixture",
+              "label": "fixture",
+              "default": [
+                0.5
+              ],
+              "minimum": 0.5,
+              "maximum": 0.5,
+              "kind": "fixture",
+              "item_id": "fixture"
+            }
+          }
+        ],
+        "mask": "fixture",
+        "default_mask": "fixture"
+      }
+    },
+    {
+      "type": "ShaderControls",
+      "fields": {
+        "shader": "fixture",
+        "values": [
+          [
+            "fixture",
+            [
+              0.5
+            ]
+          ]
+        ],
+        "transparency_mask": null,
+        "surface_response_mask": null,
+        "coverage_mapping": "fixture",
+        "colour_coverage": 0.5,
+        "cutout_mask": null
+      }
+    }
+  ]
+}
