@@ -46,7 +46,7 @@ def mounted_game(tmp_path, current=True):
     (root / "meta/0.pathc").write_bytes(encode_pathc(PathcTable(0, 148, (), (), (), b"")))
     clean = service.build_snapshot(parse_archive_pamt(root / "0009/0.pamt"), read_entry=_read)
     model = ModelFiles(pac_data=clean.payload(PAC),
-                       side_files={f"character/texture/1_pc/{STEM}_d.dds": _fake_dds(4, 4) + bytes(16)})
+                       side_files={f"character/texture/1_pc/{STEM}_d.dds": _fake_dds(4, 4)})
     first = service.plan(replace(spec("Existing_Sword"), model_source=ModelSource.IMPORTED), clean, model=model)
     mounted = mount_export(service, first, root, tmp_path / "original")
     return service, clean, first, mounted, root

@@ -301,7 +301,7 @@ def test_empty_inventory_starts_a_fresh_baseline_after_a_game_update(tmp_path):
     from cdmw.core.iteminfo_row import parse_iteminfo_row, rebuild_stat_block, price_list_with
     from cdmw.core.structured_binary_editor import parse_pabgh_table, replace_table_row
     from cdmw.core.pathc_format import encode_pathc, register_dds
-    from tests.test_pathc_format import build_table, ICON_HEADER, ICON_BLOCKS
+    from tests.test_pathc_format import build_table, ICON_HEADER, ICON_BLOCKS, dds_payload
     from tests.test_new_item_provenance import current_files
     from tests.test_new_item_service import build_package, TEMPLATE
 
@@ -325,7 +325,7 @@ def test_empty_inventory_starts_a_fresh_baseline_after_a_game_update(tmp_path):
     row_bytes = rebuild_stat_block(row, price_list=price_list_with(row.price_list, 1, 12345))
     updated[body_path], updated[head_path] = replace_table_row(body, head, TEMPLATE, row_bytes)
     build_package(root, updated)
-    registry.write_bytes(encode_pathc(register_dds(baseline, 'ui/texture/game_update.dds', ICON_HEADER)))
+    registry.write_bytes(encode_pathc(register_dds(baseline, 'ui/texture/game_update.dds', dds_payload(ICON_HEADER))))
     shipped = {path: path.read_bytes() for path in (root / '0009').iterdir() if path.is_file()}
     registry_before = registry.read_bytes()
     next_plan = service.plan(shop_spec('AfterUpdate'), snapshot_of(root))
@@ -358,7 +358,7 @@ def test_legacy_removal_preserves_later_foreign_texture_registrations(tmp_path, 
     from cdmw.domain.archives.mutation import ArchiveAddRequest
     from cdmw.services.archive_overlay_install import install_overlay
     from cdmw.core.pathc_format import encode_pathc, parse_pathc, register_dds
-    from tests.test_pathc_format import build_table, ICON_HEADER, ICON_BLOCKS, BIG_HEADER
+    from tests.test_pathc_format import build_table, ICON_HEADER, ICON_BLOCKS, BIG_HEADER, dds_payload
 
     monkeypatch.setattr(patching, 'ARCHIVE_PATCH_BACKUP_ROOT', tmp_path / 'backups')
     service, _snapshot, _ = setup_game(tmp_path)
@@ -367,13 +367,13 @@ def test_legacy_removal_preserves_later_foreign_texture_registrations(tmp_path, 
     registry = root / 'meta/0.pathc'
     registry.write_bytes(encode_pathc(base))
     legacy_path, foreign_path = 'ui/texture/legacy.dds', 'ui/texture/foreign_mod.dds'
-    owned = register_dds(base, legacy_path, BIG_HEADER, tag=4)
+    owned = register_dds(base, legacy_path, dds_payload(BIG_HEADER), tag=4)
     old = service.plan(shop_spec('Legacy'), snapshot_of(root))
-    texture = ArchiveAddRequest.from_template(old.patches[0].entry, legacy_path, BIG_HEADER)
+    texture = ArchiveAddRequest.from_template(old.patches[0].entry, legacy_path, dds_payload(BIG_HEADER))
     install_overlay(old.patches, old.additions + (texture,), package_root=root, game_running=lambda: False,
         meta_files=[('meta/0.pathc', encode_pathc(owned))])
     # This mod shares the header introduced by the older overlay.
-    live = register_dds(owned, foreign_path, BIG_HEADER, tag=4)
+    live = register_dds(owned, foreign_path, dds_payload(BIG_HEADER), tag=4)
     registry.write_bytes(encode_pathc(live))
     before = registry.read_bytes()
     prepared = prepare_overlay_removal(root, list_installed_overlays(root)[0].id)

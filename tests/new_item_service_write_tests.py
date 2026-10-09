@@ -79,7 +79,7 @@ def _fake_dds(width: int = 256, height: int = 256) -> bytes:
     struct.pack_into("<I", data, 76, 32)
     struct.pack_into("<I", data, 80, 0x4)
     data[84:88] = b"DXT5"
-    return bytes(data)
+    return bytes(data) + bytes(((width + 3) // 4) * ((height + 3) // 4) * 16)
 
 def _read(entry) -> bytes:
     return read_archive_entry_data(entry)[0]
@@ -380,12 +380,12 @@ class _TextureRegistryTestsMixin:
             template_key=TEMPLATE, internal_name="Ziane_Clone_OneHandSword", display_names={"eng": "Wolf's Fang (Clone)"},
             model_source=ModelSource.IMPORTED, icon=IconSource.GENERATED,
         )
-        model = ModelFiles(pac_data=self.snapshot.payload(PAC), side_files={f"character/texture/1_pc/{STEM}_d.dds": _fake_dds(4, 4) + bytes(16)})
+        model = ModelFiles(pac_data=self.snapshot.payload(PAC), side_files={f"character/texture/1_pc/{STEM}_d.dds": _fake_dds(4, 4)})
         allocated = self.service.allocate(spec, self.snapshot)
         icon = NewItemIcon(
             icon_string="ItemIcon_Prefab_cd_phm_01_sword_9109", icon_hash=stringinfo_key("ItemIcon_Prefab_cd_phm_01_sword_9109"),
-            target_path=self.NEW_ICON, payload_data=_fake_dds() + bytes(65536),
-            add_request=ArchiveAddRequest.from_template(self.snapshot.entry(ICON), self.NEW_ICON, _fake_dds() + bytes(65536)), build=None,
+            target_path=self.NEW_ICON, payload_data=_fake_dds(),
+            add_request=ArchiveAddRequest.from_template(self.snapshot.entry(ICON), self.NEW_ICON, _fake_dds()), build=None,
         )
         return self.service.plan(allocated, self.snapshot, model=model, icon=icon)
 
@@ -400,13 +400,13 @@ class _TextureRegistryTestsMixin:
         icon = table.find(self.NEW_ICON)
         texture = table.find("character/texture/1_pc/cd_phm_01_sword_9109_d.dds")
         self.assertEqual((icon.header_index, icon.block_infos), (0, struct.pack("<4I", 65536, 65536, 0, 0)), "like the template's icon")
-        self.assertEqual((texture.header_index, texture.block_infos), (1, struct.pack("<4I", 16, 0, 0, 0)), "under the header its own DDS header equals")
+        self.assertEqual((texture.header_index, texture.block_infos), (1, struct.pack("<4I", 16, 16, 0, 0)), "raw mip sizes under the matching header, independent of the donor's storage")
         self.assertEqual(sorted(plan.manifest["texture_registry"]), sorted([self.NEW_ICON, "character/texture/1_pc/cd_phm_01_sword_9109_d.dds"]))
         self.assertIn("meta/0.pathc", plan.touched_paths)
         self.assertNotIn("meta/0.pathc", plan.loose_files, "a loose mod leaves the registry to the manager")
         self.assertTrue(any("texture registry" in line for line in plan.summary_lines))
         # a texture of a shape the registry has never seen gets a header row of its own
-        odd = ModelFiles(pac_data=self.snapshot.payload(PAC), side_files={f"character/texture/1_pc/{STEM}_d.dds": _fake_dds(8, 8) + bytes(64)})
+        odd = ModelFiles(pac_data=self.snapshot.payload(PAC), side_files={f"character/texture/1_pc/{STEM}_d.dds": _fake_dds(8, 8)})
         odd_plan = self.service.plan(self.service.allocate(NewItemSpec(template_key=TEMPLATE, internal_name="Ziane_Odd_OneHandSword", display_names={"eng": "X"}, model_source=ModelSource.IMPORTED), self.snapshot), self.snapshot, model=odd)
         odd_table = parse_pathc(odd_plan.meta_files[0].payload_data)
         self.assertEqual(len(odd_table.headers), 3, "one header row added for the 8x8 shape")

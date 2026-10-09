@@ -23,7 +23,7 @@ from cdmw.ui.new_item.panels_output import OutputPanel, install_result_report
 from cdmw.ui.new_item.overlay_manager_dialog import OverlayManagerDialog
 from tests.test_archive_overlay_manager import Backups, shop_spec, snapshot_of
 from tests.test_new_item_provenance import setup_game
-from tests.test_pathc_format import build_table, ICON_HEADER, ICON_BLOCKS
+from tests.test_pathc_format import build_table, ICON_HEADER, ICON_BLOCKS, dds_payload
 
 
 @pytest.fixture
@@ -42,7 +42,7 @@ def old_set(tmp_path):
     assert original_inventory[0].compatibility_status != "unmounted"
     mounted = mount.read_bytes()
     # Simulate an update resetting the mount list and replacing the texture registry.
-    registry.write_bytes(encode_pathc(register_dds(baseline, "ui/texture/game_update.dds", ICON_HEADER)))
+    registry.write_bytes(encode_pathc(register_dds(baseline, "ui/texture/game_update.dds", dds_payload(ICON_HEADER))))
     mount.write_bytes(original_mount)
     return service, root, backups, mounted
 

@@ -223,7 +223,7 @@ def test_health_is_independent_of_the_game_build_label(tmp_path):
 def test_rebuild_and_remove_preserve_foreign_texture_registry_entries(tmp_path):
     from cdmw.core.pathc_format import encode_pathc, parse_pathc, register_dds
     from cdmw.domain.archives.mutation import ArchiveAddRequest, MetaFileWrite
-    from tests.test_pathc_format import build_table, ICON_HEADER, ICON_BLOCKS, BIG_HEADER
+    from tests.test_pathc_format import build_table, ICON_HEADER, ICON_BLOCKS, BIG_HEADER, dds_payload
     service, _, _ = setup_game(tmp_path)
     root, backups = tmp_path / 'game', Backups(tmp_path)
     registry = root / 'meta/0.pathc'
@@ -231,12 +231,12 @@ def test_rebuild_and_remove_preserve_foreign_texture_registry_entries(tmp_path):
     registry.write_bytes(encode_pathc(base))
     own_path, foreign_path = 'ui/texture/ours.dds', 'ui/texture/foreign.dds'
     plan = service.plan(shop_spec('TextureOwner'), snapshot_of(root))
-    ours = register_dds(base, own_path, BIG_HEADER, tag=4)
+    ours = register_dds(base, own_path, dds_payload(BIG_HEADER), tag=4)
     plan = replace(plan,
-        additions=plan.additions + (ArchiveAddRequest.from_template(plan.patches[0].entry, own_path, BIG_HEADER),),
+        additions=plan.additions + (ArchiveAddRequest.from_template(plan.patches[0].entry, own_path, dds_payload(BIG_HEADER)),),
         meta_files=(MetaFileWrite('meta/0.pathc', encode_pathc(ours)),))
     service.install_overlay(plan, mutation_service=backups, confirmed=True, game_running=lambda: False)
-    live = register_dds(ours, foreign_path, BIG_HEADER, tag=4)
+    live = register_dds(ours, foreign_path, dds_payload(BIG_HEADER), tag=4)
     registry.write_bytes(encode_pathc(live))
     backups.apply(prepare_overlay_rebuild(root))
     assert parse_pathc(registry.read_bytes()).find(own_path) is not None

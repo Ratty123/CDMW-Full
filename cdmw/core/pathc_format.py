@@ -38,6 +38,7 @@ from dataclasses import dataclass, replace
 from typing import Optional, Tuple
 
 from cdmw.core.archive_format import calculate_pa_checksum
+from cdmw.core.dds_resource_limits import checked_dds_mip_byte_counts
 
 PATHC_RELATIVE_PATH = "meta/0.pathc"
 _HEAD = struct.Struct("<QIIIII")
@@ -49,18 +50,78 @@ _NO_COLLISION = 0xFF
 
 
 def dds_shape(header: bytes) -> bytes:
-    """The bytes of a 128-byte DDS header that describe the texture: magic, size, flags,
+    """The complete DDS descriptor: magic, size, flags,
     height, width, pitch, depth, mip count, the pixel format and the caps. `dwReserved1`
     (+32..+76) and `dwReserved2` (+124) are left out: the shipped icons carry engine tags
     there that differ between the archive copy and the registry copy of the same header
-    (3,000 of 3,000 icons compared, 2026-08-17)."""
+    (3,000 of 3,000 icons compared, 2026-08-17). All five DX10 extension
+    fields participate in the comparison when present."""
 
-    data = bytes(header[:_DDS_HEADER_LENGTH])
-    return data[:32] + data[76:124]
+    data = _dds_header(header)
+    return data[:32] + data[76:124] + data[128:]
 
 
 class PathcError(ValueError):
     """Raised when the bytes are not a PATHC table, or a registration is refused."""
+
+
+def _dds_header(data: bytes) -> bytes:
+    if len(data) < 128 or data[:4] != b"DDS ":
+        raise PathcError("not a complete DDS header")
+    if struct.unpack_from("<I", data, 4)[0] != 124 or struct.unpack_from("<I", data, 76)[0] != 32:
+        raise PathcError("invalid DDS header or pixel-format size")
+    size = 148 if data[84:88] == b"DX10" else 128
+    if len(data) < size:
+        raise PathcError("the DDS DX10 extension is incomplete")
+    return bytes(data[:size])
+
+
+@dataclass(frozen=True, slots=True)
+class DdsTextureDescriptor:
+    """A supported raw, single-surface 2D block-compressed texture layout."""
+
+    header: bytes
+    mip_bytes: Tuple[int, ...]
+
+    @property
+    def block_infos(self) -> bytes:
+        sizes = list(self.mip_bytes[:4]) + [0] * max(0, 4 - len(self.mip_bytes))
+        if len(self.mip_bytes) == 1:
+            sizes[1] = sizes[0]
+        return struct.pack("<4I", *sizes)
+
+
+def _dds_descriptor(data: bytes) -> DdsTextureDescriptor:
+    header = _dds_header(data)
+    height, width, _pitch, depth, mips = struct.unpack_from("<5I", header, 12)
+    flags = struct.unpack_from("<I", header, 8)[0]
+    caps2 = struct.unpack_from("<I", header, 112)[0]
+    if depth not in (0, 1) or caps2 != 0 or flags & 0x800000:
+        raise PathcError("only single-surface 2D DDS textures are supported by the registry writer")
+    fourcc = header[84:88]
+    if fourcc == b"DX10":
+        dxgi, dimension, misc, array_size, alpha = struct.unpack_from("<5I", header, 128)
+        if dimension != 3 or misc != 0 or array_size != 1 or alpha > 4:
+            raise PathcError("unsupported DDS DX10 dimensions, array, cube or alpha flags")
+        block = _DXGI_BLOCK_BYTES.get(dxgi)
+    else:
+        block = _BLOCK_BYTES.get(fourcc)
+    if block is None or not struct.unpack_from("<I", header, 80)[0] & 4:
+        raise PathcError("the DDS format is not one whose mip sizes are known here")
+    try:
+        counts = checked_dds_mip_byte_counts(width, height, mips, block, block_width=4, block_height=4)
+    except ValueError as exc:
+        raise PathcError(str(exc)) from exc
+    return DdsTextureDescriptor(header, counts)
+
+
+def validate_dds_payload(data: bytes) -> DdsTextureDescriptor:
+    """Refuse incomplete or unexplained bytes before publishing a raw DDS texture."""
+    descriptor = _dds_descriptor(data)
+    expected = len(descriptor.header) + sum(descriptor.mip_bytes)
+    if len(data) != expected:
+        raise PathcError(f"DDS payload requires exactly {expected:,} bytes including its header; got {len(data):,}")
+    return descriptor
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,11 +158,11 @@ class PathcTable:
         return self.entries[at] if at is not None else None
 
     def dds_header_for(self, entry: PathcEntry) -> bytes:
-        """The 128-byte DDS header the game hands out for `entry`."""
+        """The DDS header, including its DX10 extension when present."""
 
         if not entry.is_direct or not 0 <= entry.header_index < len(self.headers):
             raise PathcError("the entry does not name a texture header")
-        return self.headers[entry.header_index][:_DDS_HEADER_LENGTH]
+        return _dds_header(self.headers[entry.header_index])
 
 
 def pathc_checksum(path: str) -> int:
@@ -162,7 +223,8 @@ def register_texture(
 ) -> PathcTable:
     """Register `path` with the header and block infos of the shipped texture `like`.
 
-    `dds_header`, when given, is the new file's own first 128 bytes; its shape
+    `dds_header`, when given, is the complete new DDS file (the historical keyword
+    is retained for callers). Its payload is validated and its shape
     (:func:`dds_shape`) must equal the header the reference is registered under,
     otherwise the game would decode the new pixels with the wrong size or format.
     """
@@ -172,14 +234,18 @@ def register_texture(
         raise PathcError(f"the reference texture {like!r} is not registered")
     if not reference.is_direct:
         raise PathcError(f"the reference texture {like!r} is registered through the collision table; pick a direct one")
-    if dds_header is not None and dds_shape(dds_header) != dds_shape(table.dds_header_for(reference)):
-        raise PathcError(f"the new texture's DDS header (size, format or mips) differs from {like!r}'s registered header")
+    blocks = reference.block_infos
+    if dds_header is not None:
+        descriptor = validate_dds_payload(dds_header)
+        if dds_shape(descriptor.header) != dds_shape(table.dds_header_for(reference)):
+            raise PathcError(f"the new texture's DDS header (size, format or mips) differs from {like!r}'s registered header")
+        blocks = descriptor.block_infos
     checksum = pathc_checksum(path)
     checksums = [entry.checksum for entry in table.entries]
     at = bisect_left(checksums, checksum)
     if at < len(checksums) and checksums[at] == checksum:
         raise PathcError(f"checksum {checksum:#010x} of {path!r} is already registered (a collision would need the collision table)")
-    return _insert(table, at, PathcEntry(checksum=checksum, header_index=reference.header_index, collision_start=_NO_COLLISION, collision_end=_NO_COLLISION, block_infos=reference.block_infos))
+    return _insert(table, at, PathcEntry(checksum=checksum, header_index=reference.header_index, collision_start=_NO_COLLISION, collision_end=_NO_COLLISION, block_infos=blocks))
 
 
 #: The `dwReserved2` tag the registry's headers carry; 4 on 22,611 of the 36,477 shipped
@@ -226,38 +292,12 @@ _BLOCK_BYTES = {b"DXT1": 8, b"BC4U": 8, b"ATI1": 8, b"BC4S": 8, b"DXT3": 16, b"D
 _DXGI_BLOCK_BYTES = {70: 8, 71: 8, 72: 8, 79: 8, 80: 8, 81: 8, 73: 16, 74: 16, 75: 16, 76: 16, 77: 16, 78: 16, 82: 16, 83: 16, 84: 16, 94: 16, 95: 16, 96: 16, 97: 16, 98: 16, 99: 16}
 
 
-def _mip_bytes(header: bytes, level: int) -> Optional[int]:
-    """Bytes of mip `level` for a block-compressed DDS header, or None when the format is unknown."""
-
-    height, width = struct.unpack_from("<II", header, 12)
-    fourcc = header[84:88]
-    if fourcc == b"DX10":
-        block = _DXGI_BLOCK_BYTES.get(struct.unpack_from("<I", header, 128)[0]) if len(header) >= 132 else None
-    else:
-        block = _BLOCK_BYTES.get(fourcc)
-    if block is None:
-        return None
-    w = max(1, width >> level)
-    h = max(1, height >> level)
-    return ((w + 3) // 4) * ((h + 3) // 4) * block
-
-
 def block_infos_for(dds_data: bytes) -> bytes:
     """The four block-info words for a texture stored raw: the byte sizes of mips 0..3
     (zero beyond the mip count), except a one-mip texture, whose registry rows repeat
     the top size in the second word (all 7,260 shipped icons)."""
 
-    header = bytes(dds_data[:148])
-    mips = max(1, struct.unpack_from("<I", header, 28)[0])
-    sizes = []
-    for level in range(4):
-        size = _mip_bytes(header, level) if level < mips else 0
-        if size is None:
-            raise PathcError("the DDS format is not one whose mip sizes are known here")
-        sizes.append(size)
-    if mips == 1:
-        sizes[1] = sizes[0]
-    return struct.pack("<4I", *sizes)
+    return _dds_descriptor(dds_data).block_infos
 
 
 def registry_header_for(dds_data: bytes, *, tag: int = DEFAULT_HEADER_TAG) -> bytes:
@@ -265,17 +305,16 @@ def registry_header_for(dds_data: bytes, *, tag: int = DEFAULT_HEADER_TAG) -> by
     zeroed and `dwReserved2` set to `tag` (as every shipped registry header), then the
     20-byte DX10 extension when the file has one, else zeros."""
 
-    header = bytearray(dds_data[:_DDS_HEADER_LENGTH])
-    if len(header) != _DDS_HEADER_LENGTH or header[:4] != b"DDS ":
-        raise PathcError("not a DDS header")
+    descriptor = _dds_descriptor(dds_data)
+    header = bytearray(descriptor.header[:_DDS_HEADER_LENGTH])
     header[32:76] = bytes(44)
     struct.pack_into("<I", header, 124, int(tag))
-    extension = bytes(dds_data[128:148]) if header[84:88] == b"DX10" and len(dds_data) >= 148 else bytes(20)
+    extension = descriptor.header[128:] if header[84:88] == b"DX10" else bytes(20)
     return bytes(header) + extension
 
 
 def register_dds(table: PathcTable, path: str, dds_data: bytes, *, tag: Optional[int] = None) -> PathcTable:
-    """Register `path` under the shipped header its own 128-byte DDS header equals, or,
+    """Validate a complete DDS and register `path` under a matching descriptor, or,
     when no shipped header has that shape and tag, under a new header row made from
     the file.
 
@@ -283,15 +322,12 @@ def register_dds(table: PathcTable, path: str, dds_data: bytes, *, tag: Optional
     texture's kind ships with). A shipped header is reused only when it carries that
     tag as well as the shape, so a base colour never lands on a mask's header row.
 
-    Under a shipped header the block infos are the ones most of that header's textures
-    carry (the plain per-mip sizes; a minority carry per-file values for textures stored
-    another way, which a file written raw does not need). Under a new header they are
-    computed from the format and size (:func:`block_infos_for`).
+    Raw per-mip block infos always come from the validated payload layout; per-file
+    storage values from existing entries are never copied onto new raw textures.
     """
 
-    header = bytes(dds_data[:_DDS_HEADER_LENGTH])
-    if len(header) != _DDS_HEADER_LENGTH or header[:4] != b"DDS ":
-        raise PathcError(f"{path!r} does not start with a DDS header")
+    descriptor = validate_dds_payload(dds_data)
+    header = descriptor.header
     if tag is None:
         tag = header_tag_for(path, dds_data)
     checksum = pathc_checksum(path)
@@ -299,26 +335,20 @@ def register_dds(table: PathcTable, path: str, dds_data: bytes, *, tag: Optional
     at = bisect_left(checksums, checksum)
     if at < len(checksums) and checksums[at] == checksum:
         raise PathcError(f"checksum {checksum:#010x} of {path!r} is already registered (a collision would need the collision table)")
-    exact = [index for index, candidate in enumerate(table.headers) if candidate[:_DDS_HEADER_LENGTH] == header and header_tag(candidate) == tag]
+    exact = [index for index, candidate in enumerate(table.headers) if candidate[:len(header)] == header and header_tag(candidate) == tag]
     shape = dds_shape(header)
     matches = exact + [
         index for index, candidate in enumerate(table.headers)
         if index not in exact and dds_shape(candidate) == shape and header_tag(candidate) == tag
     ]
     for header_index in matches:
-        tally: dict[bytes, int] = {}
-        for entry in table.entries:
-            if entry.header_index == header_index:
-                tally[entry.block_infos] = tally.get(entry.block_infos, 0) + 1
-        if tally:
-            blocks = max(tally.items(), key=lambda item: item[1])[0]
-            return _insert(table, at, PathcEntry(checksum=checksum, header_index=header_index, collision_start=_NO_COLLISION, collision_end=_NO_COLLISION, block_infos=blocks))
+        return _insert(table, at, PathcEntry(checksum=checksum, header_index=header_index, collision_start=_NO_COLLISION, collision_end=_NO_COLLISION, block_infos=descriptor.block_infos))
     if len(table.headers) >= 0xFFFE:
         raise PathcError("the registry has no room for another header")
     if table.header_size != 148:
         raise PathcError(f"the registry's header size is {table.header_size}, not the 148 a new header is written as")
     new_header = registry_header_for(dds_data, tag=tag)
-    blocks = block_infos_for(dds_data)
+    blocks = descriptor.block_infos
     grown = replace(table, headers=table.headers + (new_header,))
     return _insert(grown, at, PathcEntry(checksum=checksum, header_index=len(table.headers), collision_start=_NO_COLLISION, collision_end=_NO_COLLISION, block_infos=blocks))
 
@@ -336,6 +366,7 @@ __all__ = [
     "PathcEntry",
     "PathcError",
     "PathcTable",
+    "DdsTextureDescriptor",
     "block_infos_for",
     "dds_shape",
     "registry_header_for",
@@ -346,4 +377,5 @@ __all__ = [
     "pathc_checksum",
     "register_dds",
     "register_texture",
+    "validate_dds_payload",
 ]

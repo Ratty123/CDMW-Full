@@ -63,6 +63,13 @@ versions, malformed types, missing/unreferenced blobs and checksum/size failures
 Limits are 4 MiB of metadata, 256 MiB per resource, 1 GiB total and 4,096 entries;
 one installation batch accepts up to 128 packages.
 
+Owned DDS textures must contain a complete supported single-surface, 2D block-
+compressed payload and every declared mip. Registration compares the full DX10
+extension, including format and alpha semantics, and computes raw mip sizes from
+the payload layout. Arrays, cubes, volumes, unknown codecs and unexplained trailing
+bytes are refused. This validation also applies when the source has no texture
+registry; it does not establish in-game support for every accepted DDS codec.
+
 The initial baseline uses only direct, four-digit shipped archive directories
 0000 through 0035. Named manager folders such as `dmmgen` and `dmmsa`, other mod
 groups and nested archive copies are excluded from authoring inputs. Custom item

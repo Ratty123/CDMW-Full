@@ -207,25 +207,25 @@ def test_installed_texture_comparison_preserves_owned_and_external_registrations
     from cdmw.services import archive_overlay_manager as overlays
     from cdmw.workers.mod_update_workers import mod_update_scan_task
     from tests.test_archive_overlay_manager import Backups
-    from tests.test_pathc_format import build_table, ICON_HEADER, ICON_BLOCKS, BIG_HEADER
+    from tests.test_pathc_format import build_table, ICON_HEADER, ICON_BLOCKS, BIG_HEADER, dds_payload
     root = tmp_path / 'game'
     texture = 'ui/texture/base.dds' if replacement else 'ui/texture/added.dds'
-    build_package(root, {'ui/texture/base.dds': ICON_HEADER})
+    build_package(root, {'ui/texture/base.dds': dds_payload(ICON_HEADER)})
     base = build_table(headers=[ICON_HEADER], entries=[('ui/texture/base.dds', 0, ICON_BLOCKS)])
-    live = register_dds(base, 'ui/texture/added.dds', BIG_HEADER)
+    live = register_dds(base, 'ui/texture/added.dds', dds_payload(BIG_HEADER))
     if replacement:
         live = replace(base, headers=live.headers, entries=tuple(
             replace(entry, header_index=1, block_infos=block_infos_for(BIG_HEADER)) for entry in base.entries))
     (root / 'meta/0.pathc').write_bytes(encode_pathc(base))
     state, pending = overlays._state_for_edit(root, None, None)
     changes = {
-        texture: {'before': ICON_HEADER if replacement else None, 'after': BIG_HEADER, 'flags': 0, 'meta': False},
+        texture: {'before': dds_payload(ICON_HEADER) if replacement else None, 'after': dds_payload(BIG_HEADER), 'flags': 0, 'meta': False},
         'meta/0.pathc': {'before': encode_pathc(base), 'after': encode_pathc(live), 'flags': 0, 'meta': True},
     }
     overlays._add_layer(state, pending, 'Texture item', changes)
     Backups(tmp_path).apply(overlays._compose(root, state, pending, 'Texture item', None, None, None))
     # Another mod has registered an unrelated texture after our installation.
-    live = register_dds(live, 'ui/texture/external.dds', ICON_HEADER)
+    live = register_dds(live, 'ui/texture/external.dds', dds_payload(ICON_HEADER))
     (root / 'meta/0.pathc').write_bytes(encode_pathc(live))
     before = fingerprint(root)
     checked = mod_update_scan_task('', root, installed=True)(lambda _: None, lambda *args: None, threading.Event())

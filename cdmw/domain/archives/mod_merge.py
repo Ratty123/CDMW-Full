@@ -1,7 +1,7 @@
 """Composition of the texture registrations owned by exported New Item mods."""
 from dataclasses import replace
 
-from cdmw.core.pathc_format import block_infos_for, dds_shape, encode_pathc, parse_pathc, pathc_checksum
+from cdmw.core.pathc_format import PathcError, dds_shape, encode_pathc, parse_pathc, pathc_checksum, validate_dds_payload
 from cdmw.domain.archives.overlay_merge import OverlayConflict
 
 
@@ -39,7 +39,11 @@ def merge_mod_texture_registry(original, current, incoming, owned_paths, payload
         data = payloads.get(path)
         if data is None or not entry.is_direct:
             raise OverlayConflict(f"Missing texture or unsupported collision registration: {path}.")
-        if dds_shape(added.dds_header_for(entry)) != dds_shape(data) or entry.block_infos != block_infos_for(data):
+        try:
+            descriptor = validate_dds_payload(data)
+        except PathcError as exc:
+            raise OverlayConflict(f"Invalid DDS texture {path}: {exc}") from exc
+        if dds_shape(added.dds_header_for(entry)) != dds_shape(descriptor.header) or entry.block_infos != descriptor.block_infos:
             raise OverlayConflict(f"Texture registration does not match its DDS: {path}.")
         existing = entries.get(key)
         if (signature(present, existing) != signature(added, entry)

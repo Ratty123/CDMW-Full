@@ -142,7 +142,7 @@ def _fake_dds(width: int = 256, height: int = 256) -> bytes:
     struct.pack_into("<I", data, 76, 32)
     struct.pack_into("<I", data, 80, 0x4)
     data[84:88] = b"DXT5"
-    return bytes(data)
+    return bytes(data) + bytes(((width + 3) // 4) * ((height + 3) // 4) * 16)
 
 
 def _record(stem: str, part: str) -> PartPrefabRecord:
@@ -515,7 +515,7 @@ class PlanTests(_PackageCase):
         model = ModelFiles(
             pac_data=imported_pac(1),
             side_files={PAC_XML: b"<pac_xml><texture>cd_phm_01_sword_0109_d.dds</texture><texture>extra_n.dds</texture></pac_xml>",
-                        f"character/texture/1_pc/{STEM}_d.dds": b"DDS diffuse", "character/texture/1_pc/extra_n.dds": b"DDS extra"},
+                        f"character/texture/1_pc/{STEM}_d.dds": _fake_dds(4, 4), "character/texture/1_pc/extra_n.dds": _fake_dds(8, 8)},
         )
         spec = self._spec(model_source=ModelSource.IMPORTED, icon=IconSource.GENERATED, item_groups=ItemGroupsChoice.EXPLICIT, explicit_item_groups=(17012,))
         allocated = self.service.allocate(spec, self.snapshot)

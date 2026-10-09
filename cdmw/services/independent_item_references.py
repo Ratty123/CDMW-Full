@@ -184,5 +184,11 @@ def audit_references(plan, snapshot, *, stop_event=None):
         elif path.endswith('.dds'):
             if not data.startswith(b'DDS ') or len(data) < 128:
                 raise IndependentItemError(f'The owned texture format is unverified: {path}')
+            if owned:
+                from cdmw.core.pathc_format import PathcError, validate_dds_payload
+                try:
+                    validate_dds_payload(data)
+                except PathcError as exc:
+                    raise IndependentItemError(f'Invalid owned texture {path}: {exc}') from exc
         elif owned:
             raise IndependentItemError(f'Unsupported independent resource format: {path}')

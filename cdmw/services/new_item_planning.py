@@ -23,7 +23,7 @@ from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from cdmw.core.item_icon_addition import NewItemIcon, icon_string_for_stem
 from cdmw.core.item_icon_registry import ICON_REGISTRY_PATH, IconRegistryError, add_icon_texture
-from cdmw.core.pathc_format import PATHC_RELATIVE_PATH, PathcError, encode_pathc, register_dds, register_texture
+from cdmw.core.pathc_format import PATHC_RELATIVE_PATH, PathcError, encode_pathc, register_dds, register_texture, validate_dds_payload
 from cdmw.core.effect_edit import EMITTER_DIR
 from cdmw.core.item_model_family import FamilyPart, ItemModelFamily
 from cdmw.core.itemgroupinfo_table import add_group_members, apply_item_group_row, groups_containing
@@ -740,6 +740,11 @@ class _Planner(EffectPlanningMixin):
             return
         table = self.snapshot.pathc
         if table is None:
+            for request in new_dds:
+                try:
+                    validate_dds_payload(request.payload_data)
+                except PathcError as exc:
+                    raise NewItemPlanError(f"texture {request.path}: {exc}") from exc
             self.warnings.append("No texture registry (meta/0.pathc) was found beside the archives; the new textures will not draw when installed directly until it is rebuilt.")
             return
         icon_files = self.family.files_for("icon")

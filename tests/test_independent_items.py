@@ -92,7 +92,7 @@ def test_imported_mesh_icon_and_material_references_remap_together(tmp_path, aux
                              effect_look=EffectLook(color=(1, 0, 0), emitter_order=(0,)))
         allocated = service.allocate(choice, snapshot)
         name = icon_string_for_stem(allocated.stem)
-        icon = NewItemIcon(name, stringinfo_key(name), icon_target_path(name), _fake_dds() + bytes(65536), None, None)
+        icon = NewItemIcon(name, stringinfo_key(name), icon_target_path(name), _fake_dds(), None, None)
         model = ModelFiles(imported_pac(100), {PAC_XML: snapshot.payload(PAC_XML)})
         plan = service.plan(choice, snapshot, model=model, icon=icon, capture_independent=True)
         packages.append(from_plan(plan, uuid4().hex))

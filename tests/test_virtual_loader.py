@@ -263,7 +263,7 @@ def test_virtual_imported_models_auxiliaries_and_recipes_resolve_in_complete_vie
             effect_look=EffectLook(color=(1, 0, 0), emitter_order=(0,)))
         allocated = service.allocate(spec, snapshot)
         name = icon_string_for_stem(allocated.stem)
-        icon = NewItemIcon(name, stringinfo_key(name), icon_target_path(name), _fake_dds() + bytes(65536), None, None)
+        icon = NewItemIcon(name, stringinfo_key(name), icon_target_path(name), _fake_dds(), None, None)
         plan = service.plan(spec, snapshot, model=ModelFiles(imported_pac(100), {PAC_XML: snapshot.payload(PAC_XML)}),
                             icon=icon, capture_independent=True)
         source_ids.append((plan.spec.item_key, plan.spec.internal_name, plan.spec.stem))

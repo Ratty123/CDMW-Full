@@ -215,7 +215,7 @@ def test_unknown_file_conflicts_and_incomplete_tables_are_reported(tmp_path):
     assert any("character/shared.pac" in issue for issue in plan.conflicts)
 
 
-@pytest.mark.parametrize("damage", ("undeclared", "wrong_dds", "removed"))
+@pytest.mark.parametrize("damage", ("undeclared", "wrong_dds", "truncated_dds", "removed"))
 def test_unproven_texture_registry_changes_are_refused(tmp_path, damage):
     _service, _snapshot, entries = setup_game(tmp_path)
     baseline = register_dds(PathcTable(0, 148, (), (), (), b""), "character/texture/original.dds", _fake_dds(4, 4))
@@ -230,6 +230,8 @@ def test_unproven_texture_registry_changes_are_refused(tmp_path, damage):
         (folders[0] / "meta/0.pathc").write_bytes(encode_pathc(registry))
     elif damage == "wrong_dds":
         (folders[0] / paths[0]).write_bytes(_fake_dds(8, 8))
+    elif damage == "truncated_dds":
+        (folders[0] / paths[0]).write_bytes(_fake_dds(4, 4)[:128])
     else:
         registry = register_dds(PathcTable(0, 148, (), (), (), b""), paths[0], _fake_dds(4, 4))
         (folders[0] / "meta/0.pathc").write_bytes(encode_pathc(registry))

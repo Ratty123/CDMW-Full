@@ -20,6 +20,47 @@ def files_in(root):
     return {path.relative_to(root): path.read_bytes() for path in root.rglob('*') if path.is_file()}
 
 
+@pytest.mark.parametrize('registry_present', [False, True])
+@pytest.mark.parametrize('backend', ['physical', 'virtual'])
+def test_incomplete_owned_icon_refuses_authoring_and_import_before_publication(tmp_path, registry_present, backend):
+    from cdmw.core.item_icon_addition import NewItemIcon, icon_string_for_stem, icon_target_path
+    from cdmw.core.stringinfo_table import stringinfo_key
+    from cdmw.domain.new_item.spec import IconSource
+    from tests.test_new_item_service import _fake_dds
+
+    service, snapshot = imported_game(tmp_path / 'author')
+    if not registry_present:
+        snapshot = replace(snapshot, pathc=None)
+    choice = replace(shop_spec('OwnedIcon'), icon=IconSource.GENERATED)
+    name = icon_string_for_stem(service.allocate(choice, snapshot).stem)
+    icon = NewItemIcon(name, stringinfo_key(name), icon_target_path(name), _fake_dds(), None, None)
+    package = from_plan(service.plan(choice, snapshot, icon=icon, capture_independent=True), uuid4().hex)
+    invalid = _fake_dds()[:128]
+    with pytest.raises(ValueError, match='DDS payload'):
+        service.plan(choice, snapshot, icon=replace(icon, payload_data=invalid), capture_independent=True)
+    # The transport hash is valid: compilation must independently validate the DDS.
+    recipe, blobs = deepcopy(package.recipe), dict(package.blobs)
+    del blobs[recipe['icon']]
+    recipe['icon'] = digest(invalid)
+    blobs[recipe['icon']] = invalid
+    tampered = replace(package, recipe=recipe, blobs=blobs)
+    imported_game(tmp_path / 'recipient')
+    root = tmp_path / 'recipient/game'
+    if not registry_present:
+        (root / 'meta/0.pathc').unlink()
+    before = files_in(root)
+    with pytest.raises(ValueError, match='DDS payload'):
+        if backend == 'physical':
+            prepare_install([package_bytes(tampered)], root)
+        else:
+            from cdmw.domain.virtual_loader import VirtualProfile
+            from cdmw.services.virtual_loader_composition import prepare_profile
+            path = tmp_path / 'invalid.cditem'
+            path.write_bytes(package_bytes(tampered))
+            prepare_profile(VirtualProfile((path,)), root)
+    assert files_in(root) == before
+
+
 def test_effect_clone_rebinds_declared_emitter_file_references():
     from cdmw.core.effect_binary import decode_effect_binary
     from cdmw.core.effect_edit import same_length_stem
