@@ -135,6 +135,89 @@ objects and state at each step. Recovering the original pre-removal save only
 tests restoration of that original save. It does not prove the latter two cases.
 Use separate copies for each experiment and keep the original recovery copy.
 
+### Capture an absent-provider experiment
+
+`scripts/capture_virtual_save_evidence.py` provides a read-only research workflow
+for this experiment. It reads an explicitly named **copy** of save files and the
+current prepared virtual profile. It does not launch the game, copy or restore
+live saves, edit archives, change a profile or admit a save for use. Conducting
+the game experiment remains a separate, deliberately chosen operation.
+
+Close the game before each capture. Keep copies of the relevant slot in the same
+relative layout, and select all files belonging to that slot at the baseline.
+Choose a baseline whose relevant modded objects/state have been observed after
+reloading with the provider, and record that observation in the notes. The tool
+cannot establish that baseline game behavior itself.
+Repeat `--slot` for a multi-file slot, up to 32 files. The tool does not interpret
+the save format or discover which files the engine actually consumes. Later
+captures inherit the selected relative names and provider from `--previous`.
+Use an existing report directory outside both the game and save-copy folders;
+existing reports are never overwritten.
+
+| Stage, in order | Prepared profile and copied input | Operator outcome |
+| --- | --- | --- |
+| `baseline` | Provider selected; original recovery save copied | `prepared` |
+| `absent_before_load` | Provider removed; original bytes copied before the load-only case | `prepared` |
+| `absent_loaded` | Same absent-provider profile; copy after the load-only case | `loaded`, `failed` or `unknown` |
+| `absent_saved` | Same absent-provider profile; copy of the newly written save | `saved`, `failed` or `unknown` |
+| `restored_before_load` | Original provider/profile restored; newly written save copied before loading | `prepared` |
+| `restored_loaded` | Restored profile; copy after loading that newly written save | `loaded`, `failed` or `unknown` |
+
+For example, replace the placeholders and slot name with the chosen experiment's
+paths and package UUID. These commands only capture already prepared inputs:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/capture_virtual_save_evidence.py capture `
+  --game-root '<game folder>' --save-copy '<baseline copy>' `
+  --output '<reports>/01-baseline.json' --stage baseline `
+  --provider '<32-character package UUID>' --slot 'account/slot/save.save' `
+  --outcome prepared --notes 'Original recovery copy; describe the relevant objects and state.'
+
+.\.venv\Scripts\python.exe scripts/capture_virtual_save_evidence.py capture `
+  --game-root '<game folder>' --save-copy '<absent before-load copy>' `
+  --output '<reports>/02-absent-before.json' --stage absent_before_load `
+  --previous '<reports>/01-baseline.json' --outcome prepared `
+  --notes 'Provider removed; original selected save bytes retained for the load-only case.'
+```
+
+Continue through the remaining stages, referring to the preceding JSON file each
+time. Record observed objects, quantities and behavior in `--notes`; a successful
+menu load alone does not establish preservation of mod state. A failed or unknown
+outcome should be recorded as such. Compare the captures in their recorded order:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/capture_virtual_save_evidence.py compare `
+  '<reports>/01-baseline.json' '<reports>/02-absent-before.json' `
+  '<reports>/03-absent-loaded.json' '<reports>/04-absent-saved.json' `
+  '<reports>/05-restored-before.json' '<reports>/06-restored-loaded.json'
+```
+
+A prefix of that sequence reports incomplete work. Comparison flags reordered or
+changed captures, missing selected files, a provider still active physically,
+changed bindings or environment, changes during the load-only case, and reuse of
+the original recovery save for the restored-provider case. A changed generation
+alone is allowed when package content, bindings, source contracts and prepared
+output match. Hashes are checked twice around capture to detect changed input;
+links/junctions, oversized inputs and interrupted report publication refuse.
+
+The context check covers the prepared output, selected package bytes and recorded
+source contracts. It does not rehash all stock game sources, observe native hook
+ownership, prove runtime activation or attest the origin of the copied files.
+Matching selected bytes before/after only establishes that those copies match;
+the operator must establish that they came from the intended game slot/session.
+Save origin and compatibility remain `unknown`/`unverified` in every report.
+The strongest comparison result is `candidate-observation`, never a compatibility
+certificate or permission to migrate. The launcher does not consume these reports.
+Capture checksums and chains detect accidental changes; they are not signatures
+or authenticated attestations of the operator's observations.
+
+Reports contain hashes and sizes, prepared output identities and retained provider
+bindings. Relative save names are hashed; absolute source paths and file contents
+are omitted. Operator notes are included verbatim and should be reviewed before
+sharing. Captures use the existing 4 GiB/4,096-file save bounds and a 4 MiB report
+bound. Atomic creation requires a filesystem that supports hard links; failure
+leaves the previous reports and input copies intact.
+
 ## Supported inputs
 
 | Input or operation | Current preparation support | Refusal boundary |
