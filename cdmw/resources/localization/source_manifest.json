@@ -87541,7 +87541,12 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 655,
+          "line": 666,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 685,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -87646,12 +87651,17 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 613,
+          "line": 619,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 632,
+          "line": 633,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 643,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -134447,11 +134457,11 @@
       ]
     },
     {
-      "key": "The composed overlay history exceeds the supported size; this change cannot be published.",
+      "key": "The composed overlay history exceeds the supported size (at least {value_0} bytes; limit {value_1} bytes); this change cannot be published.",
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 51,
+          "line": 56,
           "sink": "OverlayConflict"
         }
       ]

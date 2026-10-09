@@ -11419,7 +11419,7 @@
     "The colour the parts glow in": "The colour the parts glow in",
     "The compare row has no usable transform values to copy.": "The compare row has no usable transform values to copy.",
     "The compared source data is unchanged.": "The compared source data is unchanged.",
-    "The composed overlay history exceeds the supported size; this change cannot be published.": "The composed overlay history exceeds the supported size; this change cannot be published.",
+    "The composed overlay history exceeds the supported size (at least {value_0} bytes; limit {value_1} bytes); this change cannot be published.": "The composed overlay history exceeds the supported size (at least {value_0} bytes; limit {value_1} bytes); this change cannot be published.",
     "The config file and cache are stored beside the executable or local source checkout. See": "The config file and cache are stored beside the executable or local source checkout. See",
     "The configured archive package root does not exist:\n\n{value_0}\n\nFix it under Settings -> Archive Locations, then reopen this tab.": "The configured archive package root does not exist:\n\n{value_0}\n\nFix it under Settings -> Archive Locations, then reopen this tab.",
     "The current Archive Browser selection is not a loaded existing item icon target.": "The current Archive Browser selection is not a loaded existing item icon target.",

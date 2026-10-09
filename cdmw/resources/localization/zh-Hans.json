@@ -11419,7 +11419,7 @@
     "The colour the parts glow in": "部件发光的颜色",
     "The compare row has no usable transform values to copy.": "比较行没有可供复制的可用转换值。",
     "The compared source data is unchanged.": "已比较的源数据未发生更改。",
-    "The composed overlay history exceeds the supported size; this change cannot be published.": "The composed overlay history exceeds the supported size; this change cannot be published.",
+    "The composed overlay history exceeds the supported size (at least {value_0} bytes; limit {value_1} bytes); this change cannot be published.": "The composed overlay history exceeds the supported size (at least {value_0} bytes; limit {value_1} bytes); this change cannot be published.",
     "The config file and cache are stored beside the executable or local source checkout. See": "配置文件和缓存存储在可执行文件或本地源签出旁边。请参阅",
     "The configured archive package root does not exist:\n\n{value_0}\n\nFix it under Settings -> Archive Locations, then reopen this tab.": "配置的归档包根目录不存在：\n\n{value_0}\n\n在“设置”->“存档位置”下修复该问题，然后重新打开此选项卡。",
     "The current Archive Browser selection is not a loaded existing item icon target.": "当前 Archive Browser 选择不是已加载的现有项目图标目标。",

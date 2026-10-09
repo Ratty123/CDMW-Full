@@ -46,9 +46,15 @@ def _json(data):
     return (json.dumps(data, ensure_ascii=False, indent=2) + '\n').encode('utf-8')
 
 
+def _inventory_bytes(state):
+    # Whitespace has no wire meaning; retain the reader's existing byte budget.
+    return (json.dumps(state, ensure_ascii=False, separators=(',', ':')) + '\n').encode('utf-8')
+
+
 def _check_inventory_capacity(data):
     if len(data) > _MAX_STATE_BYTES:
-        raise OverlayConflict('The composed overlay history exceeds the supported size; this change cannot be published.')
+        raise OverlayConflict(f'The composed overlay history exceeds the supported size '
+                              f'(at least {len(data):,} bytes; limit {_MAX_STATE_BYTES:,} bytes); this change cannot be published.')
 
 
 def _relative(raw):
@@ -624,6 +630,11 @@ def compose_layer_payloads(layers, baseline, *, stop_event=None, on_log=None):
 
 
 def _compose(root, state, pending, label, removed_id, stop_event, on_log, *, decoded=None, independent_context=None):
+    raise_if_cancelled(stop_event, 'Overlay composition cancelled.')
+    # Context/layer metadata alone can exceed the budget. Sources are refreshed
+    # during composition and published files can disappear, so omit both from
+    # this lower bound rather than rejecting a change that could still fit.
+    _check_inventory_capacity(_inventory_bytes({**state, 'sources': {}, 'published': {}}))
     layers = []
     source_directories = ()
     source_revisions = ()
@@ -650,27 +661,42 @@ def _compose(root, state, pending, label, removed_id, stop_event, on_log, *, dec
     current, active = compose_layer_payloads(layers, baseline, stop_event=stop_event, on_log=on_log)
     from cdmw.domain.archives.iteminfo_composition import required_field_files
     required = required_field_files(layers, current)
-    archive = []
+    archive_paths = []
     for path, payload in current.items():
         raise_if_cancelled(stop_event, 'Overlay archive preparation cancelled.')
         if path in meta_paths or payload is None or payload == baseline[path] and path not in required:
             continue
+        archive_paths.append(path)
+    if not archive_paths and active:
+        raise OverlayConflict('An active overlay composed no archive changes.')
+    name = state['directory']
+    archive_targets = (name + '/0.pamt', name + '/0.paz', name + '/' + OVERLAY_OWNER_MARKER)
+    # The final publication keys/nulls are now known. Every non-null checksum is
+    # exactly 64 ASCII bytes, so this projects the final serialized size without
+    # compressing payloads or constructing an archive. Keep the exact final and
+    # pre-backup checks as well: this projection is not publication authority.
+    checksum_placeholder = '0' * 64
+    published = {p: checksum_placeholder for p in pending if p.startswith(name + '/') or p in meta_paths}
+    published.update({p: checksum_placeholder if archive_paths else None for p in archive_targets})
+    published.update({p: checksum_placeholder if current[p] is not None else None for p in meta_paths})
+    _check_inventory_capacity(_inventory_bytes({**state, 'published': published}))
+    archive = []
+    for path in archive_paths:
+        raise_if_cancelled(stop_event, 'Overlay archive preparation cancelled.')
+        payload = current[path]
         archive.append(OverlayFile(path, _processed_payload(payload, compression_type=flags[path] & 15,
             encrypted=bool(flags[path] >> 4), basename=path.rsplit('/', 1)[-1]), len(payload), flags[path]))
-    name = state['directory']
     mount = _target(root, 'meta/0.papgt').read_bytes()
     writes = dict(pending)
     deletes = []
     if archive:
         built = build_overlay_archive(archive, stop_event=stop_event, on_log=on_log)
-        writes.update({name + '/0.pamt': built.pamt_bytes, name + '/0.paz': built.paz_bytes, name + '/' + OVERLAY_OWNER_MARKER: OVERLAY_OWNER_BYTES})
+        writes.update(zip(archive_targets, (built.pamt_bytes, built.paz_bytes, OVERLAY_OWNER_BYTES)))
         writes['meta/0.papgt'] = papgt_with_directory(mount, name, built.pamt_checksum, flags=PAPGT_DEFAULT_FLAGS, first=True)
         checksum, payload_bytes = built.pamt_checksum, len(built.paz_bytes)
     else:
-        if active:
-            raise OverlayConflict('An active overlay composed no archive changes.')
         writes['meta/0.papgt'] = serialize_papgt([r for r in parse_papgt(mount) if r.name != name], header=mount[:12])
-        deletes.extend((name + '/0.pamt', name + '/0.paz', name + '/' + OVERLAY_OWNER_MARKER))
+        deletes.extend(archive_targets)
         checksum = payload_bytes = 0
     for path in meta_paths:
         if current[path] is None:
@@ -679,14 +705,12 @@ def _compose(root, state, pending, label, removed_id, stop_event, on_log, *, dec
             writes[path] = current[path]
     state['published'] = {p: _digest(v) for p, v in writes.items() if p.startswith(name + '/') or p in meta_paths}
     state['published'].update({p: None for p in deletes})
-    # Compilation provenance and retired layers repeat many nested records.
-    # Whitespace has no wire semantics; keep the reader's existing byte budget.
-    writes[INDEX_PATH] = (json.dumps(state, ensure_ascii=False, separators=(',', ':')) + '\n').encode('utf-8')
+    writes[INDEX_PATH] = _inventory_bytes(state)
     _check_inventory_capacity(writes[INDEX_PATH])
     paths = tuple(sorted(e.path for e in archive))
     # Composition is complete. Release decoded history before retaining the
     # original destination bytes needed for review, drift checks and rollback.
-    del layers, baseline, current, archive
+    del layers, baseline, current, archive, archive_paths
     before = tuple((path, _target(root, path).read_bytes() if _target(root, path).is_file() else None) for path in dict.fromkeys((*writes, *deletes)))
     return OverlayChangePreparation(root, name, label, removed_id, tuple(layer['label'] for layer in active),
         tuple(writes.items()), tuple(deletes), before, tuple((p, tuple(s)) for p, s in state['sources'].items()), paths,

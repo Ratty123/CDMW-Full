@@ -471,9 +471,13 @@ Both graph limits apply together. Stem capacity also depends on the template's
 fixed-width naming family and existing reservations. No integer ranges, stem
 lengths or unknown-format acceptance are widened to bypass exhaustion.
 
-Physical inventory output uses compact JSON and checks the existing reader limit
-before returning a preparation and again before backup/publication. A refused
-rebuild leaves the prior installation readable. Retired layers, journals and
+Physical inventory output uses compact JSON. A metadata lower bound is checked
+before journal decoding, then the projected final size is checked before payload
+compression and archive construction. Exact serialization is still checked before
+returning a preparation and again before backup/publication. Refusal reports the
+required minimum and byte limit; a refused rebuild leaves the prior installation
+readable. Package count alone cannot predict capacity because contributions repeat
+their compilation context and retained history grows. Retired layers, journals and
 bindings still accumulate. Virtual generations and save/recovery backups are
 also retained; there is no automatic history deletion or shared on-disk blob store.
 Storage growth and reusable content should be measured before changing retention

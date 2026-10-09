@@ -11419,7 +11419,7 @@
     "The colour the parts glow in": "Parçaların parladığı renk",
     "The compare row has no usable transform values to copy.": "Karşılaştırma satırında kopyalanacak kullanılabilir dönüşüm değeri yok.",
     "The compared source data is unchanged.": "Karşılaştırılan kaynak verileri değişmedi.",
-    "The composed overlay history exceeds the supported size; this change cannot be published.": "The composed overlay history exceeds the supported size; this change cannot be published.",
+    "The composed overlay history exceeds the supported size (at least {value_0} bytes; limit {value_1} bytes); this change cannot be published.": "The composed overlay history exceeds the supported size (at least {value_0} bytes; limit {value_1} bytes); this change cannot be published.",
     "The config file and cache are stored beside the executable or local source checkout. See": "Yapılandırma dosyası ve önbellek, çalıştırılabilir veya yerel kaynak ödemesinin yanında saklanır. Bkz.",
     "The configured archive package root does not exist:\n\n{value_0}\n\nFix it under Settings -> Archive Locations, then reopen this tab.": "Yapılandırılan arşiv paketi kökü mevcut değil:\n\n{value_0}\n\nAyarlar -> Arşiv Konumları altında sorunu düzeltin ve ardından bu sekmeyi yeniden açın.",
     "The current Archive Browser selection is not a loaded existing item icon target.": "Geçerli Archive Browser seçimi, yüklü mevcut bir öğe simgesi hedefi değil.",
