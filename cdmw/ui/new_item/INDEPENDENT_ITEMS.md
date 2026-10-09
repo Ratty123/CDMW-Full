@@ -278,6 +278,13 @@ groups and nested archive copies are excluded from authoring inputs. Custom item
 IDs already present in shipped tables are refused. Required source
 payload hashes must match the author's source. This is conservative version
 compatibility, not proof that a user's base archives are an untouched retail copy.
+Independent-item preparation also records the digest of the exact PAMT bytes
+parsed to select each archive resource. Those index witnesses survive per-package
+views, scanning, merged export and both publication routes. Later source fingerprints
+must agree with the parsed bytes; a replacement index cannot attest old resource
+offsets or flags, even when file sizes and timestamps match. Payload checks remain
+in place. Other processes can still write between validation checkpoints; this
+does not establish cross-process snapshot isolation.
 Opaque dependencies on another mod are unsupported. Mounted external archive
 folders may use letters, digits, underscores and hyphens. Their actual payloads
 are compared, including providers below CDMW in the mount order. Identical files

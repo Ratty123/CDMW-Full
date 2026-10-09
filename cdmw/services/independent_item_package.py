@@ -43,11 +43,12 @@ def virtual_path(value):
 
 def stock_snapshot(root, *, service=None, read_entry=None, stop_event=None, on_log=None, overlay_changes=None):
     """Use the existing shipped-directory boundary, never a mounted custom table."""
-    from cdmw.core.archive_format import discover_pamt_files, parse_archive_pamt
+    from cdmw.core.archive_format import discover_pamt_files, parse_archive_pamt_bytes
     from cdmw.services.new_item_service import NewItemService
     from cdmw.services.archive_overlay_install import OVERLAY_DIRECTORY_FIRST
     root = Path(root).resolve()
     entries = []
+    indexes = []
     for path in discover_pamt_files(root):
         raise_if_cancelled(stop_event)
         path = Path(path).resolve()
@@ -58,8 +59,13 @@ def stock_snapshot(root, *, service=None, read_entry=None, stop_event=None, on_l
         # shipped inputs. Only direct, four-digit game groups form the baseline.
         if (path.parent.parent == root and len(folder) == 4
                 and folder.isascii() and folder.isdigit() and int(folder) < OVERLAY_DIRECTORY_FIRST):
-            entries.extend(parse_archive_pamt(path))
+            data = path.read_bytes()
+            entries.extend(parse_archive_pamt_bytes(data, path))
+            indexes.append((path, digest(data)))
+            del data
     result = (service or NewItemService()).build_snapshot(entries, read_entry=read_entry, stop_event=stop_event, on_log=on_log)
+    for path, checksum in indexes:
+        result.provenance.pin_index(path, checksum, stop_event)
     from cdmw.domain.new_item.allocation import DEFAULT_ITEM_KEY_RANGE
     if any(key in DEFAULT_ITEM_KEY_RANGE for key in result.rows):
         raise IndependentItemError("The shipped item tables contain custom items. Restore a clean game baseline before using independent packages.")

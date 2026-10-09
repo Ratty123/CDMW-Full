@@ -135,7 +135,7 @@ class NewItemSnapshot:
         reader = self.read_entry
         if self.provenance is not None and getattr(reader, "__self__", None) is self.provenance:
             reader = self.provenance.reader
-        tracker = SourceTracker(reader)
+        tracker = self.provenance.fork(reader) if self.provenance is not None else SourceTracker(reader)
         return replace(self, read_entry=tracker.read, provenance=tracker, _payloads={},
                        _authoring_indexes={}, _contexts={}, _families={})
 

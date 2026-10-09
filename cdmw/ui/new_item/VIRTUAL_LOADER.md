@@ -253,6 +253,10 @@ generations remain recovery evidence; this prototype does not prune them.
 
 Preparation captures package hashes, source revisions, mounted provider
 inventories and ownership state. Publication and launch reject changed inputs.
+PAMT source digests are bound to the bytes actually parsed, including mounted and
+selected external archives. Final source hashing must match those parsed-index
+witnesses. A later replacement index is rejected even if its size and timestamps
+match and the PAZ payloads remain unchanged.
 Each new profile also records its compiler and adapter revisions and a compilation
 identity linking packages, features, allocation bindings, sources, composition
 order, runtime protocol and output hashes. A profile with
@@ -268,6 +272,11 @@ The existing controller owns progress, cancellation and stale-result rejection;
 closing the page cancels the helper without waiting on the UI thread. Its private
 temporary files are removed only after it exits. A bounded data-only result carries
 the same source, provider and ownership guards back to automatic profile publication.
+Private worker protocol 2 requires parsed-index witnesses for its archive sources
+and checks them against the profile's recorded source hashes. Old protocol results,
+missing witnesses and contradictory digests refuse; this does not change `.cditem`
+v1 or v2 wire data. Compiler revision 6 requires older derived profiles to be
+prepared again with their existing identity bindings.
 The asset collision index is built once per preparation, only when new assets need
 it, using the existing native PA hash implementation for large path batches. An older
 or unavailable helper retains the exact scalar checks. Ambiguous hashes, retained

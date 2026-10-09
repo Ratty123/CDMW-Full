@@ -87,6 +87,7 @@ def mod_folder_payloads(
     folder: Path,
     *,
     stop_event: Optional[threading.Event] = None,
+    parse_index: Optional[Callable] = None,
 ) -> Dict[str, ModFolderPayload]:
     """`{game path: the file in the folder}` for everything the folder carries.
 
@@ -122,7 +123,7 @@ def mod_folder_payloads(
     from cdmw.core.archive_format import discover_pamt_files, parse_archive_pamt
 
     for pamt in discover_pamt_files(root):
-        for entry in parse_archive_pamt(pamt):
+        for entry in (parse_index or parse_archive_pamt)(pamt):
             raise_if_cancelled(stop_event, "New item plan cancelled.")
             found.setdefault(_normalize(getattr(entry, "path", "")), ModFolderPayload(entry=entry))
     return found

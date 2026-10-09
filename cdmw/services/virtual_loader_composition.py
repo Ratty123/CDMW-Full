@@ -129,7 +129,12 @@ def prepare_profile(profile: VirtualProfile, root, *, stop_event=None, on_log=No
     revisions = (resolved.baseline.provenance.capture(), *resolved.revisions)
     payloads = {p.entry.identity: p for r in revisions for p in r.payloads}
     pinned = {p: stamp for r in revisions for p, stamp in r.files}
-    revision = SourceRevision(tuple(payloads.values()), tuple(pinned.items()), revisions[0].reader)
+    indexes = {}
+    for source in revisions:
+        for path, checksum in source.indexes:
+            if indexes.setdefault(path, checksum) != checksum:
+                raise VirtualLoaderError(f'Source index has conflicting parsed revisions: {path}.')
+    revision = SourceRevision(tuple(payloads.values()), tuple(pinned.items()), revisions[0].reader, tuple(indexes.items()))
     revision.validate(stop_event)
     resolved.external.validate(stop_event)
     # Persistent hashes permit complete revalidation after restart; no author IDs
@@ -138,6 +143,9 @@ def prepare_profile(profile: VirtualProfile, root, *, stop_event=None, on_log=No
     progress(84, 'Verifying source file integrity…')
     sources = _hash_sources(source_paths, stop_event,
         lambda value, total: progress(84 + 14 * value // max(1, total), 'Verifying source file integrity…'))
+    for path, checksum in (*revision.indexes, *resolved.external.tracker.capture().indexes):
+        if sources.get(str(path)) != checksum:
+            raise VirtualLoaderError(f'Source index changed since parsing: {path}.')
     sources.update(original_packages)
     observed = (*resolved.observed, (PROFILE_PATH, profile_before))
     generation = uuid4().hex

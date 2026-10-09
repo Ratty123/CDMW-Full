@@ -48,11 +48,14 @@ def test_real_child_preserves_output_and_publication_guards(tmp_path, change):
         (p, read_package(data)) for p, data in original.retained_packages]
     assert result.source_revision.files == original.source_revision.files
     assert result.source_revision.payloads == original.source_revision.payloads
+    assert result.source_revision.indexes == original.source_revision.indexes
+    assert result.source_revision.indexes
     expected_external = original.external.capture()
     assert result.external.archives == expected_external.archives
     assert result.external.inventories == expected_external.inventories
     assert result.external.source_revision.files == expected_external.source_revision.files
     assert result.external.source_revision.payloads == expected_external.source_revision.payloads
+    assert result.external.source_revision.indexes == expected_external.source_revision.indexes
     expected, actual = json.loads(original.profile), json.loads(result.profile)
     expected.pop('generation'); actual.pop('generation')
     assert expected == actual
@@ -138,7 +141,10 @@ def test_external_archive_guards_survive_child_result(tmp_path, mounted):
     assert not (root / '.cdmw').exists()
 
 
-@pytest.mark.parametrize('failure', ['exit', 'missing', 'request', 'blob', 'path', 'schema', 'size', 'duplicate', 'guard', 'late_cancel'])
+@pytest.mark.parametrize('failure', ['exit', 'missing', 'request', 'blob', 'path', 'schema', 'legacy_schema',
+                                  'missing_indexes', 'unwitnessed_payload', 'index_digest', 'duplicate_index',
+                                  'different_index_digest',
+                                  'size', 'duplicate', 'guard', 'late_cancel'])
 def test_invalid_or_cancelled_result_is_never_delivered(tmp_path, monkeypatch, failure):
     root, files = packages(tmp_path / 'fixture', 1)
     before = game_bytes(root)
@@ -160,7 +166,19 @@ def test_invalid_or_cancelled_result_is_never_delivered(tmp_path, monkeypatch, f
             elif failure == 'path':
                 data['files'][0][0] = '../outside'
             elif failure == 'schema':
-                data['schema'] = 2
+                data['schema'] = owner._SCHEMA + 1
+            elif failure == 'legacy_schema':
+                data['schema'] = 1
+            elif failure == 'missing_indexes':
+                data['source'].pop('indexes')
+            elif failure == 'unwitnessed_payload':
+                data['source']['indexes'] = []
+            elif failure == 'index_digest':
+                data['source']['indexes'][0][1] = 'not-a-digest'
+            elif failure == 'duplicate_index':
+                data['source']['indexes'].append(data['source']['indexes'][0])
+            elif failure == 'different_index_digest':
+                data['source']['indexes'][0][1] = '0' * 64
             elif failure == 'size':
                 data['files'][0][1][1] = owner.MAX_TOTAL + 1
             elif failure == 'duplicate':

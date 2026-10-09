@@ -18,7 +18,7 @@ from cdmw.services.independent_item_package import MAX_MANIFEST, MAX_TOTAL, cano
 from cdmw.services.new_item_provenance import PayloadRevision, SourceRevision
 from cdmw.services.virtual_loader_state import PROFILE_PATH, REGISTRY, decode, target, validate_profile
 
-_SCHEMA = 1
+_SCHEMA = 2
 _MAX_METADATA = 8 * MAX_MANIFEST
 _ENTRY_FIELDS = ('path', 'pamt_path', 'paz_file', 'offset', 'comp_size', 'orig_size', 'flags', 'paz_index')
 
@@ -79,13 +79,16 @@ class _Buffers:
 
 def _revision_data(revision):
     rows = []
+    indexes = dict(revision.indexes)
     for payload in revision.payloads:
         # These preparations read original archive entries, never prepared models.
         _require(payload.entry.prepared_path is None)
+        _require(payload.entry.pamt_path in indexes)
         entry = {key: getattr(payload.entry, key) for key in _ENTRY_FIELDS}
         entry.update(pamt_path=str(entry['pamt_path']), paz_file=str(entry['paz_file']))
         rows.append([entry, payload.sha256])
-    return {'files': [(str(path), stamp) for path, stamp in revision.files], 'payloads': rows}
+    return {'files': [(str(path), stamp) for path, stamp in revision.files], 'payloads': rows,
+            'indexes': [(str(path), checksum) for path, checksum in revision.indexes]}
 
 
 def _source_path(value, roots):
@@ -102,7 +105,7 @@ def _read_entry(entry):
 
 def _revision(value, roots):
     from cdmw.models import ArchiveEntry
-    _require(isinstance(value, dict) and set(value) == {'files', 'payloads'})
+    _require(isinstance(value, dict) and set(value) == {'files', 'payloads', 'indexes'})
     _require(all(isinstance(value[key], list) and len(value[key]) <= 65536 for key in value))
     files, payloads = [], []
     for row in value['files']:
@@ -113,6 +116,15 @@ def _revision(value, roots):
         files.append((_source_path(path, roots), tuple(stamp) if stamp is not None else None))
     pinned_files = dict(files)
     _require(len(pinned_files) == len(files))
+    indexes = {}
+    for row in value['indexes']:
+        _require(isinstance(row, list) and len(row) == 2)
+        path, checksum = row
+        path = _source_path(path, roots)
+        _require(path.suffix.lower() == '.pamt' and path not in indexes and pinned_files.get(path) is not None)
+        _require(isinstance(checksum, str) and re.fullmatch('[0-9a-f]{64}', checksum))
+        indexes[path] = checksum
+    _require(set(indexes) == {path for path in pinned_files if path.suffix.lower() == '.pamt'})
     for row in value['payloads']:
         _require(isinstance(row, list) and len(row) == 2)
         entry, checksum = row
@@ -122,8 +134,9 @@ def _revision(value, roots):
         _require(all(type(entry[key]) is int and 0 <= entry[key] < 2**63 for key in _ENTRY_FIELDS[3:]))
         entry = dict(entry, pamt_path=_source_path(entry['pamt_path'], roots), paz_file=_source_path(entry['paz_file'], roots))
         _require(entry['pamt_path'] in pinned_files and entry['paz_file'] in pinned_files)
+        _require(entry['pamt_path'] in indexes)
         payloads.append(PayloadRevision(ArchiveEntry(**entry), checksum))
-    return SourceRevision(tuple(payloads), tuple(files), _read_entry)
+    return SourceRevision(tuple(payloads), tuple(files), _read_entry, tuple(indexes.items()))
 
 
 def _write_result(prepared, request, folder, output_path, stop_event):
@@ -190,10 +203,14 @@ def _read_result(request, folder, output_path, stop_event):
     inventories = tuple((_source_path(p, roots), tuple(tuple(row) for row in rows)) for p, rows in profile['inventories'])
     external = ExternalModRevision(root, _revision(result['external_source'], roots),
                                    tuple((p, tuple(names)) for p, names in archives), inventories)
+    revision = _revision(result['source'], roots)
+    source_hashes = dict(profile['sources'])
+    _require(all(source_hashes.get(str(path)) == checksum
+                 for path, checksum in (*revision.indexes, *external.source_revision.indexes)))
     _require(isinstance(result['summary'], list) and len(result['summary']) <= 65536
              and all(isinstance(s, str) for s in result['summary']))
     return PreparedSnapshot(root, profile['generation'], files, registry, profile_bytes, observed,
-                            _revision(result['source'], roots), external, tuple(result['summary']), retained)
+                            revision, external, tuple(result['summary']), retained)
 
 
 def prepare_profile_in_subprocess(profile: VirtualProfile, root, *, stop_event=None, on_log=None, on_progress=None):

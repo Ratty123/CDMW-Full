@@ -851,10 +851,20 @@ def _read_source_checksum(path, stop_event):
 
 def _source_checksums(revisions, stop_event):
     paths = set()
+    indexes = {}
     for revision in revisions:
         source = getattr(revision, 'source_revision', revision)
         paths.update(path for path, stamp in source.files if stamp is not None and path.suffix.lower() != '.paz')
-    return tuple((path, _read_source_checksum(path, stop_event)) for path in sorted(paths))
+        for path, checksum in source.indexes:
+            if indexes.setdefault(path, checksum) != checksum:
+                raise OverlayConflict(f'Source index has conflicting parsed revisions: {path}.')
+    checksums = []
+    for path in sorted(paths):
+        checksum = _read_source_checksum(path, stop_event)
+        if path in indexes and checksum != indexes[path]:
+            raise OverlayConflict(f'Source index changed since parsing: {path}.')
+        checksums.append((path, checksum))
+    return tuple(checksums)
 
 
 def _verify_source_content(preparation, stop_event):

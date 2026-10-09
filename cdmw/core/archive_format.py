@@ -712,18 +712,23 @@ class VfsPathResolver:
 
 
 def parse_archive_pamt(pamt_path: Path, paz_dir: Optional[Path] = None) -> List[ArchiveEntry]:
+    return parse_archive_pamt_bytes(pamt_path.read_bytes(), pamt_path, paz_dir=paz_dir)
+
+
+def parse_archive_pamt_bytes(data: bytes, pamt_path: Path, paz_dir: Optional[Path] = None) -> List[ArchiveEntry]:
+    """Parse captured index bytes so callers can retain their exact input digest."""
+    data = bytes(data)
     gc_was_enabled = gc.isenabled()
     if gc_was_enabled:
         gc.disable()
     try:
-        return _parse_archive_pamt(pamt_path, paz_dir=paz_dir)
+        return _parse_archive_pamt_bytes(data, pamt_path, paz_dir=paz_dir)
     finally:
         if gc_was_enabled:
             gc.enable()
 
 
-def _parse_archive_pamt(pamt_path: Path, paz_dir: Optional[Path] = None) -> List[ArchiveEntry]:
-    data = pamt_path.read_bytes()
+def _parse_archive_pamt_bytes(data: bytes, pamt_path: Path, paz_dir: Optional[Path] = None) -> List[ArchiveEntry]:
     resolved_paz_dir = paz_dir if paz_dir is not None else pamt_path.parent
     size = len(data)
     if size < 12:

@@ -8,7 +8,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 import re
 
-from cdmw.core.archive_format import parse_archive_pamt
 from cdmw.core.papgt_format import parse_papgt
 from cdmw.domain.archives.overlay_merge import OverlayConflict, _table, merge_overlay_files, owned_item_references
 from cdmw.domain.cancellation import RunCancelled, raise_if_cancelled
@@ -176,13 +175,11 @@ def external_mods(root, state, *, folders=(), read_entry=None, stop_event=None, 
         pamts = sorted(group.glob('*.pamt'))
         result.archives[name] = tuple(path.name for path in pamts)
         for pamt in pamts:
-            result.tracker.pin_file(pamt)
-            for entry in parse_archive_pamt(pamt):
+            for entry in result.tracker.parse_index(pamt, stop_event=stop_event):
                 path = virtual_path(entry.path.lower())
                 if not Path(entry.paz_file).resolve().is_relative_to(group):
                     raise OverlayConflict(f'Archive resource escapes its mod folder: {name}.')
                 result.providers.setdefault(path, []).append((name, ModFolderPayload(entry=entry)))
-            result.tracker.pin_file(pamt)
     for raw in folders:
         folder = Path(raw).resolve()
         if folder.is_relative_to(root) or root.is_relative_to(folder):
@@ -190,7 +187,8 @@ def external_mods(root, state, *, folders=(), read_entry=None, stop_event=None, 
         inventory = _inventory(folder, stop_event)
         result.inventories.append((folder, inventory))
         label = str(folder)
-        payloads = mod_folder_payloads(folder, stop_event=stop_event)
+        payloads = mod_folder_payloads(folder, stop_event=stop_event,
+            parse_index=lambda path: result.tracker.parse_index(path, stop_event=stop_event))
         for path, source in payloads.items():
             if path.startswith(('.cdmw/', '.cdloader/')):
                 continue
@@ -571,10 +569,13 @@ def scan_independent_conflicts(root, *, folders=(), stop_event=None, on_log=None
         snapshot.provenance.pin_file(root / relative)
     for layer, _ in layers:
         snapshot.provenance.pin_file(root / overlays.overlay_journal_path(layer))
-    for source in external.tracker.capture().payloads:
+    external_revision = external.tracker.capture()
+    for path, checksum in external_revision.indexes:
+        snapshot.provenance.pin_index(path, checksum, stop_event)
+    for source in external_revision.payloads:
         snapshot.provenance.read(source.entry)
     loose_hashes = []
-    for path, _stamp in external.tracker.capture().files:
+    for path, _stamp in external_revision.files:
         snapshot.provenance.pin_file(path)
         if path.is_file():
             loose_hashes.append((path, hash_file(path, stop_event)))
