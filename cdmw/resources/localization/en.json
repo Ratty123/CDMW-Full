@@ -11705,6 +11705,7 @@
     "The viewport rejected the capture request.": "The viewport rejected the capture request.",
     "The viewport returned no image.": "The viewport returned no image.",
     "The viewport starts when there is a mesh to show.": "The viewport starts when there is a mesh to show.",
+    "The virtual compilation record disagrees with the profile.": "The virtual compilation record disagrees with the profile.",
     "The virtual loader will update automatically when you apply or launch.": "The virtual loader will update automatically when you apply or launch.",
     "The virtual session is running.": "The virtual session is running.",
     "The weapon and its case may separate, snap between positions, or draw and stow inconsistently. Every exception is recorded in the operation manifest.": "The weapon and its case may separate, snap between positions, or draw and stow inconsistently. Every exception is recorded in the operation manifest.",

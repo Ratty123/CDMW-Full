@@ -11705,6 +11705,7 @@
     "The viewport rejected the capture request.": "Окно просмотра отклонило запрос на снимок.",
     "The viewport returned no image.": "Окно просмотра не вернуло изображение.",
     "The viewport starts when there is a mesh to show.": "Окно просмотра запускается, когда есть сетка для показа.",
+    "The virtual compilation record disagrees with the profile.": "The virtual compilation record disagrees with the profile.",
     "The virtual loader will update automatically when you apply or launch.": "Виртуальный загрузчик обновится автоматически при применении профиля или запуске игры.",
     "The virtual session is running.": "Виртуальный сеанс запущен.",
     "The weapon and its case may separate, snap between positions, or draw and stow inconsistently. Every exception is recorded in the operation manifest.": "Оружие и его ножны могут разойтись, перескакивать между позициями или извлекаться и убираться несогласованно. Каждое исключение записывается в манифест операции.",

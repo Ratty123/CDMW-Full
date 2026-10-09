@@ -8,7 +8,7 @@ from cdmw.core.archive_overlay import OverlayFile, build_overlay_archive
 from cdmw.services.archive_overlay_install import _processed_payload
 from cdmw.core.papgt_format import PAPGT_DEFAULT_FLAGS, papgt_with_directory
 from cdmw.domain.cancellation import raise_if_cancelled
-from cdmw.domain.new_item.compilation import compiler_stamp
+from cdmw.domain.new_item.compilation import compiler_stamp, compilation_record
 from cdmw.domain.virtual_loader import PreparedSnapshot, VirtualLoaderError, VirtualProfile
 from cdmw.services import archive_overlay_manager as overlays
 from cdmw.services.independent_item_install import resolve_items
@@ -144,6 +144,14 @@ def prepare_profile(profile: VirtualProfile, root, *, stop_event=None, on_log=No
             'inventories': [(str(folder), inventory) for folder, inventory in resolved.external.inventories],
             'observed': [(p, digest(raw) if raw is not None else None) for p, raw in resolved.observed
                          if p not in ('.cdmw/independent-items.json', PROFILE_PATH)]}
+    from cdmw.services.independent_item_compilation import package_record
+    data['compilation'] = compilation_record(scope='virtual-profile',
+        packages=[package_record(package, resolved.pending[f'.cdmw/independent-items/{package.identity}-{package.digest}.cditem'])
+                  for package, _ in resolved.contributions], sources=dict(data['sources']),
+        allocations={identity: row['binding_hash'] for identity, row in resolved.registry['items'].items()},
+        order=[layer.get('independent_identity', layer['id']) for layer in resolved.state['layers'] if layer['active']]
+              + [package.identity for package, _ in resolved.contributions] + [str(f) for f in folders],
+        runtime_abi='CDVFS2', outputs=dict(data['files']), providers=dict(data['observed']))
     progress(98, 'Rechecking preparation inputs…')
     for path, expected in original_packages:
         if hash_file(path, stop_event) != expected:

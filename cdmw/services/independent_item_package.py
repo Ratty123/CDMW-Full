@@ -169,6 +169,13 @@ def from_plan(plan, identity, *, title=None, stop_event=None):
 
 
 def _package(meta, blobs):
+    if isinstance(meta, dict) and type(meta.get('version')) is int and meta['version'] == 2:
+        from cdmw.services.independent_mod_package import read_v2
+        return read_v2(meta, blobs)
+    return _v1_package(meta, blobs)
+
+
+def _v1_package(meta, blobs):
     if not isinstance(meta, dict) or set(meta) != {"format", "version", "identity", "title", "recipe", "dependencies", "blobs"} or meta["format"] != FORMAT or type(meta["version"]) is not int or meta["version"] != VERSION:
         raise IndependentItemError("Unsupported independent item package version or fields.")
     identity = package_id(meta["identity"])
@@ -238,19 +245,33 @@ def unpack_recipe(package):
     return spec, primary, variants, icon
 
 
-def package_bytes(package, *, stop_event=None):
-    meta = {"format": FORMAT, "version": VERSION, "identity": package.identity, "title": package.title,
+def package_metadata(package):
+    from cdmw.domain.new_item.mod_package import IndependentModPackage
+    if isinstance(package, IndependentModPackage):
+        return package.manifest
+    return {"format": FORMAT, "version": VERSION, "identity": package.identity, "title": package.title,
             "recipe": package.recipe, "dependencies": package.dependencies,
             "blobs": {key: len(data) for key, data in sorted(package.blobs.items())}}
+
+
+def package_bytes(package, *, stop_event=None):
+    meta = package_metadata(package)
     data = canonical(meta)
     if len(data) > MAX_MANIFEST or len(package.blobs) + 1 > MAX_FILES:
         raise IndependentItemError("Item package metadata exceeds the supported size.")
     stream = io.BytesIO()
     with zipfile.ZipFile(stream, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr("item.json", data)
+        def member(name, payload):
+            # Artifact identity must not depend on the wall clock or host OS.
+            info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
+            info.create_system = 3
+            info.external_attr = 0o600 << 16
+            info.compress_type = zipfile.ZIP_DEFLATED
+            archive.writestr(info, payload)
+        member("item.json", data)
         for key, payload in sorted(package.blobs.items()):
             raise_if_cancelled(stop_event, "Item package export cancelled.")
-            archive.writestr("assets/" + key, payload)
+            member("assets/" + key, payload)
     raise_if_cancelled(stop_event, "Item package export cancelled.")
     return stream.getvalue()
 
@@ -260,10 +281,28 @@ def read_package(source, *, stop_event=None):
         if isinstance(source, (str, Path)):
             if Path(source).stat().st_size > MAX_TOTAL + MAX_MANIFEST:
                 raise IndependentItemError("Item package exceeds the supported size.")
-        elif isinstance(source, bytes):
+            with Path(source).open('rb') as stream:
+                return read_package(stream, stop_event=stop_event)
+        immutable = isinstance(source, bytes)
+        if immutable:
             if len(source) > MAX_TOTAL + MAX_MANIFEST:
                 raise IndependentItemError("Item package exceeds the supported size.")
             source = io.BytesIO(source)
+        def artifact_hash():
+            fingerprint = hashlib.sha256()
+            total = 0
+            # Invalidate a BufferedReader's cached range after external writes.
+            source.seek(0, 2)
+            source.seek(0)
+            while chunk := source.read(1024 * 1024):
+                raise_if_cancelled(stop_event)
+                total += len(chunk)
+                if total > MAX_TOTAL + MAX_MANIFEST:
+                    raise IndependentItemError('Item package exceeds the supported size.')
+                fingerprint.update(chunk)
+            source.seek(0)
+            return fingerprint.hexdigest()
+        artifact = artifact_hash()
         with zipfile.ZipFile(source) as archive:
             infos = archive.infolist()
             names = [i.filename for i in infos]
@@ -292,7 +331,9 @@ def read_package(source, *, stop_event=None):
                 raise_if_cancelled(stop_event)
                 if info.filename != "item.json":
                     blobs[info.filename[7:]] = archive.read(info)
-        return _package(meta, blobs)
+        if not immutable and artifact_hash() != artifact:
+            raise IndependentItemError('The package changed while it was being read.')
+        return replace(_package(meta, blobs), artifact_digest=artifact)
     except (zipfile.BadZipFile, KeyError, TypeError, ValueError, UnicodeError, RecursionError) as exc:
         if isinstance(exc, IndependentItemError):
             raise
@@ -310,6 +351,8 @@ def write_package(package, path, *, expected_digest=None, stop_event=None):
         old = read_package(previous)
         if expected_digest != old.digest or old.identity != package.identity:
             raise IndependentItemError("Select the existing package explicitly before updating it.")
+        if package_metadata(old)['version'] == 2 and package_metadata(package)['version'] == 1:
+            raise IndependentItemError('A v2 package requires a v2-aware editor. Refusing to discard its modules or provenance.')
     elif expected_digest is not None:
         raise IndependentItemError("The package selected for update is missing.")
     data = package_bytes(package, stop_event=stop_event)

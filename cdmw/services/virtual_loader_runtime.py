@@ -93,7 +93,7 @@ def _verify_snapshot(root, *, stop_event, all_sources, on_progress=None):
     if not profile:
         raise VirtualLoaderError('Prepare a virtual profile first.')
     from cdmw.domain.new_item.compilation import compiler_stamp
-    if profile.get('compiler') != compiler_stamp():
+    if profile.get('compiler') != compiler_stamp() or 'compilation' not in profile:
         raise VirtualLoaderError('Apply changes again to rebuild this profile with the current compiler. Existing item IDs will be retained.')
     directory = generation_path(root, profile['generation'])
     selected = set(profile['packages'])
@@ -131,7 +131,7 @@ def runtime_status(root, *, experimental=False, stop_event=None):
     profile = load_profile(root)
     generation = profile['generation'] if profile else ''
     from cdmw.domain.new_item.compilation import compiler_stamp
-    if profile and profile.get('compiler') != compiler_stamp():
+    if profile and (profile.get('compiler') != compiler_stamp() or 'compilation' not in profile):
         return VirtualSessionStatus('blocked', 'Apply changes again to rebuild this profile with the current compiler. Existing item IDs will be retained.', generation)
     exe = target(root, 'bin64/CrimsonDesert.exe')
     if not exe.is_file():

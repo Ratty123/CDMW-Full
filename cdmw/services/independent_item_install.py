@@ -17,12 +17,12 @@ from cdmw.core.stringinfo_table import stringinfo_key
 from cdmw.domain.archives.overlay_merge import _table
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.new_item.allocation import DEFAULT_ITEM_KEY_RANGE
-from cdmw.domain.new_item.compilation import compiler_stamp, validate_compiler_stamp
+from cdmw.domain.new_item.compilation import compiler_stamp, validate_compiler_stamp, validate_compilation
 from cdmw.domain.new_item.independent import IdentityBindings, IndependentItemError, IndependentItemInstallPlan, package_id
 from cdmw.domain.new_item.rules import has_errors
 from cdmw.services import archive_overlay_manager as overlays
 from cdmw.services.independent_item_package import (
-    MAX_MANIFEST, MAX_TOTAL, canonical, digest, package_bytes, read_package, stock_snapshot, unpack_recipe, virtual_path,
+    MAX_MANIFEST, MAX_TOTAL, canonical, digest, package_bytes, package_metadata, read_package, stock_snapshot, unpack_recipe, virtual_path,
 )
 from cdmw.services.new_item_planning import build_plan
 from cdmw.services.new_item_service import NewItemService
@@ -112,6 +112,14 @@ def load_registry(root):
         if identity:
             if 'independent_compiler' in layer:
                 validate_compiler_stamp(layer['independent_compiler'])
+            if 'independent_compilation' in layer:
+                inputs = validate_compilation(layer['independent_compilation'])
+                locked = inputs['packages']
+                if (inputs['scope'] != 'archive-contribution' or len(locked) != 1
+                        or locked[0]['identity'] != identity or locked[0]['content'] != layer.get('independent_digest')
+                        or inputs['compiler'] != layer.get('independent_compiler')
+                        or inputs['allocations'].get(identity) != layer.get('independent_bindings')):
+                    raise IndependentItemError('The installed compilation record disagrees with its ownership layer.')
             row = registry['items'].get(identity)
             if row is None:
                 raise IndependentItemError('An independent item reservation is missing. Restore the matching identity backup before continuing.')
@@ -331,7 +339,7 @@ def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False,
         if old and old.digest != package.digest:
             raise IndependentItemError('A batch contains two different versions of the same item. Select one version.')
         if old is None:
-            total_size += sum(len(data) for data in package.blobs.values()) + len(canonical(package.recipe)) + len(canonical(package.dependencies))
+            total_size += sum(len(data) for data in package.blobs.values()) + len(canonical(package_metadata(package)))
             if total_size > MAX_TOTAL:
                 raise IndependentItemError('The selected packages exceed the batch size limit. Import a smaller batch.')
         packages[package.identity] = package
@@ -383,7 +391,7 @@ def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False,
             raise IndependentItemError(f'{package.title}: remove the installed contribution before using this item in a virtual profile. Its identity will be retained.')
         _check_dependencies(package, snapshot, stop_event)
         if previous_layer and previous_layer['active'] and prior['digest'] == package.digest and not rebuild:
-            if previous_layer.get('independent_compiler') != compiler_stamp():
+            if previous_layer.get('independent_compiler') != compiler_stamp() or 'independent_compilation' not in previous_layer:
                 raise IndependentItemError(f'{package.title}: the installed compiler is different or unrecorded. Use Rebuild selected item to regenerate it while retaining its IDs.')
             check_package_dependencies(package, snapshot, external, decoded[previous_layer['id']], stop_event=stop_event)
             rows.append((identity, package.title, prior['values']['iteminfo']['item'], 'Already installed'))
@@ -479,11 +487,14 @@ def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False,
 def prepare_install(sources, root, *, rebuild=False, stop_event=None, on_log=None, read_entry=None):
     result = resolve_items(sources, root, rebuild=rebuild, stop_event=stop_event, on_log=on_log, read_entry=read_entry)
     root, state, pending, decoded, registry = result.root, result.state, result.pending, result.decoded, result.registry
+    from cdmw.services.independent_item_compilation import contribution_record
+    locks = {package.identity: contribution_record(package, changes, result) for package, changes in result.contributions}
     for package, changes in result.contributions:
         row = registry['items'][package.identity]
         layer = overlays._add_layer(state, pending, package.title, changes, item_keys=tuple(row['values']['iteminfo'].values()))
         layer.update(independent_identity=package.identity, independent_digest=package.digest,
-                     independent_bindings=row['binding_hash'], independent_compiler=compiler_stamp())
+                     independent_bindings=row['binding_hash'], independent_compiler=compiler_stamp(),
+                     independent_compilation=locks[package.identity])
         row['layer'] = layer['id']
         decoded[layer['id']] = changes
     if canonical(registry) == result.registry_before and not result.external.paths:

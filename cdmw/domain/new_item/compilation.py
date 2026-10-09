@@ -12,8 +12,8 @@ from cdmw.domain.new_item.independent import IndependentItemError
 from cdmw.domain.new_item.independent_wire_v1 import V1_ENUM_VALUES, V1_RECORD_FIELDS
 
 
-COMPILER_REVISION = 1
-ADAPTER_REVISIONS = {'item-v1': 1, 'dds-pathc': 2, 'flat-icon-registry': 2}
+COMPILER_REVISION = 2
+ADAPTER_REVISIONS = {'item-v1': 1, 'envelope-v2': 1, 'dds-pathc': 2, 'flat-icon-registry': 2}
 FORMAT = 'cdmw_item_compiler_v1'
 
 
@@ -35,3 +35,91 @@ def validate_compiler_stamp(value):
                    for name, revision in value['adapters'].items())):
         raise IndependentItemError('Invalid independent item compiler record.')
     return value
+
+
+def _identity(value):
+    return hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True,
+        separators=(',', ':'), allow_nan=False).encode('utf-8')).hexdigest()
+
+
+def compilation_record(*, scope, packages, sources, allocations, order, runtime_abi, outputs, providers):
+    inputs = {'compiler': compiler_stamp(), 'scope': scope, 'packages': packages,
+              'sources': sources, 'allocations': allocations,
+              'policy': {'conflicts': 'refuse', 'order': order},
+              'runtime_abi': runtime_abi, 'outputs': outputs, 'providers': providers}
+    value = {'format': 'cdmw_compilation_v1', 'identity': _identity(inputs), 'inputs': inputs}
+    validate_compilation(value)
+    return value
+
+
+def validate_compilation(value):
+    def fail():
+        raise IndependentItemError('Invalid independent mod compilation record.')
+
+    def checksum(value):
+        return isinstance(value, str) and re.fullmatch('[0-9a-f]{64}', value) is not None
+
+    def hashes(value, *, nullable=False):
+        if not isinstance(value, dict) or len(value) > 65536:
+            fail()
+        for path, digest in value.items():
+            if (not isinstance(path, str) or not 1 <= len(path) < 32768 or '\0' in path
+                    or not (nullable and digest is None) and not checksum(digest)):
+                fail()
+
+    if (not isinstance(value, dict) or set(value) != {'format', 'identity', 'inputs'}
+            or value['format'] != 'cdmw_compilation_v1' or not checksum(value['identity'])):
+        fail()
+    inputs = value['inputs']
+    if not isinstance(inputs, dict) or set(inputs) != {
+            'compiler', 'scope', 'packages', 'sources', 'allocations', 'policy', 'runtime_abi', 'outputs', 'providers'}:
+        fail()
+    validate_compiler_stamp(inputs['compiler'])
+    if inputs['scope'] not in ('archive-contribution', 'virtual-profile'):
+        fail()
+    if inputs['runtime_abi'] is not None and inputs['runtime_abi'] != 'CDVFS2':
+        fail()
+    for name in ('sources', 'allocations'):
+        hashes(inputs[name])
+    for name in ('outputs', 'providers'):
+        hashes(inputs[name], nullable=True)
+    policy = inputs['policy']
+    if (not isinstance(policy, dict) or set(policy) != {'conflicts', 'order'} or policy['conflicts'] != 'refuse'
+            or not isinstance(policy['order'], list) or len(policy['order']) > 65536
+            or any(not isinstance(v, str) or not 1 <= len(v) < 32768 or '\0' in v for v in policy['order'])
+            or len(set(policy['order'])) != len(policy['order'])):
+        fail()
+    packages = inputs['packages']
+    if not isinstance(packages, list) or len(packages) > 128:
+        fail()
+    seen = set()
+    for package in packages:
+        if not isinstance(package, dict) or set(package) != {'identity', 'content', 'artifact', 'retained_artifact', 'version', 'features', 'modules'}:
+            fail()
+        from cdmw.domain.new_item.independent import package_id
+        identity = package_id(package['identity'])
+        if (identity in seen or not checksum(package['content']) or not checksum(package['artifact']) or not checksum(package['retained_artifact'])
+                or type(package['version']) is not int or package['version'] not in (1, 2)):
+            fail()
+        seen.add(identity)
+        if not isinstance(package['features'], dict) or len(package['features']) > 128:
+            fail()
+        for name, version in package['features'].items():
+            if (not isinstance(name, str) or not re.fullmatch('[a-z][a-z0-9.-]{0,63}', name)
+                    or type(version) is not int or not 1 <= version <= 0x7fffffff):
+                fail()
+        if not isinstance(package['modules'], list) or len(package['modules']) > 128:
+            fail()
+        symbols = set()
+        for module in package['modules']:
+            if not isinstance(module, dict) or set(module) != {'id', 'type', 'version'}:
+                fail()
+            if (not isinstance(module['id'], str) or not re.fullmatch('[a-z][a-z0-9_-]{0,63}', module['id'])
+                    or module['id'] in symbols or not isinstance(module['type'], str)
+                    or package['features'].get(module['type']) != module['version']
+                    or type(module['version']) is not int):
+                fail()
+            symbols.add(module['id'])
+    if _identity(inputs) != value['identity']:
+        fail()
+    return inputs

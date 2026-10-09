@@ -11705,6 +11705,7 @@
     "The viewport rejected the capture request.": "ビューポートがキャプチャ要求を拒否しました。",
     "The viewport returned no image.": "ビューポートから画像が返されませんでした。",
     "The viewport starts when there is a mesh to show.": "表示するメッシュがあるとビューポートが起動します。",
+    "The virtual compilation record disagrees with the profile.": "The virtual compilation record disagrees with the profile.",
     "The virtual loader will update automatically when you apply or launch.": "プロファイルの適用時またはゲームの起動時に、仮想ローダーを自動更新します。",
     "The virtual session is running.": "仮想セッションは実行中です。",
     "The weapon and its case may separate, snap between positions, or draw and stow inconsistently. Every exception is recorded in the operation manifest.": "武器と鞘が離れたり、位置の間で飛んだり、抜刀と収納が食い違ったりすることがあります。例外はすべて操作マニフェストに記録されます。",

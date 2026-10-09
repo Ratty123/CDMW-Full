@@ -22866,7 +22866,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 451,
+          "line": 459,
           "sink": "progress"
         }
       ]
@@ -23006,7 +23006,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 318,
+          "line": 326,
           "sink": "progress"
         },
         {
@@ -28881,7 +28881,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 362,
+          "line": 370,
           "sink": "progress"
         }
       ]
@@ -58006,17 +58006,12 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 268,
+          "line": 276,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 279,
-          "sink": "raise_if_cancelled"
-        },
-        {
-          "path": "cdmw/services/independent_item_install.py",
-          "line": 290,
+          "line": 287,
           "sink": "raise_if_cancelled"
         },
         {
@@ -58026,12 +58021,17 @@
         },
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 315,
+          "line": 306,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 376,
+          "line": 323,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/independent_item_install.py",
+          "line": 384,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -61236,7 +61236,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 474,
+          "line": 482,
           "sink": "progress"
         }
       ]
@@ -61361,12 +61361,12 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_package.py",
-          "line": 252,
+          "line": 273,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_package.py",
-          "line": 254,
+          "line": 275,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -95566,7 +95566,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 374,
+          "line": 382,
           "sink": "progress"
         }
       ]
@@ -101646,7 +101646,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 347,
+          "line": 355,
           "sink": "progress"
         }
       ]
@@ -103266,7 +103266,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 147,
+          "line": 155,
           "sink": "progress"
         }
       ]
@@ -137432,6 +137432,16 @@
       ]
     },
     {
+      "key": "The virtual compilation record disagrees with the profile.",
+      "origins": [
+        {
+          "path": "cdmw/services/virtual_loader_state.py",
+          "line": 137,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "The virtual loader will update automatically when you apply or launch.",
       "origins": [
         {
@@ -141956,7 +141966,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 313,
+          "line": 321,
           "sink": "ValueError"
         }
       ]
@@ -146276,7 +146286,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 158,
+          "line": 166,
           "sink": "progress"
         }
       ]

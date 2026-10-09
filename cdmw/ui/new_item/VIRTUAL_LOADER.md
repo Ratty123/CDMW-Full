@@ -104,7 +104,7 @@ prepare the packages again against the destination's actual game data.
 
 | Input or operation | Current preparation support | Refusal boundary |
 | --- | --- | --- |
-| `.cditem` version 1 | Existing identity, dependency, relocation and record composition services | The [independent-item format matrix](INDEPENDENT_ITEMS.md#supported-format-matrix) applies without expansion |
+| `.cditem` v1 or v2 `item.legacy` | Existing identity, dependency, relocation and record composition services | The [independent-item format matrix](INDEPENDENT_ITEMS.md#supported-format-matrix) applies without expansion; other v2 modules refuse |
 | Mounted external mods | Current archive inspection and record conflict checks | Ambiguous providers, required-record edits or unsupported formats |
 | Selected extracted mod folders and PAMT/PAZ mods | Supported loose files and known table pairs, privately composed with installed contributions | Executables, runtime plugins, malformed paths or unknown content |
 | Shared tables | Existing additive and record merge rules | Different changes to an owned/required record never choose a silent winner |
@@ -133,7 +133,9 @@ generations remain recovery evidence; this prototype does not prune them.
 
 Preparation captures package hashes, source revisions, mounted provider
 inventories and ownership state. Publication and launch reject changed inputs.
-Each new profile also records its compiler and adapter revisions. A profile with
+Each new profile also records its compiler and adapter revisions and a compilation
+identity linking packages, features, allocation bindings, sources, composition
+order, runtime protocol and output hashes. A profile with
 an older, different or unrecorded compiler remains readable for recovery but cannot
 launch: use **Apply changes** to regenerate it while retaining item identities.
 Older CDMW versions that cannot read this profile record refuse it rather than

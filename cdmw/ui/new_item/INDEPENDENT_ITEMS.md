@@ -83,6 +83,55 @@ changes in a named adapter require its revision change. Existing layers without
 this record remain readable for recovery and removal, but cannot claim current
 compilation. This does not change the v1 package or identity-profile schema.
 
+## Version 2 admission and compilation identity
+
+Readers also accept the version 2 envelope. The authoring UI still exports v1;
+`independent_mod_package.migrate_v1()` explicitly wraps a verified v1 package for
+developers testing v2. It preserves the package UUID, original canonical v1 digest
+and `item` symbol. It does not renumber existing installations. A v1-only editor
+refuses to overwrite v2 because doing so could discard modules or provenance.
+
+V2 keeps ZIP, `item.json` and addressed `assets/` members. Its exact root fields are
+`format`, `version`, `identity`, `title`, `release`, `requires`, `modules`,
+`dependencies`, `blobs`, `provenance` and `metadata`. `format` remains
+`cdmw_independent_item`; `version` is integer 2. `requires` maps capability names
+to integer schema versions. Each module has a stable `id`, `type`, integer
+`version`, `required` flag and `data`. These names are independent of Python types.
+
+The first implemented module is **`item.legacy` version 1**, with ID `item`,
+`required: true` and a frozen v1 recipe as its data. It is the only admitted module
+combination at present and uses the existing physical and virtual compilation
+paths. Exact game resource hashes, allocation ranges and equipment limitations
+still apply. Existing v1 readers explicitly reject the version 2 boundary.
+
+Unknown required features, module types and versions refuse before allocation.
+Optional behavior also refuses until a supported explicit alternative exists;
+it cannot be counted as executed. Bounded `metadata` is preserved uninterpreted
+and grants no behavior or capabilities. Missing or unreferenced resources and
+invalid migration provenance refuse. Runtime, quest, audio and other domain
+modules remain unimplemented; naming a module does not establish its consumer.
+
+`CapabilityResult` reports support, constraints and scoped `EvidenceClaim` entries.
+Adapter and synthetic test evidence do not imply native, packaged, game or save
+evidence. A failed capability result is available with its refusal exception.
+
+Package UUID, canonical manifest digest and exact ZIP artifact digest are separate
+identities. ZIP generation fixes timestamps and host attributes for reproducible
+artifacts. File reads hash before and after parsing to catch changed content even
+when length and modification time are unchanged. Optional metadata is included
+in canonical content identity; no cryptographic authenticity claim is made.
+
+Physical contributions and complete virtual profiles carry a checksummed
+compilation record. It links compiler and adapter revisions, package content and
+source/retained artifact digests, negotiated features and module schemas, exact
+source hashes, the allocation ledger, conflict policy, composition order, runtime
+protocol, provider inputs and generated output hashes. Physical records describe
+individual contributions; virtual records describe the complete prepared view.
+Unknown/malformed records refuse, and missing current records require rebuilding.
+These records are provenance, not proof that the game accepts the result.
+
+## Resource validation
+
 Imports reject duplicate/unsafe paths, symlinks, encryption, unknown fields or
 versions, malformed types, missing/unreferenced blobs and checksum/size failures.
 Limits are 4 MiB of metadata, 256 MiB per resource, 1 GiB total and 4,096 entries;

@@ -1,0 +1,106 @@
+"""V2 admission and explicit v1 migration; no unsupported behavior is skipped."""
+from copy import deepcopy
+import math
+import re
+
+from cdmw.domain.new_item.independent import IndependentItemError, IndependentItemPackage
+from cdmw.domain.new_item.mod_package import IndependentModPackage, UnsupportedCapability, capability_result
+
+
+def _metadata(value, depth=0):
+    if depth > 32:
+        raise IndependentItemError('Optional package metadata is too deeply nested.')
+    if value is None or type(value) is bool:
+        return
+    if type(value) is str and len(value) <= 65536 and '\0' not in value:
+        return
+    if type(value) is int and -(1 << 63) <= value < (1 << 64):
+        return
+    if type(value) is float and math.isfinite(value):
+        return
+    if isinstance(value, (dict, list)) and len(value) <= 10000:
+        for key in value if isinstance(value, dict) else ():
+            if not isinstance(key, str):
+                raise IndependentItemError('Invalid optional metadata key.')
+            _metadata(key, depth + 1)
+        for item in value.values() if isinstance(value, dict) else value:
+            _metadata(item, depth + 1)
+        return
+    raise IndependentItemError('Invalid optional package metadata.')
+
+
+def read_v2(meta, blobs):
+    from cdmw.services.independent_item_package import FORMAT, MAX_MANIFEST, _v1_package, canonical, digest
+    keys = {'format', 'version', 'identity', 'title', 'release', 'requires', 'modules',
+            'dependencies', 'blobs', 'provenance', 'metadata'}
+    if (set(meta) != keys or meta['format'] != FORMAT or type(meta['version']) is not int
+            or meta['version'] != 2 or len(canonical(meta)) > MAX_MANIFEST):
+        raise IndependentItemError('Unsupported v2 package fields.')
+    if not isinstance(meta['release'], str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._+-]{0,63}', meta['release']):
+        raise IndependentItemError('Invalid v2 package release identity.')
+    required = meta['requires']
+    if not isinstance(required, dict) or len(required) > 128:
+        raise IndependentItemError('Invalid required feature inventory.')
+    for name, version in required.items():
+        if (not isinstance(name, str) or not re.fullmatch(r'[a-z][a-z0-9.-]{0,63}', name)
+                or type(version) is not int or not 1 <= version <= 0x7fffffff):
+            raise IndependentItemError('Invalid required capability version.')
+        result = capability_result(name, version)
+        if not result.supported:
+            raise UnsupportedCapability(result)
+    modules = meta['modules']
+    if not isinstance(modules, list) or not 1 <= len(modules) <= 128:
+        raise IndependentItemError('Invalid v2 module inventory.')
+    seen = set()
+    for module in modules:
+        if not isinstance(module, dict) or set(module) != {'id', 'type', 'version', 'required', 'data'}:
+            raise IndependentItemError('Invalid v2 module fields.')
+        symbol = module['id']
+        if not isinstance(symbol, str) or not re.fullmatch(r'[a-z][a-z0-9_-]{0,63}', symbol) or symbol in seen:
+            raise IndependentItemError('Invalid or duplicate module identity.')
+        seen.add(symbol)
+        if module['required'] is not True:
+            raise IndependentItemError('Optional behavior requires an implemented explicit alternative; it cannot be silently omitted.')
+        name, version = module['type'], module['version']
+        if (not isinstance(name, str) or not re.fullmatch(r'[a-z][a-z0-9.-]{0,63}', name)
+                or type(version) is not int or not 1 <= version <= 0x7fffffff):
+            raise IndependentItemError('Invalid module type or version.')
+        result = capability_result(name, version)
+        if not result.supported:
+            raise UnsupportedCapability(result)
+        if required.get(name) != version:
+            raise IndependentItemError(f'Module {symbol} omits its required capability {name}@{version}.')
+    if len(modules) != 1 or modules[0]['id'] != 'item' or modules[0]['type'] != 'item.legacy':
+        raise IndependentItemError('The legacy adapter requires exactly one module named item.')
+    legacy_meta = {key: meta[key] for key in ('format', 'identity', 'title', 'dependencies', 'blobs')}
+    legacy_meta.update(version=1, recipe=modules[0]['data'])
+    legacy = _v1_package(legacy_meta, blobs)
+    provenance = meta['provenance']
+    if provenance is not None:
+        expected = {'kind': 'v1-lowering', 'source_version': 1, 'source_identity': legacy.identity,
+                    'source_digest': legacy.digest, 'symbols': {'item': 'item'}}
+        if (not isinstance(provenance, dict) or provenance != expected
+                or type(provenance.get('source_version')) is not int):
+            raise IndependentItemError('The v1 migration provenance does not match the retained legacy content.')
+    if not isinstance(meta['metadata'], dict):
+        raise IndependentItemError('Optional metadata must be an object.')
+    _metadata(meta['metadata'])
+    return IndependentModPackage(deepcopy(meta), dict(blobs), digest(canonical(meta)))
+
+
+def migrate_v1(package, *, release='1', metadata=None):
+    """Explicit migration retains UUID, original digest and logical item symbol."""
+    from cdmw.services.independent_item_package import _package, package_metadata
+    if not isinstance(package, IndependentItemPackage):
+        raise IndependentItemError('Select an original v1 package for migration.')
+    source = package_metadata(package)
+    verified = _package(source, package.blobs)
+    if verified.digest != package.digest:
+        raise IndependentItemError('The v1 source content no longer matches its digest.')
+    result = {key: source[key] for key in ('format', 'identity', 'title', 'dependencies', 'blobs')}
+    result.update(version=2, release=release, requires={'item.legacy': 1},
+        modules=[{'id': 'item', 'type': 'item.legacy', 'version': 1, 'required': True, 'data': source['recipe']}],
+        provenance={'kind': 'v1-lowering', 'source_version': 1, 'source_identity': package.identity,
+                    'source_digest': package.digest, 'symbols': {'item': 'item'}},
+        metadata={} if metadata is None else metadata)
+    return read_v2(result, package.blobs)

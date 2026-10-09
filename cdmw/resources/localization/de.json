@@ -11705,6 +11705,7 @@
     "The viewport rejected the capture request.": "Der Viewport hat die Aufnahmeanfrage abgelehnt.",
     "The viewport returned no image.": "Die Vorschau hat kein Bild zurückgegeben.",
     "The viewport starts when there is a mesh to show.": "Der Viewport startet, sobald es ein Mesh zu zeigen gibt.",
+    "The virtual compilation record disagrees with the profile.": "The virtual compilation record disagrees with the profile.",
     "The virtual loader will update automatically when you apply or launch.": "Der virtuelle Loader wird beim Anwenden des Profils oder beim Spielstart automatisch aktualisiert.",
     "The virtual session is running.": "Die virtuelle Sitzung läuft.",
     "The weapon and its case may separate, snap between positions, or draw and stow inconsistently. Every exception is recorded in the operation manifest.": "Die Waffe und ihre Scheide können sich trennen, zwischen Positionen springen oder inkonsistent gezogen und verstaut werden. Jede Ausnahme wird im Operationsmanifest aufgezeichnet.",

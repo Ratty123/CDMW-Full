@@ -28,6 +28,7 @@ def test_compiler_change_requires_explicit_rebuild_with_all_bindings_retained(tm
     state_path = root / overlays.INDEX_PATH
     state = json.loads(state_path.read_bytes())
     layer = next(row for row in state['layers'] if row['id'] == original['layer'])
+    layer.pop('independent_compilation', None)  # A genuine older layer had no current compilation lock.
     if record == 'missing':
         del layer['independent_compiler']
     else:
@@ -151,6 +152,7 @@ def test_virtual_profile_with_unknown_compiler_requires_reapply_without_renumber
     publish_profile(prepare_profile(VirtualProfile(selected), root))
     before_registry = installer.load_registry(root)
     profile = load_profile(root)
+    profile.pop('compilation', None)
     if record == 'missing':
         del profile['compiler']
     else:

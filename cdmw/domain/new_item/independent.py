@@ -29,6 +29,8 @@ class IndependentItemPackage:
     dependencies: Mapping[str, str]
     blobs: Mapping[str, bytes]
     digest: str
+    # Exact ZIP identity is separate from canonical content and logical UUID.
+    artifact_digest: str = field(default="", compare=False)
 
 
 @dataclass

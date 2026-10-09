@@ -11705,6 +11705,7 @@
     "The viewport rejected the capture request.": "视口拒绝了捕捉请求。",
     "The viewport returned no image.": "视口未返回图像。",
     "The viewport starts when there is a mesh to show.": "有可显示的网格时视口才会启动。",
+    "The virtual compilation record disagrees with the profile.": "The virtual compilation record disagrees with the profile.",
     "The virtual loader will update automatically when you apply or launch.": "应用配置或启动游戏时，虚拟加载器将自动更新。",
     "The virtual session is running.": "虚拟会话正在运行。",
     "The weapon and its case may separate, snap between positions, or draw and stow inconsistently. Every exception is recorded in the operation manifest.": "武器与其鞘可能分离、在不同位置之间跳动，或者拔出与收起不一致。每一次例外都会记入操作清单。",

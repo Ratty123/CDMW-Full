@@ -9,7 +9,7 @@ import re
 
 from cdmw.core.atomic_file import atomic_write_bytes
 from cdmw.domain.cancellation import raise_if_cancelled
-from cdmw.domain.new_item.compilation import validate_compiler_stamp
+from cdmw.domain.new_item.compilation import validate_compiler_stamp, validate_compilation
 from cdmw.domain.virtual_loader import VirtualLoaderError
 from cdmw.services.application_shutdown_service import archive_write_scope
 from cdmw.services.independent_item_package import canonical, digest, MAX_MANIFEST, package_id
@@ -65,7 +65,7 @@ def decode(data, *, limit=MAX_MANIFEST):
 
 def validate_profile(value):
     expected = {'format', 'generation', 'items', 'packages', 'mods', 'files', 'sources', 'inventories', 'observed'}
-    if not isinstance(value, dict) or set(value) not in (expected, expected | {'compiler'}) or value['format'] != FORMAT:
+    if not isinstance(value, dict) or set(value) not in (expected, expected | {'compiler'}, expected | {'compiler', 'compilation'}) or value['format'] != FORMAT:
         raise VirtualLoaderError('Unsupported virtual profile.')
     if 'compiler' in value:
         try:
@@ -125,6 +125,18 @@ def validate_profile(value):
             raise VirtualLoaderError('The virtual archive is missing its metadata or payload pair.')
     if 'meta/0.papgt' not in value['files']:
         raise VirtualLoaderError('The virtual mount list is missing.')
+    if 'compilation' in value:
+        try:
+            inputs = validate_compilation(value['compilation'])
+            locked = {package['identity']: package['content'] for package in inputs['packages']}
+            if (inputs['scope'] != 'virtual-profile' or inputs['runtime_abi'] != 'CDVFS2'
+                    or inputs['compiler'] != value['compiler'] or inputs['sources'] != dict(value['sources'])
+                    or inputs['outputs'] != value['files'] or inputs['providers'] != dict(value['observed'])
+                    or locked != {identity: row['digest'] for identity, row in value['items'].items()}
+                    or any(inputs['allocations'].get(identity) != row['binding_hash'] for identity, row in value['items'].items())):
+                raise ValueError('The virtual compilation record disagrees with the profile.')
+        except ValueError as exc:
+            raise VirtualLoaderError(str(exc)) from exc
     if len(canonical(value)) > MAX_MANIFEST:
         raise VirtualLoaderError('Virtual profile exceeds its size limit.')
     return value
