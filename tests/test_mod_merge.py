@@ -40,6 +40,36 @@ def make_mods(tmp_path, *, current=True, shop=False, same_key=False):
     return service, snapshot, entries, plans, folders
 
 
+@pytest.mark.parametrize('reverse', [False, True])
+def test_generated_icon_mods_merge_through_flat_registry_route(tmp_path, reverse):
+    from cdmw.core.item_icon_addition import NewItemIcon, icon_string_for_stem, icon_target_path
+    from cdmw.core.item_icon_registry import ICON_REGISTRY_PATH, registered_icon_names
+    from cdmw.core.stringinfo_table import stringinfo_key
+    from cdmw.domain.new_item.spec import IconSource
+
+    service, snapshot, entries = setup_game(tmp_path)
+    folders, names = [], []
+    for index, manager in enumerate(('JMM', 'DMM')):
+        choice = replace(spec(f'Icon{index}'), item_key=1990000 + index * 100,
+                         stem=f'cd_phm_01_sword_{9109 + index}', recipes=(), icon=IconSource.GENERATED)
+        name = icon_string_for_stem(choice.stem)
+        icon = NewItemIcon(name, stringinfo_key(name), icon_target_path(name), _fake_dds(), None, None)
+        plan = service.plan(choice, snapshot, icon=icon)
+        folder = tmp_path / choice.internal_name
+        service.export_loose(plan, folder, manager=manager)
+        folders.append(folder)
+        names.append(name)
+    original = {root: fingerprint(root) for root in [tmp_path / 'game', *folders]}
+    merged = prepare_mod_merge(tuple(reversed(folders)) if reverse else folders, tmp_path / 'game', entries=entries)
+    assert not merged.conflicts, merged.conflicts
+    result = export_merged_mod(merged, tmp_path / 'combined')
+    data = payloads(result.package_root)
+    assert set(names) <= set(registered_icon_names(data[ICON_REGISTRY_PATH]))
+    assert data[ICON_REGISTRY_PATH].startswith(b'\xef\xbb\xbf')
+    assert all(icon_target_path(name) in data for name in names)
+    assert all(fingerprint(root) == before for root, before in original.items())
+
+
 def payloads(folder):
     return {path: value.read_bytes() for path, value in mod_folder_payloads(folder).items()}
 
@@ -84,6 +114,22 @@ def test_duplicate_item_identity_blocks_export_and_names_the_record(tmp_path):
     with pytest.raises(ValueError, match="reported conflicts"):
         export_merged_mod(plan, tmp_path / "blocked")
     assert not (tmp_path / "blocked").exists()
+
+
+def test_duplicate_icon_names_block_generic_export(tmp_path):
+    from cdmw.core.item_icon_registry import ICON_REGISTRY_PATH
+    from tests.test_item_icon_registry import registry
+    _service, _snapshot, entries, _plans, folders = make_mods(tmp_path)
+    path = folders[0] / ICON_REGISTRY_PATH
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(registry('Shared', 'shared'))
+    original = {root: fingerprint(root) for root in [tmp_path / 'game', *folders]}
+    merged = prepare_mod_merge(folders, tmp_path / 'game', entries=entries)
+    assert any('duplicate icon name' in issue for issue in merged.conflicts)
+    with pytest.raises(ValueError, match='reported conflicts'):
+        export_merged_mod(merged, tmp_path / 'blocked')
+    assert not (tmp_path / 'blocked').exists()
+    assert all(fingerprint(root) == before for root, before in original.items())
 
 
 def test_colliding_generated_recipe_ids_require_resolution(tmp_path):

@@ -70,6 +70,12 @@ the payload layout. Arrays, cubes, volumes, unknown codecs and unexplained trail
 bytes are refused. This validation also applies when the source has no texture
 registry; it does not establish in-game support for every accepted DDS codec.
 
+The icon registry is flat UTF-8 XML with multiple self-closing `Texture` elements.
+Its writer and merge validator share the same grammar. The BOM, comments and
+unknown surrounding content are retained; conflicting edits to that content
+refuse. Duplicate names within one registry refuse case-insensitively. Separate
+mods claiming the same icon must agree on its entry bytes.
+
 The initial baseline uses only direct, four-digit shipped archive directories
 0000 through 0035. Named manager folders such as `dmmgen` and `dmmsa`, other mod
 groups and nested archive copies are excluded from authoring inputs. Custom item

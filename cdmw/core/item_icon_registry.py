@@ -20,20 +20,92 @@ adding an icon is appending one element shaped like an existing one.
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from typing import Tuple
+from xml.parsers import expat
 
 ICON_REGISTRY_PATH = "ui/xml/texture/cd_item_icon.xml"
-_TEXTURE = re.compile(rb'<Texture\s+Name="([^"]*)"\s+Filename="([^"]*)"([^>]*)/>')
+_ATTRIBUTE = re.compile(rb'''\s+([^\s=]+)\s*=\s*(["'])(.*?)\2''', re.DOTALL)
+_EMPTY_TEXTURE = re.compile(rb'''<Texture(?:\s+[^\s=]+\s*=\s*(?:"[^"]*"|'[^']*'))*\s*/>''')
 
 
 class IconRegistryError(ValueError):
     """Raised when the XML does not read as the icon registry, or an entry is refused."""
 
 
+@dataclass(frozen=True)
+class IconTexture:
+    name: str
+    filename: str
+    raw: bytes
+
+
+@dataclass(frozen=True)
+class IconRegistry:
+    textures: Tuple[IconTexture, ...]
+    remainder: bytes
+
+
+def parse_icon_registry(data: bytes) -> IconRegistry:
+    """Validate flat UTF-8 XML, retaining exact entries and opaque surrounding data.
+
+    Names are unique ignoring case. Comments, processing instructions and unknown
+    elements remain opaque; nested or nonempty Texture elements are unsupported.
+    A synthetic root is used only for parsing and is never written to the file.
+    """
+    raw = bytes(data)
+    bom_size = 3 if raw.startswith(b'\xef\xbb\xbf') else 0
+    prefix = b'<CDMWIconRegistry>'
+    parser = expat.ParserCreate('utf-8')
+    depth, active = 0, None
+    textures, spans, names = [], [], set()
+
+    def start(tag, attributes):
+        nonlocal depth, active
+        if tag == 'Texture':
+            if depth != 1:
+                raise IconRegistryError('nested Texture elements are unsupported')
+            name, filename = attributes.get('Name', ''), attributes.get('Filename', '')
+            if not name.strip() or not filename.strip():
+                raise IconRegistryError('each Texture needs a nonempty Name and Filename')
+            if name.lower() in names:
+                raise IconRegistryError(f'duplicate icon name {name!r} (case-insensitive)')
+            names.add(name.lower())
+            active = (parser.CurrentByteIndex - len(prefix) + bom_size, name, filename)
+        depth += 1
+
+    def end(tag):
+        nonlocal depth, active
+        depth -= 1
+        if tag == 'Texture' and depth == 1:
+            begin, name, filename = active
+            finish = parser.CurrentByteIndex - len(prefix) + bom_size
+            element = raw[begin:finish]
+            if _EMPTY_TEXTURE.fullmatch(element) is None:
+                raise IconRegistryError('Texture elements must be self-closing')
+            textures.append(IconTexture(name, filename, element))
+            spans.append((begin, finish))
+            active = None
+
+    parser.StartElementHandler, parser.EndElementHandler = start, end
+    try:
+        parser.Parse(prefix + raw[bom_size:] + b'</CDMWIconRegistry>', True)
+    except expat.ExpatError as exc:
+        raise IconRegistryError(f'invalid flat icon registry XML: {exc}') from exc
+    if not textures:
+        raise IconRegistryError('the data holds no <Texture> elements; not the icon registry')
+    remainder, pos = [], 0
+    for begin, finish in spans:
+        remainder.append(raw[pos:begin])
+        pos = finish
+    remainder.append(raw[pos:])
+    return IconRegistry(tuple(textures), b''.join(remainder).strip(b'\r\n\t '))
+
+
 def registered_icon_names(data: bytes) -> Tuple[str, ...]:
     """Every `<Texture Name=...>` in the registry, in file order."""
 
-    return tuple(match.group(1).decode("utf-8", "replace") for match in _TEXTURE.finditer(bytes(data)))
+    return tuple(texture.name for texture in parse_icon_registry(data).textures)
 
 
 def icon_filename_for(name: str) -> str:
@@ -55,24 +127,25 @@ def add_icon_texture(data: bytes, name: str, *, like: str, filename: str = "") -
         raise IconRegistryError("an icon name is a plain identifier")
     lower = wanted.lower()
     template = None
-    for match in _TEXTURE.finditer(raw):
-        existing = match.group(1).decode("utf-8", "replace")
+    for texture in parse_icon_registry(raw).textures:
+        existing = texture.name
         if existing.lower() == lower:
             raise IconRegistryError(f"icon {existing!r} is already registered")
         if existing.lower() == str(like or "").lower():
-            template = match
+            template = texture
     if template is None:
         raise IconRegistryError(f"the registry has no entry named {like!r} to shape the new one after")
-    if not _TEXTURE.search(raw):
-        raise IconRegistryError("the data holds no <Texture> elements; not the icon registry")
     target = str(filename or icon_filename_for(wanted))
     if any(ch in target for ch in '"<>&'):
         raise IconRegistryError("an icon filename holds no quotes or angle brackets")
-    element = b'<Texture Name="' + wanted.encode("utf-8") + b'"' + b"\t" + b'Filename="' + target.encode("utf-8") + b'"' + template.group(3) + b"/>"
+    attributes = b''.join(match.group(0) for match in _ATTRIBUTE.finditer(template.raw)
+                          if match.group(1) not in (b'Name', b'Filename'))
+    element = b'<Texture Name="' + wanted.encode("utf-8") + b'"' + b"\t" + b'Filename="' + target.encode("utf-8") + b'"' + attributes + b"/>"
     newline = b"\r\n" if b"\r\n" in raw[:4096] else b"\n"
     body = raw.rstrip(b"\r\n")
     trailing = raw[len(body):] or newline
     return body + newline + element + trailing
 
 
-__all__ = ["ICON_REGISTRY_PATH", "IconRegistryError", "add_icon_texture", "icon_filename_for", "registered_icon_names"]
+__all__ = ["ICON_REGISTRY_PATH", "IconRegistry", "IconTexture", "IconRegistryError",
+           "add_icon_texture", "icon_filename_for", "parse_icon_registry", "registered_icon_names"]

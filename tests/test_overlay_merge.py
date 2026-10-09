@@ -54,6 +54,32 @@ def test_same_owned_file_with_different_bytes_is_a_conflict():
         merge_overlay_files({path: None}, {path: b'new mesh'}, {path: b'other mesh'})
 
 
+def test_icon_merge_preserves_bom_comments_and_unknown_content_without_claiming_them():
+    from tests.test_item_icon_registry import registry
+    path = 'ui/xml/texture/cd_item_icon.xml'
+    base = registry('Base') + b'<Future Keep="yes"/>\r\n'
+    alpha = add_icon_texture(base, 'Alpha', like='Base')
+    beta = add_icon_texture(base, 'Beta', like='Base')
+    merged = merge_overlay_files({path: base}, {path: alpha}, {path: beta})[path]
+    assert set(registered_icon_names(merged)) == {'Base', 'Alpha', 'Beta'}
+    assert merged.startswith(b'\xef\xbb\xbf<!-- icons -->')
+    assert b'<Future Keep="yes"/>' in merged
+    with pytest.raises(OverlayConflict, match='icon'):
+        merge_overlay_files({path: base}, {path: alpha.replace(b'Keep="yes"', b'Keep="alpha"')},
+                            {path: beta.replace(b'Keep="yes"', b'Keep="beta"')})
+
+
+def test_two_mods_claiming_the_same_icon_must_agree_on_its_bytes():
+    from tests.test_item_icon_registry import registry
+    path = 'ui/xml/texture/cd_item_icon.xml'
+    base = registry('Base')
+    first = add_icon_texture(base, 'Shared', like='Base', filename='UI/first.dds')
+    second = add_icon_texture(base, 'Shared', like='Base', filename='UI/second.dds')
+    assert merge_overlay_files({path: base}, {path: first}, {path: first})[path] == first
+    with pytest.raises(OverlayConflict, match='same record'):
+        merge_overlay_files({path: base}, {path: first}, {path: second})
+
+
 def test_legacy_texture_baseline_restores_owned_rows_and_keeps_foreign_changes():
     from dataclasses import replace
     from cdmw.core.pathc_format import block_infos_for

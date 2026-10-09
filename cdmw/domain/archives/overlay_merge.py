@@ -6,9 +6,9 @@ never splice arbitrary byte offsets into a table that another install has grown.
 """
 from collections import defaultdict
 from dataclasses import replace
-import re
 import struct
 
+from cdmw.core.item_icon_registry import IconRegistryError, parse_icon_registry
 from cdmw.core.structured_binary_editor import parse_pabgh_table
 
 
@@ -255,18 +255,13 @@ def owned_item_references(changes):
     return references
 
 
-_ICON = re.compile(rb'<Texture\s+Name="([^"]*)"\s+Filename="[^"]*"[^>]*/>')
-
-
 def _icons(before, after, current, where):
     def parts(data):
-        matches = list(_ICON.finditer(data))
-        if not matches:
-            raise OverlayConflict(f'Unsupported icon registry in {where}.')
-        # The writer appends Texture elements to a flat document. Retain its BOM
-        # and reject any other content changing under the merge.
-        remainder = _ICON.sub(b'', data).strip(b'\r\n\t ')
-        return remainder, tuple((m.group(1).lower(), m.group(0)) for m in matches)
+        try:
+            registry = parse_icon_registry(data)
+        except IconRegistryError as exc:
+            raise OverlayConflict(f'Unsupported icon registry in {where}: {exc}') from exc
+        return registry.remainder, tuple((row.name.lower(), row.raw) for row in registry.textures)
     b, a, c = map(parts, (before, after, current))
     prefix = _value(b[0], a[0], c[0], where)
     records = _records(b[1], a[1], c[1], lambda r: r[0], where)

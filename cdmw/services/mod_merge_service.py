@@ -95,8 +95,8 @@ def _validate_group(paths, files):
         from cdmw.core.pappt_format import parse_pappt
         parse_pappt(files[paths[0]])
     elif paths[0] == "ui/xml/texture/cd_item_icon.xml":
-        from xml.etree.ElementTree import fromstring
-        fromstring(files[paths[0]])
+        from cdmw.core.item_icon_registry import parse_icon_registry
+        parse_icon_registry(files[paths[0]])
 
 
 def _items(manifest):
