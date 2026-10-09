@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timezone
+import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -45,7 +46,43 @@ def peak_resident_bytes():
 
 def storage(root):
     files = [path for path in root.rglob('*') if path.is_file()]
-    return {'bytes': sum(path.stat().st_size for path in files), 'files': len(files)}
+    unique = {}
+    total = 0
+    for path in files:
+        size = path.stat().st_size
+        total += size
+        unique.setdefault((size, file_hash(path)), size)
+    # Logical equality is a sharing opportunity, never permission to delete a
+    # retained generation/recovery file or a measurement of allocated disk blocks.
+    return {'bytes': total, 'files': len(files), 'unique_content_bytes': sum(unique.values()),
+            'duplicate_content_bytes': total - sum(unique.values()),
+            'duplicate_content_files': len(files) - len(unique)}
+
+
+def file_hash(path):
+    result = hashlib.sha256()
+    with path.open('rb') as source:
+        while chunk := source.read(64 * 1024):
+            result.update(chunk)
+    return result.hexdigest()
+
+
+def texture_plan(service, snapshot, seed):
+    """A complete imported BC3 texture through the real authoring/compiler path."""
+    from dataclasses import replace
+    import random
+    import struct
+    from cdmw.domain.new_item.spec import ModelSource
+    from cdmw.services.new_item_planning import ModelFiles
+    from tests.test_archive_overlay_manager import shop_spec
+    from tests.test_new_item_service import PAC_XML, STEM, imported_pac, _fake_dds
+    header = bytearray(_fake_dds(4, 4)[:128])
+    struct.pack_into('<II', header, 12, 4096, 4096)
+    texture = bytes(header) + random.Random(seed).randbytes(4096 * 4096)
+    model = ModelFiles(imported_pac(100), {PAC_XML: snapshot.payload(PAC_XML),
+                       f'character/texture/1_pc/{STEM}_d.dds': texture})
+    return service.plan(replace(shop_spec('ScaleTexture'), model_source=ModelSource.IMPORTED),
+                        snapshot, model=model, capture_independent=True)
 
 
 def run_case(route, kind, count, generations):
@@ -83,9 +120,12 @@ def run_case(route, kind, count, generations):
             header = _fake_dds(256, 256)[:128]
             payload = header + random.Random(0).randbytes(256 * 256)
             icon = NewItemIcon(name, stringinfo_key(name), icon_target_path(name), payload, None, None)
-        plan = service.plan(spec, snapshot, icon=icon, capture_independent=True)
+        plan = (texture_plan(service, snapshot, 0) if kind.startswith('texture-') else
+                service.plan(spec, snapshot, icon=icon, capture_independent=True))
         packages = []
         for index in range(count):
+            if kind == 'texture-distinct' and index:
+                plan = texture_plan(service, snapshot, index)
             package = from_plan(plan, uuid5(UUID(int=1), str(index)).hex)
             if kind == 'links':
                 package = linked(package, packages[-1:])
@@ -98,6 +138,10 @@ def run_case(route, kind, count, generations):
         result['input_zip_bytes'] = sum(path.stat().st_size for path in sources)
         result['input_expanded_bytes'] = sum(len(canonical(package_metadata(p))) + sum(map(len, p.blobs.values())) for p in packages)
         result['fixture_game_bytes'] = sum(map(len, original.values()))
+        result['input_setup_peak_resident_bytes'] = peak_resident_bytes()
+        # The preparation worker reads its source files; benchmark setup must not
+        # keep a second, unrelated set of authoring payloads live through that work.
+        del packages, package, plan, icon
         backups = Backups(base)
         try:
             for generation in range(generations):
@@ -113,7 +157,9 @@ def run_case(route, kind, count, generations):
                     publish_profile(prepared)
                 published_at = perf_counter()
                 run = {'generation': generation + 1, 'prepare_seconds': prepared_at - started,
-                       'publish_seconds': published_at - prepared_at, 'bookkeeping': storage(root / '.cdmw')}
+                       'publish_seconds': published_at - prepared_at,
+                       'operation_peak_resident_bytes': peak_resident_bytes(),
+                       'bookkeeping': storage(root / '.cdmw')}
                 result['runs'].append(run)
                 # Publication must never produce an inventory its reader refuses.
                 registry = load_registry(root)
@@ -121,11 +167,16 @@ def run_case(route, kind, count, generations):
                     raise AssertionError('A retained identity is missing.')
                 if route == 'physical':
                     run['active_inventory_bytes'] = (root / overlays.INDEX_PATH).stat().st_size
+                    run['compiled_files'] = {path.relative_to(root).as_posix(): file_hash(path)
+                                             for path in root.rglob('*') if path.is_file() and '.cdmw' not in path.parts}
                 else:
                     run['active_profile_bytes'] = (root / '.cdmw/virtual-loader/profile.json').stat().st_size
-                    if len(load_profile(root)['items']) != count or game_bytes(root) != original:
+                    profile = load_profile(root)
+                    run['compiled_files'] = profile['files']
+                    if len(profile['items']) != count or game_bytes(root) != original:
                         raise AssertionError('Virtual publication changed game files or lost ownership.')
                 run['readback'] = 'passed'
+                del prepared  # Completed generations are on disk, not overlapping live jobs.
             stop, cancellation = threading.Event(), []
             def cancel_at_composition(message):
                 if message.startswith('Composing ') and not stop.is_set():
@@ -153,7 +204,8 @@ def run_case(route, kind, count, generations):
         result['peak_resident_bytes'] = peak_resident_bytes()
         result['retained_bookkeeping'] = storage(root / '.cdmw')
         result['backup_storage'] = {'bytes': sum(storage(path)['bytes'] for path in base.glob('backup-*'))}
-        result['stock_archives_unchanged'] = all(game_bytes(root).get(name) == data for name, data in original.items() if name.startswith('0009/'))
+        result['stock_archives_unchanged'] = all((root / name).read_bytes() == data
+                                               for name, data in original.items() if name.startswith('0009/'))
     return result
 
 
@@ -161,15 +213,17 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--counts', nargs='+', type=int, default=[1, 8, 32, 128])
     parser.add_argument('--routes', nargs='+', choices=['physical', 'virtual'], default=['physical', 'virtual'])
-    parser.add_argument('--kinds', nargs='+', choices=['legacy', 'links', 'icon'], default=['legacy', 'links'])
+    kinds = ['legacy', 'links', 'icon', 'texture-shared', 'texture-distinct']
+    parser.add_argument('--kinds', nargs='+', choices=kinds, default=['legacy', 'links'])
     parser.add_argument('--generations', type=int, default=3)
     parser.add_argument('--output', type=Path)
     parser.add_argument('--case', nargs=4, metavar=('ROUTE', 'KIND', 'COUNT', 'GENERATIONS'), help=argparse.SUPPRESS)
     args = parser.parse_args()
     if args.case:
         route, kind, count, generations = args.case
-        if (route not in ('physical', 'virtual') or kind not in ('legacy', 'links', 'icon')
-                or not 1 <= int(count) <= (32 if kind == 'icon' else 128) or not 1 <= int(generations) <= 5):
+        limit = 8 if kind.startswith('texture-') else 32 if kind == 'icon' else 128
+        if (route not in ('physical', 'virtual') or kind not in kinds
+                or not 1 <= int(count) <= limit or not 1 <= int(generations) <= 5):
             parser.error('Invalid isolated case.')
         print(json.dumps(run_case(route, kind, int(count), int(generations))))
         return
@@ -177,18 +231,23 @@ def main():
         parser.error('Choose a new output file, counts 1..128 and generations 1..5.')
     if 'icon' in args.kinds and max(args.counts) > 32:
         parser.error('The bounded icon measurement permits at most 32 packages.')
+    if any(kind.startswith('texture-') for kind in args.kinds) and max(args.counts) > 8:
+        parser.error('The bounded imported-texture measurement permits at most 8 packages.')
     git = lambda *parts: subprocess.check_output(['git', *parts], cwd=REPOSITORY, text=True).strip()
     report = {'format': 'cdmw_synthetic_scale_v1', 'utc': datetime.now(timezone.utc).isoformat(),
               'revision': git('rev-parse', 'HEAD'), 'dirty': bool(git('status', '--porcelain')),
               'python': sys.version, 'platform': sys.platform,
-              'scope': 'Synthetic equipment recipes; icon cases add one complete 256x256 BC3 DDS with deterministic incompressible pixels per package. No licensed data, real game, native build, 1-GiB capacity or worst-case cancellation proof.',
+              'scope': 'Synthetic equipment recipes. Icon cases add complete 256x256 BC3 DDS data. Imported-texture cases use one 4096x4096 BC3 DDS per package, with shared or distinct deterministic incompressible pixels. '
+                       'Each case runs in a fresh process; peak includes setup, separately recorded before authoring payloads are released. Completed preparations are released between generations. '
+                       'Storage counts logical file bytes and equal full-file content, not allocated disk blocks or safe deletion candidates. No licensed data, real game, native build, large mesh, 1-GiB capacity or worst-case cancellation proof.',
               'cases': []}
     for route in args.routes:
         for kind in args.kinds:
             for count in args.counts:
                 command = [sys.executable, str(Path(__file__).resolve()), '--case', route, kind, str(count), str(args.generations)]
                 try:
-                    child = subprocess.run(command, cwd=REPOSITORY, text=True, capture_output=True, timeout=240, check=True)
+                    child = subprocess.run(command, cwd=REPOSITORY, text=True, capture_output=True, timeout=240, check=True,
+                                           creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
                     result = json.loads(child.stdout)
                 except (subprocess.SubprocessError, ValueError) as exc:
                     detail = getattr(exc, 'stderr', None) or str(exc)

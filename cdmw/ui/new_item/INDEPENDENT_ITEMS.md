@@ -132,6 +132,10 @@ File export avoids holding an additional complete compressed ZIP in memory.
 Imports still retain decoded member contents for validation and compilation,
 and `package_bytes()` deliberately returns an in-memory ZIP. The full pipeline
 does not use constant memory.
+Within one preparation, packages can share byte-identical validated resource
+buffers. Each package is still validated independently and keeps its own UUID,
+resource mapping and installed paths. Logical batch limits count every package's
+resources, including shared bytes. This sharing lasts only for that preparation.
 
 Physical contributions and complete virtual profiles carry a checksummed
 compilation record. It links compiler and adapter revisions, package content and
@@ -437,7 +441,7 @@ Physical inventory output uses compact JSON and checks the existing reader limit
 before returning a preparation and again before backup/publication. A refused
 rebuild leaves the prior installation readable. Retired layers, journals and
 bindings still accumulate. Virtual generations and save/recovery backups are
-also retained; there is no automatic history deletion or shared-blob store.
+also retained; there is no automatic history deletion or shared on-disk blob store.
 Storage growth and reusable content should be measured before changing retention
 or sharing semantics.
 
@@ -446,6 +450,7 @@ For reproducible source measurements using owned fixtures only:
 ```powershell
 .\.venv\Scripts\python.exe scripts/benchmark_independent_items.py --counts 1 8 32 128 --generations 3 --output workspace/reports/cditem-scale.json
 .\.venv\Scripts\python.exe scripts/benchmark_independent_items.py --counts 1 8 32 --kinds icon --generations 3 --output workspace/reports/cditem-scale-icons.json
+.\.venv\Scripts\python.exe scripts/benchmark_independent_items.py --counts 1 8 --kinds texture-shared texture-distinct --generations 2 --output workspace/reports/cditem-texture-scale.json
 ```
 
 Choose a new report path for each run. The harness accepts no game directory,
@@ -454,6 +459,14 @@ process. It records preparation/publication time, peak process resident memory,
 expanded/ZIP inputs, retained storage, final inventory readability, unchanged
 stock archive bytes and cancellation at a specific composition checkpoint.
 Icon cases use complete 256×256 BC3 data matching the fixture's source registry.
+Imported-texture cases use complete 4096×4096 BC3 data and a small synthetic mesh,
+with identical or distinct pixels across packages; these cases accept at most
+eight packages. The report includes compiled file hashes for before/after checks.
+Peak memory includes fixture setup, which is also recorded separately. Authoring
+payloads and completed preparations are released before subsequent jobs. Storage
+measurements identify repeated full-file content by size and SHA-256; those totals
+describe logical file bytes, not filesystem allocation or permission to delete
+recovery data. Neither storage measurement nor memory sharing changes retention.
 The results are machine-local evidence, not real-game proof, a 1 GiB memory test,
 a large-mesh benchmark or a worst-case cancellation bound. Keep reports outside
 version control.
@@ -469,7 +482,8 @@ v2 containers. Each case runs in a fresh process and verifies the resulting
 identity and resource bytes. Peak memory includes fixture setup; elapsed time
 covers the requested operation, and write readback runs after memory measurement.
 The payload is not a valid game icon or model, so these results establish codec
-behavior only. Large-mesh and full-pipeline memory, shared-blob storage and safe
+behavior only. Full-pipeline texture measurements use the preceding harness;
+large-mesh and maximum-budget behavior, shared on-disk blob storage and safe
 history collection remain separate work.
 
 ### Focused contracts
@@ -481,6 +495,11 @@ localisation; repeated imports, updates, restart-style re-reading, removal and
 reinstallation, and transfer through an identity profile. Corruption, incomplete
 dependencies, incompatible source hashes, collisions, allocation exhaustion,
 stale mappings and rollback/cancellation have focused fixture checks.
+
+`tests/test_independent_item_resource_sharing.py` checks preparation-local memory
+sharing in v1 and mixed v1/v2 batches. Equal payloads retain separate ownership,
+updates and removal through both deployment routes. Each later package still
+passes checksum validation, and shared content does not enlarge the batch budget.
 
 `tests/test_independent_item_physics.py` adds malformed/unknown collision refusal,
 mesh and cloth binding checks, pinned PBD dependencies, changed recipient profile

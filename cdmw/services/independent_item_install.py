@@ -339,6 +339,7 @@ def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False,
     if (not sources and target == 'archive') or len(sources) > 128:
         raise IndependentItemError('Select between one and 128 item packages.')
     packages = {}
+    shared_blobs = {}
     total_size = 0
     for source in sources:
         package = read_package(source, stop_event=stop_event)
@@ -349,6 +350,13 @@ def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False,
             total_size += sum(len(data) for data in package.blobs.values()) + len(canonical(package_metadata(package)))
             if total_size > MAX_TOTAL:
                 raise IndependentItemError('The selected packages exceed the batch size limit. Import a smaller batch.')
+        # Every package has already passed its own checksum/size validation.
+        # Reuse only equal immutable bytes within this preparation; identities,
+        # blob mappings, logical budgets and installed asset paths remain separate.
+        package = replace(package, blobs={key: shared_blobs[key]
+            if key in shared_blobs and shared_blobs[key] == data else data
+            for key, data in package.blobs.items()})
+        shared_blobs.update(package.blobs)
         packages[package.identity] = package
     registry = load_registry(root)
     from cdmw.services.virtual_loader_state import active_identities
