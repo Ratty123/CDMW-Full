@@ -425,7 +425,7 @@ def compose_underlay(root, state, pending, layers, baseline, *, stop_event=None,
     state['sources'].update(_game_source_stamps(Path(root), revision))
     external.validate(stop_event)
     external.remember(state)
-    return current, tuple(external.archives.items())
+    return current, tuple(external.archives.items()), (revision, external.capture())
 
 
 @dataclass(frozen=True)

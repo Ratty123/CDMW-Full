@@ -23,7 +23,7 @@ from cdmw.core.papgt_format import PAPGT_DEFAULT_FLAGS, parse_papgt, papgt_with_
 from cdmw.domain.archives.overlay_merge import (
     OverlayConflict, legacy_texture_baseline, merge_overlay_files, owned_item_references,
 )
-from cdmw.domain.cancellation import raise_if_cancelled
+from cdmw.domain.cancellation import RunCancelled, raise_if_cancelled
 from cdmw.services.application_shutdown_service import archive_write_scope
 from cdmw.services.installation_lane import serialized_installation
 from cdmw.services.archive_overlay_install import (
@@ -457,6 +457,10 @@ class OverlayChangePreparation:
     # Read dependencies, including absent ledgers, are not mutation targets.
     observed_state: tuple[tuple[str, bytes | None], ...] = ()
     source_directories: tuple[tuple[str, tuple[str, ...]], ...] = ()
+    # Immutable payload revisions and index/loose-file hashes survive the review.
+    # PAZ archives are checked through consumed payloads, not multi-GB full scans.
+    source_revisions: tuple[object, ...] = ()
+    source_checksums: tuple[tuple[Path, str], ...] = ()
 
 
 def _observe_state(root):
@@ -617,6 +621,7 @@ def compose_layer_payloads(layers, baseline, *, stop_event=None, on_log=None):
 def _compose(root, state, pending, label, removed_id, stop_event, on_log, *, decoded=None, independent_context=None):
     layers = []
     source_directories = ()
+    source_revisions = ()
     baseline, flags, meta_paths = {}, {}, set()
     for layer in state['layers']:
         raise_if_cancelled(stop_event, 'Overlay composition cancelled.')
@@ -635,7 +640,7 @@ def _compose(root, state, pending, label, removed_id, stop_event, on_log, *, dec
                 meta_paths.add(path)
     if any(layer.get('independent_identity') for layer, _ in layers):
         from cdmw.services.independent_item_compatibility import compose_underlay
-        baseline, source_directories = compose_underlay(root, state, pending, layers, baseline,
+        baseline, source_directories, source_revisions = compose_underlay(root, state, pending, layers, baseline,
             stop_event=stop_event, on_log=on_log, context=independent_context)
     current, active = compose_layer_payloads(layers, baseline, stop_event=stop_event, on_log=on_log)
     from cdmw.domain.archives.iteminfo_composition import required_field_files
@@ -675,7 +680,8 @@ def _compose(root, state, pending, label, removed_id, stop_event, on_log, *, dec
     return OverlayChangePreparation(root, name, label, removed_id, tuple(layer['label'] for layer in active),
         tuple(writes.items()), tuple(deletes), before, tuple((p, tuple(s)) for p, s in state['sources'].items()), paths,
         checksum, payload_bytes, sum(layer['file_count'] for layer in active[:-1]) if removed_id is None else len(paths),
-        source_directories=source_directories)
+        source_directories=source_directories, source_revisions=source_revisions,
+        source_checksums=_source_checksums(source_revisions, stop_event))
 
 
 def prepare_item_overlay(plan, package_root, *, directory_name=None, stop_event=None, on_log=None, retirement=None):
@@ -806,6 +812,36 @@ def _verify_source_directories(root, preparation):
             raise OverlayConflict(f'The source archive folder {relative} changed after preparation. Scan again.')
 
 
+def _read_source_checksum(path, stop_event):
+    checksum = hashlib.sha256()
+    with path.open('rb') as source:
+        while chunk := source.read(1024 * 1024):
+            raise_if_cancelled(stop_event, 'Source verification cancelled.')
+            checksum.update(chunk)
+    return checksum.hexdigest()
+
+
+def _source_checksums(revisions, stop_event):
+    paths = set()
+    for revision in revisions:
+        source = getattr(revision, 'source_revision', revision)
+        paths.update(path for path, stamp in source.files if stamp is not None and path.suffix.lower() != '.paz')
+    return tuple((path, _read_source_checksum(path, stop_event)) for path in sorted(paths))
+
+
+def _verify_source_content(preparation, stop_event):
+    try:
+        for revision in preparation.source_revisions:
+            revision.validate(stop_event)
+        for path, checksum in preparation.source_checksums:
+            if _read_source_checksum(path, stop_event) != checksum:
+                raise OverlayConflict(f'The source file {path} changed after preparation.')
+    except RunCancelled:
+        raise
+    except (OSError, ValueError, RuntimeError) as exc:
+        raise OverlayConflict(f'Source dependencies changed or cannot be verified after preparation: {exc}') from exc
+
+
 @archive_write_scope()
 @serialized_installation(lambda preparation, **_kwargs: getattr(preparation, 'package_root', None))
 def apply_overlay_change(preparation, *, confirmed, backup, restore_backup, game_running=None, stop_event=None, on_log=None):
@@ -846,6 +882,7 @@ def apply_overlay_change(preparation, *, confirmed, backup, restore_backup, game
         path = _target(root, relative)
         if not path.is_file() or tuple(_stamp(path)) != expected:
             raise OverlayConflict(f'The source archive {relative} changed after preparation.')
+    _verify_source_content(preparation, stop_event)
     raise_if_cancelled(stop_event, 'Overlay change cancelled before backup.')
     backup_dir = Path(backup(tuple(sorted(originals)), f'Overlay: {preparation.label}'))
     _verify_backup(backup_dir, originals)
@@ -863,7 +900,10 @@ def apply_overlay_change(preparation, *, confirmed, backup, restore_backup, game
         if not path.is_file() or tuple(_stamp(path)) != expected:
             raise OverlayConflict(f'The source archive {relative} changed after preparation.')
     writes = dict(preparation.writes)
+    sources_verified = False
     try:
+        _verify_source_content(preparation, stop_event)
+        sources_verified = True
         for relative, payload in preparation.writes:
             if relative == 'meta/0.papgt':
                 continue
@@ -883,6 +923,9 @@ def apply_overlay_change(preparation, *, confirmed, backup, restore_backup, game
         for relative in preparation.deletes:
             _target(root, relative).unlink(missing_ok=True)
     except BaseException as error:
+        if not sources_verified and isinstance(error, OverlayConflict):
+            # No writes began. Preserve changes made by another writer during backup.
+            raise
         try:
             restore_backup(backup_dir)
             for relative, previous in preparation.before:

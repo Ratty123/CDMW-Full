@@ -355,6 +355,13 @@ ledger changes before publication, authoring after a generated-icon installation
 invalid imported attachment bindings with valid package hashes, and unmounted
 external archives during installation and rebuild.
 
+Physical publication rechecks consumed archive payloads and the content of source
+indexes and loose files before and after backup. Equal sizes and timestamps do
+not make changed dependencies valid. This checks the consumed source graph;
+it does not scan every byte in an unrelated PAZ archive. Source drift refuses
+before writes, preserving external changes; cancellation uses the normal recovery
+path. Synthetic cases are in `tests/test_independent_item_source_guards.py`.
+
 `tests/test_independent_items_ui.py` and the Output test in
 `tests/test_new_item_rust_ui.py` drive the real Qt controls through the Rust input
 bridge without a visible renderer. They test preservation of authoring choices,

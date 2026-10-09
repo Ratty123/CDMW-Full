@@ -79,7 +79,7 @@ def prepare_profile(profile: VirtualProfile, root, *, stop_event=None, on_log=No
             flags[path] = change['flags']
             if change['meta']:
                 meta.add(path)
-    underlay, _ = compose_underlay(root, resolved.state, resolved.pending, (*layers, *virtual_layers), baseline,
+    underlay, _, _ = compose_underlay(root, resolved.state, resolved.pending, (*layers, *virtual_layers), baseline,
         stop_event=stop_event, on_log=on_log, context=(resolved.external, resolved.baseline))
     current, _ = overlays.compose_layer_payloads((*layers, *virtual_layers), underlay,
                                                 stop_event=stop_event, on_log=on_log)
