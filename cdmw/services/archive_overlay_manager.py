@@ -939,16 +939,17 @@ def apply_overlay_change(preparation, *, confirmed, backup, restore_backup, game
         if not path.is_file() or tuple(_stamp(path)) != expected:
             raise OverlayConflict(f'The source archive {relative} changed after preparation.')
     writes = dict(preparation.writes)
-    sources_verified = False
+    _verify_source_content(preparation, stop_event)
+    mutations_started = False
     try:
-        _verify_source_content(preparation, stop_event)
-        sources_verified = True
         for relative, payload in preparation.writes:
             if relative == 'meta/0.papgt':
                 continue
-            raise_if_cancelled(stop_event, 'Overlay change cancelled; restoring the backup.')
-            atomic_write_bytes(_target(root, relative), payload)
-            if not _file_matches_bytes(_target(root, relative), payload):
+            raise_if_cancelled(stop_event, 'Overlay change cancelled.')
+            path = _target(root, relative)
+            mutations_started = True
+            atomic_write_bytes(path, payload)
+            if not _file_matches_bytes(path, payload):
                 raise RuntimeError(f'Staged overlay bytes differ from the preparation: {relative}')
         # Validate the staged archive through the actual index reader before
         # publishing the mount list. No cancellation inside final publication.
@@ -958,11 +959,13 @@ def apply_overlay_change(preparation, *, confirmed, backup, restore_backup, game
             if actual != preparation.paths:
                 raise RuntimeError('Staged overlay paths differ from the prepared archive.')
         raise_if_cancelled(stop_event, 'Overlay change cancelled before publication.')
-        atomic_write_bytes(_target(root, 'meta/0.papgt'), writes['meta/0.papgt'])
+        mount_path, mount_payload = _target(root, 'meta/0.papgt'), writes['meta/0.papgt']
+        mutations_started = True
+        atomic_write_bytes(mount_path, mount_payload)
         for relative in preparation.deletes:
             _target(root, relative).unlink(missing_ok=True)
     except BaseException as error:
-        if not sources_verified and isinstance(error, OverlayConflict):
+        if not mutations_started:
             # No writes began. Preserve changes made by another writer during backup.
             raise
         try:

@@ -79,4 +79,5 @@ def test_cancellation_during_source_verification_preserves_previous_installation
             backup=lambda paths, label: backups.backup_files(paths, description=label),
             restore_backup=restore, game_running=lambda: False, stop_event=stop)
     assert files_in(root) == original
-    assert backups.count == len(restores) == int(during_backup)
+    assert backups.count == int(during_backup)
+    assert restores == []  # Cancellation occurred before any publication mutation.

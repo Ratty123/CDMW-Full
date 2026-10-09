@@ -359,6 +359,10 @@ the existing overlay mutation transaction. Review includes the exact game folder
 and affected files. The game must be closed and the existing backup verification,
 stale-source checks and rollback must succeed. A failed/cancelled preparation
 writes nothing; publication failure rolls back the transaction.
+Cancellation or failure before the first mutating call skips backup restoration
+and new-target cleanup, preserving changes made by another writer. Once a write
+can have begun, failures still restore and verify the backup, including a writer
+that replaces a file before raising and failures during archive deletion.
 Large rebuilds release completed composition data before collecting the original
 destination bytes. Backup, stale-file, staged-output and rollback verification
 compare complete files through a reusable buffer of at most 1 MiB. Original bytes
