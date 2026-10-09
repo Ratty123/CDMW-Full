@@ -148,7 +148,7 @@ including ones compiled later. Its caller must collect the whole profile first.
             value, offset = _field(row, operation.field, operation.adapter)
             if value != operation.expect:
                 raise IndependentItemError(f'{operation.target}: expected {operation.expect}, found {value} in the source.')
-            if operation.record in protected:
+            if operation.record in protected and operation.value != value:
                 raise ItemFieldConflict(operation, ', '.join(protected[operation.record]), 'a legacy package requires this complete record unchanged.')
             key = (operation.record, operation.field)
             if key in writes and writes[key].value != operation.value:

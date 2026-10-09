@@ -230,7 +230,10 @@ published even when the directory bytes are unchanged.
 
 Required v1/legacy records are collected across the complete active profile before
 field composition. A later v2 module cannot bypass a v1 requirement, and installing
-that v1 package later also refuses the conflict. Untyped changes to the same
+that v1 package later also refuses the conflict. An assignment whose requested
+value equals the verified source value can coexist with a whole-record requirement;
+it retains its ownership and still conflicts with an opposing assignment.
+Untyped changes to the same
 target row remain incompatible. Removal recomposes from source plus the remaining
 active operations; it does not subtract bytes or replay inverse edits. Rebuilding
 the installed overlay set retains each field operation against pristine rows,
@@ -296,6 +299,13 @@ loose game-relative files, `files/` layouts and PAMT/PAZ packages. Scans are rea
 They report compatible data, shared files that can be merged, record conflicts,
 and unsupported inputs. This is an on-demand file-data comparison, not a runtime
 plugin analyser or continuous external-manager monitor.
+
+Scanning and merged export validate the same retained package graph and compose
+the same typed contributions as installation, rebuild and virtual preparation.
+Disjoint field edits to one ItemInfo row can coexist. Explicit requirements to
+keep a source value are retained even when their output bytes equal the source;
+an external change to that required row refuses the merged plan. Diagnostics may
+stop at the first active-graph conflict, so resolve it and scan again.
 
 **Rebuild installed shared files…** prepares a reviewed rebuild for mounted mods. It uses
 the existing verified backup and recovery transaction, preserves independent

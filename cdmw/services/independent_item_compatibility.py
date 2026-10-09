@@ -386,15 +386,12 @@ def foreign_underlay(external, baseline, snapshot, *, stop_event=None):
     return result
 
 
-def compose_underlay(root, state, pending, layers, baseline, *, stop_event=None, on_log=None, context=None, virtual_identities=()):
-    """Called by the existing overlay composer, including removal and recovery."""
-    from cdmw.services.independent_item_package import stock_snapshot, read_package
+def _validate_composition_packages(root, pending, layers, snapshot, external, *, stop_event=None, on_log=None, virtual_identities=()):
+    """Validate retained intent and the whole active graph for every output route."""
+    from cdmw.services.independent_item_package import read_package
     from cdmw.domain.new_item.package_links import contract, resolve_package_contracts, check_graph_budget
-    external, snapshot = context if context is not None else (
-        external_mods(root, state, stop_event=stop_event),
-        stock_snapshot(root, stop_event=stop_event, overlay_changes=(changes for _, changes in layers)))
-    external.snapshot = snapshot
     protected, operations = {}, []
+    findings = []
     active_packages, link_budgets, linked_groups = {False: [], True: []}, {False: 0, True: 0}, set()
     for layer, changes in layers:
         identity = layer.get('independent_identity')
@@ -425,15 +422,28 @@ def compose_underlay(root, state, pending, layers, baseline, *, stop_event=None,
             operations.extend((row['owner'], row['operations']) for row in declared)
             for key in _required_keys(package, snapshot, changes)['iteminfo']:
                 protected.setdefault(key, []).append(package.identity)
-        findings = check_package_dependencies(package, snapshot, external, changes, stop_event=stop_event)
+        package_findings = check_package_dependencies(package, snapshot, external, changes, stop_event=stop_event)
+        findings.extend(package_findings)
         if on_log:
-            for finding in findings:
+            for finding in package_findings:
                 on_log(f'{package.title}: {", ".join(finding.mods)}: {finding.path}: {finding.detail}')
     for virtual in (False, True):
         resolve_package_contracts(active_packages[virtual], stop_event=stop_event)
     if operations:
         from cdmw.domain.new_item.iteminfo_operations import compile_assignments
         compile_assignments(operations, {key: row.raw for key, row in snapshot.rows.items()}, protected=protected, stop_event=stop_event)
+    return findings
+
+
+def compose_underlay(root, state, pending, layers, baseline, *, stop_event=None, on_log=None, context=None, virtual_identities=()):
+    """Called by the existing overlay composer, including removal and recovery."""
+    from cdmw.services.independent_item_package import stock_snapshot
+    external, snapshot = context if context is not None else (
+        external_mods(root, state, stop_event=stop_event),
+        stock_snapshot(root, stop_event=stop_event, overlay_changes=(changes for _, changes in layers)))
+    external.snapshot = snapshot
+    _validate_composition_packages(root, pending, layers, snapshot, external,
+        stop_event=stop_event, on_log=on_log, virtual_identities=virtual_identities)
     current = foreign_underlay(external, baseline, snapshot, stop_event=stop_event)
     revision = snapshot.provenance.capture()
     revision.validate(stop_event)
@@ -478,7 +488,7 @@ def scan_independent_conflicts(root, *, folders=(), stop_event=None, on_log=None
     """Scan every mounted external provider, optionally adding an uninstalled folder."""
     from cdmw.services import archive_overlay_manager as overlays
     from cdmw.services.independent_item_install import load_registry
-    from cdmw.services.independent_item_package import read_package, stock_snapshot
+    from cdmw.services.independent_item_package import stock_snapshot
     root, folders = Path(root).resolve(), tuple(Path(p).resolve() for p in folders)
     observed = overlays._observe_state(root)
     state = overlays._load_index(root)
@@ -499,39 +509,26 @@ def scan_independent_conflicts(root, *, folders=(), stop_event=None, on_log=None
         for path, change in changes.items():
             baseline.setdefault(path, change['before'])
             flags[path] = change['flags']
-        if not layer['active'] or not layer.get('independent_identity'):
-            continue
-        relative = f'.cdmw/independent-items/{layer["independent_identity"]}-{layer["independent_digest"]}.cditem'
-        snapshot.provenance.pin_file(root / relative)
-        package = read_package(root / relative, stop_event=stop_event)
-        if package.identity != layer['independent_identity'] or package.digest != layer['independent_digest']:
-            raise OverlayConflict('The retained independent package has changed outside CDMW.')
-        try:
-            findings.extend(check_package_dependencies(package, snapshot, external, changes, stop_event=stop_event))
-        except RunCancelled:
-            raise
-        except (ValueError, RuntimeError) as error:
-            findings.append(CompatibilityFinding('Conflict', (layer['label'],), '', str(error)))
-    # Compare in groups to report multiple independent file conflicts in one scan.
+    # Admit and compose the complete active graph once. File-by-file byte diffs
+    # cannot represent explicit source-equal assignments or disjoint row fields.
     output = {}
-    for paths in sorted({_group(path) for path in baseline}):
-        raise_if_cancelled(stop_event)
-        try:
-            current = foreign_underlay(external, {p: baseline.get(p) for p in paths}, snapshot, stop_event=stop_event)
-            for layer, changes in layers:
-                if layer['active']:
-                    selected = {p: changes[p] for p in paths if p in changes}
-                    current = merge_overlay_files({p: c['before'] for p, c in selected.items()},
-                                                  {p: c['after'] for p, c in selected.items()}, current)
-            output.update(current)
+    try:
+        findings.extend(_validate_composition_packages(root, {}, layers, snapshot, external,
+            stop_event=stop_event, on_log=on_log))
+        current = foreign_underlay(external, baseline, snapshot, stop_event=stop_event)
+        output, _ = overlays.compose_layer_payloads(layers, current, stop_event=stop_event, on_log=on_log)
+    except RunCancelled:
+        raise
+    except (ValueError, RuntimeError, KeyError, IndexError) as error:
+        labels = tuple(layer['label'] for layer, _ in layers if layer['active']) + external.labels(baseline)
+        findings.append(CompatibilityFinding('Conflict', tuple(dict.fromkeys(labels)), '', str(error)))
+    else:
+        for paths in sorted({_group(path) for path in baseline}):
+            raise_if_cancelled(stop_event)
             labels = external.labels(paths)
             if labels:
                 findings.append(CompatibilityFinding('Merge available', labels, paths[0],
                     'CDMW can preserve the external data and add the installed items in one shared output.'))
-        except RunCancelled:
-            raise
-        except (ValueError, RuntimeError, KeyError, IndexError) as error:
-            findings.append(CompatibilityFinding('Conflict', external.labels(paths), paths[0], str(error)))
     touched = set(baseline)
     dependency_paths = {row.path for row in findings if row.path}
     for path in sorted(external.paths - touched):
