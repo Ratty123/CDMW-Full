@@ -94,6 +94,39 @@ def test_virtual_disjoint_fields_compose_and_remove_without_game_writes(tmp_path
 
 
 @pytest.mark.parametrize('reverse', [False, True])
+@pytest.mark.parametrize('disabled', [False, True])
+def test_rebuild_installed_overlays_preserves_disjoint_field_intent(tmp_path, reverse, disabled):
+    from cdmw.services.archive_overlay_rebuild import prepare_overlay_rebuild
+    from cdmw.services.archive_overlay_manager import prepare_overlay_enabled
+
+    _, snapshot, _ = setup_game(tmp_path)
+    root, backups = tmp_path / 'game', Backups(tmp_path)
+    packages = [field_package(snapshot), field_package(snapshot, stat=True, value=13000)]
+    selected = packages[::-1] if reverse else packages
+    backups.apply(prepare_install([package_bytes(p) for p in selected], root).preparation)
+    registry = load_registry(root)
+    if disabled:
+        backups.apply(prepare_overlay_enabled(root, registry['items'][packages[0].identity]['layer'], False))
+    before = files_in(root)
+    prepared = prepare_overlay_rebuild(root)
+    assert files_in(root) == before
+    backups.apply(prepared)
+    if disabled:
+        row = snapshot_of(root).rows[1001295]
+        assert row.max_stack_count == snapshot.rows[1001295].max_stack_count
+        assert row.stat(0, DDD).value == 13000
+        backups.apply(prepare_overlay_enabled(root, registry['items'][packages[0].identity]['layer'], True))
+    row = snapshot_of(root).rows[1001295]
+    assert row.max_stack_count == 7 and row.stat(0, DDD).value == 13000
+    assert load_registry(root) == registry
+    assert prepare_install([package_bytes(p) for p in selected], root).preparation is None
+    backups.apply(prepare_remove(packages[0].identity, root))
+    row = snapshot_of(root).rows[1001295]
+    assert row.max_stack_count == snapshot.rows[1001295].max_stack_count
+    assert row.stat(0, DDD).value == 13000
+
+
+@pytest.mark.parametrize('reverse', [False, True])
 @pytest.mark.parametrize('route', ['batch', 'later', 'virtual'])
 def test_legacy_required_records_are_protected_independently_of_compile_order(tmp_path, reverse, route):
     service, snapshot, _ = setup_game(tmp_path)
@@ -302,7 +335,10 @@ def test_one_v2_package_executes_legacy_and_unrelated_field_modules(tmp_path, vi
         key = load_registry(root)['items'][original.identity]['values']['iteminfo']['item']
         assert virtual_row(root, key).key == key
     else:
-        Backups(tmp_path).apply(prepare_install([package_bytes(package)], root).preparation)
+        from cdmw.services.archive_overlay_rebuild import prepare_overlay_rebuild
+        backups = Backups(tmp_path)
+        backups.apply(prepare_install([package_bytes(package)], root).preparation)
+        backups.apply(prepare_overlay_rebuild(root))
         assert snapshot_of(root).rows[992000].max_stack_count == 13
         key = load_registry(root)['items'][original.identity]['values']['iteminfo']['item']
         assert key in snapshot_of(root).rows

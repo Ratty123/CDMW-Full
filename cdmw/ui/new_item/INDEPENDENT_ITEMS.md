@@ -170,7 +170,10 @@ Required v1/legacy records are collected across the complete active profile befo
 field composition. A later v2 module cannot bypass a v1 requirement, and installing
 that v1 package later also refuses the conflict. Untyped changes to the same
 target row remain incompatible. Removal recomposes from source plus the remaining
-active operations; it does not subtract bytes or replay inverse edits. These rules
+active operations; it does not subtract bytes or replay inverse edits. Rebuilding
+the installed overlay set retains each field operation against pristine rows,
+including disabled contributions, so re-enabling or removing one preserves the
+others. These rules
 are covered by synthetic physical, virtual, subprocess and transaction tests;
 gameplay and save behavior still need witnesses.
 

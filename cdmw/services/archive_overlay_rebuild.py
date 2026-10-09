@@ -7,6 +7,7 @@ from cdmw.core.archive_format import parse_archive_pamt
 from cdmw.core.mod_compatibility import game_identity
 from cdmw.core.papgt_format import parse_papgt, papgt_with_directory, serialize_papgt
 from cdmw.domain.archives.overlay_merge import OverlayConflict, legacy_texture_baseline, merge_overlay_files
+from cdmw.domain.archives.iteminfo_composition import prepare_fields, finish_fields
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.services import archive_overlay_manager as owner
 from cdmw.services.archive_overlay_install import OVERLAY_OWNER_MARKER, is_cdmw_overlay_directory
@@ -47,7 +48,7 @@ def prepare_overlay_rebuild(package_root, *, stop_event=None, on_log=None):
     if directory.exists() and any(path.name not in allowed for path in directory.iterdir()):
         raise OverlayConflict(f'Archive {name} contains unrecorded files. Rebuilding would hide their ownership.')
 
-    layers, baseline, old_current, stamps = [], {}, {}, {}
+    layers, baseline, stamps = [], {}, {}
     version = root / 'meta/0.paver'
     if version.is_file():
         stamps['meta/0.paver'] = owner._stamp(version)
@@ -59,11 +60,7 @@ def prepare_overlay_rebuild(package_root, *, stop_event=None, on_log=None):
         layers.append((layer, changes))
         for path, change in changes.items():
             baseline.setdefault(path, change['before'])
-    old_current.update(baseline)
-    for layer, changes in layers:
-        if layer['active']:
-            old_current = merge_overlay_files({p: c['before'] for p, c in changes.items()},
-                {p: c['after'] for p, c in changes.items()}, old_current)
+    old_current, _ = owner.compose_layer_payloads(layers, baseline, stop_event=stop_event)
 
     sources = {}
     state['sources'] = dict(package_sources)
@@ -112,12 +109,20 @@ def prepare_overlay_rebuild(package_root, *, stop_event=None, on_log=None):
         if on_log:
             on_log(f"Comparing owned changes: {layer['label']}…")
         before = {path: current[path] for path in changes}
+        fields = None
         if layer['active'] or layer.get('disabled'):
-            after = merge_overlay_files({p: c['before'] for p, c in changes.items()},
-                {p: c['after'] for p, c in changes.items()}, current)
+            # Rebase ordinary contributions first. Each typed journal retains its
+            # own operation against pristine rows; another owner's assignments
+            # must never become this layer's preconditions or whole-row edits.
+            normalized, fields = prepare_fields(((dict(layer, active=True), changes),), baseline,
+                                                 stop_event=stop_event)
+            ordinary = normalized.get(layer['id'], changes)
+            after = merge_overlay_files({p: c['before'] for p, c in ordinary.items()},
+                {p: c['after'] for p, c in ordinary.items()}, current)
         else:
             after = current  # Removed history remains visible only in the archived inventory.
-        rebased = {path: {**change, 'before': before[path], 'after': after[path]}
+        contribution = finish_fields(after, fields, stop_event=stop_event)
+        rebased = {path: {**change, 'before': before[path], 'after': contribution[path]}
                    for path, change in changes.items()}
         data = owner._pack_changes(rebased)
         layer['journal'] = '.cdmw/overlays/' + uuid4().hex + '.zip'
