@@ -11797,6 +11797,31 @@
       ]
     },
     {
+      "key": "Archive index check cancelled.",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_provenance.py",
+          "line": 29,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/new_item_provenance.py",
+          "line": 34,
+          "sink": "raise_if_cancelled"
+        }
+      ]
+    },
+    {
+      "key": "Archive index read cancelled.",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_provenance.py",
+          "line": 108,
+          "sink": "raise_if_cancelled"
+        }
+      ]
+    },
+    {
       "key": "Archive indexes loaded.",
       "origins": [
         {
@@ -20756,13 +20781,18 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 459,
+          "line": 474,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/panels_model_preview_mixin.py",
           "line": 277,
           "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/new_item/virtual_loader_page.py",
+          "line": 432,
+          "sink": "tr"
         }
       ]
     },
@@ -29581,22 +29611,17 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 514,
+          "line": 522,
           "sink": "CompatibilityFinding"
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 534,
-          "sink": "CompatibilityFinding"
-        },
-        {
-          "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 546,
+          "line": 541,
           "sink": "CompatibilityFinding"
         },
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 189,
+          "line": 190,
           "sink": "tr"
         },
         {
@@ -59982,6 +60007,16 @@
       ]
     },
     {
+      "key": "Invalid parsed archive index digest.",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_provenance.py",
+          "line": 97,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Invalid physics profile settings.",
       "origins": [
         {
@@ -86101,12 +86136,7 @@
         },
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 478,
-          "sink": "emit"
-        },
-        {
-          "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 489,
+          "line": 490,
           "sink": "emit"
         },
         {
@@ -87537,11 +87567,11 @@
       ]
     },
     {
-      "key": "Overlay change cancelled; restoring the backup.",
+      "key": "Overlay change cancelled.",
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 921,
+          "line": 948,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -126832,6 +126862,26 @@
       "manual": true
     },
     {
+      "key": "Source index changed since parsing: {value_0}.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 865,
+          "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
+      "key": "Source index has conflicting parsed revisions: {value_0}.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 860,
+          "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
       "key": "Source language",
       "origins": [
         {
@@ -136407,16 +136457,6 @@
         {
           "path": "cdmw/services/independent_item_compatibility.py",
           "line": 411,
-          "sink": "OverlayConflict"
-        }
-      ]
-    },
-    {
-      "key": "The retained independent package has changed outside CDMW.",
-      "origins": [
-        {
-          "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 508,
           "sink": "OverlayConflict"
         }
       ]

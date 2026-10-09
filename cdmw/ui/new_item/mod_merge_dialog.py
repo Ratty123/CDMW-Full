@@ -151,7 +151,7 @@ class ModMergeDialog(QDialog):
                                       and bool(self.destination.text().strip()))
         self.progress.setVisible(self._working)
 
-    def _run(self, task, completed, status):
+    def _run(self, task, completed, status, *, publishes_result=False):
         if self._closed:
             return
         generation = self._generation
@@ -169,7 +169,7 @@ class ModMergeDialog(QDialog):
                 self._plan = None
                 self.status.setText(str(message))
                 self._buttons()
-        if not self.controller._run("mod_merge", task, done, failed):
+        if not self.controller._run("mod_merge", task, done, failed, publishes_result=publishes_result):
             failed("Wait for the current operation to finish, then try again.")
 
     def _scan(self):
@@ -211,7 +211,7 @@ class ModMergeDialog(QDialog):
         if self._plan is None or self._plan.conflicts:
             return
         self._run(mod_merge_export_task(self._plan, self.destination.text().strip(), self.title.text()),
-                  self._exported, "Writing the combined mod...")
+                  self._exported, "Writing the combined mod...", publishes_result=True)
 
     def _exported(self, result):
         self._plan = None

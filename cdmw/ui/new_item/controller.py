@@ -160,6 +160,7 @@ class NewItemStudioController(
         self._worker: Optional[UtilityWorker] = None
         self._on_done: Optional[Callable[[object], None]] = None
         self._on_error: Optional[Callable[[str], None]] = None
+        self._on_cancel: Optional[Callable[[], None]] = None
         self._lane: str = ""
         self._cancel_requested_lane: str = ""
         self._shutdown_requested = False

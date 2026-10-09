@@ -142,7 +142,7 @@ class IndependentItemsPage(QWidget):
                 self.controller.cancel_operation('independent_items')
             self._buttons()
 
-    def _run(self, task, done, *, applying=False):
+    def _run(self, task, done, *, applying=False, publishes_result=False):
         if self._closed or self.controller.busy:
             return False
         generation, root = self._generation, self.package_root
@@ -167,7 +167,8 @@ class IndependentItemsPage(QWidget):
                 self.status.setText(str(message))
                 self.activity.emit(str(message))
                 self._buttons()
-        started = self.controller._run('independent_items', task, completed, failed)
+        started = self.controller._run('independent_items', task, completed, failed,
+                                       publishes_result=applying or publishes_result)
         if not started:
             self._working = self._applying = False
             self._buttons()
@@ -274,7 +275,7 @@ class IndependentItemsPage(QWidget):
             self._comparison = None
             self.status.setText(self.tr("Merged mod written:") + ' ' + str(result.package_root))
             self.comparison.appendPlainText(self.tr("Use the merged package instead of its source mods and the composed CDMW overlay. Keep the identity profile with your saves."))
-        self._run(task, completed)
+        self._run(task, completed, publishes_result=True)
 
     def _remove(self):
         item = self.items.currentItem()
@@ -337,7 +338,8 @@ class IndependentItemsPage(QWidget):
             if not path.lower().endswith('.cdprofile'):
                 path += '.cdprofile'
             self._run(lambda log, stop: export_profile(root, path, stop_event=stop),
-                      lambda result: self.status.setText(self.tr("Identity profile written:") + ' ' + str(result)))
+                      lambda result: self.status.setText(self.tr("Identity profile written:") + ' ' + str(result)),
+                      publishes_result=True)
 
     def _import_profile(self):
         path, _ = QFileDialog.getOpenFileName(self, self.tr("Import identity profile"), "", self.tr("Identity profile (*.cdprofile)"))

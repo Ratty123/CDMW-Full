@@ -124,8 +124,17 @@ in canonical content identity; no cryptographic authenticity claim is made.
 ZIP members are decoded and encoded in 1 MiB chunks with cancellation checks,
 including while validating an existing export and immediately before replacing
 it. ZIP CRC and declared resource lengths are checked. File exports write to a
-sibling temporary file, then recheck the previous artifact before replacement;
-cancellation, write failure or a changed destination preserves the existing file.
+sibling temporary file, then recheck the previous artifact before replacement.
+Cancellation observed by the final guard, write failure or a changed destination
+preserves the existing file. Replacement itself is noncancellable: once it succeeds,
+a late cancellation request cannot hide the completed export or its identity.
+The Studio consumes typed worker outcomes for completion, committed publication,
+cancellation and failure. Publishing callers explicitly opt into committed-result
+delivery; their services must return only after success and raise `RunCancelled`
+before commit. A cancellation request cannot replace a real error. Cancelled
+read-only preparation still disposes its unused result, and shutdown suppresses
+late UI callbacks. Legacy worker result/error signals remain available for other
+callers; consumers subscribe to either those signals or the typed outcome.
 Compression boundaries may change exact artifact bytes while preserving the
 canonical content and UUID; recorded artifact digests always describe actual bytes.
 File export avoids holding an additional complete compressed ZIP in memory.

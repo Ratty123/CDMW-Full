@@ -239,7 +239,7 @@ class VirtualLoaderPage(QWidget):
     def _sort_selection(self, index):
         self.selection.sortItems(1 if index == 2 else 0, Qt.DescendingOrder if index == 1 else Qt.AscendingOrder)
 
-    def _run(self, task, done, *, applying=False, with_progress=False):
+    def _run(self, task, done, *, applying=False, with_progress=False, publishes_result=False):
         if self._closed or self.controller.busy or not self.package_root:
             return False
         generation, root = self._generation, self.package_root
@@ -266,7 +266,15 @@ class VirtualLoaderPage(QWidget):
                 self.progress.hide()
                 self.activity.emit(str(message))
                 self._buttons()
-        started = self.controller._run('virtual_loader', task, completed, failed, task_accepts_progress=with_progress)
+        def cancelled():
+            self._working = self._applying = False
+            if not self._closed and generation == self._generation and root == self.package_root:
+                self._queued = None
+                self.status.setText(self.tr('Processing stopped by user.'))
+                self.progress.hide()
+                self._buttons()
+        started = self.controller._run('virtual_loader', task, completed, failed, task_accepts_progress=with_progress,
+                                       publishes_result=applying or publishes_result, on_cancel=cancelled)
         if not started:
             self._working = self._applying = False
             self.progress.hide()
@@ -408,7 +416,8 @@ class VirtualLoaderPage(QWidget):
                 if not self._closed and generation == self._generation and root == self.package_root:
                     self.status.setText(self.tr('Starting the virtual session…'))
                     self._run(lambda log, progress, stop: launch_experimental(
-                        review, confirmed=True, stop_event=stop, on_progress=progress), self._started, with_progress=True)
+                        review, confirmed=True, stop_event=stop, on_progress=progress), self._started,
+                        with_progress=True, publishes_result=True)
             if generation == self._generation and root == self.package_root and not self._closed:
                 self._queue(start)
         self._run(lambda log, progress, stop: prepare_experimental_launch(
@@ -417,11 +426,10 @@ class VirtualLoaderPage(QWidget):
     def _cancel(self):
         if not self._working or self._applying:
             return
-        self._generation += 1
         self._queued = None
         self.controller.cancel_operation('virtual_loader')
         self.progress.hide()
-        self.status.setText(self.tr('Processing stopped by user.'))
+        self.status.setText(self.tr('Cancelling…'))
 
     def _open_backups(self):
         from cdmw.services.virtual_loader_saves import BACKUP_PATH
@@ -482,7 +490,8 @@ class VirtualLoaderPage(QWidget):
             detail = self.tr('Start a diagnostic game session using original game files? Virtual items will not be active. Leave the game at its title screen without loading a save, then close it.')
             detail += '\n\n' + str(plan.executable) + '\nSHA-256: ' + plan.executable_sha256
             if QMessageBox.question(self, self.tr('Review startup trace…'), detail) == QMessageBox.Yes and generation == self._generation and not self._closed:
-                self._queued = lambda: self._run(lambda log, stop: start_diagnostic_trace(root, confirmed=True, expected_plan=plan, stop_event=stop), self._started)
+                self._queued = lambda: self._run(lambda log, stop: start_diagnostic_trace(root, confirmed=True, expected_plan=plan, stop_event=stop), self._started,
+                                                publishes_result=True)
                 QTimer.singleShot(0, self, self._resume)
         self._run(lambda log, stop: prepare_diagnostic_trace(root, stop_event=stop), done)
 

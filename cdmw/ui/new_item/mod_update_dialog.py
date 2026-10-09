@@ -145,7 +145,7 @@ class ModUpdateDialog(QDialog):
         if total > 0:
             self.progress.setValue(max(0, min(current, total)))
 
-    def _run(self, task, completed, message, *, task_accepts_progress=False):
+    def _run(self, task, completed, message, *, task_accepts_progress=False, publishes_result=False):
         if self._closed:
             return
         generation = self._generation
@@ -167,7 +167,8 @@ class ModUpdateDialog(QDialog):
                 self.status.setText(str(error))
             if not self._closed:
                 self._buttons()
-        if not self.controller._run("mod_update", task, done, failed, task_accepts_progress=task_accepts_progress):
+        if not self.controller._run("mod_update", task, done, failed, task_accepts_progress=task_accepts_progress,
+                                    publishes_result=publishes_result):
             failed("Wait for the current operation to finish, then try again.")
 
     def _scan(self):
@@ -212,7 +213,7 @@ class ModUpdateDialog(QDialog):
     def _export(self):
         if self._plan is not None and self._plan.can_update:
             self._run(mod_update_export_task(self._plan, self.destination.text(), self.title.text()),
-                      self._exported, "Writing the updated mod...")
+                      self._exported, "Writing the updated mod...", publishes_result=True)
 
     def _exported(self, result):
         self._plan = None

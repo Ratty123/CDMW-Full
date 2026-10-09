@@ -96,6 +96,53 @@ def test_close_during_save_backup_cancels_launch_review(tmp_path, monkeypatch, a
         page.close()
 
 
+@pytest.mark.parametrize('failure', [False, True])
+def test_late_cancel_keeps_launch_result_or_actual_failure(tmp_path, monkeypatch, failure):
+    from types import SimpleNamespace
+    from cdmw.services import virtual_loader_runtime as runtime
+    from cdmw.domain.virtual_loader import VirtualProfile
+    app = QApplication.instance() or QApplication([])
+    controller = NewItemStudioController()
+    page = VirtualLoaderPage(controller, tmp_path)
+    page._saved_selection = VirtualProfile()
+    entered, release = threading.Event(), threading.Event()
+    delivered = []
+    value = object()
+    monkeypatch.setattr(runtime, 'prepare_experimental_launch',
+                        lambda *args, **kwargs: SimpleNamespace(backup=SimpleNamespace(directory=tmp_path)))
+
+    def launch(*args, **kwargs):
+        entered.set()
+        assert release.wait(5)
+        if failure:
+            raise OSError('owned launch failure')
+        return value
+
+    def started(result):
+        delivered.append(result)
+        page.status.setText('Owned launch completed')
+
+    monkeypatch.setattr(runtime, 'launch_experimental', launch)
+    monkeypatch.setattr(page, '_started', started)
+    try:
+        page._prepare_launch()
+        pump(app, entered.is_set)
+        page._cancel()
+        assert page.status.text() == 'Cancelling…'
+        release.set()
+        pump(app, lambda: not controller.busy)
+        if failure:
+            assert delivered == [] and page.status.text() == 'owned launch failure'
+        else:
+            assert delivered == [value] and page.status.text() == 'Owned launch completed'
+        assert page._queued is None
+    finally:
+        release.set()
+        page.request_shutdown()
+        controller.shutdown()
+        page.close()
+
+
 def test_apply_click_projects_real_controls_saves_and_enables_launch(tmp_path, monkeypatch):
     from cdmw.services import virtual_loader_runtime as runtime
     from tests.test_virtual_loader_runtime import setup_fixture

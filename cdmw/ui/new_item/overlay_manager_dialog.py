@@ -321,7 +321,7 @@ class OverlayManagerDialog(QDialog):
                 self.status.setText(message)
                 self.activity.emit(str(message))
                 self._buttons()
-        if not self.controller._run('overlay_manager', task, completed, failed):
+        if not self.controller._run('overlay_manager', task, completed, failed, publishes_result=applying):
             failed('Wait for the current operation to finish, then refresh.')
 
     def refresh(self):

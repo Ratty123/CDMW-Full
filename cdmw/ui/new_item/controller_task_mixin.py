@@ -41,7 +41,7 @@ from cdmw.ui.new_item.state import MANAGERS, NewItemDraft, StatGrid, glow_choice
 from cdmw.workers.effect_catalogue_worker import EffectCatalogueIndexLane
 from cdmw.workers.new_item_cleanup_worker import ModelSourceCleanupLane
 from cdmw.workers.new_item_workers import export_task, install_overlay_task, install_task, overlay_migration_task, overlay_removal_task, plan_task, snapshot_task
-from cdmw.workers.utility_workers import UtilityWorker
+from cdmw.workers.utility_workers import UtilityTaskOutcome, UtilityWorker
 
 
 _PLAN_TASK = plan_task
@@ -316,7 +316,8 @@ class NewItemTaskControllerMixin:
         )
         task = export_task(self.plan, Path(package_root), service=self.service, manager=manager,
                            package_info=package_info, create_zip=create_zip, replace_existing=replace_existing)
-        return self._run("export", task, self.export_finished.emit, lambda message: self.status_message.emit(message, True))
+        return self._run("export", task, self.export_finished.emit,
+                         lambda message: self.status_message.emit(message, True), publishes_result=True)
 
     def start_independent_export(self, path, *, update=False) -> bool:
         if not self.independent_mode or not self.has_current_plan:
@@ -338,7 +339,8 @@ class NewItemTaskControllerMixin:
             if revision == self._draft_revision:
                 self.draft.independent_identity = result.identity
             self.export_finished.emit(result)
-        return self._run("export", task, done, lambda message: self.status_message.emit(message, True))
+        return self._run("export", task, done,
+                         lambda message: self.status_message.emit(message, True), publishes_result=True)
 
     def start_install(self, mutation_service) -> bool:
         """Compatibility entry point for callers predating overlay-only installation."""
@@ -357,19 +359,21 @@ class NewItemTaskControllerMixin:
             self.status_message.emit(message, True)
             self.install_failed.emit(message)
 
-        return self._run("install", task, self.install_finished.emit, failed)
+        return self._run("install", task, self.install_finished.emit, failed, publishes_result=True)
 
     def start_overlay_migration(self, mutation_service, package_root) -> bool:
         """Move what the shipped archives already carry into the overlay, off the UI thread."""
 
         task = overlay_migration_task(package_root, mutation_service=mutation_service)
-        return self._run("overlay", task, self.install_finished.emit, lambda message: self.status_message.emit(message, True))
+        return self._run("overlay", task, self.install_finished.emit,
+                         lambda message: self.status_message.emit(message, True), publishes_result=True)
 
     def start_overlay_removal(self, mutation_service, package_root) -> bool:
         """Unmount the overlay and delete it, off the UI thread."""
 
         task = overlay_removal_task(package_root, mutation_service=mutation_service)
-        return self._run("overlay", task, self.install_finished.emit, lambda message: self.status_message.emit(message, True))
+        return self._run("overlay", task, self.install_finished.emit,
+                         lambda message: self.status_message.emit(message, True), publishes_result=True)
 
     def _run(
         self,
@@ -379,6 +383,8 @@ class NewItemTaskControllerMixin:
         on_error: Callable[[str], None],
         *,
         task_accepts_progress: bool = False,
+        publishes_result: bool = False,
+        on_cancel: Optional[Callable[[], None]] = None,
         source_owners: tuple = (),
     ) -> bool:
         if self._shutdown_requested:
@@ -407,6 +413,12 @@ class NewItemTaskControllerMixin:
                     )
                 else:
                     result = task(self.log_message.emit, threading.Event())
+            except RunCancelled:
+                if on_cancel is not None:
+                    on_cancel()
+                else:
+                    self._task_cancelled()
+                return True
             except (NewItemPlanError, NewItemSnapshotError, NewItemInstallRefused, ValueError, RuntimeError, OSError) as exc:
                 on_error(str(exc))
                 return True
@@ -419,12 +431,14 @@ class NewItemTaskControllerMixin:
             task,
             task_accepts_progress=task_accepts_progress,
             task_accepts_cancel=True,
+            publishes_result=publishes_result,
         )
         thread = QThread(self)
         worker.moveToThread(thread)
         self._thread, self._worker, self._lane = thread, worker, lane
         self._task_source_leases = leases
         self._on_done, self._on_error = on_done, on_error
+        self._on_cancel = on_cancel
         self.busy_changed.emit(True)
         worker.log_message.connect(self.log_message.emit)
         worker.progress_changed.connect(self._task_progress)
@@ -433,8 +447,7 @@ class NewItemTaskControllerMixin:
         # slots (and everything they touch in Qt) ran off the UI thread for the whole of
         # an install. Connecting the controller's own methods gives a queued call back
         # onto the thread the controller lives on.
-        worker.completed.connect(self._task_completed)
-        worker.error.connect(self._task_failed)
+        worker.outcome.connect(self._task_outcome)
         worker.finished.connect(self._worker_finished, Qt.DirectConnection)
         thread.finished.connect(self._task_finished, Qt.QueuedConnection)
         thread.started.connect(worker.run)
@@ -461,7 +474,22 @@ class NewItemTaskControllerMixin:
         self.operation_progress.emit(self._lane, 0, 0, "Cancelling…")
         return True
 
-    def _task_completed(self, result: object) -> None:
+    def _task_outcome(self, outcome: UtilityTaskOutcome) -> None:
+        if outcome.kind == 'cancelled':
+            self._task_cancelled()
+        elif outcome.kind == 'failed':
+            self._task_failed(outcome.message)
+        else:
+            self._task_completed(outcome.value, committed=outcome.kind == 'committed')
+
+    def _task_cancelled(self) -> None:
+        if not self._shutdown_requested:
+            if self._on_cancel is not None:
+                self._on_cancel()
+            else:
+                self.status_message.emit("Operation cancelled.", False)
+
+    def _task_completed(self, result: object, *, committed: bool = False) -> None:
         if self._shutdown_requested:
             if isinstance(result, ModelImportSource):
                 self._cleanup_model_source(result)
@@ -470,14 +498,14 @@ class NewItemTaskControllerMixin:
                 if callable(cleanup):
                     self._model_cleanup_lane.retire(result)
             return
-        if self._cancel_requested_lane == self._lane:
+        if not committed and self._cancel_requested_lane == self._lane:
             if isinstance(result, ModelImportSource):
                 self._cleanup_model_source(result)
             else:
                 cleanup = getattr(result, "cleanup", None)
                 if callable(cleanup):
                     self._model_cleanup_lane.retire(result)
-            self.status_message.emit("Operation cancelled.", False)
+            self._task_cancelled()
             return
         handler = self._on_done
         if handler is not None:
@@ -487,9 +515,6 @@ class NewItemTaskControllerMixin:
         if self._shutdown_requested:
             return
         text = str(message)
-        if self._cancel_requested_lane == self._lane:
-            self.status_message.emit("Operation cancelled.", False)
-            return
         handler = self._on_error
         if handler is not None:
             handler(text)
@@ -515,6 +540,7 @@ class NewItemTaskControllerMixin:
         self._lane = ""
         self._on_done = None
         self._on_error = None
+        self._on_cancel = None
         for lease in self._task_source_leases:
             lease.release()
         self._task_source_leases = []
