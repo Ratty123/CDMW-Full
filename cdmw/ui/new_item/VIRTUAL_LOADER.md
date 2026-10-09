@@ -222,6 +222,47 @@ sharing. Captures use the existing 4 GiB/4,096-file save bounds and a 4 MiB repo
 bound. Atomic creation requires a filesystem that supports hard links; failure
 leaves the previous reports and input copies intact.
 
+### Save lineage inspection and policy
+
+Inspect an existing capture without reading a live save folder:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/capture_virtual_save_evidence.py lineage `
+  '<reports>/06-restored-loaded.json'
+```
+
+This prints `cdmw_virtual_save_lineage_inspection_v1`: selected file hashes/sizes,
+a deterministic observation identity, missing selected files and the lineage
+decision. Capture metadata cannot establish complete slot membership, a slot-layout
+adapter, producing process/context, save ancestry or requirements coverage. These
+remain unknown. A capture's `parent` links reports; it is never a parent-save
+identity. The existing capture/comparison formats are unchanged.
+
+`cdmw/domain/virtual_save_lineage.py` implements a data-only policy for a future
+trusted save-commit observer. It binds a witness to the exact selected files and
+layout, protocol/evidence hashes, writer PID/birth/image and active session. The
+observer must independently establish finalization, event completeness and absence
+of foreign writers or interruption. The model rejects structurally incomplete
+evidence before calling the supplied verifier. Creating a witness object or
+matching its checksums does not verify it. There is no production commit verifier,
+input command for witness claims or game save-protocol adapter yet.
+
+With independently verified evidence, the policy retains the complete producing
+context plus inherited requirements. Missing providers, changed package content,
+bindings or persistence contracts, changed build/runtime/compiler and unproven
+added providers refuse clearance. Restoring an inherited missing provider is not
+proof that an intervening save preserved its state. Unknown parent origin or
+requirements coverage survives a new managed write; matching unknown persistence
+schemas cannot pass. A verifier error also cannot produce clearance.
+
+`context-match` means only that the supplied verified lineage requirements and
+exact target context match. It does not certify loading, migration, gameplay or
+save safety. Every capture inspection currently reports unknown origin. No
+migration edge, conversion or launch gate is supplied by this model. The next
+evidence needed is an actual process/session-correlated slot-membership and
+save-finalization protocol witness, including gaps, second writers, cloud restores
+and interrupted writes. Hash changes across a game session alone are insufficient.
+
 ## Supported inputs
 
 | Input or operation | Current preparation support | Refusal boundary |

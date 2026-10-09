@@ -8,7 +8,7 @@ if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from cdmw.domain.virtual_save_evidence import STAGES, compare
-from cdmw.services.virtual_loader_save_evidence import capture, read_capture
+from cdmw.services.virtual_loader_save_evidence import capture, inspect_capture_lineage, read_capture
 
 
 def main():
@@ -26,10 +26,14 @@ def main():
     make.add_argument('--previous', type=Path, help='Previous stage capture, required after the baseline.')
     inspect = commands.add_parser('compare', help='Check one ordered capture sequence; cannot certify save compatibility.')
     inspect.add_argument('captures', type=Path, nargs='+')
+    lineage = commands.add_parser('lineage', help='Inspect a capture as unknown-origin evidence; does not authorize loading.')
+    lineage.add_argument('capture', type=Path)
     args = parser.parse_args()
     try:
         if args.command == 'compare':
             result = compare([read_capture(path) for path in args.captures])
+        elif args.command == 'lineage':
+            result = inspect_capture_lineage(read_capture(args.capture))
         else:
             value = capture(args.game_root, args.save_copy, args.output, stage=args.stage,
                 outcome=args.outcome, notes=args.notes, provider=args.provider, slots=args.slot, previous=args.previous)

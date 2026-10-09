@@ -24,6 +24,25 @@ def read_capture(path):
         return decode(reader.read(MAX_RECORD + 1))
 
 
+def inspect_capture_lineage(value):
+    """Inspect recorded copies only; capture links are not save ancestry."""
+    from dataclasses import asdict
+    from cdmw.domain.virtual_save_lineage import SaveSetSnapshot, assess_lineage
+
+    value = validate(value)
+    selected = {name: dict(value['files'][name]) for name in value['selected'] if name in value['files']}
+    snapshot = SaveSetSnapshot(tuple((name, row['size'], row['sha256']) for name, row in selected.items()))
+    # A current profile, operator outcome or capture parent cannot mint a commit
+    # witness, slot-layout adapter, complete requirements or producing context.
+    decision = assess_lineage(snapshot, target=None)
+    return {'format': 'cdmw_virtual_save_lineage_inspection_v1', 'capture_identity': value['identity'],
+            'observed_file_set': {'sha256': snapshot.identity, 'files': selected,
+                                  'missing_selected_files': sorted(set(value['selected']) - set(selected)),
+                                  'slot_layout_sha256': None, 'membership_complete': False},
+            'producer_witness': None, 'parent_save_set_sha256': None,
+            'requirements_coverage': 'unknown', 'decision': asdict(decision), 'claims': dict(CLAIMS)}
+
+
 def _context(root, provider, stop_event):
     from cdmw.services.archive_overlay_manager import _load_index
     from cdmw.services.independent_item_install import load_registry

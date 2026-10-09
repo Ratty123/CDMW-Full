@@ -248,6 +248,42 @@ def test_report_publication_failure_leaves_no_partial_output(inputs, tmp_path, m
     assert (files_in(inputs[0]), files_in(inputs[2])) == before
 
 
+def test_lineage_command_does_not_promote_captures_or_capture_parents_to_save_origin(inputs, tmp_path):
+    values, paths = sequence(inputs, tmp_path)
+    root, _, copy, _ = inputs
+    before = files_in(root), files_in(copy), [path.read_bytes() for path in paths]
+    assert values[-1]['parent'] is not None
+    expected = evidence.inspect_capture_lineage(values[-1])
+    assert expected['claims'] == CLAIMS
+    assert expected['producer_witness'] is None and expected['parent_save_set_sha256'] is None
+    assert expected['requirements_coverage'] == 'unknown'
+    assert expected['decision']['status'] == 'unknown'
+    assert expected['observed_file_set']['membership_complete'] is False
+    assert expected['observed_file_set']['slot_layout_sha256'] is None
+    assert not expected['observed_file_set']['missing_selected_files']
+    assert expected['observed_file_set']['sha256'] == evidence.inspect_capture_lineage(values[-2])['observed_file_set']['sha256']
+    assert expected['observed_file_set']['sha256'] != evidence.inspect_capture_lineage(values[0])['observed_file_set']['sha256']
+    run = subprocess.run([sys.executable, 'scripts/capture_virtual_save_evidence.py', 'lineage', str(paths[-1])],
+                         cwd=Path(__file__).resolve().parents[1], capture_output=True, text=True, timeout=30,
+                         creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+    assert run.returncode == 0, run.stderr
+    # JSON represents tuple reasons as arrays; compare the complete rendered report.
+    assert json.loads(run.stdout) == json.loads(json.dumps(expected))
+    assert (files_in(root), files_in(copy), [path.read_bytes() for path in paths]) == before
+
+
+def test_lineage_inspection_names_missing_selected_files_and_keeps_origin_unknown(inputs, tmp_path):
+    values, _ = sequence(inputs, tmp_path)
+    values[-1]['files'] = {}
+    final = reseal_chain(values)[-1]
+    report = evidence.inspect_capture_lineage(final)
+    assert report['observed_file_set']['files'] == {}
+    assert report['observed_file_set']['missing_selected_files'] == sorted(final['selected'])
+    assert report['decision']['status'] == 'unknown'
+    assert 'empty-save-set' in report['decision']['reasons']
+    assert report['claims'] == CLAIMS
+
+
 def test_linked_copy_refuses_before_reading_its_files(inputs, tmp_path, monkeypatch):
     root, _, copy, _ = inputs
     linked = tmp_path / 'linked-copy'
