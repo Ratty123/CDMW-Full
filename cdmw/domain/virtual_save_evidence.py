@@ -182,6 +182,10 @@ def compare(captures):
         check('restore-new-save-input', chosen(values[4]) == chosen(values[3])
               and chosen(values[4]) != chosen(first),
               'The restored-provider load starts with the newly written copy, not the original recovery save.')
+    if len(values) > 5:
+        check('restored-load-no-save', chosen(values[5]) == chosen(values[4]),
+              'The selected save bytes stayed unchanged during the restored-provider load-only case. '
+              'Different bytes, including possible autosaves, leave this sequence inconsistent and unverified.')
     for index in (2, 3):
         if len(values) > index:
             check(STAGES[index] + ':same-absent-context',

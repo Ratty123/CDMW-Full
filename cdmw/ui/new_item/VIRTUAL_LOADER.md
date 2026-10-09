@@ -194,8 +194,12 @@ outcome should be recorded as such. Compare the captures in their recorded order
 
 A prefix of that sequence reports incomplete work. Comparison flags reordered or
 changed captures, missing selected files, a provider still active physically,
-changed bindings or environment, changes during the load-only case, and reuse of
-the original recovery save for the restored-provider case. A changed generation
+changed bindings or environment, changes during either load-only case, and reuse
+of the original recovery save before or after the restored-provider load. The
+final selected bytes must match the immediate `restored_before_load` input.
+Changed bytes, including a possible autosave, make this load-only sequence
+`inconsistent`; record the observation but do not promote it to a compatible
+save result. A changed generation
 alone is allowed when package content, bindings, source contracts and prepared
 output match. Hashes are checked twice around capture to detect changed input;
 links/junctions, oversized inputs and interrupted report publication refuse.

@@ -106,6 +106,8 @@ def test_complete_fixture_sequence_stays_operator_reported_and_cli_agrees(inputs
     ('original-restored', 'restore-new-save-input'),
     ('no-new-save', 'new-absent-save'),
     ('load-wrote-save', 'absent-load-no-save'),
+    ('original-after-restored-load', 'restored-load-no-save'),
+    ('restored-load-wrote-save', 'restored-load-no-save'),
     ('changed-binding', 'restored_before_load:bindings'),
     ('provider-still-active', 'absent_before_load:provider'),
     ('changed-executable', 'restored_loaded:environment'),
@@ -118,6 +120,11 @@ def test_comparison_finds_wrong_save_or_context_without_claiming_safety(inputs, 
         values[3]['files'] = values[1]['files']
     elif change == 'load-wrote-save':
         values[2]['files'] = values[3]['files']
+    elif change == 'original-after-restored-load':
+        values[5]['files'] = values[0]['files']
+    elif change == 'restored-load-wrote-save':
+        values[5]['files'] = deepcopy(values[4]['files'])
+        values[5]['files'][values[5]['selected'][0]]['sha256'] = 'd' * 64
     elif change == 'changed-binding':
         values[4]['context']['provider_binding']['binding_hash'] = 'b' * 64
     elif change == 'provider-still-active':
