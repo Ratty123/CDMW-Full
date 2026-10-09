@@ -121,6 +121,12 @@ identities. ZIP generation fixes timestamps and host attributes for reproducible
 artifacts. File reads hash before and after parsing to catch changed content even
 when length and modification time are unchanged. Optional metadata is included
 in canonical content identity; no cryptographic authenticity claim is made.
+ZIP members are decoded and encoded in 1 MiB chunks with cancellation checks,
+including after the final read/write. ZIP CRC verification remains mandatory.
+Compression boundaries may change exact artifact bytes while preserving the
+canonical content and UUID; recorded artifact digests always describe actual bytes.
+Member contents are still retained in memory for validation and compilation;
+chunked I/O does not make the full pipeline use constant memory.
 
 Physical contributions and complete virtual profiles carry a checksummed
 compilation record. It links compiler and adapter revisions, package content and

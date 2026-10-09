@@ -178,21 +178,24 @@ def test_same_size_same_mtime_source_change_cannot_claim_an_artifact_identity(tm
     path = tmp_path / 'item.cditem'
     path.write_bytes(packed(migrate_v1(original).manifest, original.blobs, comment=b'first!'))
     stamp = path.stat()
-    original_read = zipfile.ZipFile.read
+    original_read = zipfile.ZipExtFile.read
+    changed = False
 
-    def change_after_read(archive, name, *args, **kwargs):
-        result = original_read(archive, name, *args, **kwargs)
-        if name == 'item.json':
+    def change_after_read(member, *args, **kwargs):
+        nonlocal changed
+        result = original_read(member, *args, **kwargs)
+        if member.name == 'item.json' and not changed:
             with path.open('r+b') as file:
                 file.seek(-6, 2)
                 file.write(b'second')
             os.utime(path, ns=(stamp.st_atime_ns, stamp.st_mtime_ns))
+            changed = True
         return result
 
-    monkeypatch.setattr(zipfile.ZipFile, 'read', change_after_read)
+    monkeypatch.setattr(zipfile.ZipExtFile, 'read', change_after_read)
     with pytest.raises(IndependentItemError, match='changed while it was being read'):
         read_package(path)
-    assert path.stat().st_size == stamp.st_size and path.stat().st_mtime_ns == stamp.st_mtime_ns
+    assert changed and path.stat().st_size == stamp.st_size and path.stat().st_mtime_ns == stamp.st_mtime_ns
 
 
 @pytest.mark.parametrize('target', ['compiler', 'features', 'allocations', 'sources', 'order', 'runtime', 'outputs', 'artifact'])

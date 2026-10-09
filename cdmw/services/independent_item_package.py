@@ -19,6 +19,7 @@ MAX_MANIFEST = 4 * 1024 * 1024
 MAX_BLOB = 256 * 1024 * 1024
 MAX_TOTAL = 1024 * 1024 * 1024
 MAX_FILES = 4096
+_ZIP_CHUNK_BYTES = 1024 * 1024
 _HASH = re.compile(r"[0-9a-f]{64}\Z")
 
 
@@ -272,13 +273,34 @@ def package_bytes(package, *, stop_event=None):
             info.create_system = 3
             info.external_attr = 0o600 << 16
             info.compress_type = zipfile.ZIP_DEFLATED
-            archive.writestr(info, payload)
+            info.file_size = len(payload)
+            with archive.open(info, 'w') as writer:
+                view = memoryview(payload)
+                for offset in range(0, len(view), _ZIP_CHUNK_BYTES):
+                    raise_if_cancelled(stop_event, 'Item package export cancelled.')
+                    writer.write(view[offset:offset + _ZIP_CHUNK_BYTES])
+                raise_if_cancelled(stop_event, 'Item package export cancelled.')
         member("item.json", data)
         for key, payload in sorted(package.blobs.items()):
             raise_if_cancelled(stop_event, "Item package export cancelled.")
             member("assets/" + key, payload)
     raise_if_cancelled(stop_event, "Item package export cancelled.")
     return stream.getvalue()
+
+
+def _read_member(archive, member, stop_event):
+    # Package members stay bounded by the validated directory above. Chunked
+    # decoding adds cooperative cancellation without dropping ZIP CRC checks.
+    result = io.BytesIO()
+    with archive.open(member, 'r') as reader:
+        while True:
+            raise_if_cancelled(stop_event)
+            chunk = reader.read(_ZIP_CHUNK_BYTES)
+            raise_if_cancelled(stop_event)
+            if not chunk:
+                break
+            result.write(chunk)
+    return result.getvalue()
 
 
 def read_package(source, *, stop_event=None):
@@ -330,12 +352,12 @@ def read_package(source, *, stop_event=None):
                         raise IndependentItemError("Duplicate package metadata key.")
                     result[key] = value
                 return result
-            meta = json.loads(archive.read("item.json"), object_pairs_hook=unique)
+            meta = json.loads(_read_member(archive, 'item.json', stop_event), object_pairs_hook=unique)
             blobs = {}
             for info in infos:
                 raise_if_cancelled(stop_event)
                 if info.filename != "item.json":
-                    blobs[info.filename[7:]] = archive.read(info)
+                    blobs[info.filename[7:]] = _read_member(archive, info, stop_event)
         if not immutable and artifact_hash() != artifact:
             raise IndependentItemError('The package changed while it was being read.')
         return replace(_package(meta, blobs), artifact_digest=artifact)
