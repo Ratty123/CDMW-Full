@@ -342,6 +342,10 @@ the existing overlay mutation transaction. Review includes the exact game folder
 and affected files. The game must be closed and the existing backup verification,
 stale-source checks and rollback must succeed. A failed/cancelled preparation
 writes nothing; publication failure rolls back the transaction.
+Large rebuilds release completed composition data before collecting the original
+destination bytes. Backup, stale-file, staged-output and rollback verification
+compare complete files through a reusable buffer of at most 1 MiB. Original bytes
+are still retained for review and recovery; this does not bound total archive memory.
 Ordinary and independent overlay operations pin the initial ownership inventory,
 identity ledger (including its absence), mount list and texture registry. Changes
 during preparation, review or backup require a new preparation before publication.
@@ -463,7 +467,10 @@ Imported-texture cases use complete 4096×4096 BC3 data and a small synthetic me
 with identical or distinct pixels across packages; these cases accept at most
 eight packages. The report includes compiled file hashes for before/after checks.
 Peak memory includes fixture setup, which is also recorded separately. Authoring
-payloads and completed preparations are released before subsequent jobs. Storage
+payloads and completed preparations are released before subsequent jobs. The
+owned backup fixture uses bounded disk copies followed by production verification;
+it does not retain the general test helper's extra assertion snapshots. The full
+backup service and UI are outside this measurement. Storage
 measurements identify repeated full-file content by size and SHA-256; those totals
 describe logical file bytes, not filesystem allocation or permission to delete
 recovery data. Neither storage measurement nor memory sharing changes retention.

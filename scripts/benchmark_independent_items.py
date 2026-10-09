@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -98,6 +99,26 @@ def run_case(route, kind, count, generations):
     from tests.test_independent_package_links import linked
     from tests.test_virtual_loader import game_bytes
 
+    class BenchmarkBackups(Backups):
+        def backup_files(self, paths, *, description='', on_log=None):
+            # The general test helper returns in-memory copies for assertions.
+            # A timing fixture needs verified disk copies, without that extra set.
+            directory = self.root / f'backup-{self.count}'
+            self.count += 1
+            directory.mkdir()
+            files = []
+            for index, path in enumerate(paths):
+                path = Path(path).resolve()
+                if not path.is_relative_to(self.root.resolve()) or not path.is_file():
+                    raise AssertionError('Backup input is outside the owned fixture.')
+                saved = directory / f'{index:03d}-{path.name}'
+                with path.open('rb') as source, saved.open('xb') as output:
+                    shutil.copyfileobj(source, output, length=1024 * 1024)
+                files.append({'original_path': str(path), 'backup_path': str(saved.resolve())})
+            (directory / 'backup_manifest.json').write_text(
+                json.dumps({'description': description, 'files': files}), encoding='utf-8')
+            return directory
+
     result = {'route': route, 'kind': kind, 'packages': count, 'generations_requested': generations,
               'baseline_peak_resident_bytes': peak_resident_bytes(), 'runs': []}
     with tempfile.TemporaryDirectory(prefix='cdmw-scale-') as directory:
@@ -142,7 +163,7 @@ def run_case(route, kind, count, generations):
         # The preparation worker reads its source files; benchmark setup must not
         # keep a second, unrelated set of authoring payloads live through that work.
         del packages, package, plan, icon
-        backups = Backups(base)
+        backups = BenchmarkBackups(base)
         try:
             for generation in range(generations):
                 started = perf_counter()
@@ -238,7 +259,7 @@ def main():
               'revision': git('rev-parse', 'HEAD'), 'dirty': bool(git('status', '--porcelain')),
               'python': sys.version, 'platform': sys.platform,
               'scope': 'Synthetic equipment recipes. Icon cases add complete 256x256 BC3 DDS data. Imported-texture cases use one 4096x4096 BC3 DDS per package, with shared or distinct deterministic incompressible pixels. '
-                       'Each case runs in a fresh process; peak includes setup, separately recorded before authoring payloads are released. Completed preparations are released between generations. '
+                       'Each case runs in a fresh process; peak includes setup, separately recorded before authoring payloads are released. Completed preparations are released between generations. Backup fixture copies use bounded I/O without retaining assertion snapshots. '
                        'Storage counts logical file bytes and equal full-file content, not allocated disk blocks or safe deletion candidates. No licensed data, real game, native build, large mesh, 1-GiB capacity or worst-case cancellation proof.',
               'cases': []}
     for route in args.routes:

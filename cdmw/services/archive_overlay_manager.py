@@ -684,6 +684,9 @@ def _compose(root, state, pending, label, removed_id, stop_event, on_log, *, dec
     writes[INDEX_PATH] = (json.dumps(state, ensure_ascii=False, separators=(',', ':')) + '\n').encode('utf-8')
     _check_inventory_capacity(writes[INDEX_PATH])
     paths = tuple(sorted(e.path for e in archive))
+    # Composition is complete. Release decoded history before retaining the
+    # original destination bytes needed for review, drift checks and rollback.
+    del layers, baseline, current, archive
     before = tuple((path, _target(root, path).read_bytes() if _target(root, path).is_file() else None) for path in dict.fromkeys((*writes, *deletes)))
     return OverlayChangePreparation(root, name, label, removed_id, tuple(layer['label'] for layer in active),
         tuple(writes.items()), tuple(deletes), before, tuple((p, tuple(s)) for p, s in state['sources'].items()), paths,
@@ -798,6 +801,23 @@ def prepare_overlay_enabled(package_root, overlay_id, enabled, *, stop_event=Non
                    action='enable' if enabled else 'disable')
 
 
+def _file_matches_bytes(path, expected):
+    """Exact comparison with bounded temporary reads, including empty/absent files."""
+    if expected is None:
+        return not path.exists()
+    if not path.is_file():
+        return False
+    offset, view = 0, memoryview(expected)
+    # A one-byte buffer still detects unexpected content for an empty expected file.
+    chunk = bytearray(min(1024 * 1024, len(expected) + 1))
+    with path.open('rb') as source:
+        while size := source.readinto(chunk):
+            if (chunk if size == len(chunk) else chunk[:size]) != view[offset:offset + size]:
+                return False
+            offset += size
+    return offset == len(expected)
+
+
 def _verify_backup(backup_dir, expected):
     manifest = Path(backup_dir) / 'backup_manifest.json'
     if not manifest.is_file() or manifest.stat().st_size > _MAX_STATE_BYTES:
@@ -809,7 +829,7 @@ def _verify_backup(backup_dir, expected):
         if Path(backup_dir).resolve() not in kept.parents or not kept.is_file() or original in files:
             raise ValueError('The overlay backup contains an invalid file entry.')
         files[original] = kept
-    if set(files) != set(expected) or any(files[path].read_bytes() != payload for path, payload in expected.items()):
+    if set(files) != set(expected) or any(not _file_matches_bytes(files[path], payload) for path, payload in expected.items()):
         raise ValueError('The overlay backup did not preserve every confirmed original file.')
 
 
@@ -884,8 +904,7 @@ def apply_overlay_change(preparation, *, confirmed, backup, restore_backup, game
     _verify_observed_state(root, preparation.observed_state, 'after preparation')
     for relative, expected in preparation.before:
         path = _target(root, relative)
-        actual = path.read_bytes() if path.is_file() else None
-        if actual != expected or (expected is None and path.exists()):
+        if not _file_matches_bytes(path, expected):
             raise OverlayConflict(f'{relative} changed after preparation. Refresh and prepare again.')
         if expected is not None:
             originals[path] = expected
@@ -903,8 +922,7 @@ def apply_overlay_change(preparation, *, confirmed, backup, restore_backup, game
     _verify_observed_state(root, preparation.observed_state, 'after preparation')
     for relative, expected in preparation.before:
         path = _target(root, relative)
-        actual = path.read_bytes() if path.is_file() else None
-        if actual != expected or (expected is None and path.exists()):
+        if not _file_matches_bytes(path, expected):
             raise OverlayConflict(f'{relative} changed after preparation. Refresh and prepare again.')
     for relative, expected in preparation.source_stamps:
         path = _target(root, relative)
@@ -920,7 +938,7 @@ def apply_overlay_change(preparation, *, confirmed, backup, restore_backup, game
                 continue
             raise_if_cancelled(stop_event, 'Overlay change cancelled; restoring the backup.')
             atomic_write_bytes(_target(root, relative), payload)
-            if _target(root, relative).read_bytes() != payload:
+            if not _file_matches_bytes(_target(root, relative), payload):
                 raise RuntimeError(f'Staged overlay bytes differ from the preparation: {relative}')
         # Validate the staged archive through the actual index reader before
         # publishing the mount list. No cancellation inside final publication.
@@ -943,7 +961,7 @@ def apply_overlay_change(preparation, *, confirmed, backup, restore_backup, game
                 if previous is None:
                     _target(root, relative).unlink(missing_ok=True)
             for path, expected in originals.items():
-                if not path.is_file() or path.read_bytes() != expected:
+                if not _file_matches_bytes(path, expected):
                     raise RuntimeError(f'Rollback did not restore {path.name}.')
         except Exception as rollback_error:
             raise RuntimeError(f'Overlay change failed; recovery requires backup {backup_dir}: {rollback_error}') from error
