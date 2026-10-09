@@ -155,6 +155,23 @@ individual contributions; virtual records describe the complete prepared view.
 Unknown/malformed records refuse, and missing current records require rebuilding.
 These records are provenance, not proof that the game accepts the result.
 
+Physical inventory `cdmw_owned_overlays_v2` stores common allocation, ordering and
+resolved-link inputs once in `compilation_contexts`, keyed by their canonical
+SHA-256. Each contribution retains its own package, source, compiler and output
+evidence in a `cdmw_compilation_reference_v1` record. Readers verify the context
+digest and reconstruct the original logical compilation to check its identity.
+Missing contexts, altered content, ambiguous duplicate JSON keys and mismatched
+ownership bindings refuse.
+
+Legacy inline inventories remain readable. Their stored records are converted
+only as part of a reviewed overlay publication, with the existing backup and
+rollback flow. This preserves their original compiler stamps and logical
+compilation identities; old results still require an explicit rebuild when their
+compiler differs. Older CDMW versions cannot read the new physical inventory.
+The `.cditem` package, identity-profile and virtual-profile formats are unchanged.
+Contexts needed by retained contributions are kept, and byte-identical contexts
+can be reused across rebuilds without discarding history.
+
 ## Package dependencies and exported objects
 
 The required `package.links@1` capability and one matching required module add
@@ -476,8 +493,8 @@ before journal decoding, then the projected final size is checked before payload
 compression and archive construction. Exact serialization is still checked before
 returning a preparation and again before backup/publication. Refusal reports the
 required minimum and byte limit; a refused rebuild leaves the prior installation
-readable. Package count alone cannot predict capacity because contributions repeat
-their compilation context and retained history grows. Retired layers, journals and
+readable. Package count alone cannot predict capacity: distinct shared contexts
+and each contribution's own evidence still consume space. Retired layers, journals and
 bindings still accumulate. Virtual generations and save/recovery backups are
 also retained; there is no automatic history deletion or shared on-disk blob store.
 Storage growth and reusable content should be measured before changing retention

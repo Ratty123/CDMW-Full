@@ -112,8 +112,10 @@ def test_physical_v2_migration_preserves_bindings_output_rebuild_and_removal(tmp
     assert migrated['values'] == before['values']
     assert migrated['binding_hash'] == before['binding_hash']
     assert game_bytes(root) == game_before
-    layer = next(layer for layer in overlays._load_index(root)['layers'] if layer['active'])
-    inputs = layer['independent_compilation']['inputs']
+    from cdmw.domain.new_item.compilation_storage import read_compilation
+    state = overlays._load_index(root)
+    layer = next(layer for layer in state['layers'] if layer['active'])
+    inputs = read_compilation(layer['independent_compilation'], state['compilation_contexts'])['inputs']
     assert inputs['packages'][0]['content'] == migrate_v1(original).digest
     assert inputs['packages'][0]['artifact'] == digest((root / f'.cdmw/independent-items/{original.identity}-{migrate_v1(original).digest}.cditem').read_bytes())
     assert inputs['allocations'][original.identity] == before['binding_hash']

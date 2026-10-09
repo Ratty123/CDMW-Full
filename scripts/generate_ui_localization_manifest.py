@@ -69,6 +69,8 @@ MANUAL_SOURCE_KEYS = frozenset(
         "Owned physics has no unambiguous template mesh binding.",
         "Independent packages can only copy unchanged template physics.",
         "Copied template physics requires unchanged mesh geometry and skin/cloth bindings. Disable template physics for a replacement model.",
+        # Physical inventory errors forwarded from the pure compilation-storage codec.
+        "Invalid or missing shared compilation context. Restore the matching overlay inventory.",
         # Custom virtual-save errors surface through the worker error callback.
         "The game save folder could not be found. Start the game normally and create a save first.",
         "Save backups do not support linked folders or files.",

@@ -17,7 +17,8 @@ from cdmw.core.stringinfo_table import stringinfo_key
 from cdmw.domain.archives.overlay_merge import _table
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.new_item.allocation import DEFAULT_ITEM_KEY_RANGE
-from cdmw.domain.new_item.compilation import compiler_stamp, validate_compiler_stamp, validate_compilation
+from cdmw.domain.new_item.compilation import compiler_stamp, validate_compiler_stamp
+from cdmw.domain.new_item.compilation_storage import read_compilation
 from cdmw.services.independent_mod_package import has_legacy_item, package_operations
 from cdmw.domain.new_item.independent import IdentityBindings, IndependentItemError, IndependentItemInstallPlan, package_id
 from cdmw.domain.new_item.rules import has_errors
@@ -116,7 +117,7 @@ def load_registry(root):
             if 'independent_compiler' in layer:
                 validate_compiler_stamp(layer['independent_compiler'])
             if 'independent_compilation' in layer:
-                inputs = validate_compilation(layer['independent_compilation'])
+                inputs = read_compilation(layer['independent_compilation'], state.get('compilation_contexts'))['inputs']
                 locked = inputs['packages']
                 if (inputs['scope'] != 'archive-contribution' or len(locked) != 1
                         or locked[0]['identity'] != identity or locked[0]['content'] != layer.get('independent_digest')

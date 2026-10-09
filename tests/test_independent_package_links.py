@@ -61,8 +61,10 @@ def test_exact_typed_references_bind_in_both_orders_and_routes(tmp_path, virtual
         lock = load_profile(root)['compilation']
     else:
         backups.apply(prepare_install([package_bytes(p) for p in selected], root).preparation)
-        layer = next(row for row in overlays._load_index(root)['layers'] if row['independent_identity'] == consumer.identity)
-        lock = layer['independent_compilation']
+        from cdmw.domain.new_item.compilation_storage import read_compilation
+        state = overlays._load_index(root)
+        layer = next(row for row in state['layers'] if row['independent_identity'] == consumer.identity)
+        lock = read_compilation(layer['independent_compilation'], state['compilation_contexts'])
     assert lock['format'] == 'cdmw_compilation_v2'
     graph = validate_link_record(lock['inputs']['links'])
     assert graph['order'] == [provider.identity, consumer.identity]

@@ -38717,6 +38717,16 @@
       ]
     },
     {
+      "key": "Duplicate overlay inventory key.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 120,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Duplicate part",
       "origins": [
         {
@@ -59925,6 +59935,11 @@
           "sink": "RuntimeError"
         }
       ]
+    },
+    {
+      "key": "Invalid or missing shared compilation context. Restore the matching overlay inventory.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Invalid or repeated overlay journal path.",
@@ -87651,17 +87666,22 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 619,
+          "line": 65,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 633,
+          "line": 653,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 643,
+          "line": 667,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 678,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -122063,6 +122083,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
           "line": 1166,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Shared compilation contexts require the supported overlay inventory version.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 132,
+          "sink": "ValueError"
         }
       ]
     },

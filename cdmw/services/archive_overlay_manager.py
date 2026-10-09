@@ -33,6 +33,7 @@ from cdmw.services.archive_overlay_install import (
 
 INDEX_PATH = '.cdmw/overlays.json'
 _FORMAT = 'cdmw_owned_overlays_v1'
+_FORMAT_WITH_CONTEXTS = 'cdmw_owned_overlays_v2'
 _JOURNAL_FORMAT = 'cdmw_overlay_changes_v1'
 _MAX_STATE_BYTES = 4 * 1024 * 1024
 _MAX_JOURNAL_BYTES = 2 * 1024 * 1024 * 1024
@@ -55,6 +56,23 @@ def _check_inventory_capacity(data):
     if len(data) > _MAX_STATE_BYTES:
         raise OverlayConflict(f'The composed overlay history exceeds the supported size '
                               f'(at least {len(data):,} bytes; limit {_MAX_STATE_BYTES:,} bytes); this change cannot be published.')
+
+
+def _share_compilation_contexts(state, stop_event):
+    from cdmw.domain.new_item.compilation_storage import REFERENCE_FORMAT, read_compilation, store_compilation
+    contexts = dict(state.get('compilation_contexts', {}))
+    for layer in state['layers']:
+        raise_if_cancelled(stop_event, 'Overlay composition cancelled.')
+        if 'independent_compilation' not in layer:
+            continue
+        record = layer['independent_compilation']
+        if isinstance(record, dict) and record.get('format') == REFERENCE_FORMAT:
+            read_compilation(record, contexts)
+        else:
+            layer['independent_compilation'] = store_compilation(record, contexts)
+    if contexts or state['format'] == _FORMAT_WITH_CONTEXTS:
+        state['format'] = _FORMAT_WITH_CONTEXTS
+        state['compilation_contexts'] = contexts
 
 
 def _relative(raw):
@@ -95,9 +113,23 @@ def _load_index(root):
         return None
     if path.stat().st_size > _MAX_STATE_BYTES:
         raise ValueError('The overlay inventory is too large to read safely.')
-    state = json.loads(path.read_text(encoding='utf-8'))
-    if not isinstance(state, dict) or state.get('format') != _FORMAT or not isinstance(state.get('layers'), list):
+    def unique(pairs):
+        value = {}
+        for key, item in pairs:
+            if key in value:
+                raise ValueError('Duplicate overlay inventory key.')
+            value[key] = item
+        return value
+    state = json.loads(path.read_text(encoding='utf-8'), object_pairs_hook=unique)
+    if (not isinstance(state, dict) or state.get('format') not in (_FORMAT, _FORMAT_WITH_CONTEXTS)
+            or not isinstance(state.get('layers'), list)):
         raise ValueError('Unsupported overlay inventory. Restore its backup before changing overlays.')
+    from cdmw.domain.new_item.compilation_storage import read_compilation, validate_contexts
+    contexts = None
+    if state['format'] == _FORMAT_WITH_CONTEXTS:
+        contexts = validate_contexts(state.get('compilation_contexts'))
+    elif 'compilation_contexts' in state:
+        raise ValueError('Shared compilation contexts require the supported overlay inventory version.')
     _directory(state.get('directory'))
     ids = set()
     for layer in state['layers']:
@@ -114,6 +146,8 @@ def _load_index(root):
             raise ValueError('Invalid owned item identity in the inventory.')
         if not isinstance(layer.get('dependencies'), list) or any(not isinstance(d, str) for d in layer['dependencies']):
             raise ValueError('Invalid overlay dependency list.')
+        if 'independent_compilation' in layer:
+            read_compilation(layer['independent_compilation'], contexts)
     if any(set(layer['dependencies']) - ids for layer in state['layers']):
         raise ValueError('An overlay dependency is missing from the inventory.')
     return state
@@ -631,6 +665,7 @@ def compose_layer_payloads(layers, baseline, *, stop_event=None, on_log=None):
 
 def _compose(root, state, pending, label, removed_id, stop_event, on_log, *, decoded=None, independent_context=None):
     raise_if_cancelled(stop_event, 'Overlay composition cancelled.')
+    _share_compilation_contexts(state, stop_event)
     # Context/layer metadata alone can exceed the budget. Sources are refreshed
     # during composition and published files can disappear, so omit both from
     # this lower bound rather than rejecting a change that could still fit.
