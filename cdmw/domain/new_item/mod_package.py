@@ -36,6 +36,14 @@ def capability_result(name, version):
              'Game and save behavior require separate evidence.'),
             (EvidenceClaim('adapter', 'Frozen v1 recipe lowering', 'independent_wire_v1.py'),
              EvidenceClaim('synthetic', 'Physical and virtual v2 legacy lowering', 'tests/test_independent_item_v2.py')))
+    if name == 'item.fields' and type(version) is int and version == 1:
+        return CapabilityResult(name, version, True,
+            ('Exact source table and row hashes; source-based expectations only.',
+             'Existing max_stack_count u32 and existing stat values i32 in explicitly selected 0x11 or 0x12 layouts.',
+             'Whole-record requirements of legacy packages remain protected.',
+             'Game and save behavior require separate evidence.'),
+            (EvidenceClaim('adapter', 'Typed existing ItemInfo fields', 'iteminfo_operations.py'),
+             EvidenceClaim('synthetic', 'Field composition and both deployment routes', 'tests/test_independent_item_fields.py')))
     return CapabilityResult(name, version, False, ('No registered adapter for this capability version.',))
 
 
@@ -60,8 +68,8 @@ class IndependentModPackage:
 
     @property
     def recipe(self):
-        """Explicit bridge to the sole currently implemented module adapter."""
-        modules = self.manifest['modules']
-        if len(modules) != 1 or modules[0]['type'] != 'item.legacy':
+        """Explicit bridge to the single legacy recipe within a mod envelope."""
+        modules = [module for module in self.manifest['modules'] if module['type'] == 'item.legacy']
+        if len(modules) != 1:
             raise IndependentItemError('This mod has no single legacy item recipe.')
         return modules[0]['data']

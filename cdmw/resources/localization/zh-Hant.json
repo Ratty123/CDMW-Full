@@ -11606,6 +11606,7 @@
     "The resolved Archive Browser texture package could not be leased.": "無法租用已解析的 Archive Browser 紋理套件。",
     "The retained independent package does not match its ownership history.": "保留的獨立套件與其擁有權記錄不符。",
     "The retained independent package has changed outside CDMW.": "保留的獨立套件已在 CDMW 外部變更。",
+    "The retained package field operations disagree with its ownership layer.": "The retained package field operations disagree with its ownership layer.",
     "The retired overlay history already exists. Refresh and prepare again.": "已封存的覆蓋層歷程記錄已存在。請重新整理並再次準備。",
     "The review could not be prepared: {value_0}": "無法準備審閱內容：{value_0}",
     "The rigid target requires its single attachment slot; this import changes the skin binding.": "剛性目標需要單一連接槽；此匯入會變更皮膚綁定。",

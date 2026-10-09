@@ -11606,6 +11606,7 @@
     "The resolved Archive Browser texture package could not be leased.": "Não foi possível reservar o pacote de texturas resolvido do Navegador de Arquivos.",
     "The retained independent package does not match its ownership history.": "O pacote independente armazenado não corresponde ao histórico de propriedade.",
     "The retained independent package has changed outside CDMW.": "O pacote independente armazenado foi alterado fora do CDMW.",
+    "The retained package field operations disagree with its ownership layer.": "The retained package field operations disagree with its ownership layer.",
     "The retired overlay history already exists. Refresh and prepare again.": "O histórico de overlays arquivados já existe. Atualize e prepare novamente.",
     "The review could not be prepared: {value_0}": "Não foi possível preparar a revisão: {value_0}",
     "The rigid target requires its single attachment slot; this import changes the skin binding.": "O alvo rígido requer seu slot de fixação único; esta importação altera a vinculação da capa.",

@@ -594,6 +594,8 @@ def apply_overlay_retirement(preparation, *, confirmed, backup, restore_backup,
 def compose_layer_payloads(layers, baseline, *, stop_event=None, on_log=None):
     """Pure composition shared by archive installation and virtual snapshots."""
     current = dict(baseline)
+    from cdmw.domain.archives.iteminfo_composition import prepare_fields, finish_fields
+    normalized, fields = prepare_fields(layers, baseline, stop_event=stop_event)
     active = [layer for layer, _ in layers if layer['active']]
     inactive = {layer['id'] for layer, _ in layers if not layer['active']}
     active_items = {key for layer in active for key in layer['item_keys']}
@@ -607,8 +609,9 @@ def compose_layer_payloads(layers, baseline, *, stop_event=None, on_log=None):
             raise OverlayConflict(f"{layer['label']} uses an item or asset from the selected overlay. Remove the dependent overlay first.")
         if on_log:
             on_log(f"Composing {layer['label']}...")
+        changes = normalized.get(layer['id'], changes)
         current = merge_overlay_files({p: c['before'] for p, c in changes.items()}, {p: c['after'] for p, c in changes.items()}, current)
-    return current, active
+    return finish_fields(current, fields, stop_event=stop_event), active
 
 
 def _compose(root, state, pending, label, removed_id, stop_event, on_log, *, decoded=None, independent_context=None):
@@ -635,10 +638,12 @@ def _compose(root, state, pending, label, removed_id, stop_event, on_log, *, dec
         baseline, source_directories = compose_underlay(root, state, pending, layers, baseline,
             stop_event=stop_event, on_log=on_log, context=independent_context)
     current, active = compose_layer_payloads(layers, baseline, stop_event=stop_event, on_log=on_log)
+    from cdmw.domain.archives.iteminfo_composition import required_field_files
+    required = required_field_files(layers, current)
     archive = []
     for path, payload in current.items():
         raise_if_cancelled(stop_event, 'Overlay archive preparation cancelled.')
-        if path in meta_paths or payload is None or payload == baseline[path]:
+        if path in meta_paths or payload is None or payload == baseline[path] and path not in required:
             continue
         archive.append(OverlayFile(path, _processed_payload(payload, compression_type=flags[path] & 15,
             encrypted=bool(flags[path] >> 4), basename=path.rsplit('/', 1)[-1]), len(payload), flags[path]))
@@ -715,7 +720,7 @@ def prepare_item_overlay(plan, package_root, *, directory_name=None, stop_event=
     if _target(root, '.cdmw/independent-items.json').exists():
         from cdmw.services.independent_item_install import load_registry
         registry = load_registry(root)
-        if any(known_items.intersection(row['values']['iteminfo'].values()) for row in registry['items'].values()):
+        if any(known_items.intersection(row['values'].get('iteminfo', {}).values()) for row in registry['items'].values()):
             raise OverlayConflict('This item identity is reserved by an independent package. Rebuild with a different identity or update that package through Independent items.')
     references = owned_item_references(changes) | {int(plan.spec.template_key)}
     dependencies = []

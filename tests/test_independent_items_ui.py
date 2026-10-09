@@ -62,6 +62,35 @@ def test_item_columns_sort_numerically_resize_and_preserve_selection_on_refresh(
         page.close()
 
 
+def test_field_only_package_can_be_reviewed_rebuilt_and_removed_without_a_dummy_id(tmp_path):
+    from tests.test_independent_item_fields import field_package
+    from cdmw.services.independent_item_install import prepare_install, load_registry
+    from cdmw.services.independent_item_package import package_bytes
+    app = QApplication.instance() or QApplication([])
+    _, snapshot, _ = setup_game(tmp_path)
+    root, backups = tmp_path / 'game', Backups(tmp_path)
+    package = field_package(snapshot)
+    backups.apply(prepare_install([package_bytes(package)], root).preparation)
+    controller = NewItemStudioController(synchronous=True)
+    page = IndependentItemsPage(controller, root, backups)
+    bridge = NewItemPresentationBridge(page)
+    try:
+        page.refresh()
+        assert page.items.topLevelItem(0).text(1) == ''
+        _send(bridge, page.items, 'select', {'path': [0], 'column': 0})
+        assert page.rebuild_button.isEnabled() and page.remove_button.isEnabled()
+        with patch.object(QMessageBox, 'exec', return_value=QMessageBox.StandardButton.Yes), \
+                patch('cdmw.services.new_item_service.game_is_running', return_value=False):
+            _send(bridge, page.rebuild_button, 'activate')
+            assert load_registry(root)['items'][package.identity]['values'] == {}
+            _send(bridge, page.remove_button, 'activate')
+        assert inventory(root)[0][3] == 'Removed / reserved'
+    finally:
+        page.request_shutdown()
+        controller.shutdown()
+        page.close()
+
+
 def test_reviewed_import_and_removal_use_shared_transaction_via_rust(tmp_path):
     app = QApplication.instance() or QApplication([])
     _, package = authored(tmp_path / 'source')

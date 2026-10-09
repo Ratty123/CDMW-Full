@@ -11606,6 +11606,7 @@
     "The resolved Archive Browser texture package could not be leased.": "Не удалось арендовать разрешённый пакет текстур браузера архивов.",
     "The retained independent package does not match its ownership history.": "Сохранённый независимый пакет не соответствует истории владения.",
     "The retained independent package has changed outside CDMW.": "Сохранённый независимый пакет изменён вне CDMW.",
+    "The retained package field operations disagree with its ownership layer.": "The retained package field operations disagree with its ownership layer.",
     "The retired overlay history already exists. Refresh and prepare again.": "История архивированных оверлеев уже существует. Обновите список и повторите подготовку.",
     "The review could not be prepared: {value_0}": "Не удалось подготовить обзор: {value_0}",
     "The rigid target requires its single attachment slot; this import changes the skin binding.": "Для жесткой мишени требуется один слот для крепления; этот импорт меняет привязку скина.",

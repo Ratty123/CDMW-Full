@@ -4031,7 +4031,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 825,
+          "line": 830,
           "sink": "ValueError"
         }
       ]
@@ -4041,7 +4041,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 829,
+          "line": 834,
           "sink": "ValueError"
         }
       ]
@@ -4151,7 +4151,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 359,
+          "line": 362,
           "sink": "OverlayConflict"
         }
       ]
@@ -4351,7 +4351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 309,
+          "line": 310,
           "sink": "tr"
         }
       ]
@@ -8061,7 +8061,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 656,
+          "line": 661,
           "sink": "OverlayConflict"
         }
       ]
@@ -9886,7 +9886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 310,
+          "line": 311,
           "sink": "tr"
         }
       ]
@@ -18536,7 +18536,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 112,
+          "line": 117,
           "sink": "progress"
         }
       ]
@@ -19211,7 +19211,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 498,
+          "line": 513,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -19491,7 +19491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 306,
+          "line": 307,
           "sink": "tr"
         }
       ]
@@ -22866,7 +22866,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 459,
+          "line": 471,
           "sink": "progress"
         }
       ]
@@ -22931,7 +22931,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 724,
+          "line": 729,
           "sink": "on_log"
         }
       ]
@@ -22996,7 +22996,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 684,
+          "line": 689,
           "sink": "on_log"
         }
       ]
@@ -23006,12 +23006,12 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 326,
+          "line": 329,
           "sink": "progress"
         },
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 53,
+          "line": 54,
           "sink": "progress"
         }
       ]
@@ -23091,7 +23091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 219,
+          "line": 220,
           "sink": "tr"
         }
       ]
@@ -24411,7 +24411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 258,
+          "line": 259,
           "sink": "tr"
         }
       ]
@@ -24526,7 +24526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 266,
+          "line": 267,
           "sink": "tr"
         }
       ]
@@ -27461,7 +27461,7 @@
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 817,
+          "line": 822,
           "sink": "RuntimeError"
         }
       ]
@@ -28416,7 +28416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 261,
+          "line": 262,
           "sink": "getText"
         }
       ]
@@ -28881,7 +28881,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 370,
+          "line": 373,
           "sink": "progress"
         }
       ]
@@ -28906,7 +28906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 231,
+          "line": 232,
           "sink": "tr"
         }
       ]
@@ -28976,7 +28976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 239,
+          "line": 240,
           "sink": "tr"
         }
       ]
@@ -29066,7 +29066,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 339,
+          "line": 342,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -29116,7 +29116,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 443,
+          "line": 458,
           "sink": "python-return:text"
         }
       ]
@@ -29126,7 +29126,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 443,
+          "line": 458,
           "sink": "python-return:text"
         }
       ]
@@ -29221,7 +29221,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 66,
+          "line": 67,
           "sink": "progress"
         }
       ]
@@ -29231,7 +29231,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 609,
+          "line": 611,
           "sink": "on_log"
         }
       ]
@@ -29581,17 +29581,17 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 483,
+          "line": 498,
           "sink": "CompatibilityFinding"
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 503,
+          "line": 518,
           "sink": "CompatibilityFinding"
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 515,
+          "line": 530,
           "sink": "CompatibilityFinding"
         },
         {
@@ -29631,7 +29631,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 443,
+          "line": 458,
           "sink": "python-return:text"
         }
       ]
@@ -32806,7 +32806,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 848,
+          "line": 853,
           "sink": "RuntimeError"
         }
       ]
@@ -42436,7 +42436,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 339,
+          "line": 342,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -44221,7 +44221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 332,
+          "line": 333,
           "sink": "tr"
         }
       ]
@@ -46881,7 +46881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 304,
+          "line": 305,
           "sink": "tr"
         }
       ]
@@ -50741,7 +50741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 303,
+          "line": 304,
           "sink": "tr"
         },
         {
@@ -55376,7 +55376,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 339,
+          "line": 342,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -55426,12 +55426,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 332,
+          "line": 333,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 342,
+          "line": 343,
           "sink": "tr"
         }
       ]
@@ -55441,7 +55441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 339,
+          "line": 340,
           "sink": "tr"
         }
       ]
@@ -55451,7 +55451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 211,
+          "line": 212,
           "sink": "tr"
         }
       ]
@@ -56471,7 +56471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 342,
+          "line": 343,
           "sink": "tr"
         }
       ]
@@ -56491,7 +56491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 214,
+          "line": 215,
           "sink": "tr"
         }
       ]
@@ -57986,7 +57986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 327,
+          "line": 328,
           "sink": "tr"
         }
       ]
@@ -58006,32 +58006,32 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 276,
+          "line": 279,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 287,
+          "line": 290,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 298,
+          "line": 301,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 306,
+          "line": 309,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 323,
+          "line": 326,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 384,
+          "line": 387,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -58051,7 +58051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 214,
+          "line": 215,
           "sink": "tr"
         },
         {
@@ -59021,7 +59021,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 455,
+          "line": 470,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -61236,7 +61236,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 482,
+          "line": 493,
           "sink": "progress"
         }
       ]
@@ -61246,7 +61246,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 729,
+          "line": 734,
           "sink": "OverlayConflict"
         }
       ]
@@ -61361,12 +61361,12 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_package.py",
-          "line": 273,
+          "line": 278,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/independent_item_package.py",
-          "line": 275,
+          "line": 280,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -68396,7 +68396,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 498,
+          "line": 513,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -68406,7 +68406,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 443,
+          "line": 458,
           "sink": "python-return:text"
         }
       ]
@@ -68496,7 +68496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 274,
+          "line": 275,
           "sink": "tr"
         }
       ]
@@ -72986,7 +72986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 261,
+          "line": 262,
           "sink": "tr"
         }
       ]
@@ -79011,7 +79011,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 517,
+          "line": 532,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -80076,7 +80076,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 517,
+          "line": 532,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -80086,7 +80086,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 443,
+          "line": 458,
           "sink": "python-return:text"
         }
       ]
@@ -83546,7 +83546,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 707,
+          "line": 712,
           "sink": "ValueError"
         }
       ]
@@ -87501,7 +87501,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 640,
+          "line": 645,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -87511,7 +87511,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 844,
+          "line": 849,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -87521,7 +87521,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 876,
+          "line": 881,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -87531,7 +87531,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 865,
+          "line": 870,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -87541,7 +87541,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 690,
+          "line": 695,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -87551,7 +87551,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 890,
+          "line": 895,
           "sink": "RuntimeError"
         }
       ]
@@ -87571,7 +87571,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 808,
+          "line": 813,
           "sink": "TypeError"
         }
       ]
@@ -87581,7 +87581,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 810,
+          "line": 815,
           "sink": "PermissionError"
         }
       ]
@@ -87606,12 +87606,12 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 602,
+          "line": 604,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 619,
+          "line": 622,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -87631,7 +87631,7 @@
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 697,
+          "line": 702,
           "sink": "OverlayConflict"
         }
       ]
@@ -88141,7 +88141,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 899,
+          "line": 904,
           "sink": "on_log"
         }
       ]
@@ -94361,7 +94361,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 827,
+          "line": 832,
           "sink": "ValueError"
         }
       ]
@@ -95081,7 +95081,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 740,
+          "line": 745,
           "sink": "on_log"
         }
       ]
@@ -95566,7 +95566,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 382,
+          "line": 385,
           "sink": "progress"
         }
       ]
@@ -101646,7 +101646,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 355,
+          "line": 358,
           "sink": "progress"
         }
       ]
@@ -103266,7 +103266,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 155,
+          "line": 160,
           "sink": "progress"
         }
       ]
@@ -107996,7 +107996,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 356,
+          "line": 359,
           "sink": "OverlayConflict"
         }
       ]
@@ -108006,7 +108006,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 362,
+          "line": 365,
           "sink": "OverlayConflict"
         }
       ]
@@ -108051,7 +108051,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 332,
+          "line": 335,
           "sink": "OverlayConflict"
         }
       ]
@@ -111726,7 +111726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 307,
+          "line": 308,
           "sink": "tr"
         }
       ]
@@ -111846,7 +111846,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 443,
+          "line": 458,
           "sink": "python-return:text"
         }
       ]
@@ -112401,7 +112401,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 888,
+          "line": 893,
           "sink": "RuntimeError"
         }
       ]
@@ -117496,7 +117496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 223,
+          "line": 224,
           "sink": "tr"
         }
       ]
@@ -121101,7 +121101,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 339,
+          "line": 342,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -127541,7 +127541,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 868,
+          "line": 873,
           "sink": "RuntimeError"
         }
       ]
@@ -127581,7 +127581,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 875,
+          "line": 880,
           "sink": "RuntimeError"
         }
       ]
@@ -130521,7 +130521,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 322,
+          "line": 325,
           "sink": "OverlayConflict"
         }
       ]
@@ -135756,7 +135756,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 791,
+          "line": 796,
           "sink": "ValueError"
         }
       ]
@@ -135766,7 +135766,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 794,
+          "line": 799,
           "sink": "ValueError"
         }
       ]
@@ -135776,7 +135776,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 785,
+          "line": 790,
           "sink": "ValueError"
         }
       ]
@@ -135786,7 +135786,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 812,
+          "line": 817,
           "sink": "ValueError"
         }
       ]
@@ -135916,7 +135916,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 710,
+          "line": 715,
           "sink": "ValueError"
         }
       ]
@@ -135936,7 +135936,7 @@
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 749,
+          "line": 754,
           "sink": "OverlayConflict"
         }
       ]
@@ -136366,7 +136366,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 401,
+          "line": 405,
           "sink": "OverlayConflict"
         }
       ]
@@ -136376,7 +136376,17 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 477,
+          "line": 492,
+          "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
+      "key": "The retained package field operations disagree with its ownership layer.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 409,
           "sink": "OverlayConflict"
         }
       ]
@@ -136631,12 +136641,12 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 761,
+          "line": 766,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 776,
+          "line": 781,
           "sink": "ValueError"
         }
       ]
@@ -136996,7 +137006,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 801,
+          "line": 806,
           "sink": "OverlayConflict"
         }
       ]
@@ -137006,12 +137016,12 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 843,
+          "line": 848,
           "sink": "OverlayConflict"
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 859,
+          "line": 864,
           "sink": "OverlayConflict"
         }
       ]
@@ -137981,7 +137991,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 443,
+          "line": 458,
           "sink": "python-return:text"
         }
       ]
@@ -138086,7 +138096,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 464,
+          "line": 479,
           "sink": "CompatibilityFinding"
         }
       ]
@@ -138246,7 +138256,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 719,
+          "line": 724,
           "sink": "OverlayConflict"
         }
       ]
@@ -141776,12 +141786,12 @@
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 455,
+          "line": 470,
           "sink": "CompatibilityFinding"
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 464,
+          "line": 479,
           "sink": "CompatibilityFinding"
         },
         {
@@ -141966,7 +141976,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_install.py",
-          "line": 321,
+          "line": 324,
           "sink": "ValueError"
         }
       ]
@@ -142116,7 +142126,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 443,
+          "line": 458,
           "sink": "python-return:text"
         }
       ]
@@ -142601,7 +142611,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 535,
+          "line": 550,
           "sink": "OverlayConflict"
         }
       ]
@@ -144511,7 +144521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 275,
+          "line": 276,
           "sink": "tr"
         }
       ]
@@ -145151,7 +145161,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 680,
+          "line": 685,
           "sink": "on_log"
         }
       ]
@@ -145736,12 +145746,12 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 132,
+          "line": 137,
           "sink": "progress"
         },
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 134,
+          "line": 139,
           "sink": "progress"
         }
       ]
@@ -146286,7 +146296,7 @@
       "origins": [
         {
           "path": "cdmw/services/virtual_loader_composition.py",
-          "line": 166,
+          "line": 171,
           "sink": "progress"
         }
       ]
@@ -149801,7 +149811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 261,
+          "line": 262,
           "sink": "tr"
         },
         {
@@ -174841,12 +174851,12 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 837,
+          "line": 842,
           "sink": "OverlayConflict"
         },
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 855,
+          "line": 860,
           "sink": "OverlayConflict"
         }
       ]
@@ -175616,7 +175626,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 702,
+          "line": 707,
           "sink": "OverlayConflict"
         }
       ]
@@ -176986,7 +176996,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_manager.py",
-          "line": 607,
+          "line": 609,
           "sink": "OverlayConflict"
         }
       ]
@@ -178446,7 +178456,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 377,
+          "line": 380,
           "sink": "OverlayConflict"
         }
       ]
@@ -178576,7 +178586,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 306,
+          "line": 309,
           "sink": "OverlayConflict"
         }
       ]
@@ -179396,7 +179406,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 405,
+          "line": 417,
           "sink": "on_log"
         }
       ]
@@ -179501,12 +179511,12 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 291,
+          "line": 294,
           "sink": "OverlayConflict"
         },
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 298,
+          "line": 301,
           "sink": "OverlayConflict"
         }
       ]
@@ -179516,7 +179526,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_item_compatibility.py",
-          "line": 343,
+          "line": 346,
           "sink": "OverlayConflict"
         }
       ]

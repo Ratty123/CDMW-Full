@@ -11606,6 +11606,7 @@
     "The resolved Archive Browser texture package could not be leased.": "Çözümlenen Arşiv Tarayıcısı doku paketi kiralanamadı.",
     "The retained independent package does not match its ownership history.": "Saklanan bağımsız paket sahiplik geçmişiyle eşleşmiyor.",
     "The retained independent package has changed outside CDMW.": "Saklanan bağımsız paket CDMW dışında değiştirildi.",
+    "The retained package field operations disagree with its ownership layer.": "The retained package field operations disagree with its ownership layer.",
     "The retired overlay history already exists. Refresh and prepare again.": "Arşivlenmiş katman geçmişi zaten var. Yenileyip tekrar hazırlayın.",
     "The review could not be prepared: {value_0}": "İnceleme hazırlanamadı: {value_0}",
     "The rigid target requires its single attachment slot; this import changes the skin binding.": "Sert hedef, tek bağlantı yuvasını gerektirir; bu içe aktarma cilt bağlanmasını değiştirir.",

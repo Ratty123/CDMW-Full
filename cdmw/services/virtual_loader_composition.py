@@ -12,6 +12,7 @@ from cdmw.domain.new_item.compilation import compiler_stamp, compilation_record
 from cdmw.domain.virtual_loader import PreparedSnapshot, VirtualLoaderError, VirtualProfile
 from cdmw.services import archive_overlay_manager as overlays
 from cdmw.services.independent_item_install import resolve_items
+from cdmw.services.independent_mod_package import package_operations
 from cdmw.services.independent_item_package import canonical, digest, MAX_TOTAL
 from cdmw.services.independent_item_compatibility import compose_underlay, _external_table
 from cdmw.services.mod_merge_service import _group
@@ -67,7 +68,9 @@ def prepare_profile(profile: VirtualProfile, root, *, stop_event=None, on_log=No
     layers = [(layer, resolved.decoded[layer['id']]) for layer in resolved.state['layers']]
     # These are transient composition descriptors, never overlay ownership rows.
     virtual_layers = [({'id': package.identity, 'label': package.title, 'active': True, 'dependencies': [],
-                        'item_keys': list(resolved.registry['items'][package.identity]['values']['iteminfo'].values())}, changes)
+                        'item_keys': list(resolved.registry['items'][package.identity]['values'].get('iteminfo', {}).values()),
+                        'independent_identity': package.identity, 'independent_digest': package.digest,
+                        'independent_operations': package_operations(package)}, changes)
                       for package, changes in resolved.contributions]
     baseline, flags, meta = {}, {}, set()
     for _layer, changes in (*layers, *virtual_layers):
@@ -76,11 +79,13 @@ def prepare_profile(profile: VirtualProfile, root, *, stop_event=None, on_log=No
             flags[path] = change['flags']
             if change['meta']:
                 meta.add(path)
-    underlay, _ = compose_underlay(root, resolved.state, resolved.pending, layers, baseline,
+    underlay, _ = compose_underlay(root, resolved.state, resolved.pending, (*layers, *virtual_layers), baseline,
         stop_event=stop_event, on_log=on_log, context=(resolved.external, resolved.baseline))
     current, _ = overlays.compose_layer_payloads((*layers, *virtual_layers), underlay,
                                                 stop_event=stop_event, on_log=on_log)
-    files = {p: data for p, data in current.items() if p not in meta and data is not None and data != underlay[p]}
+    from cdmw.domain.archives.iteminfo_composition import required_field_files
+    required = required_field_files((*layers, *virtual_layers), current)
+    files = {p: data for p, data in current.items() if p not in meta and data is not None and (data != underlay[p] or p in required)}
     # Selected, unmounted mod files must be present even when no item touches
     # them. Mounted foreign files remain underlay unless composition changes them.
     selected = {p for p, providers in resolved.external.providers.items() if any(label in {str(f) for f in folders} for label, _ in providers)}
@@ -159,7 +164,7 @@ def prepare_profile(profile: VirtualProfile, root, *, stop_event=None, on_log=No
     revision.validate(stop_event)
     resolved.external.validate(stop_event)
     overlays._verify_observed_state(root, observed, 'during virtual preparation')
-    summary = (*resolved.summary, *(f'{title}: item {key}' for _, title, key, _ in resolved.rows),
+    summary = (*resolved.summary, *(f'{title}: item {key}' if key is not None else f'{title}: existing records' for _, title, key, _ in resolved.rows),
                f'{len(folders)} external mod folder(s); {len(files)} composed game file(s).',
                'Original game archives will not be changed. Launch remains subject to runtime validation.')
     retained = tuple((p.rsplit('/', 1)[1], value) for p, value in resolved.pending.items() if p.endswith('.cditem'))

@@ -11606,6 +11606,7 @@
     "The resolved Archive Browser texture package could not be leased.": "解決された Archive Browser のテクスチャ パッケージをリースできませんでした。",
     "The retained independent package does not match its ownership history.": "保存された独立パッケージが所有履歴と一致しません。",
     "The retained independent package has changed outside CDMW.": "保存された独立パッケージが CDMW の外部で変更されています。",
+    "The retained package field operations disagree with its ownership layer.": "The retained package field operations disagree with its ownership layer.",
     "The retired overlay history already exists. Refresh and prepare again.": "使用終了したオーバーレイ履歴が既に存在します。更新して再度準備してください。",
     "The review could not be prepared: {value_0}": "確認内容を準備できませんでした: {value_0}",
     "The rigid target requires its single attachment slot; this import changes the skin binding.": "リジッド ターゲットには 1 つの取り付けスロットが必要です。このインポートによりスキン バインディングが変更されます。",

@@ -30,7 +30,7 @@ def _metadata(value, depth=0):
 
 
 def read_v2(meta, blobs):
-    from cdmw.services.independent_item_package import FORMAT, MAX_MANIFEST, _v1_package, canonical, digest
+    from cdmw.services.independent_item_package import FORMAT, MAX_MANIFEST, _package_resources, _v1_package, canonical, digest
     keys = {'format', 'version', 'identity', 'title', 'release', 'requires', 'modules',
             'dependencies', 'blobs', 'provenance', 'metadata'}
     if (set(meta) != keys or meta['format'] != FORMAT or type(meta['version']) is not int
@@ -70,13 +70,39 @@ def read_v2(meta, blobs):
             raise UnsupportedCapability(result)
         if required.get(name) != version:
             raise IndependentItemError(f'Module {symbol} omits its required capability {name}@{version}.')
-    if len(modules) != 1 or modules[0]['id'] != 'item' or modules[0]['type'] != 'item.legacy':
-        raise IndependentItemError('The legacy adapter requires exactly one module named item.')
-    legacy_meta = {key: meta[key] for key in ('format', 'identity', 'title', 'dependencies', 'blobs')}
-    legacy_meta.update(version=1, recipe=modules[0]['data'])
-    legacy = _v1_package(legacy_meta, blobs)
+    _package_resources(meta, blobs)
+    legacy_modules = [module for module in modules if module['type'] == 'item.legacy']
+    if len(legacy_modules) > 1 or legacy_modules and legacy_modules[0]['id'] != 'item':
+        raise IndependentItemError('The legacy adapter permits one module named item.')
+    legacy = None
+    if legacy_modules:
+        legacy_meta = {key: meta[key] for key in ('format', 'identity', 'title', 'dependencies', 'blobs')}
+        legacy_meta.update(version=1, recipe=legacy_modules[0]['data'])
+        legacy = _v1_package(legacy_meta, blobs)
+    elif blobs:
+        raise IndependentItemError('The package contains unreferenced resources.')
+    from cdmw.domain.new_item.iteminfo_operations import MAX_OPERATIONS, decode_assignment
+    operation_count = 0
+    for module in modules:
+        if module['type'] != 'item.fields':
+            continue
+        data = module['data']
+        if (not isinstance(data, dict) or set(data) != {'operations'} or not isinstance(data['operations'], list)
+                or not data['operations']):
+            raise IndependentItemError('Invalid ItemInfo field module.')
+        identities = set()
+        for raw in data['operations']:
+            operation = decode_assignment(f'{meta["identity"]}/{module["id"]}', raw)
+            if operation.identity in identities:
+                raise IndependentItemError('Duplicate ItemInfo operation identity.')
+            identities.add(operation.identity)
+            operation_count += 1
+            if operation_count > MAX_OPERATIONS:
+                raise IndependentItemError('The ItemInfo operation budget is exhausted.')
     provenance = meta['provenance']
     if provenance is not None:
+        if legacy is None:
+            raise IndependentItemError('V1 migration provenance requires its retained legacy module.')
         expected = {'kind': 'v1-lowering', 'source_version': 1, 'source_identity': legacy.identity,
                     'source_digest': legacy.digest, 'symbols': {'item': 'item'}}
         if (not isinstance(provenance, dict) or provenance != expected
@@ -86,6 +112,17 @@ def read_v2(meta, blobs):
         raise IndependentItemError('Optional metadata must be an object.')
     _metadata(meta['metadata'])
     return IndependentModPackage(deepcopy(meta), dict(blobs), digest(canonical(meta)))
+
+
+def has_legacy_item(package):
+    return isinstance(package, IndependentItemPackage) or any(module['type'] == 'item.legacy' for module in package.manifest['modules'])
+
+
+def package_operations(package):
+    if isinstance(package, IndependentItemPackage):
+        return []
+    return [{'owner': f'{package.identity}/{module["id"]}', 'operations': module['data']['operations']}
+            for module in package.manifest['modules'] if module['type'] == 'item.fields']
 
 
 def migrate_v1(package, *, release='1', metadata=None):

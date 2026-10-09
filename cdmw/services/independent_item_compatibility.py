@@ -242,6 +242,9 @@ def _external_table(external, paths, snapshot, stop_event):
 def _required_keys(package, snapshot, changes):
     """Protect complete referenced item/equipment/stat records, including transitive perks."""
     from cdmw.core.iteminfo_row import parse_iteminfo_row
+    from cdmw.services.independent_mod_package import has_legacy_item
+    if not has_legacy_item(package):
+        return {'iteminfo': set(), 'equiptypeinfo': set(), 'statusinfo': set()}
     spec, *_ = unpack_recipe(package)
     required = {'iteminfo': set(), 'equiptypeinfo': set(), 'statusinfo': set()}
     pending = {int(spec.template_key)} | owned_item_references(changes)
@@ -390,6 +393,7 @@ def compose_underlay(root, state, pending, layers, baseline, *, stop_event=None,
         external_mods(root, state, stop_event=stop_event),
         stock_snapshot(root, stop_event=stop_event, overlay_changes=(changes for _, changes in layers)))
     external.snapshot = snapshot
+    protected, operations = {}, []
     for layer, changes in layers:
         identity = layer.get('independent_identity')
         if not identity or not (layer['active'] or layer.get('disabled')):
@@ -399,10 +403,21 @@ def compose_underlay(root, state, pending, layers, baseline, *, stop_event=None,
         package = read_package(source, stop_event=stop_event)
         if package.identity != identity or package.digest != layer['independent_digest']:
             raise OverlayConflict('The retained independent package does not match its ownership history.')
+        from cdmw.services.independent_mod_package import package_operations
+        declared = package_operations(package)
+        if layer.get('independent_operations', []) != declared:
+            raise OverlayConflict('The retained package field operations disagree with its ownership layer.')
+        if layer['active']:
+            operations.extend((row['owner'], row['operations']) for row in declared)
+            for key in _required_keys(package, snapshot, changes)['iteminfo']:
+                protected.setdefault(key, []).append(package.identity)
         findings = check_package_dependencies(package, snapshot, external, changes, stop_event=stop_event)
         if on_log:
             for finding in findings:
                 on_log(f'{package.title}: {", ".join(finding.mods)}: {finding.path}: {finding.detail}')
+    if operations:
+        from cdmw.domain.new_item.iteminfo_operations import compile_assignments
+        compile_assignments(operations, {key: row.raw for key, row in snapshot.rows.items()}, protected=protected, stop_event=stop_event)
     current = foreign_underlay(external, baseline, snapshot, stop_event=stop_event)
     revision = snapshot.provenance.capture()
     revision.validate(stop_event)

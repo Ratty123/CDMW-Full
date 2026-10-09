@@ -34,7 +34,7 @@ Installation allocates item/perk, recipe and reward integers in the existing
 model families and effects are rebuilt from the destination bindings. Reflection
 references use decoded values and bounded, declared strings; effect names retain
 their byte lengths. Embedded emitter file types are rebound with emitter names
-and included in dependency validation. The original shared table records are
+and included in dependency validation. For v1 and the v2 legacy module, original shared table records are
 preserved, apart from supported additive shop stock and item-group membership.
 
 Updates retain prior identities and atomically replace the selected item's
@@ -81,7 +81,7 @@ frozen wire-schema digest independently of package content and identity bindings
 Planner semantic changes require a compiler revision change; output or admission
 changes in a named adapter require its revision change. Existing layers without
 this record remain readable for recovery and removal, but cannot claim current
-compilation. This does not change the v1 package or identity-profile schema.
+compilation. The compiler record itself does not change the v1 package schema.
 
 ## Version 2 admission and compilation identity
 
@@ -98,11 +98,11 @@ V2 keeps ZIP, `item.json` and addressed `assets/` members. Its exact root fields
 to integer schema versions. Each module has a stable `id`, `type`, integer
 `version`, `required` flag and `data`. These names are independent of Python types.
 
-The first implemented module is **`item.legacy` version 1**, with ID `item`,
-`required: true` and a frozen v1 recipe as its data. It is the only admitted module
-combination at present and uses the existing physical and virtual compilation
-paths. Exact game resource hashes, allocation ranges and equipment limitations
-still apply. Existing v1 readers explicitly reject the version 2 boundary.
+**`item.legacy` version 1** uses ID `item`, `required: true` and a frozen v1 recipe
+as its data. It uses the existing physical and virtual compilation paths. Exact
+game resource hashes, allocation ranges and equipment limitations still apply.
+V2 also admits **`item.fields` version 1** for the narrowly defined existing-record
+operations below. Existing v1 readers explicitly reject the version 2 boundary.
 
 Unknown required features, module types and versions refuse before allocation.
 Optional behavior also refuses until a supported explicit alternative exists;
@@ -129,6 +129,58 @@ protocol, provider inputs and generated output hashes. Physical records describe
 individual contributions; virtual records describe the complete prepared view.
 Unknown/malformed records refuse, and missing current records require rebuilding.
 These records are provenance, not proof that the game accepts the result.
+
+## Existing ItemInfo field operations
+
+An `item.fields` module contains `data: {"operations": [...]}`. Developers can use
+`independent_item_operations.from_iteminfo_operations()` with a verified shipped
+snapshot to author it, then the existing package writer and import/Apply flows.
+There is no separate field-authoring UI yet. It can be a standalone package or
+accompany one legacy module, provided all whole-record requirements remain valid.
+
+Every operation has exactly `id`, `kind: "field.assign"`, `target`, `field`,
+`value_type`, `expect`, `value`, `precondition_base: "source"` and `source_row`.
+`source_row` is the SHA-256 of the pristine stock row; complete table-body and
+header hashes remain mandatory package dependencies. The target contains
+`table: "ItemInfo"`, a positive u32 `key`, and an explicit adapter:
+`cd.iteminfo.prefix-stat-11-v1` or `cd.iteminfo.prefix-stat-12-v1`. Stat operations
+require the selected marker layout; stack operations use their shared prefix.
+Only the verified u32-key/u16-count table directory is admitted.
+
+The supported field selectors and value types are:
+
+| Field selector | Type and range | Admission |
+| --- | --- | --- |
+| `{"name":"max_stack_count"}` | `u32`, 1–4,294,967,295 | Recognized prefix with unchanged identity and layout |
+| `{"name":"stat_value","enchant_level":0,"status_key":1000002}` | `i32`, −2,147,483,648–2,147,483,647 | Exactly one existing stat at the specified level, in the selected marker layout |
+
+No operation accepts arbitrary offsets, new stats, structure edits or executable
+code. There are at most 4,096 assignments across an active composition and 64 KiB
+per target row. Unknown layouts, duplicate operation IDs, ambiguous stats, wrong
+expectations, booleans masquerading as integers and overflow refuse.
+
+The adapter derives source reads, field writes and final invariants. Disjoint
+field assignments commute; equal assignments coalesce; opposing assignments name
+both owners and the field. Preconditions refer to pristine source, never the
+output of whichever mod ran first. All unassigned bytes, row lengths and identities
+are preserved and assigned values are parsed back. Complete table pairs are
+published even when the directory bytes are unchanged.
+
+Required v1/legacy records are collected across the complete active profile before
+field composition. A later v2 module cannot bypass a v1 requirement, and installing
+that v1 package later also refuses the conflict. Untyped changes to the same
+target row remain incompatible. Removal recomposes from source plus the remaining
+active operations; it does not subtract bytes or replay inverse edits. These rules
+are covered by synthetic physical, virtual, subprocess and transaction tests;
+gameplay and save behavior still need witnesses.
+
+Field-only packages allocate no dummy items or asset names. Their Game ID column
+is blank, while their UUID and installation history remain available for rebuild,
+removal and profile transfer. Installing the first such package upgrades the
+identity ledger to `cdmw_mod_identity_profile_v2` in the same reviewed transaction.
+Existing and retired numeric bindings remain unchanged. V1-only readers refuse
+this ledger explicitly; failed publication restores its previous format and data.
+The v1 ledger remains in use for installations containing only item reservations.
 
 ## Resource validation
 
@@ -235,6 +287,9 @@ The reviewed apply is serialized on the shared installation lane. The Rust UI
 projects and invokes these same controls and callbacks.
 
 ## Supported-format matrix
+
+This matrix describes v1 and the v2 legacy module. The explicit `item.fields`
+exceptions are defined in [Existing ItemInfo field operations](#existing-iteminfo-field-operations).
 
 | Dependency | Version 1 handling | Refusal boundary |
 | --- | --- | --- |

@@ -66,6 +66,6 @@ class IndependentItemExport:
 @dataclass(frozen=True)
 class IndependentItemInstallPlan:
     preparation: object | None
-    items: tuple[tuple[str, str, int, str], ...]
+    items: tuple[tuple[str, str, int | None, str], ...]
     # Exact package bytes are captured before review; apply never rereads inputs.
     summary: tuple[str, ...]

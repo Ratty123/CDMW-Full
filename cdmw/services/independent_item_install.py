@@ -18,6 +18,7 @@ from cdmw.domain.archives.overlay_merge import _table
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.new_item.allocation import DEFAULT_ITEM_KEY_RANGE
 from cdmw.domain.new_item.compilation import compiler_stamp, validate_compiler_stamp, validate_compilation
+from cdmw.services.independent_mod_package import has_legacy_item, package_operations
 from cdmw.domain.new_item.independent import IdentityBindings, IndependentItemError, IndependentItemInstallPlan, package_id
 from cdmw.domain.new_item.rules import has_errors
 from cdmw.services import archive_overlay_manager as overlays
@@ -32,6 +33,7 @@ from cdmw.services.independent_item_compatibility import (
 
 REGISTRY_PATH = '.cdmw/independent-items.json'
 PROFILE_FORMAT = 'cdmw_independent_identity_profile_v1'
+MOD_PROFILE_FORMAT = 'cdmw_mod_identity_profile_v2'
 NAMESPACES = {'iteminfo', 'multichangeinfo', 'dropsetinfo', 'effect'}
 
 
@@ -44,7 +46,7 @@ def _binding_hash(identity, row):
 
 
 def _validate_registry(value):
-    if not isinstance(value, dict) or set(value) != {'format', 'items'} or value['format'] != PROFILE_FORMAT or not isinstance(value['items'], dict):
+    if not isinstance(value, dict) or set(value) != {'format', 'items'} or value['format'] not in (PROFILE_FORMAT, MOD_PROFILE_FORMAT) or not isinstance(value['items'], dict):
         raise IndependentItemError('Unsupported independent item identity profile.')
     occupied = {name: set() for name in NAMESPACES}
     stems, paths = set(), set()
@@ -59,7 +61,8 @@ def _validate_registry(value):
         if not isinstance(row['values'], dict) or set(row['values']) - NAMESPACES:
             raise IndependentItemError('Unsupported identity namespace.')
         if 'item' not in row['values'].get('iteminfo', {}):
-            raise IndependentItemError('The item identity reservation is missing.')
+            if value['format'] != MOD_PROFILE_FORMAT or row['values'] or row['stem'] or row['paths']:
+                raise IndependentItemError('The item identity reservation is missing.')
         for namespace, symbols in row['values'].items():
             if not isinstance(symbols, dict) or any(not isinstance(s, str) or not s or len(s) > 128 for s in symbols):
                 raise IndependentItemError('Invalid symbolic identity.')
@@ -139,7 +142,7 @@ def inventory(root):
     layers = {layer['id']: layer for layer in (state or {}).get('layers', ())}
     from cdmw.services.virtual_loader_state import active_identities
     virtual = active_identities(root)
-    return tuple((identity, row['title'], row['values']['iteminfo']['item'],
+    return tuple((identity, row['title'], row['values'].get('iteminfo', {}).get('item'),
                   'Virtual profile' if identity in virtual else 'Installed' if layers.get(row['layer'], {}).get('active') else
                   'Disabled' if layers.get(row['layer'], {}).get('disabled') else 'Removed / reserved')
                  for identity, row in registry['items'].items())
@@ -394,7 +397,7 @@ def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False,
             if previous_layer.get('independent_compiler') != compiler_stamp() or 'independent_compilation' not in previous_layer:
                 raise IndependentItemError(f'{package.title}: the installed compiler is different or unrecorded. Use Rebuild selected item to regenerate it while retaining its IDs.')
             check_package_dependencies(package, snapshot, external, decoded[previous_layer['id']], stop_event=stop_event)
-            rows.append((identity, package.title, prior['values']['iteminfo']['item'], 'Already installed'))
+            rows.append((identity, package.title, prior['values'].get('iteminfo', {}).get('item'), 'Already installed'))
             continue
         if previous_layer:
             if any(layer['active'] and previous_layer['id'] in layer['dependencies'] for layer in state['layers']):
@@ -428,39 +431,47 @@ def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False,
                             reserved['effect'].add(1_900_000 + int(match.group(1)))
         bindings = IdentityBindings(identity, deepcopy(prior['values']) if prior else {}, reserved,
                                     prior['stem'] if prior else '', tuple(prior['paths']) if prior else ())
-        spec, model, variants, icon_data = unpack_recipe(package)
-        key = bindings.allocate('iteminfo', 'item', snapshot.rows)
-        allocated = service.allocate(replace(spec, item_key=key, internal_name='CDI_' + identity, stem=bindings.stem or None),
-                                     snapshot, reserved_keys=reserved['iteminfo'], reserved_stems=stems)
-        if allocated.stem:
-            if allocated.stem in stems:
-                raise IndependentItemError('The reserved model identity is occupied.')
-            bindings.stem = allocated.stem
-        issues = service.validate(allocated, snapshot)
-        if has_errors(issues):
-            raise IndependentItemError('; '.join(issue.message for issue in issues if issue.is_error))
-        icon = None
-        if icon_data is not None:
-            from cdmw.core.item_icon_addition import NewItemIcon, icon_target_path
-            from cdmw.services.new_item_planning import planned_icon_string
-            name = planned_icon_string(allocated, snapshot)
-            icon = NewItemIcon(name, stringinfo_key(name), icon_target_path(name), icon_data, None, None)
-        plan = build_plan(allocated, snapshot, model=model, variant_models=variants, icon=icon,
-                          reserved_item_keys=reserved['iteminfo'], identity_bindings=bindings,
-                          capture_independent=True, stop_event=stop_event, on_log=on_log)
-        # A prepared recipe must not acquire an undeclared dependency at install.
-        if any(row.entry.path.lower() not in package.dependencies for row in plan.source_revision.payloads):
-            raise IndependentItemError('The package has an incomplete game dependency graph.')
-        plan.source_revision.validate(stop_event)
-        revisions.append(plan.source_revision)
-        added_paths = {virtual_path(request.path.lower()) for request in plan.additions}
+        key, changes, added_paths = None, {}, set()
+        if has_legacy_item(package):
+            spec, model, variants, icon_data = unpack_recipe(package)
+            key = bindings.allocate('iteminfo', 'item', snapshot.rows)
+            allocated = service.allocate(replace(spec, item_key=key, internal_name='CDI_' + identity, stem=bindings.stem or None),
+                                         snapshot, reserved_keys=reserved['iteminfo'], reserved_stems=stems)
+            if allocated.stem:
+                if allocated.stem in stems:
+                    raise IndependentItemError('The reserved model identity is occupied.')
+                bindings.stem = allocated.stem
+            issues = service.validate(allocated, snapshot)
+            if has_errors(issues):
+                raise IndependentItemError('; '.join(issue.message for issue in issues if issue.is_error))
+            icon = None
+            if icon_data is not None:
+                from cdmw.core.item_icon_addition import NewItemIcon, icon_target_path
+                from cdmw.services.new_item_planning import planned_icon_string
+                name = planned_icon_string(allocated, snapshot)
+                icon = NewItemIcon(name, stringinfo_key(name), icon_target_path(name), icon_data, None, None)
+            plan = build_plan(allocated, snapshot, model=model, variant_models=variants, icon=icon,
+                              reserved_item_keys=reserved['iteminfo'], identity_bindings=bindings,
+                              capture_independent=True, stop_event=stop_event, on_log=on_log)
+            # A prepared recipe must not acquire an undeclared dependency at install.
+            if any(row.entry.path.lower() not in package.dependencies for row in plan.source_revision.payloads):
+                raise IndependentItemError('The package has an incomplete game dependency graph.')
+            plan.source_revision.validate(stop_event)
+            revisions.append(plan.source_revision)
+            added_paths = {virtual_path(request.path.lower()) for request in plan.additions}
+            changes = _capture(plan, snapshot, root, state, pathc_before)
+        elif prior and prior['values']:
+            raise IndependentItemError('An existing item package cannot discard its owned objects by becoming a record-edit package.')
+        else:
+            registry['format'] = MOD_PROFILE_FORMAT
+        from cdmw.services.independent_item_operations import lower_field_operations
+        changes = lower_field_operations(package, snapshot, changes, stop_event=stop_event)
         if added_paths & (reserved_paths | external_paths):
             raise IndependentItemError('An owned asset name is already reserved by another item or mod. The package cannot be installed without changing its identity.')
         progress(30 + (70 * item_index + 45) // max(1, len(packages)), 'Checking asset identity collisions…')
         asset_hashes.check(added_paths, reserved_paths, stop_event)
         if any(path.endswith('.dds') for path in added_paths) and snapshot.pathc is None:
             raise IndependentItemError('This game has no verified texture registry for the new icon or textures.')
-        changes = _capture(plan, snapshot, root, state, pathc_before)
         findings = check_package_dependencies(package, snapshot, external, changes, stop_event=stop_event)
         compatibility.extend(f'{", ".join(finding.mods)}: {finding.path}: {finding.detail}' for finding in findings)
         contributions.append((package, changes))
@@ -491,10 +502,10 @@ def prepare_install(sources, root, *, rebuild=False, stop_event=None, on_log=Non
     locks = {package.identity: contribution_record(package, changes, result) for package, changes in result.contributions}
     for package, changes in result.contributions:
         row = registry['items'][package.identity]
-        layer = overlays._add_layer(state, pending, package.title, changes, item_keys=tuple(row['values']['iteminfo'].values()))
+        layer = overlays._add_layer(state, pending, package.title, changes, item_keys=tuple(row['values'].get('iteminfo', {}).values()))
         layer.update(independent_identity=package.identity, independent_digest=package.digest,
                      independent_bindings=row['binding_hash'], independent_compiler=compiler_stamp(),
-                     independent_compilation=locks[package.identity])
+                     independent_compilation=locks[package.identity], independent_operations=package_operations(package))
         row['layer'] = layer['id']
         decoded[layer['id']] = changes
     if canonical(registry) == result.registry_before and not result.external.paths:
@@ -507,7 +518,7 @@ def prepare_install(sources, root, *, rebuild=False, stop_event=None, on_log=Non
     if all(dict(preparation.before).get(path) == value for path, value in preparation.writes) and not preparation.deletes:
         return IndependentItemInstallPlan(None, result.rows, ('All selected items are already installed.',))
     return IndependentItemInstallPlan(preparation, result.rows,
-        (*tuple(f'{status}: {title} (item {key})' for _, title, key, status in result.rows), *result.summary))
+        (*tuple(f'{status}: {title}' + (f' (item {key})' if key is not None else ' (existing records)') for _, title, key, status in result.rows), *result.summary))
 
 
 def prepare_rebuild(identity, root, *, stop_event=None, on_log=None):
@@ -574,6 +585,8 @@ def prepare_profile_import(source, root, *, stop_event=None, on_log=None):
     observed_state = overlays._observe_state(root)
     incoming = _read_registry(Path(source))
     registry = load_registry(root)
+    if incoming['format'] == MOD_PROFILE_FORMAT:
+        registry['format'] = MOD_PROFILE_FORMAT
     for identity, row in incoming['items'].items():
         raise_if_cancelled(stop_event)
         prior = registry['items'].get(identity)

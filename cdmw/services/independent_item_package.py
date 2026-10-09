@@ -178,6 +178,13 @@ def _package(meta, blobs):
 def _v1_package(meta, blobs):
     if not isinstance(meta, dict) or set(meta) != {"format", "version", "identity", "title", "recipe", "dependencies", "blobs"} or meta["format"] != FORMAT or type(meta["version"]) is not int or meta["version"] != VERSION:
         raise IndependentItemError("Unsupported independent item package version or fields.")
+    identity = _package_resources(meta, blobs)
+    result = IndependentItemPackage(identity, meta["title"], meta["recipe"], meta["dependencies"], blobs, digest(canonical(meta)))
+    unpack_recipe(result)  # Closed types, paths and every resource reference checked on import.
+    return result
+
+
+def _package_resources(meta, blobs):
     identity = package_id(meta["identity"])
     if not isinstance(meta["title"], str) or not 1 <= len(meta["title"]) <= 256 or "\0" in meta["title"]:
         raise IndependentItemError("Invalid item package title.")
@@ -194,9 +201,7 @@ def _v1_package(meta, blobs):
     for key, data in blobs.items():
         if not _HASH.fullmatch(key) or digest(data) != key or type(meta["blobs"][key]) is not int or meta["blobs"][key] != len(data):
             raise IndependentItemError("Item resource failed its checksum or size check.")
-    result = IndependentItemPackage(identity, meta["title"], meta["recipe"], meta["dependencies"], blobs, digest(canonical(meta)))
-    unpack_recipe(result)  # Closed types, paths and every resource reference checked on import.
-    return result
+    return identity
 
 
 def unpack_recipe(package):
