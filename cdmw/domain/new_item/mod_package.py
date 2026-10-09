@@ -29,6 +29,13 @@ class UnsupportedCapability(IndependentItemError):
 
 
 def capability_result(name, version):
+    if name == 'package.links' and type(version) is int and version == 1:
+        return CapabilityResult(name, version, True,
+            ('Exact UUID/release/content pins within one deployment; cycles refuse.',
+             'Typed borrowed installation references to owned legacy items only.',
+             'No game-byte reference relocation, runtime lifetime or save migration is implied.'),
+            (EvidenceClaim('adapter', 'Package graph and typed export closure', 'package_links.py'),
+             EvidenceClaim('synthetic', 'Dependency admission, composition and removal', 'tests/test_independent_package_links.py')))
     if name == 'item.legacy' and type(version) is int and version == 1:
         return CapabilityResult(name, version, True,
             ('One frozen v1 equipment recipe with exact game dependency hashes.',

@@ -11711,6 +11711,7 @@
     "The viewport starts when there is a mesh to show.": "Gösterilecek bir örgü olunca görünüm başlar.",
     "The virtual compilation record disagrees with the profile.": "The virtual compilation record disagrees with the profile.",
     "The virtual loader will update automatically when you apply or launch.": "Profili uyguladığınızda veya oyunu başlattığınızda sanal yükleyici otomatik olarak güncellenecek.",
+    "The virtual package dependency graph disagrees with the profile.": "The virtual package dependency graph disagrees with the profile.",
     "The virtual session is running.": "Sanal oturum çalışıyor.",
     "The weapon and its case may separate, snap between positions, or draw and stow inconsistently. Every exception is recorded in the operation manifest.": "Silah ve kılıfı ayrılabilir, konumlar arasında zıplayabilir ya da çekilip kılıflanması tutarsız olabilir. Her istisna işlem bildirimine kaydedilir.",
     "The whole active content of these overlays is included. Install this package in place of their originals. Installation steps are in Details and warnings and the exported README.txt.": "Bu katmanların etkin içeriğinin tamamı dahil edilir. Bu paketi orijinallerin yerine kurun. Kurulum adımları «Ayrıntılar ve uyarılar» bölümünde ve dışa aktarılan README.txt dosyasındadır.",

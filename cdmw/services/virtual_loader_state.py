@@ -135,6 +135,8 @@ def validate_profile(value):
                     or locked != {identity: row['digest'] for identity, row in value['items'].items()}
                     or any(inputs['allocations'].get(identity) != row['binding_hash'] for identity, row in value['items'].items())):
                 raise ValueError('The virtual compilation record disagrees with the profile.')
+            if 'links' in inputs and set(inputs['links']['providers']) != set(value['items']):
+                raise ValueError('The virtual package dependency graph disagrees with the profile.')
         except ValueError as exc:
             raise VirtualLoaderError(str(exc)) from exc
     if len(canonical(value)) > MAX_MANIFEST:
@@ -157,6 +159,9 @@ def load_profile(root, *, registry=None):
             row = registry['items'].get(identity)
             if not row or row['layer'] is not None or any(row[key] != binding[key] for key in binding):
                 raise VirtualLoaderError('Virtual ownership and saved item identities disagree. Recover their matching ledgers.')
+        if 'links' in profile.get('compilation', {}).get('inputs', {}):
+            from cdmw.domain.new_item.package_links import validate_link_bindings
+            validate_link_bindings(profile['compilation']['inputs']['links'], registry['items'])
     return profile
 
 
@@ -222,6 +227,9 @@ def publish_profile(prepared, *, stop_event=None):
         _verify_observed_state(root, prepared.observed, 'after virtual preparation')
         profile = validate_profile(decode(prepared.profile))
         registry = _validate_registry(decode(prepared.registry))
+        if 'links' in profile.get('compilation', {}).get('inputs', {}):
+            from cdmw.domain.new_item.package_links import validate_link_bindings
+            validate_link_bindings(profile['compilation']['inputs']['links'], registry['items'])
         if prepared.generation != profile['generation'] or len(prepared.files) != len(dict(prepared.files)):
             raise VirtualLoaderError('Prepared generation or file identities disagree.')
         for identity, binding in profile['items'].items():

@@ -21,4 +21,5 @@ def contribution_record(package, changes, resolved):
               + [p.identity for p, _ in resolved.contributions],
         runtime_abi=None,
         outputs={path: digest(row['after']) if row['after'] is not None else None for path, row in changes.items()},
-        providers={path: digest(row['before']) if row['before'] is not None else None for path, row in changes.items()})
+        providers={path: digest(row['before']) if row['before'] is not None else None for path, row in changes.items()},
+        links=resolved.links)

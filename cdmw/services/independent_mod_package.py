@@ -81,6 +81,14 @@ def read_v2(meta, blobs):
         legacy = _v1_package(legacy_meta, blobs)
     elif blobs:
         raise IndependentItemError('The package contains unreferenced resources.')
+    from cdmw.domain.new_item.package_links import decode_links
+    link_modules = [module for module in modules if module['type'] == 'package.links']
+    if len(link_modules) > 1:
+        raise IndependentItemError('A package permits only one package.links module.')
+    if link_modules:
+        if not any(module['type'] in ('item.legacy', 'item.fields') for module in modules):
+            raise IndependentItemError('Package links require an implemented content module.')
+        decode_links(link_modules[0]['data'], meta['identity'], legacy=legacy is not None)
     from cdmw.domain.new_item.iteminfo_operations import MAX_OPERATIONS, decode_assignment
     operation_count = 0
     for module in modules:
@@ -123,6 +131,23 @@ def package_operations(package):
         return []
     return [{'owner': f'{package.identity}/{module["id"]}', 'operations': module['data']['operations']}
             for module in package.manifest['modules'] if module['type'] == 'item.fields']
+
+
+def retained_active_packages(root, layers, pending, *, exclude=(), stop_event=None):
+    """Read exact active providers before allocating any selected package."""
+    from cdmw.services.archive_overlay_manager import _target
+    from cdmw.services.independent_item_package import read_package
+    from cdmw.domain.cancellation import raise_if_cancelled
+    for layer in layers:
+        identity = layer.get('independent_identity')
+        if not layer['active'] or not identity or identity in exclude:
+            continue
+        raise_if_cancelled(stop_event)
+        relative = f'.cdmw/independent-items/{identity}-{layer["independent_digest"]}.cditem'
+        package = read_package(pending[relative] if relative in pending else _target(root, relative), stop_event=stop_event)
+        if package.identity != identity or package.digest != layer['independent_digest']:
+            raise IndependentItemError('A retained package provider disagrees with its ownership history.')
+        yield package
 
 
 def migrate_v1(package, *, release='1', metadata=None):

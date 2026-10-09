@@ -11711,6 +11711,7 @@
     "The viewport starts when there is a mesh to show.": "Окно просмотра запускается, когда есть сетка для показа.",
     "The virtual compilation record disagrees with the profile.": "The virtual compilation record disagrees with the profile.",
     "The virtual loader will update automatically when you apply or launch.": "Виртуальный загрузчик обновится автоматически при применении профиля или запуске игры.",
+    "The virtual package dependency graph disagrees with the profile.": "The virtual package dependency graph disagrees with the profile.",
     "The virtual session is running.": "Виртуальный сеанс запущен.",
     "The weapon and its case may separate, snap between positions, or draw and stow inconsistently. Every exception is recorded in the operation manifest.": "Оружие и его ножны могут разойтись, перескакивать между позициями или извлекаться и убираться несогласованно. Каждое исключение записывается в манифест операции.",
     "The whole active content of these overlays is included. Install this package in place of their originals. Installation steps are in Details and warnings and the exported README.txt.": "Включено всё активное содержимое этих оверлеев. Установите этот пакет вместо оригиналов. Порядок установки приведён в разделе «Подробности и предупреждения» и экспортированном README.txt.",

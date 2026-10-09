@@ -12,8 +12,8 @@ from cdmw.domain.new_item.independent import IndependentItemError
 from cdmw.domain.new_item.independent_wire_v1 import V1_ENUM_VALUES, V1_RECORD_FIELDS
 
 
-COMPILER_REVISION = 3
-ADAPTER_REVISIONS = {'item-v1': 1, 'envelope-v2': 2, 'iteminfo-fields': 1, 'dds-pathc': 2, 'flat-icon-registry': 2}
+COMPILER_REVISION = 4
+ADAPTER_REVISIONS = {'item-v1': 1, 'envelope-v2': 3, 'iteminfo-fields': 1, 'package-links': 1, 'dds-pathc': 2, 'flat-icon-registry': 2}
 FORMAT = 'cdmw_item_compiler_v1'
 
 
@@ -42,12 +42,14 @@ def _identity(value):
         separators=(',', ':'), allow_nan=False).encode('utf-8')).hexdigest()
 
 
-def compilation_record(*, scope, packages, sources, allocations, order, runtime_abi, outputs, providers):
+def compilation_record(*, scope, packages, sources, allocations, order, runtime_abi, outputs, providers, links=None):
     inputs = {'compiler': compiler_stamp(), 'scope': scope, 'packages': packages,
               'sources': sources, 'allocations': allocations,
               'policy': {'conflicts': 'refuse', 'order': order},
               'runtime_abi': runtime_abi, 'outputs': outputs, 'providers': providers}
-    value = {'format': 'cdmw_compilation_v1', 'identity': _identity(inputs), 'inputs': inputs}
+    if links is not None:
+        inputs['links'] = links
+    value = {'format': 'cdmw_compilation_v2' if links is not None else 'cdmw_compilation_v1', 'identity': _identity(inputs), 'inputs': inputs}
     validate_compilation(value)
     return value
 
@@ -68,12 +70,17 @@ def validate_compilation(value):
                 fail()
 
     if (not isinstance(value, dict) or set(value) != {'format', 'identity', 'inputs'}
-            or value['format'] != 'cdmw_compilation_v1' or not checksum(value['identity'])):
+            or value['format'] not in ('cdmw_compilation_v1', 'cdmw_compilation_v2') or not checksum(value['identity'])):
         fail()
     inputs = value['inputs']
-    if not isinstance(inputs, dict) or set(inputs) != {
-            'compiler', 'scope', 'packages', 'sources', 'allocations', 'policy', 'runtime_abi', 'outputs', 'providers'}:
+    expected = {'compiler', 'scope', 'packages', 'sources', 'allocations', 'policy', 'runtime_abi', 'outputs', 'providers'}
+    if value['format'] == 'cdmw_compilation_v2':
+        expected.add('links')
+    if not isinstance(inputs, dict) or set(inputs) != expected:
         fail()
+    if 'links' in inputs:
+        from cdmw.domain.new_item.package_links import validate_link_record
+        validate_link_record(inputs['links'])
     validate_compiler_stamp(inputs['compiler'])
     if inputs['scope'] not in ('archive-contribution', 'virtual-profile'):
         fail()
@@ -102,6 +109,8 @@ def validate_compilation(value):
                 or type(package['version']) is not int or package['version'] not in (1, 2)):
             fail()
         seen.add(identity)
+        if 'links' in inputs and inputs['links']['providers'].get(identity, {}).get('content') != package['content']:
+            fail()
         if not isinstance(package['features'], dict) or len(package['features']) > 128:
             fail()
         for name, version in package['features'].items():

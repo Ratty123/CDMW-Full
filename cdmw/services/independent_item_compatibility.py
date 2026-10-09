@@ -386,21 +386,27 @@ def foreign_underlay(external, baseline, snapshot, *, stop_event=None):
     return result
 
 
-def compose_underlay(root, state, pending, layers, baseline, *, stop_event=None, on_log=None, context=None):
+def compose_underlay(root, state, pending, layers, baseline, *, stop_event=None, on_log=None, context=None, virtual_identities=()):
     """Called by the existing overlay composer, including removal and recovery."""
     from cdmw.services.independent_item_package import stock_snapshot, read_package
+    from cdmw.domain.new_item.package_links import contract, resolve_package_contracts, check_graph_budget
     external, snapshot = context if context is not None else (
         external_mods(root, state, stop_event=stop_event),
         stock_snapshot(root, stop_event=stop_event, overlay_changes=(changes for _, changes in layers)))
     external.snapshot = snapshot
     protected, operations = {}, []
+    active_packages, link_budgets, linked_groups = {False: [], True: []}, {False: 0, True: 0}, set()
     for layer, changes in layers:
         identity = layer.get('independent_identity')
         if not identity or not (layer['active'] or layer.get('disabled')):
             continue
         path = f'.cdmw/independent-items/{identity}-{layer["independent_digest"]}.cditem'
         source = pending[path] if path in pending else Path(root) / path
+        if path not in pending:
+            snapshot.provenance.pin_file(source)
         package = read_package(source, stop_event=stop_event)
+        if path not in pending:
+            snapshot.provenance.pin_file(source)
         if package.identity != identity or package.digest != layer['independent_digest']:
             raise OverlayConflict('The retained independent package does not match its ownership history.')
         from cdmw.services.independent_mod_package import package_operations
@@ -408,6 +414,14 @@ def compose_underlay(root, state, pending, layers, baseline, *, stop_event=None,
         if layer.get('independent_operations', []) != declared:
             raise OverlayConflict('The retained package field operations disagree with its ownership layer.')
         if layer['active']:
+            package_contract = contract(package)
+            virtual = package.identity in virtual_identities
+            active_packages[virtual].append((package.identity, package_contract))
+            link_budgets[virtual] += len(package_contract['exports']) + len(package_contract['links']['packages']) + len(package_contract['links']['references'])
+            if package_contract['declared']:
+                linked_groups.add(virtual)
+            if virtual in linked_groups:
+                check_graph_budget(len(active_packages[virtual]), link_budgets[virtual])
             operations.extend((row['owner'], row['operations']) for row in declared)
             for key in _required_keys(package, snapshot, changes)['iteminfo']:
                 protected.setdefault(key, []).append(package.identity)
@@ -415,6 +429,8 @@ def compose_underlay(root, state, pending, layers, baseline, *, stop_event=None,
         if on_log:
             for finding in findings:
                 on_log(f'{package.title}: {", ".join(finding.mods)}: {finding.path}: {finding.detail}')
+    for virtual in (False, True):
+        resolve_package_contracts(active_packages[virtual], stop_event=stop_event)
     if operations:
         from cdmw.domain.new_item.iteminfo_operations import compile_assignments
         compile_assignments(operations, {key: row.raw for key, row in snapshot.rows.items()}, protected=protected, stop_event=stop_event)

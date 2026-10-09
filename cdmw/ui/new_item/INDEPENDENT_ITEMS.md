@@ -102,7 +102,8 @@ to integer schema versions. Each module has a stable `id`, `type`, integer
 as its data. It uses the existing physical and virtual compilation paths. Exact
 game resource hashes, allocation ranges and equipment limitations still apply.
 V2 also admits **`item.fields` version 1** for the narrowly defined existing-record
-operations below. Existing v1 readers explicitly reject the version 2 boundary.
+operations and **`package.links` version 1** for the installation dependency graph
+below. Existing v1 readers explicitly reject the version 2 boundary.
 
 Unknown required features, module types and versions refuse before allocation.
 Optional behavior also refuses until a supported explicit alternative exists;
@@ -129,6 +130,52 @@ protocol, provider inputs and generated output hashes. Physical records describe
 individual contributions; virtual records describe the complete prepared view.
 Unknown/malformed records refuse, and missing current records require rebuilding.
 These records are provenance, not proof that the game accepts the result.
+
+## Package dependencies and exported objects
+
+The required `package.links@1` capability and one matching required module add
+declared installation dependencies to a v2 package. An implemented content module
+must also be present. Its data has exactly three arrays:
+
+```json
+{
+  "packages": [{"identity":"<provider UUID hex>","release":"v1","content":"<SHA-256>"}],
+  "exports": [{"symbol":"items/travel-sword","kind":"item","module":"item","object":"item","lifetime":"installation"}],
+  "references": [{"id":"uses-sword","package":"<provider UUID hex>","symbol":"item","kind":"item","ownership":"borrowed","lifetime":"installation"}]
+}
+```
+
+The example illustrates the field grammar; replace placeholders with actual
+provider identities and content hashes. Exports belong to the declaring package;
+references name another package explicitly. V1 providers use release `v1`; v2
+providers use their manifest release. Pins require both that exact release and
+canonical content digest, with no version-range or load-order substitution.
+
+Every v1 package and v2 legacy item already exports `item`. Explicit exports may
+give that same owned legacy object additional stable symbols; they cannot claim
+stock rows, unknown kinds or another package's ownership. The resolved reference
+uses the provider's retained ItemInfo ID. Duplicate providers/symbols/references,
+missing exports, unpinned references, cycles, unsupported ownership/lifetimes and
+changed releases refuse before publication. Dependencies are checked before game
+allocation, again during composition, and when enabling, rebuilding or removing
+physical contributions. Updating a pinned provider requires updating its active
+consumers in the same batch. Disable/remove consumers first when removing it.
+
+References currently require the same deployment: one physical installation set
+or the selected packages of one virtual profile. They express installation
+admission and lifetime requirements; they do not patch recipe ingredients,
+relocate game references, create runtime handles or establish save compatibility.
+Those consumers require separate verified adapters. Active graphs are limited to
+4,096 packages and 4,096 total exports, pins and references. Provider reads retain
+only bounded declarations while graph resolution runs.
+
+Graphs with links use `cdmw_compilation_v2`; other compilation records retain
+their v1 grammar. The lock records actual provider content, reference closure,
+dependency order and retained item IDs. Old records remain readable, while the
+compiler revision requires rebuilding before an old compilation is treated as
+current. `tests/test_independent_package_links.py` covers both deployment orders,
+v1 providers, aliases, coordinated updates, removal/disable/reinstall, hostile
+inputs, stale retained packages, subprocess transport and publication rollback.
 
 ## Existing ItemInfo field operations
 

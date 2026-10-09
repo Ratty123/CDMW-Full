@@ -11711,6 +11711,7 @@
     "The viewport starts when there is a mesh to show.": "A vista inicia quando há uma malha para mostrar.",
     "The virtual compilation record disagrees with the profile.": "The virtual compilation record disagrees with the profile.",
     "The virtual loader will update automatically when you apply or launch.": "O carregador virtual será atualizado automaticamente ao aplicar o perfil ou iniciar o jogo.",
+    "The virtual package dependency graph disagrees with the profile.": "The virtual package dependency graph disagrees with the profile.",
     "The virtual session is running.": "A sessão virtual está em andamento.",
     "The weapon and its case may separate, snap between positions, or draw and stow inconsistently. Every exception is recorded in the operation manifest.": "A arma e a bainha podem se separar, saltar entre posições, ou ser sacadas e guardadas de forma incoerente. Cada exceção é registrada no manifesto da operação.",
     "The whole active content of these overlays is included. Install this package in place of their originals. Installation steps are in Details and warnings and the exported README.txt.": "Todo o conteúdo ativo dessas sobreposições está incluído. Instale este pacote no lugar dos originais. As etapas de instalação estão em «Detalhes e avisos» e no README.txt exportado.",

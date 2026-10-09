@@ -11711,6 +11711,7 @@
     "The viewport starts when there is a mesh to show.": "보여 줄 메시가 있으면 뷰포트가 시작됩니다.",
     "The virtual compilation record disagrees with the profile.": "The virtual compilation record disagrees with the profile.",
     "The virtual loader will update automatically when you apply or launch.": "프로필을 적용하거나 게임을 실행할 때 가상 로더가 자동으로 업데이트됩니다.",
+    "The virtual package dependency graph disagrees with the profile.": "The virtual package dependency graph disagrees with the profile.",
     "The virtual session is running.": "가상 세션이 실행 중입니다.",
     "The weapon and its case may separate, snap between positions, or draw and stow inconsistently. Every exception is recorded in the operation manifest.": "무기와 검집이 떨어지거나, 위치 사이를 튀거나, 뽑기와 수납이 서로 맞지 않을 수 있습니다. 모든 예외는 작업 매니페스트에 기록됩니다.",
     "The whole active content of these overlays is included. Install this package in place of their originals. Installation steps are in Details and warnings and the exported README.txt.": "이 오버레이의 현재 활성 내용이 모두 포함됩니다. 원본 대신 이 패키지를 설치하세요. 설치 단계는 «세부 정보 및 경고»와 내보낸 README.txt에 있습니다.",

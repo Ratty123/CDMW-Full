@@ -80,7 +80,8 @@ def prepare_profile(profile: VirtualProfile, root, *, stop_event=None, on_log=No
             if change['meta']:
                 meta.add(path)
     underlay, _, _ = compose_underlay(root, resolved.state, resolved.pending, (*layers, *virtual_layers), baseline,
-        stop_event=stop_event, on_log=on_log, context=(resolved.external, resolved.baseline))
+        stop_event=stop_event, on_log=on_log, context=(resolved.external, resolved.baseline),
+        virtual_identities={package.identity for package, _ in resolved.contributions})
     current, _ = overlays.compose_layer_payloads((*layers, *virtual_layers), underlay,
                                                 stop_event=stop_event, on_log=on_log)
     from cdmw.domain.archives.iteminfo_composition import required_field_files
@@ -156,7 +157,7 @@ def prepare_profile(profile: VirtualProfile, root, *, stop_event=None, on_log=No
         allocations={identity: row['binding_hash'] for identity, row in resolved.registry['items'].items()},
         order=[layer.get('independent_identity', layer['id']) for layer in resolved.state['layers'] if layer['active']]
               + [package.identity for package, _ in resolved.contributions] + [str(f) for f in folders],
-        runtime_abi='CDVFS2', outputs=dict(data['files']), providers=dict(data['observed']))
+        runtime_abi='CDVFS2', outputs=dict(data['files']), providers=dict(data['observed']), links=resolved.links)
     progress(98, 'Rechecking preparation inputs…')
     for path, expected in original_packages:
         if hash_file(path, stop_event) != expected:

@@ -123,6 +123,9 @@ def load_registry(root):
                         or inputs['compiler'] != layer.get('independent_compiler')
                         or inputs['allocations'].get(identity) != layer.get('independent_bindings')):
                     raise IndependentItemError('The installed compilation record disagrees with its ownership layer.')
+                if 'links' in inputs:
+                    from cdmw.domain.new_item.package_links import validate_link_bindings
+                    validate_link_bindings(inputs['links'], registry['items'])
             row = registry['items'].get(identity)
             if row is None:
                 raise IndependentItemError('An independent item reservation is missing. Restore the matching identity backup before continuing.')
@@ -258,6 +261,7 @@ class ResolvedItemSet:
     contributions: tuple
     revisions: tuple
     summary: tuple
+    links: dict | None = None
 
 
 class _AssetHashes:
@@ -353,6 +357,10 @@ def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False,
         raise IndependentItemError('Remove the item from the virtual profile before installing it into archives.')
     registry_before = canonical(registry)
     state, pending = overlays._state_for_edit(root, None, stop_event)
+    from cdmw.domain.new_item.package_links import resolve_package_graph, bind_package_graph
+    from cdmw.services.independent_mod_package import retained_active_packages
+    retained = retained_active_packages(root, state['layers'], pending, exclude=packages, stop_event=stop_event) if target == 'archive' else ()
+    package_graph = resolve_package_graph(chain(packages.values(), retained), stop_event=stop_event)
     decoded = {layer['id']: overlays._unpack_changes(root, layer, pending, stop_event) for layer in state['layers']}
     service = NewItemService()
     progress(7, 'Reading game data…')
@@ -490,9 +498,10 @@ def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False,
         status = 'Rebuild' if rebuild and prior and prior['digest'] == package.digest else 'Update' if prior else 'Install'
         rows.append((identity, package.title, key, status))
     _validate_registry(registry)
+    links = bind_package_graph(package_graph, registry['items'])
     progress(100, 'Item identities and dependencies verified.')
     return ResolvedItemSet(root, observed_state, state, pending, decoded, registry, registry_before,
-        baseline, external, tuple(rows), tuple(contributions), tuple(revisions), tuple(dict.fromkeys(compatibility)))
+        baseline, external, tuple(rows), tuple(contributions), tuple(revisions), tuple(dict.fromkeys(compatibility)), links)
 
 
 def prepare_install(sources, root, *, rebuild=False, stop_event=None, on_log=None, read_entry=None):

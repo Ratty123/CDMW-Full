@@ -11711,6 +11711,7 @@
     "The viewport starts when there is a mesh to show.": "有可顯示的網格時檢視區才會啟動。",
     "The virtual compilation record disagrees with the profile.": "The virtual compilation record disagrees with the profile.",
     "The virtual loader will update automatically when you apply or launch.": "套用設定檔或啟動遊戲時，虛擬載入器將自動更新。",
+    "The virtual package dependency graph disagrees with the profile.": "The virtual package dependency graph disagrees with the profile.",
     "The virtual session is running.": "虛擬工作階段正在執行。",
     "The weapon and its case may separate, snap between positions, or draw and stow inconsistently. Every exception is recorded in the operation manifest.": "武器與其鞘可能分離、在不同位置之間跳動，或者拔出與收起不一致。每一次例外都會記入操作清單。",
     "The whole active content of these overlays is included. Install this package in place of their originals. Installation steps are in Details and warnings and the exported README.txt.": "將包含這些覆蓋封存檔目前生效的全部內容。請用此套件取代原模組。安裝步驟見「詳細資料與警告」及匯出的 README.txt。",
