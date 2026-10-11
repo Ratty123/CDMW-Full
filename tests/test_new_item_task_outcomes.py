@@ -203,8 +203,8 @@ def test_typed_cancellation_without_a_ui_request_has_one_terminal_callback(studi
     assert cancelled == [True] and completed == errors == []
 
 
-@pytest.mark.parametrize('kind', ['merge', 'update'])
-def test_mod_export_dialog_keeps_committed_result_after_late_cancel(studio, tmp_path, monkeypatch, kind):
+@pytest.mark.parametrize('kind,manager', [('merge', 'DMM'), ('merge', 'CDMW'), ('update', 'DMM')])
+def test_mod_export_dialog_keeps_committed_result_after_late_cancel(studio, tmp_path, monkeypatch, kind, manager):
     from types import SimpleNamespace
     from cdmw.ui.new_item import mod_merge_dialog, mod_update_dialog
     app, controller = studio
@@ -219,7 +219,7 @@ def test_mod_export_dialog_keeps_committed_result_after_late_cancel(studio, tmp_
         (destination / 'result').write_bytes(b'owned fixture')
         entered.set()
         assert release.wait(5)
-        return SimpleNamespace(package_root=destination)
+        return SimpleNamespace(package_root=destination, manager=manager)
 
     monkeypatch.setattr(module, factory, lambda *args, **kwargs: task)
     dialog = dialog_type(controller, str(tmp_path))
@@ -234,6 +234,8 @@ def test_mod_export_dialog_keeps_committed_result_after_late_cancel(studio, tmp_
         assert str(destination) in dialog.status.text() and 'written' in dialog.status.text()
         assert dialog._plan is None and not dialog._working
         assert (destination / 'result').read_bytes() == b'owned fixture'
+        if kind == 'merge' and manager == 'CDMW':
+            assert 'Import cdmw-semantic.cditem through CDMW' in dialog.review.toPlainText()
     finally:
         release.set()
         dialog.reject()

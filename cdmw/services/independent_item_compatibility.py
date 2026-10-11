@@ -535,12 +535,205 @@ class IndependentCompatibilityReport:
         return '\n'.join(lines)
 
 
+def _semantic_layer(package, changes, registry):
+    from cdmw.services.independent_mod_package import package_operations
+    return ({'id': package.identity, 'label': package.title, 'active': True, 'dependencies': [],
+             'item_keys': list(registry['items'][package.identity]['values'].get('iteminfo', {}).values()),
+             'independent_identity': package.identity, 'independent_digest': package.digest,
+             'independent_operations': package_operations(package)}, changes)
+
+
+def validate_semantic_recomposition(exports, compiled, registry, *, stop_event=None):
+    """Compare the artifact with its retained recipes, including no-op intent."""
+    from cdmw.services import archive_overlay_manager as overlays
+    from cdmw.services.independent_item_package import read_package
+    for semantic in exports:
+        semantic.validate(stop_event)
+        layers, baseline, flags = [], {}, {}
+        for raw in semantic.packages:
+            package = read_package(raw, stop_event=stop_event)
+            supplied, changes = compiled[package.identity]
+            if supplied.digest != package.digest:
+                raise OverlayConflict('A semantic export contributor changed during compilation.')
+            expected = semantic.bindings['items'][package.identity]
+            actual = registry['items'][package.identity]
+            if actual['binding_hash'] != expected['binding_hash']:
+                raise OverlayConflict(f'{package.identity}: semantic export relocation is unsupported.')
+            layers.append(_semantic_layer(package, changes, registry))
+            for path, change in changes.items():
+                if path in baseline and baseline[path] != change['before']:
+                    raise OverlayConflict(f'{path}: semantic export recipes disagree on their original baseline.')
+                baseline[path] = change['before']
+                flags[path] = change['flags']
+        current, _ = overlays.compose_layer_payloads(layers, baseline, stop_event=stop_event)
+        expected_files = tuple((path, data, flags[path]) for path, data in sorted(current.items()) if data is not None)
+        if baseline != semantic.originals or expected_files != semantic.files:
+            raise OverlayConflict('Semantic export payloads, flags or original baselines disagree with retained package recompilation.')
+        semantic.validate(stop_event)
+
+
+def _semantic_export_plan(root, folders, layers, snapshot, registry, pending, external, *,
+                          observed=(), stop_event=None, on_log=None):
+    """Export independently removable contributors through the existing compiler."""
+    from copy import deepcopy
+    from cdmw.core.mod_compatibility import SemanticExport, game_identity, hash_file
+    from cdmw.domain.new_item.compilation import compiler_stamp
+    from cdmw.services import archive_overlay_manager as overlays
+    from cdmw.services.independent_item_package import read_package
+    from cdmw.services.mod_merge_service import ModMergePlan
+
+    active = [(layer, changes) for layer, changes in layers if layer['active']]
+    if (not active or any(not layer.get('independent_identity') for layer, _ in active)
+            or external.paths):
+        raise OverlayConflict('Semantic export requires retained .cditem contributors for every payload. '
+                              'Mixed foreign or untyped overlay exports remain unsupported.')
+    _validate_composition_packages(root, pending, active, snapshot, external,
+                                   stop_event=stop_event, on_log=on_log)
+    baseline, flags, packages, bindings, loose_hashes = {}, {}, [], {}, []
+    for layer, changes in active:
+        raise_if_cancelled(stop_event)
+        if layer.get('independent_compiler', compiler_stamp()) != compiler_stamp():
+            raise OverlayConflict('Rebuild the installed package with the current compiler before semantic export.')
+        identity = layer['independent_identity']
+        relative = f'.cdmw/independent-items/{identity}-{layer["independent_digest"]}.cditem'
+        path = root / relative
+        if relative in pending:
+            raw = pending[relative]
+        else:
+            snapshot.provenance.pin_file(path)
+            raw = path.read_bytes()
+            snapshot.provenance.pin_index(path, digest(raw), stop_event)
+            loose_hashes.append((path, digest(raw)))
+        package = read_package(raw, stop_event=stop_event)
+        if (package.identity, package.digest) != (identity, layer['independent_digest']):
+            raise OverlayConflict('Retained semantic export package disagrees with its ownership.')
+        packages.append(raw)
+        bindings[identity] = dict(deepcopy(registry['items'][identity]), layer=None)
+        for dependency in package.dependencies:
+            snapshot.payload(dependency)
+        for path, change in changes.items():
+            if path in baseline and baseline[path] != change['before']:
+                raise OverlayConflict(f'{path}: semantic export contributors require different source baselines.')
+            baseline[path] = change['before']
+            flags[path] = change['flags']
+        if 'sha256' in layer:
+            journal = root / overlays.overlay_journal_path(layer)
+            snapshot.provenance.pin_file(journal)
+            loose_hashes.append((journal, hash_file(journal, stop_event)))
+    original = foreign_underlay(external, baseline, snapshot, stop_event=stop_event)
+    if original != baseline:
+        raise OverlayConflict('Semantic export requires recompilation against the current witnessed baseline.')
+    current, _ = overlays.compose_layer_payloads(active, original, stop_event=stop_event, on_log=on_log)
+    files = tuple((path, data, flags[path]) for path, data in sorted(current.items()) if data is not None)
+    # Read each witnessed source before capturing. Newly owned payloads have an
+    # explicit null baseline; metadata uses its exact journal source bytes.
+    for path, data in original.items():
+        if data is not None and path != 'meta/0.pathc':
+            if not snapshot.has_entry(path) or snapshot.payload(path) != data:
+                raise OverlayConflict(f'{path}: semantic export has no matching original source witness.')
+    external_revision = external.tracker.capture()
+    for path, checksum in external_revision.indexes:
+        snapshot.provenance.pin_index(path, checksum, stop_event)
+    for path, _ in external_revision.files:
+        snapshot.provenance.pin_file(path)
+        if path.is_file():
+            loose_hashes.append((path, hash_file(path, stop_event)))
+    for relative, data in observed:
+        path = root / relative
+        snapshot.provenance.pin_file(path)
+        if data is not None:
+            loose_hashes.append((path, digest(data)))
+    captured = snapshot.provenance.capture()
+    witnesses = {
+        'payloads': [{'path': row.entry.path.lower(), 'size': len(snapshot.payload(row.entry.path)),
+                      'sha256': row.sha256} for row in captured.payloads],
+        'indexes': [{'path': path.resolve().relative_to(root).as_posix().lower(),
+                     'size': path.stat().st_size, 'sha256': checksum}
+                    for path, checksum in captured.indexes
+                    if path.suffix.lower() == '.pamt' and path.resolve().is_relative_to(root)]}
+    witnesses['payloads'].sort(key=lambda row: row['path'])
+    witnesses['indexes'].sort(key=lambda row: row['path'])
+    semantic = SemanticExport(tuple(packages), files, original,
+        {'format': registry['format'], 'items': bindings}, compiler_stamp(), witnesses,
+        target_game=game_identity(root, stop_event))
+    semantic.validate_source(snapshot, root, stop_event)
+    if any('sha256' in layer for layer, _ in active):
+        # Installed journals are recovery evidence, not a replacement for the
+        # authored recipes. Recompile before exporting their current payloads.
+        from cdmw.services.independent_item_install import resolve_items
+        rebuilt = resolve_items(tuple(packages), root, rebuild=True, stop_event=stop_event,
+                                on_log=on_log, read_entry=snapshot.provenance.reader)
+        validate_semantic_recomposition((semantic,),
+            {package.identity: (package, changes) for package, changes in rebuilt.contributions},
+            rebuilt.registry, stop_event=stop_event)
+    plan = ModMergePlan(tuple(folders), root, files, (), (),
+        tuple({'item_key': key} for layer, _ in active for key in layer['item_keys']),
+        tuple(path for path, _, _ in files if path.endswith('.dds') and not snapshot.has_entry(path)),
+        '', snapshot.provenance.capture(), tuple(external.inventories),
+        tuple(dict(loose_hashes).items()), semantic_export=semantic)
+    plan.validate(stop_event)
+    overlays._verify_observed_state(root, observed, 'during semantic export')
+    return plan
+
+
+def prepare_semantic_mod_merge(roots, game_root, entries=None, *, read_entry=None,
+                               on_log=None, stop_event=None, include_installed=False):
+    """Generic Merge admission for opaque exports; always regenerate originals."""
+    from cdmw.services import archive_overlay_manager as overlays
+    from cdmw.services.independent_item_install import _semantic_inputs, resolve_items
+    from cdmw.services.independent_item_package import package_bytes, read_package
+    from cdmw.services.independent_mod_package import retained_active_packages
+    from cdmw.domain.new_item.package_links import resolve_package_graph
+
+    root = Path(game_root).resolve()
+    roots = tuple(Path(path).resolve() for path in roots)
+    expanded, _, semantic = _semantic_inputs(roots, stop_event=stop_event)
+    if len(semantic) != len(roots):
+        raise OverlayConflict('Combining semantic exports with unannotated mod folders is unsupported; retain the original .cditem contributors.')
+    sources = list(roots)
+    packages = {package.identity: package for package in
+                (read_package(raw, stop_event=stop_event) for raw in expanded)}
+    if include_installed:
+        state = overlays._load_index(root)
+        if any(layer['active'] and not layer.get('independent_identity') for layer in (state or {}).get('layers', ())):
+            raise OverlayConflict('An untyped installed overlay cannot be included in a semantic export.')
+        retained = tuple(retained_active_packages(root, (state or {}).get('layers', ()), {},
+                                                  exclude=packages, stop_event=stop_event))
+        sources.extend(package_bytes(package, stop_event=stop_event) for package in retained)
+        packages.update((package.identity, package) for package in retained)
+    # The exported package set must itself be closed, irrespective of providers
+    # installed in the recipient but omitted from this selected export.
+    resolve_package_graph(packages.values(), stop_event=stop_event)
+    resolved = resolve_items(tuple(sources), root, rebuild=True, stop_event=stop_event,
+                             on_log=on_log, read_entry=read_entry)
+    layers = [_semantic_layer(package, changes, resolved.registry)
+              for package, changes in resolved.contributions]
+    return _semantic_export_plan(root, roots, layers, resolved.baseline, resolved.registry,
+        resolved.pending, resolved.external, observed=resolved.observed, stop_event=stop_event, on_log=on_log)
+
+
 def scan_independent_conflicts(root, *, folders=(), stop_event=None, on_log=None, _export=False):
     """Scan every mounted external provider, optionally adding an uninstalled folder."""
     from cdmw.services import archive_overlay_manager as overlays
     from cdmw.services.independent_item_install import load_registry
     from cdmw.services.independent_item_package import stock_snapshot
     root, folders = Path(root).resolve(), tuple(Path(p).resolve() for p in folders)
+    from cdmw.core.mod_compatibility import semantic_export_path
+    if any(semantic_export_path(folder) is not None for folder in folders):
+        try:
+            plan = prepare_semantic_mod_merge(folders, root, include_installed=True,
+                                             stop_event=stop_event, on_log=on_log)
+        except RunCancelled:
+            raise
+        except (ValueError, RuntimeError, KeyError, IndexError) as error:
+            if _export:
+                raise
+            return IndependentCompatibilityReport(root, (CompatibilityFinding(
+                'Conflict', tuple(map(str, folders)), '', str(error)),), folders)
+        if _export:
+            return plan
+        return IndependentCompatibilityReport(root, (CompatibilityFinding(
+            'Compatible', tuple(map(str, folders)), '', 'Retained typed requirements and package dependencies compose.'),), folders)
     observed = overlays._observe_state(root)
     state = overlays._load_index(root)
     if state is None or not any(layer.get('independent_identity') and layer['active'] for layer in state['layers']):
@@ -604,12 +797,8 @@ def scan_independent_conflicts(root, *, folders=(), stop_event=None, on_log=None
     if not report.compatible:
         raise OverlayConflict(report.text())
     if export_requirements:
-        # The current folder format records byte differences only. It cannot
-        # retain source-equal field requirements or exact package dependencies.
-        # Do not emit an artifact that later CDMW consumers silently weaken.
-        raise OverlayConflict(', '.join(dict.fromkeys(export_requirements))
-            + ': merged archive export cannot preserve typed field requirements or package links. '
-              'Keep the original .cditem files and install them together through CDMW or a virtual profile.')
+        return _semantic_export_plan(root, folders, layers, snapshot, load_registry(root), {}, external,
+                                     observed=observed, stop_event=stop_event, on_log=on_log)
     # Build a portable merged copy through the existing exporter. This is an
     # explicit folder export, never a write to a foreign archive or source mod.
     from cdmw.services.mod_merge_service import ModMergePlan

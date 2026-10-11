@@ -274,7 +274,10 @@ class IndependentItemsPage(QWidget):
         def completed(result):
             self._comparison = None
             self.status.setText(self.tr("Merged mod written:") + ' ' + str(result.package_root))
-            self.comparison.appendPlainText(self.tr("Use the merged package instead of its source mods and the composed CDMW overlay. Keep the identity profile with your saves."))
+            if result.manager == 'CDMW':
+                self.comparison.appendPlainText(self.tr("Import cdmw-semantic.cditem through CDMW. Its contributors keep their own identities and removal controls. Keep the identity profile with your saves."))
+            else:
+                self.comparison.appendPlainText(self.tr("Use the merged package instead of its source mods and the composed CDMW overlay. Keep the identity profile with your saves."))
         self._run(task, completed, publishes_result=True)
 
     def _remove(self):

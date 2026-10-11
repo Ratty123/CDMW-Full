@@ -102,6 +102,12 @@ def mod_folder_payloads(
     root = Path(folder)
     if not root.is_dir():
         return found
+    from cdmw.core.mod_compatibility import semantic_export_path
+
+    if semantic_export_path(root) is not None:
+        raise ValueError("This semantic export retains required package intent. "
+                         "Import it through CDMW or select it in Merge; "
+                         "it cannot be used as an ordinary mod folder or a New Item base.")
     for base in _roots(root):
         for path in base.rglob("*"):
             raise_if_cancelled(stop_event, "New item plan cancelled.")

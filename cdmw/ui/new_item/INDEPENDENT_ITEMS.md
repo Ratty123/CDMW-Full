@@ -386,14 +386,31 @@ mods and composed CDMW overlay, and retain the identity profile for saves. Expor
 is not installation and does not transfer CDMW's per-item management to another
 manager. Changed sources require a new comparison before publication.
 
-Flattened archive export currently refuses active `item.fields` or
-`package.links` requirements. Its folder format cannot preserve an explicit
-source-equal assignment, exact provider pins or exported-object requirements.
-Keep the original `.cditem` files and install them together through CDMW or one
-virtual profile. A disabled field owner does not itself block export of the
-remaining legacy items. A complete folder schema and downstream readers that
-retain these semantics remain pending; passing a compatibility scan does not
-remove this export boundary.
+### Semantic export and reimport
+
+When active packages declare `item.fields` or `package.links`, **Export installed
+items…** writes `cdmw-semantic.cditem` inside the chosen folder. Add that file to
+**Mods** or **Virtual loader**, or use the reviewed physical **Install into game
+archives** flow. **Merge mods** also combines supported semantic export folders.
+The opaque wrapper retains every original package and exact contributor binding,
+including source-equal field requirements, provider pins and exported references.
+CDMW validates the payload and source witnesses, recompiles the original recipes,
+then composes them with the other active packages. Equal requirements retain both
+owners; compatible fields in the same row combine. Contradictory requirements,
+occupied or different numeric bindings, changed known game identities and changed
+archive indexes refuse. No game-reference relocation is implied.
+
+Retained contributors use ordinary package update, enable/disable and removal
+services. A virtual wrapper is one selection entry; to select a subset, use the
+retained original packages as the next profile selection. Required providers must
+remain selected. Retired identities are never reassigned. A disabled field owner
+does not block the unchanged legacy-only export route.
+
+Semantic exports cannot be installed by a legacy byte-only manager. Mixed foreign
+folders or untyped ownership layers remain unsupported for semantic export. A
+manually extracted legacy folder has only the guarantees supported by its bytes;
+checksums do not prevent stripping or authenticate the author. The exact negotiated
+`export.semantic@1` schema is in [SEMANTIC_EXPORT.md](../../core/SEMANTIC_EXPORT.md).
 
 The first supported record boundaries are:
 
@@ -651,9 +668,13 @@ scan across multiple indexes.
 `tests/test_independent_folder_metadata.py` exercises real exported folders through
 scan, physical resolution and virtual composition, including unchanged PATHC and
 changed original metadata digests. `tests/test_independent_export_requirements.py`
-and `tests/test_independent_item_semantic_routes.py` check active field/link export
-refusals, legacy export controls and retained typed intent through rebuild,
-disable and removal.
+and `tests/test_independent_item_semantic_routes.py` exercise actual semantic export,
+disk readback, reimport, update, disablement, removal and reinstallation.
+`tests/test_semantic_export_contract.py`, `tests/test_semantic_export_composition.py`
+and `tests/test_semantic_merge_admission.py` cover malformed or contradictory
+artifacts, logical resource budgets, unchanged-stamp source changes, exact worker
+witnesses and atomic publication. `tests/test_semantic_export_ui.py` drives the
+queued exporter and reviewed importer with owned fixtures.
 
 `tests/test_overlay_target_recovery.py` checks per-target rollback after
 replace/unlink errors, foreign changes to attempted and unattempted targets,

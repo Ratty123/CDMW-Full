@@ -38,9 +38,14 @@ class ModMergePlan:
     inventories: tuple[tuple[Path, tuple], ...]
     loose_hashes: tuple[tuple[Path, str], ...]
     compatibility: object = None
+    semantic_export: object = None
 
     def validate(self, stop_event=None):
         self.revision.validate(stop_event)
+        if self.semantic_export is not None:
+            self.semantic_export.validate(stop_event)
+            if self.semantic_export.files != self.files:
+                raise ValueError("Semantic export payloads disagree with the reviewed merge plan.")
         for folder, inventory in self.inventories:
             if _inventory(folder, stop_event) != inventory:
                 raise ValueError(f"Mod folder changed: {folder}. Check compatibility again.")
@@ -121,6 +126,14 @@ def prepare_mod_merge(
             raise ValueError("Select individual mod folders, not the game folder or its parent.")
         if any(folder.is_relative_to(other) or other.is_relative_to(folder) for other in roots[:index]):
             raise ValueError("Selected mod folders must not contain one another.")
+    # A semantic export is an opaque package collection. Its original recipes
+    # must be compiled together; its already composed bytes are never a base
+    # against which to replay the retained operations.
+    from cdmw.core.mod_compatibility import semantic_export_path
+    if any(semantic_export_path(folder) is not None for folder in roots):
+        from cdmw.services.independent_item_compatibility import prepare_semantic_mod_merge
+        return prepare_semantic_mod_merge(roots, game_root, entries=entries,
+            read_entry=read_entry, on_log=on_log, stop_event=stop_event)
     tracker = SourceTracker(read_entry or (lambda entry: read_archive_entry_data(entry)[0]))
     loose_hashes, inventories, mods, conflicts = [], [], [], []
     candidates = defaultdict(list)
@@ -330,6 +343,13 @@ def export_merged_mod(plan: ModMergePlan, destination: Path, *, title="Combined 
     validate()
     title = str(title).strip() or "Combined mod"
     def write(staging):
+        if plan.semantic_export is not None:
+            from cdmw.core.mod_compatibility import write_semantic_export
+            written = write_semantic_export(staging, plan.semantic_export, stop_event=stop_event)
+            if on_log:
+                on_log("Semantic export retains each original contributor. Import it through CDMW.")
+            return NewItemExportResult(staging, "CDMW", tuple(path for path, _data, _flags in plan.files), (),
+                tuple(path.relative_to(staging).as_posix() for path in written))
         additions, metadata = [], []
         for path, data, flags in plan.files:
             if path == "meta/0.pathc":

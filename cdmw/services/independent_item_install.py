@@ -319,6 +319,56 @@ class _AssetHashes:
         self._reserved.update(additions)
 
 
+def _semantic_inputs(sources, folders=(), *, stop_event=None):
+    """Admit opaque exports before treating any selected input as game bytes."""
+    from cdmw.core.mod_compatibility import read_semantic_export
+    expanded, ordinary, exports = [], [], []
+    retained_bytes = 0
+
+    def add_export(semantic):
+        nonlocal retained_bytes
+        retained_bytes += (sum(len(raw) for raw in semantic.packages)
+                           + sum(len(data) for _, data, _ in semantic.files)
+                           + sum(len(data) for data in semantic.originals.values() if data is not None)
+                           + len(canonical(semantic.bindings)) + len(canonical(semantic.witnesses)))
+        if retained_bytes > MAX_TOTAL or len(expanded) + len(semantic.packages) > 128:
+            raise IndependentItemError('The selected semantic exports exceed the package or comparison size limit.')
+        exports.append(semantic)
+        expanded.extend(semantic.packages)
+
+    for source in sources:
+        raise_if_cancelled(stop_event)
+        semantic = read_semantic_export(source, stop_event=stop_event) if isinstance(source, (str, Path)) else None
+        if semantic is None:
+            expanded.append(source)
+        else:
+            add_export(semantic)
+    for folder in folders:
+        raise_if_cancelled(stop_event)
+        semantic = read_semantic_export(folder, stop_event=stop_event)
+        if semantic is None:
+            ordinary.append(folder)
+        else:
+            add_export(semantic)
+    return tuple(expanded), tuple(ordinary), tuple(exports)
+
+
+def _semantic_bindings(registry, exports):
+    """Import exact reservations; relocating compiled identities is unsupported."""
+    for semantic in exports:
+        incoming = semantic.bindings
+        if incoming['format'] == MOD_PROFILE_FORMAT:
+            registry['format'] = MOD_PROFILE_FORMAT
+        for identity, row in incoming['items'].items():
+            previous = registry['items'].get(identity)
+            if previous is not None:
+                if any(previous[field] != row[field] for field in ('values', 'stem', 'paths')):
+                    raise IndependentItemError(f'{identity}: semantic export bindings differ from retained identities; relocation is unsupported.')
+            else:
+                registry['items'][identity] = deepcopy(row)
+    _validate_registry(registry)
+
+
 def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False, stop_event=None, on_log=None, read_entry=None, on_progress=None):
     """Resolve recipes without publishing archives, identities, or ownership.
 
@@ -333,6 +383,7 @@ def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False,
             on_progress(value, 100, detail)
     progress(0, 'Checking item packages…')
     root = Path(root).resolve()
+    sources, folders, semantic_exports = _semantic_inputs(sources, folders, stop_event=stop_event)
     observed_state = overlays._observe_state(root)
     def current_bytes(relative):
         path = overlays._target(root, relative)
@@ -365,6 +416,8 @@ def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False,
     if target == 'archive' and set(packages) & virtual_items:
         raise IndependentItemError('Remove the item from the virtual profile before installing it into archives.')
     registry_before = canonical(registry)
+    retained_identities = set(registry['items'])
+    _semantic_bindings(registry, semantic_exports)
     state, pending = overlays._state_for_edit(root, None, stop_event)
     from cdmw.domain.new_item.package_links import resolve_package_graph, bind_package_graph
     from cdmw.services.independent_mod_package import retained_active_packages
@@ -375,6 +428,8 @@ def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False,
     progress(7, 'Reading game data…')
     snapshot = stock_snapshot(root, service=service, read_entry=read_entry, stop_event=stop_event, on_log=on_log,
                               overlay_changes=decoded.values())
+    for semantic in semantic_exports:
+        semantic.validate_source(snapshot, root, stop_event=stop_event)
     pathc_path = overlays._target(root, 'meta/0.pathc')
     pathc_before = pathc_path.read_bytes() if pathc_path.is_file() else None
     for changes in decoded.values():
@@ -389,6 +444,13 @@ def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False,
     _external_paths(root, state, stop_event)
     progress(22, 'Comparing external mods…')
     external = external_mods(root, state, folders=folders, read_entry=read_entry, stop_event=stop_event, snapshot=snapshot)
+    for semantic in semantic_exports:
+        # Retain the digest of the parsed container through final publication.
+        if semantic.source is not None:
+            external.tracker.pin_index(semantic.source, semantic.artifact_digest, stop_event)
+            if semantic.folder is not None:
+                from cdmw.services.mod_merge_service import _inventory
+                external.inventories.append((semantic.folder, _inventory(semantic.folder, stop_event)))
     if target == 'virtual' and any(row.status == 'Unknown' for row in external.findings):
         raise IndependentItemError('; '.join(row.detail for row in external.findings))
     external_paths = external.paths
@@ -397,6 +459,7 @@ def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False,
     compatibility = []
     rows = []
     contributions = []
+    compiled = {}
     revisions = []
     for item_index, (identity, package) in enumerate(packages.items()):
         progress(30 + 70 * item_index // max(1, len(packages)),
@@ -414,6 +477,7 @@ def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False,
             if previous_layer.get('independent_compiler') != compiler_stamp() or 'independent_compilation' not in previous_layer:
                 raise IndependentItemError(f'{package.title}: the installed compiler is different or unrecorded. Use Rebuild selected item to regenerate it while retaining its IDs.')
             check_package_dependencies(package, snapshot, external, decoded[previous_layer['id']], stop_event=stop_event)
+            compiled[identity] = (package, decoded[previous_layer['id']])
             rows.append((identity, package.title, prior['values'].get('iteminfo', {}).get('item'), 'Already installed'))
             continue
         if previous_layer:
@@ -492,6 +556,7 @@ def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False,
         findings = check_package_dependencies(package, snapshot, external, changes, stop_event=stop_event)
         compatibility.extend(f'{", ".join(finding.mods)}: {finding.path}: {finding.detail}' for finding in findings)
         contributions.append((package, changes))
+        compiled[identity] = (package, changes)
         bindings.paths = tuple(sorted(set(bindings.paths) | added_paths))
         registry['items'][identity] = {'title': package.title, 'digest': package.digest, 'values': bindings.values,
                                       'stem': bindings.stem, 'paths': list(bindings.paths), 'layer': None}
@@ -504,17 +569,21 @@ def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False,
             if existing.identity != identity or existing.digest != package.digest:
                 raise IndependentItemError('The retained recovery package has changed outside CDMW.')
         pending[cache_path] = cached if cached is not None else package_bytes(package, stop_event=stop_event)
-        status = 'Rebuild' if rebuild and prior and prior['digest'] == package.digest else 'Update' if prior else 'Install'
+        known = identity in retained_identities
+        status = 'Rebuild' if rebuild and known and prior['digest'] == package.digest else 'Update' if known else 'Install'
         rows.append((identity, package.title, key, status))
     _validate_registry(registry)
     links = bind_package_graph(package_graph, registry['items'])
+    if semantic_exports:
+        from cdmw.services.independent_item_compatibility import validate_semantic_recomposition
+        validate_semantic_recomposition(semantic_exports, compiled, registry, stop_event=stop_event)
     progress(100, 'Item identities and dependencies verified.')
     return ResolvedItemSet(root, observed_state, state, pending, decoded, registry, registry_before,
         baseline, external, tuple(rows), tuple(contributions), tuple(revisions), tuple(dict.fromkeys(compatibility)), links)
 
 
-def prepare_install(sources, root, *, rebuild=False, stop_event=None, on_log=None, read_entry=None):
-    result = resolve_items(sources, root, rebuild=rebuild, stop_event=stop_event, on_log=on_log, read_entry=read_entry)
+def prepare_install(sources, root, *, folders=(), rebuild=False, stop_event=None, on_log=None, read_entry=None):
+    result = resolve_items(sources, root, folders=folders, rebuild=rebuild, stop_event=stop_event, on_log=on_log, read_entry=read_entry)
     root, state, pending, decoded, registry = result.root, result.state, result.pending, result.decoded, result.registry
     from cdmw.services.independent_item_compilation import contribution_record
     locks = {package.identity: contribution_record(package, changes, result) for package, changes in result.contributions}

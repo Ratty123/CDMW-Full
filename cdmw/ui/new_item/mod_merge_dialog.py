@@ -1,4 +1,4 @@
-"""Review selected mod folders and export one combined DMM package."""
+"""Review selected mod folders and export a compatible combined package."""
 from pathlib import Path
 from cdmw.domain.cancellation import raise_if_cancelled
 
@@ -27,7 +27,7 @@ class ModMergeDialog(QDialog):
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, not embedded)
         self.resize(780, 590)
         layout = QVBoxLayout(self)
-        self.setToolTip("Combine selected mod folders into one DMM package. Independent changes are merged; conflicting records and unsupported changes must be resolved first.")
+        self.setToolTip("Combine selected mod folders. Semantic exports retain their original packages for CDMW import; legacy exports use DMM. Conflicting or unsupported changes must be resolved first.")
         setup = QHBoxLayout()
         sources = QGroupBox('Mod folders')
         source_layout = QVBoxLayout(sources)
@@ -184,7 +184,8 @@ class ModMergeDialog(QDialog):
         if plan.conflicts:
             self.status.setText(f"{len(plan.conflicts)} conflict(s). No package can be written yet.")
         else:
-            self.status.setText(f"Ready to combine {len(plan.folders)} mods into one DMM package.")
+            destination = 'CDMW semantic .cditem' if plan.semantic_export is not None else 'DMM'
+            self.status.setText(f"Ready to combine {len(plan.folders)} mods into one {destination} package.")
         def build(stop):
             lines = []
             if plan.conflicts:
@@ -216,7 +217,10 @@ class ModMergeDialog(QDialog):
     def _exported(self, result):
         self._plan = None
         self.status.setText(f"Merged mod written to {result.package_root}.")
-        self.review.appendPlainText("\nEnable the combined package in DMM instead of the original selected packages.")
+        if result.manager == 'CDMW':
+            self.review.appendPlainText("\nImport cdmw-semantic.cditem through CDMW. Its contributors keep their own identities and removal controls. Keep the identity profile with your saves.")
+        else:
+            self.review.appendPlainText("\nEnable the combined package in DMM instead of the original selected packages.")
 
     def _finished(self, _result):
         self._closed = True

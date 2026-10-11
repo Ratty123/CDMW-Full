@@ -132,6 +132,16 @@
       ]
     },
     {
+      "key": "\nImport cdmw-semantic.cditem through CDMW. Its contributors keep their own identities and removal controls. Keep the identity profile with your saves.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 221,
+          "sink": "appendPlainText"
+        }
+      ]
+    },
+    {
       "key": "\nPrevious output retained at: {value_0}",
       "origins": [
         {
@@ -4247,6 +4257,21 @@
       ]
     },
     {
+      "key": "A semantic export contributor changed during compilation.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 557,
+          "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
+      "key": "A semantic export requires its single opaque .cditem wrapper; extra or linked files refuse.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "A single bone aimed at a target",
       "origins": [
         {
@@ -8243,6 +8268,16 @@
           "path": "cdmw/services/archive_overlay_manager.py",
           "line": 317,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "An untyped installed overlay cannot be included in a semantic export.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 699,
+          "sink": "OverlayConflict"
         }
       ]
     },
@@ -28707,7 +28742,7 @@
       ]
     },
     {
-      "key": "Combine selected mod folders into one DMM package. Independent changes are merged; conflicting records and unsupported changes must be resolved first.",
+      "key": "Combine selected mod folders. Semantic exports retain their original packages for CDMW import; legacy exports use DMM. Conflicting or unsupported changes must be resolved first.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
@@ -28753,6 +28788,16 @@
           "path": "cdmw/services/mod_update_service.py",
           "line": 281,
           "sink": "progress"
+        }
+      ]
+    },
+    {
+      "key": "Combining semantic exports with unannotated mod folders is unsupported; retain the original .cditem contributors.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 692,
+          "sink": "OverlayConflict"
         }
       ]
     },
@@ -29373,6 +29418,11 @@
           "path": "cdmw/services/independent_item_compatibility.py",
           "line": 342,
           "sink": "CompatibilityFinding"
+        },
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 735,
+          "sink": "CompatibilityFinding"
         }
       ]
     },
@@ -29892,6 +29942,11 @@
         {
           "path": "cdmw/services/independent_item_compatibility.py",
           "line": 541,
+          "sink": "CompatibilityFinding"
+        },
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 788,
           "sink": "CompatibilityFinding"
         },
         {
@@ -30520,6 +30575,11 @@
           "sink": "append_log"
         }
       ]
+    },
+    {
+      "key": "Contradictory or duplicate semantic export contributor identity.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Contrast",
@@ -39062,6 +39122,11 @@
       ]
     },
     {
+      "key": "Duplicate or oversized semantic export entries.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Duplicate overlay inventory key.",
       "origins": [
         {
@@ -39095,6 +39160,21 @@
           "sink": "ValueError"
         }
       ]
+    },
+    {
+      "key": "Duplicate semantic export metadata key.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Duplicate semantic export payload path or invalid flags.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Duplicate semantic export source path.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Duplicate this object",
@@ -56927,6 +57007,16 @@
       ]
     },
     {
+      "key": "Import cdmw-semantic.cditem through CDMW. Its contributors keep their own identities and removal controls. Keep the identity profile with your saves.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/independent_items_page.py",
+          "line": 278,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Import details",
       "origins": [
         {
@@ -60457,6 +60547,11 @@
       "manual": true
     },
     {
+      "key": "Invalid or non-normalized semantic export path.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Invalid or repeated overlay journal path.",
       "origins": [
         {
@@ -60718,6 +60813,61 @@
     },
     {
       "key": "Invalid runtime session progress.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Invalid semantic export archive-index path.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Invalid semantic export contributor inventory.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Invalid semantic export contributor record.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Invalid semantic export game digest.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Invalid semantic export game identity.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Invalid semantic export output inventory.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Invalid semantic export output record.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Invalid semantic export payload size or digest.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Invalid semantic export source witness inventory.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Invalid semantic export source witness.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Invalid semantic export: {value_0}",
       "origins": [],
       "manual": true
     },
@@ -64575,6 +64725,11 @@
           "sink": "python-return:_connected_target_candidate_summary_lines"
         }
       ]
+    },
+    {
+      "key": "Linked semantic export files are unsupported.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Linked views: {value_0}.",
@@ -73267,6 +73422,11 @@
       ]
     },
     {
+      "key": "Missing required semantic export metadata.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Missing screen selection payload.",
       "origins": [
         {
@@ -73275,6 +73435,11 @@
           "sink": "_send_dotnet_command_result"
         }
       ]
+    },
+    {
+      "key": "Missing semantic export source witnesses.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Missing semantics:",
@@ -103072,11 +103237,11 @@
       ]
     },
     {
-      "key": "Ready to combine {value_0} mods into one DMM package.",
+      "key": "Ready to combine {value_0} mods into one {value_1} package.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_merge_dialog.py",
-          "line": 187,
+          "line": 188,
           "sink": "setText"
         }
       ]
@@ -103683,6 +103848,16 @@
           "path": "cdmw/ui/new_item/independent_items_page.py",
           "line": 59,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Rebuild the installed package with the current compiler before semantic export.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 596,
+          "sink": "OverlayConflict"
         }
       ]
     },
@@ -111868,6 +112043,26 @@
           "path": "cdmw/ui/new_item/panels_model.py",
           "line": 762,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Retained semantic export package disagrees with its ownership.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 609,
+          "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
+      "key": "Retained typed requirements and package dependencies compose.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 735,
+          "sink": "CompatibilityFinding"
         }
       ]
     },
@@ -122255,6 +122450,151 @@
           "sink": "setPlainText"
         }
       ]
+    },
+    {
+      "key": "Semantic export baseline disagrees with its original source witness.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Semantic export bindings do not match its contributors.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Semantic export contains undeclared or unreferenced entries.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Semantic export contributor bindings disagree with retained intent.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Semantic export contributor checksum or size mismatch.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Semantic export contributors exceed the selected-package size limit.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Semantic export dependencies disagree with original source witnesses.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Semantic export failed final on-disk readback.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Semantic export game build changed.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Semantic export game identity changed: {value_0}.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Semantic export game identity is missing: {value_0}.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Semantic export logical output or baseline size limit exceeded.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Semantic export original source changed: {value_0}.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Semantic export original texture registry changed.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Semantic export originals do not match every emitted payload.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Semantic export payload checksum or size mismatch.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Semantic export payload exceeds its supported size.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Semantic export payloads disagree with the reviewed merge plan.",
+      "origins": [
+        {
+          "path": "cdmw/services/mod_merge_service.py",
+          "line": 48,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Semantic export payloads, flags or original baselines disagree with retained package recompilation.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 571,
+          "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
+      "key": "Semantic export requires recompilation against the current witnessed baseline.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 625,
+          "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
+      "key": "Semantic export requires retained .cditem contributors for every payload. Mixed foreign or untyped overlay exports remain unsupported.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 588,
+          "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
+      "key": "Semantic export retains each original contributor. Import it through CDMW.",
+      "origins": [
+        {
+          "path": "cdmw/services/mod_merge_service.py",
+          "line": 350,
+          "sink": "on_log"
+        }
+      ]
+    },
+    {
+      "key": "Semantic export source index changed: {value_0}.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Semantic export staging must be empty.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Semantic writer: {value_0} ({value_1})",
@@ -138117,6 +138457,11 @@
       ]
     },
     {
+      "key": "The selected semantic exports exceed the package or comparison size limit.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "The selected shop entry no longer matches the reviewed item.",
       "origins": [
         {
@@ -138180,6 +138525,46 @@
           "sink": "ValueError"
         }
       ]
+    },
+    {
+      "key": "The semantic export archive indexes differ from the witnessed game baseline.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The semantic export changed after review.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The semantic export changed while reading.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The semantic export compiler is unsupported. Export again with the current compiler.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The semantic export exceeds the supported size.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The semantic export folder changed after review.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The semantic export game executable selection changed.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "The semantic export requires its exact known game executable.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "The session host exited before reporting readiness. Review the launch diagnostics.",
@@ -140155,6 +140540,16 @@
       "key": "This selection has no proven source mapping for same-count channel edits.",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "This semantic export retains required package intent. Import it through CDMW or select it in Merge; it cannot be used as an ordinary mod folder or a New Item base.",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_mod_base.py",
+          "line": 108,
+          "sink": "ValueError"
+        }
+      ]
     },
     {
       "key": "This session contains {value_0} earlier operation(s). They are not part of this move and will not be packaged unless you select them.",
@@ -143742,6 +144137,11 @@
       ]
     },
     {
+      "key": "Unsafe or unsupported semantic export entry.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Unsaved changes",
       "origins": [
         {
@@ -144230,6 +144630,11 @@
           "sink": "ValueError"
         }
       ]
+    },
+    {
+      "key": "Unsupported required semantic export format or capability version.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Unsupported research detail kind: {value_0}",
@@ -180373,6 +180778,51 @@
           "path": "cdmw/services/mesh_shader_controls.py",
           "line": 24,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "{value_0}: semantic export bindings differ from retained identities; relocation is unsupported.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "{value_0}: semantic export contributors require different source baselines.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 616,
+          "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
+      "key": "{value_0}: semantic export has no matching original source witness.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 633,
+          "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
+      "key": "{value_0}: semantic export recipes disagree on their original baseline.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 565,
+          "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
+      "key": "{value_0}: semantic export relocation is unsupported.",
+      "origins": [
+        {
+          "path": "cdmw/services/independent_item_compatibility.py",
+          "line": 561,
+          "sink": "OverlayConflict"
         }
       ]
     },

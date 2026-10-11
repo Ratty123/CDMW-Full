@@ -210,7 +210,8 @@ def archive_cache_protected_paths(package_root: Path, cache_root: Path) -> Tuple
     )
 
 
-def resolve_crimson_desert_executable(package_root: Path) -> Optional[Path]:
+def crimson_desert_executable_candidates(package_root: Path) -> Tuple[Path, ...]:
+    """Return the existing ordered search, including archive-parent layouts."""
     base_dir = _archive_base_dir(package_root)
     candidate_roots: List[Path] = []
     for candidate_root in (base_dir, *base_dir.parents[:4]):
@@ -219,17 +220,19 @@ def resolve_crimson_desert_executable(package_root: Path) -> Optional[Path]:
             continue
         candidate_roots.append(candidate_root)
 
-    for candidate_root in candidate_roots:
-        for relative_path in (
-            Path("bin64") / "CrimsonDesert.exe",
-            Path("CrimsonDesert.exe"),
-        ):
-            candidate = candidate_root / relative_path
-            if candidate.is_file():
-                try:
-                    return candidate.expanduser().resolve()
-                except OSError:
-                    return candidate.expanduser()
+    return tuple(candidate_root / relative_path
+                 for candidate_root in candidate_roots
+                 for relative_path in (Path("bin64") / "CrimsonDesert.exe",
+                                       Path("CrimsonDesert.exe")))
+
+
+def resolve_crimson_desert_executable(package_root: Path) -> Optional[Path]:
+    for candidate in crimson_desert_executable_candidates(package_root):
+        if candidate.is_file():
+            try:
+                return candidate.expanduser().resolve()
+            except OSError:
+                return candidate.expanduser()
     return None
 
 

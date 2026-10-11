@@ -91,10 +91,12 @@ def _revision_data(revision):
             'indexes': [(str(path), checksum) for path, checksum in revision.indexes]}
 
 
-def _source_path(value, roots):
+def _source_path(value, roots, exact_files=()):
     _require(isinstance(value, str) and 0 < len(value) < 32768 and '\0' not in value)
     path = Path(value)
-    _require(path.is_absolute() and any(path.resolve().is_relative_to(root) for root in roots))
+    _require(path.is_absolute())
+    resolved = path.resolve()
+    _require(resolved in exact_files or any(resolved.is_relative_to(root) for root in roots))
     return path
 
 
@@ -103,28 +105,35 @@ def _read_entry(entry):
     return read_archive_entry_data(entry)[0]
 
 
-def _revision(value, roots):
+def _revision(value, roots, artifact_paths=(), exact_files=()):
     from cdmw.models import ArchiveEntry
     _require(isinstance(value, dict) and set(value) == {'files', 'payloads', 'indexes'})
     _require(all(isinstance(value[key], list) and len(value[key]) <= 65536 for key in value))
     files, payloads = [], []
+    exact_files = set(exact_files) | set(artifact_paths)
     for row in value['files']:
         _require(isinstance(row, list) and len(row) == 2)
         path, stamp = row
         _require(stamp is None or (isinstance(stamp, list) and len(stamp) == 3
                                   and all(type(n) is int and n >= 0 for n in stamp)))
-        files.append((_source_path(path, roots), tuple(stamp) if stamp is not None else None))
+        files.append((_source_path(path, roots, exact_files), tuple(stamp) if stamp is not None else None))
     pinned_files = dict(files)
     _require(len(pinned_files) == len(files))
     indexes = {}
     for row in value['indexes']:
         _require(isinstance(row, list) and len(row) == 2)
         path, checksum = row
-        path = _source_path(path, roots)
-        _require(path.suffix.lower() == '.pamt' and path not in indexes and pinned_files.get(path) is not None)
+        path = _source_path(path, roots, exact_files)
+        if path.suffix.lower() == '.pamt':
+            # Exact file admissions never grant a subtree for archive coordinates.
+            _source_path(str(path), roots)
+        else:
+            _require(path.resolve() in artifact_paths)
+        _require(path not in indexes and pinned_files.get(path) is not None)
         _require(isinstance(checksum, str) and re.fullmatch('[0-9a-f]{64}', checksum))
         indexes[path] = checksum
-    _require(set(indexes) == {path for path in pinned_files if path.suffix.lower() == '.pamt'})
+    _require({path for path in indexes if path.suffix.lower() == '.pamt'}
+             == {path for path in pinned_files if path.suffix.lower() == '.pamt'})
     for row in value['payloads']:
         _require(isinstance(row, list) and len(row) == 2)
         entry, checksum = row
@@ -134,7 +143,8 @@ def _revision(value, roots):
         _require(all(type(entry[key]) is int and 0 <= entry[key] < 2**63 for key in _ENTRY_FIELDS[3:]))
         entry = dict(entry, pamt_path=_source_path(entry['pamt_path'], roots), paz_file=_source_path(entry['paz_file'], roots))
         _require(entry['pamt_path'] in pinned_files and entry['paz_file'] in pinned_files)
-        _require(entry['pamt_path'] in indexes)
+        _require(entry['pamt_path'] in indexes and entry['pamt_path'].suffix.lower() == '.pamt'
+                 and entry['paz_file'].suffix.lower() == '.paz')
         payloads.append(PayloadRevision(ArchiveEntry(**entry), checksum))
     return SourceRevision(tuple(payloads), tuple(files), _read_entry, tuple(indexes.items()))
 
@@ -156,7 +166,7 @@ def _write_result(prepared, request, folder, output_path, stop_event):
     output_path.write_bytes(data)
 
 
-def _read_result(request, folder, output_path, stop_event):
+def _read_result(request, folder, output_path, stop_event, *, semantic_sources=(), semantic_stamps=()):
     from cdmw.services.independent_item_install import _validate_registry
     from cdmw.services.independent_item_compatibility import ExternalModRevision
     result = _read_json(output_path)
@@ -169,7 +179,23 @@ def _read_result(request, folder, output_path, stop_event):
     profile = validate_profile(decode(profile_bytes))
     _require(profile['packages'] == request['packages'] and profile['mods'] == request['mods'])
     root = Path(request['root'])
-    roots = (root, *(Path(path) for path in request['mods']))
+    # Archive coordinates and inventories require a genuine selected directory.
+    # Selected package and game identity files grant only exact file witnesses.
+    roots = (root, *(Path(path) for path in request['mods'] if Path(path).is_dir()))
+    from cdmw.core.mod_compatibility import SEMANTIC_EXPORT_FILE
+    selections = tuple(Path(path) for path in (*request['packages'], *request['mods']))
+    artifact_paths = {path.resolve() for path in selections
+                      if path.suffix.lower() == '.cditem' and not path.is_dir()}
+    artifact_paths.update((path / SEMANTIC_EXPORT_FILE).resolve()
+                          for path in selections if path.is_dir())
+    from cdmw.core.archive_scan_cache import (
+        crimson_desert_executable_candidates, resolve_crimson_desert_executable)
+    artifact_paths.add((root / 'meta/0.paver').resolve())
+    executable = resolve_crimson_desert_executable(root)
+    if executable is not None:
+        artifact_paths.add(executable.resolve())
+    exact_files = {path.resolve() for path in selections if not path.is_dir()}
+    exact_files.update(path.resolve() for path in crimson_desert_executable_candidates(root))
 
     def pairs(rows, limit, nullable=False):
         _require(isinstance(rows, list) and len(rows) <= limit)
@@ -201,21 +227,66 @@ def _read_result(request, folder, output_path, stop_event):
             _require(isinstance(name, str) and Path(name).name == name and name.lower().endswith('.pamt'))
             target(root / row[0], name)
     inventories = tuple((_source_path(p, roots), tuple(tuple(row) for row in rows)) for p, rows in profile['inventories'])
-    external = ExternalModRevision(root, _revision(result['external_source'], roots),
+    external = ExternalModRevision(root, _revision(result['external_source'], roots, artifact_paths, exact_files),
                                    tuple((p, tuple(names)) for p, names in archives), inventories)
-    revision = _revision(result['source'], roots)
+    revision = _revision(result['source'], roots, artifact_paths, exact_files)
     source_hashes = dict(profile['sources'])
     _require(all(source_hashes.get(str(path)) == checksum
                  for path, checksum in (*revision.indexes, *external.source_revision.indexes)))
+    parsed_hashes = dict((*revision.indexes, *external.source_revision.indexes))
+    inventory_map = dict(inventories)
+    file_rows = (*revision.files, *external.source_revision.files)
+    file_stamps = dict(file_rows)
+    _require(all(file_stamps[path] == stamp for path, stamp in file_rows))
+    for path, stamp in semantic_stamps:
+        _require(path in file_stamps and file_stamps[path] == stamp)
+    for path, checksum, semantic_folder, inventory in semantic_sources:
+        _require(parsed_hashes.get(path) == checksum and source_hashes.get(str(path)) == checksum)
+        if semantic_folder is not None:
+            _require(inventory_map.get(semantic_folder) == inventory)
     _require(isinstance(result['summary'], list) and len(result['summary']) <= 65536
              and all(isinstance(s, str) for s in result['summary']))
     return PreparedSnapshot(root, profile['generation'], files, registry, profile_bytes, observed,
                             revision, external, tuple(result['summary']), retained)
 
 
+def _semantic_source_guards(profile, root, stop_event=None):
+    """Retain required artifact witnesses in the parent before starting its child."""
+    from cdmw.core.mod_compatibility import read_semantic_export
+    from cdmw.services.mod_merge_service import _inventory
+    from cdmw.core.archive_scan_cache import (
+        crimson_desert_executable_candidates, resolve_crimson_desert_executable)
+    from cdmw.services.new_item_provenance import _stamp
+    root = Path(root).resolve()
+    result, stamps = [], {}
+    for path in (*profile.packages, *profile.mods):
+        raise_if_cancelled(stop_event)
+        semantic = read_semantic_export(path, stop_event=stop_event)
+        if semantic is not None:
+            inventory = _inventory(semantic.folder, stop_event) if semantic.folder is not None else None
+            result.append((semantic.source, semantic.artifact_digest, semantic.folder, inventory))
+            if semantic.target_game.get('paver_sha256'):
+                result.append((root / 'meta/0.paver', semantic.target_game['paver_sha256'], None, None))
+            if semantic.target_game.get('executable_sha256'):
+                executable = resolve_crimson_desert_executable(root)
+                if executable is None:
+                    raise VirtualLoaderError('The semantic export requires its exact known game executable.')
+                result.append((executable.resolve(), semantic.target_game['executable_sha256'], None, None))
+                for candidate in crimson_desert_executable_candidates(root):
+                    stamp = _stamp(candidate)
+                    _require(stamps.setdefault(candidate, stamp) == stamp)
+                    if candidate.resolve() == executable.resolve():
+                        break
+                    if candidate.is_file():
+                        raise VirtualLoaderError('The semantic export game executable selection changed.')
+        del semantic
+    return tuple(result), tuple(stamps.items())
+
+
 def prepare_profile_in_subprocess(profile: VirtualProfile, root, *, stop_event=None, on_log=None, on_progress=None):
     """Called from the existing controller worker, with one owned child at a time."""
     raise_if_cancelled(stop_event)
+    semantic_sources, semantic_stamps = _semantic_source_guards(profile, root, stop_event)
     request = {'schema': _SCHEMA, 'nonce': uuid4().hex, 'root': str(Path(root).resolve()),
                'packages': [str(Path(p).resolve()) for p in profile.packages],
                'mods': [str(Path(p).resolve()) for p in profile.mods]}
@@ -258,7 +329,8 @@ def prepare_profile_in_subprocess(profile: VirtualProfile, root, *, stop_event=N
         if on_progress:
             on_progress(98, 100, 'Checking the prepared result…')
         try:
-            result = _read_result(request, folder, output_path, stop_event)
+            result = _read_result(request, folder, output_path, stop_event,
+                                  semantic_sources=semantic_sources, semantic_stamps=semantic_stamps)
         except (OSError, KeyError, TypeError, IndexError) as exc:
             raise VirtualLoaderError('Virtual preparation returned an incomplete result. Prepare again.') from exc
         raise_if_cancelled(stop_event)
