@@ -191,7 +191,9 @@ def test_prepare_reports_monotonic_progress_without_changing_output(tmp_path):
 
 
 def test_virtual_list_sorting_is_display_only_and_projects_progress(tmp_path, monkeypatch):
-    from cdmw.services import virtual_loader_process
+    from cdmw.services import virtual_loader_process, virtual_loader_state
+    from tests.test_mod_management import pump
+    from tests.test_new_item_rust_ui import _input
     app = QApplication.instance() or QApplication([])
     controller = NewItemStudioController(synchronous=True)
     page = VirtualLoaderPage(controller, tmp_path)
@@ -222,21 +224,32 @@ def test_virtual_list_sorting_is_display_only_and_projects_progress(tmp_path, mo
         app.processEvents()
         assert page.selection.height() > 500
         assert page.workspace.widget(1).x() > page.workspace.widget(0).x()
+        prepared = SimpleNamespace(summary=('Ready',))
+        published, applied = [], []
+        page.profile_applied.connect(lambda: applied.append(True))
         def prepare(profile, root, *, on_log, stop_event, on_progress):
             assert profile == original
             on_progress(54, 100, 'Verifying source file integrity…')
             assert page.progress.value() == 54
             on_progress(12, 100, 'Reading game data…')
             assert page.progress.value() == 54
-            return SimpleNamespace(summary=('Ready',))
+            return prepared
         monkeypatch.setattr(virtual_loader_process, 'prepare_profile_in_subprocess', prepare)
-        _send(bridge, page.prepare_button, 'activate')
-        assert page.progress.value() == 100 and page.save_button.isEnabled()
+        monkeypatch.setattr(virtual_loader_state, 'publish_profile', lambda result, **_: published.append(result))
+        monkeypatch.setattr(page, '_ensure_runtime', lambda continuation: continuation())
+        monkeypatch.setattr(page, 'refresh', page._buttons)
+        # Inspect completed preparation before the Apply action's queued save runs.
+        bridge.dispatch(_input(bridge, page.apply_button, 'activate'))
+        assert page.progress.value() == 100 and page._prepared is prepared
+        assert not page.apply_button.isEnabled() and published == []
         state = bridge.snapshot()
         projected = next(node for node in bridge.document.registry.current.values() if node['name'] == 'virtual_loader_progress')
         assert projected['props']['value'] == 100 and not state['unsupported']
+        pump(app, lambda: page._queued is None and not page._working)
+        assert published == [prepared] and applied == [True]
+        assert page._prepared is None and page.progress.isHidden() and page.apply_button.isEnabled()
         monkeypatch.setattr(controller, '_run', lambda *args, **kwargs: False)
-        _send(bridge, page.prepare_button, 'activate')
+        _send(bridge, page.apply_button, 'activate')
         assert page.progress.isHidden() and not page._working
     finally:
         page.request_shutdown()
