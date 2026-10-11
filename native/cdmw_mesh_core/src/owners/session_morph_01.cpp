@@ -1369,8 +1369,13 @@ void mesh_editor_relieve_refit_surface(
                 const double contact_length = std::clamp(maximum_correction * 2.0,
                     iteration < shape_iterations ? smoothing_length : smoothing_length * 0.1,
                     refit.driver_diagonal * 0.05);
-                correction = mesh_editor_smooth_refit_contact(correction,contact_mass,contact_weights,
-                    contact_length * contact_length);
+                // Split diffusion into two shorter solves. One screened solve has
+                // a pointed response to isolated contacts, especially on dense
+                // meshes. The split rounds that response at the same total scale;
+                // smoothing the correction rather than vertices retains folds.
+                for (int smooth_pass = 0; smooth_pass < 2; ++smooth_pass)
+                    correction = mesh_editor_smooth_refit_contact(correction,contact_mass,contact_weights,
+                        contact_length * contact_length * 0.5);
             } catch (const std::runtime_error& error) {
                 std::string parts;
                 for (const auto& part:clearances) parts+=(parts.empty()?"":", ")+std::to_string(part.first);

@@ -88,6 +88,79 @@ def test_tessellation_taper_ellipse_and_folded_opening():
     assert radii[0] == pytest.approx(radii[1], abs=.004)
 
 
+@pytest.mark.parametrize("segments", (24, 48))
+@pytest.mark.parametrize("rotated", (False, True))
+def test_clearance_keeps_a_rounded_cover_from_developing_a_point(segments, rotated):
+    def body_surface(x, y):
+        return -.07 - .05 * math.exp(-(x / .035) ** 2 - ((y - 1.35) / .055) ** 2)
+
+    def patch(name, xs, ys, surface, closed=False):
+        vertices = [(x, y, surface(x, y)) for y in ys for x in xs]
+        faces = []
+        width = len(xs)
+        for row in range(len(ys) - 1):
+            for column in range(width - 1):
+                a = row * width + column
+                b, c, d = a + 1, a + width, a + width + 1
+                faces.extend(((a, c, b), (b, c, d)))
+        if closed:
+            count = len(vertices)
+            vertices.extend((x, y, .08) for x, y, _ in vertices.copy())
+            boundary = {}
+            for face in faces:
+                for a, b in zip(face, face[1:] + face[:1]):
+                    key = tuple(sorted((a, b)))
+                    if key in boundary:
+                        del boundary[key]
+                    else:
+                        boundary[key] = (a, b)
+            faces.extend(tuple(count + v for v in face[::-1]) for face in faces.copy())
+            for a, b in boundary.values():
+                faces.extend(((b, a, a + count), (b, a + count, b + count)))
+        if rotated:
+            vertices = [(z, x, y) for x, y, z in vertices]
+        return _part(name, vertices, faces, material=name, texture="")
+
+    body = patch("rounded support", [i * .01 - .22 for i in range(45)],
+                 [i * .01 for i in range(171)], body_surface, closed=True)
+    garment = patch("rounded cover", [i * .36 / segments - .18 for i in range(segments + 1)],
+                    [1.17 + i * .36 / segments for i in range(segments + 1)],
+                    lambda x, y: -.10 - .06 * math.exp(-(x / .07) ** 2 - ((y - 1.35) / .09) ** 2))
+    mesh = _mesh(body, garment)
+    with _bound(mesh) as session:
+        _fit(session, clearance_percent=0.)
+        conformed = _snapshot(mesh, session)
+        _fit(session)
+        fitted = _snapshot(mesh, session)
+    def undo_rotation(point):
+        return (point[1], point[2], point[0]) if rotated else point
+
+    before = [undo_rotation(p) for p in garment.vertices]
+    after = [undo_rotation(p) for p in fitted.submeshes[1].vertices]
+
+    def tip_turn(points):
+        start = (segments // 2) * (segments + 1)
+        row = points[start:start + segments + 1]
+        directions = []
+        for a, b in zip(row, row[1:]):
+            delta = tuple(y - x for x, y in zip(a, b))
+            length = math.sqrt(sum(x * x for x in delta))
+            directions.append(tuple(x / length for x in delta))
+        return max(math.acos(max(-1., min(1., sum(x * y for x, y in zip(a, b)))))
+                   for a, b in zip(directions, directions[1:]))
+
+    # The body was already safely inside the cover. Tightening may follow the
+    # bulge, but clearance must not replace a rounded tip with a narrow peak.
+    assert min(body_surface(x, y) - z for x, y, z in before) > .025
+    conformed_points = [undo_rotation(p) for p in conformed.submeshes[1].vertices]
+    assert tip_turn(after) < tip_turn(conformed_points) * 1.25
+    assert sum(b[2] - a[2] for a, b in zip(before, after)) / len(after) > .02
+    for face in garment.faces:
+        point = tuple(sum(after[i][axis] for i in face) / 3. for axis in range(3))
+        assert point[2] < body_surface(point[0], point[1]) + .0005
+    assert fitted.submeshes[0].vertices == body.vertices
+
+
 def test_layers_material_seams_and_protection_are_retained():
     sleeve = _sleeve()
     first = _part("front", sleeve.vertices, sleeve.faces[:192], material="front", texture="")

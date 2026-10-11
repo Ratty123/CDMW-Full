@@ -1645,6 +1645,10 @@ shape constraints so original garment width does not resist narrowing. Triangle
 guards limit distortion while carrying common movement, so folded hems and trim do
 not stick at their old positions. Body contacts are evaluated together: larger
 corrections move a wider patch around the limb, while small residuals settle locally.
+Contact corrections use two shorter smoothing passes to reduce new pointed areas
+around isolated contacts, including on denser meshes. Late adjustments remain local
+enough to clear cuffs and thin trim. This smooths the fitting displacement rather
+than the garment vertices, so authored folds retain their shape.
 Layer separation is checked again after smoothing. A shortened edge may recover its
 authored length during clearance correction; that limit does not pull the garment
 back to its old width. Thin folds are checked against their moving neighbors. Masks
