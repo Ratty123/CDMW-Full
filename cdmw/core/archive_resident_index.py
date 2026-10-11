@@ -279,10 +279,12 @@ class ResidentArchiveIndex(Sequence[ArchiveEntry]):
         for pamt in self.source_paths:
             if pamt.suffix.lower() != ".pamt":
                 continue
-            expected = Counter(
-                (str(entry.path).replace("\\", "/").strip("/"), Path(entry.paz_file),
-                 entry.offset, entry.comp_size, entry.orig_size, entry.flags, entry.paz_index)
-                for entry in parse_index(pamt))
+            expected = Counter()
+            for index, entry in enumerate(parse_index(pamt)):
+                if index % 1024 == 0:
+                    raise_if_cancelled(stop_event, "Archive catalogue validation cancelled.")
+                expected[(str(entry.path).replace("\\", "/").strip("/"), Path(entry.paz_file),
+                          entry.offset, entry.comp_size, entry.orig_size, entry.flags, entry.paz_index)] += 1
             parsed_count += sum(expected.values())
             for index, row in enumerate(rows_by_index.pop(pamt, ())):
                 if index % 4096 == 0:

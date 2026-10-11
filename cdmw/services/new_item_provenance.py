@@ -128,7 +128,7 @@ class SourceTracker:
         raise_if_cancelled(stop_event, "Archive index read cancelled.")
         self.pin_file(path)
         data = path.read_bytes()
-        entries = parse_archive_pamt_bytes(data, path)
+        entries = parse_archive_pamt_bytes(data, path, stop_event=stop_event)
         self.pin_index(path, hashlib.sha256(data).hexdigest(), stop_event)
         return entries
 

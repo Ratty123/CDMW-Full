@@ -357,6 +357,9 @@ class ArchiveBrowserRowPayloadMixin:
         item_warmup = getattr(self, "archive_item_finder_warmup_controller", None)
         if item_warmup is not None:
             item_warmup.pause_background()
+        new_item_preload = getattr(self.shell, "_new_item_preload_gate", None)
+        if new_item_preload is not None:
+            new_item_preload.pause()
 
     def _clear_archive_ui_activity(self) -> None:
         self.archive_ui_activity_until = 0.0
@@ -368,6 +371,9 @@ class ArchiveBrowserRowPayloadMixin:
         item_warmup = getattr(self, "archive_item_finder_warmup_controller", None)
         if item_warmup is not None:
             item_warmup.resume_background()
+        new_item_preload = getattr(self.shell, "_new_item_preload_gate", None)
+        if new_item_preload is not None:
+            new_item_preload.resume()
 
     def _archive_ui_interactive_active(self) -> bool:
         return time.perf_counter() < float(getattr(self, "archive_ui_activity_until", 0.0) or 0.0)

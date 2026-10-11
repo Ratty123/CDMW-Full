@@ -254,6 +254,14 @@ preparation worker, before the data read starts. Automatic preparation waits for
 Archives to publish its cached catalogue; it does not start a second full archive scan
 if the window paints first.
 
+Automatic reads run at low thread priority, yield between bounded index batches,
+and pause at cancellation checkpoints during application input. Two seconds of
+idle time resumes the same read without discarding verified progress. Opening
+Create New Item or Mod Management promotes the shared read to requested work,
+so interacting with those tools does not keep their data load paused. Shutdown
+can cancel a paused read without waiting for idle time. Exact source-index
+verification is preserved.
+
 Opening the shared catalogue does not duplicate every archive path in Python. File-type
 scans yield in small batches so input stays responsive after the archive list appears.
 Opening the tab reuses the loaded tables or the read already in

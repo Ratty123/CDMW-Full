@@ -97,7 +97,7 @@ A new archive load or search closes the picker to avoid an outdated selection;
 a load failure closes it to reveal the browser's retry controls.
 Apply **Search** to refresh the archive results.
 
-Startup catalogue and thumbnail warmups wait for the archive view to settle and
+Startup catalogue, New Item data and thumbnail warmups wait for the archive view to settle and
 pause during keyboard, mouse, drag, wheel and focus activity throughout the app,
 including input inside embedded native viewports on Windows. They resume after
 two seconds without input. Interrupted thumbnail jobs return to the queue and

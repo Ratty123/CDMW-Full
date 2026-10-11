@@ -716,20 +716,21 @@ def parse_archive_pamt(pamt_path: Path, paz_dir: Optional[Path] = None) -> List[
     return parse_archive_pamt_bytes(pamt_path.read_bytes(), pamt_path, paz_dir=paz_dir)
 
 
-def parse_archive_pamt_bytes(data: bytes, pamt_path: Path, paz_dir: Optional[Path] = None) -> List[ArchiveEntry]:
+def parse_archive_pamt_bytes(data: bytes, pamt_path: Path, paz_dir: Optional[Path] = None, *, stop_event=None) -> List[ArchiveEntry]:
     """Parse captured index bytes so callers can retain their exact input digest."""
     data = bytes(data)
     gc_was_enabled = gc.isenabled()
     if gc_was_enabled:
         gc.disable()
     try:
-        return _parse_archive_pamt_bytes(data, pamt_path, paz_dir=paz_dir)
+        return _parse_archive_pamt_bytes(data, pamt_path, paz_dir=paz_dir, stop_event=stop_event)
     finally:
         if gc_was_enabled:
             gc.enable()
 
 
-def _parse_archive_pamt_bytes(data: bytes, pamt_path: Path, paz_dir: Optional[Path] = None) -> List[ArchiveEntry]:
+def _parse_archive_pamt_bytes(data: bytes, pamt_path: Path, paz_dir: Optional[Path] = None, *, stop_event=None) -> List[ArchiveEntry]:
+    raise_if_cancelled(stop_event, "Archive index read cancelled.")
     resolved_paz_dir = paz_dir if paz_dir is not None else pamt_path.parent
     size = len(data)
     if size < 12:
@@ -797,6 +798,8 @@ def _parse_archive_pamt_bytes(data: bytes, pamt_path: Path, paz_dir: Optional[Pa
     entries: List[ArchiveEntry] = []
     folder_cursor = 0
     for entry_index, (name_offset, paz_offset, comp_size, orig_size, paz_index, flags) in enumerate(struct.iter_unpack("<IIIIHH", file_table)):
+        if entry_index % 1024 == 0:
+            raise_if_cancelled(stop_event, "Archive index read cancelled.")
         relative_path = resolver.get_full_path(name_offset).replace("\\", "/").strip("/")
         guessed_dir = ""
         while folder_cursor < len(folder_ranges) and entry_index >= folder_ranges[folder_cursor][1]:

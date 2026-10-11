@@ -2,10 +2,52 @@
 from __future__ import annotations
 
 import threading
+import time
 
 from PySide6.QtCore import QObject, QThread, Qt, QTimer, Signal
 
 from cdmw.domain.cancellation import RunCancelled
+
+
+class NewItemPreloadGate:
+    """Pause an automatic snapshot at its existing cancellation checkpoints."""
+
+    def __init__(self):
+        self._paused = threading.Event()
+        self._foreground = threading.Event()
+        self._stop = None
+        self._yield_at = 0.0
+
+    def pause(self):
+        self._paused.set()
+
+    def resume(self):
+        self._paused.clear()
+
+    def promote(self):
+        # Once a consumer opens, this is requested work rather than preloading.
+        self._foreground.set()
+
+    def bind(self, stop_event):
+        self._stop = stop_event
+        self._yield_at = time.perf_counter() + 0.004
+        return self
+
+    def is_set(self):
+        stop = self._stop
+        if stop.is_set():
+            return True
+        while self._paused.is_set() and not self._foreground.is_set():
+            if stop.wait(0.025):
+                return True
+        # A QThread still shares Python's interpreter lock with Qt callbacks.
+        # Bound each CPU burst even when the application is idle.
+        now = time.perf_counter()
+        if not self._foreground.is_set() and now >= self._yield_at:
+            cancelled = stop.wait(0.001)
+            self._yield_at = time.perf_counter() + 0.004
+            return cancelled
+        return stop.is_set()
 
 
 class _LookupThread(QThread):

@@ -16,11 +16,12 @@ reference Archive Lite projects, assemblies, settings, processes, or caches.
 
 ## Archive discovery exclusions
 
-Directory scans skip the archive root's `backups/` and `Cdmods/` directories,
-case-insensitively, before descending into them. Native discovery, source
+Directory scans skip the archive root's `backups/`, `Cdmods/`, and `.cdmw/` directories,
+case-insensitively, before descending into them. Saved virtual-loader generations
+and other internal copies never enter the live catalogue. Native discovery, source
 fingerprints and shared archive readers use the same exclusions. Live
 archive groups and overlays remain discoverable, including groups under
-`game_files/`. A cached catalogue fingerprinted with backup sources becomes stale
+`game_files/`. A cached catalogue fingerprinted with ignored internal sources becomes stale
 and rebuilds automatically on the next archive open. An explicitly selected
 `.pamt` file can still be inspected even when it is inside a backup directory.
 

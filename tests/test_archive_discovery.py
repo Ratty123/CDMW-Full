@@ -19,10 +19,11 @@ def test_archive_discovery_does_not_visit_backup_or_mod_library_trees(
         tmp_path / live_parent / "0036" / "0.pamt",
         tmp_path / "0.pamt",
     ]
-    ignored_roots = [tmp_path / "BaCkUpS", tmp_path / "Cdmods"]
+    ignored_roots = [tmp_path / "BaCkUpS", tmp_path / "Cdmods", tmp_path / ".CdMw"]
     ignored_indexes = [
         ignored_roots[0] / "vault" / "5c03e5214c46a260" / "files" / "0009" / "0.pamt",
         ignored_roots[1] / "some_mod" / "0009" / "0.pamt",
+        ignored_roots[2] / "virtual-loader" / "generations" / "previous" / "files" / "0041" / "0.pamt",
     ]
     for index in [*live_indexes, *ignored_indexes]:
         index.parent.mkdir(parents=True, exist_ok=True)
@@ -39,20 +40,22 @@ def test_archive_discovery_does_not_visit_backup_or_mod_library_trees(
     assert set(discover_pamt_files(tmp_path)) == set(live_indexes)
 
 
-def test_explicit_backup_index_remains_available_for_inspection(tmp_path: Path) -> None:
-    backup_index = tmp_path / "backups" / "vault" / "files" / "0009" / "0.pamt"
+@pytest.mark.parametrize("storage", ["backups", ".cdmw"])
+def test_explicit_backup_index_remains_available_for_inspection(tmp_path: Path, storage: str) -> None:
+    backup_index = tmp_path / storage / "vault" / "files" / "0009" / "0.pamt"
     backup_index.parent.mkdir(parents=True)
     backup_index.write_bytes(b"synthetic index")
 
     assert discover_pamt_files(backup_index) == [backup_index]
 
 
+@pytest.mark.parametrize("storage", ["backups", ".cdmw"])
 def test_legacy_scan_cache_with_backup_entries_is_rejected(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, storage: str
 ) -> None:
     indexes = [
         tmp_path / "0009" / "0.pamt",
-        tmp_path / "backups" / "vault" / "files" / "0009" / "0.pamt",
+        tmp_path / storage / "vault" / "files" / "0009" / "0.pamt",
     ]
     entries = []
     for index in indexes:

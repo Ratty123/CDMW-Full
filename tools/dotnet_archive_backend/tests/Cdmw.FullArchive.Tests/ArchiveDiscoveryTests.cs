@@ -25,6 +25,15 @@ internal static class ArchiveDiscoveryTests
             var modPamt = Path.Combine(fixture.Root, "Cdmods", "some_mod", "0009", "0.pamt");
             Directory.CreateDirectory(Path.GetDirectoryName(modPamt)!);
             File.Copy(fixture.Pamt, modPamt);
+            var generationPamt = Path.Combine(fixture.Root, ".CdMw", "virtual-loader", "generations", "previous", "files", "0041", "0.pamt");
+            Directory.CreateDirectory(Path.GetDirectoryName(generationPamt)!);
+            File.Copy(fixture.Pamt, generationPamt);
+            File.Copy(fixture.Paz, Path.ChangeExtension(generationPamt, ".paz"));
+            var generationMetadata = Path.Combine(Path.GetDirectoryName(Path.GetDirectoryName(generationPamt)!)!, "meta");
+            Directory.CreateDirectory(generationMetadata);
+            await File.WriteAllTextAsync(Path.Combine(generationMetadata, "0.pathc"), "saved registry").ConfigureAwait(false);
+            Require(ArchiveFingerprint.DiscoverSourceFiles(generationPamt).Contains(generationPamt),
+                "an explicitly selected internal index cannot be inspected");
             await File.WriteAllTextAsync(Path.Combine(Path.GetDirectoryName(backupPamt)!, "0.pathc"), "backup metadata").ConfigureAwait(false);
             Require(!File.Exists(Path.ChangeExtension(backupPamt, ".paz")), "backup fixture must have no PAZ payload");
 
@@ -47,7 +56,8 @@ internal static class ArchiveDiscoveryTests
             {
                 var relativeSource = Path.GetRelativePath(fixture.Root, session.ReadEntry(id).SourcePamt);
                 Require(!relativeSource.StartsWith("backups" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
-                    && !relativeSource.StartsWith("cdmods" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase),
+                    && !relativeSource.StartsWith("cdmods" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+                    && !relativeSource.StartsWith(".cdmw" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase),
                     "native scan retained an ignored archive source");
             }
 
@@ -55,6 +65,7 @@ internal static class ArchiveDiscoveryTests
             Require(current.Value == liveFingerprint.Value && current.SourceFiles.SequenceEqual(liveFingerprint.SourceFiles),
                 "backup sources changed the live archive fingerprint");
             await File.AppendAllTextAsync(backupPamt, "changed backup").ConfigureAwait(false);
+            await File.AppendAllTextAsync(generationPamt, "changed saved generation").ConfigureAwait(false);
             var changedBackup = await ArchiveFingerprint.ComputeAsync(fixture.Root, CancellationToken.None).ConfigureAwait(false);
             Require(changedBackup.Value == liveFingerprint.Value, "changing a backup invalidated the live archive cache");
         }
@@ -65,6 +76,14 @@ internal static class ArchiveDiscoveryTests
     }
 
     public static async Task ExistingBackupCacheAsync()
+    {
+        foreach (var directoryName in new[] { "backups", ".cdmw" })
+        {
+            await ExistingIgnoredCacheAsync(directoryName).ConfigureAwait(false);
+        }
+    }
+
+    private static async Task ExistingIgnoredCacheAsync(string directoryName)
     {
         await using var fixture = await SyntheticArchiveFixture.CreateAsync().ConfigureAwait(false);
         var cacheRoot = Path.Combine(Path.GetTempPath(), $"cdmw-backup-cache-{Guid.NewGuid():N}");
@@ -80,7 +99,7 @@ internal static class ArchiveDiscoveryTests
             }
 
             // Recreate a previously published catalogue that resolves its entries to the vault.
-            var backupPamt = CopyBackupIndex(fixture, "backups");
+            var backupPamt = CopyBackupIndex(fixture, directoryName);
             var entryCount = native.BuildIndex(backupPamt, Path.Combine(generationPath, "archive.ali"));
             var oldSources = Directory.EnumerateFiles(fixture.Root, "*", SearchOption.AllDirectories)
                 .Where(static path => path.EndsWith(".pamt", StringComparison.OrdinalIgnoreCase)

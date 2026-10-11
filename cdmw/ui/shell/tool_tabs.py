@@ -463,6 +463,9 @@ class ShellToolTabsMixin:
         return controller
 
     def _create_mod_management_tab(self) -> QWidget:
+        preload_gate = getattr(self, "_new_item_preload_gate", None)
+        if preload_gate is not None:
+            preload_gate.promote()
         from cdmw.services.cache_layout import runtime_cache_layout
         from cdmw.ui.tools.rust_mod_management import RustModManagementTab
         tab = RustModManagementTab(
@@ -536,6 +539,9 @@ class ShellToolTabsMixin:
         from cdmw.ui.new_item.rust_ui_tab import RustNewItemStudioTab
         from cdmw.ui.new_item.tab import NewItemStudioTab
 
+        preload_gate = getattr(self, "_new_item_preload_gate", None)
+        if preload_gate is not None:
+            preload_gate.promote()
         workflow = NewItemStudioTab(window=self, controller=self._shared_new_item_controller())
         tab = RustNewItemStudioTab(window=self, workflow=workflow)
         workspace = getattr(self, "compact_workspace", None)
@@ -554,9 +560,10 @@ class ShellToolTabsMixin:
         return tab
 
     def _schedule_new_item_rust_prewarm(self) -> None:
-        from cdmw.workers.new_item_lookup import NewItemLookupLane
+        from cdmw.workers.new_item_lookup import NewItemLookupLane, NewItemPreloadGate
         from cdmw.ui.shell.close_controller import register_transient_worker_controller
 
+        self._new_item_preload_gate = NewItemPreloadGate()
         preparation = NewItemLookupLane(parent=self)
         register_transient_worker_controller(self, preparation)
         imports_ready = False
@@ -574,7 +581,8 @@ class ShellToolTabsMixin:
                 timer.stop()
                 return
             if (not self.isVisible() or getattr(self, "_startup_splash_window", None) is not None
-                    or QApplication.activeModalWidget() is not None):
+                    or QApplication.activeModalWidget() is not None
+                    or self.archive._archive_ui_interactive_active()):
                 return
             if getattr(self, "_new_item_controller", None) is None and not imports_ready:
                 # Importing the controller also imports its parsers and services.
@@ -619,6 +627,7 @@ class ShellToolTabsMixin:
             entries_by_basename=self.archive.archive_entries_by_basename,
             entries_by_extension=self.archive.archive_entries_by_extension,
             resident_source=resident_source,
+            preload_gate=self._new_item_preload_gate,
         )
 
     def open_new_item_studio(

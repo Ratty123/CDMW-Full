@@ -96,6 +96,7 @@ def snapshot_task(
     native_preview_core_cache_root: Optional[Path] = None,
     preview_render_settings: object = None,
     resident_source=None,
+    preload_gate=None,
 ) -> Callable[[LogSink, threading.Event], NewItemSnapshot]:
     """Read every table a new item touches; seconds of work, once per archive scan.
 
@@ -110,6 +111,9 @@ def snapshot_task(
     def run(log: LogSink, stop_event: threading.Event) -> NewItemSnapshot:
         from cdmw.workers.new_item_preview_warmup import NewItemPreviewWarmup
 
+        if preload_gate is not None:
+            stop_event = preload_gate.bind(stop_event)
+        raise_if_cancelled(stop_event, "New item snapshot cancelled.")
         warmup = NewItemPreviewWarmup(native_preview_core_cache_root, warmup_settings, stop_event)
         try:
             log("Opening the archive catalogue for New Item...")

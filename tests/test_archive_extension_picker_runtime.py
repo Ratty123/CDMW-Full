@@ -220,6 +220,39 @@ def test_native_renderer_input_pauses_warmups_but_other_apps_do_not(workspace, t
     assert not archive._archive_ui_interactive_active()
 
 
+def test_app_activity_pauses_new_item_preload_and_foreground_promotion_unblocks_it(workspace, tmp_path):
+    archive = _ready(workspace, tmp_path)
+    gate = workspace._new_item_preload_gate
+    archive.archive_entries = (synthetic_archive_entry(tmp_path),)
+    captured = []
+    controller = SimpleNamespace(start_snapshot=lambda *args, **kwargs: captured.append(kwargs) or True)
+    assert workspace._preload_new_item_archive_data(controller)
+    assert captured[0]["preload_gate"] is gate
+    stop, finished = threading.Event(), threading.Event()
+    gate.bind(stop)
+    target = QLineEdit(workspace)
+    QApplication.sendEvent(target, QMouseEvent(QEvent.MouseMove, QPointF(5, 5), QPointF(5, 5),
+        Qt.NoButton, Qt.LeftButton, Qt.NoModifier))
+
+    def checkpoint():
+        gate.is_set()
+        finished.set()
+
+    thread = threading.Thread(target=checkpoint)
+    thread.start()
+    try:
+        assert not finished.wait(0.08)
+        archive._clear_archive_ui_activity()
+        assert finished.wait(2)
+        archive._note_archive_ui_activity()
+        gate.promote()
+        assert not gate.is_set()  # Opening a consuming tool overrides idle-only preloading.
+    finally:
+        stop.set()
+        thread.join(2)
+        assert not thread.is_alive()
+
+
 def test_item_startup_page_yields_and_cancelled_icon_requests_are_retried(workspace, tmp_path, monkeypatch):
     archive = _ready(workspace, tmp_path)
     warmup = archive.archive_item_finder_warmup_controller

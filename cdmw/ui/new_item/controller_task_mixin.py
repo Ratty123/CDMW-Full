@@ -80,6 +80,7 @@ class NewItemTaskControllerMixin:
         native_preview_core_cache_root: Optional[Path] = None,
         preview_render_settings: object = None,
         resident_source=None,
+        preload_gate=None,
     ) -> bool:
         """Read the tables from `entries`, or, with none, list the archives under
         `package_root` first (the shell's catalogue backend leaves the legacy list empty)."""
@@ -103,6 +104,7 @@ class NewItemTaskControllerMixin:
             native_preview_core_cache_root=native_preview_core_cache_root,
             preview_render_settings=preview_render_settings,
             resident_source=resident_source,
+            preload_gate=preload_gate,
         )
 
         def done(result: object) -> None:
@@ -130,7 +132,10 @@ class NewItemTaskControllerMixin:
 
         if not self.busy and not self._shutdown_requested:
             self._snapshot_error = ""
-        return self._run("snapshot", task, done, failed)
+        started = self._run("snapshot", task, done, failed)
+        if started and preload_gate is not None and self._thread is not None and self._thread.isRunning():
+            self._thread.setPriority(QThread.LowPriority)
+        return started
 
     # ------------------------------------------------------------------ issued identities
 
