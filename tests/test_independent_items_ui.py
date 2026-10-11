@@ -225,8 +225,9 @@ def test_conflict_scan_and_reviewed_merge_are_accessible_through_rust_bridge(tmp
     mount_mod(root, tmp_path / 'foreign', table_change(stock), first=True)
     controller = NewItemStudioController(synchronous=True)
     page = IndependentItemsPage(controller, root, backups)
-    bridge = NewItemPresentationBridge(page)
+    bridge = NewItemPresentationBridge(page.shared_page)
     page.show()
+    page.shared_page.show()
     app.processEvents()
     try:
         _send(bridge, page.scan_button, 'activate')

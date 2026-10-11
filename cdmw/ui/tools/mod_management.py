@@ -4,7 +4,7 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QTimer, QSignalBlocker, Signal
 from PySide6.QtWidgets import (
     QFileDialog, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QProgressBar,
-    QPushButton, QStackedWidget, QTabWidget, QVBoxLayout, QWidget,
+    QPushButton, QStackedWidget, QVBoxLayout, QWidget,
 )
 
 from cdmw.ui.new_item.controller import NewItemStudioController
@@ -33,16 +33,20 @@ class ModManagementTab(QWidget):
         self._refresh_needed = True
         self._overview_refresh_needed = False
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(8)
+        source_row = QHBoxLayout()
         heading = QLabel("Mod Management")
         heading.setObjectName('SectionTitle')
-        layout.addWidget(heading)
-        source_row = QHBoxLayout()
+        source_row.addWidget(heading)
+        source_row.addSpacing(16)
         source_label = QLabel('Game folder')
         source_label.setObjectName('mod_management_game_label')
         source_row.addWidget(source_label)
         self.game_folder = QLineEdit(str(self._get_package_root() or ''))
         self.game_folder.setObjectName('mod_management_game_folder')
         self.game_folder.setReadOnly(True)
+        self.game_folder.setMinimumWidth(0)
         source_row.addWidget(self.game_folder, 1)
         self.choose_game = QPushButton('Change…')
         self.choose_game.setObjectName('mod_management_choose_game')
@@ -51,8 +55,6 @@ class ModManagementTab(QWidget):
         self.choose_game.clicked.connect(self._choose_game)
         source_row.addWidget(self.choose_game)
         layout.addLayout(source_row)
-        self.pages = QTabWidget()
-        self.pages.setObjectName('mod_management_pages')
         from cdmw.ui.new_item.overlay_manager_dialog import OverlayManagerDialog
         from cdmw.ui.new_item.mod_merge_dialog import ModMergeDialog
         from cdmw.ui.new_item.mod_update_dialog import ModUpdateDialog
@@ -83,7 +85,6 @@ class ModManagementTab(QWidget):
         details_layout.addWidget(self.inventory, 1)
         self.inventory.inventory_panel.hide()
         self.mods_pages.addWidget(self.details_page)
-        self.pages.addTab(self.mods_pages, 'Mods')
         self.virtual_page.details_requested.connect(self._show_mod_details)
         self.virtual_page.activity.connect(self._append_activity)
         from cdmw.ui.tools.mod_package_retrofit_tasks import ModPackageRetrofitToolWidget
@@ -92,11 +93,11 @@ class ModManagementTab(QWidget):
         recovery_layout = QVBoxLayout(recovery_page)
         recovery_layout.setContentsMargins(0, 0, 0, 0)
         self._page_by_key = {'mods': self.virtual_page, 'overview': self.overview, 'installed': self.inventory, 'independent': self.independent_page, 'virtual': self.virtual_page,
+                             'shared': self.independent_page.shared_page,
                              'repackage': self.repackage_page, 'merge': self.merge_page, 'updates': self.update_page,
                              'recovery': recovery_page}
         self.overview.refresh_requested.connect(self.refresh)
         self.inventory.inventory_changed.connect(self.overview.set_entries)
-        layout.addWidget(self.pages, 1)
         self.inventory.updates_requested.connect(self._update_mods)
         self.inventory.activity.connect(self._append_activity)
         # Preserve existing entry-point attributes for callers; navigation is now
@@ -113,11 +114,8 @@ class ModManagementTab(QWidget):
         saved = QGroupBox('Saved installs')
         saved_layout = QVBoxLayout(saved)
         recovery_layout.addWidget(saved)
-        recovery_help = QLabel('Review saved installs against the current game.')
-        recovery_help.setToolTip('Rebuild / reapply compares saved changes with the current game and preserves individual installs. '
-                                'Start fresh retires an unmounted set.')
-        recovery_help.setWordWrap(True)
-        saved_layout.addWidget(recovery_help)
+        saved.setToolTip('Rebuild / reapply compares saved changes with the current game and preserves individual installs. '
+                         'Start fresh retires an unmounted set.')
         repair_row = QHBoxLayout()
         repair_row.addWidget(self.inventory.rebuild_button)
         repair_row.addWidget(self.inventory.start_fresh_button)
@@ -125,9 +123,7 @@ class ModManagementTab(QWidget):
         saved_layout.addLayout(repair_row)
         legacy = QGroupBox('Archive recovery')
         legacy_layout = QVBoxLayout(legacy)
-        legacy_help = QLabel('For items previously written into shipped archives.')
-        legacy_help.setWordWrap(True)
-        legacy_layout.addWidget(legacy_help)
+        legacy.setToolTip('For items previously written into shipped archives.')
         recovery_layout.addWidget(legacy)
         self.overlay_migration_button = QPushButton("Move installed items into the overlay...")
         self.overlay_migration_button.setToolTip(
@@ -136,14 +132,14 @@ class ModManagementTab(QWidget):
             "so the game reads the same thing while the files it shipped are its own again.")
         self.overlay_migration_button.clicked.connect(self._migrate_overlay)
         legacy_layout.addWidget(self.overlay_migration_button)
-        from cdmw.ui.tools.mod_management_advanced import ModManagementAdvanced
-        self.advanced_pages = ModManagementAdvanced(self.overview, recovery_page, self.independent_page,
-                                                    self.repackage_page, self.merge_page, self.update_page, self)
-        self.recovery = self.advanced_pages.repair_toggle
-        self.pages.addTab(self.advanced_pages, 'Advanced')
+        recovery_layout.addStretch(1)
+        from cdmw.ui.tools.mod_management_advanced import ModManagementPages
+        self.pages = ModManagementPages(self.mods_pages, self.overview, recovery_page, self.independent_page,
+                                        self.repackage_page, self.merge_page, self.update_page, self)
+        self.recovery = self.pages.repair_toggle
+        layout.addWidget(self.pages, 1)
         self.pages.currentChanged.connect(self._page_changed)
-        self.advanced_pages.currentChanged.connect(self._page_changed)
-        self.advanced_pages.task_changed.connect(lambda: self._page_changed(0))
+        self.pages.task_changed.connect(lambda: self._page_changed(0))
         self.operation_bar = QWidget()
         self.operation_bar.setObjectName('mod_management_operation_bar')
         activity_row = QHBoxLayout(self.operation_bar)
@@ -177,19 +173,18 @@ class ModManagementTab(QWidget):
     def open_page(self, key):
         page = self._page_by_key.get(key)
         if page is not None and not self._closed:
-            with QSignalBlocker(self.pages), QSignalBlocker(self.advanced_pages):
+            with QSignalBlocker(self.pages), QSignalBlocker(self.pages.task):
                 if page in (self.virtual_page, self.inventory):
                     self.mods_pages.setCurrentWidget(self.virtual_page if page is self.virtual_page else self.details_page)
                     self.pages.setCurrentWidget(self.mods_pages)
                 else:
-                    self.advanced_pages.open_page(page)
-                    self.pages.setCurrentWidget(self.advanced_pages)
+                    self.pages.open_page(page)
             self._page_changed(0)
 
     def _current_page(self):
-        if self.pages.currentWidget() is self.advanced_pages:
-            return self.advanced_pages.current_page()
-        return self.virtual_page if self.mods_pages.currentWidget() is self.virtual_page else self.inventory
+        if self.pages.currentWidget() is self.mods_pages:
+            return self.virtual_page if self.mods_pages.currentWidget() is self.virtual_page else self.inventory
+        return self.pages.current_page()
 
     def _show_mod_details(self, identity):
         self.open_page('installed')

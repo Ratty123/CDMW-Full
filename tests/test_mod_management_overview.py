@@ -138,8 +138,8 @@ def test_health_workspace_combines_overview_and_recovery_without_duplicate_navig
     tab.open_page('overview')
     bridge = NewItemPresentationBridge(tab)
     try:
-        assert [tab.advanced_pages.tabText(i) for i in range(tab.advanced_pages.count())] == [
-            'Health and recovery', 'Prepare packages', 'Item identities']
+        assert [tab.pages.tabText(i) for i in range(tab.pages.count())] == [
+            'Mods', 'Prepare packages', 'Item identities', 'Shared files', 'Health and recovery']
         assert tab._page_by_key['recovery'].isHidden()
         tab.overview._loaded((tab.overview._generation, ''), (
             MountedArchive('0037', False, True, False),
@@ -173,7 +173,7 @@ def test_health_workspace_combines_overview_and_recovery_without_duplicate_navig
         _send(bridge, tab.recovery, 'activate')
         assert tab._page_by_key['recovery'].isHidden()
         tab.open_page('recovery')
-        assert tab.advanced_pages.currentWidget() is tab.advanced_pages.health
+        assert tab.pages.currentWidget() is tab.pages.health
         assert not tab._page_by_key['recovery'].isHidden()
     finally:
         tab.request_shutdown()
@@ -257,17 +257,22 @@ def test_all_management_pages_keep_their_actions_and_editable_controls(tmp_path)
             yield from walk(child)
 
     try:
-        for key in ('installed', 'independent', 'repackage', 'merge', 'updates', 'recovery'):
+        for key in ('installed', 'independent', 'shared', 'repackage', 'merge', 'updates', 'recovery'):
             tab.open_page(key)
             if key == 'installed':
                 controls = [tab.back_to_mods, tab.inventory.inspector, tab.inventory.preview_retry]
             elif key == 'independent':
                 page = tab.independent_page
-                controls = [page.items, page.import_button, page.remove_button, page.refresh_button,
-                            page.export_profile_button, page.import_profile_button, page.scan_button,
-                            page.scan_folder_button, page.compose_button, page.export_merge_button, page.comparison]
+                _send(bridge, page.profile_toggle, 'activate')
+                controls = [page.items, page.import_button, page.remove_button, page.rebuild_button,
+                            page.refresh_button, page.export_profile_button, page.import_profile_button]
+            elif key == 'shared':
+                page = tab.independent_page
+                controls = [page.scan_button, page.scan_folder_button, page.compose_button,
+                            page.export_merge_button, page.comparison]
             elif key == 'repackage':
                 page = tab.repackage_ui
+                _send(bridge, page.details_toggle, 'activate')
                 controls = [page.source_edit, page.output_edit, page.scan_button, page.table,
                             page.preview_button, page.convert_button, page.open_output_button, page.diff_preview]
             elif key in ('merge', 'updates'):
@@ -284,8 +289,6 @@ def test_all_management_pages_keep_their_actions_and_editable_controls(tmp_path)
                 assert projected[identifier]['enabled'] == widget.isEnabled()
             if key == 'installed':
                 assert bridge.document.registry.identify(tab.inventory.table) not in projected
-            else:
-                assert len([node for node in projected.values() if node['kind'] == 'group']) >= 2, key
         assert tab.recovery.isChecked()
     finally:
         tab.request_shutdown()
@@ -301,12 +304,11 @@ def test_package_task_selector_keeps_inputs_and_projects_only_the_selected_workf
     bridge = NewItemPresentationBridge(tab)
     try:
         _send(bridge, tab.pages, 'tab', 1)
-        _send(bridge, tab.advanced_pages, 'tab', 1)
         ui = tab.repackage_ui
         assert ui is not None
         _send(bridge, ui.output_edit, 'text', str(tmp_path / 'converted'))
         for index, page in ((1, tab.merge_page), (2, tab.update_page)):
-            _send(bridge, tab.advanced_pages.task, 'choose', index)
+            _send(bridge, tab.pages.task, 'tab', index)
             assert tab._current_page() is page
             _send(bridge, page.title, 'text', f'Kept name {index}')
             _send(bridge, page.destination, 'text', str(tmp_path / f'output-{index}'))
@@ -314,14 +316,14 @@ def test_package_task_selector_keeps_inputs_and_projects_only_the_selected_workf
             assert not state['unsupported']
             assert 'mod_management_package_task' in str(state['root'])
             assert not tab.controller.busy, 'Switching tasks must not start a scan or write.'
-        _send(bridge, tab.advanced_pages.task, 'choose', 0)
+        _send(bridge, tab.pages.task, 'tab', 0)
         assert tab.repackage_ui is ui and ui.output_edit.text() == str(tmp_path / 'converted')
         assert tab._current_page() is tab.repackage_page
         for index, key in ((1, 'merge'), (2, 'updates')):
             tab.open_page(key)
-            assert tab.advanced_pages.task.currentIndex() == index
+            assert tab.pages.task.currentIndex() == index
             assert tab._current_page().title.text() == f'Kept name {index}'
-        assert tab.advanced_pages.count() == 3
+        assert tab.pages.count() == 5
     finally:
         tab.request_shutdown()
         pump(app, lambda: not tab.iter_shutdown_workers())
@@ -343,7 +345,7 @@ def test_rust_repackage_page_scans_converts_and_keeps_inline_results(tmp_path):
     bridge = NewItemPresentationBridge(tab)
     tab.show()
     try:
-        _send(bridge, tab.advanced_pages, 'tab', 1)
+        _send(bridge, tab.pages, 'tab', 1)
         ui = tab.repackage_ui
         assert ui is not None and not bridge.snapshot()['unsupported']
         _send(bridge, ui.source_edit, 'text', str(source))
@@ -361,9 +363,63 @@ def test_rust_repackage_page_scans_converts_and_keeps_inline_results(tmp_path):
         assert len(outputs) == 1 and outputs[0].read_bytes() == payload.read_bytes()
         assert hashlib.sha256(payload.read_bytes()).digest() == original
         assert not bridge.snapshot()['unsupported']
-        _send(bridge, tab.advanced_pages, 'tab', 0)
-        _send(bridge, tab.advanced_pages, 'tab', 1)
+        _send(bridge, tab.pages, 'tab', 4)
+        _send(bridge, tab.pages, 'tab', 1)
         assert tab.repackage_ui is ui and 'Example' in ui.diff_preview.toPlainText()
+    finally:
+        tab.request_shutdown()
+        pump(app, lambda: not tab.iter_shutdown_workers())
+        tab.deleteLater()
+        owner.deleteLater()
+        app.sendPostedEvents(None, QEvent.DeferredDelete)
+
+
+def test_package_details_edit_the_selected_package_and_survive_navigation(tmp_path):
+    from tests.test_mod_package_retrofit_async import _package, _summary
+
+    app = QApplication.instance() or QApplication([])
+    owner = _ToolOwner(tmp_path)
+    tab = ModManagementTab(repackage_owner=owner)
+    bridge = NewItemPresentationBridge(tab)
+    tab.open_page('repackage')
+    ui = tab.repackage_ui
+    try:
+        ui.packages = [_package(tmp_path / name, name) for name in ('First', 'Second')]
+        ui.summaries = [_summary(), _summary()]
+        ui._populate_table()
+        assert ui.details_panel.isHidden()
+        assert [i for i in range(ui.table.columnCount()) if not ui.table.isColumnHidden(i)] == [0, 1, 2, 5, 11]
+        _send(bridge, ui.table, 'resize_column', {'column': 1, 'width': 420})
+        assert ui.table.columnWidth(1) == 420
+        _send(bridge, ui.details_toggle, 'activate')
+        manager = ui.detail_fields[5]
+        _send(bridge, manager, 'choose', manager.findData('jmm'))
+        assert not ui.detail_fields[6].isEnabled()
+        _send(bridge, manager, 'choose', manager.findData('cdumm'))
+        structure = ui.detail_fields[6]
+        _send(bridge, structure, 'choose', structure.findData('files_wrapper'))
+        _send(bridge, ui.detail_fields[7], 'choose', 1)
+        _send(bridge, ui.detail_fields[8], 'text', 'en')
+        _send(bridge, ui.detail_fields[9], 'toggle', False)
+        options = ui._export_options_for_row(0)
+        assert options.structure == 'files_wrapper'
+        assert options.conflict_mode == 'override' and options.target_language == 'en'
+        assert not options.create_zip
+        _send(bridge, ui.table, 'select', {'path': [1], 'column': 1})
+        assert ui.package_name.text() == 'Second'
+        assert ui.detail_fields[9].isChecked() and not ui.detail_fields[8].text()
+        assert ui._export_options_for_row(0) == options
+        _send(bridge, ui.details_toggle, 'activate')
+        tab.open_page('merge')
+        tab.open_page('repackage')
+        _send(bridge, ui.table, 'select', {'path': [0], 'column': 1})
+        _send(bridge, ui.details_toggle, 'activate')
+        assert ui.detail_fields[8].text() == 'en' and not ui.detail_fields[9].isChecked()
+        assert ui._export_options_for_row(0) == options
+        ui.packages.clear()
+        ui.summaries.clear()
+        ui._populate_table()
+        assert ui.detail_fields[5].count() == 0 and not ui.detail_fields[5].isEnabled()
     finally:
         tab.request_shutdown()
         pump(app, lambda: not tab.iter_shutdown_workers())
@@ -435,20 +491,19 @@ def test_localized_overview_and_late_repackage_keep_navigation_and_settings(tmp_
             app.processEvents()
             localizer.apply_registered_roots()
             assert tab.choose_game.text() == localizer.translate('Change…')
-            assert tab.advanced_pages.tabText(0) == localizer.translate('Health and recovery')
-            assert tab.advanced_pages.tabText(1) == localizer.translate('Prepare packages')
-            assert tab.advanced_pages.tabText(2) == localizer.translate('Item identities')
+            for index, caption in enumerate(('Mods', 'Prepare packages', 'Item identities', 'Shared files', 'Health and recovery')):
+                assert tab.pages.tabText(index) == localizer.translate(caption)
             tab.open_page('repackage')
             for index, title, detail in (
-                (0, 'Convert for a mod manager', 'Change a folder or ZIP to another manager’s package format.'),
-                (1, 'Combine mod folders', 'Check two or more folders for conflicts, then write one combined package.'),
-                (2, 'Update for the current game', 'Compare a mod with the current game, then write an updated package.'),
+                (0, 'Convert', 'Convert for a mod manager'),
+                (1, 'Combine', 'Combine mod folders'),
+                (2, 'Update', 'Update for the current game'),
             ):
-                tab.advanced_pages.task.setCurrentIndex(index)
+                tab.pages.task.setCurrentIndex(index)
                 app.processEvents()
                 localizer.apply_registered_roots()
-                assert tab.advanced_pages.task.currentText() == localizer.translate(title)
-                assert tab.advanced_pages.description.text() == localizer.translate(detail)
+                assert tab.pages.task.tabText(index) == localizer.translate(title)
+                assert tab.pages.task.tabToolTip(index) == localizer.translate(detail)
             tab.open_page('repackage')
             app.processEvents()
             localizer.apply_registered_roots()

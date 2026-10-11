@@ -9,19 +9,23 @@ loading method and identities. Installed-only games launch without virtual setup
 CDMW-owned installs can be enabled, disabled or removed from the list using the
 existing reviewed backup workflow. External folders remain managed by their original
 manager. Missing references and removed identity reservations are maintenance records,
-not active mods, and remain available under **Advanced**.
+not active mods, and remain available in **Health and recovery** and **Item identities**.
 
 Select a CDMW install and choose **Details** to open its preview and file history;
-**Back to mod list** retains the list's search and selection. Advanced has three areas:
+**Back to mod list** retains the list's search and selection. One tab row opens **Mods**,
+**Prepare packages**, **Item identities**, **Shared files**, and **Health and recovery**.
 
 - **Health and recovery** combines archive status, missing-reference cleanup and
   expandable repair actions. Rebuild/reapply repairs saved installs in place.
-- **Prepare packages** has one task selector: convert for a mod manager, combine mod
-  folders, or update for the current game. Each task retains its inputs when switching.
+- **Prepare packages** offers **Convert**, **Combine**, and **Update**. Each task retains
+  its inputs when switching. Conversion lists show the package, kind, manager and status;
+  **Package details** opens the selected package's additional settings and output plan.
   These operations write separate output packages; they do not apply them to the game.
-- **Item identities** inspects installed/reserved IDs and transfers identity profiles
-  with saves. Its shared-file tools rebuild installed data or export that installed set.
+- **Item identities** inspects installed/reserved IDs. **Identity profile** opens its
+  import/export tools for transferring profiles with saves.
   The explicit **Install into game archives** action retains the older physical route.
+- **Shared files** scans installed data or a mod folder, reviews conflicts, and offers
+  the existing rebuild and export actions.
 
 Compatibility and unsupported-input
 checks remain mandatory; the combined list does not expand format or in-game support.
@@ -29,7 +33,9 @@ The visible workspace uses the existing Rust presentation bridge over an offscre
 `ModManagementTab`. The Rust layout measures
 translated labels at the current font size, stacks the groups when they no longer fit
 side by side, and scrolls when the window is short. All management pages share these
-panel, input, button and navigation styles. Form sections and inventory/preview panes
+panel, input, button and navigation styles. Lists and review panes fill the available
+height and scroll locally; profile, recovery and package details start collapsed.
+At narrow widths, package details becomes a closable full-width panel. Form sections and inventory/preview panes
 stack at narrow widths or larger text sizes; tables retain horizontal scrolling for
 additional columns. Explanations stay concise, with longer guidance in hover help.
 The shared game-folder selector
@@ -106,7 +112,7 @@ The shell tracks the tab's operations, lookups and overlay preview during shutdo
 
 ## Retrofit and Repackage
 
-**Mod Management > Advanced > Prepare packages > Convert for a mod manager** converts existing folders or ZIPs for supported managers.
+**Mod Management > Prepare packages > Convert** converts existing folders or ZIPs for supported managers.
 It is constructed on first use and keeps its selection, output settings and inline
 results when switching pages. Existing Repackage menu actions and saved navigation
 open this page. Old Archive Browser imports remain compatibility wrappers.

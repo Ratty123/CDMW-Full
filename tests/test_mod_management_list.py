@@ -44,7 +44,8 @@ def test_one_list_labels_routes_without_duplicate_owned_archive_and_keeps_draft_
     before = game_bytes(root)
     tab = ModManagementTab(get_package_root=lambda: str(root))
     try:
-        assert [tab.pages.tabText(i) for i in range(tab.pages.count())] == ['Mods', 'Advanced']
+        assert [tab.pages.tabText(i) for i in range(tab.pages.count())] == [
+            'Mods', 'Prepare packages', 'Item identities', 'Shared files', 'Health and recovery']
         assert tab._current_page() is tab.virtual_page
         page = load_installed(tab, root)
         identities, mounts, can_launch = page._sources

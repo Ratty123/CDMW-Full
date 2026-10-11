@@ -1509,6 +1509,8 @@ impl PresentationView {
         // content columns and give the remaining space to its stretch columns;
         // scaling all widths equally starves short headings and price editors.
         let item_packages = node.name == "independent_item_packages";
+        let stretch_column = if item_packages { Some(0) }
+            else if node.name == "retrofit_packages_table" { Some(1) } else { None };
         let minimums: Vec<f32> = columns.iter().map(|column| {
             let heading = column["text"].as_str().unwrap_or("");
             let heading = if node.flag("sortable") { format!("{heading} ▾") } else { heading.to_owned() };
@@ -1555,9 +1557,11 @@ impl PresentationView {
                 if manual[index].is_none() { *width -= (*width - minimums[index]).max(0.0) * factor; }
             }
         } else {
-            let has_stretch = item_packages || columns.iter().enumerate().any(|(i, column)| column["stretch"] == true && manual[i].is_none());
+            let has_stretch = stretch_column.is_some() || columns.iter().enumerate().any(|(i, column)| column["stretch"] == true && manual[i].is_none());
             let stretch: Vec<_> = columns.iter().enumerate().filter(|(i, column)|
-                manual[*i].is_none() && (if item_packages { *i == 0 } else { !has_stretch || column["stretch"] == true })).map(|(i, _)| i).collect();
+                manual[*i].is_none() && (if let Some(index) = stretch_column {
+                    column["index"].as_u64() == Some(index)
+                } else { !has_stretch || column["stretch"] == true })).map(|(i, _)| i).collect();
             let extra = (budget - used) / stretch.len().max(1) as f32;
             for index in stretch { widths[index] += extra; }
         }

@@ -2406,7 +2406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 141,
+          "line": 144,
           "sink": "tr"
         }
       ]
@@ -4431,7 +4431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 314,
+          "line": 342,
           "sink": "tr"
         }
       ]
@@ -6380,11 +6380,6 @@
           "sink": "tr"
         },
         {
-          "path": "cdmw/ui/tools/mod_management.py",
-          "line": 143,
-          "sink": "addTab"
-        },
-        {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
           "line": 1158,
           "sink": "rust-presentation"
@@ -6551,7 +6546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 50,
+          "line": 71,
           "sink": "setToolTip"
         }
       ]
@@ -10121,7 +10116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 315,
+          "line": 343,
           "sink": "tr"
         }
       ]
@@ -12046,7 +12041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 53,
+          "line": 51,
           "sink": "QLabel"
         }
       ]
@@ -12736,7 +12731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 126,
+          "line": 124,
           "sink": "QGroupBox"
         }
       ]
@@ -15376,7 +15371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 80,
+          "line": 82,
           "sink": "QPushButton"
         }
       ]
@@ -18006,12 +18001,12 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 113,
+          "line": 114,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 114,
+          "line": 115,
           "sink": "QPushButton"
         }
       ]
@@ -19846,7 +19841,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 167,
+          "line": 170,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -20251,7 +20246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 311,
+          "line": 339,
           "sink": "tr"
         }
       ]
@@ -21451,12 +21446,12 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 158,
+          "line": 154,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 221,
+          "line": 268,
           "sink": "QPushButton"
         }
       ]
@@ -21581,7 +21576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 457,
+          "line": 547,
           "sink": "setText"
         }
       ]
@@ -22587,16 +22582,6 @@
       ]
     },
     {
-      "key": "Change a folder or ZIP to another manager’s package format.",
-      "origins": [
-        {
-          "path": "cdmw/ui/tools/mod_management_advanced.py",
-          "line": 66,
-          "sink": "tr"
-        }
-      ]
-    },
-    {
       "key": "Change at least one material value before exporting.",
       "origins": [
         {
@@ -22871,7 +22856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 47,
+          "line": 51,
           "sink": "QPushButton"
         }
       ]
@@ -23682,7 +23667,7 @@
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
           "line": 49,
-          "sink": "QLabel"
+          "sink": "setToolTip"
         }
       ]
     },
@@ -23751,7 +23736,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 110,
+          "line": 111,
           "sink": "QPushButton"
         }
       ]
@@ -23811,8 +23796,8 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 81,
-          "sink": "QLabel"
+          "line": 99,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -23852,16 +23837,6 @@
         {
           "path": "cdmw/ui/new_item/read_failure.py",
           "line": 123,
-          "sink": "tr"
-        }
-      ]
-    },
-    {
-      "key": "Check two or more folders for conflicts, then write one combined package.",
-      "origins": [
-        {
-          "path": "cdmw/ui/tools/mod_management_advanced.py",
-          "line": 67,
           "sink": "tr"
         }
       ]
@@ -24116,7 +24091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 182,
+          "line": 185,
           "sink": "tr"
         }
       ]
@@ -24176,7 +24151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 221,
+          "line": 249,
           "sink": "tr"
         }
       ]
@@ -25401,7 +25376,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 124,
+          "line": 127,
           "sink": "tr"
         }
       ]
@@ -25526,7 +25501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 260,
+          "line": 288,
           "sink": "tr"
         }
       ]
@@ -25651,7 +25626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 268,
+          "line": 296,
           "sink": "tr"
         }
       ]
@@ -26331,7 +26306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 467,
+          "line": 557,
           "sink": "getExistingDirectory"
         }
       ]
@@ -26576,7 +26551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 461,
+          "line": 551,
           "sink": "getExistingDirectory"
         }
       ]
@@ -26721,7 +26696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 49,
+          "line": 53,
           "sink": "setToolTip"
         }
       ]
@@ -26816,7 +26791,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 227,
+          "line": 222,
           "sink": "getExistingDirectory"
         }
       ]
@@ -26836,7 +26811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 150,
+          "line": 178,
           "sink": "tr"
         }
       ]
@@ -26901,7 +26876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 382,
+          "line": 470,
           "sink": "setToolTip"
         }
       ]
@@ -27606,7 +27581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 218,
+          "line": 221,
           "sink": "tr"
         }
       ]
@@ -27616,7 +27591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 75,
+          "line": 72,
           "sink": "QPushButton"
         }
       ]
@@ -27646,7 +27621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 242,
+          "line": 245,
           "sink": "tr"
         }
       ]
@@ -27676,7 +27651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 231,
+          "line": 234,
           "sink": "tr"
         }
       ]
@@ -28861,12 +28836,12 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 228,
+          "line": 275,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 516,
+          "line": 608,
           "sink": "QPushButton"
         },
         {
@@ -29827,11 +29802,21 @@
       ]
     },
     {
+      "key": "Combine",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_management_advanced.py",
+          "line": 18,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Combine mod folders",
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_advanced.py",
-          "line": 44,
+          "line": 18,
           "sink": "tr"
         }
       ]
@@ -29851,7 +29836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 263,
+          "line": 291,
           "sink": "getText"
         }
       ]
@@ -30207,16 +30192,6 @@
       ]
     },
     {
-      "key": "Compare a mod with the current game, then write an updated package.",
-      "origins": [
-        {
-          "path": "cdmw/ui/tools/mod_management_advanced.py",
-          "line": 68,
-          "sink": "tr"
-        }
-      ]
-    },
-    {
       "key": "Compare and Review",
       "origins": [],
       "manual": true
@@ -30376,7 +30351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 233,
+          "line": 261,
           "sink": "tr"
         }
       ]
@@ -30446,7 +30421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 241,
+          "line": 269,
           "sink": "tr"
         }
       ]
@@ -31076,7 +31051,12 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 183,
+          "line": 205,
+          "sink": "QLabel"
+        },
+        {
+          "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
+          "line": 228,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -31878,6 +31858,11 @@
           "path": "cdmw/ui/texture_workflow/asset_authoring_panel.py",
           "line": 143,
           "sink": "QPushButton"
+        },
+        {
+          "path": "cdmw/ui/tools/mod_management_advanced.py",
+          "line": 17,
+          "sink": "tr"
         }
       ]
     },
@@ -31896,7 +31881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_advanced.py",
-          "line": 43,
+          "line": 17,
           "sink": "tr"
         }
       ]
@@ -35141,7 +35126,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 391,
+          "line": 479,
           "sink": "addItem"
         }
       ]
@@ -35996,7 +35981,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 391,
+          "line": 479,
           "sink": "addItem"
         }
       ]
@@ -38476,7 +38461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 199,
+          "line": 227,
           "sink": "tr"
         },
         {
@@ -44466,7 +44451,12 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 183,
+          "line": 205,
+          "sink": "QLabel"
+        },
+        {
+          "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
+          "line": 228,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -46211,7 +46201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 337,
+          "line": 365,
           "sink": "tr"
         }
       ]
@@ -46221,7 +46211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 70,
+          "line": 85,
           "sink": "QPushButton"
         }
       ]
@@ -46231,7 +46221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 92,
+          "line": 112,
           "sink": "QPushButton"
         }
       ]
@@ -48536,7 +48526,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 391,
+          "line": 479,
           "sink": "addItem"
         }
       ]
@@ -48896,7 +48886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 309,
+          "line": 337,
           "sink": "tr"
         }
       ]
@@ -51116,7 +51106,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 83,
+          "line": 80,
           "sink": "setHeaderLabels"
         }
       ]
@@ -51303,11 +51293,6 @@
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
           "line": 52,
           "sink": "addItem"
-        },
-        {
-          "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 119,
-          "sink": "QGroupBox"
         }
       ]
     },
@@ -51716,7 +51701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 133,
+          "line": 129,
           "sink": "setToolTip"
         }
       ]
@@ -51726,8 +51711,8 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 128,
-          "sink": "QLabel"
+          "line": 126,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -52246,7 +52231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 164,
+          "line": 167,
           "sink": "tr"
         }
       ]
@@ -52266,7 +52251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 419,
+          "line": 509,
           "sink": "setText"
         }
       ]
@@ -53061,7 +53046,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 163,
+          "line": 166,
           "sink": "tr"
         }
       ]
@@ -53106,7 +53091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 38,
+          "line": 57,
           "sink": "setHeaderLabels"
         }
       ]
@@ -53126,7 +53111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 21,
+          "line": 23,
           "sink": "QLabel"
         },
         {
@@ -53291,7 +53276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 40,
+          "line": 43,
           "sink": "QLabel"
         }
       ]
@@ -53311,12 +53296,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 308,
+          "line": 336,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 220,
+          "line": 223,
           "sink": "tr"
         }
       ]
@@ -53501,7 +53486,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 391,
+          "line": 479,
           "sink": "addItem"
         }
       ]
@@ -57121,7 +57106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_advanced.py",
-          "line": 29,
+          "line": 57,
           "sink": "addTab"
         }
       ]
@@ -58851,7 +58836,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 31,
+          "line": 32,
+          "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/new_item/independent_items_page.py",
+          "line": 47,
           "sink": "QGroupBox"
         }
       ]
@@ -58861,12 +58851,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 337,
+          "line": 365,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 348,
+          "line": 376,
           "sink": "tr"
         }
       ]
@@ -58876,7 +58866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 344,
+          "line": 372,
           "sink": "tr"
         }
       ]
@@ -58886,7 +58876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 213,
+          "line": 241,
           "sink": "tr"
         }
       ]
@@ -59836,7 +59826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 278,
+          "line": 306,
           "sink": "tr"
         }
       ]
@@ -59916,7 +59906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 348,
+          "line": 376,
           "sink": "tr"
         }
       ]
@@ -59926,7 +59916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 72,
+          "line": 87,
           "sink": "QPushButton"
         }
       ]
@@ -59936,7 +59926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 216,
+          "line": 244,
           "sink": "tr"
         }
       ]
@@ -60966,7 +60956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 72,
+          "line": 69,
           "sink": "setToolTip"
         }
       ]
@@ -61441,7 +61431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 332,
+          "line": 360,
           "sink": "tr"
         }
       ]
@@ -61506,7 +61496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 216,
+          "line": 244,
           "sink": "tr"
         },
         {
@@ -62356,8 +62346,8 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 25,
-          "sink": "QLabel"
+          "line": 27,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -62606,7 +62596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 49,
+          "line": 70,
           "sink": "QPushButton"
         }
       ]
@@ -62746,7 +62736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 199,
+          "line": 227,
           "sink": "tr"
         },
         {
@@ -62807,7 +62797,7 @@
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
           "line": 29,
-          "sink": "QGroupBox"
+          "sink": "QLabel"
         }
       ]
     },
@@ -62871,7 +62861,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 104,
+          "line": 105,
           "sink": "QPushButton"
         }
       ]
@@ -62906,8 +62896,8 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 78,
-          "sink": "QGroupBox"
+          "line": 103,
+          "sink": "QLabel"
         }
       ]
     },
@@ -64296,7 +64286,7 @@
         },
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 38,
+          "line": 57,
           "sink": "setHeaderLabels"
         }
       ]
@@ -64866,7 +64856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_advanced.py",
-          "line": 61,
+          "line": 26,
           "sink": "addTab"
         }
       ]
@@ -65836,8 +65826,8 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 66,
-          "sink": "QLabel"
+          "line": 83,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -65991,7 +65981,12 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 183,
+          "line": 205,
+          "sink": "QLabel"
+        },
+        {
+          "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
+          "line": 228,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -66266,7 +66261,12 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 183,
+          "line": 205,
+          "sink": "QLabel"
+        },
+        {
+          "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
+          "line": 228,
           "sink": "setHorizontalHeaderLabels"
         },
         {
@@ -70426,7 +70426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 83,
+          "line": 80,
           "sink": "setHeaderLabels"
         }
       ]
@@ -70496,7 +70496,12 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 183,
+          "line": 205,
+          "sink": "QLabel"
+        },
+        {
+          "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
+          "line": 228,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -72376,7 +72381,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 107,
+          "line": 108,
           "sink": "QPushButton"
         }
       ]
@@ -72416,7 +72421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 276,
+          "line": 304,
           "sink": "tr"
         }
       ]
@@ -76396,7 +76401,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 165,
+          "line": 168,
           "sink": "tr"
         }
       ]
@@ -76481,7 +76486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 249,
+          "line": 252,
           "sink": "tr"
         }
       ]
@@ -76716,7 +76721,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 36,
+          "line": 39,
           "sink": "QLabel"
         }
       ]
@@ -76921,7 +76926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 263,
+          "line": 291,
           "sink": "tr"
         }
       ]
@@ -78380,8 +78385,8 @@
       "key": "Mods",
       "origins": [
         {
-          "path": "cdmw/ui/tools/mod_management.py",
-          "line": 86,
+          "path": "cdmw/ui/tools/mod_management_advanced.py",
+          "line": 13,
           "sink": "addTab"
         }
       ]
@@ -79146,27 +79151,27 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 364,
+          "line": 359,
           "sink": "_overlay_services"
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 374,
+          "line": 369,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 379,
+          "line": 374,
           "sink": "_overlay_services"
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 384,
+          "line": 379,
           "sink": "information"
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 388,
+          "line": 383,
           "sink": "question"
         }
       ]
@@ -79176,7 +79181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 132,
+          "line": 128,
           "sink": "QPushButton"
         }
       ]
@@ -79281,7 +79286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 388,
+          "line": 383,
           "sink": "question"
         }
       ]
@@ -83506,7 +83511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 46,
+          "line": 67,
           "sink": "setAccessibleDescription"
         }
       ]
@@ -83991,7 +83996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 214,
+          "line": 217,
           "sink": "tr"
         }
       ]
@@ -84281,23 +84286,13 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 94,
+          "line": 95,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 339,
+          "line": 427,
           "sink": "setText"
-        }
-      ]
-    },
-    {
-      "key": "No packages selected. Check package rows to inspect the selected operation plan.",
-      "origins": [
-        {
-          "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 338,
-          "sink": "setHtml"
         }
       ]
     },
@@ -84316,7 +84311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 499,
+          "line": 590,
           "sink": "setText"
         }
       ]
@@ -86071,7 +86066,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 395,
+          "line": 483,
           "sink": "addItem"
         },
         {
@@ -86416,7 +86411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 165,
+          "line": 168,
           "sink": "tr"
         }
       ]
@@ -86766,7 +86761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 384,
+          "line": 379,
           "sink": "information"
         }
       ]
@@ -87676,7 +87671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 222,
+          "line": 225,
           "sink": "tr"
         }
       ]
@@ -88221,7 +88216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 213,
+          "line": 208,
           "sink": "tr"
         }
       ]
@@ -89211,7 +89206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 220,
+          "line": 267,
           "sink": "QPushButton"
         }
       ]
@@ -90306,7 +90301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 323,
+          "line": 318,
           "sink": "setText"
         }
       ]
@@ -90396,7 +90391,12 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 400,
+          "line": 193,
+          "sink": "setPlaceholderText"
+        },
+        {
+          "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
+          "line": 488,
           "sink": "setPlaceholderText"
         }
       ]
@@ -91461,7 +91461,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 126,
+          "line": 128,
           "sink": "QLabel"
         }
       ]
@@ -92601,7 +92601,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 396,
+          "line": 484,
           "sink": "addItem"
         }
       ]
@@ -93181,7 +93181,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 183,
+          "line": 228,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -93283,6 +93283,21 @@
           "path": "tools/placement_studio/window_editing.py",
           "line": 1278,
           "sink": "showMessage"
+        }
+      ]
+    },
+    {
+      "key": "Package details",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
+          "line": 140,
+          "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
+          "line": 158,
+          "sink": "QGroupBox"
         }
       ]
     },
@@ -93412,16 +93427,6 @@
       ]
     },
     {
-      "key": "Package plan",
-      "origins": [
-        {
-          "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 145,
-          "sink": "QGroupBox"
-        }
-      ]
-    },
-    {
       "key": "Package plan preview",
       "origins": [
         {
@@ -93491,7 +93496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 183,
+          "line": 228,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -93586,8 +93591,8 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 139,
-          "sink": "QGroupBox"
+          "line": 137,
+          "sink": "QLabel"
         }
       ]
     },
@@ -95636,7 +95641,12 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 183,
+          "line": 205,
+          "sink": "QLabel"
+        },
+        {
+          "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
+          "line": 228,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -97801,7 +97811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 358,
+          "line": 353,
           "sink": "warning"
         }
       ]
@@ -98656,7 +98666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_advanced.py",
-          "line": 60,
+          "line": 25,
           "sink": "addTab"
         }
       ]
@@ -102601,7 +102611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 216,
+          "line": 263,
           "sink": "QPushButton"
         }
       ]
@@ -103891,7 +103901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 499,
+          "line": 590,
           "sink": "setText"
         }
       ]
@@ -103946,7 +103956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 494,
+          "line": 585,
           "sink": "setText"
         }
       ]
@@ -106126,7 +106136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 126,
+          "line": 129,
           "sink": "tr"
         }
       ]
@@ -106201,7 +106211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 370,
+          "line": 365,
           "sink": "emit"
         }
       ]
@@ -106831,7 +106841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 160,
+          "line": 174,
           "sink": "setToolTip"
         }
       ]
@@ -106921,7 +106931,12 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 183,
+          "line": 205,
+          "sink": "QLabel"
+        },
+        {
+          "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
+          "line": 228,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -107336,7 +107351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 89,
+          "line": 109,
           "sink": "QPushButton"
         }
       ]
@@ -107456,7 +107471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 59,
+          "line": 75,
           "sink": "QPushButton"
         }
       ]
@@ -108761,7 +108776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 381,
+          "line": 376,
           "sink": "emit"
         }
       ]
@@ -109466,7 +109481,7 @@
         },
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 54,
+          "line": 37,
           "sink": "QPushButton"
         },
         {
@@ -109486,7 +109501,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 60,
+          "line": 57,
           "sink": "QPushButton"
         },
         {
@@ -109846,7 +109861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 60,
+          "line": 76,
           "sink": "setToolTip"
         }
       ]
@@ -110706,7 +110721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 52,
+          "line": 73,
           "sink": "QPushButton"
         }
       ]
@@ -110856,7 +110871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 219,
+          "line": 222,
           "sink": "tr"
         }
       ]
@@ -110866,7 +110881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 199,
+          "line": 227,
           "sink": "tr"
         }
       ]
@@ -111201,7 +111216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 217,
+          "line": 264,
           "sink": "QPushButton"
         }
       ]
@@ -111231,7 +111246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_advanced.py",
-          "line": 18,
+          "line": 35,
           "sink": "setText"
         }
       ]
@@ -112691,7 +112706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 139,
+          "line": 142,
           "sink": "tr"
         }
       ]
@@ -116011,7 +116026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 438,
+          "line": 528,
           "sink": "setText"
         }
       ]
@@ -116696,7 +116711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 77,
+          "line": 74,
           "sink": "setToolTip"
         }
       ]
@@ -116756,7 +116771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 312,
+          "line": 340,
           "sink": "tr"
         }
       ]
@@ -116853,16 +116868,6 @@
           "path": "cdmw/ui/shell/problem_report_dialog.py",
           "line": 443,
           "sink": "QPushButton"
-        }
-      ]
-    },
-    {
-      "key": "Review saved installs against the current game.",
-      "origins": [
-        {
-          "path": "cdmw/ui/tools/mod_management.py",
-          "line": 116,
-          "sink": "QLabel"
         }
       ]
     },
@@ -119411,7 +119416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 113,
+          "line": 114,
           "sink": "QGroupBox"
         }
       ]
@@ -119936,7 +119941,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 115,
+          "line": 116,
           "sink": "QPushButton"
         }
       ]
@@ -120027,21 +120032,11 @@
       ]
     },
     {
-      "key": "Scan a source folder to find packaged mods.",
-      "origins": [
-        {
-          "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 162,
-          "sink": "QLabel"
-        }
-      ]
-    },
-    {
       "key": "Scan a source folder to find packages.",
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 161,
+          "line": 175,
           "sink": "setAccessibleDescription"
         }
       ]
@@ -120111,7 +120106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 101,
+          "line": 121,
           "sink": "setPlaceholderText"
         }
       ]
@@ -120121,7 +120116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 85,
+          "line": 105,
           "sink": "QPushButton"
         }
       ]
@@ -120141,7 +120136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 118,
+          "line": 119,
           "sink": "setToolTip"
         }
       ]
@@ -120151,7 +120146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 87,
+          "line": 107,
           "sink": "QPushButton"
         }
       ]
@@ -120361,7 +120356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 427,
+          "line": 517,
           "sink": "setText"
         }
       ]
@@ -122761,7 +122756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 225,
+          "line": 253,
           "sink": "tr"
         }
       ]
@@ -122892,11 +122887,21 @@
       ]
     },
     {
+      "key": "Select a package",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
+          "line": 381,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Select a package to review its output.",
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 170,
+          "line": 213,
           "sink": "setPlaceholderText"
         }
       ]
@@ -124241,7 +124246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 474,
+          "line": 564,
           "sink": "information"
         }
       ]
@@ -124251,7 +124256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 481,
+          "line": 572,
           "sink": "information"
         }
       ]
@@ -124926,7 +124931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 172,
+          "line": 215,
           "sink": "QLabel"
         }
       ]
@@ -127657,6 +127662,16 @@
       ]
     },
     {
+      "key": "Shared files",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_management_advanced.py",
+          "line": 27,
+          "sink": "addTab"
+        }
+      ]
+    },
+    {
       "key": "Shared impact",
       "origins": [],
       "manual": true
@@ -128646,7 +128661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 66,
+          "line": 63,
           "sink": "QCheckBox"
         }
       ]
@@ -128776,7 +128791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 70,
+          "line": 67,
           "sink": "QCheckBox"
         }
       ]
@@ -132471,7 +132486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 123,
+          "line": 125,
           "sink": "QLabel"
         }
       ]
@@ -133466,7 +133481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 164,
+          "line": 167,
           "sink": "tr"
         }
       ]
@@ -134641,7 +134656,7 @@
         },
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 38,
+          "line": 57,
           "sink": "setHeaderLabels"
         },
         {
@@ -134666,7 +134681,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 83,
+          "line": 80,
           "sink": "setHeaderLabels"
         },
         {
@@ -135011,7 +135026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 453,
+          "line": 543,
           "sink": "setText"
         }
       ]
@@ -135311,7 +135326,12 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 183,
+          "line": 205,
+          "sink": "QLabel"
+        },
+        {
+          "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
+          "line": 228,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -137152,11 +137172,6 @@
         {
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_shell_part_01.py",
           "line": 231,
-          "sink": "QLabel"
-        },
-        {
-          "path": "cdmw/ui/tools/mod_management_advanced.py",
-          "line": 36,
           "sink": "QLabel"
         }
       ]
@@ -139756,7 +139771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 143,
+          "line": 146,
           "sink": "tr"
         }
       ]
@@ -139781,7 +139796,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 354,
+          "line": 349,
           "sink": "warning"
         },
         {
@@ -140061,7 +140076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 374,
+          "line": 369,
           "sink": "warning"
         }
       ]
@@ -144331,8 +144346,8 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_advanced.py",
-          "line": 54,
-          "sink": "QLabel"
+          "line": 23,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -149071,7 +149086,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 163,
+          "line": 166,
           "sink": "tr"
         },
         {
@@ -150222,6 +150237,16 @@
       ]
     },
     {
+      "key": "Update",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_management_advanced.py",
+          "line": 19,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Update Slider",
       "origins": [
         {
@@ -150246,7 +150271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_advanced.py",
-          "line": 45,
+          "line": 19,
           "sink": "tr"
         }
       ]
@@ -150341,7 +150366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 90,
+          "line": 110,
           "sink": "setToolTip"
         }
       ]
@@ -151121,7 +151146,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 183,
+          "line": 228,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -152111,7 +152136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 280,
+          "line": 308,
           "sink": "tr"
         }
       ]
@@ -153936,7 +153961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 199,
+          "line": 227,
           "sink": "tr"
         }
       ]
@@ -155046,7 +155071,12 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 183,
+          "line": 205,
+          "sink": "QLabel"
+        },
+        {
+          "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
+          "line": 228,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -157516,7 +157546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 263,
+          "line": 291,
           "sink": "tr"
         },
         {
@@ -157586,7 +157616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 405,
+          "line": 493,
           "sink": "setToolTip"
         }
       ]
@@ -157636,7 +157666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/independent_items_page.py",
-          "line": 93,
+          "line": 113,
           "sink": "setToolTip"
         }
       ]
@@ -163626,7 +163656,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 278,
+          "line": 326,
           "sink": "python-return:_manager_for_row"
         }
       ]
@@ -165696,7 +165726,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 391,
+          "line": 479,
           "sink": "addItem"
         }
       ]
@@ -172091,7 +172121,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 396,
+          "line": 484,
           "sink": "addItem"
         }
       ]
@@ -184706,7 +184736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_overview.py",
-          "line": 142,
+          "line": 145,
           "sink": "tr"
         }
       ]
@@ -186991,7 +187021,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 416,
+          "line": 504,
           "sink": "setText"
         },
         {
@@ -187831,7 +187861,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 444,
+          "line": 534,
           "sink": "setText"
         }
       ]

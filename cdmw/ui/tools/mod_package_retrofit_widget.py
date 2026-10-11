@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
-from PySide6.QtCore import QTimer, QUrl, Qt
+from PySide6.QtCore import QSignalBlocker, QTimer, QUrl, Qt
 from PySide6.QtGui import QBrush, QColor, QDesktopServices
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QTextBrowser,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -85,8 +86,8 @@ class ModPackageRetrofitUi:
 
     def build(self, *, run_initial_scan: bool) -> None:
         self.layout = QVBoxLayout(self.parent)
-        self.layout.setContentsMargins(12, 12, 12, 12)
-        self.layout.setSpacing(10)
+        self.layout.setContentsMargins(0, 0, 0, 0)
+        self.layout.setSpacing(8)
         self._build_header_and_paths()
         self._build_content()
         self._build_actions()
@@ -116,8 +117,9 @@ class ModPackageRetrofitUi:
         self.scan_button.setObjectName("retrofit_scan_button")
         self.scan_button.setProperty('newItemPrimary', True)
         self.scan_button.setToolTip('Scan loose or zipped mod packages. Choose a target manager for each package.')
-        paths = QGroupBox('Folders')
+        paths = QWidget()
         path_layout = QGridLayout(paths)
+        path_layout.setContentsMargins(0, 0, 0, 0)
         path_layout.setHorizontalSpacing(8)
         path_layout.setVerticalSpacing(8)
         path_layout.addWidget(QLabel("Source folder"), 0, 0)
@@ -126,30 +128,42 @@ class ModPackageRetrofitUi:
         path_layout.addWidget(QLabel("Output folder"), 1, 0)
         path_layout.addWidget(self.output_edit, 1, 1)
         path_layout.addWidget(self.browse_output_button, 1, 2)
-        path_layout.addWidget(self.scan_button, 2, 1)
+        path_layout.addWidget(self.scan_button, 0, 3)
         path_layout.setColumnStretch(1, 1)
         self.layout.addWidget(paths)
 
     def _build_content(self) -> None:
+        toolbar = QHBoxLayout()
+        toolbar.addWidget(QLabel('Packages'), 1)
+        self.details_toggle = QToolButton()
+        self.details_toggle.setObjectName('retrofit_details_toggle')
+        self.details_toggle.setText('Package details')
+        self.details_toggle.setCheckable(True)
+        self.details_toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.details_toggle.setArrowType(Qt.RightArrow)
+        toolbar.addWidget(self.details_toggle)
+        self.layout.addLayout(toolbar)
         self.content_splitter = QSplitter(Qt.Horizontal)
+        self.content_splitter.setObjectName('retrofit_content_splitter')
         self.content_splitter.setChildrenCollapsible(False)
         self.content_splitter.setHandleWidth(8)
         self.layout.addWidget(self.content_splitter, 1)
 
-        left_panel = QGroupBox('Packages')
-        left_panel.setMinimumWidth(240)
+        left_panel = QWidget()
+        left_panel.setMinimumWidth(0)
         left_layout = QVBoxLayout(left_panel)
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(8)
         self.content_splitter.addWidget(left_panel)
-        right_panel = QGroupBox('Package plan')
-        right_panel.setMinimumWidth(240)
+        right_panel = self.details_panel = QGroupBox('Package details')
+        right_panel.setObjectName('retrofit_package_details')
+        right_panel.setMinimumWidth(0)
         right_layout = QVBoxLayout(right_panel)
-        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setContentsMargins(8, 8, 8, 8)
         right_layout.setSpacing(8)
         self.content_splitter.addWidget(right_panel)
         self.content_splitter.setStretchFactor(0, 1)
-        self.content_splitter.setStretchFactor(1, 1)
+        self.content_splitter.setStretchFactor(1, 0)
 
         self.table = self._create_table()
         left_layout.addWidget(self.table, 1)
@@ -159,10 +173,40 @@ class ModPackageRetrofitUi:
         left_layout.addWidget(self.scan_summary_label)
         self.table.setToolTip('Ready packages can be rewritten for the selected manager. Review warnings before processing.')
         self.table.setAccessibleDescription('Scan a source folder to find packages.')
-        self.status_label = QLabel("Scan a source folder to find packaged mods.")
+        self.status_label = QLabel('')
         self.status_label.setObjectName("HintLabel")
         left_layout.addWidget(self.status_label)
 
+        self.package_name = QLabel('')
+        self.package_name.setTextFormat(Qt.PlainText)
+        self.package_name.setWordWrap(True)
+        right_layout.addWidget(self.package_name)
+        self.detail_fields: dict[int, QWidget] = {}
+        fields = QGridLayout()
+        for row, (column, label) in enumerate(((2, 'Kind'), (3, 'Existing metadata'), (4, 'Payloads'),
+                                              (5, 'Manager profile'), (6, 'Structure'), (7, 'Conflict'), (8, 'Language'),
+                                              (9, 'Ready zip'), (10, 'Warnings'))):
+            if column in (5, 6, 7):
+                field = QComboBox()
+                field.currentIndexChanged.connect(lambda index, c=column: self._edit_package_detail(c, index))
+            elif column == 8:
+                field = QLineEdit()
+                field.setPlaceholderText('Optional')
+                field.textEdited.connect(lambda text: self._edit_package_detail(8, text))
+            elif column == 9:
+                field = QCheckBox()
+                field.toggled.connect(lambda checked: self._edit_package_detail(9, checked))
+            else:
+                field = QLabel('')
+                field.setWordWrap(True)
+                field.setTextFormat(Qt.PlainText)
+            field.setObjectName(f'retrofit_detail_{column}')
+            field.setMinimumWidth(0)
+            self.detail_fields[column] = field
+            fields.addWidget(QLabel(label), row, 0)
+            fields.addWidget(field, row, 1)
+        fields.setColumnStretch(1, 1)
+        right_layout.addLayout(fields)
         self.diff_preview = QTextBrowser()
         self.diff_preview.setReadOnly(True)
         self.diff_preview.setOpenExternalLinks(False)
@@ -174,8 +218,10 @@ class ModPackageRetrofitUi:
         self.selection_status_label.setWordWrap(True)
         right_layout.addWidget(self.selection_status_label)
         self.content_splitter.setSizes([700, 420])
-        QTimer.singleShot(0, self._apply_content_splitter_sizes)
-        QTimer.singleShot(120, self._apply_content_splitter_sizes)
+        right_panel.hide()
+        self.details_toggle.toggled.connect(self._show_package_details)
+        QTimer.singleShot(0, self.parent, self._apply_content_splitter_sizes)
+        QTimer.singleShot(120, self.parent, self._apply_content_splitter_sizes)
 
     def _create_table(self) -> QTableWidget:
         table = QTableWidget(0, 12)
@@ -198,17 +244,19 @@ class ModPackageRetrofitUi:
         table.verticalHeader().setVisible(False)
         table.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
         table.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
-        table.setMinimumHeight(260)
+        table.setMinimumHeight(150)
         table.verticalHeader().setSectionResizeMode(QHeaderView.Fixed)
         table.verticalHeader().setDefaultSectionSize(28)
         header = table.horizontalHeader()
         header.setSectionsMovable(True)
-        header.setMinimumSectionSize(70)
+        header.setMinimumSectionSize(40)
         header.setStretchLastSection(False)
         for column in range(table.columnCount()):
             header.setSectionResizeMode(column, QHeaderView.Interactive)
-        for column, width in enumerate((50, 360, 110, 150, 84, 170, 180, 130, 110, 70, 260, 190)):
+        for column, width in enumerate((50, 360, 160, 150, 84, 170, 180, 130, 110, 70, 260, 190)):
             table.setColumnWidth(column, width)
+        for column in (3, 4, 6, 7, 8, 9, 10):
+            table.setColumnHidden(column, True)
         return table
 
     def _build_actions(self) -> None:
@@ -221,10 +269,10 @@ class ModPackageRetrofitUi:
         self.cancel_button = QPushButton('Cancel')
         self.cancel_button.hide()
         button_row.addWidget(self.preview_button)
-        button_row.addWidget(self.convert_button)
         button_row.addWidget(self.open_output_button)
-        button_row.addWidget(self.cancel_button)
         button_row.addStretch(1)
+        button_row.addWidget(self.cancel_button)
+        button_row.addWidget(self.convert_button)
         self.close_button = QPushButton("Close") if self.on_close is not None else None
         if self.close_button is not None:
             button_row.addWidget(self.close_button)
@@ -247,6 +295,7 @@ class ModPackageRetrofitUi:
             self.close_button.clicked.connect(self.on_close)
         self.table.itemSelectionChanged.connect(self._refresh_diff_preview)
         self.table.itemChanged.connect(self._handle_table_item_changed)
+        self.table.cellDoubleClicked.connect(lambda *_: self.details_toggle.setChecked(True))
 
     def _apply_content_splitter_sizes(self) -> None:
         from cdmw.ui.layout_persistence import restore_splitter_layout
@@ -254,7 +303,7 @@ class ModPackageRetrofitUi:
         if restore_splitter_layout(self.content_splitter):
             return
         width = max(1, self.content_splitter.width())
-        left_width = int(width * 0.56)
+        left_width = int(width * 0.68)
         right_width = width - left_width
         self.content_splitter.setSizes([left_width, right_width])
 
@@ -318,6 +367,46 @@ class ModPackageRetrofitUi:
             widget = self.table.cellWidget(row, column)
             if widget is not None:
                 widget.setEnabled(uses_metadata)
+        self._refresh_package_details()
+
+    def _show_package_details(self, visible: bool) -> None:
+        self.details_panel.setVisible(visible)
+        self.details_toggle.setArrowType(Qt.DownArrow if visible else Qt.RightArrow)
+        if visible:
+            self._apply_content_splitter_sizes()
+            self._refresh_package_details()
+
+    def _refresh_package_details(self) -> None:
+        row = self.table.currentRow()
+        item = self.table.item(row, 1)
+        self.package_name.setText(item.text() if item is not None else 'Select a package')
+        for column, field in self.detail_fields.items():
+            source = self.table.cellWidget(row, column)
+            with QSignalBlocker(field):
+                field.setEnabled(row >= 0 and (source is None or source.isEnabled()))
+                if isinstance(field, QComboBox):
+                    field.clear()
+                    if isinstance(source, QComboBox):
+                        for index in range(source.count()):
+                            field.addItem(source.itemText(index), source.itemData(index))
+                        field.setCurrentIndex(source.currentIndex())
+                elif isinstance(field, QLineEdit):
+                    field.setText(source.text() if isinstance(source, QLineEdit) else '')
+                elif isinstance(field, QCheckBox):
+                    field.setChecked(isinstance(source, QCheckBox) and source.isChecked())
+                elif isinstance(field, QLabel):
+                    cell = self.table.item(row, column)
+                    field.setText(cell.text() if cell is not None else '')
+
+    def _edit_package_detail(self, column: int, value: object) -> None:
+        source = self.table.cellWidget(self.table.currentRow(), column)
+        if isinstance(source, QComboBox):
+            source.setCurrentIndex(int(value))
+        elif isinstance(source, QLineEdit):
+            source.setText(str(value))
+        elif isinstance(source, QCheckBox):
+            source.setChecked(bool(value))
+        self._refresh_diff_preview()
 
     def _build_plan_html(self, rows: Sequence[int], output_root: Path, max_rows: int) -> str:
         return build_retrofit_update_plan_html(
@@ -333,9 +422,10 @@ class ModPackageRetrofitUi:
         )
 
     def _refresh_diff_preview(self) -> None:
+        self._refresh_package_details()
         rows = self._selected_rows()
         if not rows:
-            self.diff_preview.setHtml("<p>No packages selected. Check package rows to inspect the selected operation plan.</p>")
+            self.diff_preview.setHtml('')
             self.selection_status_label.setText("No packages selected.")
             return
         self.diff_preview.setHtml(self._build_plan_html(rows, Path(self.output_edit.text().strip()).expanduser(), 12))
@@ -416,6 +506,8 @@ class ModPackageRetrofitUi:
         self.scan_summary_label.setText(f"{title}: {text}")
         for package in self.packages:
             self._add_package_row(package)
+        if self.table.rowCount():
+            self.table.setCurrentCell(0, 1)
         self.status_label.setText(f"Found {len(self.packages):,} packaged mod folder(s).")
         self._refresh_diff_preview()
 
@@ -473,6 +565,7 @@ class ModPackageRetrofitUi:
         if not rows:
             QMessageBox.information(self.parent, self.dialog_title, "Select at least one package to preview.")
             return
+        self.details_toggle.setChecked(True)
         self.diff_preview.setHtml(self._build_plan_html(rows, Path(self.output_edit.text().strip()).expanduser(), 28))
 
     def _convert_selected(self) -> None:
@@ -501,6 +594,7 @@ class ModPackageRetrofitUi:
             if result.processed or result.failed else "No packages were selected for processing."
         )
         if self.on_close is None:
+            self.details_toggle.setChecked(True)
             self.diff_preview.setHtml(build_retrofit_processing_results_html(result.processed, result.failed, update_mode=False))
             return
         dialog = QDialog(self.parent)

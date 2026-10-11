@@ -6,6 +6,10 @@ use super::*;
 #[path = "mod_management_virtual_tests.rs"]
 mod virtual_tests;
 
+#[cfg(test)]
+#[path = "mod_management_flat_tests.rs"]
+mod flat_tests;
+
 impl PresentationView {
     pub(in super::super) fn management_page_control(&mut self, ui: &mut Ui, node: &Node) -> bool {
         let s = scale(ui);
@@ -19,9 +23,7 @@ impl PresentationView {
                 self.management_page = true;
             }
             "column" | "dialog" => {
-                for child in &node.children {
-                    self.node(ui, child);
-                }
+                self.management_column(ui, &node.children.iter().collect::<Vec<_>>());
             }
             "row" => self.management_row(ui, &node.children.iter().collect::<Vec<_>>()),
             "grid" => {
@@ -34,9 +36,6 @@ impl PresentationView {
                 for (row, mut cells) in rows {
                     cells.sort_by_key(|cell| cell.cell.unwrap_or_default()[1]);
                     ui.push_id(row, |ui| {
-                        if cells.first().is_some_and(|cell| cell.kind == "label") {
-                            self.node(ui, cells.remove(0));
-                        }
                         self.management_row(ui, &cells);
                     });
                 }
@@ -46,7 +45,7 @@ impl PresentationView {
                     .fill(ui.visuals().window_fill)
                     .stroke(line(ui))
                     .corner_radius(6)
-                    .inner_margin(margin(16.0 * s, 14.0 * s))
+                    .inner_margin(margin(12.0 * s, 10.0 * s))
                     .show(ui, |ui| {
                         ui.set_min_width(ui.available_width());
                         if !node.label.is_empty() {
@@ -59,9 +58,7 @@ impl PresentationView {
                             self.record(ui, node, &response);
                             ui.add_space(2.0 * s);
                         }
-                        for child in &node.children {
-                            self.node(ui, child);
-                        }
+                        self.management_column(ui, &node.children.iter().collect::<Vec<_>>());
                     });
             }
             "button" | "action" if !node.flag("instant_menu") && node.text("image").is_empty() => {
@@ -113,9 +110,7 @@ impl PresentationView {
             "tabs" => {
                 self.management_tabs(ui, node);
                 ui.add_space(8.0 * s);
-                for child in &node.children {
-                    self.node(ui, child);
-                }
+                self.management_column(ui, &node.children.iter().collect::<Vec<_>>());
             }
             "choice" if !node.flag("editable") => {
                 let response = egui::ComboBox::from_id_salt("management-choice")
@@ -143,22 +138,30 @@ impl PresentationView {
                 self.record(ui, node, &response);
             }
             "split" => {
-                if ui.available_width() < 800.0 * s {
-                    for child in &node.children {
-                        self.node(ui, child);
-                    }
+                if node.children.len() < 2 {
+                    self.management_column(ui, &node.children.iter().collect::<Vec<_>>());
+                } else if node.flag("horizontal") && ui.available_width() < 800.0 * s {
+                    let height = bounded_height(ui).max(240.0 * s);
+                    // A narrow conversion view becomes a closable details drawer.
+                    // The toggle stays above the splitter, so it remains reachable.
+                    let children: Vec<_> = if node.name == "retrofit_content_splitter" {
+                        node.children.iter().skip(1).collect()
+                    } else if matches!(node.name.as_str(), "independent_identity_splitter" | "mod_management_health_splitter") {
+                        node.children.iter().rev().collect()
+                    } else { node.children.iter().collect() };
+                    egui::ScrollArea::vertical().id_salt("management-stacked-panes")
+                        .auto_shrink([false, false]).max_height(height).show(ui, |ui| {
+                            for (index, child) in children.iter().enumerate() {
+                                let pane_height = self.management_content_height(ui, child, ui.available_width())
+                                    .max(260.0 * s);
+                                ui.push_id(index, |ui| {
+                                    ui.allocate_ui_with_layout(vec2(ui.available_width(), pane_height),
+                                        egui::Layout::top_down(egui::Align::Min), |ui| self.node(ui, child));
+                                });
+                            }
+                        });
                 } else {
-                    let width = (ui.available_width() - 10.0) / node.children.len().max(1) as f32;
-                    let height = node
-                        .children
-                        .iter()
-                        .map(|child| self.management_content_height(ui, child, width))
-                        .fold(300.0 * s, f32::max);
-                    ui.allocate_ui_with_layout(
-                        vec2(ui.available_width(), height),
-                        egui::Layout::top_down(egui::Align::Min),
-                        |ui| self.split(ui, node),
-                    );
+                    self.split(ui, node);
                 }
             }
             "table" => {
@@ -168,7 +171,12 @@ impl PresentationView {
                     .corner_radius(4)
                     .inner_margin(margin(8.0 * s, 6.0 * s))
                     .show(ui, |ui| {
-                        let height = self.management_content_height(ui, node, ui.available_width());
+                        let empty = node.number("total", 0.0) == 0.0 && !node.text("empty_text").is_empty();
+                        let notice = if empty {
+                            galley(ui, node.text("empty_text"), 14.0, muted(ui), ui.available_width()).size().y
+                                + 12.0 * s + ui.spacing().item_spacing.y
+                        } else { 0.0 };
+                        let height = (bounded_height(ui) - notice).max(100.0 * s);
                         ui.allocate_ui_with_layout(
                             vec2(ui.available_width(), height),
                             egui::Layout::top_down(egui::Align::Min),
@@ -176,7 +184,7 @@ impl PresentationView {
                                 self.table(ui, node);
                             },
                         );
-                        if node.number("total", 0.0) == 0.0 && !node.text("empty_text").is_empty() {
+                        if empty {
                             ui.add_space(6.0 * s);
                             let response = ui.add(
                                 egui::Label::new(
@@ -199,7 +207,7 @@ impl PresentationView {
                     );
                     let size = vec2(
                         ui.available_width(),
-                        (text.size().y + 24.0 * s).max(88.0 * s),
+                        bounded_height(ui).max(text.size().y + 24.0 * s),
                     );
                     let (rect, response) = ui.allocate_exact_size(size, Sense::hover());
                     ui.painter().rect(
@@ -214,7 +222,7 @@ impl PresentationView {
                     self.record(ui, node, &response);
                     return true;
                 }
-                let height = self.management_content_height(ui, node, ui.available_width());
+                let height = bounded_height(ui).max(100.0 * s);
                 ui.allocate_ui_with_layout(
                     vec2(ui.available_width(), height),
                     egui::Layout::top_down(egui::Align::Min),
@@ -225,7 +233,7 @@ impl PresentationView {
                 );
             }
             "viewport" => {
-                let size = vec2(ui.available_width(), 280.0 * s);
+                let size = vec2(ui.available_width(), bounded_height(ui).max(160.0 * s));
                 let (rect, response) = ui.allocate_exact_size(size, Sense::hover());
                 ui.painter().rect(
                     rect,
@@ -247,6 +255,29 @@ impl PresentationView {
         true
     }
 
+    pub(super) fn management_column(&mut self, ui: &mut Ui, children: &[&Node]) {
+        let gap = ui.spacing().item_spacing.y;
+        for (index, child) in children.iter().enumerate() {
+            ui.push_id(index, |ui| {
+                if layout_flexible(child) {
+                    // Use the space actually consumed by earlier controls. Their
+                    // translated/wrapped height can differ from the estimate.
+                    let remaining = &children[index..];
+                    let fixed: f32 = remaining.iter().filter(|node| !layout_flexible(node))
+                        .map(|node| self.management_content_height(ui, node, ui.available_width())).sum();
+                    let extra = (bounded_height(ui) - fixed - gap * remaining.len().saturating_sub(1) as f32).max(0.0);
+                    let weight: f32 = remaining.iter().filter(|node| layout_flexible(node))
+                        .map(|node| node.stretch.max(1) as f32).sum::<f32>().max(1.0);
+                    let height = (extra * child.stretch.max(1) as f32 / weight).max(160.0 * scale(ui));
+                    ui.allocate_ui_with_layout(vec2(ui.available_width(), height),
+                        egui::Layout::top_down(egui::Align::Min), |ui| self.node(ui, child));
+                } else {
+                    self.node(ui, child);
+                }
+            });
+        }
+    }
+
     fn management_control_width(&self, ui: &Ui, node: &Node) -> f32 {
         let s = scale(ui);
         match node.kind.as_str() {
@@ -258,6 +289,7 @@ impl PresentationView {
             }
             "group" => 320.0 * s,
             "text" | "choice" => 180.0 * s,
+            "spacer" => 0.0,
             _ => minimum_width(ui, node),
         }
     }
@@ -288,7 +320,7 @@ impl PresentationView {
             return;
         }
         let grows = |child: &Node| {
-            matches!(
+            child.flag("grow_x") || child.kind == "spacer" || matches!(
                 child.kind.as_str(),
                 "text" | "choice" | "group" | "column" | "row"
             )
@@ -309,12 +341,18 @@ impl PresentationView {
                         0.0
                     };
                 ui.push_id(i, |ui| {
+                    let height = if layout_flexible(child) { bounded_height(ui) }
+                        else { self.management_content_height(ui, child, width) };
                     ui.allocate_ui_with_layout(
-                        vec2(width, control_height(ui)),
+                        vec2(width, height),
                         egui::Layout::top_down(egui::Align::Min),
                         |ui| {
                             ui.set_width(width);
-                            self.node(ui, child);
+                            if child.kind == "spacer" {
+                                ui.allocate_space(vec2(width, 0.0));
+                            } else {
+                                self.node(ui, child);
+                            }
                         },
                     );
                 });
@@ -345,12 +383,12 @@ impl PresentationView {
             }
             "viewport" => 280.0 * s,
             "group" => {
-                64.0 * s
+                52.0 * s
                     + node
                         .children
                         .iter()
                         .map(|child| {
-                            self.management_content_height(ui, child, width - 32.0 * s) + gap
+                            self.management_content_height(ui, child, width - 24.0 * s) + gap
                         })
                         .sum::<f32>()
             }
@@ -367,7 +405,38 @@ impl PresentationView {
                 .iter()
                 .map(|child| self.management_content_height(ui, child, width) + gap)
                 .sum(),
+            "row" => self.management_row_height(ui, &node.children.iter().collect::<Vec<_>>(), width),
+            "grid" => {
+                let mut rows: BTreeMap<i32, Vec<&Node>> = BTreeMap::new();
+                for child in &node.children {
+                    rows.entry(child.cell.unwrap_or_default()[0]).or_default().push(child);
+                }
+                rows.values().map(|cells| self.management_row_height(ui, cells, width) + gap).sum()
+            }
+            "label" if node.text("management_role") == "notice" => {
+                galley(ui, node.text("text"), 12.0, muted(ui), width - 24.0 * s).size().y + 18.0 * s
+            }
+            "label" => if node.text("text").is_empty() { 0.0 } else {
+                galley(ui, node.text("text"), 12.0, muted(ui), width).size().y
+            },
             _ => estimate_height(ui, node, width),
         }
+    }
+
+    fn management_row_height(&self, ui: &Ui, children: &[&Node], width: f32) -> f32 {
+        let mut used = 0.0;
+        let mut line_height: f32 = 0.0;
+        let mut height = 0.0;
+        for child in children {
+            let wanted = self.management_control_width(ui, child).min(width);
+            if used > 0.0 && used + wanted > width {
+                height += line_height + ui.spacing().item_spacing.y;
+                used = 0.0;
+                line_height = 0.0;
+            }
+            line_height = line_height.max(self.management_content_height(ui, child, wanted.max(1.0)));
+            used += wanted + ui.spacing().item_spacing.x;
+        }
+        height + line_height
     }
 }

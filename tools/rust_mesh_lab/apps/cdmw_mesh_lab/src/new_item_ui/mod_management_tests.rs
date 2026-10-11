@@ -497,23 +497,12 @@ fn management_form_fixture() -> State {
     actions.children[0].props["primary"] = json!(true);
     results.children.push(actions);
     page.children.push(results);
-    let mut package_page = node("package-page", "column", "");
-    let mut task_row = node("task-row", "row", "");
-    task_row.children.push(node("task-label", "label", "Task"));
-    let mut choice = node("mod_management_package_task", "choice", "");
-    choice.props = json!({"selected":1,"text":"Combine mod folders — längere übersetzte Beschriftung",
-        "options":[{"index":0,"text":"Convert for a mod manager","enabled":true},
-            {"index":1,"text":"Combine mod folders — längere übersetzte Beschriftung","enabled":true},
-            {"index":2,"text":"Update for the current game","enabled":true}]});
-    task_row.children.push(choice);
-    package_page.children.push(task_row);
-    package_page.children.push(node("task-help", "label", "Check two or more folders for conflicts, then write one combined package."));
-    package_page.children.push(page);
-    let mut advanced = node("mod_management_advanced_pages", "tabs", "");
-    advanced.props = json!({"selected":1,"tabs":[{"text":"Health and recovery"},
-        {"text":"Prepare packages"},{"text":"Item identities"}]});
-    advanced.children.push(package_page);
-    pages.children = vec![advanced];
+    let mut tasks = node("mod_management_package_task", "tabs", "");
+    tasks.props = json!({"selected":1,"tabs":[{"text":"Convert"},{"text":"Combine"},{"text":"Update"}]});
+    tasks.children.push(page);
+    pages.props = json!({"selected":1,"tabs":[{"text":"Mods"},{"text":"Prepare packages"},
+        {"text":"Item identities"},{"text":"Shared files"},{"text":"Health and recovery"}]});
+    pages.children = vec![tasks];
     state
 }
 
@@ -603,8 +592,7 @@ fn grouped_management_forms_fit_and_actions_remain_reachable_at_all_sizes() {
 fn consolidated_health_and_recovery_wraps_without_overlapping_controls() {
     let mut state = management_form_fixture();
     let pages = state.root.children.iter_mut().find(|node| node.name == "mod_management_pages").unwrap();
-    let advanced = &mut pages.children[0];
-    advanced.props["selected"] = json!(0);
+    pages.props["selected"] = json!(4);
     let mut health = node("health", "column", "");
     let mut filters = node("filters", "row", "");
     filters.children = vec![
@@ -625,7 +613,7 @@ fn consolidated_health_and_recovery_wraps_without_overlapping_controls() {
     saved.children.push(actions);
     health.children.push(saved);
     health.children.push(node("migrate", "button", "Move installed items into the overlay…"));
-    advanced.children = vec![health];
+    pages.children = vec![health];
     let ids = ["show-game", "show-missing", "cleanup", "repair", "rebuild", "retire", "migrate"];
     for pixels in [14.0, 28.0] {
         for width in [360.0, 760.0, 1280.0] {
@@ -660,7 +648,7 @@ fn consolidated_health_and_recovery_wraps_without_overlapping_controls() {
 }
 
 #[test]
-fn management_task_choice_wraps_options_and_dispatches_original_index() {
+fn management_task_tabs_dispatch_the_original_page_index() {
     for (width, pixels) in [(480.0, 28.0), (1000.0, 14.0)] {
         let ctx = egui::Context::default();
         apply_theme(&ctx, &json!({"font_pixels":pixels}));
@@ -668,31 +656,14 @@ fn management_task_choice_wraps_options_and_dispatches_original_index() {
         let mut view = PresentationView::default();
         let size = vec2(width, 1100.0);
         for _ in 0..3 { frame(&ctx, &mut view, &state, size, vec![]); }
-        let field = view.rects.iter().find(|r| r.id == "mod_management_package_task").unwrap().rect;
-        let point = pos2(field[0] + 15.0, field[1] + field[3] / 2.0);
-        for pressed in [true, false] {
-            frame(&ctx, &mut view, &state, size, vec![egui::Event::PointerMoved(point),
-                egui::Event::PointerButton { pos:point, button:egui::PointerButton::Primary,
-                    pressed, modifiers:egui::Modifiers::NONE }]);
-        }
-        for _ in 0..3 { frame(&ctx, &mut view, &state, size, vec![]); }
-        let output = frame(&ctx, &mut view, &state, size, vec![]);
-        let (clip, text) = output.shapes.iter().find_map(|shape| match &shape.shape {
-            egui::epaint::Shape::Text(text) if text.galley.job.text == "Update for the current game"
-                => Some((shape.clip_rect, text)),
-            _ => None,
-        }).expect("Package tasks must be visible in the selector");
-        assert!(!text.galley.elided);
-        assert!(text.pos.x + text.galley.size().x <= clip.right() + 1.0);
-        assert!(text.pos.y >= clip.top() - 1.0 && text.pos.y + text.galley.size().y <= clip.bottom() + 1.0,
-            "Task option clipped at {width}/{pixels}: {:?} {clip:?}", text.pos);
-        let point = text.pos + text.galley.size() / 2.0;
+        let field = view.rects.iter().filter(|r| r.id == "mod_management_package_task").nth(2).unwrap().rect;
+        let point = pos2(field[0] + field[2] / 2.0, field[1] + field[3] / 2.0);
         for pressed in [true, false] {
             frame(&ctx, &mut view, &state, size, vec![egui::Event::PointerMoved(point),
                 egui::Event::PointerButton { pos:point, button:egui::PointerButton::Primary,
                     pressed, modifiers:egui::Modifiers::NONE }]);
         }
         assert!(view.inputs.iter().any(|input| input.control == "mod_management_package_task"
-            && input.action == "choose" && input.value == json!(2)), "{width}/{pixels}: {:?}", view.inputs);
+            && input.action == "tab" && input.value == json!(2)), "{width}/{pixels}: {:?}", view.inputs);
     }
 }

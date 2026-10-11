@@ -1,6 +1,6 @@
 """Thin UI for reviewed portable-item operations on the shared worker lane."""
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QFileDialog, QGroupBox, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QMessageBox, QPlainTextEdit, QPushButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFileDialog, QGroupBox, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QMessageBox, QPlainTextEdit, QPushButton, QSplitter, QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
 
 from cdmw.domain.new_item.independent import IndependentItemInstallPlan
 from cdmw.ui.new_item.review_model import ReviewTextWriter
@@ -18,25 +18,46 @@ class IndependentItemsPage(QWidget):
         self._comparison = None
         self._columns_sized = False
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
         validation = QLabel("Game and save compatibility is not yet verified.")
         validation.setProperty('managementRole', 'notice')
         validation.setWordWrap(True)
         layout.addWidget(validation)
-        identity_help = QLabel('Inspect installed item IDs or move them with your saves. Add new mods from the Mods list.')
-        identity_help.setWordWrap(True)
-        layout.addWidget(identity_help)
-        setup = QHBoxLayout()
-        packages = QGroupBox('Installed item identities')
+        self.setToolTip('Inspect installed item IDs or move them with your saves. Add new mods from the Mods list.')
+        toolbar = QHBoxLayout()
+        toolbar.addWidget(QLabel('Installed item identities'), 1)
+        self.profile_toggle = QToolButton()
+        self.profile_toggle.setObjectName('independent_profile_toggle')
+        self.profile_toggle.setText('Identity profile')
+        self.profile_toggle.setCheckable(True)
+        self.profile_toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.profile_toggle.setArrowType(Qt.ArrowType.RightArrow)
+        toolbar.addWidget(self.profile_toggle)
+        self.refresh_button = QPushButton('Refresh')
+        self.refresh_button.clicked.connect(self.refresh)
+        toolbar.addWidget(self.refresh_button)
+        layout.addLayout(toolbar)
+        self.identity_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.identity_splitter.setObjectName('independent_identity_splitter')
+        self.identity_splitter.setChildrenCollapsible(False)
+        packages = QWidget()
         package_layout = QVBoxLayout(packages)
-        identity = QGroupBox('Identity profile')
+        package_layout.setContentsMargins(0, 0, 0, 0)
+        identity = self.profile_panel = QGroupBox('Identity profile')
         identity_layout = QVBoxLayout(identity)
-        setup.addWidget(packages, 2)
-        setup.addWidget(identity, 1)
-        layout.addLayout(setup)
+        self.identity_splitter.addWidget(packages)
+        self.identity_splitter.addWidget(identity)
+        self.identity_splitter.setStretchFactor(0, 1)
+        self.identity_splitter.setStretchFactor(1, 0)
+        self.identity_splitter.setSizes([900, 320])
+        layout.addWidget(self.identity_splitter, 1)
         self.items = QTreeWidget()
         self.items.setObjectName('independent_item_packages')
         self.items.setHeaderLabels(["Item", "Game ID", "Status"])
         self.items.setRootIsDecorated(False)
+        self.items.setUniformRowHeights(True)
+        self.items.setMinimumHeight(150)
         self.items.header().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self.items.header().setStretchLastSection(False)
         self.items.setSortingEnabled(True)
@@ -51,21 +72,15 @@ class IndependentItemsPage(QWidget):
         self.import_button.clicked.connect(self._import)
         self.remove_button = QPushButton("Remove selected item...")
         self.remove_button.clicked.connect(self._remove)
-        self.refresh_button = QPushButton("Refresh")
-        self.refresh_button.clicked.connect(self.refresh)
-        for button in (self.import_button, self.remove_button, self.refresh_button):
-            row.addWidget(button)
-        package_layout.addLayout(row)
         self.rebuild_button = QPushButton("Rebuild selected item…")
         self.rebuild_button.setToolTip("Regenerate this item from its saved package while keeping the same item IDs. Review the changes before applying them.")
         self.rebuild_button.clicked.connect(self._rebuild)
-        rebuild_row = QHBoxLayout()
-        rebuild_row.addWidget(self.rebuild_button)
-        rebuild_row.addStretch(1)
-        package_layout.addLayout(rebuild_row)
-        profile_help = QLabel('Keep this profile with your saves when moving computers.')
-        profile_help.setWordWrap(True)
-        identity_layout.addWidget(profile_help)
+        row.addWidget(self.rebuild_button)
+        row.addWidget(self.remove_button)
+        row.addStretch(1)
+        row.addWidget(self.import_button)
+        package_layout.addLayout(row)
+        identity.setToolTip('Keep this profile with your saves when moving computers.')
         profiles = QVBoxLayout()
         self.export_profile_button = QPushButton("Export identity profile...")
         self.export_profile_button.clicked.connect(self._export_profile)
@@ -75,12 +90,17 @@ class IndependentItemsPage(QWidget):
         profiles.addWidget(self.import_profile_button)
         identity_layout.addLayout(profiles)
         identity_layout.addStretch(1)
-        compatibility = QGroupBox('Installed shared files')
-        compatibility_layout = QVBoxLayout(compatibility)
-        layout.addWidget(compatibility, 1)
-        shared_help = QLabel('Check shared data used by installed items before rebuilding it or exporting a combined mod.')
-        shared_help.setWordWrap(True)
-        compatibility_layout.addWidget(shared_help)
+        identity.hide()
+        self.profile_toggle.toggled.connect(identity.setVisible)
+        self.profile_toggle.toggled.connect(lambda expanded: self.profile_toggle.setArrowType(
+            Qt.ArrowType.DownArrow if expanded else Qt.ArrowType.RightArrow))
+        self.shared_page = QWidget(self)
+        self.shared_page.setObjectName('independent_shared_files')
+        self.shared_page.setToolTip('Check shared data used by installed items before rebuilding it or exporting a combined mod.')
+        compatibility_layout = QVBoxLayout(self.shared_page)
+        compatibility_layout.setContentsMargins(0, 0, 0, 0)
+        compatibility_layout.setSpacing(8)
+        compatibility_layout.addWidget(QLabel('Installed shared files'))
         compare = QHBoxLayout()
         self.scan_button = QPushButton("Scan installed mods")
         self.scan_button.clicked.connect(lambda: self._scan())
@@ -110,9 +130,17 @@ class IndependentItemsPage(QWidget):
         self.status.setWordWrap(True)
         self.status.setTextFormat(Qt.TextFormat.PlainText)
         layout.addWidget(self.status)
+        self.shared_status = QLabel('')
+        self.shared_status.setWordWrap(True)
+        self.shared_status.setTextFormat(Qt.TextFormat.PlainText)
+        compatibility_layout.addWidget(self.shared_status)
         controller.busy_changed.connect(self._busy_changed)
         controller.install_finished.connect(lambda _result: self._queue_refresh())
         self._buttons()
+
+    def _set_status(self, text):
+        self.status.setText(text)
+        self.shared_status.setText(text)
 
     def _buttons(self):
         ready = not (self._closed or self._working or self.controller.busy)
@@ -147,7 +175,7 @@ class IndependentItemsPage(QWidget):
             return False
         generation, root = self._generation, self.package_root
         if not root:
-            self.status.setText(self.tr("Choose the game archive folder first."))
+            self._set_status(self.tr("Choose the game archive folder first."))
             return False
         self._working, self._applying = True, applying
         self._buttons()
@@ -164,7 +192,7 @@ class IndependentItemsPage(QWidget):
             self._comparison = None
             self.controller.log_message.emit(str(message))
             if not self._closed and generation == self._generation:
-                self.status.setText(str(message))
+                self._set_status(str(message))
                 self.activity.emit(str(message))
                 self._buttons()
         started = self.controller._run('independent_items', task, completed, failed,
@@ -210,7 +238,7 @@ class IndependentItemsPage(QWidget):
             for column in range(self.items.columnCount()):
                 self.items.resizeColumnToContents(column)
             self._columns_sized = True
-        self.status.setText(self.tr("Identity reservations remain after removal. Saves are never edited automatically."))
+        self._set_status(self.tr("Identity reservations remain after removal. Saves are never edited automatically."))
 
     def _import(self):
         paths, _ = QFileDialog.getOpenFileNames(self, self.tr("Import independent items"), "", self.tr("Independent items (*.cditem)"))
@@ -218,7 +246,7 @@ class IndependentItemsPage(QWidget):
             return
         from cdmw.services.independent_item_install import prepare_install
         root = self.package_root
-        self.status.setText(self.tr("Checking packages and preparing the installation..."))
+        self._set_status(self.tr("Checking packages and preparing the installation..."))
         self._run(lambda log, stop: prepare_install(paths, root, stop_event=stop, on_log=log), self._review)
 
     def _scan_folder(self):
@@ -230,7 +258,7 @@ class IndependentItemsPage(QWidget):
         from cdmw.services.independent_item_compatibility import scan_independent_conflicts
         root, folders = self.package_root, tuple(folders)
         self._comparison = None
-        self.status.setText(self.tr("Comparing independent items with other mods..."))
+        self._set_status(self.tr("Comparing independent items with other mods..."))
         def task(log, stop):
             report = scan_independent_conflicts(root, folders=folders, stop_event=stop, on_log=log)
             return report, report.text()
@@ -238,7 +266,7 @@ class IndependentItemsPage(QWidget):
             report, text = result
             self._comparison = report
             self._comparison_writer.set_text(text)
-            self.status.setText(self.tr("Comparison complete. Review the results before merging."))
+            self._set_status(self.tr("Comparison complete. Review the results before merging."))
         self._run(task, completed)
 
     def _compose_shared(self):
@@ -265,7 +293,7 @@ class IndependentItemsPage(QWidget):
             return
         title = title.strip()
         if title in ('.', '..') or any(char in title for char in '<>:"/\\|?*') or title.endswith(('.', ' ')):
-            self.status.setText(self.tr("Choose a simple folder name without path separators."))
+            self._set_status(self.tr("Choose a simple folder name without path separators."))
             return
         destination = Path(parent) / title
         def task(log, stop):
@@ -273,7 +301,7 @@ class IndependentItemsPage(QWidget):
             return export_merged_mod(plan, destination, title=title, stop_event=stop, on_log=log)
         def completed(result):
             self._comparison = None
-            self.status.setText(self.tr("Merged mod written:") + ' ' + str(result.package_root))
+            self._set_status(self.tr("Merged mod written:") + ' ' + str(result.package_root))
             if result.manager == 'CDMW':
                 self.comparison.appendPlainText(self.tr("Import cdmw-semantic.cditem through CDMW. Its contributors keep their own identities and removal controls. Keep the identity profile with your saves."))
             else:
@@ -303,7 +331,7 @@ class IndependentItemsPage(QWidget):
         else:
             summary, prepared = result.label, result
         if prepared is None:
-            self.status.setText(summary)
+            self._set_status(summary)
             return
         detail = (summary + '\n\n' + self.tr("Game folder:") + ' ' + str(prepared.package_root)
                   + '\n\n' + self.tr("Files to update:") + '\n'
@@ -341,7 +369,7 @@ class IndependentItemsPage(QWidget):
             if not path.lower().endswith('.cdprofile'):
                 path += '.cdprofile'
             self._run(lambda log, stop: export_profile(root, path, stop_event=stop),
-                      lambda result: self.status.setText(self.tr("Identity profile written:") + ' ' + str(result)),
+                      lambda result: self._set_status(self.tr("Identity profile written:") + ' ' + str(result)),
                       publishes_result=True)
 
     def _import_profile(self):

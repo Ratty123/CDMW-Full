@@ -95,8 +95,6 @@ impl PresentationView {
                 .id_salt((
                     "mod-management-page",
                     pages.number("selected", 0.0) as usize,
-                    named(pages, "mod_management_advanced_pages")
-                        .map(|node| node.number("selected", 0.0) as usize),
                     named(pages, "mod_management_package_task")
                         .map(|node| node.number("selected", 0.0) as usize),
                     named(pages, "virtual_loader_page").is_some(),
@@ -110,26 +108,23 @@ impl PresentationView {
                     self.management_tabs(ui, pages);
                     let s = scale(ui);
                     Frame::NONE
-                        .inner_margin(margin(22.0 * s, 20.0 * s))
+                        .inner_margin(margin(12.0 * s, 10.0 * s))
                         .show(ui, |ui| {
-                            ui.spacing_mut().item_spacing = vec2(12.0 * s, 12.0 * s);
-                            ui.spacing_mut().button_padding = vec2(10.0 * s, 8.0 * s);
-                        ui.spacing_mut().interact_size.y = 34.0 * s;
-                        let border = line(ui);
-                        let input_fill = ui.visuals().extreme_bg_color;
-                        ui.visuals_mut().widgets.inactive.bg_stroke = border;
-                        ui.visuals_mut().widgets.inactive.bg_fill = input_fill;
-                        ui.visuals_mut().widgets.inactive.weak_bg_fill = input_fill;
+                            ui.spacing_mut().item_spacing = vec2(8.0 * s, 8.0 * s);
+                            ui.spacing_mut().button_padding = vec2(8.0 * s, 5.0 * s);
+                            ui.spacing_mut().interact_size.y = 30.0 * s;
+                            let border = line(ui);
+                            let input_fill = ui.visuals().extreme_bg_color;
+                            ui.visuals_mut().widgets.inactive.bg_stroke = border;
+                            ui.visuals_mut().widgets.inactive.bg_fill = input_fill;
+                            ui.visuals_mut().widgets.inactive.weak_bg_fill = input_fill;
                             ui.visuals_mut().widgets.inactive.corner_radius = CornerRadius::same(4);
                             // Navigation already names the active workspace.
                             // Keep that space for its controls at larger fonts.
                             self.management_page = true;
-                            for page in &pages.children {
-                                self.node(ui, page);
-                            }
-                            if let Some(bar) = named(root, "mod_management_operation_bar") {
-                                self.node(ui, bar);
-                            }
+                            let controls: Vec<_> = pages.children.iter()
+                                .chain(named(root, "mod_management_operation_bar")).collect();
+                            self.management_column(ui, &controls);
                             self.management_page = false;
                         });
                 });
@@ -138,125 +133,136 @@ impl PresentationView {
 
     fn management_header(&mut self, ui: &mut Ui, root: &Node) {
         let s = scale(ui);
-        Frame::NONE
-            .inner_margin(margin(22.0 * s, 16.0 * s))
-            .show(ui, |ui| {
-                ui.spacing_mut().item_spacing = vec2(10.0 * s, 14.0 * s);
-                if let Some(title) = named(root, "SectionTitle") {
-                    ui.horizontal(|ui| {
-                        let (rect, _) =
-                            ui.allocate_exact_size(vec2(18.0, 24.0) * s, Sense::hover());
-                        icon(ui, rect.center(), 18.0 * s, "layers", muted(ui));
-                        let response = ui.add(
-                            egui::Label::new(
-                                RichText::new(title.text("text"))
-                                    .font(font(ui, 20.0))
-                                    .strong(),
-                            )
-                            .wrap(),
-                        );
-                        self.record(ui, title, &response);
-                    });
-                }
-                let (Some(label), Some(path), Some(choose)) = (
-                    named(root, "mod_management_game_label"),
-                    named(root, "mod_management_game_folder"),
-                    named(root, "mod_management_choose_game"),
-                ) else {
-                    return;
-                };
-                let label_width = galley(ui, label.text("text"), 12.0, muted(ui), f32::INFINITY)
-                    .size()
-                    .x;
-                let choose_width = galley(ui, &choose.label, 12.0, muted(ui), f32::INFINITY)
-                    .size()
-                    .x
-                    + 22.0 * s;
-                let stacked = ui.available_width() < label_width + choose_width + 230.0 * s;
-                if stacked {
-                    let response = ui.add(
-                        egui::Label::new(
-                            RichText::new(label.text("text"))
-                                .font(font(ui, 12.0))
-                                .color(muted(ui)),
-                        )
-                        .wrap(),
-                    );
-                    self.record(ui, label, &response);
-                }
+        Frame::NONE.inner_margin(margin(12.0 * s, 10.0 * s)).show(ui, |ui| {
+            ui.spacing_mut().item_spacing = vec2(10.0 * s, 8.0 * s);
+            let title_width = named(root, "SectionTitle")
+                .map(|title| galley(ui, title.text("text"), 16.0, muted(ui), f32::INFINITY).size().x + 36.0 * s)
+                .unwrap_or(0.0);
+            if ui.available_width() > title_width + 480.0 * s {
                 ui.horizontal(|ui| {
-                    if !stacked {
-                        let response = ui.add(egui::Label::new(
-                            RichText::new(label.text("text"))
-                                .font(font(ui, 12.0))
-                                .color(muted(ui)),
-                        ));
-                        self.record(ui, label, &response);
-                    }
-                    let width = (ui.available_width() - choose_width - 10.0 * s).max(40.0 * s);
-                    let (rect, response) =
-                        ui.allocate_exact_size(vec2(width, 34.0 * s), Sense::hover());
-                    ui.painter().rect(
-                        rect,
-                        CornerRadius::same(4),
-                        ui.visuals().extreme_bg_color,
-                        line(ui),
-                        StrokeKind::Inside,
-                    );
-                    icon(
-                        ui,
-                        pos2(rect.left() + 17.0 * s, rect.center().y),
-                        14.0 * s,
-                        "folder",
-                        muted(ui),
-                    );
-                    let copy_rect = Rect::from_center_size(
-                        pos2(rect.right() - 17.0 * s, rect.center().y),
-                        vec2(28.0, 28.0) * s,
-                    );
-                    let text_rect = Rect::from_min_max(
-                        pos2(rect.left() + 32.0 * s, rect.top()),
-                        pos2(copy_rect.left() - 4.0 * s, rect.bottom()),
-                    );
-                    let mut job = egui::text::LayoutJob::simple_singleline(
-                        path.text("text").to_owned(),
-                        font(ui, 12.0),
-                        muted(ui),
-                    );
-                    job.wrap.max_width = text_rect.width().max(1.0);
-                    job.wrap.max_rows = 1;
-                    job.wrap.break_anywhere = true;
-                    let text = ui.fonts_mut(|fonts| fonts.layout_job(job));
-                    ui.painter().galley(
-                        pos2(text_rect.left(), text_rect.center().y - text.size().y / 2.0),
-                        text,
-                        muted(ui),
-                    );
-                    self.record(ui, path, &response);
-                    response.on_hover_text(path.text("text"));
-                    let copy = ui.put(copy_rect, egui::Button::new("").frame(false));
-                    copy.widget_info(|| {
-                        egui::WidgetInfo::labeled(
-                            egui::WidgetType::Button,
-                            ui.is_enabled(),
-                            self.tr("copy", "Copy"),
-                        )
-                    });
-                    icon(ui, copy_rect.center(), 14.0 * s, "copy", muted(ui));
-                    if copy.clicked() {
-                        self.input(path, "copy", Value::Null);
-                    }
-                    self.record(ui, path, &copy);
-                    copy.on_hover_text(self.tr("copy", "Copy"));
-                    self.management_button(ui, choose, choose_width, None, false, false, 12.0);
+                    self.management_heading(ui, root);
+                    ui.add_space(12.0 * s);
+                    self.management_game_folder(ui, root);
                 });
+            } else {
+                self.management_heading(ui, root);
+                self.management_game_folder(ui, root);
+            }
+        });
+    }
+
+    fn management_heading(&mut self, ui: &mut Ui, root: &Node) {
+        let s = scale(ui);
+        if let Some(title) = named(root, "SectionTitle") {
+            ui.horizontal(|ui| {
+                let (rect, _) = ui.allocate_exact_size(vec2(18.0, 24.0) * s, Sense::hover());
+                icon(ui, rect.center(), 18.0 * s, "layers", muted(ui));
+                let response = ui.add(egui::Label::new(
+                    RichText::new(title.text("text")).font(font(ui, 16.0)).strong()).wrap());
+                self.record(ui, title, &response);
             });
-        ui.separator();
+        }
+    }
+
+    fn management_game_folder(&mut self, ui: &mut Ui, root: &Node) {
+        let s = scale(ui);
+        let (Some(label), Some(path), Some(choose)) = (
+            named(root, "mod_management_game_label"),
+            named(root, "mod_management_game_folder"),
+            named(root, "mod_management_choose_game"),
+        ) else {
+            return;
+        };
+        let label_width = galley(ui, label.text("text"), 12.0, muted(ui), f32::INFINITY)
+            .size()
+            .x;
+        let choose_width = galley(ui, &choose.label, 12.0, muted(ui), f32::INFINITY)
+            .size()
+            .x
+            + 22.0 * s;
+        let stacked = ui.available_width() < label_width + choose_width + 230.0 * s;
+        if stacked {
+            let response = ui.add(
+                egui::Label::new(
+                    RichText::new(label.text("text"))
+                        .font(font(ui, 12.0))
+                        .color(muted(ui)),
+                )
+                .wrap(),
+            );
+            self.record(ui, label, &response);
+        }
+        ui.horizontal(|ui| {
+            if !stacked {
+                let response = ui.add(egui::Label::new(
+                    RichText::new(label.text("text"))
+                        .font(font(ui, 12.0))
+                        .color(muted(ui)),
+                ));
+                self.record(ui, label, &response);
+            }
+            let width = (ui.available_width() - choose_width - 10.0 * s).max(40.0 * s);
+            let (rect, response) =
+                ui.allocate_exact_size(vec2(width, 34.0 * s), Sense::hover());
+            ui.painter().rect(
+                rect,
+                CornerRadius::same(4),
+                ui.visuals().extreme_bg_color,
+                line(ui),
+                StrokeKind::Inside,
+            );
+            icon(
+                ui,
+                pos2(rect.left() + 17.0 * s, rect.center().y),
+                14.0 * s,
+                "folder",
+                muted(ui),
+            );
+            let copy_rect = Rect::from_center_size(
+                pos2(rect.right() - 17.0 * s, rect.center().y),
+                vec2(28.0, 28.0) * s,
+            );
+            let text_rect = Rect::from_min_max(
+                pos2(rect.left() + 32.0 * s, rect.top()),
+                pos2(copy_rect.left() - 4.0 * s, rect.bottom()),
+            );
+            let mut job = egui::text::LayoutJob::simple_singleline(
+                path.text("text").to_owned(),
+                font(ui, 12.0),
+                muted(ui),
+            );
+            job.wrap.max_width = text_rect.width().max(1.0);
+            job.wrap.max_rows = 1;
+            job.wrap.break_anywhere = true;
+            let text = ui.fonts_mut(|fonts| fonts.layout_job(job));
+            ui.painter().galley(
+                pos2(text_rect.left(), text_rect.center().y - text.size().y / 2.0),
+                text,
+                muted(ui),
+            );
+            self.record(ui, path, &response);
+            response.on_hover_text(path.text("text"));
+            let copy = ui.put(copy_rect, egui::Button::new("").frame(false));
+            copy.widget_info(|| {
+                egui::WidgetInfo::labeled(
+                    egui::WidgetType::Button,
+                    ui.is_enabled(),
+                    self.tr("copy", "Copy"),
+                )
+            });
+            icon(ui, copy_rect.center(), 14.0 * s, "copy", muted(ui));
+            if copy.clicked() {
+                self.input(path, "copy", Value::Null);
+            }
+            self.record(ui, path, &copy);
+            copy.on_hover_text(self.tr("copy", "Copy"));
+            self.management_button(ui, choose, choose_width, None, false, false, 12.0);
+        });
     }
 
     fn management_tabs(&mut self, ui: &mut Ui, pages: &Node) {
         let s = scale(ui);
-        let inset = if pages.name == "mod_management_advanced_pages" { 0.0 } else { 18.0 * s };
+        let inset = if pages.name == "mod_management_pages" { 12.0 * s } else { 0.0 };
         Frame::NONE
             .inner_margin(margin(inset, 0.0))
             .show(ui, |ui| {
@@ -280,7 +286,7 @@ impl PresentationView {
                         .fill(Color32::TRANSPARENT)
                         .stroke(Stroke::NONE)
                         .corner_radius(0)
-                        .min_size(vec2(0.0, 38.0 * s))
+                        .min_size(vec2(0.0, if pages.name == "mod_management_package_task" { 30.0 * s } else { 38.0 * s }))
                         .wrap();
                         let response =
                             ui.add_enabled(pages.enabled && tab["enabled"] != false, button);
@@ -295,6 +301,9 @@ impl PresentationView {
                             self.input(pages, "tab", json!(index));
                         }
                         self.record(ui, pages, &response);
+                        if let Some(tooltip) = tab["tooltip"].as_str().filter(|tip| !tip.is_empty()) {
+                            response.on_hover_text(tooltip);
+                        }
                     }
                 });
             });
