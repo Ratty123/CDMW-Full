@@ -4,6 +4,8 @@ from __future__ import annotations
 import hashlib
 import re
 import threading
+from collections import defaultdict
+from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Callable
@@ -14,6 +16,24 @@ from cdmw.models import ArchiveEntry
 
 class StaleNewItemSource(ValueError):
     pass
+
+
+def _entry_coordinates(entry):
+    return (str(entry.path).replace('\\', '/'), Path(entry.pamt_path), Path(entry.paz_file),
+            entry.offset, entry.comp_size, entry.orig_size, entry.flags, entry.paz_index)
+
+
+@dataclass(frozen=True)
+class ArchiveCatalogue(Sequence[ArchiveEntry]):
+    """A parsed listing and the exact immutable index witnesses that selected it."""
+    entries: tuple[ArchiveEntry, ...]
+    indexes: tuple[tuple[Path, str], ...]
+
+    def __len__(self):
+        return len(self.entries)
+
+    def __getitem__(self, index):
+        return self.entries[index]
 
 
 def _stamp(path: Path):
@@ -111,6 +131,33 @@ class SourceTracker:
         entries = parse_archive_pamt_bytes(data, path)
         self.pin_index(path, hashlib.sha256(data).hexdigest(), stop_event)
         return entries
+
+    def bind_catalogue(self, entries, *, stop_event=None):
+        """Retain original witnesses, or verify unwitnessed entry coordinates afresh."""
+        if isinstance(entries, ArchiveCatalogue):
+            witnessed = {Path(path) for path, _ in entries.indexes}
+            if any(Path(entry.pamt_path) not in witnessed for entry in entries):
+                raise StaleNewItemSource("Archive catalogue omits an original index witness. Read the archives again.")
+            for path, checksum in entries.indexes:
+                self.pin_index(path, checksum, stop_event)
+            return entries.entries
+        frozen = tuple(entries)
+        requested = defaultdict(set)
+        for entry in frozen:
+            raise_if_cancelled(stop_event, "Archive catalogue validation cancelled.")
+            requested[Path(entry.pamt_path)].add(_entry_coordinates(entry))
+        for path, coordinates in requested.items():
+            # A later digest alone cannot witness an earlier listing. Check every
+            # supplied location/flag/path against the exact bytes parsed now.
+            actual = {_entry_coordinates(entry) for entry in self.parse_index(path, stop_event=stop_event)}
+            if not coordinates.issubset(actual):
+                raise StaleNewItemSource(f"Source index no longer matches its catalogue: {path}. Read the archives again.")
+        return frozen
+
+    def validate_indexes(self, stop_event=None):
+        with self._lock:
+            indexes = tuple(self._indexes.items())
+        _validate_indexes(indexes, stop_event)
 
     def fork(self, reader):
         """Give a derived snapshot independent reads with the same parsed indexes."""

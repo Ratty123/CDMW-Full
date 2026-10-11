@@ -330,7 +330,7 @@ class VirtualLoaderPage(QWidget):
             self.activity.emit(self.tr('Profile applied.'))
             self.profile_applied.emit()
             self._queue(self.refresh)
-        self._run(lambda log, stop: publish_profile(prepared, stop_event=stop), done, applying=True)
+        self._run(lambda log, stop: publish_profile(prepared, stop_event=stop, on_log=log), done, applying=True)
 
     def refresh(self):
         from cdmw.services.virtual_loader_runtime import runtime_status

@@ -26,6 +26,7 @@ from cdmw.domain.archives.overlay_merge import (
 from cdmw.domain.cancellation import RunCancelled, raise_if_cancelled
 from cdmw.services.application_shutdown_service import archive_write_scope
 from cdmw.services.installation_lane import serialized_installation
+from cdmw.services.overlay_target_recovery import OverlayTargetRecovery, payload_digest
 from cdmw.services.archive_overlay_install import (
     OVERLAY_OWNER_BYTES, OVERLAY_OWNER_MARKER, OverlayInstallResult,
     is_cdmw_overlay_directory, overlay_baseline_files, overlay_directory_name, _processed_payload,
@@ -620,18 +621,18 @@ def apply_overlay_retirement(preparation, *, confirmed, backup, restore_backup,
     _verify_backup(backup_dir, {inventory: preparation.inventory_data})
     # Cancellation and external changes after backup must leave the live inventory intact.
     verify_current()
+    recovery = OverlayTargetRecovery(root, {inventory: payload_digest(preparation.inventory_data), retired: None},
+                                     backup_dir=backup_dir, restore_backup=restore_backup, stop_event=stop_event)
     try:
         retired.parent.mkdir(parents=True, exist_ok=True)
-        inventory.rename(retired)
+        recovery.mutate({inventory: None, retired: payload_digest(preparation.inventory_data)},
+                        lambda: inventory.rename(retired))
         if inventory.exists() or retired.read_bytes() != preparation.inventory_data:
             raise RuntimeError('Retired overlay history did not match the reviewed inventory.')
+        recovery.committed()
     except BaseException as error:
         try:
-            restore_backup(backup_dir)
-            if inventory.read_bytes() != preparation.inventory_data:
-                raise RuntimeError('The overlay inventory was not restored.')
-            if retired.is_file() and retired.read_bytes() == preparation.inventory_data:
-                retired.unlink()
+            recovery.rollback()
         except Exception as rollback_error:
             raise RuntimeError(f'Overlay retirement failed; recovery requires backup {backup_dir}: {rollback_error}') from error
         raise
@@ -999,15 +1000,16 @@ def apply_overlay_change(preparation, *, confirmed, backup, restore_backup, game
             raise OverlayConflict(f'The source archive {relative} changed after preparation.')
     writes = dict(preparation.writes)
     _verify_source_content(preparation, stop_event)
-    mutations_started = False
+    recovery = OverlayTargetRecovery(root,
+        {_target(root, relative): payload_digest(previous) for relative, previous in preparation.before},
+        backup_dir=backup_dir, restore_backup=restore_backup, stop_event=stop_event)
     try:
         for relative, payload in preparation.writes:
             if relative == 'meta/0.papgt':
                 continue
             raise_if_cancelled(stop_event, 'Overlay change cancelled.')
             path = _target(root, relative)
-            mutations_started = True
-            atomic_write_bytes(path, payload)
+            recovery.write(path, payload, atomic_write_bytes)
             if not _file_matches_bytes(path, payload):
                 raise RuntimeError(f'Staged overlay bytes differ from the preparation: {relative}')
         # Validate the staged archive through the actual index reader before
@@ -1019,22 +1021,13 @@ def apply_overlay_change(preparation, *, confirmed, backup, restore_backup, game
                 raise RuntimeError('Staged overlay paths differ from the prepared archive.')
         raise_if_cancelled(stop_event, 'Overlay change cancelled before publication.')
         mount_path, mount_payload = _target(root, 'meta/0.papgt'), writes['meta/0.papgt']
-        mutations_started = True
-        atomic_write_bytes(mount_path, mount_payload)
+        recovery.write(mount_path, mount_payload, atomic_write_bytes)
         for relative in preparation.deletes:
-            _target(root, relative).unlink(missing_ok=True)
+            recovery.unlink(_target(root, relative))
+        recovery.committed()
     except BaseException as error:
-        if not mutations_started:
-            # No writes began. Preserve changes made by another writer during backup.
-            raise
         try:
-            restore_backup(backup_dir)
-            for relative, previous in preparation.before:
-                if previous is None:
-                    _target(root, relative).unlink(missing_ok=True)
-            for path, expected in originals.items():
-                if not _file_matches_bytes(path, expected):
-                    raise RuntimeError(f'Rollback did not restore {path.name}.')
+            recovery.rollback()
         except Exception as rollback_error:
             raise RuntimeError(f'Overlay change failed; recovery requires backup {backup_dir}: {rollback_error}') from error
         raise

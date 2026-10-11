@@ -150,6 +150,49 @@ class ExternalMods:
                 state['sources'][relative] = list(stamp)
 
 
+def _folder_metadata(external, folder, stop_event):
+    """Consume known loose indexes without treating them as game-file overrides."""
+    from cdmw.core.pathc_format import parse_pathc
+
+    def read_index(path, parser):
+        raise_if_cancelled(stop_event, 'Mod comparison cancelled.')
+        external.tracker.pin_file(path)
+        if path.stat().st_size > MAX_BLOB:
+            raise OverlayConflict(f'External package metadata exceeds its size limit: {path}.')
+        data = path.read_bytes()
+        external.total += len(data)
+        if len(data) > MAX_BLOB or external.total > MAX_TOTAL:
+            raise OverlayConflict('External package metadata exceeds the comparison size limit.')
+        try:
+            parser(data)
+        except ValueError as exc:
+            raise OverlayConflict(f'Invalid external package metadata {path}: {exc}') from exc
+        external.tracker.pin_index(path, digest(data), stop_event)
+        return data
+
+    consumed, registry = set(), None
+    for base in (folder, folder / 'files'):
+        mount = base / 'meta/0.papgt'
+        if mount.is_file():
+            # Discovery reads this index for the folder's archive order. Keep its
+            # original parsed digest even though it is never a deployed payload.
+            read_index(mount, parse_papgt)
+            consumed.add(mount)
+        pathc = base / 'meta/0.pathc'
+        if pathc.is_file():
+            incoming = read_index(pathc, parse_pathc)
+            current = external.root / 'meta/0.pathc'
+            if registry is None and current.is_file():
+                registry = read_index(current, parse_pathc)
+            if registry is None or incoming != registry:
+                raise OverlayConflict(f'{folder}: this texture registry requires recorded texture ownership. '
+                    'Use Merge with the original CDMW export before selecting this folder.')
+            # An exact, validated no-op registry has no replacement to publish.
+            # Changed registrations must use the existing ownership-aware merger.
+            consumed.add(pathc)
+    return consumed
+
+
 def external_mods(root, state, *, folders=(), read_entry=None, stop_event=None, snapshot=None):
     from cdmw.core.archive_extraction import read_archive_entry_data
     from cdmw.services.new_item_mod_base import ModFolderPayload, mod_folder_payloads
@@ -187,19 +230,26 @@ def external_mods(root, state, *, folders=(), read_entry=None, stop_event=None, 
         inventory = _inventory(folder, stop_event)
         result.inventories.append((folder, inventory))
         label = str(folder)
+        metadata = _folder_metadata(result, folder, stop_event)
         payloads = mod_folder_payloads(folder, stop_event=stop_event,
             parse_index=lambda path: result.tracker.parse_index(path, stop_event=stop_event))
+        admitted = False
         for path, source in payloads.items():
             if path.startswith(('.cdmw/', '.cdloader/')):
                 continue
+            if path.startswith('meta/'):
+                if source.entry is None and source.path in metadata:
+                    continue
+                raise OverlayConflict(f'Unsupported external package metadata: {path} in {folder}.')
             if source.entry is not None and (not Path(source.entry.pamt_path).resolve().is_relative_to(folder)
                                              or not Path(source.entry.paz_file).resolve().is_relative_to(folder)):
                 raise OverlayConflict(f'Archive resource escapes its mod folder: {label}.')
             result.providers.setdefault(virtual_path(path), []).append((label, source))
+            admitted = True
         # Executable mods and patch instruction formats are not final file payloads.
         unknown = [name for name, *_ in inventory if Path(name).suffix.lower() in ('.asi', '.dll', '.json', '.zip', '.rar', '.7z', '.cditem')
                    and Path(name).name.lower() not in ('manifest.json', 'modinfo.json', 'new-item.json', 'cdmw-compatibility.json', 'cdmw-baseline.zip')]
-        if unknown or not payloads:
+        if unknown or not admitted:
             result.findings.append(CompatibilityFinding('Unknown', (label,), '',
                 'This folder contains runtime code, patch instructions or no supported file payloads. Its effects cannot be certified by a file scan.'))
     return result
@@ -384,7 +434,8 @@ def foreign_underlay(external, baseline, snapshot, *, stop_event=None):
     return result
 
 
-def _validate_composition_packages(root, pending, layers, snapshot, external, *, stop_event=None, on_log=None, virtual_identities=()):
+def _validate_composition_packages(root, pending, layers, snapshot, external, *, stop_event=None, on_log=None,
+                                   virtual_identities=(), export_requirements=None):
     """Validate retained intent and the whole active graph for every output route."""
     from cdmw.services.independent_item_package import read_package
     from cdmw.domain.new_item.package_links import contract, resolve_package_contracts, check_graph_budget
@@ -410,6 +461,8 @@ def _validate_composition_packages(root, pending, layers, snapshot, external, *,
             raise OverlayConflict('The retained package field operations disagree with its ownership layer.')
         if layer['active']:
             package_contract = contract(package)
+            if export_requirements is not None and (declared or package_contract['declared']):
+                export_requirements.append(package.title)
             virtual = package.identity in virtual_identities
             active_packages[virtual].append((package.identity, package_contract))
             link_budgets[virtual] += len(package_contract['exports']) + len(package_contract['links']['packages']) + len(package_contract['links']['references'])
@@ -509,10 +562,11 @@ def scan_independent_conflicts(root, *, folders=(), stop_event=None, on_log=None
             flags[path] = change['flags']
     # Admit and compose the complete active graph once. File-by-file byte diffs
     # cannot represent explicit source-equal assignments or disjoint row fields.
-    output = {}
+    output, export_requirements = {}, []
     try:
         findings.extend(_validate_composition_packages(root, {}, layers, snapshot, external,
-            stop_event=stop_event, on_log=on_log))
+            stop_event=stop_event, on_log=on_log,
+            export_requirements=export_requirements if _export else None))
         current = foreign_underlay(external, baseline, snapshot, stop_event=stop_event)
         output, _ = overlays.compose_layer_payloads(layers, current, stop_event=stop_event, on_log=on_log)
     except RunCancelled:
@@ -549,6 +603,13 @@ def scan_independent_conflicts(root, *, folders=(), stop_event=None, on_log=None
         return report
     if not report.compatible:
         raise OverlayConflict(report.text())
+    if export_requirements:
+        # The current folder format records byte differences only. It cannot
+        # retain source-equal field requirements or exact package dependencies.
+        # Do not emit an artifact that later CDMW consumers silently weaken.
+        raise OverlayConflict(', '.join(dict.fromkeys(export_requirements))
+            + ': merged archive export cannot preserve typed field requirements or package links. '
+              'Keep the original .cditem files and install them together through CDMW or a virtual profile.')
     # Build a portable merged copy through the existing exporter. This is an
     # explicit folder export, never a write to a foreign archive or source mod.
     from cdmw.services.mod_merge_service import ModMergePlan

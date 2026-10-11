@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Callable, Iterable, Mapping, Optional, Sequence
 
 from cdmw.core.item_icon_addition import NewItemIcon
-from cdmw.domain.cancellation import raise_if_cancelled
+from cdmw.domain.cancellation import RunCancelled, raise_if_cancelled
 from cdmw.domain.archives.mutation import ArchivePatchResult
 from cdmw.domain.new_item.spec import IconSource, NewItemSpec
 from cdmw.domain.packages.export_policy import ModPackageExportOptions
@@ -23,6 +23,7 @@ from cdmw.models import ArchiveEntry, ModPackageInfo, clamp_model_preview_render
 from cdmw.services.new_item_planning import NewItemPlan
 from cdmw.services.new_item_service import NewItemExportResult, NewItemService
 from cdmw.services.new_item_snapshot import NewItemSnapshot
+from cdmw.services.new_item_provenance import ArchiveCatalogue, SourceTracker
 
 LogSink = Callable[[str], None]
 Task = Callable[[LogSink, threading.Event], object]
@@ -45,7 +46,7 @@ def model_source_cleanup_task(source: object) -> Task:
 
 def list_archive_entries(
     package_root: Path, log: LogSink, stop_event: threading.Event, *, preview_warmup=None, progress=None,
-) -> tuple[ArchiveEntry, ...]:
+) -> ArchiveCatalogue:
     """Every entry of every package table under `package_root`, read directly.
 
     The shell's standalone catalogue backend shows the Archive Browser without ever
@@ -54,7 +55,7 @@ def list_archive_entries(
     authoring: its missing entries could otherwise expose an older table generation.
     """
 
-    from cdmw.core.archive_format import discover_pamt_files, parse_archive_pamt
+    from cdmw.core.archive_format import discover_pamt_files
 
     root = Path(package_root)
     tables = discover_pamt_files(root)
@@ -62,22 +63,25 @@ def list_archive_entries(
         raise ValueError(f"No package tables (0.pamt) were found under {root}.")
     log(f"Listing the archives under {root} ({len(tables)} package tables)...")
     entries: list[ArchiveEntry] = []
+    tracker = SourceTracker(None)  # This listing records indexes, without reading payloads.
     for index, pamt in enumerate(tables, start=1):
         raise_if_cancelled(stop_event, "New item snapshot cancelled.")
         if progress:
             progress(index - 1, len(tables), f"Reading archive indexes: {pamt.parent.name}/{pamt.name}")
         try:
-            batch = parse_archive_pamt(pamt)
+            batch = tracker.parse_index(pamt, stop_event=stop_event)
             entries.extend(batch)
             if preview_warmup is not None:
                 preview_warmup.offer(batch)
+        except RunCancelled:
+            raise
         except Exception as error:  # noqa: BLE001 - report the exact unreadable source
             raise ValueError(f"Cannot read archive index {pamt}; New Item needs a complete source catalogue: {error}") from error
         if index % 8 == 0 or index == len(tables):
             log(f"Listed {index}/{len(tables)} package tables, {len(entries):,} entries so far...")
     if progress:
         progress(len(tables), len(tables), "Archive indexes loaded.")
-    return tuple(entries)
+    return ArchiveCatalogue(tuple(entries), tracker.capture().indexes)
 
 
 def snapshot_task(
@@ -100,7 +104,7 @@ def snapshot_task(
     catalogue backend has not filled the legacy entry list.
     """
 
-    frozen = tuple(entries)
+    frozen = entries if isinstance(entries, ArchiveCatalogue) else tuple(entries)
     warmup_settings = clamp_model_preview_render_settings(preview_render_settings)
 
     def run(log: LogSink, stop_event: threading.Event) -> NewItemSnapshot:

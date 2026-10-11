@@ -4,6 +4,7 @@ Only CDMW bookkeeping is published here. This module cannot publish to the game'
 archive or metadata directories. A durable journal covers the two-ledger commit.
 """
 import json
+import logging
 from pathlib import Path
 import re
 
@@ -182,11 +183,41 @@ def _journal_value(before, after):
     return canonical({'data': value, 'sha256': digest(canonical(value))})
 
 
+def _verify_recovered_state(root, expected):
+    """Verify both selected ledgers and the complete referenced generation."""
+    from cdmw.services.independent_item_install import _validate_registry
+    from cdmw.services.virtual_loader_composition import hash_file
+    actual = {p: read_optional(target(root, p)) for p in expected}
+    if actual != expected:
+        raise VirtualLoaderError('Virtual recovery did not establish the selected ledger bytes.')
+    registry = _validate_registry(decode(actual[REGISTRY])) if actual[REGISTRY] is not None else None
+    if actual[PROFILE_PATH] is not None:
+        profile = validate_profile(decode(actual[PROFILE_PATH]))
+        if registry is None:
+            raise VirtualLoaderError('Virtual recovery is missing the matching identity ledger.')
+        for identity, binding in profile['items'].items():
+            row = registry['items'].get(identity)
+            if not row or row['layer'] is not None or any(row[key] != binding[key] for key in binding):
+                raise VirtualLoaderError('Virtual recovery ownership and identity ledgers disagree.')
+        if 'links' in profile.get('compilation', {}).get('inputs', {}):
+            from cdmw.domain.new_item.package_links import validate_link_bindings
+            validate_link_bindings(profile['compilation']['inputs']['links'], registry['items'])
+        directory = generation_path(root, profile['generation'])
+        if read_optional(target(directory, 'profile.json')) != actual[PROFILE_PATH]:
+            raise VirtualLoaderError('Virtual recovery does not match its retained generation manifest.')
+        for relative, checksum in profile['files'].items():
+            if hash_file(target(directory, 'files/' + relative)) != checksum:
+                raise VirtualLoaderError('Virtual recovery found a changed generation file.')
+    if {p: read_optional(target(root, p)) for p in expected} != expected:
+        raise VirtualLoaderError('Virtual recovery ledgers changed during verification.')
+
+
 @archive_write_scope()
 def recover_profile(root):
     with installation_lane(root, recovery=True):
         journal = target(root, JOURNAL_PATH)
-        wrapper = decode(journal.read_bytes(), limit=MAX_MANIFEST * 8)
+        journal_data = journal.read_bytes()
+        wrapper = decode(journal_data, limit=MAX_MANIFEST * 8)
         value = wrapper.get('data', {})
         if wrapper.get('sha256') != digest(canonical(value)) or value.get('format') != 'cdmw_virtual_transaction_v1':
             raise VirtualLoaderError('Virtual recovery material failed validation.')
@@ -206,15 +237,19 @@ def recover_profile(root):
         for relative, data in encoded[selected].items():
             if read_optional(target(root, relative)) != data:
                 _write_optional(target(root, relative), data)
+        _verify_recovered_state(root, encoded[selected])
         # Preserve the complete verified journal as recovery evidence.
-        archive = target(root, '.cdmw/virtual-loader/recovery/' + digest(journal.read_bytes()) + '.json')
-        atomic_write_bytes(archive, journal.read_bytes())
+        archive = target(root, '.cdmw/virtual-loader/recovery/' + digest(journal_data) + '.json')
+        atomic_write_bytes(archive, journal_data)
+        if archive.read_bytes() != journal_data or journal.read_bytes() != journal_data:
+            raise VirtualLoaderError('Virtual recovery journal preservation failed verification.')
+        _verify_recovered_state(root, encoded[selected])
         journal.unlink()
         return selected
 
 
 @archive_write_scope()
-def publish_profile(prepared, *, stop_event=None):
+def publish_profile(prepared, *, stop_event=None, on_log=None):
     from cdmw.services.independent_item_install import _validate_registry
     from cdmw.services.archive_overlay_manager import _verify_observed_state
     from cdmw.services.new_item_service import game_is_running
@@ -273,7 +308,48 @@ def publish_profile(prepared, *, stop_event=None):
             for relative, data in after.items():
                 atomic_write_bytes(target(root, relative), data.encode())
             target(root, JOURNAL_PATH).unlink()
-        except Exception:
-            recover_profile(root)
-            raise
+        except Exception as publication_error:
+            cleanup_error = None
+            encoded = {side: {p: text.encode() if text is not None else None
+                              for p, text in values.items()}
+                       for side, values in (('before', before), ('after', after))}
+            try:
+                try:
+                    selected = recover_profile(root)
+                except OSError as error:
+                    # Unlink may finish and then report an error. A missing journal
+                    # alone proves nothing; use this publication's retained witness.
+                    if (target(root, JOURNAL_PATH).exists()
+                            or read_optional(backup) != recovery_data):
+                        raise
+                    actual = {p: read_optional(target(root, p)) for p in after}
+                    selected = next((side for side in ('after', 'before')
+                                     if actual == encoded[side]), None)
+                    cleanup_error = error
+                if selected not in ('before', 'after'):
+                    raise VirtualLoaderError('Virtual recovery did not select a verified state.')
+                _verify_recovered_state(root, encoded[selected])
+                if target(root, JOURNAL_PATH).exists():
+                    raise VirtualLoaderError('Virtual recovery still has an active transaction journal.')
+                if cleanup_error is not None and read_optional(backup) != recovery_data:
+                    raise VirtualLoaderError('Retained virtual recovery evidence changed during verification.')
+            except Exception as recovery_error:
+                raise VirtualLoaderError(
+                    f'Virtual profile recovery is required. Publication: {publication_error}. '
+                    f'Recovery: {recovery_error}. Recovery material: {backup}') from recovery_error
+            if selected == 'before':
+                if cleanup_error is not None:
+                    logging.getLogger(__name__).warning(
+                        'Virtual profile restored and verified after journal cleanup reported: %s',
+                        cleanup_error)
+                raise
+            diagnostic = f'Virtual profile committed after verified recovery: {publication_error}'
+            if cleanup_error is not None:
+                diagnostic += f'. Journal cleanup: {cleanup_error}'
+            logging.getLogger(__name__).warning(diagnostic)
+            if on_log is not None:
+                try:
+                    on_log(diagnostic)
+                except Exception:
+                    logging.getLogger(__name__).exception('Committed profile diagnostic delivery failed.')
         return profile

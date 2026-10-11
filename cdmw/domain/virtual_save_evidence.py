@@ -158,8 +158,9 @@ def compare(captures):
         present = provider in context['items'] or provider in context['physical_items']
         check(stage + ':provider', present == (not stage.startswith('absent_')),
               'Provider presence follows the intended experiment stage.')
-        check(stage + ':selected-files', all(row is not None for row in chosen(value).values()),
-              'Every explicitly selected save file exists in this copy.')
+        if stage != 'absent_saved' or value['observation']['outcome'] == 'saved':
+            check(stage + ':selected-files', all(row is not None for row in chosen(value).values()),
+                  'Every explicitly selected save file exists in this copy.')
         check(stage + ':bindings', context['provider_binding'] == baseline['provider_binding']
               and baseline['provider_binding'] is not None, 'Retained provider bindings have not changed.')
         check(stage + ':environment', all(context[k] == baseline[k] for k in
@@ -175,13 +176,29 @@ def compare(captures):
     if len(values) > 2:
         check('absent-load-no-save', chosen(values[2]) == chosen(values[1]),
               'The selected save bytes did not change during the reported load-only case.')
+    save_attempt = None
     if len(values) > 3:
-        check('new-absent-save', chosen(values[3]) != chosen(values[1]),
-              'The reported absent-provider save has different selected bytes; this alone does not prove a game write.')
+        outcome = values[3]['observation']['outcome']
+        def other_files(value):
+            return {key: row for key, row in value['files'].items() if key not in first['selected']}
+        save_attempt = {
+            'outcome': outcome,
+            'selected_bytes_changed': chosen(values[3]) != chosen(values[2]),
+            'other_files_changed': other_files(values[3]) != other_files(values[2]),
+            'missing_selected_files': [key for key, row in chosen(values[3]).items() if row is None],
+        }
+        if outcome == 'saved':
+            check('new-absent-save', save_attempt['selected_bytes_changed'],
+                  'The reported absent-provider save has different selected bytes; this alone does not prove a game write.')
     if len(values) > 4:
-        check('restore-new-save-input', chosen(values[4]) == chosen(values[3])
-              and chosen(values[4]) != chosen(first),
-              'The restored-provider load starts with the newly written copy, not the original recovery save.')
+        if save_attempt['outcome'] == 'saved':
+            check('restore-new-save-input', chosen(values[4]) == chosen(values[3])
+                  and chosen(values[4]) != chosen(first),
+                  'The restored-provider load starts with the newly written copy, not the original recovery save.')
+        else:
+            check('restore-save-attempt-input', chosen(values[4]) == chosen(values[3]),
+                  'The restored-provider case retains the attempted-save bytes. '
+                  'A failed or unknown attempt does not establish a committed save.')
     if len(values) > 5:
         check('restored-load-no-save', chosen(values[5]) == chosen(values[4]),
               'The selected save bytes stayed unchanged during the restored-provider load-only case. '
@@ -202,14 +219,14 @@ def compare(captures):
         status = 'inconsistent'
     elif 'failed' in outcomes.values():
         status = 'reported-failure'
-    elif not complete:
-        status = 'incomplete'
     elif 'unknown' in outcomes.values():
         status = 'unverified-outcome'
+    elif not complete:
+        status = 'incomplete'
     else:
         status = 'candidate-observation'
     return {'format': 'cdmw_virtual_save_comparison_v1', 'experiment': first['experiment'],
             'status': status, 'claims': dict(CLAIMS), 'checks': checks, 'outcomes': outcomes,
-            'missing_stages': list(STAGES[len(values):]),
+            'missing_stages': list(STAGES[len(values):]), 'save_attempt': save_attempt,
             'limitation': 'Hashes establish copy/context consistency, not save origin, game activation, '
                           'successful deserialization or migration safety. Operator reports are not authenticated.'}

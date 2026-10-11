@@ -1137,12 +1137,9 @@ class MeshOverlayApplyWorker(QObject):
                 ),
             )
         except RunCancelled:
-            self.cancelled.emit(self.request_id, "Overlay installation cancelled and rolled back.")
+            self.cancelled.emit(self.request_id, "Overlay installation cancelled.")
         except Exception as exc:
-            if self.stop_event.is_set():
-                self.cancelled.emit(self.request_id, "Overlay installation cancelled and rolled back.")
-            else:
-                self.error.emit(self.request_id, f"{type(exc).__name__}: {exc}")
+            self.error.emit(self.request_id, f"{type(exc).__name__}: {exc}")
         finally:
             self.finished.emit()
 

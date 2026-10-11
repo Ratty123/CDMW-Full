@@ -8,7 +8,7 @@ their generation stay alive as long as any consumer retains this view.
 from __future__ import annotations
 
 from array import array
-from collections import OrderedDict
+from collections import Counter, OrderedDict
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 import json
@@ -254,6 +254,51 @@ class ResidentArchiveIndex(Sequence[ArchiveEntry]):
             stat = file.stat()
             if stat.st_size != size or stat.st_mtime_ns // 100 + _DOTNET_EPOCH_TICKS != ticks:
                 raise ValueError(f"Archive source changed: {file}. Refresh the archives.")
+
+    def verify_parsed_indexes(self, parse_index, *, stop_event=None):
+        """Witness this cached catalogue by comparing its exact parsed coordinates.
+
+        The native manifest records stamps, not original PAMT digests. Compare
+        each index against freshly captured bytes before an authoring consumer
+        can use the cached rows. Only one PAMT is decoded at a time; fixed FAI3
+        records are inspected directly without creating unrelated ArchiveEntry
+        objects or retaining another catalogue.
+        """
+        self.validate_sources(stop_event)
+        # Retain only compact row numbers, then visit each fixed record once
+        # during comparison instead of scanning the full catalogue per PAMT.
+        rows_by_index = {}
+        for row in self._scan_rows(stop_event):
+            record = self._records + row * _RECORD.size
+            owner = self._source_path(_OFFSET.unpack_from(self._mapping, record + 8)[0],
+                                      _LENGTH.unpack_from(self._mapping, record + 52)[0])
+            if owner not in rows_by_index:
+                rows_by_index[owner] = array("Q")
+            rows_by_index[owner].append(row)
+        parsed_count = 0
+        for pamt in self.source_paths:
+            if pamt.suffix.lower() != ".pamt":
+                continue
+            expected = Counter(
+                (str(entry.path).replace("\\", "/").strip("/"), Path(entry.paz_file),
+                 entry.offset, entry.comp_size, entry.orig_size, entry.flags, entry.paz_index)
+                for entry in parse_index(pamt))
+            parsed_count += sum(expected.values())
+            for index, row in enumerate(rows_by_index.pop(pamt, ())):
+                if index % 4096 == 0:
+                    raise_if_cancelled(stop_event, "Archive catalogue validation cancelled.")
+                fields = _RECORD.unpack_from(self._mapping, self._records + row * _RECORD.size)
+                path, _owner, paz, offset, stored, original, path_size, _owner_size, paz_size, flags, paz_index, *_ = fields
+                key = (self._bytes(path, path_size).decode("utf-8").replace("\\", "/").strip("/"),
+                       self._source_path(paz, paz_size), offset, stored, original, flags, paz_index)
+                if not expected.get(key):
+                    raise ValueError(f"Source index no longer matches its resident catalogue: {pamt}. Refresh the archives.")
+                expected[key] -= 1
+            if any(expected.values()):
+                raise ValueError(f"Source index has entries missing from its resident catalogue: {pamt}. Refresh the archives.")
+        if rows_by_index or parsed_count != self._count:
+            raise ValueError("Source index inventory does not match its resident catalogue. Refresh the archives.")
+        self.validate_sources(stop_event)
 
     @property
     def source_paths(self):

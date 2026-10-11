@@ -43,9 +43,12 @@ preparation, and item identity tools.
 Preparation shows a percentage and the current stage. The percentage follows completed
 stages and source files, not an estimate of elapsed or remaining time. It reaches 100%
 only after the parent accepts the complete worker result. Apply then saves the
-profile automatically. Saving has its own busy indicator; completion hides the bar
-and shows **Profile applied. Ready to launch.** Cancelled, failed or outdated
-preparation results cannot publish a profile or enable launch.
+profile automatically. Saving has its own busy indicator; verified committed
+publication hides the bar and shows **Profile applied. Ready to launch.**
+Cancelled, failed or outdated preparation results cannot publish a profile or
+enable launch. A publication error that recovers the complete new state reports
+the committed result and its diagnostic. Recovery to the previous state reports
+the original failure; an unverified state requires recovery.
 
 Launch reports runtime checks, save backup, file verification, Steam handoff and
 runtime readiness. The host's verification percentage follows bytes actually read;
@@ -159,9 +162,9 @@ existing reports are never overwritten.
 | `baseline` | Provider selected; original recovery save copied | `prepared` |
 | `absent_before_load` | Provider removed; original bytes copied before the load-only case | `prepared` |
 | `absent_loaded` | Same absent-provider profile; copy after the load-only case | `loaded`, `failed` or `unknown` |
-| `absent_saved` | Same absent-provider profile; copy of the newly written save | `saved`, `failed` or `unknown` |
-| `restored_before_load` | Original provider/profile restored; newly written save copied before loading | `prepared` |
-| `restored_loaded` | Restored profile; copy after loading that newly written save | `loaded`, `failed` or `unknown` |
+| `absent_saved` | Same absent-provider profile; copy after the save attempt | `saved`, `failed` or `unknown` |
+| `restored_before_load` | Original provider/profile restored; post-attempt copy retained before loading | `prepared` |
+| `restored_loaded` | Restored profile; copy after loading the same post-attempt input | `loaded`, `failed` or `unknown` |
 
 For example, replace the placeholders and slot name with the chosen experiment's
 paths and package UUID. These commands only capture already prepared inputs:
@@ -192,17 +195,36 @@ outcome should be recorded as such. Compare the captures in their recorded order
   '<reports>/05-restored-before.json' '<reports>/06-restored-loaded.json'
 ```
 
-A prefix of that sequence reports incomplete work. Comparison flags reordered or
-changed captures, missing selected files, a provider still active physically,
-changed bindings or environment, changes during either load-only case, and reuse
-of the original recovery save before or after the restored-provider load. The
-final selected bytes must match the immediate `restored_before_load` input.
-Changed bytes, including a possible autosave, make this load-only sequence
-`inconsistent`; record the observation but do not promote it to a compatible
-save result. A changed generation
-alone is allowed when package content, bindings, source contracts and prepared
-output match. Hashes are checked twice around capture to detect changed input;
-links/junctions, oversized inputs and interrupted report publication refuse.
+A prefix without a reported failure, unknown outcome or contradictory evidence
+reports incomplete work. Comparison flags reordered or changed captures, a
+provider still active physically, changed bindings or environment, and changes
+during either load-only case. Selected files must exist except at an explicitly
+failed or unknown save-attempt stage, where missing files are part of the
+observation.
+
+The `save_attempt` report separates the operator's outcome from the bytes observed
+after the `absent_saved` stage. It records `selected_bytes_changed`,
+`other_files_changed` and `missing_selected_files`. A failed or unknown attempt
+may leave selected bytes unchanged, changed or missing; it does not have to
+produce a committed save. Otherwise consistent observations report
+`reported-failure` or `unverified-outcome`, including an incomplete sequence.
+Restoring the provider later does not promote either outcome to success.
+
+A reported `saved` outcome requires present, changed selected files, and its
+restored-provider case must use that newly written copy rather than the original
+recovery save. Changes to unselected files, including a possible autosave, cannot
+substitute for changes to the selected slot. For a failed or unknown attempt,
+the restored-provider case must retain the exact observed post-attempt bytes;
+it cannot claim that those bytes are a new committed save.
+
+The final selected bytes must match the immediate `restored_before_load` input.
+Changed bytes during that load-only case, missing selected files at later stages
+or other continuity/context contradictions make the sequence `inconsistent`
+even when an earlier attempt was reported failed or unknown. Record the
+observation without promoting it to a compatible save result. A changed
+generation alone is allowed when package content, bindings, source contracts and
+prepared output match. Hashes are checked twice around capture to detect changed
+input; links/junctions, oversized inputs and interrupted report publication refuse.
 
 The context check covers the prepared output, selected package bytes and recorded
 source contracts. It does not rehash all stock game sources, observe native hook
@@ -271,15 +293,27 @@ and interrupted writes. Hash changes across a game session alone are insufficien
 | `.cditem` v2 `item.fields` | Typed existing stack-count and stat-value assignments, composed in both deployment paths | Exact sources and recognized row layouts only; v1 requirements remain protected; gameplay/save effects are unverified |
 | `.cditem` v2 `package.links` | Exact package release/content pins and typed references to exported legacy item identities | Providers must belong to the same selected virtual profile; game-reference relocation and save/runtime lifetimes remain unsupported |
 | Mounted external mods | Current archive inspection and record conflict checks | Ambiguous providers, required-record edits or unsupported formats |
-| Selected extracted mod folders and PAMT/PAZ mods | Supported loose files and known table pairs, privately composed with installed contributions | Executables, runtime plugins, malformed paths or unknown content |
+| Selected extracted mod folders and PAMT/PAZ mods | Supported loose files and known table pairs, privately composed with installed contributions; recognized loose PAPGT is consumed for discovery | Executables, runtime plugins, malformed paths, invalid mount metadata or unknown content |
+| Selected folder PATHC | A validated registry identical to the current game's registry is accepted as unchanged metadata | A changed incoming registry requires recorded texture ownership through the existing Merge workflow; unknown metadata refuses |
 | Shared tables | Existing additive and record merge rules | Different changes to an owned/required record never choose a silent winner |
-| Texture registration | Existing PATHC encoder and collision checks | Missing or unverified registry, duplicate hashes or conflicting paths |
+| Texture registration | Existing PATHC encoder and collision checks compose admitted textures into private output | Missing or unverified base registry, duplicate hashes or conflicting paths |
 | Private output | One complete PAMT/PAZ pair, PAPGT and applicable PATHC from one generation | Game loading is gated separately from successful composition |
 | Native additional definition files | Research only | No evidence that arbitrary filenames register items |
 | Direct native item registration | Research only | No verified callable constructor/insertion/finalization chain |
 
 Virtual loading still requires shared-table composition. It does not create an
-independent game namespace or make arbitrary mods conflict-free.
+independent game namespace or make arbitrary mods conflict-free. Selected folders
+can contain ordinary equipment, character or texture resources that pass those
+file-level checks; this does not create a standalone character/body/hair/outfit or
+texture/material `.cditem` adapter. Package content remains limited to the admitted
+legacy equipment, ItemInfo field and package-link modules.
+
+The original `.cditem` files retain typed field and link requirements within the
+profile. **Export installed items…** currently refuses flattening active field or
+link semantics into an ordinary archive folder. A complete portable semantic
+schema and corresponding downstream readers remain pending; the
+[export boundary](INDEPENDENT_ITEMS.md#compare-and-compose-other-mods) applies
+even when the selected packages pass compatibility scanning.
 
 ## Publication and lifecycle
 
@@ -296,12 +330,39 @@ previous profile. A surviving journal blocks use until **Recover interrupted
 profile** completes or reports incompatible external changes. Unreferenced
 generations remain recovery evidence; this prototype does not prune them.
 
+After a publication exception, recovery requires each ledger to match a recorded
+before or after value. It selects the complete new state only when both ledgers
+already match that state; otherwise it verifies or restores the previous state
+from the journal. It then checks the exact ledger bytes, ownership bindings and
+any referenced generation's manifest and listed files before clearing the journal.
+A verified new state returns a committed result with the original error recorded
+as a diagnostic, including when cancellation arrives
+after commitment. A verified previous state reports the original publication
+failure. Missing, altered or contradictory recovery evidence requires recovery
+and cannot report success.
+
+A filesystem error after journal removal is handled only when the active journal
+is absent and the retained recovery bytes exactly match this publication's
+before/after record. The actual ledgers must match one complete recorded state;
+any referenced generation is verified and the retained recovery material is read
+again.
+Journal absence alone is insufficient evidence of commitment. The page receives
+one completed publication result and the diagnostic when recovery verifies a
+commit, so a late cleanup error cannot make a saved profile appear unpublished.
+
 Preparation captures package hashes, source revisions, mounted provider
 inventories and ownership state. Publication and launch reject changed inputs.
 PAMT source digests are bound to the bytes actually parsed, including mounted and
-selected external archives. Final source hashing must match those parsed-index
-witnesses. A later replacement index is rejected even if its size and timestamps
-match and the PAZ payloads remain unchanged.
+selected external archives. Ordinary New Item and mod-base snapshots, resident
+catalogue consumers and generic Merge preserve or verify these original
+witnesses before their output feeds later composition. Cached resident entries
+must match freshly parsed coordinates and the complete index inventory before
+their tables can be used; reusing the tables checks the retained index digests.
+Final source hashing must match those parsed-index witnesses. A later replacement
+index is rejected even if its size and all recorded timestamps match and the PAZ
+payloads remain unchanged. Recognized folder PAPGT and unchanged PATHC metadata
+also retain digests of the exact bytes consumed during folder admission.
+
 Each new profile also records its compiler and adapter revisions and a compilation
 identity linking packages, features, allocation bindings, sources, composition
 order, runtime protocol and output hashes. A profile with
@@ -333,8 +394,13 @@ installations can still take time because all relevant source files are verified
 The transaction's writable targets are CDMW-owned bookkeeping and private files,
 never original PAMT, PAZ, PAPGT or PATHC files. Physical archive mutation, overlay
 installation/removal, recovery and virtual publication share a cross-process
-installation lock. A session host and the in-game DLL each retain a lease so a
-host failure cannot release a running game's snapshot prematurely.
+installation lock. Physical overlay rollback separately tracks attempted targets
+and refuses unknown post-write contents; its immutable backups and manual
+recovery boundary are described in
+[Physical publication and recovery](INDEPENDENT_ITEMS.md#physical-publication-and-recovery).
+It does not share the virtual profile journal's restart recovery command.
+A session host and the in-game DLL each retain a lease so a host failure cannot
+release a running game's snapshot prematurely.
 
 The Qt controller supplies cancellable workers and generation checks. The Rust
 Mod Management renderer projects the same controls through its existing generic
@@ -567,10 +633,21 @@ recording; a later filename lookup can misidentify a reused key. A circular
 recording that has overwritten startup, even with zero dropped events, is not
 first-read evidence.
 
+Focused source contracts include `tests/test_independent_folder_metadata.py` for
+real exported-folder coexistence and original metadata digests,
+`tests/test_cditem_index_consumers.py` for ordinary and resident index witnesses,
+and `tests/test_virtual_publication_recovery.py` for verified before/after outcomes,
+journal removal errors, damaged generations and one queued UI completion.
+`tests/test_virtual_save_attempt_outcomes.py` separates save-attempt outcomes from
+observed bytes; `tests/test_virtual_save_lineage.py` exercises the data-only lineage
+policy. These fixtures add no new native, packaged, game or save-compatibility
+evidence.
+
 Focused commands from the project root (PowerShell):
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests/test_virtual_loader.py tests/test_virtual_loader_runtime.py tests/test_virtual_loader_ui.py -q --basetemp "$env:TEMP\cdmw-virtual-loader"
+.\.venv\Scripts\python.exe -m pytest tests/test_virtual_publication_recovery.py tests/test_virtual_save_attempt_outcomes.py tests/test_virtual_save_lineage.py tests/test_independent_folder_metadata.py tests/test_cditem_index_consumers.py -q --basetemp "$env:TEMP\cdmw-virtual-contracts"
 .\.venv\Scripts\python.exe scripts/build_virtual_loader.py
 .\.venv\Scripts\python.exe -m pytest tests/test_virtual_loader_native.py -q --basetemp "$env:TEMP\cdmw-virtual-native"
 ```

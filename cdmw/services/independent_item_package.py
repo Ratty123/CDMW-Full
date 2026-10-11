@@ -63,7 +63,9 @@ def stock_snapshot(root, *, service=None, read_entry=None, stop_event=None, on_l
             entries.extend(parse_archive_pamt_bytes(data, path))
             indexes.append((path, digest(data)))
             del data
-    result = (service or NewItemService()).build_snapshot(entries, read_entry=read_entry, stop_event=stop_event, on_log=on_log)
+    from cdmw.services.new_item_provenance import ArchiveCatalogue
+    catalogue = ArchiveCatalogue(tuple(entries), tuple(indexes))
+    result = (service or NewItemService()).build_snapshot(catalogue, read_entry=read_entry, stop_event=stop_event, on_log=on_log)
     for path, checksum in indexes:
         result.provenance.pin_index(path, checksum, stop_event)
     from cdmw.domain.new_item.allocation import DEFAULT_ITEM_KEY_RANGE

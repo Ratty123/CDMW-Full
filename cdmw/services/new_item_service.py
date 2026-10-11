@@ -109,6 +109,9 @@ class NewItemService:
             with self._snapshot_cache_lock:
                 cached = self._snapshot_cache
             if cached is not None and cached[0] == cache_key and not cached[1].source_files_changed():
+                # Equal filesystem stamps do not prove that the cached tables
+                # still came from the index currently selecting their payloads.
+                cached[1].provenance.validate_indexes(stop_event)
                 raise_if_cancelled(stop_event, "New item snapshot cancelled.")
                 if on_log is not None:
                     on_log("Reusing the parsed item tables from the current archive catalogue.")

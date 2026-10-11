@@ -173,7 +173,15 @@ def build_mod_base_snapshot(service, snapshot, folder: Path, *, read_entry, on_l
     from cdmw.core.iteminfo_row import parse_iteminfo_row
     from cdmw.domain.cancellation import raise_if_cancelled
 
-    payloads = mod_folder_payloads(folder, stop_event=stop_event)
+    from cdmw.services.new_item_provenance import ArchiveCatalogue, SourceTracker
+    if snapshot.provenance is not None:
+        snapshot.provenance.capture().validate(stop_event)
+        tracker = snapshot.provenance.fork(read_entry)
+    else:
+        tracker = SourceTracker(read_entry)
+        tracker.bind_catalogue(snapshot.entries.values(), stop_event=stop_event)
+    payloads = mod_folder_payloads(folder, stop_event=stop_event,
+        parse_index=lambda path: tracker.parse_index(path, stop_event=stop_event))
     if not payloads:
         return snapshot
     current = bool(snapshot.sources and snapshot.sources.static_layout)
@@ -228,7 +236,8 @@ def build_mod_base_snapshot(service, snapshot, folder: Path, *, read_entry, on_l
             entries[path] = replace(payload.entry or snapshot.iteminfo.payload_entry, path=path)
             added.add(path)
     reader = read_entry_over_mod_folder(read_entry, payloads)
-    base = service.build_snapshot(tuple(entries.values()), read_entry=reader, on_log=on_log, stop_event=stop_event)
+    catalogue = ArchiveCatalogue(tuple(entries.values()), tracker.capture().indexes)
+    base = service.build_snapshot(catalogue, read_entry=reader, on_log=on_log, stop_event=stop_event)
     for path in (folder, *folder.rglob("*")):
         raise_if_cancelled(stop_event, "New item plan cancelled.")
         base.provenance.pin_file(path)

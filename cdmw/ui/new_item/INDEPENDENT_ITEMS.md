@@ -16,6 +16,14 @@ CDMW composes the game's shared files during installation. Separate `.cditem`
 files are portable authoring packages, not standalone archives the game discovers.
 No manual mod merge is required for compatible packages installed through CDMW.
 
+Current equipment packages can include supported template or imported models and
+their item-owned materials, textures, icons and validated accompanying resources.
+The UI writes v1; v2 admits the same legacy item plus the existing ItemInfo field
+and package-link modules described below. There is no standalone texture/material
+replacement module or general character, body, hair or outfit adapter. Armor
+items must still satisfy the equipment matrix. Admission of an ordinary mod
+folder is a separate capability and does not add a new `.cditem` module.
+
 ## Identity and ownership
 
 Each package has a permanent UUID. **Write item package** creates a new identity,
@@ -48,10 +56,12 @@ cannot be forced to honour these reservations; detected overlaps are refused.
 **Advanced > Item identities > Rebuild selected item…** regenerates an installed
 item from its retained package with the current compiler. It preserves the UUID,
 item IDs and asset reservations, then uses the normal change review and verified
-backup flow. Cancellation leaves the installation unchanged; failed publication
-restores the previous output and ownership. Missing or changed recovery packages
-are refused. An older or unrecorded compiler requires this explicit rebuild before
-an identical-package import can be treated as already installed.
+backup flow. Cancelled preparation leaves the installation unchanged. Publication
+failures follow the verified per-target recovery boundary described below;
+unknown target contents retain recovery material and refuse automatic overwrite.
+Missing or changed recovery packages are refused. An older or unrecorded
+compiler requires this explicit rebuild before an identical-package import can
+be treated as already installed.
 
 Saves can still reference removed items. CDMW does not edit saves. Export an
 **identity profile** (`.cdprofile`) with saves when moving computers, import it
@@ -304,13 +314,23 @@ groups and nested archive copies are excluded from authoring inputs. Custom item
 IDs already present in shipped tables are refused. Required source
 payload hashes must match the author's source. This is conservative version
 compatibility, not proof that a user's base archives are an untouched retail copy.
-Independent-item preparation also records the digest of the exact PAMT bytes
-parsed to select each archive resource. Those index witnesses survive per-package
-views, scanning, merged export and both publication routes. Later source fingerprints
-must agree with the parsed bytes; a replacement index cannot attest old resource
-offsets or flags, even when file sizes and timestamps match. Payload checks remain
-in place. Other processes can still write between validation checkpoints; this
-does not establish cross-process snapshot isolation.
+Ordinary New Item listings, stock snapshots, selected and mounted mod-base
+snapshots, independent composition and generic Merge retain the digest of the
+exact PAMT bytes parsed to select their archive resources. The original witnesses
+survive derived snapshots, per-package views, scanning, merged export and both
+publication routes.
+
+An unwitnessed entry catalogue must match a fresh parse of the current index at
+every supplied path, coordinate and flag. A resident catalogue must also match
+the parsed record inventory, including duplicate counts and index owners, before
+its cached entries or tables are used. Reusing parsed resident tables rechecks
+the retained original index digests. A newly computed hash alone cannot justify
+coordinates or tables cached from different bytes. Later source fingerprints
+must agree with the parsed bytes, even when a replacement preserves file size
+and all recorded timestamps. Payload checks remain in place. Other processes can
+still write between validation checkpoints; this does not establish
+cross-process snapshot isolation.
+
 Opaque dependencies on another mod are unsupported. Mounted external archive
 folders may use letters, digits, underscores and hyphens. Their actual payloads
 are compared, including providers below CDMW in the mount order. Identical files
@@ -333,11 +353,22 @@ They report compatible data, shared files that can be merged, record conflicts,
 and unsupported inputs. This is an on-demand file-data comparison, not a runtime
 plugin analyser or continuous external-manager monitor.
 
-Scanning and merged export validate the same retained package graph and compose
-the same typed contributions as installation, rebuild and virtual preparation.
-Disjoint field edits to one ItemInfo row can coexist. Explicit requirements to
-keep a source value are retained even when their output bytes equal the source;
-an external change to that required row refuses the merged plan. Diagnostics may
+Recognized loose `meta/0.papgt` supplies archive discovery and is excluded from
+game-resource payloads. Its parsed bytes retain an original digest. A valid
+`meta/0.pathc` that exactly matches the current game's texture registry is accepted
+as unchanged metadata, with both inputs verified. A changed incoming registry
+still requires recorded texture ownership: use **Merge** with the original CDMW
+export before selecting that folder. Unknown metadata and malformed mount indexes
+refuse before composition. This shared folder admission covers scanning,
+prospective physical resolution and virtual profile preparation, including
+archive exports produced by CDMW.
+
+Scanning validates the same retained package graph and composes the same typed
+contributions as installation, rebuild and virtual preparation. Disjoint field
+edits to one ItemInfo row can coexist. Explicit requirements to keep a source
+value are retained even when their output bytes equal the source; an external
+change to that required row produces a conflict. Export checks those same
+contracts before deciding whether its output can preserve them. Diagnostics may
 stop at the first active-graph conflict, so resolve it and scan again.
 
 **Rebuild installed shared files…** prepares a reviewed rebuild for mounted mods. It uses
@@ -348,11 +379,21 @@ mount order; a foreign archive originally below the shipped game remains below i
 The current underlay is read again during rebuild, so unmounting a foreign mod
 does not resurrect its old contribution from recovery history.
 
-**Export installed items…** writes a separate archive-format package through the
-existing Merge exporter. Inputs remain unchanged. Use that package instead of
-the source mods and composed CDMW overlay, and retain the identity profile for
-saves. Export is not installation and does not transfer CDMW's per-item management
-to another manager. Changed sources require a new comparison before publication.
+**Export installed items…** can write a separate archive-format package for active
+legacy items, including v1 packages and v2 legacy modules, through the existing
+Merge exporter. Inputs remain unchanged. Use that package instead of the source
+mods and composed CDMW overlay, and retain the identity profile for saves. Export
+is not installation and does not transfer CDMW's per-item management to another
+manager. Changed sources require a new comparison before publication.
+
+Flattened archive export currently refuses active `item.fields` or
+`package.links` requirements. Its folder format cannot preserve an explicit
+source-equal assignment, exact provider pins or exported-object requirements.
+Keep the original `.cditem` files and install them together through CDMW or one
+virtual profile. A disabled field owner does not itself block export of the
+remaining legacy items. A complete folder schema and downstream readers that
+retain these semantics remain pending; passing a compatibility scan does not
+remove this export boundary.
 
 The first supported record boundaries are:
 
@@ -376,6 +417,8 @@ registry ownership are reported as unknown, not compatible. Patching the shipped
 archives directly still falls under the package's original game-hash checks.
 This extends installation/composition without changing the `.cditem` v1 format.
 
+### Physical publication and recovery
+
 Persistent ownership lives in `.cdmw/independent-items.json`; immutable recovery
 packages live beside the existing overlay journals. Reservation checksums are
 cross-checked with layer ownership; altered mappings require matching recovery
@@ -383,12 +426,28 @@ material. The ledger, cached packages,
 overlay inventory, composed archive and mount/texture metadata are published by
 the existing overlay mutation transaction. Review includes the exact game folder
 and affected files. The game must be closed and the existing backup verification,
-stale-source checks and rollback must succeed. A failed/cancelled preparation
-writes nothing; publication failure rolls back the transaction.
-Cancellation or failure before the first mutating call skips backup restoration
-and new-target cleanup, preserving changes made by another writer. Once a write
-can have begun, failures still restore and verify the backup, including a writer
-that replaces a file before raising and failures during archive deletion.
+stale-source checks and recovery must succeed. A failed/cancelled preparation
+writes nothing.
+
+Physical overlay publication records each target's original digest and attempted
+write or deletion before invoking the mutating call, including calls that replace
+or unlink a file and then raise. Automatic rollback restores only attempted
+targets whose current bytes match a recorded transaction result. Targets already
+equal to their originals need no write. Unknown contents refuse automatic
+recovery and preserve the diagnostic journal and verified recovery copies.
+Unattempted targets and foreign files added to a directory remain untouched.
+
+The original backup manifest and copies stay immutable. Recovery uses a separate
+manifest scoped to verified changed targets, checks restore/delete readback, and
+removes only known created artifacts and empty directories created by that
+transaction. Cancellation before the first attempted mutation skips target
+restoration and cleanup. This boundary applies to managed overlay changes,
+retirement, legacy installation, migration and removal. The per-target journal
+currently provides diagnostics and manual recovery evidence; it does not add a
+restart-time automatic recovery command. Cooperating CDMW writers share the
+installation lane, but an arbitrary external writer can still race a filesystem
+check and operation.
+
 Large rebuilds release completed composition data before collecting the original
 destination bytes. Backup, stale-file, staged-output and rollback verification
 compare complete files through a reusable buffer of at most 1 MiB. Original bytes
@@ -459,13 +518,18 @@ the game or make contradictory requirements compatible in one game context.
 Unknown required behavior refuses; new domains need their own parsing, reference,
 serialization, activation, teardown and persistence evidence.
 
-Save/profile lineage is not implemented. Exact backup hashes, stable IDs and
-installation dependency checks do not identify the providers needed by arbitrary
-saves. The [save admission boundaries](VIRTUAL_LOADER.md#save-lineage-and-migration-admission)
-describe the missing origin evidence and absent-provider experiment. Game-update
-admission likewise retains exact source hashes until a record-level adapter has
-independent layout and semantic witnesses. No general runtime command API or
-unrestricted native-plugin compatibility guarantee is supplied by `.cditem`.
+Save/profile lineage has a data-only policy and read-only capture/comparison
+tools. Trusted producer lineage, a production save-commit verifier, migration
+admission and the required game evidence remain pending. Exact backup hashes,
+stable IDs and installation dependency checks do not identify the providers
+needed by arbitrary saves. Failed or unknown save attempts retain their observed
+byte changes and reported outcome without claiming a committed save. The
+[save admission boundaries](VIRTUAL_LOADER.md#save-lineage-and-migration-admission)
+describe the current policy, missing origin evidence and absent-provider
+experiment. Game-update admission likewise retains exact source hashes until a
+record-level adapter has independent layout and semantic witnesses. No general
+runtime command API or unrestricted native-plugin compatibility guarantee is
+supplied by `.cditem`.
 
 ### Capacity and retained history
 
@@ -577,6 +641,25 @@ not make changed dependencies valid. This checks the consumed source graph;
 it does not scan every byte in an unrelated PAZ archive. Source drift refuses
 before writes, preserving external changes; cancellation uses the normal recovery
 path. Synthetic cases are in `tests/test_independent_item_source_guards.py`.
+
+`tests/test_independent_item_index_witness.py` and
+`tests/test_cditem_index_consumers.py` cover changed PAMT mappings with identical
+recorded stamps, ordinary/resident snapshot and worker consumers, original witness
+retention through mod bases and Merge, and a single resident-row verification
+scan across multiple indexes.
+
+`tests/test_independent_folder_metadata.py` exercises real exported folders through
+scan, physical resolution and virtual composition, including unchanged PATHC and
+changed original metadata digests. `tests/test_independent_export_requirements.py`
+and `tests/test_independent_item_semantic_routes.py` check active field/link export
+refusals, legacy export controls and retained typed intent through rebuild,
+disable and removal.
+
+`tests/test_overlay_target_recovery.py` checks per-target rollback after
+replace/unlink errors, foreign changes to attempted and unattempted targets,
+immutable backup evidence and verified cleanup. Virtual publication outcomes and
+save-attempt evidence have separate focused contracts in the
+[Virtual loader notes](VIRTUAL_LOADER.md#evidence-gates-and-validation).
 
 `tests/test_independent_items_ui.py` and the Output test in
 `tests/test_new_item_rust_ui.py` drive the real Qt controls through the Rust input

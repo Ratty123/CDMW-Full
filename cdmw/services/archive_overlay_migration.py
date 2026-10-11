@@ -20,7 +20,6 @@ shipped archives again.
 from __future__ import annotations
 
 import json
-import shutil
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -31,6 +30,8 @@ from cdmw.core.archive_overlay import OverlayFile, build_overlay_archive
 from cdmw.core.papgt_format import PapgtDirectory, papgt_with_directory, parse_papgt, serialize_papgt
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.services.application_shutdown_service import archive_write_scope
+from cdmw.services.installation_lane import serialized_installation
+from cdmw.services.overlay_target_recovery import OverlayTargetRecovery, file_digest
 from cdmw.services.archive_overlay_install import (
     OVERLAY_OWNER_BYTES,
     OVERLAY_OWNER_MARKER,
@@ -199,6 +200,7 @@ def plan_migration(
 
 
 @archive_write_scope()
+@serialized_installation(lambda package_root, **_kwargs: package_root)
 def migrate_into_overlay(
     package_root: Path,
     *,
@@ -248,12 +250,10 @@ def migrate_into_overlay(
     backup_dir: Optional[Path] = None
     marker = directory / OVERLAY_OWNER_MARKER
     touched = [path for path, _copy in migration.restore] + [papgt_path, directory / "0.pamt", directory / "0.paz", marker]
-    rollback_files = (
-        ()
-        if backup is not None and restore_backup is not None
-        else tuple((path.resolve(), path.read_bytes()) for path in touched if path.is_file())
-    )
-    created_files = tuple(path.resolve() for path in touched if not path.exists())
+    before = {path.resolve(): file_digest(path.resolve()) for path in touched}
+    mount_source = next((source for target, source in migration.restore if target.resolve() == papgt_path), None)
+    mount_before = mount_source.read_bytes() if mount_source is not None else papgt_path.read_bytes()
+    mount_after = papgt_with_directory(mount_before, name, built.pamt_checksum, first=True)
     if backup is not None:
         targets = [path for path, _copy in migration.restore] + [papgt_path]
         targets += [path for path in (directory / "0.pamt", directory / "0.paz", marker) if path.is_file()]
@@ -261,37 +261,33 @@ def migrate_into_overlay(
         if on_log is not None:
             on_log(f"Backup created: {backup_dir}")
 
+    raise_if_cancelled(stop_event, "Overlay migration cancelled after backup, before any writes.")
+    if game_running is not None and game_running():
+        raise RuntimeError("The game started during backup; close it before migrating overlays")
+    recovery = OverlayTargetRecovery(root, before, backup_dir=backup_dir,
+                                     restore_backup=restore_backup, stop_event=stop_event)
+    recovery.validate()
     restored: List[Path] = []
     try:
-        raise_if_cancelled(stop_event, "Archive patch cancelled; restoring the backup.")
         for target, source in migration.restore:
-            _write_atomic(target, source.read_bytes())
+            raise_if_cancelled(stop_event, "Overlay migration cancelled while staging archive restoration.")
+            recovery.write(target, source.read_bytes(), _write_atomic)
             restored.append(target)
             if on_log is not None:
                 on_log(f"Restored {target.parent.name}/{target.name} from the oldest backup of it.")
 
-        directory.mkdir(parents=True, exist_ok=True)
-        _write_atomic(marker, OVERLAY_OWNER_BYTES)
-        _write_atomic(directory / "0.paz", built.paz_bytes)
-        _write_atomic(directory / "0.pamt", built.pamt_bytes)
-        _write_atomic(papgt_path, papgt_with_directory(papgt_path.read_bytes(), name, built.pamt_checksum, first=True))
+        raise_if_cancelled(stop_event, "Overlay migration cancelled before staging the overlay.")
+        recovery.write(marker, OVERLAY_OWNER_BYTES, _write_atomic)
+        recovery.write(directory / "0.paz", built.paz_bytes, _write_atomic)
+        recovery.write(directory / "0.pamt", built.pamt_bytes, _write_atomic)
+        raise_if_cancelled(stop_event, "Overlay migration cancelled before mount-list publication.")
+        recovery.write(papgt_path, mount_after, _write_atomic)
+        recovery.committed()
     except BaseException as error:
         try:
-            if backup_dir is not None and restore_backup is not None:
-                restore_backup(backup_dir)
-            else:
-                for target, payload in rollback_files:
-                    target.parent.mkdir(parents=True, exist_ok=True)
-                    _write_atomic(target, payload)
+            recovery.rollback()
         except Exception as rollback_error:
-            raise RuntimeError(f"Overlay migration failed and its backup could not be restored: {rollback_error}") from error
-        finally:
-            for path in sorted(created_files, key=lambda item: len(item.parts), reverse=True):
-                path.unlink(missing_ok=True)
-            try:
-                directory.rmdir()
-            except OSError:
-                pass
+            raise RuntimeError(f"Overlay migration failed; recovery requires backup {recovery.recovery_location}: {rollback_error}") from error
         raise
     if on_log is not None:
         on_log(f"Moved {len(migration.entries)} entrie(s) into {name}: {len(built.paz_bytes):,} bytes, mounted first.")
@@ -305,6 +301,7 @@ def migrate_into_overlay(
 
 
 @archive_write_scope()
+@serialized_installation(lambda package_root, **_kwargs: package_root)
 def remove_overlay(
     package_root: Path,
     *,
@@ -329,7 +326,8 @@ def remove_overlay(
     if game_running is not None and game_running():
         raise RuntimeError("CrimsonDesert.exe is running; close the game before installing, its archives are open.")
     papgt_path = root / "meta" / "0.papgt"
-    directories = list(parse_papgt(papgt_path.read_bytes()))
+    mount_before = papgt_path.read_bytes()
+    directories = list(parse_papgt(mount_before))
     if directory_name is not None:
         name = str(directory_name)
         if not is_cdmw_overlay_directory(root / name):
@@ -347,16 +345,12 @@ def remove_overlay(
         return RemovalResult(directory=None, unmounted=False, removed_files=0, backup_dir=None)
     directory = root / name
     files = [path for path in (directory / "0.pamt", directory / "0.paz") if path.is_file()]
-    owned_files = [path for path in directory.rglob("*") if path.is_file()]
+    owned_files = [path for path in (*files, directory / OVERLAY_OWNER_MARKER) if path.is_file()]
     stale_meta = _meta_to_restore(root, backups=backups)
 
     raise_if_cancelled(stop_event, "The move was cancelled before anything was written.")
     touched = [papgt_path, *owned_files, *stale_meta]
-    rollback_files = (
-        ()
-        if backup is not None and restore_backup is not None
-        else tuple((path.resolve(), path.read_bytes()) for path in touched if path.is_file())
-    )
+    before = {path.resolve(): file_digest(path.resolve()) for path in touched}
 
     backup_dir: Optional[Path] = None
     if backup is not None:
@@ -367,33 +361,38 @@ def remove_overlay(
     from cdmw.services.archive_overlay_install import _write_atomic
 
     kept = [item for item in directories if item.name != name]
+    raise_if_cancelled(stop_event, "Overlay removal cancelled after backup, before any writes.")
+    if game_running is not None and game_running():
+        raise RuntimeError("The game started during backup; close it before removing overlays")
+    recovery = OverlayTargetRecovery(root, before, backup_dir=backup_dir,
+                                     restore_backup=restore_backup, stop_event=stop_event)
+    recovery.validate()
     restored: List[str] = []
     try:
-        raise_if_cancelled(stop_event, "Archive patch cancelled; restoring the backup.")
-        _write_atomic(papgt_path, serialize_papgt(kept, header=papgt_path.read_bytes()[:12]))
+        recovery.write(papgt_path, serialize_papgt(kept, header=mount_before[:12]), _write_atomic)
         if on_log is not None:
             on_log(f"Unmounted {name} from meta/0.papgt; {len(kept)} directories left.")
-        if directory.is_dir():
-            shutil.rmtree(directory)
-            if on_log is not None:
-                on_log(f"Deleted {name} ({len(files)} file(s)).")
+        for target in owned_files:
+            recovery.unlink(target)
+        if on_log is not None:
+            on_log(f"Removed {len(files)} owned archive file(s) from {name}.")
         for target, baseline in sorted(stale_meta.items()):
-            _write_atomic_meta(target, baseline.read_bytes())
+            recovery.write(target, baseline.read_bytes(), _write_atomic_meta)
             relative = target.relative_to(root).as_posix()
             restored.append(relative)
             if on_log is not None:
                 on_log(f"Put {relative} back to what it was before the overlay.")
+        recovery.committed()
     except BaseException as error:
         try:
-            if backup_dir is not None and restore_backup is not None:
-                restore_backup(backup_dir)
-            else:
-                for target, payload in rollback_files:
-                    target.parent.mkdir(parents=True, exist_ok=True)
-                    _write_atomic(target, payload)
+            recovery.rollback()
         except Exception as rollback_error:
-            raise RuntimeError(f"Overlay removal failed and its backup could not be restored: {rollback_error}") from error
+            raise RuntimeError(f"Overlay removal failed; recovery requires backup {recovery.recovery_location}: {rollback_error}") from error
         raise
+    try:
+        directory.rmdir()
+    except OSError:
+        pass  # Preserve any unowned files added beside the removed archives.
     from cdmw.services.archive_overlay_install import forget_overlay_baseline
 
     forget_overlay_baseline(root)

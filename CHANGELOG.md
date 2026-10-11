@@ -27,10 +27,13 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - New-item texture registration distinguishes DX10 formats and refuses incomplete or unsupported DDS layouts before output. Mod merging also checks that each declared texture contains its complete pixel data.
 - Mod merging accepts generated-icon registries in the game's flat XML format, preserves their surrounding content and reports duplicate icon names.
 - Independent item packages keep a fixed v1 schema so authoring-model changes cannot silently alter supported package fields or enum values.
-- Independent item preparation verifies the archive index used for resource reads and rejects changed sources during preparation, review or backup, even when file sizes and timestamps are unchanged.
-- Cancelling an overlay change before its first write preserves external changes instead of restoring an older backup over them. Failures after writes begin still use verified rollback.
-- New Item and mod-management operations report completed exports, installations and virtual launches even when cancellation arrives late. Cancellation no longer hides a real failure or leaves a successfully exported item's identity out of sync.
-- Independent item scans, merged exports and overlay rebuilds preserve compatible `.cditem` field edits, including explicit requirements to keep a source value, and their separate removal and enable states. Requirements that leave a legacy item's protected record unchanged can coexist; opposing edits are refused.
+- Independent item preparation, ordinary New Item catalogues and mod merging retain the original archive indexes used for resource reads. Changed indexes refuse before output even when file sizes and timestamps are unchanged; cached catalogues receive the same verification.
+- Overlay changes, installation, migration and removal roll back only the targets their transaction tried to change. Untouched external files survive cancellation; unknown contents are preserved with a recovery error. Automatic rollback uses a separate scoped manifest and keeps the full original backup intact.
+- New Item, Mesh Editor and mod-management operations report completed exports, installations and virtual launches even when cancellation arrives late. Cancellation no longer hides a real failure or leaves a successfully exported item's identity out of sync. Mesh overlay recovery failures report the backup location instead of claiming rollback succeeded.
+- Independent item scans and overlay rebuilds preserve compatible `.cditem` field requirements and separate ownership, including requirements that keep a source value. Flattened merged exports refuse field requirements or dependency pins they cannot retain; representable legacy exports remain available.
+- Independent item scans and composition accept compatible exported texture and character mod folders while retaining their metadata checks. Conflicting replacements, changed mount requirements and unsupported metadata remain refused.
+- Virtual profile application reports a recovered successful change only after verifying the matching ownership, profile and generation files, and keeps publication or cleanup diagnostics visible. Failed or uncertain recovery remains an error.
+- Save research distinguishes failed and unknown save attempts from committed saves, including when selected files stay unchanged, change partially or disappear. It still detects loading the wrong restored copy and leaves unproven save compatibility unknown.
 - Independent item histories share repeated compilation details within the existing size limit. Oversized overlay changes refuse before archive construction, report the required size and limit, and preserve the previous readable installation. Updated physical inventories require this CDMW version; portable packages and item identities are preserved.
 - Large independent package imports, exports and preparation use less memory, including repeated resources and physical overlay rebuilds. Shared resources retain separate ownership, updates and removal. Backup and publication checks still compare complete files. Cancellation interrupts resource processing, including validation of an existing export, and failed or cancelled updates preserve the previous file. Exports exceeding the supported resource limits are refused before replacement.
 - Texture Editor brushes keep consistent spacing across mouse movements, honour low Flow values and reach the mouse-release position. Quick Mask uses the same spacing and flow corrections.
@@ -40,7 +43,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Docs
 
-- Independent items and Virtual Loader now distinguish verified save backups from save compatibility, explain the missing profile-origin checks and describe the evidence required for broader mod support.
+- Independent items and Virtual Loader describe current module coverage, folder coexistence, export limits and scoped recovery. They distinguish verified save backups and observed save attempts from save compatibility, and identify the missing adapters and trusted profile-origin evidence.
 
 ## [0.11.0-alpha.23] - 2026-10-04
 

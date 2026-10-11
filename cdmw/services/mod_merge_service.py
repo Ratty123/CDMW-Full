@@ -124,7 +124,7 @@ def prepare_mod_merge(
     tracker = SourceTracker(read_entry or (lambda entry: read_archive_entry_data(entry)[0]))
     loose_hashes, inventories, mods, conflicts = [], [], [], []
     candidates = defaultdict(list)
-    for entry in entries:
+    for entry in tracker.bind_catalogue(entries, stop_event=stop_event):
         candidates[_path(entry.path)].append(entry)
     game_cache = {}
 
@@ -159,7 +159,8 @@ def prepare_mod_merge(
             if not isinstance(manifest, dict):
                 raise ValueError(f"Invalid New Item manifest: {manifest_file}")
         data, flags = {}, {}
-        for virtual, payload in mod_folder_payloads(folder, stop_event=stop_event).items():
+        for virtual, payload in mod_folder_payloads(folder, stop_event=stop_event,
+                parse_index=lambda path: tracker.parse_index(path, stop_event=stop_event)).items():
             raise_if_cancelled(stop_event, "Mod merge cancelled.")
             path = _path(virtual)
             if path == "meta/0.papgt":

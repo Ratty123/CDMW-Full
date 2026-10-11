@@ -35,7 +35,7 @@ from cdmw.core.structured_binary_editor import parse_pabgh_table
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.new_item.rules import NewItemContext, TemplateFacts, TemplateLevelFacts
 from cdmw.models import ArchiveEntry
-from cdmw.services.new_item_provenance import SourceTracker
+from cdmw.services.new_item_provenance import SourceTracker, StaleNewItemSource
 from cdmw.services.new_item_template_search import TemplateSearchCatalogue, build_template_search_catalogue
 
 TABLE_DIR = "gamedata/binary__/client/bin"
@@ -470,7 +470,16 @@ def build_snapshot(
 
     provenance = SourceTracker(read_entry or _default_reader)
     read = provenance.read
-    entries = tuple(entries) if resident_catalogue is None else resident_catalogue
+    if resident_catalogue is None:
+        entries = provenance.bind_catalogue(entries, stop_event=stop_event)
+    else:
+        try:
+            resident_catalogue.verify_parsed_indexes(
+                lambda path: provenance.parse_index(path, stop_event=stop_event), stop_event=stop_event)
+            provenance.validate_indexes(stop_event)
+        except ValueError as exc:
+            raise StaleNewItemSource(str(exc)) from exc
+        entries = resident_catalogue
     try:
         sources = resolve_item_data_sources(
             resident_catalogue.item_metadata(stop_event=stop_event) if resident_catalogue is not None else entries,

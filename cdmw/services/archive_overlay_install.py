@@ -35,6 +35,7 @@ from cdmw.domain.archives.mutation import ArchiveAddRequest, ArchivePatchRequest
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.services.application_shutdown_service import archive_write_scope
 from cdmw.services.installation_lane import serialized_installation
+from cdmw.services.overlay_target_recovery import OverlayTargetRecovery, file_digest, payload_digest
 
 __all__ = [
     "OVERLAY_DIRECTORY_FIRST",
@@ -243,19 +244,6 @@ def prepare_overlay_install(
     )
 
 
-def _remove_created_overlay_files(preparation: OverlayInstallPreparation) -> None:
-    for path in sorted(preparation.created_files, key=lambda item: len(item.parts), reverse=True):
-        try:
-            path.unlink(missing_ok=True)
-        except OSError:
-            continue
-    for directory in (preparation.directory, preparation.receipt_path.parent):
-        try:
-            directory.rmdir()
-        except OSError:
-            pass
-
-
 def _validate_staged_overlay(preparation: OverlayInstallPreparation) -> None:
     pamt_path = preparation.directory / "0.pamt"
     paz_path = preparation.directory / "0.paz"
@@ -294,6 +282,18 @@ def apply_overlay_install(
     if preparation.papgt_path.read_bytes() != preparation.papgt_before:
         raise RuntimeError("The archive mount list changed after overlay preparation; prepare again")
 
+    original_bytes = dict(preparation.rollback_files)
+    before = {path: payload_digest(payload) for path, payload in original_bytes.items()}
+    before.update({path: None for path in preparation.created_files})
+    baselines = {}
+    for relative, _payload in preparation.meta_files:
+        target = (preparation.package_root / relative).resolve()
+        baseline = (overlay_baseline_dir(preparation.package_root) / relative).resolve()
+        if target in original_bytes and not baseline.exists():
+            before[baseline] = None
+            baselines[baseline] = original_bytes[target]
+    if any(file_digest(path) != expected for path, expected in before.items()):
+        raise RuntimeError("An overlay target changed after preparation; prepare again")
     backup_dir: Optional[Path] = None
     if backup is not None:
         backup_dir = backup(
@@ -302,27 +302,25 @@ def apply_overlay_install(
         )
         if on_log is not None:
             on_log(f"Backup created: {backup_dir}")
-    baseline_created: list[Path] = []
+    raise_if_cancelled(stop_event, "Overlay install cancelled after backup.")
+    if game_running is not None and game_running():
+        raise RuntimeError("The game started during backup; close it before installing an overlay")
+    recovery = OverlayTargetRecovery(preparation.package_root, before, backup_dir=backup_dir,
+                                     restore_backup=restore_backup, stop_event=stop_event)
+    recovery.validate()
     try:
-        raise_if_cancelled(stop_event, "Overlay install cancelled after backup.")
-        for relative, _payload in preparation.meta_files:
-            baseline = overlay_baseline_dir(preparation.package_root) / relative
-            existed = baseline.is_file()
-            kept = remember_overlay_baseline(preparation.package_root, relative)
-            if kept is not None and not existed:
-                baseline_created.append(kept)
-        preparation.directory.mkdir(parents=True, exist_ok=True)
-        _write_atomic(preparation.marker_path, OVERLAY_OWNER_BYTES)
+        for baseline, payload in baselines.items():
+            recovery.write(baseline, payload, _write_atomic)
+        recovery.write(preparation.marker_path, OVERLAY_OWNER_BYTES, _write_atomic)
         raise_if_cancelled(stop_event, "Overlay install cancelled after staging its owner marker.")
-        _write_atomic(preparation.directory / "0.paz", preparation.paz_bytes)
+        recovery.write(preparation.directory / "0.paz", preparation.paz_bytes, _write_atomic)
         raise_if_cancelled(stop_event, "Overlay install cancelled after staging its payload.")
-        _write_atomic(preparation.directory / "0.pamt", preparation.pamt_bytes)
+        recovery.write(preparation.directory / "0.pamt", preparation.pamt_bytes, _write_atomic)
         _validate_staged_overlay(preparation)
         raise_if_cancelled(stop_event, "Overlay install cancelled after staging its index.")
         for relative, payload in preparation.meta_files:
             target = preparation.package_root / relative
-            target.parent.mkdir(parents=True, exist_ok=True)
-            _write_atomic(target, payload)
+            recovery.write(target, payload, _write_atomic)
             raise_if_cancelled(stop_event, "Overlay install cancelled while staging metadata.")
         receipt = {
             "format": "cdmw_overlay_install_receipt_v1",
@@ -337,28 +335,24 @@ def apply_overlay_install(
             "backup_targets": [str(path) for path in preparation.backup_targets],
             "created_files": [str(path) for path in preparation.created_files],
         }
-        preparation.receipt_path.parent.mkdir(parents=True, exist_ok=True)
-        _write_atomic(
+        recovery.write(
             preparation.receipt_path,
             (json.dumps(receipt, indent=2, sort_keys=True) + "\n").encode("utf-8"),
+            _write_atomic,
         )
         raise_if_cancelled(stop_event, "Overlay install cancelled before mount-list publication.")
         # Publication point: everything the mount list names is complete.
-        _write_atomic(preparation.papgt_path, preparation.papgt_after)
+        recovery.write(preparation.papgt_path, preparation.papgt_after, _write_atomic)
+        recovery.committed()
     except BaseException as error:
         try:
-            if backup_dir is not None and restore_backup is not None:
-                restore_backup(backup_dir)
-            else:
-                for path, payload in preparation.rollback_files:
-                    path.parent.mkdir(parents=True, exist_ok=True)
-                    _write_atomic(path, payload)
+            recovery.rollback()
         except Exception as rollback_error:
-            raise RuntimeError(f"Overlay installation failed and its backup could not be restored: {rollback_error}") from error
-        finally:
-            _remove_created_overlay_files(preparation)
-            for baseline in baseline_created:
-                baseline.unlink(missing_ok=True)
+            recovery_path = recovery.recovery_location
+            raise RuntimeError(
+                f"Overlay installation failed and its backup could not be restored: {rollback_error} "
+                f"(recovery location: {recovery_path})"
+            ) from error
         raise
     if on_log is not None:
         on_log(

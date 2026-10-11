@@ -187,7 +187,7 @@ class MigrationTests(unittest.TestCase):
         after = {path.relative_to(self.root).as_posix(): path.read_bytes() for path in self.root.rglob("*") if path.is_file()}
         self.assertEqual(after, before)
 
-    def test_cancellation_after_backup_restores_before_migration_writes(self) -> None:
+    def test_cancellation_after_backup_leaves_unattempted_targets_alone(self) -> None:
         self._patch_the_old_way()
         found = plan_migration(self.root)
         before = {
@@ -204,7 +204,7 @@ class MigrationTests(unittest.TestCase):
             stop_event.set()
             return folder
 
-        with self.assertRaisesRegex(Exception, "cancelled; restoring the backup"):
+        with self.assertRaisesRegex(Exception, "cancelled after backup"):
             migrate_into_overlay(
                 self.root,
                 plan=found,
@@ -218,7 +218,7 @@ class MigrationTests(unittest.TestCase):
             for path in self.root.rglob("*")
             if path.is_file() and "move_backup" not in path.parts
         }
-        self.assertEqual(restored, [self.root / "move_backup"])
+        self.assertEqual(restored, [])
         self.assertEqual(after, before)
 
     def test_a_removal_failure_restores_the_mounted_overlay(self) -> None:
@@ -226,7 +226,13 @@ class MigrationTests(unittest.TestCase):
         migrated = migrate_into_overlay(self.root, plan=plan_migration(self.root))
         before = {path.relative_to(self.root).as_posix(): path.read_bytes() for path in self.root.rglob("*") if path.is_file()}
 
-        with patch("cdmw.services.archive_overlay_migration.shutil.rmtree", side_effect=OSError("delete failed")):
+        unlink = Path.unlink
+        def fail_owned_archive(path, *args, **kwargs):
+            if path == migrated.directory / "0.pamt":
+                raise OSError("delete failed")
+            return unlink(path, *args, **kwargs)
+
+        with patch.object(Path, "unlink", fail_owned_archive):
             with self.assertRaisesRegex(OSError, "delete failed"):
                 remove_overlay(self.root)
 

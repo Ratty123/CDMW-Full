@@ -63,7 +63,7 @@ def test_stock_snapshot_refuses_valid_mapping_replacement_before_first_payload_p
 
     with pytest.raises(StaleNewItemSource, match='[Ii]ndex'):
         stock_snapshot(tmp_path / 'game', service=ReplacedIndexService(), overlay_changes=())
-    assert consumed == [1]  # Real ItemInfo consumer used the original coordinates.
+    assert consumed == []  # The catalogue witness now refuses before decoding stale ItemInfo.
     assert stock_snapshot(tmp_path / 'game', overlay_changes=()).rows[TEMPLATE].max_stack_count == 9
     assert all(path.read_bytes() == data for path, data in payloads.items())
     assert hashlib.sha256(pamt.read_bytes()).digest() != hashlib.sha256(original).digest()

@@ -1,4 +1,4 @@
-"""Scans and merged exports must retain the installed packages' typed intent."""
+"""Scans retain typed intent; flattened exports refuse intent they cannot preserve."""
 from uuid import uuid4
 
 import pytest
@@ -23,10 +23,15 @@ from tests.test_independent_item_regressions import files_in
 from tests.test_independent_items import setup_game
 
 
-def assert_export_matches_install(root):
+def assert_scan_and_export_boundary(root, *, fields=True):
     before = files_in(root)
     report = scan_independent_conflicts(root)
     assert report.compatible, report.text()
+    if fields:
+        with pytest.raises(OverlayConflict, match='merged archive export cannot preserve'):
+            prepare_independent_mod_merge(root)
+        assert files_in(root) == before
+        return
     plan = prepare_independent_mod_merge(root)
     files = {path: data for path, data, _ in plan.files}
     body, header = item_pair(files)
@@ -36,35 +41,35 @@ def assert_export_matches_install(root):
 
 
 @pytest.mark.parametrize('reverse', [False, True])
-def test_scanning_and_export_keep_disjoint_fields_through_rebuild_disable_and_removal(tmp_path, reverse):
+def test_scanning_and_export_policy_keep_disjoint_fields_through_rebuild_disable_and_removal(tmp_path, reverse):
     _, snapshot, _ = setup_game(tmp_path)
     root, backups = tmp_path / 'game', Backups(tmp_path)
     packages = [field_package(snapshot), field_package(snapshot, stat=True, value=13000)]
     backups.apply(prepare_install([package_bytes(p) for p in (packages[::-1] if reverse else packages)], root).preparation)
     bindings = load_registry(root)
-    assert_export_matches_install(root)
+    assert_scan_and_export_boundary(root)
     backups.apply(prepare_overlay_rebuild(root))
-    assert_export_matches_install(root)
+    assert_scan_and_export_boundary(root)
     layer = bindings['items'][packages[0].identity]['layer']
     backups.apply(prepare_overlay_enabled(root, layer, False))
-    assert_export_matches_install(root)
+    assert_scan_and_export_boundary(root)
     backups.apply(prepare_overlay_enabled(root, layer, True))
-    assert_export_matches_install(root)
+    assert_scan_and_export_boundary(root)
     assert load_registry(root) == bindings
     backups.apply(prepare_remove(packages[0].identity, root))
-    assert_export_matches_install(root)
+    assert_scan_and_export_boundary(root)
 
 
 @pytest.mark.parametrize('value', [1, 7])
-def test_equal_assignments_stay_owned_after_export_and_removal(tmp_path, value):
+def test_equal_assignments_stay_owned_after_refused_export_and_removal(tmp_path, value):
     _, snapshot, _ = setup_game(tmp_path)
     root, backups = tmp_path / 'game', Backups(tmp_path)
     packages = [field_package(snapshot, value=value), field_package(snapshot, value=value)]
     opposite = package_bytes(field_package(snapshot, value=9))
     backups.apply(prepare_install([package_bytes(p) for p in packages], root).preparation)
-    assert_export_matches_install(root)
+    assert_scan_and_export_boundary(root)
     backups.apply(prepare_remove(packages[0].identity, root))
-    assert_export_matches_install(root)
+    assert_scan_and_export_boundary(root)
     before = files_in(root)
     with pytest.raises(ItemFieldConflict, match='opposing assignments'):
         prepare_install([opposite], root)
@@ -123,9 +128,9 @@ def test_source_equal_assignment_and_legacy_requirement_coexist_and_remain_enfor
     packages = [legacy, field][::-1] if reverse else [legacy, field]
     backups.apply(prepare_install([package_bytes(p) for p in packages], root).preparation)
     bindings = load_registry(root)['items']
-    assert_export_matches_install(root)
+    assert_scan_and_export_boundary(root)
     backups.apply(prepare_remove(legacy.identity if remove_legacy else field.identity, root))
-    assert_export_matches_install(root)
+    assert_scan_and_export_boundary(root, fields=remove_legacy)
     assert load_registry(root)['items'][legacy.identity]['binding_hash'] == bindings[legacy.identity]['binding_hash']
     before = files_in(root)
     with pytest.raises(ItemFieldConflict):

@@ -9,13 +9,13 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from cdmw.core.archive_format import parse_archive_pamt
 from cdmw.core.iteminfo_row import parse_iteminfo_row
 from cdmw.core.papgt_format import parse_papgt
 from cdmw.core.structured_binary_editor import parse_pabgh_table
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.new_item.allocation import DEFAULT_ITEM_KEY_RANGE
 from cdmw.services.archive_overlay_install import OVERLAY_DIRECTORY_FIRST
+from cdmw.services.new_item_provenance import ArchiveCatalogue
 
 
 @dataclass(frozen=True)
@@ -66,7 +66,10 @@ def prepare_mounted_item_base(service, snapshot, *, read_entry, on_log=None, sto
         snapshot.provenance.capture().validate(stop_event)
     # Re-read tables through an independent tracker; do not turn the workspace's
     # normal snapshot into a mod base or retain a cancelled scan's cached payloads.
-    base = service.build_snapshot(snapshot.entries.values(), read_entry=read_entry,
+    entries = snapshot.entries.values()
+    if snapshot.provenance is not None:
+        entries = ArchiveCatalogue(tuple(entries), snapshot.provenance.capture().indexes)
+    base = service.build_snapshot(entries, read_entry=read_entry,
                                   on_log=on_log, stop_event=stop_event)
     tracker = base.provenance
     tracker.pin_file(mount_path)
@@ -85,7 +88,7 @@ def prepare_mounted_item_base(service, snapshot, *, read_entry, on_log=None, sto
             vanilla_archives.append(pamt)
             continue
         report(f"Reading mounted overlay {name}...")
-        entries = tuple(parse_archive_pamt(pamt))
+        entries = tuple(tracker.parse_index(pamt, stop_event=stop_event))
         if not entries:
             raise ValueError(f"Mounted overlay {name} contains no readable files.")
         for entry in entries:
@@ -106,7 +109,7 @@ def prepare_mounted_item_base(service, snapshot, *, read_entry, on_log=None, sto
     underlay = {}
     for pamt in vanilla_archives:
         report(f"Checking the underlying game files in {pamt.parent.name}...")
-        for entry in parse_archive_pamt(pamt):
+        for entry in tracker.parse_index(pamt, stop_event=stop_event):
             raise_if_cancelled(stop_event, "Reading mounted items cancelled.")
             path = entry.path.replace("\\", "/").lower()
             if path in paths or path in (item_body, item_head):

@@ -236,7 +236,7 @@ class OverlayInstallTests(unittest.TestCase):
         self.assertEqual(mount.read_bytes(), before)
         self.assertFalse((self.root / "0036").exists(), "the unpublished overlay is removed")
 
-    def test_cancellation_after_backup_restores_before_any_overlay_is_published(self) -> None:
+    def test_cancellation_after_backup_leaves_unattempted_targets_alone(self) -> None:
         target = self.entries[f"{BIN}/iteminfo.pabgb"]
         mount = self.root / "meta" / "0.papgt"
         before = mount.read_bytes()
@@ -262,7 +262,7 @@ class OverlayInstallTests(unittest.TestCase):
                 stop_event=stop_event,
             )
 
-        self.assertEqual(restored, [self.root / "backup"])
+        self.assertEqual(restored, [])
         self.assertEqual(mount.read_bytes(), before)
         self.assertFalse(preparation.directory.exists())
         self.assertFalse(preparation.receipt_path.exists())
