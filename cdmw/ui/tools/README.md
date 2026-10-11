@@ -44,7 +44,11 @@ and Files and history inspector without a second mod list. All workflows are emb
 pages; pickers and mutation confirmations still use dialogs.
 
 Activity is collapsed by default and includes management operations and its own preview,
-rather than unrelated Create New Item work. The loading page remains visible until the
+rather than unrelated Create New Item work. Progress percentages update continuously;
+each progress message is recorded only when it changes and is recorded again for each
+new operation. Diagnostics and errors remain visible. Source verification freshly hashes
+complete files on every preparation, with bounded workers and cancellable reads.
+The loading page remains visible until the
 Rust interface has rendered its first state. A newly loaded inventory has no selected
 row; choosing an overlay starts its preview. Refresh preserves an existing selection,
 and filtering clears a selection when its row is hidden instead of selecting and loading

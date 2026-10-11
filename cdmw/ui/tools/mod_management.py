@@ -32,6 +32,7 @@ class ModManagementTab(QWidget):
         self._closed = False
         self._refresh_needed = True
         self._overview_refresh_needed = False
+        self._last_progress_message = None
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(8)
@@ -250,7 +251,11 @@ class ModManagementTab(QWidget):
             self.progress.setRange(0, max(0, total))
             self.progress.setValue(current)
             self.status.setText(str(message))
-            self._status_changed(message)
+            # Keep live progress without appending the same phase for every file.
+            progress_message = (lane, str(message))
+            if progress_message != self._last_progress_message:
+                self._last_progress_message = progress_message
+                self._status_changed(message)
 
     def _cancel(self):
         if self._owns_operation() and not self.inventory._applying and not self.independent_page._applying and not self.virtual_page._applying and not self.overview._applying:
@@ -294,6 +299,7 @@ class ModManagementTab(QWidget):
         self.operation_bar.setVisible(self.controller.busy and self._owns_operation() and not local_controls)
 
     def _busy_changed(self, busy):
+        self._last_progress_message = None
         busy = self.controller.busy  # A completed review may already have queued its confirmed apply.
         if busy and self.controller._lane != 'snapshot':
             self.overview.cancel_read()

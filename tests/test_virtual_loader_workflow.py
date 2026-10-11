@@ -96,6 +96,33 @@ def test_large_collision_index_uses_one_batch_and_keeps_ambiguity(monkeypatch):
     assert seen == [tuple(names)]
 
 
+@pytest.mark.parametrize('size', [0, 1, 1024 * 1024, 2 * 1024 * 1024 + 17])
+def test_source_hash_covers_complete_file_and_partial_final_block(tmp_path, size):
+    data = random.Random(size).randbytes(size)
+    path = tmp_path / 'source.bin'
+    path.write_bytes(data)
+    assert composition.hash_file(path) == hashlib.sha256(data).hexdigest()
+
+
+def test_source_hash_honours_cancellation_between_blocks(tmp_path):
+    path = tmp_path / 'source.bin'
+    path.write_bytes(b'x' * (2 * 1024 * 1024 + 17))
+
+    class CancelAfterFirstBlock:
+        checks = 0
+
+        def is_set(self):
+            self.checks += 1
+            return self.checks == 2
+
+    stop = CancelAfterFirstBlock()
+    with pytest.raises(RunCancelled):
+        composition.hash_file(path, stop)
+    assert stop.checks == 2
+    # Cancellation must release the source handle as well as stop the read.
+    path.unlink()
+
+
 def test_source_hashes_are_fresh_and_concurrency_is_bounded(tmp_path, monkeypatch):
     paths = []
     for i in range(6):
@@ -122,7 +149,10 @@ def test_source_hashes_are_fresh_and_concurrency_is_bounded(tmp_path, monkeypatc
     assert peak == 2 and active == 0
     assert result == {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
     assert progress == [(n, 6) for n in range(1, 7)]
-    paths[0].write_bytes(b'changed')
+    stamp = paths[0].stat()
+    paths[0].write_bytes(b'x' * stamp.st_size)
+    os.utime(paths[0], ns=(stamp.st_atime_ns, stamp.st_mtime_ns))
+    assert paths[0].stat().st_mtime_ns == stamp.st_mtime_ns
     assert composition._hash_sources(paths)[str(paths[0])] != result[str(paths[0])]
 
 
@@ -240,6 +270,49 @@ def test_virtual_workspace_avoids_duplicate_operation_controls(tmp_path, monkeyp
         assert tab.operation_bar.isHidden() and tab.virtual_page.progress.value() == 100
     finally:
         release.set()
+        tab.request_shutdown()
+        controller.shutdown()
+        tab.close()
+
+
+def test_mod_management_logs_progress_phases_once_per_operation(tmp_path, monkeypatch):
+    from tests.test_mod_management import pump
+    app = QApplication.instance() or QApplication([])
+    controller = NewItemStudioController()
+    tab = ModManagementTab(controller=controller, get_package_root=lambda: str(tmp_path))
+    monkeypatch.setattr(tab.virtual_page, 'refresh', lambda: None)
+    monkeypatch.setattr(tab.overview, 'refresh', lambda *_: None)
+    events, errors, values = [], [], []
+    tab.status_message_requested.connect(lambda message, error: events.append((message, error)))
+    tab.progress.valueChanged.connect(values.append)
+    detail = 'Verifying source file integrity…'
+
+    def prepare(log, progress, stop):
+        for value in range(77):
+            progress(value, 100, detail)
+        log('Source diagnostic')
+        progress(98, 100, 'Rechecking preparation inputs…')
+        progress(99, 100, detail)
+
+    try:
+        for _ in range(2):
+            assert controller._run('virtual_loader', prepare, lambda _: None, errors.append,
+                                   task_accepts_progress=True)
+            pump(app, lambda: not controller.busy)
+        assert errors == []
+        assert events == [(detail, False), ('Source diagnostic', False),
+                          ('Rechecking preparation inputs…', False), (detail, False)] * 2
+        assert all(value in values for value in range(77))
+        assert tab.progress.value() == 99 and tab.status.text() == detail
+        controller._lane = 'virtual_loader'
+        controller.status_message.emit('Source check failed', True)
+        controller.status_message.emit('Source check failed', True)
+        assert events[-2:] == [('Source check failed', True)] * 2
+        controller._lane = ''
+        before = list(events)
+        controller.operation_progress.emit('plan', 20, 100, 'Unrelated New Item progress')
+        assert events == before and tab.progress.value() == 99
+    finally:
         tab.request_shutdown()
         controller.shutdown()
         tab.close()

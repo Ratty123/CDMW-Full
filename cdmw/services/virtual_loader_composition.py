@@ -23,9 +23,11 @@ from cdmw.services.virtual_loader_state import FORMAT, PROFILE_PATH, target, rea
 def hash_file(path, stop_event=None):
     result = hashlib.sha256()
     with Path(path).open('rb') as source:
-        while chunk := source.read(1024 * 1024):
+        buffer = bytearray(1024 * 1024)
+        view = memoryview(buffer)
+        while count := source.readinto(buffer):
             raise_if_cancelled(stop_event)
-            result.update(chunk)
+            result.update(view[:count])
     return result.hexdigest()
 
 
