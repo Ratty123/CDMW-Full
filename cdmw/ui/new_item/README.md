@@ -254,13 +254,21 @@ preparation worker, before the data read starts. Automatic preparation waits for
 Archives to publish its cached catalogue; it does not start a second full archive scan
 if the window paints first.
 
-Automatic reads run at low thread priority, yield between bounded index batches,
-and pause at cancellation checkpoints during application input. Two seconds of
-idle time resumes the same read without discarding verified progress. Opening
-Create New Item or Mod Management promotes the shared read to requested work,
-so interacting with those tools does not keep their data load paused. Shutdown
-can cancel a paused read without waiting for idle time. Exact source-index
-verification is preserved.
+Automatic reads run at low priority and pause at cancellation checkpoints during
+application input. Two seconds of idle time resumes the same read without
+discarding verified progress. Opening Create New Item promotes its read to
+requested work. Mod Management reads its own inventory and leaves the unrelated
+preload paused during input. Shutdown can cancel a paused read without waiting
+for idle time.
+
+The full cached-catalogue comparison runs in an owned background process so its
+temporary archive objects and garbage collection cannot stall the GUI. It checks
+every parsed entry using the existing exact comparison, bound to a digest of the
+parent's mapped catalogue. Only complete index fingerprints return to the snapshot
+worker, which checks the mapped generation and current source bytes again before
+using them. Changed sources, failed helpers and cancelled reads publish no snapshot.
+The private `--archive-verification-worker` bootstrap route bypasses GUI startup;
+the existing process runner owns cancellation and reaps the child before cleanup.
 
 Opening the shared catalogue does not duplicate every archive path in Python. File-type
 scans yield in small batches so input stays responsive after the archive list appears.

@@ -480,9 +480,9 @@ def build_snapshot(
         entries = provenance.bind_catalogue(entries, stop_event=stop_event)
     else:
         try:
-            resident_catalogue.verify_parsed_indexes(
-                lambda path: provenance.parse_index(path, stop_event=stop_event), stop_event=stop_event)
-            provenance.validate_indexes(stop_event)
+            from cdmw.services.archive_verification_process import verify_resident_catalogue
+
+            verify_resident_catalogue(resident_catalogue, provenance, stop_event=stop_event)
         except ValueError as exc:
             raise StaleNewItemSource(str(exc)) from exc
         entries = resident_catalogue

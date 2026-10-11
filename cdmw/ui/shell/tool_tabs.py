@@ -463,9 +463,6 @@ class ShellToolTabsMixin:
         return controller
 
     def _create_mod_management_tab(self) -> QWidget:
-        preload_gate = getattr(self, "_new_item_preload_gate", None)
-        if preload_gate is not None:
-            preload_gate.promote()
         from cdmw.services.cache_layout import runtime_cache_layout
         from cdmw.ui.tools.rust_mod_management import RustModManagementTab
         tab = RustModManagementTab(

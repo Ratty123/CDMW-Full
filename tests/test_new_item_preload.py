@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import threading
 import time
+from types import SimpleNamespace
 
 import pytest
 
@@ -106,3 +107,44 @@ def test_controller_preload_keeps_qt_responsive_and_retires_its_worker(tmp_path,
     finally:
         controller.request_shutdown()
         pump_until(lambda: controller._thread is None)
+
+
+@pytest.mark.parametrize("tool,promoted", [("mod_management", False), ("new_item_studio", True)])
+def test_only_the_new_item_consumer_promotes_its_preload(tmp_path, monkeypatch, tool, promoted):
+    from PySide6.QtCore import Signal
+    from PySide6.QtWidgets import QApplication, QLineEdit, QWidget
+    from cdmw.ui.shell.tool_tabs import ShellToolTabsMixin
+
+    app = QApplication.instance() or QApplication([])
+    gate = NewItemPreloadGate().bind(threading.Event())
+    gate.pause()
+    controller = SimpleNamespace(persist_issued_identities=lambda: None)
+
+    class Tab(QWidget):
+        status_message_requested = Signal(str, bool)
+        open_archive_entry_requested = Signal(str)
+
+        def __init__(self, **kwargs):
+            super().__init__()
+            self.controller = controller
+            self.workflow = kwargs.get("workflow")
+
+    monkeypatch.setattr("cdmw.ui.tools.rust_mod_management.RustModManagementTab", Tab)
+    monkeypatch.setattr("cdmw.ui.new_item.rust_ui_tab.RustNewItemStudioTab", Tab)
+    monkeypatch.setattr("cdmw.ui.new_item.tab.NewItemStudioTab", Tab)
+    shell = SimpleNamespace(
+        _new_item_preload_gate=gate, _shared_new_item_controller=lambda: controller,
+        set_status_message=lambda *a, **kw: None,
+        _current_archive_performance_settings=lambda: SimpleNamespace(native_preview_cache_mode="balanced"),
+        textures=SimpleNamespace(_show_archive_browser_from_texture_editor=lambda *a: None),
+        archive=SimpleNamespace(archive_cache_root=tmp_path, archive_package_root_edit=QLineEdit(),
+                                _current_model_preview_render_settings=lambda: None),
+    )
+    shell.shell = shell
+    tab = getattr(ShellToolTabsMixin, f"_create_{tool}_tab")(shell)
+    assert tab.objectName() == tool
+    assert gate.process_state() == ("run" if promoted else "pause")
+    if tab.workflow is not None:
+        tab.workflow.deleteLater()
+    tab.deleteLater()
+    app.processEvents()

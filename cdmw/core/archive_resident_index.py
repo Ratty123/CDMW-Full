@@ -11,6 +11,7 @@ from array import array
 from collections import Counter, OrderedDict
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
+import hashlib
 import json
 from itertools import islice
 import mmap
@@ -254,6 +255,15 @@ class ResidentArchiveIndex(Sequence[ArchiveEntry]):
             stat = file.stat()
             if stat.st_size != size or stat.st_mtime_ns // 100 + _DOTNET_EPOCH_TICKS != ticks:
                 raise ValueError(f"Archive source changed: {file}. Refresh the archives.")
+
+    def verification_digest(self, stop_event=None):
+        """Bind a verifier to these exact mapped records, without materializing rows."""
+        digest = hashlib.sha256()
+        with memoryview(self._mapping) as data:
+            for offset in range(0, len(data), 1024 * 1024):
+                raise_if_cancelled(stop_event, "Archive catalogue validation cancelled.")
+                digest.update(data[offset:offset + 1024 * 1024])
+        return digest.hexdigest()
 
     def verify_parsed_indexes(self, parse_index, *, stop_event=None):
         """Witness this cached catalogue by comparing its exact parsed coordinates.
