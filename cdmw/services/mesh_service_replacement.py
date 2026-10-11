@@ -469,10 +469,13 @@ class MeshWorkingReplacementServiceMixin:
             history_snapshot.retained_bytes = _service_call(
                 "_history_snapshot_retained_bytes", history_snapshot
             )
-            if options.require_reversible_history:
+            # Morph history retains its latest edit even above the byte budget.
+            # Its prospective Redo size cannot reject this commit, so do not walk
+            # every vertex in that throwaway snapshot merely to discard the size.
+            morph_history = history_snapshot.morph_session_state is not None or history_snapshot.morph_profile_root is not None
+            if options.require_reversible_history and not morph_history:
                 history_limit = max(0, int(self.max_history_bytes or 0))
-                morph_history = history_snapshot.morph_session_state is not None or history_snapshot.morph_profile_root is not None
-                if history_snapshot.retained_bytes > history_limit and not morph_history:
+                if history_snapshot.retained_bytes > history_limit:
                     raise RuntimeError(
                         "Edit Session cannot be committed because its reversible history "
                         "snapshot exceeds the configured history memory limit."
@@ -544,7 +547,7 @@ class MeshWorkingReplacementServiceMixin:
                 after_retained_bytes = int(
                     _service_call("_history_snapshot_retained_bytes", after_snapshot)
                 )
-                if after_retained_bytes > history_limit and not morph_history:
+                if after_retained_bytes > history_limit:
                     raise RuntimeError(
                         "Edit Session cannot be committed because its result cannot fit "
                         "the configured reversible history memory limit."

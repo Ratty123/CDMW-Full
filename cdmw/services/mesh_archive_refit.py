@@ -127,6 +127,10 @@ def append_archive_refit(current, primary_entry, incoming, entry, role, preview_
 
 
 def archive_refit_snapshots(snapshot):
+    return _archive_refit_snapshots(snapshot, clone_geometry=True)
+
+
+def _archive_refit_snapshots(snapshot, *, clone_geometry):
     context = snapshot.archive_refit_context
     if not isinstance(context, ArchiveRefitContext):
         raise ValueError("Archive Refit asset identities are unavailable")
@@ -134,10 +138,24 @@ def archive_refit_snapshots(snapshot):
     if sorted(all_indices) != list(range(len(snapshot.mesh.submeshes))):
         raise ValueError("Archive Refit Part identities changed; undo the Part addition or removal")
     result = []
-    edited = (transform_archive_refit_mesh(snapshot.mesh, context, to_neutral=False)
-              if context.neutral_coordinates else _clone(snapshot.mesh))
+    if context.neutral_coordinates:
+        edited = transform_archive_refit_mesh(snapshot.mesh, context, to_neutral=False)
+    else:
+        edited = _clone(snapshot.mesh) if clone_geometry else snapshot.mesh
     for asset in context.assets:
-        mesh = _clone(asset.source.mesh)
+        if clone_geometry:
+            mesh = _clone(asset.source.mesh)
+        else:
+            # Export validation only reads the channels. Keep independent Part
+            # records and source provenance without copying all their vertices.
+            mesh = copy.copy(asset.source.mesh)
+            parts_by_id = {id(part): copy.copy(part) for part in mesh.submeshes}
+            mesh.submeshes = [parts_by_id[id(part)] for part in mesh.submeshes]
+            mesh.lod_levels = [
+                mesh.submeshes if level is asset.source.mesh.submeshes else
+                [parts_by_id.get(id(part), part) for part in level]
+                for level in mesh.lod_levels
+            ]
         parts = [edited.submeshes[index] for index in asset.part_indices]
         if len(parts) != len(mesh.submeshes):
             raise ValueError("Archive Refit Part table no longer matches its source")
@@ -161,7 +179,7 @@ def validate_archive_refit(service, snapshot):
     reports = []
     issues = []
     for asset, (entry, component) in zip(snapshot.archive_refit_context.assets,
-                                       archive_refit_snapshots(snapshot), strict=True):
+                                       _archive_refit_snapshots(snapshot, clone_geometry=False), strict=True):
         report = service.validate_export_snapshot(component)
         reports.append(report)
         issues.extend(replace(

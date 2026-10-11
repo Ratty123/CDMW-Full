@@ -12,7 +12,7 @@ from cdmw.domain.cancellation import RunCancelled
 from cdmw.services.mesh_service import MeshService
 from cdmw.services.mesh_rust_authoring import RustMeshCancellationError, RustMeshValidationError
 from cdmw.services.mesh_morph_profiles import MESH_MORPH_BUNDLE_FORMAT
-from cdmw.services.mesh_refit_loading import append_refit_mesh
+from cdmw.services.mesh_refit_loading import append_refit_mesh, stage_refit_morph_runtime
 from tests.test_mesh_morph_service import _Settings, _author_command
 from tests.test_mesh_rust_authoring import _request
 from tests.test_mesh_rust_morph_safety import _open_exact_rust_session
@@ -21,6 +21,27 @@ from tests.test_native_mesh_editor_morph_refit import _driver_garment_mesh
 
 def _positions(service, session_id):
     return [list(part.vertices) for part in service.working_mesh(session_id, clone=True).submeshes]
+
+
+def test_staged_refit_runtime_owns_its_topology_after_temporary_session_closes(tmp_path):
+    service = MeshService(settings=_Settings(tmp_path / "settings.ini"))
+    combined = _driver_garment_mesh()
+    session_id = service.open_edit_session(combined, mode="edit").session_id
+    state = None
+    try:
+        state = stage_refit_morph_runtime(service, session_id, combined, driver_indices=(0,))
+        assert state.present
+        assert state.cache.state.driver_submesh_indices == (0,)
+        topology = state.cache.topology_mesh
+        before = list(topology.submeshes[0].vertices)
+        combined.submeshes[0].vertices[0] = (42., 43., 44.)
+        assert topology.submeshes[0].vertices == before
+        service.install_morph_session_state(session_id, state)
+        assert service.cached_morph_state_from_runtime(session_id).driver_submesh_indices == (0,)
+    finally:
+        if state is not None:
+            service.dispose_morph_session_state(state)
+        service.close_edit_session(session_id, force_without_saving=True)
 
 
 def _saved_bundle(root):

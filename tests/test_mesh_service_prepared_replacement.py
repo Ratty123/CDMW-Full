@@ -162,6 +162,33 @@ class MeshServicePreparedReplacementTests(unittest.TestCase):
         self.assertEqual(0, current.undo_count)
         self.assertEqual(4, current.vertex_count)
 
+    def test_morph_replacement_skips_unused_redo_sizing_and_retains_undo(self) -> None:
+        service = MeshService(max_history_bytes=1)
+        view = service.open_edit_session(_quad_mesh(), mode="edit")
+        try:
+            imported = _quad_mesh()
+            imported.submeshes[0].vertices[0] = (0.5, 0.0, 0.0)
+            prepared = service.prepare_working_mesh_replacement(view.session_id, imported)
+            original_size = mesh_service_module._history_snapshot_retained_bytes
+
+            def size_existing_snapshot(snapshot):
+                if snapshot.mesh is prepared.working_mesh:
+                    raise AssertionError("An exempt Morph result does not need prospective Redo sizing")
+                return original_size(snapshot)
+
+            with patch.object(mesh_service_module, "_history_snapshot_retained_bytes", size_existing_snapshot):
+                service.commit_prepared_working_mesh_replacement(
+                    prepared, history_action="refit_archive_load", require_reversible_history=True,
+                    morph_session_state=_MeshMorphSessionState(present=False),
+                )
+            self.assertGreater(service._session(view.session_id).undo_stack[-1].retained_bytes, 0)
+            self.assertTrue(service.undo(view.session_id).ok)
+            self.assertEqual((0., 0., 0.), service.working_mesh(view.session_id).submeshes[0].vertices[0])
+            self.assertTrue(service.redo(view.session_id).ok)
+            self.assertEqual((0.5, 0., 0.), service.working_mesh(view.session_id).submeshes[0].vertices[0])
+        finally:
+            service.close_edit_session(view.session_id, force_without_saving=True)
+
     def test_preparation_carries_export_blocker_without_mutation(self) -> None:
         service = MeshService()
         view = service.open_edit_session(_quad_mesh(), session_id="blocked-prepared-replacement", mode="edit")

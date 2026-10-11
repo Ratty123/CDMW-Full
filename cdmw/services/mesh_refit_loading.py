@@ -78,9 +78,11 @@ def stage_refit_morph_runtime(service, session_id, combined, *, driver_indices=N
     staged_id = staged.open_edit_session(combined, mode="edit").session_id
     try:
         staged.prime_morph_profile_cache(staged_id, freeze=True)
-        staged._activate_morph_profile_locked(staged._session(staged_id), profile)
+        staged._activate_morph_profile_locked(staged._session(staged_id), profile, record_history=False)
         staged_cache = staged._morph_sessions[staged_id]
-        staged_cache.topology_mesh = staged.working_mesh(staged_id, clone=True)
+        # capture_morph_session_state makes the owned topology clone before this
+        # disposable session closes; an earlier clone only duplicates that work.
+        staged_cache.topology_mesh = staged.working_mesh(staged_id, clone=False)
         if cache is not None:
             staged_cache.known_profiles.update(cache.known_profiles)
             staged_cache.known_presets.update(cache.known_presets)

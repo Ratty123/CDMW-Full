@@ -1579,6 +1579,9 @@ their textures. Missing or damaged draft files reject that generation before it 
 the loaded geometry. Older drafts still open, with a warning when their cached material
 files are missing; reopen the source meshes to reload those textures. Adding an asset
 reuses the existing owned textures and compiles only the incoming asset's materials.
+Archive loading also reuses geometry during read-only validation and avoids redundant
+temporary topology and history snapshots. Per-asset source checks, independent export
+copies, and the reversible load remain in place.
 
 Generated support maps use bounded array decoding and fast, lossless PNG compression;
 material ownership and texture pixels are preserved. Geometry, rig dependencies, and

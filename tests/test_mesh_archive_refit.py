@@ -13,6 +13,7 @@ from cdmw.models import ArchiveEntry
 from cdmw.modding.mesh_parser import parse_pac
 from cdmw.services.mesh_archive_refit import (
     archive_refit_snapshots, load_archive_refit_context, save_archive_refit_context,
+    validate_archive_refit,
 )
 from cdmw.services.mesh_service import MeshService
 from cdmw.workers.mesh_editor_workers import MeshDirectOutputWorker
@@ -109,4 +110,74 @@ def test_archive_refit_finish_and_build_mod_preserve_both_original_files(tmp_pat
         assert len(archive_refit_snapshots(authority.capture_export_snapshot("authoritative-rust-exact"))) == 2
     finally:
         session.cancel()
+        authority.close_edit_session("authoritative-rust-exact", force_without_saving=True)
+
+
+@pytest.mark.parametrize("neutral", [False, True])
+def test_refit_validation_reuses_channels_without_changing_source_or_export_ownership(tmp_path, neutral):
+    from cdmw.services import mesh_archive_refit as owner
+    from tests.test_mesh_neutral_face_editing import _appearance
+
+    appearance = _appearance() if neutral else None
+    _source, authority, editor, _primary, _armor, _loaded = _load_pair(
+        tmp_path, assign_body=False, primary_appearance=appearance, incoming_appearance=appearance,
+    )
+    try:
+        service = editor.shadow_service
+        snapshot = service.capture_export_snapshot(editor.shadow_session_id)
+        before = [list(part.vertices) for part in snapshot.mesh.submeshes]
+        sources_before = [list(asset.source.mesh.submeshes[0].vertices)
+                          for asset in snapshot.archive_refit_context.assets]
+        exports = archive_refit_snapshots(snapshot)
+        with patch.object(owner, "_archive_refit_snapshots", return_value=exports):
+            expected = validate_archive_refit(service, snapshot)
+        with patch.object(owner, "_clone", wraps=owner._clone) as clone:
+            actual = validate_archive_refit(service, snapshot)
+        assert actual == expected
+        assert actual.ok
+        assert clone.call_count == int(neutral)  # Only coordinate conversion needs owned geometry.
+        assert [part.vertices for part in snapshot.mesh.submeshes] == before
+        assert [asset.source.mesh.submeshes[0].vertices
+                for asset in snapshot.archive_refit_context.assets] == sources_before
+
+        # The public export path must still return independently editable copies.
+        for _entry, component in exports:
+            if component.mesh.lod_levels:
+                assert component.mesh.submeshes is component.mesh.lod_levels[0]
+            component.mesh.submeshes[0].vertices[0] = (42., 43., 44.)
+        assert [part.vertices for part in snapshot.mesh.submeshes] == before
+        assert [asset.source.mesh.submeshes[0].vertices
+                for asset in snapshot.archive_refit_context.assets] == sources_before
+    finally:
+        editor.cancel()
+        authority.close_edit_session("authoritative-rust-exact", force_without_saving=True)
+
+
+@pytest.mark.parametrize("damage", ["part_mapping", "topology", "source_validation"])
+def test_refit_validation_keeps_source_and_topology_guards(tmp_path, damage):
+    _source, authority, editor, _primary, _armor, _loaded = _load_pair(tmp_path, assign_body=False)
+    try:
+        service = editor.shadow_service
+        snapshot = service.capture_export_snapshot(editor.shadow_session_id)
+        context = snapshot.archive_refit_context
+        if damage == "part_mapping":
+            asset = replace(context.assets[-1], part_indices=context.assets[0].part_indices)
+            snapshot = replace(snapshot, archive_refit_context=replace(context, assets=(*context.assets[:-1], asset)))
+        elif damage == "topology":
+            snapshot.mesh.submeshes[-1].faces[0] = (0, 2, 1)
+        else:
+            asset = replace(context.assets[-1], source=replace(
+                context.assets[-1].source,
+                no_op_roundtrip_report={"result": "FAIL", "byte_identical": False, "unexpected_differences": 1},
+            ))
+            snapshot = replace(snapshot, archive_refit_context=replace(context, assets=(*context.assets[:-1], asset)))
+        if damage == "source_validation":
+            report = validate_archive_refit(service, snapshot)
+            assert not report.ok
+            assert any("armor.pac" in issue.message for issue in report.blockers)
+        else:
+            with pytest.raises(ValueError, match="Part identities|source topology"):
+                validate_archive_refit(service, snapshot)
+    finally:
+        editor.cancel()
         authority.close_edit_session("authoritative-rust-exact", force_without_saving=True)
