@@ -182,6 +182,38 @@ def test_qprocess_client_rejects_inflight_stale_generation(tmp_path: Path) -> No
     _shutdown(client)
 
 
+@pytest.mark.parametrize("exit_after_reply", [False, True])
+def test_reply_burst_yields_to_ui_and_keeps_terminal_reply_on_exit(tmp_path, exit_after_reply):
+    client = _client(tmp_path)
+    batches, results, failures, ui_turns = [], [], [], []
+
+    def receive_batch(_request_id, payload):
+        batches.extend(payload["rows"])
+        if len(batches) == 1:
+            QTimer.singleShot(0, lambda: ui_turns.append(len(batches)))
+        # Include synchronous consumer work, not just JSON decoding time.
+        time.sleep(0.001)
+
+    client.request_batch.connect(receive_batch)
+    client.request_succeeded.connect(lambda *row: results.append(row))
+    client.request_failed.connect(lambda *row: failures.append(row))
+    try:
+        request_id = client.submit(
+            ArchiveBackendOperation.CACHE_HEALTH,
+            CacheHealthRequest("burst_exit" if exit_after_reply else "burst"),
+            ui_generation=0,
+        )
+        assert _wait_until(lambda: bool(results or failures))
+        assert not failures and results[0][0] == request_id
+        assert batches == list(range(128))
+        assert len(ui_turns) == 1 and 0 < ui_turns[0] < 128
+        if exit_after_reply:
+            assert _wait_until(lambda: client.state is ArchiveBackendClientState.FAILED)
+            assert not failures
+    finally:
+        _shutdown(client)
+
+
 def test_qprocess_client_reports_crashes_without_replaying_operations(tmp_path: Path) -> None:
     client = _client(tmp_path)
     crashes: list[str] = []

@@ -1668,6 +1668,11 @@ information. Reset or Bake the current preview first. Generation creates a new
 profile and preserves the previous custom profile and existing garment bindings;
 Undo restores them together.
 
+Profiles use compact, lossless JSON so dense generated body controls fit without
+indentation consuming the file budget. The existing 8 MiB bound still applies to
+saved profiles, portable bundles and history; existing formatted profiles remain
+readable, and all vertex weights and definition fields are retained.
+
 Supported anatomical regions receive detailed Size, Length, Taper, Flatten and
 Shift sliders. Coordinated controls appear only when every required generated
 slider and its supported rule are present:

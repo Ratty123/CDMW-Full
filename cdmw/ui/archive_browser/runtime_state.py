@@ -6,10 +6,25 @@ from collections import Counter, OrderedDict, deque
 import os
 import threading
 
-from PySide6.QtCore import QProcess, Qt, QTimer
+from PySide6.QtCore import QEvent, QObject, QProcess, Qt, QTimer
+from PySide6.QtWidgets import QApplication
 
 from cdmw.services.archive_catalogue_service import ArchiveCatalogueService
 from cdmw.ui.shell.archive_backend_client import ArchiveBackendClient
+
+
+class _ArchiveUiActivityFilter(QObject):
+    """Let archive warmups yield to input anywhere in the application."""
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if event.type() in (
+            QEvent.Type.KeyPress, QEvent.Type.MouseButtonPress,
+            QEvent.Type.MouseButtonDblClick, QEvent.Type.Wheel, QEvent.Type.FocusIn,
+        ):
+            archive = self.parent()
+            if not archive.shell._shutting_down:
+                archive._note_archive_ui_activity()
+        return False
 
 
 class ArchiveRuntimeStateMixin:
@@ -233,6 +248,8 @@ class ArchiveRuntimeStateMixin:
         self.archive_ui_activity_timer = QTimer(self)
         self.archive_ui_activity_timer.setSingleShot(True)
         self.archive_ui_activity_timer.timeout.connect(self._clear_archive_ui_activity)
+        self.archive_ui_activity_filter = _ArchiveUiActivityFilter(self)
+        QApplication.instance().installEventFilter(self.archive_ui_activity_filter)
         self.archive_preview_debounce_timer = QTimer(self)
         self.archive_preview_debounce_timer.setSingleShot(True)
         self.archive_preview_debounce_timer.setInterval(90)

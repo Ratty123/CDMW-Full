@@ -8,6 +8,7 @@ from enum import Enum
 import json
 import logging
 from pathlib import Path
+import time
 from typing import Callable, Mapping, Sequence
 from uuid import uuid4
 
@@ -36,6 +37,8 @@ ARCHIVE_BACKEND_STDERR_LIMIT = 64 * 1024
 ARCHIVE_BACKEND_START_TIMEOUT_MS = 10_000
 ARCHIVE_BACKEND_SHUTDOWN_GRACE_MS = 1_000
 ARCHIVE_BACKEND_TERMINATE_GRACE_MS = 1_000
+_STDOUT_TURN_SECONDS = 0.004
+_STDOUT_TURN_MESSAGES = 16
 
 
 class ArchiveBackendClientState(str, Enum):
@@ -96,6 +99,7 @@ class ArchiveBackendClient(QObject):
         self._process: QProcess | None = None
         self._state = ArchiveBackendClientState.STOPPED
         self._stdout_buffer = bytearray()
+        self._process_exit: tuple[int, object] | None = None
         self._stderr_tail = bytearray()
         self._pending: dict[str, _PendingRequest] = {}
         self._queued_request_ids: deque[str] = deque()
@@ -111,6 +115,9 @@ class ArchiveBackendClient(QObject):
         self._capabilities: tuple[str, ...] = ()
         self.backend_identity = "cdmw-full-archive-worker (standalone)"
 
+        self._stdout_timer = QTimer(self)
+        self._stdout_timer.setSingleShot(True)
+        self._stdout_timer.timeout.connect(self._continue_stdout)
         self._start_timer = QTimer(self)
         self._start_timer.setSingleShot(True)
         self._start_timer.timeout.connect(self._handle_start_timeout)
@@ -259,6 +266,8 @@ class ArchiveBackendClient(QObject):
         self._process_generation += 1
         generation = self._process_generation
         self._process = process
+        self._stdout_timer.stop()
+        self._process_exit = None
         self._stdout_buffer.clear()
         self._stderr_tail.clear()
         self._expected_stop = False
@@ -308,24 +317,44 @@ class ArchiveBackendClient(QObject):
             chunk = bytes(process.readAllStandardOutput())
         except (AttributeError, RuntimeError, TypeError):
             return
-        if not chunk:
-            return
         self._stdout_buffer.extend(chunk)
+        if self._stdout_timer.isActive():
+            return
+        deadline = time.perf_counter() + _STDOUT_TURN_SECONDS
+        messages = 0
         while True:
+            if self._state is ArchiveBackendClientState.FAILED:
+                self._stdout_buffer.clear()
+                break
             newline = self._stdout_buffer.find(b"\n")
             if newline < 0:
                 if len(self._stdout_buffer) > ARCHIVE_BACKEND_MAXIMUM_MESSAGE_BYTES:
                     self._protocol_failure("Archive backend stdout exceeded the 1 MiB message bound.")
-                return
+                break
             raw_line = bytes(self._stdout_buffer[:newline])
             del self._stdout_buffer[: newline + 1]
             if len(raw_line) > ARCHIVE_BACKEND_MAXIMUM_MESSAGE_BYTES:
                 self._protocol_failure("Archive backend emitted an oversized protocol message.")
-                return
+                break
             if raw_line.endswith(b"\r"):
                 raw_line = raw_line[:-1]
             if raw_line:
                 self._handle_protocol_line(raw_line)
+            if not self._is_current_process(process, generation):
+                return
+            messages += 1
+            if messages >= _STDOUT_TURN_MESSAGES or time.perf_counter() >= deadline:
+                # A signal consumer is synchronous too. Yield between complete
+                # messages so input/paint events can run during reply bursts.
+                self._stdout_timer.start(1)
+                return
+        if self._process_exit is not None:
+            self._finish_process(process, generation, *self._process_exit)
+
+    def _continue_stdout(self) -> None:
+        process = self._process
+        if process is not None:
+            self._drain_stdout(process, self._process_generation)
 
     def _drain_stderr(self, process: QProcess, generation: int) -> None:
         if not self._is_current_process(process, generation):
@@ -540,11 +569,23 @@ class ArchiveBackendClient(QObject):
     ) -> None:
         if not self._is_current_process(process, generation):
             return
-        self._drain_stdout(process, generation)
         self._drain_stderr(process, generation)
         self._start_timer.stop()
         self._shutdown_timer.stop()
         self._kill_timer.stop()
+        # The last result can still be in a deferred stdout batch when the
+        # process exits. Deliver it before declaring pending requests failed.
+        self._process_exit = (exit_code, exit_status)
+        self._drain_stdout(process, generation)
+
+    def _finish_process(
+        self, process: QProcess, generation: int, exit_code: int, exit_status: object,
+    ) -> None:
+        if not self._is_current_process(process, generation):
+            return
+        self._stdout_timer.stop()
+        self._process_exit = None
+        self._stdout_buffer.clear()
         self._process = None
         self._handshake_request_id = None
         self._shutdown_request_id = None
@@ -572,6 +613,8 @@ class ArchiveBackendClient(QObject):
             self._ensure_started()
 
     def _protocol_failure(self, message: str, *, code: str = "protocol_failure") -> None:
+        self._stdout_timer.stop()
+        self._stdout_buffer.clear()
         self._append_diagnostic(message)
         self._expected_stop = True
         self._set_state(ArchiveBackendClientState.FAILED)

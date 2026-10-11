@@ -258,6 +258,9 @@ class RemoteItemFinderWarmupController(QObject):
         if self._closing or not self._session_id or self._requests or self._threads:
             return
         if self._state == "scheduled":
+            if not self._background_work_allowed():
+                self._schedule_continue(600)
+                return
             self._start_catalogue_build()
             return
         priority_pending = any(item_id in self._priority_icon_ids for item_id in self._pending_icons)
@@ -266,6 +269,14 @@ class RemoteItemFinderWarmupController(QObject):
                 self._schedule_continue(600)
                 return
             self._start_icon_batch(priority=priority_pending)
+            return
+        if not self._initial_search_complete and self._catalogue_ready:
+            if self._failed_operation is not None or self._state in {"failed", "idle"}:
+                return
+            if not self._background_work_allowed():
+                self._schedule_continue(600)
+                return
+            self._start_initial_search()
             return
         if not self._initial_search_complete or self._enumeration_done:
             if self._enumeration_done:
@@ -435,7 +446,7 @@ class RemoteItemFinderWarmupController(QObject):
                 return
             self._catalogue_ready = True
             self.catalogueReady.emit()
-            self._start_initial_search()
+            self._schedule_continue(0)
             return
         if tracked.kind in {"initial_search", "catalogue_page"} and isinstance(result, ItemCatalogSearchResult):
             if result.session_id != self._session_id:

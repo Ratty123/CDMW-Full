@@ -262,6 +262,8 @@ class ArchiveRenderLifecycleMixin:
     def _archive_browser_background_work_allowed(self) -> bool:
         if self.shell._shutting_down or self.archive_browser_preload_state != "ready":
             return False
+        if self._archive_ui_interactive_active() or getattr(self, "archive_extension_picker_dialog", None) is not None:
+            return False
         now = time.perf_counter()
         if not self.archive_browser_first_visible_paint_done:
             return False

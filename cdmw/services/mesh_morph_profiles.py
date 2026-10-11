@@ -241,7 +241,10 @@ def _serialized_json_document(
     limit = MESH_MORPH_PROFILE_MAX_BYTES if max_bytes is None else min(MESH_MORPH_PROFILE_MAX_BYTES, max(0, int(max_bytes)))
     chunks: list[str] = []
     encoded_bytes = 0
-    encoder = json.JSONEncoder(indent=2, sort_keys=True, allow_nan=False)
+    # Dense body controls repeat weighted vertices across their sliders. Pretty
+    # printing can nearly double a valid profile past the bounded file limit.
+    # Keep the same lossless JSON schema and enforce the limit on compact bytes.
+    encoder = json.JSONEncoder(separators=(",", ":"), sort_keys=True, allow_nan=False)
     for chunk in encoder.iterencode(payload):
         encoded_bytes += len(chunk.encode("utf-8"))
         if encoded_bytes > limit:

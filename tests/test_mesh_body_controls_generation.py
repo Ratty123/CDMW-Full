@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import replace
+import json
 import struct
 import threading
 from types import SimpleNamespace
@@ -19,6 +20,10 @@ from cdmw.modding.mesh_parser import PAC_SKIN_WEIGHT_LAYOUT, ParsedMesh, SubMesh
 from cdmw.modding.skeleton_parser import Bone, Skeleton
 from cdmw.services.mesh_archive_refit import ArchiveRefitAsset, ArchiveRefitContext
 from cdmw.services.mesh_service_body_controls import MeshBodyControlsMixin
+from cdmw.services.mesh_morph_profiles import (
+    MESH_MORPH_PROFILE_MAX_BYTES, list_mesh_morph_profiles,
+    mesh_morph_profile_payload, save_mesh_morph_profile,
+)
 
 
 def _skeleton():
@@ -172,6 +177,33 @@ def test_generation_obeys_assigned_body_subset_not_part_selection():
     assert state.definitions
     assert {row.submesh_index for item in state.definitions for row in item.vertices} == {1}
     assert all(item.definition_id.startswith("forearm_l_") for item in state.definitions)
+
+
+def test_dense_generated_body_controls_round_trip_inside_existing_file_limit(tmp_path):
+    service = BodyControlsHarness()
+    mesh = service.session.working_mesh
+    part = mesh.submeshes[0]
+    # 120,000 weighted rows across the five region sliders, comparable to a
+    # complete body. The source remains an owned, palette-verified fixture.
+    triangles = 8_000
+    part.vertices *= triangles
+    part.faces = [(i, i + 1, i + 2) for i in range(0, len(part.vertices), 3)]
+    part.bone_indices *= triangles
+    part.bone_weights *= triangles
+    part.source_vertex_map = list(range(len(part.vertices)))
+    part.vertex_count, part.face_count = len(part.vertices), len(part.faces)
+    service.session.base_mesh = deepcopy(mesh)
+
+    service.generate_body_morph_controls("owned")
+    profile = service.data.profile
+    payload = mesh_morph_profile_payload(profile)
+    assert len(json.dumps(payload, indent=2, sort_keys=True).encode("utf-8")) > MESH_MORPH_PROFILE_MAX_BYTES
+
+    path = save_mesh_morph_profile(tmp_path, profile)
+
+    assert path.stat().st_size < MESH_MORPH_PROFILE_MAX_BYTES
+    assert json.loads(path.read_text(encoding="utf-8")) == payload
+    assert list_mesh_morph_profiles(tmp_path, mesh) == ((profile,), ())
 
 
 @pytest.mark.parametrize(

@@ -134,6 +134,8 @@ def test_cold_warm_refresh_filter_pages_names_and_catalogue_handoffs(workspace, 
     archive = window.archive
     service = archive.archive_catalogue_service
     awaiter = _Awaiter(service)
+    # Warmups now wait for the constructed view's first paint and idle period.
+    window.show()
     cold = _open(window, root)
     assert not cold.cache_hit and cold.entry_count == 106
     assert all(consumer.sessions[-1] == cold for consumer in consumers)
@@ -199,6 +201,7 @@ def test_obsolete_override_and_missing_helper_never_create_legacy_workers(tmp_pa
 def test_background_name_failure_keeps_browsing_and_offers_targeted_retry(workspace, tmp_path):
     root = tmp_path / "game"
     write_character_archive(root)
+    workspace.show()
     session = _open(workspace, root)
     archive = workspace.archive
     panel = archive.archive_item_names_failure_panel
@@ -224,6 +227,9 @@ def test_cancelled_refresh_preserves_uncached_pages_from_the_real_worker(workspa
     bridge.open_archive(root, force_refresh=True, activate_tab=False)
     assert bridge.cancel_pending_update()
     current_generation = bridge.controller.generation
+    # Row warming can win the race now that protocol batches yield. Explicitly
+    # evict the page whose uncached recovery this test is meant to exercise.
+    bridge.model._pages.pop(16, None)
     index = bridge.model.index(20, 0)
     assert bridge.model.entry_for_index(index) is None
     assert bridge.model.data(index) == "Loading..."

@@ -625,6 +625,7 @@ class ArchiveRemoteWindowBridge(QObject):
             window.shell._activate_tool_widget(window.shell.archive_browser_tab)
         self._activate_tab_on_publish = False
         self._set_remote_operation_busy(False)
+        window.archive._mark_archive_browser_render_ready(reason="catalogue_view")
         superseded = self._superseded_session_id
         self._superseded_session_id = None
         if (

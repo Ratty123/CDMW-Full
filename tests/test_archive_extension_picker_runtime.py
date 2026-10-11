@@ -3,13 +3,17 @@
 from collections import Counter
 from dataclasses import replace
 import sys
+import time
 
 import pytest
 from PySide6.QtCore import QCoreApplication, QEvent, QObject, Qt
+from PySide6.QtGui import QFocusEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QDialog, QLabel, QLineEdit, QPushButton, QTreeWidget
 
 from cdmw.domain.archives.catalogue import ArchiveFacet, ArchiveFacetsResult
+from cdmw.domain.archives.catalogue_operations import ArchiveBackendError
+from cdmw.domain.archives.item_catalogue import BuildNameIndexResult
 from cdmw.ui.archive_browser.mesh_builder_startup_smoke import (
     configure_synthetic_archive_context,
     synthetic_archive_entry,
@@ -70,6 +74,80 @@ def _start_loading(workspace, monkeypatch):
     bridge._begin_pending("Loading archive catalogue...", operation="open")
     workspace.set_busy(False)
     return archive
+
+
+@pytest.mark.parametrize("terminal", ["failure", "cancelled"])
+def test_startup_warmup_waits_for_picker_and_search_activity_then_resumes(workspace, tmp_path, monkeypatch, terminal):
+    archive = _ready(workspace, tmp_path)
+    warmup = archive.archive_item_finder_warmup_controller
+    session = archive.archive_remote_bridge.current_session
+    calls = []
+    monkeypatch.setattr(archive.archive_catalogue_service, "build_name_index", lambda *_a, **_k: calls.append("build") or "build")
+    monkeypatch.setattr(archive.archive_catalogue_service, "search_item_catalog", lambda *_a, **_k: calls.append("search") or "search")
+
+    def ready_and_idle():
+        archive.archive_browser_preload_state = "ready"
+        archive.archive_browser_first_visible_paint_done = True
+        archive.archive_browser_first_visible_painted_at = time.perf_counter() - 1.0
+        archive._clear_archive_ui_activity()
+
+    ready_and_idle()
+    assert archive._archive_browser_background_work_allowed()
+    dialog = _open_picker(archive)
+    warmup.start(session, ui_generation=0)
+    # A picker stays interactive even while the user pauses between clicks.
+    archive._clear_archive_ui_activity()
+    warmup._continue_warmup()
+    assert not calls and warmup._continue_timer.isActive()
+
+    tree = dialog.findChild(QTreeWidget)
+    tree.setCurrentItem(_leaf(tree, ".pac"))
+    _select_button(dialog).click()
+    assert archive.archive_extension_picker_dialog is None
+    ready_and_idle()
+    QApplication.sendEvent(archive.archive_filter_edit, QFocusEvent(QEvent.FocusIn))
+    assert archive._archive_ui_interactive_active()
+    warmup._continue_warmup()
+    assert not calls
+    QTest.keyClicks(archive.archive_filter_edit, "body")
+    assert archive._archive_ui_interactive_active()
+
+    # Simulate the new search completing and the input grace period expiring.
+    ready_and_idle()
+    warmup._continue_warmup()
+    assert calls == ["build"]
+    QApplication.sendEvent(archive.archive_filter_edit, QFocusEvent(QEvent.FocusIn))
+    warmup._handle_result("build", "build_name_index", BuildNameIndexResult(session.session_id, True, True, 1, 0))
+    warmup._continue_warmup()
+    assert calls == ["build"]
+    archive._clear_archive_ui_activity()
+    warmup._continue_warmup()
+    assert calls == ["build", "search"]
+    if terminal == "failure":
+        warmup._handle_failure("search", ArchiveBackendError("fixture_failure", "Owned failure"))
+    else:
+        warmup._handle_cancelled("search")
+    warmup._continue_warmup()
+    assert calls == ["build", "search"]  # Failed/cancelled work needs an explicit retry.
+    warmup.invalidate()
+    assert not warmup._continue_timer.isActive()
+
+
+def test_foreground_finder_icons_keep_priority_while_background_warmup_is_deferred(workspace, tmp_path, monkeypatch):
+    archive = _ready(workspace, tmp_path)
+    warmup = archive.archive_item_finder_warmup_controller
+    session = archive.archive_remote_bridge.current_session
+    calls = []
+    monkeypatch.setattr(archive.archive_catalogue_service, "load_item_icons", lambda request, **_k: calls.append(request) or "icons")
+    warmup.start(session, ui_generation=0)
+    warmup._state = "building"
+    warmup._catalogue_ready = True
+    archive._note_archive_ui_activity()
+    assert not archive._archive_browser_background_work_allowed()
+    assert warmup.prioritize_icons(session.session_id, (1234,)) == (1234,)
+    warmup._continue_warmup()
+    assert len(calls) == 1 and calls[0].item_ids == (1234,)
+    warmup.invalidate()
 
 
 def test_cached_picker_opens_without_blocking_the_application_or_rescanning(workspace, tmp_path, monkeypatch):

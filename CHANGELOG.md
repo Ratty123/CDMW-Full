@@ -34,8 +34,9 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- Archive Browser defers background warmups while selecting extensions or interacting with the app, and processes bursts of archive results in smaller steps to keep input responsive.
 - Morph & Refit preserves saved corrections and prior definitions when sliders are edited or undone. Cancelling a correction restores every Part's previous shape and slider values; clearing a fit removes applied corrections while retaining their saved data. Resetting corrections verifies any retained correction data.
-- Morph & Refit body controls accept displayed Both limits with fractional side values, keep Undo/Redo available after unrelated preset saves, and apply Reset after leaving an unchanged number field. Layered controls block changes during unfinished slider authoring or correction comparison, and refuse saved corrections when their source geometry or bindings no longer match.
+- Morph & Refit can create body controls for detailed bodies, including Damiane, whose generated profiles previously exceeded the file limit because of JSON formatting. Body controls accept displayed Both limits with fractional side values, keep Undo/Redo available after unrelated preset saves, and apply Reset after leaving an unchanged number field. Layered controls block changes during unfinished slider authoring or correction comparison, and refuse saved corrections when their source geometry or bindings no longer match.
 - Morph & Refit keeps setup application limited to the selected garment Parts, including after reopening meshes without current bindings, and preserves unselected corrections. Failed setup application restores the previous shape, controls and saved files before retrying. Masks and fitting setups apply together across connected Parts, and compatible session replacements after Bake remain eligible for changing allowed body regions.
 
 - New-item texture registration distinguishes DX10 formats and refuses incomplete or unsupported DDS layouts before output. Mod merging also checks that each declared texture contains its complete pixel data.

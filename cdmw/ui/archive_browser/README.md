@@ -97,6 +97,13 @@ A new archive load or search closes the picker to avoid an outdated selection;
 a load failure closes it to reveal the browser's retry controls.
 Apply **Search** to refresh the archive results.
 
+Startup catalogue and thumbnail warmups wait for the archive view to settle and
+yield to recent keyboard, mouse, wheel and focus activity throughout the app.
+The extension picker defers new warmup requests until it closes. This also gates
+the first item-name build and saved-page lookup; foreground Finder icon requests
+retain priority. Archive worker replies are delivered in bounded GUI turns,
+including replies still buffered when the worker exits.
+
 Item Finder shows its categories and subcategories in a collapsible list on the
 left, with item counts. The item grid is in the middle and item details and asset
 actions are on the right. Select a category for all its groups, or a subcategory

@@ -72,6 +72,15 @@ def main() -> int:
                 if not marker.exists():
                     marker.write_text("crashed", encoding="utf-8")
                     os._exit(73)
+            if package_root in {"burst", "burst_exit"}:
+                # Deliver one buffered burst, including the terminal response.
+                frames = [_message(request, "batch", {"rows": [index]}) for index in range(128)]
+                frames.append(_message(request, "result", {"root_id": "stub-root"}))
+                sys.stdout.write("".join(json.dumps(frame) + "\n" for frame in frames))
+                sys.stdout.flush()
+                if package_root == "burst_exit":
+                    os._exit(0)
+                continue
             _send(_message(request, "progress", {"completed": 1, "total": 1, "phase": "health"}))
             _send(_message(request, "batch", {"rows": [1]}))
             _send(
