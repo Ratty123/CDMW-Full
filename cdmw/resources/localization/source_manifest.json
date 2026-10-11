@@ -8321,7 +8321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 401,
+          "line": 406,
           "sink": "on_error"
         }
       ]
@@ -8946,7 +8946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 222,
+          "line": 227,
           "sink": "emit"
         }
       ]
@@ -18941,12 +18941,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 310,
+          "line": 315,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 354,
+          "line": 359,
           "sink": "emit"
         },
         {
@@ -21481,7 +21481,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 268,
+          "line": 269,
           "sink": "QPushButton"
         },
         {
@@ -21606,7 +21606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 547,
+          "line": 549,
           "sink": "setText"
         }
       ]
@@ -21781,7 +21781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 474,
+          "line": 479,
           "sink": "emit"
         },
         {
@@ -23371,7 +23371,7 @@
       "origins": [
         {
           "path": "cdmw/workers/character_finder_workers.py",
-          "line": 169,
+          "line": 171,
           "sink": "RunCancelled"
         }
       ]
@@ -23381,7 +23381,7 @@
       "origins": [
         {
           "path": "cdmw/workers/character_finder_workers.py",
-          "line": 261,
+          "line": 263,
           "sink": "ValueError"
         }
       ]
@@ -23396,7 +23396,7 @@
         },
         {
           "path": "cdmw/ui/character_finder/preview_controller.py",
-          "line": 231,
+          "line": 232,
           "sink": "_fail"
         },
         {
@@ -23936,7 +23936,7 @@
       "origins": [
         {
           "path": "cdmw/workers/new_item_workers.py",
-          "line": 184,
+          "line": 188,
           "sink": "report"
         }
       ]
@@ -24496,7 +24496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 305,
+          "line": 310,
           "sink": "emit"
         }
       ]
@@ -26076,7 +26076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 244,
+          "line": 249,
           "sink": "emit"
         }
       ]
@@ -26346,7 +26346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 557,
+          "line": 559,
           "sink": "getExistingDirectory"
         }
       ]
@@ -26356,7 +26356,7 @@
       "origins": [
         {
           "path": "cdmw/workers/new_item_workers.py",
-          "line": 205,
+          "line": 209,
           "sink": "ValueError"
         }
       ]
@@ -26591,7 +26591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 551,
+          "line": 553,
           "sink": "getExistingDirectory"
         }
       ]
@@ -26916,7 +26916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 470,
+          "line": 472,
           "sink": "setToolTip"
         }
       ]
@@ -28886,12 +28886,12 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 275,
+          "line": 276,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 608,
+          "line": 610,
           "sink": "QPushButton"
         },
         {
@@ -31101,12 +31101,12 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 205,
+          "line": 206,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 228,
+          "line": 229,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -35146,7 +35146,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 479,
+          "line": 481,
           "sink": "addItem"
         }
       ]
@@ -35966,7 +35966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 305,
+          "line": 310,
           "sink": "emit"
         },
         {
@@ -36001,7 +36001,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 479,
+          "line": 481,
           "sink": "addItem"
         }
       ]
@@ -38181,7 +38181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 347,
+          "line": 352,
           "sink": "emit"
         }
       ]
@@ -44471,12 +44471,12 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 205,
+          "line": 206,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 228,
+          "line": 229,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -48536,7 +48536,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 479,
+          "line": 481,
           "sink": "addItem"
         }
       ]
@@ -52276,7 +52276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 509,
+          "line": 511,
           "sink": "setText"
         }
       ]
@@ -53511,7 +53511,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 479,
+          "line": 481,
           "sink": "addItem"
         }
       ]
@@ -61561,7 +61561,7 @@
       "origins": [
         {
           "path": "cdmw/workers/new_item_workers.py",
-          "line": 189,
+          "line": 193,
           "sink": "ValueError"
         }
       ]
@@ -65106,7 +65106,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_warmup.py",
-          "line": 445,
+          "line": 475,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -65116,7 +65116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_warmup.py",
-          "line": 637,
+          "line": 675,
           "sink": "emit"
         }
       ]
@@ -65996,12 +65996,12 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 205,
+          "line": 206,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 228,
+          "line": 229,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -66276,12 +66276,12 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 205,
+          "line": 206,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 228,
+          "line": 229,
           "sink": "setHorizontalHeaderLabels"
         },
         {
@@ -70531,12 +70531,12 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 205,
+          "line": 206,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 228,
+          "line": 229,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -78451,7 +78451,7 @@
       "origins": [
         {
           "path": "cdmw/workers/character_finder_workers.py",
-          "line": 377,
+          "line": 379,
           "sink": "ValueError"
         }
       ]
@@ -81478,6 +81478,11 @@
           "path": "cdmw/workers/new_item_workers.py",
           "line": 68,
           "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/workers/new_item_workers.py",
+          "line": 116,
+          "sink": "raise_if_cancelled"
         }
       ]
     },
@@ -82126,7 +82131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/controller.py",
-          "line": 528,
+          "line": 548,
           "sink": "_clear_archive_preview"
         }
       ]
@@ -83316,12 +83321,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 293,
+          "line": 298,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/new_item_workers.py",
-          "line": 266,
+          "line": 270,
           "sink": "ValueError"
         }
       ]
@@ -84296,7 +84301,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 427,
+          "line": 429,
           "sink": "setText"
         }
       ]
@@ -84316,7 +84321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 590,
+          "line": 592,
           "sink": "setText"
         }
       ]
@@ -86091,7 +86096,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 483,
+          "line": 485,
           "sink": "addItem"
         },
         {
@@ -89231,7 +89236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 267,
+          "line": 268,
           "sink": "QPushButton"
         }
       ]
@@ -90106,7 +90111,7 @@
       "origins": [
         {
           "path": "cdmw/workers/new_item_workers.py",
-          "line": 115,
+          "line": 119,
           "sink": "log"
         }
       ]
@@ -90271,7 +90276,7 @@
         },
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 490,
+          "line": 495,
           "sink": "emit"
         },
         {
@@ -90416,12 +90421,12 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 193,
+          "line": 194,
           "sink": "setPlaceholderText"
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 488,
+          "line": 490,
           "sink": "setPlaceholderText"
         }
       ]
@@ -92636,7 +92641,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 484,
+          "line": 486,
           "sink": "addItem"
         }
       ]
@@ -93216,7 +93221,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 228,
+          "line": 229,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -93531,7 +93536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 228,
+          "line": 229,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -95676,12 +95681,12 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 205,
+          "line": 206,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 228,
+          "line": 229,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -99836,7 +99841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 655,
+          "line": 664,
           "sink": "pump_startup_splash"
         }
       ]
@@ -102666,7 +102671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 263,
+          "line": 264,
           "sink": "QPushButton"
         }
       ]
@@ -103966,7 +103971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 590,
+          "line": 592,
           "sink": "setText"
         }
       ]
@@ -104021,7 +104026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 585,
+          "line": 587,
           "sink": "setText"
         }
       ]
@@ -105866,7 +105871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 227,
+          "line": 232,
           "sink": "emit"
         },
         {
@@ -106596,7 +106601,7 @@
       "origins": [
         {
           "path": "cdmw/workers/new_item_workers.py",
-          "line": 218,
+          "line": 222,
           "sink": "report"
         }
       ]
@@ -107006,12 +107011,12 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 205,
+          "line": 206,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 228,
+          "line": 229,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -110026,7 +110031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 689,
+          "line": 698,
           "sink": "pump_startup_splash"
         }
       ]
@@ -111181,7 +111186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/controller.py",
-          "line": 526,
+          "line": 546,
           "sink": "_clear_archive_preview"
         }
       ]
@@ -111271,7 +111276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 264,
+          "line": 265,
           "sink": "QPushButton"
         }
       ]
@@ -116071,7 +116076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 528,
+          "line": 530,
           "sink": "setText"
         }
       ]
@@ -120431,7 +120436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 517,
+          "line": 519,
           "sink": "setText"
         }
       ]
@@ -121981,7 +121986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 324,
+          "line": 329,
           "sink": "emit"
         }
       ]
@@ -122966,7 +122971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 381,
+          "line": 382,
           "sink": "setText"
         }
       ]
@@ -122976,7 +122981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 213,
+          "line": 214,
           "sink": "setPlaceholderText"
         }
       ]
@@ -123781,7 +123786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/controller.py",
-          "line": 657,
+          "line": 677,
           "sink": "set_status_message"
         }
       ]
@@ -124321,7 +124326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 564,
+          "line": 566,
           "sink": "information"
         }
       ]
@@ -124331,7 +124336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 572,
+          "line": 574,
           "sink": "information"
         }
       ]
@@ -125016,7 +125021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 215,
+          "line": 216,
           "sink": "QLabel"
         }
       ]
@@ -130981,7 +130986,7 @@
       "origins": [
         {
           "path": "cdmw/workers/new_item_workers.py",
-          "line": 118,
+          "line": 122,
           "sink": "log"
         }
       ]
@@ -134941,7 +134946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 393,
+          "line": 398,
           "sink": "emit"
         }
       ]
@@ -135121,7 +135126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 543,
+          "line": 545,
           "sink": "setText"
         }
       ]
@@ -135421,12 +135426,12 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 205,
+          "line": 206,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 228,
+          "line": 229,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -139606,7 +139611,7 @@
       "origins": [
         {
           "path": "cdmw/workers/character_finder_workers.py",
-          "line": 383,
+          "line": 385,
           "sink": "RuntimeError"
         }
       ]
@@ -139836,7 +139841,7 @@
       "origins": [
         {
           "path": "cdmw/workers/new_item_workers.py",
-          "line": 128,
+          "line": 132,
           "sink": "ValueError"
         }
       ]
@@ -139846,7 +139851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 93,
+          "line": 94,
           "sink": "failed"
         }
       ]
@@ -139896,12 +139901,12 @@
         },
         {
           "path": "cdmw/workers/new_item_workers.py",
-          "line": 336,
+          "line": 340,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/workers/new_item_workers.py",
-          "line": 366,
+          "line": 370,
           "sink": "RuntimeError"
         }
       ]
@@ -141091,7 +141096,7 @@
       "origins": [
         {
           "path": "cdmw/workers/new_item_workers.py",
-          "line": 195,
+          "line": 199,
           "sink": "report"
         }
       ]
@@ -141266,7 +141271,7 @@
       "origins": [
         {
           "path": "cdmw/workers/character_finder_workers.py",
-          "line": 358,
+          "line": 360,
           "sink": "RuntimeError"
         }
       ]
@@ -141401,12 +141406,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 248,
+          "line": 253,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/new_item_workers.py",
-          "line": 253,
+          "line": 257,
           "sink": "ValueError"
         }
       ]
@@ -141751,7 +141756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 293,
+          "line": 298,
           "sink": "emit"
         }
       ]
@@ -142011,7 +142016,7 @@
       "origins": [
         {
           "path": "cdmw/workers/character_finder_workers.py",
-          "line": 348,
+          "line": 350,
           "sink": "RuntimeError"
         }
       ]
@@ -142406,7 +142411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 283,
+          "line": 288,
           "sink": "emit"
         }
       ]
@@ -142671,7 +142676,7 @@
       "origins": [
         {
           "path": "cdmw/workers/character_finder_workers.py",
-          "line": 424,
+          "line": 429,
           "sink": "RuntimeError"
         }
       ]
@@ -143671,7 +143676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 129,
+          "line": 131,
           "sink": "failed"
         }
       ]
@@ -143756,7 +143761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/controller.py",
-          "line": 491,
+          "line": 511,
           "sink": "ArchiveBackendError"
         },
         {
@@ -144046,7 +144051,7 @@
       "origins": [
         {
           "path": "cdmw/workers/character_finder_workers.py",
-          "line": 431,
+          "line": 436,
           "sink": "RuntimeError"
         }
       ]
@@ -151271,7 +151276,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 228,
+          "line": 229,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -155196,12 +155201,12 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 205,
+          "line": 206,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 228,
+          "line": 229,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -157741,7 +157746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 493,
+          "line": 495,
           "sink": "setToolTip"
         }
       ]
@@ -158001,7 +158006,7 @@
       "origins": [
         {
           "path": "cdmw/workers/new_item_workers.py",
-          "line": 282,
+          "line": 286,
           "sink": "log"
         }
       ]
@@ -158396,7 +158401,7 @@
       "origins": [
         {
           "path": "cdmw/workers/new_item_workers.py",
-          "line": 287,
+          "line": 291,
           "sink": "log"
         }
       ]
@@ -163781,7 +163786,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 326,
+          "line": 327,
           "sink": "python-return:_manager_for_row"
         }
       ]
@@ -165166,12 +165171,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 319,
+          "line": 324,
           "sink": "_run"
         },
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 342,
+          "line": 347,
           "sink": "_run"
         }
       ]
@@ -165851,7 +165856,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 479,
+          "line": 481,
           "sink": "addItem"
         }
       ]
@@ -167466,7 +167471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 362,
+          "line": 367,
           "sink": "_run"
         }
       ]
@@ -172196,12 +172201,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 368,
+          "line": 373,
           "sink": "_run"
         },
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 375,
+          "line": 380,
           "sink": "_run"
         },
         {
@@ -172246,7 +172251,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 484,
+          "line": 486,
           "sink": "addItem"
         }
       ]
@@ -172876,7 +172881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 295,
+          "line": 300,
           "sink": "_run"
         }
       ]
@@ -173921,7 +173926,7 @@
         },
         {
           "path": "cdmw/ui/character_finder/preview_controller.py",
-          "line": 497,
+          "line": 511,
           "sink": "emit"
         }
       ]
@@ -174751,7 +174756,7 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 755,
+          "line": 764,
           "sink": "_register_detachable_tool"
         }
       ]
@@ -175256,7 +175261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/preview_controller.py",
-          "line": 346,
+          "line": 348,
           "sink": "_report_progress"
         },
         {
@@ -176321,7 +176326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 761,
+          "line": 770,
           "sink": "_register_detachable_tool"
         },
         {
@@ -176866,7 +176871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 133,
+          "line": 135,
           "sink": "_run"
         }
       ]
@@ -178211,7 +178216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 751,
+          "line": 760,
           "sink": "_register_detachable_tool"
         }
       ]
@@ -182611,7 +182616,7 @@
       "origins": [
         {
           "path": "cdmw/workers/new_item_workers.py",
-          "line": 331,
+          "line": 335,
           "sink": "log"
         }
       ]
@@ -183771,7 +183776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/controller.py",
-          "line": 650,
+          "line": 670,
           "sink": "set_status_message"
         }
       ]
@@ -187136,7 +187141,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 504,
+          "line": 506,
           "sink": "setText"
         },
         {
@@ -187976,7 +187981,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
-          "line": 534,
+          "line": 536,
           "sink": "setText"
         }
       ]
