@@ -2182,6 +2182,7 @@ def _json_safe(value: object) -> object:
         if isinstance(value, MeshMorphDefinition):
             payload["authored_vertex_count"] = sum(len(item.vertex_indices) for item in value.authored_fields)
             payload["correction_vertex_count"] = sum(len(item.vertex_indices) for item in value.garment_corrections)
+            payload["garment_correction_submesh_indices"] = sorted({item.submesh_index for item in value.garment_corrections})
         elif isinstance(value, MeshRefitGarmentSettings):
             payload["has_vertex_mask"] = value.vertex_mask is not None
         elif isinstance(value, MeshRefitDriverRegion):
@@ -8485,6 +8486,7 @@ class RustMeshAuthoringSession:
         self._require_open()
         if self.replacement_comparison != "edit":
             raise RustMeshValidationError("Return to Edit before changing replacement geometry.")
+        self._ensure_correction_comparison_resolved()
         self.validate_message_identity(request)
         self._require_shadow_revision(request)
         _validate_owned_session_tree(self.root, self.root_identity)
@@ -8942,6 +8944,8 @@ class RustMeshAuthoringSession:
         arguments = request.get("arguments")
         args = dict(arguments) if isinstance(arguments, Mapping) else {}
         shadow_session = self.shadow_service._session(self.shadow_session_id)
+        if command not in {"state", "select", "undo", "redo", "morph_set_corrections_enabled"}:
+            self._ensure_correction_comparison_resolved()
         if (shadow_session.hair_state is not None and not shadow_session.hair_state.payload["converted"]
                 and (command in {"topology", "mesh_action", "import_editable_package", "layer_delete", "layer_paste"}
                      or command.startswith(("morph_", "refit_"))
@@ -9046,6 +9050,8 @@ class RustMeshAuthoringSession:
         file_commands = {
             "morph_import_preset",
             "morph_import_recipe",
+            "morph_save_setup",
+            "morph_apply_setup",
             "morph_save_profile",
             "morph_delete_profile",
             "morph_save_preset",
@@ -9114,7 +9120,14 @@ class RustMeshAuthoringSession:
             self._profile_tree_tainted = False
             return result
 
+    def _ensure_correction_comparison_resolved(self) -> None:
+        data = getattr(self.shadow_service, "_morph_sessions", {}).get(self.shadow_session_id)
+        if data is not None and not getattr(data, "corrections_enabled", True):
+            raise RustMeshValidationError("Turn outfit corrections back on before editing or finishing.")
+
     def _ensure_morph_authoring_resolved(self, command: str = "") -> None:
+        if command != "morph_set_corrections_enabled":
+            self._ensure_correction_comparison_resolved()
         cached = getattr(self.shadow_service, "cached_morph_state_from_runtime", None)
         if not callable(cached):
             return
@@ -9134,6 +9147,24 @@ class RustMeshAuthoringSession:
         service = self.shadow_service
         session_id = self.shadow_session_id
         self._ensure_morph_authoring_resolved(command)
+        if command == "morph_generate_body_controls":
+            return service.generate_body_morph_controls(session_id)
+        if command == "morph_set_macro":
+            return service.set_morph_macro(session_id, args.get("macro_id"), args.get("value"), phase=args.get("phase", "end"))
+        if command == "morph_reset_macros":
+            return service.reset_morph_macros(session_id)
+        if command == "morph_set_symmetry":
+            return service.set_morph_symmetry(session_id, args.get("enabled"))
+        if command == "morph_set_side_value":
+            return service.set_morph_side_value(session_id, args.get("pair_id"), args.get("value"), side=args.get("side", "both"), phase=args.get("phase", "end"))
+        if command == "morph_set_corrections_enabled":
+            return service.set_morph_corrections_enabled(session_id, args.get("enabled"))
+        if command == "morph_reset_correction":
+            return service.reset_morph_correction(session_id, str(args.get("definition_id", "")), _morph_target_indices(args))
+        if command == "morph_save_setup":
+            return service.save_refit_setup(session_id, args.get("name"))
+        if command == "morph_apply_setup":
+            return service.apply_refit_setup(session_id, args.get("recipe_id"), _morph_target_indices(args))
         if command == "morph_capture_baseline":
             return service.capture_morph_baseline(
                 session_id, _morph_target_indices(args, "submesh_indices"), selection=None,

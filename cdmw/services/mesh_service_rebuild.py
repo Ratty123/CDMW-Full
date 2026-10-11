@@ -343,6 +343,9 @@ class MeshRebuildServiceMixin:
                     f"mesh export session changed before capture: expected revision {int(expected_mesh_revision)}, "
                     f"current revision {session.revision}"
                 )
+            morph_data = self._morph_sessions.get(session.session_id)
+            if morph_data is not None and not getattr(morph_data, "corrections_enabled", True):
+                raise RuntimeError("Turn outfit corrections back on before exporting the mesh.")
             captured_revision = int(session.revision)
             native_revision = captured_revision
             if session.native_editor_mesh_dirty:

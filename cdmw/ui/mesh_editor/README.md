@@ -1487,8 +1487,9 @@ in the current editor session. Closing panels preserves geometry and selection.
 names stay on one line with the full name on hover. **Open Selection tool** opens the
 standard selection controls for picking a region and preserves the current selection.
 New sliders capture that selection; existing sliders and presets use their saved regions
-without requiring another selection. **Shape sliders** holds preview values, Reset, and
-Bake. **Create / edit sliders** opens when editing a procedural slider and keeps its
+without requiring another selection. **Body controls** coordinates anatomical regions;
+**Side adjustments** links or independently edits paired regions. **Shape sliders**
+holds manual values, Reset, and Bake. **Create / edit sliders** opens when editing a procedural slider and keeps its
 rule/axis/strength and advanced scope options together. **Sculpted sliders** captures a
 neutral body and the edited target shape; each Shape slider can also own a separate
 outfit correction.
@@ -1658,6 +1659,43 @@ for the checked garments. Region changes require a neutral preview, and rebindin
 preserves other garments' bindings, modes and masks. Regions constrain correspondence;
 clearance still checks the complete selected body.
 
+#### Coordinated body controls and sides
+
+After assigning the body driver, open **Body controls** and choose **Create body
+controls**. Generation requires source-owned PAC body Parts and their resolved,
+matching skeleton. An unavailable reason identifies missing source or palette
+information. Reset or Bake the current preview first. Generation creates a new
+profile and preserves the previous custom profile and existing garment bindings;
+Undo restores them together.
+
+Supported anatomical regions receive detailed Size, Length, Taper, Flatten and
+Shift sliders. Coordinated controls appear only when every required generated
+slider and its supported rule are present:
+
+| Control | Coordinated shape |
+| --- | --- |
+| Shoulder contour | Shoulder, upper torso and upper-arm fullness |
+| Waist shape | Lower torso, with smaller pelvis and upper-torso contributions |
+| Hip-to-thigh transition | Pelvis, hips and thighs |
+| Upper-body balance | Upper torso, shoulders, upper arms and forearms |
+
+These controls add to retained manual values. **Shape sliders** edits those manual
+values and shows the combined preview value when it differs. **Reset body controls**
+removes only the coordinated contributions, restoring the manual shape even after
+the combined preview reached a slider limit. Ordinary **Reset** clears the complete
+morph preview and its layers; **Bake** keeps the current geometry and clears the
+layers. All these operations support Undo/Redo.
+
+**Side adjustments** offers **Both**, **Left** and **Right** for supported generated
+pairs. Both shifts the two manual values equally and keeps their difference.
+Its range narrows near the limits to preserve that difference. Left and Right
+change only the selected retained side value. **Link sides** evaluates each pair
+at the average of its retained manual values before applying coordinated controls.
+It preserves the independent inputs, so unlinking restores them. Editing Left or
+Right while linked still updates the retained input; the linked preview continues
+to evaluate the pair together. Equal control values do not remove asymmetry already
+present in the source body.
+
 #### Sculpted body sliders
 
 Use a sculpted slider when a saved target shape is more useful than a procedural rule:
@@ -1700,8 +1738,10 @@ zero. Sculpt the selected garments, then choose **Save outfit correction**.
 
 The saved displacement is additional to the normal body fit and scales with that
 slider. Zero removes its correction; intermediate values apply the corresponding
-fraction. Saving keeps the selected slider at 100%. **Cancel outfit correction**
-restores every Part's vertex positions and the slider values that were active when
+fraction. With direct sliders, saving keeps the selected slider at 100%. When retained
+body-control layers are active, saving returns to the preceding manual, macro and
+linked-side settings. **Cancel outfit correction** restores every Part's vertex
+positions and all slider layers that were active when
 editing began. This also discards accidental body edits and shape changes outside
 the selected garments. UV and material edits are retained. Undo/Redo restores the
 pending correction and discarded shapes. If topology or source/skin identity has
@@ -1728,6 +1768,16 @@ shape with a procedural rule.
 garments. Correction data stays in the profile and applies again only after those
 garments are bound and enabled. Saved influence masks remain part of exported
 fitting setups; clearing the current bindings clears their session masks.
+
+**Show outfit corrections** compares the automatic fit with the saved corrections
+hidden while retaining the body shape and correction data. Turn it back on, or choose
+**Resume editing**, before editing, exporting or finishing. View controls, selection,
+Undo/Redo and Cancel remain available during the comparison.
+
+**Reset selected outfit correction**, below a Shape slider, removes that slider's
+saved correction only from the selected corrected, bound garment Parts. Other
+corrections, body-control layers, bindings and influence masks remain intact.
+Undo/Redo restores the removed correction and its geometry.
 
 #### Geometry layers and output
 
@@ -1765,7 +1815,10 @@ definitions. The same driver topology and Part order are required. Authored targ
 and corrections also require their recorded neutral geometry and source/skin identity.
 Procedural-only profiles retain their version 2 shape. Profiles containing authored
 targets or corrections declare version 3, so older CDMW builds refuse unsupported
-data instead of silently omitting it. Existing version 1 region migration remains
+data instead of silently omitting it. Value presets containing retained manual,
+macro or linked-side layers also declare version 3 and verify that their combined
+values still agree with the saved slider rules. Direct-value presets retain version 2.
+Existing version 1 region migration remains
 available; unverified legacy external target files are not reconstructed automatically.
 
 Ordinary preset files retain slider definitions and values. They do not retain
@@ -1773,6 +1826,21 @@ session-specific garment bindings, masks or allowed body regions; use a fitting 
 for that complete configuration.
 
 #### Reusable fitting setups and multiple outfits
+
+Name the fit in the preset-name field and choose **Save reusable fitting setup** to
+retain it in the session library. **Matching fitting setups** lists saved setups whose
+body and garment Parts have the required neutral geometry, topology and source/skin
+identity. Choose a **Saved setup** to apply it to the selected matching garment Parts,
+or to all its garment Parts when none are selected. The body's preset remains shared.
+An active shape preview can stay in place during matching and application because
+compatibility is checked against its neutral base. Application checks the current
+saved file again before changing the fit.
+
+The saved setup includes manual and coordinated values, linked-side settings,
+corrections, garment settings, influence masks and allowed body regions. It uses the
+same undoable session library as profiles and presets: Finish commits it and Cancel
+discards the session's library changes. Matching uses verified loaded Parts; it does
+not guess compatibility from an outfit's name or transfer indexed data to other meshes.
 
 **Save fitting setup...** writes a portable JSON file containing the active profile,
 slider percentages, body roles, each garment's mode/intensity/clearance, influence
@@ -1792,7 +1860,8 @@ loaded. Other Parts retain their individual mode, intensity and clearance.
 A setup can be reopened in a later compatible session. Load multiple outfit assets
 around the same body to apply one preset and their individual settings together;
 Finish and Build Mod continue through the existing atomic multi-asset output.
-Service callers can target a subset of the recipe's garment slots; other bindings
+The saved-setup selector and service callers can target a subset of the setup's garment
+slots; other bindings
 and settings are retained, while the body preset remains shared by the session.
 
 This workflow operates on loaded, verified meshes. It does not search arbitrary

@@ -130,6 +130,10 @@ const CDMW_UI_SOURCE: &str = concat!(
     "\n",
     include_str!("cdmw_ui/morph_authoring.rs"),
     "\n",
+    include_str!("cdmw_ui/morph_body_controls.rs"),
+    "\n",
+    include_str!("cdmw_ui/morph_outfit_workflows.rs"),
+    "\n",
     include_str!("cdmw_history.rs"),
     "\n",
     include_str!("cdmw_islands.rs"),
@@ -736,12 +740,21 @@ jiggle.preview.damping|jiggle|"Preview damping"|settings.damping
 uv.transform|uv|"uv_transform"|UiAction::CdmwMeshAction
 uv.auto_unwrap|uv|"auto_uv"|UiAction::CdmwMeshAction
 uv.pixel_snap|uv|"snap_pixels"|UiAction::CdmwMeshAction
+morph.generate_body_controls|morph_refit|command: "morph_generate_body_controls"|UiAction::CdmwCommand
+morph.set_macro|morph_refit|command: "morph_set_macro"|UiAction::CdmwCommand
+morph.reset_macros|morph_refit|command: "morph_reset_macros"|UiAction::CdmwCommand
+morph.set_symmetry|morph_refit|command: "morph_set_symmetry"|UiAction::CdmwCommand
+morph.set_side_value|morph_refit|command: "morph_set_side_value"|UiAction::CdmwCommand
 morph.capture_baseline|morph_refit|command: "morph_capture_baseline"|UiAction::CdmwCommand
 morph.cancel_baseline|morph_refit|command: "morph_cancel_baseline"|UiAction::CdmwCommand
 morph.capture_authored|morph_refit|command: "morph_capture_authored"|UiAction::CdmwCommand
 morph.begin_correction|morph_refit|command: "morph_begin_correction"|UiAction::CdmwCommand
 morph.save_correction|morph_refit|command: "morph_save_correction"|UiAction::CdmwCommand
 morph.cancel_correction|morph_refit|command: "morph_cancel_correction"|UiAction::CdmwCommand
+morph.compare_corrections|morph_refit|command: "morph_set_corrections_enabled"|UiAction::CdmwCommand
+morph.reset_correction|morph_refit|command: "morph_reset_correction"|UiAction::CdmwCommand
+refit.save_setup|morph_refit|command: "morph_save_setup"|UiAction::CdmwCommand
+refit.apply_setup|morph_refit|command: "morph_apply_setup"|UiAction::CdmwCommand
 refit.vertex_influence|morph_refit|command: "morph_set_influence"|UiAction::CdmwCommand
 refit.clear_influence|morph_refit|command: "morph_clear_influence"|UiAction::CdmwCommand
 refit.driver_region|morph_refit|command: "morph_set_driver_region"|UiAction::CdmwCommand
@@ -864,6 +877,15 @@ mod tests {
         assert!(keys.contains("normals.weighted"));
         assert!(keys.contains("uv.auto_unwrap"));
         assert!(keys.contains("rig.transfer_weights"));
+        assert!(keys.contains("morph.generate_body_controls"));
+        assert!(keys.contains("morph.set_macro"));
+        assert!(keys.contains("morph.reset_macros"));
+        assert!(keys.contains("morph.set_symmetry"));
+        assert!(keys.contains("morph.set_side_value"));
+        assert!(keys.contains("morph.compare_corrections"));
+        assert!(keys.contains("morph.reset_correction"));
+        assert!(keys.contains("refit.save_setup"));
+        assert!(keys.contains("refit.apply_setup"));
         assert!(rows.iter().all(|row| {
             row.get("source_binding_verified").and_then(Value::as_bool) == Some(true)
         }));

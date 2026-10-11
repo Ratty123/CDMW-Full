@@ -80,6 +80,7 @@ from cdmw.services.mesh_service_morph_authoring import (
     clone_correction_capture,
 )
 from cdmw.services.mesh_service_morph_recipes import MeshMorphRecipeMixin
+from cdmw.services.mesh_service_morph_layers import MeshMorphLayerMixin, clear_morph_layers
 from cdmw.services.mesh_service_state import (
     _MeshEditSession,
     _MeshHistorySnapshot,
@@ -104,6 +105,11 @@ class _MeshMorphSessionData:
     authoring_baseline: _MorphAuthoringBaseline | None = None
     correction_capture: _MorphCorrectionCapture | None = None
     authoring_operation: bool = False
+    manual_values: dict[str, float] | None = None
+    macro_values: dict[str, float] = field(default_factory=dict)
+    symmetry_enabled: bool = False
+    corrections_enabled: bool = True
+    refit_setup_cache: object | None = None
 
 
 _DEFERRED_MORPH_DISPOSAL_LOCK = threading.Lock()
@@ -195,7 +201,7 @@ def dispose_mesh_morph_session_state(state: _MeshMorphSessionState) -> None:
         raise RuntimeError("Resident C++ Morph & Refit runtime snapshot cleanup failed.")
 
 
-class MeshMorphServiceMixin(MeshMorphAuthoringMixin, MeshMorphRecipeMixin):
+class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMorphRecipeMixin):
     """Keep UI shells thin while the resident C++ session owns deformation."""
 
     def capture_morph_session_state(self, session_id: str) -> _MeshMorphSessionState:
@@ -577,6 +583,10 @@ class MeshMorphServiceMixin(MeshMorphAuthoringMixin, MeshMorphRecipeMixin):
             topology_invalidated=bool(data.topology_invalidated),
             authoring_baseline=clone_authoring_baseline(data.authoring_baseline),
             correction_capture=clone_correction_capture(data.correction_capture),
+            manual_values=None if data.manual_values is None else dict(data.manual_values),
+            macro_values=dict(data.macro_values),
+            symmetry_enabled=bool(data.symmetry_enabled),
+            corrections_enabled=bool(data.corrections_enabled),
         )
 
     def _apply_morph_edit_command_locked(
@@ -592,6 +602,16 @@ class MeshMorphServiceMixin(MeshMorphAuthoringMixin, MeshMorphRecipeMixin):
             return authored_result
         if action != "morph_refresh":
             self._require_no_pending_morph_authoring(session, include_baseline=True)
+        if action == "morph_generate_body_controls":
+            return self.generate_body_morph_controls(session.session_id)[0]
+        if action == "morph_set_macro":
+            return self.set_morph_macro(session.session_id, params.get("macro_id"), params.get("value"), phase=params.get("phase", "end"))[0]
+        if action == "morph_reset_macros":
+            return self.reset_morph_macros(session.session_id)[0]
+        if action == "morph_set_symmetry":
+            return self.set_morph_symmetry(session.session_id, params.get("enabled"))[0]
+        if action == "morph_set_side_value":
+            return self.set_morph_side_value(session.session_id, params.get("pair_id"), params.get("value"), side=params.get("side", "both"), phase=params.get("phase", "end"))[0]
         if action == "morph_refresh":
             self.morph_state(session.session_id)
             return self._result(session, action)
@@ -776,7 +796,18 @@ class MeshMorphServiceMixin(MeshMorphAuthoringMixin, MeshMorphRecipeMixin):
         neutral_positions: Sequence[Mapping[str, object]] | None = None,
         values: Mapping[str, float] | None = None,
         base_mesh: ParsedMesh | None = None,
+        retain_layers: bool = False,
     ) -> tuple[MeshEditResult, MeshMorphState]:
+        current_data = self._morph_sessions.get(session.session_id)
+        if record_history and current_data is not None and current_data.manual_values is not None:
+            return self._morph_authoring_transaction_locked(
+                session, "morph_activate", "Select Morph Profile",
+                lambda: self._activate_morph_profile_locked(
+                    session, profile, diagnostics, record_history=False,
+                    preserve_runtime=preserve_runtime, neutral_positions=neutral_positions,
+                    values=values, base_mesh=base_mesh, retain_layers=retain_layers,
+                )[0],
+            )
         if len(profile.definitions) > _MORPH_MAX_DEFINITIONS:
             raise RuntimeError(
                 f"Morph profiles support at most {_MORPH_MAX_DEFINITIONS} definitions"
@@ -799,6 +830,7 @@ class MeshMorphServiceMixin(MeshMorphAuthoringMixin, MeshMorphRecipeMixin):
                 ("post_refit", definition.garment_corrections),
             )
             for sparse in rows
+            if stage != "post_refit" or current_data is None or current_data.corrections_enabled
         ]
         upload_payload = {
             "profile": {
@@ -851,6 +883,8 @@ class MeshMorphServiceMixin(MeshMorphAuthoringMixin, MeshMorphRecipeMixin):
             data = _MeshMorphSessionData()
             self._morph_sessions[session.session_id] = data
         data.profile = profile
+        if not retain_layers:
+            clear_morph_layers(data)
         data.preset_id = ""
         data.diagnostics = tuple(diagnostics)
         data.known_profiles[profile.profile_id] = profile
@@ -1231,6 +1265,7 @@ class MeshMorphServiceMixin(MeshMorphAuthoringMixin, MeshMorphRecipeMixin):
                     history_label="Reset Morph",
                     record_history=False,
                 )
+                clear_morph_layers(data)
                 result, _state = self._morph_result_and_state_locked(
                     session,
                     "morph_delete_profile",
@@ -1291,6 +1326,10 @@ class MeshMorphServiceMixin(MeshMorphAuthoringMixin, MeshMorphRecipeMixin):
             if definition is None:
                 raise ValueError(f"Unknown procedural morph definition: {definition_key or '<empty>'}")
             normalized_phase = str(phase or "end").strip().lower()
+            if data.manual_values is not None:
+                return self._set_layered_manual_value_locked(
+                    session, definition, value, phase=normalized_phase,
+                )
             report = self._run_morph_command_locked(
                 session,
                 "morph_change",
@@ -1318,6 +1357,8 @@ class MeshMorphServiceMixin(MeshMorphAuthoringMixin, MeshMorphRecipeMixin):
             preset = next((item for item in presets if item.preset_id == requested), None)
             if preset is None:
                 raise ValueError(f"Unknown procedural morph preset: {requested or '<empty>'}")
+            if preset.manual_values is not None or data.manual_values is not None:
+                return self._apply_layered_morph_preset_locked(session, preset, diagnostics)
             report = self._run_morph_command_locked(
                 session,
                 "morph_apply_preset",
@@ -1347,6 +1388,8 @@ class MeshMorphServiceMixin(MeshMorphAuthoringMixin, MeshMorphRecipeMixin):
                 raise ValueError(
                     f"Unknown cached procedural morph preset: {requested or '<empty>'}"
                 )
+            if preset.manual_values is not None or data.manual_values is not None:
+                return self._apply_layered_morph_preset_locked(session, preset)
             report = self._run_morph_command_locked(
                 session,
                 "morph_apply_preset",
@@ -1382,6 +1425,7 @@ class MeshMorphServiceMixin(MeshMorphAuthoringMixin, MeshMorphRecipeMixin):
                 profile_id=data.profile.profile_id,  # type: ignore[union-attr]
                 topology_fingerprint=data.profile.topology_fingerprint,  # type: ignore[union-attr]
                 values=tuple(values.items()),
+                **self._morph_layer_preset_fields_locked(session),
             )
             try:
                 relative, document = serialized_mesh_morph_preset(
@@ -1435,6 +1479,7 @@ class MeshMorphServiceMixin(MeshMorphAuthoringMixin, MeshMorphRecipeMixin):
                 profile_id=data.profile.profile_id,
                 topology_fingerprint=data.profile.topology_fingerprint,
                 values=tuple(_morph_values_from_report(report).items()),
+                **self._morph_layer_preset_fields_locked(session),
             )
             document = serialized_mesh_morph_bundle(
                 data.profile, preset, max_bytes=_MESH_MORPH_PROFILE_MAX_FILE_BYTES,
@@ -1489,6 +1534,7 @@ class MeshMorphServiceMixin(MeshMorphAuthoringMixin, MeshMorphRecipeMixin):
                 data = self._required_morph_data(session)
                 data.preset_id = preset.preset_id
                 data.known_presets[(profile.profile_id, preset.preset_id)] = preset
+                self._install_morph_preset_layers_locked(session, preset)
                 state = self._morph_result_and_state_locked(session, "morph_apply_preset", report)[1]
                 self._publish_morph_profile_history_locked(session, history, base_revision=base_revision)
                 return state
@@ -1617,12 +1663,18 @@ class MeshMorphServiceMixin(MeshMorphAuthoringMixin, MeshMorphRecipeMixin):
         return self._simple_morph_command(session_id, "morph_clear_refit", {}, "Clear Garment Refit", True)
 
     def reset_morph(self, session_id: str) -> tuple[MeshEditResult, MeshMorphState]:
+        if getattr(self._morph_sessions.get(session_id), "manual_values", None) is not None:
+            return self._simple_layered_morph_command(session_id, "morph_reset", "Reset Morph")
         return self._simple_morph_command(session_id, "morph_reset", {}, "Reset Morph", True)
 
     def bake_morph(self, session_id: str) -> tuple[MeshEditResult, MeshMorphState]:
+        if getattr(self._morph_sessions.get(session_id), "manual_values", None) is not None:
+            return self._simple_layered_morph_command(session_id, "morph_bake", "Bake Morph")
         return self._simple_morph_command(session_id, "morph_bake", {}, "Bake Morph", True)
 
     def finish_morph(self, session_id: str) -> tuple[MeshEditResult, MeshMorphState]:
+        if getattr(self._morph_sessions.get(session_id), "manual_values", None) is not None:
+            return self._simple_layered_morph_command(session_id, "morph_finish", "Finish Morph")
         return self._simple_morph_command(session_id, "morph_finish", {}, "Finish Morph", True)
 
     def _simple_morph_command(
@@ -1736,6 +1788,9 @@ class MeshMorphServiceMixin(MeshMorphAuthoringMixin, MeshMorphRecipeMixin):
             data.known_profiles[data.profile.profile_id] = data.profile
         data.profile = None
         data.preset_id = ""
+        clear_morph_layers(data)
+        data.corrections_enabled = True
+        data.refit_setup_cache = None
         data.topology_mesh = None
         data.topology_invalidated = True
         data.profiles_loaded = False
@@ -1924,6 +1979,7 @@ class MeshMorphServiceMixin(MeshMorphAuthoringMixin, MeshMorphRecipeMixin):
         action: str,
         report: Mapping[str, object],
     ) -> tuple[MeshEditResult, MeshMorphState]:
+        previous_revision = session.revision
         counts = _native_editor_dirty_counts_from_report(report, current_submesh_count=len(session.working_mesh.submeshes))
         affected = _native_editor_report_affected_indices(report, len(counts) if counts else len(session.working_mesh.submeshes))
         changed = _native_editor_report_changed_vertices(report, counts or tuple((len(submesh.vertices), len(submesh.faces)) for submesh in session.working_mesh.submeshes))
@@ -1953,6 +2009,11 @@ class MeshMorphServiceMixin(MeshMorphAuthoringMixin, MeshMorphRecipeMixin):
             diagnostics=tuple(str(item) for item in tuple(report.get("diagnostics") or ()) if str(item).strip()),
             metrics=metrics,
         )
+        if action in {
+            "morph_change", "morph_apply_preset", "morph_reset",
+            "morph_set_macro", "morph_reset_macros", "morph_set_symmetry", "morph_set_side_value",
+        }:
+            self._carry_refit_setup_cache_locked(session, previous_revision)
         return result, self._remember_morph_state(session, self._morph_state_from_report_locked(session, report))
 
     def _remember_morph_state(self, session: _MeshEditSession, state: MeshMorphState) -> MeshMorphState:
@@ -2053,8 +2114,15 @@ class MeshMorphServiceMixin(MeshMorphAuthoringMixin, MeshMorphRecipeMixin):
             )
             if str(item).strip()
         ))
+        body_available, body_reason = self._body_controls_availability_locked(session, raw_state)
+        layer_fields = self._morph_layer_state_fields_locked(
+            session, data, profile, _morph_values_from_report(raw_state),
+        )
         return MeshMorphState(
             session_id=session.session_id,
+            body_controls_available=body_available,
+            body_controls_reason=body_reason,
+            **layer_fields,
             profile_id=active_profile_id,
             preset_id=data.preset_id,
             topology_fingerprint=(profile.topology_fingerprint if profile is not None else ""),
@@ -2088,6 +2156,8 @@ class MeshMorphServiceMixin(MeshMorphAuthoringMixin, MeshMorphRecipeMixin):
             authoring_driver_submesh_indices=(data.authoring_baseline.driver_submesh_indices if data.authoring_baseline is not None else ()),
             correction_definition_id=(data.correction_capture.definition_id if data.correction_capture is not None else ""),
             correction_garment_submesh_indices=(data.correction_capture.garment_submesh_indices if data.correction_capture is not None else ()),
+            corrections_enabled=data.corrections_enabled,
+            matching_recipes=self._matching_refit_setups_locked(session, data, raw_state),
         )
 
 

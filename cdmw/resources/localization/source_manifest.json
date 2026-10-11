@@ -4477,6 +4477,16 @@
       ]
     },
     {
+      "key": "A weighted body influence falls outside its verified PAC palette.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_body_controls.py",
+          "line": 155,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "A+",
       "origins": [
         {
@@ -8427,6 +8437,16 @@
       ]
     },
     {
+      "key": "Anatomical Body Controls",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_body_controls.py",
+          "line": 208,
+          "sink": "build_region_slider_profile"
+        }
+      ]
+    },
+    {
       "key": "Anchor",
       "origins": [
         {
@@ -9432,6 +9452,16 @@
       ]
     },
     {
+      "key": "Applies to all matching garment Parts.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_outfit_workflows.rs",
+          "line": 114,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Applies to all {value_0} parts sharing this assignment",
       "origins": [
         {
@@ -9448,6 +9478,16 @@
           "path": "cdmw/ui/new_item/body_visibility_editor.py",
           "line": 24,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Applies to the selected matching garment Parts.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_outfit_workflows.rs",
+          "line": 116,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -9813,6 +9853,16 @@
           "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
           "line": 743,
           "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
+      "key": "Apply matching fitting setup",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_outfit_workflows.rs",
+          "line": 105,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -11418,6 +11468,16 @@
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
           "line": 396,
           "sink": "emit"
+        }
+      ]
+    },
+    {
+      "key": "Archive body Part identities changed. Reopen the body and outfit.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_body_controls.py",
+          "line": 68,
+          "sink": "ValueError"
         }
       ]
     },
@@ -13112,6 +13172,16 @@
       ]
     },
     {
+      "key": "Arms",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Arrow",
       "origins": [
         {
@@ -13562,6 +13632,16 @@
       ]
     },
     {
+      "key": "Assign a supported body and reset or bake its preview before creating body controls.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_body_controls.rs",
+          "line": 30,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Assign body Parts first using the control below",
       "origins": [
         {
@@ -13582,6 +13662,16 @@
       ]
     },
     {
+      "key": "Assign the body Parts before generating body controls.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_body_controls.py",
+          "line": 41,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Assigned",
       "origins": [
         {
@@ -13598,6 +13688,21 @@
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_helpers.py",
           "line": 373,
           "sink": "python-return:texture_status_text"
+        }
+      ]
+    },
+    {
+      "key": "Assigned body Parts must use exact integer indices.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_body_controls.py",
+          "line": 32,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/mesh_service_body_controls.py",
+          "line": 36,
+          "sink": "ValueError"
         }
       ]
     },
@@ -16207,11 +16312,11 @@
       "manual": true
     },
     {
-      "key": "Bind at least one garment to a body driver before exporting a fitting recipe.",
+      "key": "Bind at least one garment to a body driver before saving a fitting recipe.",
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph_recipes.py",
-          "line": 171,
+          "line": 209,
           "sink": "RuntimeError"
         }
       ]
@@ -16722,6 +16827,81 @@
       ]
     },
     {
+      "key": "Body control generation currently needs source-owned PAC body Parts.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_body_controls.py",
+          "line": 94,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Body control is unavailable for this profile: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_layers.py",
+          "line": 131,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Body control layers require the v3 value preset format.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_morph_profiles.py",
+          "line": 334,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Body control value is outside its supported range.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_layers.py",
+          "line": 139,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Body control values must be finite numbers.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_layers.py",
+          "line": 133,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/mesh_service_morph_layers.py",
+          "line": 137,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Body controls",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_body_controls.rs",
+          "line": 17,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Body controls accept completed slider changes only.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_layers.py",
+          "line": 126,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Body family compatibility: target {value_0} / donor {value_1} / {value_2}",
       "origins": [
         {
@@ -16972,12 +17152,37 @@
       ]
     },
     {
+      "key": "Both",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_body_controls.rs",
+          "line": 126,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_body_controls.rs",
+          "line": 129,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Both axes",
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
           "line": 748,
           "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "Both moves the two sides together while keeping their difference. Linking shows matching sides and retains your independent values.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_body_controls.rs",
+          "line": 112,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -17093,6 +17298,211 @@
           "path": "cdmw/ui/mesh_editor/actions.py",
           "line": 329,
           "sink": "MeshEditorAction"
+        }
+      ]
+    },
+    {
+      "key": "Breast",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Breast (Left)",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Breast (Left) Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Breast (Left) Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Breast (Left) Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Breast (Left) Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Breast (Left) Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Breast (Right)",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Breast (Right) Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Breast (Right) Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Breast (Right) Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Breast (Right) Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Breast (Right) Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Breast Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Breast Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Breast Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Breast Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Breast Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -20312,6 +20722,211 @@
       ]
     },
     {
+      "key": "Calf",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Calf (Left)",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Calf (Left) Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Calf (Left) Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Calf (Left) Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Calf (Left) Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Calf (Left) Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Calf (Right)",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Calf (Right) Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Calf (Right) Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Calf (Right) Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Calf (Right) Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Calf (Right) Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Calf Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Calf Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Calf Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Calf Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Calf Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Calibrated coverage (experimental)",
       "origins": [
         {
@@ -21907,6 +22522,26 @@
       ]
     },
     {
+      "key": "Change body control",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_body_controls.rs",
+          "line": 76,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Change body side adjustment",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_body_controls.rs",
+          "line": 169,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Change cancelled. The installed overlays are unchanged.",
       "origins": [
         {
@@ -21942,6 +22577,16 @@
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_islands.rs",
           "line": 194,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Change linked side preview",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_body_controls.rs",
+          "line": 120,
           "sink": "rust-presentation"
         }
       ]
@@ -22113,6 +22758,16 @@
           "path": "cdmw/ui/settings_tab.py",
           "line": 911,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Changes lower-torso fullness with a smaller pelvis and upper-torso transition.",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -24887,6 +25542,16 @@
       ]
     },
     {
+      "key": "Choose a saved fitting setup from the matching list.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_recipes.py",
+          "line": 170,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Choose a simple folder name without path separators.",
       "origins": [
         {
@@ -25712,6 +26377,16 @@
       ]
     },
     {
+      "key": "Choose matching setup",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_outfit_workflows.rs",
+          "line": 98,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Choose mod to extend...",
       "origins": [
         {
@@ -26202,6 +26877,16 @@
       ]
     },
     {
+      "key": "Choose the slider whose selected outfit correction should be reset.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 718,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Choose the source or format you actually used. Files are not attached to the report.",
       "origins": [
         {
@@ -26613,6 +27298,211 @@
           "path": "cdmw/ui/research/tab_builders.py",
           "line": 124,
           "sink": "_add_titled_help_header"
+        }
+      ]
+    },
+    {
+      "key": "Clavicle",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Clavicle (Left)",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Clavicle (Left) Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Clavicle (Left) Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Clavicle (Left) Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Clavicle (Left) Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Clavicle (Left) Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Clavicle (Right)",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Clavicle (Right) Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Clavicle (Right) Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Clavicle (Right) Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Clavicle (Right) Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Clavicle (Right) Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Clavicle Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Clavicle Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Clavicle Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Clavicle Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Clavicle Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -29237,6 +30127,16 @@
       ]
     },
     {
+      "key": "Compare outfit corrections",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_outfit_workflows.rs",
+          "line": 30,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Compare replacement output",
       "origins": [
         {
@@ -29278,6 +30178,16 @@
           "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
           "line": 319,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Compare the fitted outfit with its saved corrections hidden. The body shape and saved corrections are retained.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_outfit_workflows.rs",
+          "line": 24,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -30978,6 +31888,46 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_collision_part_01.py",
           "line": 167,
           "sink": "_add_collision_value_item"
+        }
+      ]
+    },
+    {
+      "key": "Coordinate related body regions. Returning these controls to 0% restores your detailed slider values.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_body_controls.rs",
+          "line": 41,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Coordinates pelvis, hip and thigh fullness.",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Coordinates shoulder, upper torso and upper-arm fullness.",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Coordinates upper torso, shoulders, upper arms and forearms.",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -32777,6 +33727,21 @@
       ]
     },
     {
+      "key": "Create body controls",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_body_controls.rs",
+          "line": 28,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_body_controls.rs",
+          "line": 35,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Create body slider",
       "origins": [
         {
@@ -32807,6 +33772,16 @@
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs",
           "line": 27,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Create coordinated controls from the assigned body's regions. Custom sculpted sliders keep their own controls.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_body_controls.rs",
+          "line": 20,
           "sink": "rust-presentation"
         }
       ]
@@ -33773,6 +34748,16 @@
           "path": "tools/placement_studio/move_weapon.py",
           "line": 269,
           "sink": "setHorizontalHeaderLabels"
+        }
+      ]
+    },
+    {
+      "key": "Current setup drivers",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_recipes.py",
+          "line": 294,
+          "sink": "_strict_indices"
         }
       ]
     },
@@ -39617,6 +40602,211 @@
       ]
     },
     {
+      "key": "Ear",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Ear (Left)",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Ear (Left) Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Ear (Left) Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Ear (Left) Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Ear (Left) Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Ear (Left) Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Ear (Right)",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Ear (Right) Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Ear (Right) Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Ear (Right) Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Ear (Right) Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Ear (Right) Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Ear Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Ear Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Ear Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Ear Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Ear Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Edge",
       "origins": [
         {
@@ -40287,6 +41477,16 @@
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
           "line": 83,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Edit side",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_body_controls.rs",
+          "line": 123,
           "sink": "rust-presentation"
         }
       ]
@@ -48767,6 +49967,16 @@
       ]
     },
     {
+      "key": "Finish the active edit before generating body controls.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_body_controls.py",
+          "line": 178,
+          "sink": "python-return:_body_controls_availability_locked"
+        }
+      ]
+    },
+    {
       "key": "Finish the active selection gesture first.",
       "origins": [
         {
@@ -50112,6 +51322,211 @@
       ]
     },
     {
+      "key": "Foot",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Foot (Left)",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Foot (Left) Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Foot (Left) Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Foot (Left) Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Foot (Left) Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Foot (Left) Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Foot (Right)",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Foot (Right) Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Foot (Right) Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Foot (Right) Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Foot (Right) Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Foot (Right) Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Foot Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Foot Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Foot Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Foot Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Foot Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "For",
       "origins": [
         {
@@ -50263,6 +51678,211 @@
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
           "line": 258,
           "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
+      "key": "Forearm",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Forearm (Left)",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Forearm (Left) Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Forearm (Left) Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Forearm (Left) Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Forearm (Left) Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Forearm (Left) Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Forearm (Right)",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Forearm (Right) Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Forearm (Right) Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Forearm (Right) Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Forearm (Right) Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Forearm (Right) Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Forearm Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Forearm Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Forearm Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Forearm Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Forearm Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -52557,6 +54177,211 @@
       ]
     },
     {
+      "key": "Glute",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Glute (Left)",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Glute (Left) Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Glute (Left) Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Glute (Left) Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Glute (Left) Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Glute (Left) Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Glute (Right)",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Glute (Right) Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Glute (Right) Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Glute (Right) Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Glute (Right) Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Glute (Right) Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Glute Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Glute Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Glute Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Glute Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Glute Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Go to the next topic.",
       "origins": [
         {
@@ -54470,9 +56295,209 @@
       "key": "Hand",
       "origins": [
         {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
           "path": "cdmw/ui/new_item/effect_placement_construction.py",
           "line": 241,
           "sink": "_add_place_button"
+        }
+      ]
+    },
+    {
+      "key": "Hand (Left)",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Hand (Left) Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Hand (Left) Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Hand (Left) Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Hand (Left) Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Hand (Left) Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Hand (Right)",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Hand (Right) Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Hand (Right) Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Hand (Right) Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Hand (Right) Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Hand (Right) Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Hand Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Hand Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Hand Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Hand Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Hand Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -54645,6 +56670,11 @@
       "key": "Head",
       "origins": [
         {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
           "path": "cdmw/ui/character_finder/dialog.py",
           "line": 322,
           "sink": "setItemText"
@@ -54657,9 +56687,204 @@
       ]
     },
     {
+      "key": "Head (Left)",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Head (Left) Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Head (Left) Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Head (Left) Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Head (Left) Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Head (Left) Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Head (Right)",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Head (Right) Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Head (Right) Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Head (Right) Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Head (Right) Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Head (Right) Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Head ({value_0})",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Head Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Head Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Head Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Head Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Head Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
     },
     {
       "key": "Head and eye tracking — how far they turn, and when they give up",
@@ -55417,12 +57642,217 @@
       ]
     },
     {
+      "key": "Hip",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Hip (Left)",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Hip (Left) Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Hip (Left) Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Hip (Left) Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Hip (Left) Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Hip (Left) Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Hip (Right)",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Hip (Right) Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Hip (Right) Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Hip (Right) Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Hip (Right) Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Hip (Right) Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Hip / thigh",
       "origins": [
         {
           "path": "tools/placement_studio/carry.py",
           "line": 96,
           "sink": "python-data:ZONE_LABELS"
+        }
+      ]
+    },
+    {
+      "key": "Hip Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Hip Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Hip Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Hip Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Hip Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -55453,6 +57883,16 @@
           "path": "tools/placement_studio/carry.py",
           "line": 30,
           "sink": "python-data:CARRY_SOCKETS"
+        }
+      ]
+    },
+    {
+      "key": "Hip-to-thigh transition",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -64062,6 +66502,46 @@
       ]
     },
     {
+      "key": "Layered morph preset symmetry must be boolean.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_morph_profiles.py",
+          "line": 331,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Layered morph preset {value_0} values must be an object.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_morph_profiles.py",
+          "line": 351,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Layered morph preset {value_0} values require exact ids and finite numbers.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_morph_profiles.py",
+          "line": 355,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Layered morph presets require all retained layer fields.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_morph_profiles.py",
+          "line": 326,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Layers",
       "origins": [
         {
@@ -64171,12 +66651,22 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 1513,
+          "line": 1521,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_body_controls.rs",
+          "line": 126,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_body_controls.rs",
+          "line": 129,
           "sink": "rust-presentation"
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
-          "line": 4062,
+          "line": 4105,
           "sink": "rust-presentation"
         }
       ]
@@ -64303,6 +66793,16 @@
           "path": "cdmw/ui/archive_browser/attachment_batch.py",
           "line": 76,
           "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
+      "key": "Legs",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -64878,6 +67378,26 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_physics_part_01.py",
           "line": 295,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Link sides",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_body_controls.rs",
+          "line": 116,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Link sides must be a boolean.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_layers.py",
+          "line": 165,
+          "sink": "ValueError"
         }
       ]
     },
@@ -67517,6 +70037,66 @@
       ]
     },
     {
+      "key": "Lower Torso",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Lower Torso Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Lower Torso Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Lower Torso Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Lower Torso Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Lower Torso Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Lower back",
       "origins": [
         {
@@ -67778,6 +70358,16 @@
           "path": "tools/placement_studio/move_preview.py",
           "line": 137,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Manual sliders with body control layers accept completed changes only.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_layers.py",
+          "line": 199,
+          "sink": "ValueError"
         }
       ]
     },
@@ -68338,6 +70928,16 @@
           "path": "cdmw/ui/replace_assistant/workers.py",
           "line": 363,
           "sink": "python-return:_build_comparison_rows"
+        }
+      ]
+    },
+    {
+      "key": "Matching fitting setups",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_outfit_workflows.rs",
+          "line": 75,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -77237,11 +79837,21 @@
       ]
     },
     {
-      "key": "Name the fitting recipe before exporting it.",
+      "key": "Name the fitting recipe before saving it.",
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph_recipes.py",
-          "line": 164,
+          "line": 205,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Name the fitting setup using between 1 and 128 characters.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_recipes.py",
+          "line": 251,
           "sink": "ValueError"
         }
       ]
@@ -78093,6 +80703,66 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_workspace_part_02.py",
           "line": 183,
           "sink": "setPlainText"
+        }
+      ]
+    },
+    {
+      "key": "Neck",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Neck Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Neck Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Neck Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Neck Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Neck Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -80883,6 +83553,16 @@
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
           "line": 276,
           "sink": "EmptyStateTreeWidget"
+        }
+      ]
+    },
+    {
+      "key": "No matching saved setups for the loaded meshes.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_outfit_workflows.rs",
+          "line": 112,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -92572,6 +95252,66 @@
       ]
     },
     {
+      "key": "Pelvis",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Pelvis Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Pelvis Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Pelvis Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Pelvis Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Pelvis Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Pending changes",
       "origins": [
         {
@@ -100157,6 +102897,16 @@
       ]
     },
     {
+      "key": "Preview value: {value_0}%",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 3509,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Preview view",
       "origins": [
         {
@@ -107622,6 +110372,16 @@
       ]
     },
     {
+      "key": "Remove this slider's saved correction only from the selected corrected garments. Other corrections and the body shape are retained.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 253,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Remove {value_0} from this prefab?\n\nAnything nested inside it goes too. You can undo this with 'Undo all changes' until you save.",
       "origins": [
         {
@@ -110092,6 +112852,21 @@
       ]
     },
     {
+      "key": "Reset body controls",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_body_controls.rs",
+          "line": 82,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_body_controls.rs",
+          "line": 87,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Reset bone settings",
       "origins": [
         {
@@ -110217,6 +112992,21 @@
       ]
     },
     {
+      "key": "Reset or Bake the active sliders before generating body controls.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_body_controls.py",
+          "line": 180,
+          "sink": "python-return:_body_controls_availability_locked"
+        },
+        {
+          "path": "cdmw/services/mesh_service_body_controls.py",
+          "line": 187,
+          "sink": "python-return:_body_controls_availability_locked"
+        }
+      ]
+    },
+    {
       "key": "Reset or Bake the current Morph preview before changing slider definitions",
       "origins": [
         {
@@ -110273,6 +113063,21 @@
           "path": "cdmw/ui/new_item/panels_model.py",
           "line": 628,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Reset selected outfit correction",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 251,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 259,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -111247,6 +114052,16 @@
       ]
     },
     {
+      "key": "Resolve the changed body topology before generating body controls.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_body_controls.py",
+          "line": 176,
+          "sink": "python-return:_body_controls_availability_locked"
+        }
+      ]
+    },
+    {
       "key": "Resolve the compatibility conflicts before writing an updated mod.",
       "origins": [
         {
@@ -112042,6 +114857,16 @@
       ]
     },
     {
+      "key": "Restore outfit corrections",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_outfit_workflows.rs",
+          "line": 54,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Restore physics profile",
       "origins": [
         {
@@ -112433,6 +115258,16 @@
           "path": "cdmw/ui/archive_browser/mesh_modify_original.py",
           "line": 499,
           "sink": "setWindowTitle"
+        }
+      ]
+    },
+    {
+      "key": "Resume editing",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_outfit_workflows.rs",
+          "line": 50,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -113861,12 +116696,22 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 1514,
+          "line": 1522,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_body_controls.rs",
+          "line": 126,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_body_controls.rs",
+          "line": 129,
           "sink": "rust-presentation"
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
-          "line": 4063,
+          "line": 4106,
           "sink": "rust-presentation"
         }
       ]
@@ -115817,6 +118662,26 @@
       ]
     },
     {
+      "key": "Save or cancel the outfit correction before generating body controls.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_body_controls.py",
+          "line": 174,
+          "sink": "python-return:_body_controls_availability_locked"
+        }
+      ]
+    },
+    {
+      "key": "Save or discard the captured slider before generating body controls.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_body_controls.py",
+          "line": 172,
+          "sink": "python-return:_body_controls_availability_locked"
+        }
+      ]
+    },
+    {
       "key": "Save or undo your other changes first",
       "origins": [
         {
@@ -115848,6 +118713,21 @@
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
           "line": 431,
           "sink": "setAccessibleName"
+        }
+      ]
+    },
+    {
+      "key": "Save reusable fitting setup",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_outfit_workflows.rs",
+          "line": 82,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_outfit_workflows.rs",
+          "line": 89,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -116118,6 +118998,26 @@
           "path": "cdmw/ui/shell/problem_report_dialog.py",
           "line": 977,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Saved setup",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_outfit_workflows.rs",
+          "line": 94,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Saved setups appear here when their body and garment identities match the loaded meshes.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_outfit_workflows.rs",
+          "line": 77,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -124487,6 +127387,16 @@
       ]
     },
     {
+      "key": "Shoulder contour",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Show",
       "origins": [
         {
@@ -125432,6 +128342,26 @@
       ]
     },
     {
+      "key": "Show outfit corrections",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_outfit_workflows.rs",
+          "line": 22,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Show outfit corrections must be a boolean.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 680,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Show package details, imported socket profile, raw socket XML, and evidence/compare tools.",
       "origins": [
         {
@@ -125857,6 +128787,26 @@
       ]
     },
     {
+      "key": "Showing the fit without saved corrections. Turn corrections back on to continue editing or finish.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_outfit_workflows.rs",
+          "line": 47,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
+          "line": 4474,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
+          "line": 5634,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Showing the template's model; import one on step 3 to place the effect on your own.",
       "origins": [
         {
@@ -126212,12 +129162,32 @@
       ]
     },
     {
+      "key": "Side adjustments",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_body_controls.rs",
+          "line": 110,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Side by side",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
           "line": 512,
           "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "Side controls accept completed slider changes only.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_layers.py",
+          "line": 185,
+          "sink": "ValueError"
         }
       ]
     },
@@ -136472,6 +139442,26 @@
       ]
     },
     {
+      "key": "The archived body Part table no longer matches its captured source.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_body_controls.py",
+          "line": 75,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The archived body uses a different resolved skeleton from this edit session.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_body_controls.py",
+          "line": 99,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "The archives carry no character for the placement viewport; a stand-in figure is drawn.",
       "origins": [
         {
@@ -136527,6 +139517,36 @@
       ]
     },
     {
+      "key": "The assigned body Part identities are no longer valid.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_body_controls.py",
+          "line": 38,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The assigned body has no captured source Part mapping. Reopen it through the archive workflow.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_body_controls.py",
+          "line": 62,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The assigned body has no named anatomical regions with a usable bone axis.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_body_controls.py",
+          "line": 213,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "The assigned physics profile is unresolved or ambiguous.",
       "origins": [
         {
@@ -136572,12 +139592,132 @@
       "manual": true
     },
     {
+      "key": "The body PAC bone palette did not resolve against this skeleton. Influence slots cannot be guessed.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_body_controls.py",
+          "line": 102,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The body PAC palette does not identify unique resolved skeleton bones.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_body_controls.py",
+          "line": 109,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The body PAC source bytes are unavailable, so its bone palette cannot be verified.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_body_controls.py",
+          "line": 96,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The body Part has incomplete decoded skin rows.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_body_controls.py",
+          "line": 137,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The body Part has inconsistent decoded skin rows.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_body_controls.py",
+          "line": 141,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The body Part has no supported decoded PAC skin layout.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_body_controls.py",
+          "line": 114,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The body Part topology or source skin identity differs from its captured PAC.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_body_controls.py",
+          "line": 135,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "The body being edited — `1_phm` is the player character.",
       "origins": [
         {
           "path": "tools/placement_studio/glossary.py",
           "line": 59,
           "sink": "Term"
+        }
+      ]
+    },
+    {
+      "key": "The body control layers do not match the resident slider values.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_layers.py",
+          "line": 64,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "The body needs its matching resolved skeleton before body controls can be generated.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_body_controls.py",
+          "line": 87,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The body skin contains an invalid palette slot or weight.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_body_controls.py",
+          "line": 149,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The body skin contains an invalid palette slot.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_body_controls.py",
+          "line": 145,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The body skin contains an invalid weight.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_body_controls.py",
+          "line": 151,
+          "sink": "ValueError"
         }
       ]
     },
@@ -137682,6 +140822,16 @@
       ]
     },
     {
+      "key": "The loaded outfit has no verified archive Part ownership.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_body_controls.py",
+          "line": 65,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "The logical package resource size limit is exhausted.",
       "origins": [],
       "manual": true
@@ -138097,6 +141247,16 @@
         {
           "path": "cdmw/workers/character_finder_workers.py",
           "line": 348,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "The new fitting setup identity already exists.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_recipes.py",
+          "line": 268,
           "sink": "RuntimeError"
         }
       ]
@@ -138827,6 +141987,16 @@
       ]
     },
     {
+      "key": "The resolved skeleton has no exact ordered bone identity.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_body_controls.py",
+          "line": 89,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "The retained independent package does not match its ownership history.",
       "origins": [
         {
@@ -138937,6 +142107,16 @@
         {
           "path": "cdmw/services/problem_report_service.py",
           "line": 377,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The saved fitting setup identity does not match its file.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_recipes.py",
+          "line": 365,
           "sink": "ValueError"
         }
       ]
@@ -139283,6 +142463,16 @@
           "path": "cdmw/services/virtual_loader_runtime.py",
           "line": 409,
           "sink": "VirtualSessionStatus"
+        }
+      ]
+    },
+    {
+      "key": "The setup file and its stored identity disagree.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_recipes.py",
+          "line": 191,
+          "sink": "ValueError"
         }
       ]
     },
@@ -140312,6 +143502,211 @@
       ]
     },
     {
+      "key": "Thigh",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Thigh (Left)",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Thigh (Left) Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Thigh (Left) Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Thigh (Left) Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Thigh (Left) Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Thigh (Left) Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Thigh (Right)",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Thigh (Right) Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Thigh (Right) Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Thigh (Right) Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Thigh (Right) Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Thigh (Right) Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Thigh Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Thigh Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Thigh Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Thigh Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Thigh Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Thigh — left",
       "origins": [
         {
@@ -141132,6 +144527,26 @@
       ]
     },
     {
+      "key": "This profile has no saved outfit corrections to compare.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 691,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "This profile has no supported left/right body controls.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_layers.py",
+          "line": 172,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "This rebuilt mesh has been patched directly into the scanned game archives.",
       "origins": [
         {
@@ -141298,6 +144713,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_collision_part_01.py",
           "line": 641,
           "sink": "information"
+        }
+      ]
+    },
+    {
+      "key": "This saved fitting setup is no longer available.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_recipes.py",
+          "line": 362,
+          "sink": "ValueError"
         }
       ]
     },
@@ -141982,6 +145407,211 @@
       ]
     },
     {
+      "key": "Toe",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Toe (Left)",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Toe (Left) Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Toe (Left) Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Toe (Left) Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Toe (Left) Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Toe (Left) Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Toe (Right)",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Toe (Right) Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Toe (Right) Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Toe (Right) Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Toe (Right) Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Toe (Right) Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Toe Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Toe Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Toe Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Toe Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Toe Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Toggle Selection",
       "origins": [
         {
@@ -142356,6 +145986,16 @@
       "origins": [
         {
           "path": "cdmw/domain/mesh/shader_controls.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Torso",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
           "line": 1,
           "sink": "rust-presentation"
         }
@@ -143213,6 +146853,71 @@
           "path": "cdmw/ui/new_item/translucency_editor.py",
           "line": 167,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Turn outfit corrections back on before editing or finishing.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 280,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "Turn outfit corrections back on before editing the mesh.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service.py",
+          "line": 1520,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "Turn outfit corrections back on before exporting the mesh.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_rebuild.py",
+          "line": 348,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "Turn outfit corrections back on before finishing.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 1431,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Turn outfit corrections back on to change the loaded meshes.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 3023,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Turn outfit corrections back on to continue editing.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 2096,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 4397,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -146037,6 +149742,281 @@
       ]
     },
     {
+      "key": "Upper Arm",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Upper Arm (Left)",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Upper Arm (Left) Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Upper Arm (Left) Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Upper Arm (Left) Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Upper Arm (Left) Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Upper Arm (Left) Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Upper Arm (Right)",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Upper Arm (Right) Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Upper Arm (Right) Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Upper Arm (Right) Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Upper Arm (Right) Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Upper Arm (Right) Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Upper Arm Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Upper Arm Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Upper Arm Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Upper Arm Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Upper Arm Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Upper Torso",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_regions.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Upper Torso Flatten",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Upper Torso Length",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Upper Torso Shift",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Upper Torso Size",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Upper Torso Taper",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/body_region_sliders.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Upper-body balance",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Upscale",
       "origins": [
         {
@@ -147203,6 +151183,16 @@
           "path": "cdmw/ui/new_item/independent_items_page.py",
           "line": 276,
           "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Use the preset name above to save this setup for these meshes.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_outfit_workflows.rs",
+          "line": 83,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -149393,6 +153383,16 @@
           "path": "tools/placement_studio/inspector.py",
           "line": 117,
           "sink": "python-return:describe_socket"
+        }
+      ]
+    },
+    {
+      "key": "Waist shape",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/morph_layers.py",
+          "line": 1,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -158941,7 +162941,7 @@
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7652,
+          "line": 7678,
           "sink": "open_edit_session"
         },
         {
@@ -159511,32 +163511,32 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1597,
+          "line": 1601,
           "sink": "_result"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1605,
+          "line": 1609,
           "sink": "_result"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1616,
+          "line": 1620,
           "sink": "_result"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1635,
+          "line": 1639,
           "sink": "_result"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1659,
+          "line": 1663,
           "sink": "_result"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1693,
+          "line": 1697,
           "sink": "_result"
         },
         {
@@ -163152,6 +167152,16 @@
       ]
     },
     {
+      "key": "macro",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_morph_profiles.py",
+          "line": 328,
+          "sink": "_layer_values_from_payload"
+        }
+      ]
+    },
+    {
       "key": "magentas",
       "origins": [
         {
@@ -163324,6 +167334,11 @@
     {
       "key": "manual",
       "origins": [
+        {
+          "path": "cdmw/services/mesh_morph_profiles.py",
+          "line": 327,
+          "sink": "_layer_values_from_payload"
+        },
         {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
           "line": 240,
@@ -166141,12 +170156,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1568,
+          "line": 1572,
           "sink": "_result"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1623,
+          "line": 1627,
           "sink": "_result"
         },
         {
@@ -166161,12 +170176,42 @@
         },
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 592,
+          "line": 634,
           "sink": "_result"
         },
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 608,
+          "line": 650,
+          "sink": "_result"
+        },
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 689,
+          "sink": "_result"
+        },
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 721,
+          "sink": "_result"
+        },
+        {
+          "path": "cdmw/services/mesh_service_morph_layers.py",
+          "line": 142,
+          "sink": "_result"
+        },
+        {
+          "path": "cdmw/services/mesh_service_morph_layers.py",
+          "line": 157,
+          "sink": "_result"
+        },
+        {
+          "path": "cdmw/services/mesh_service_morph_layers.py",
+          "line": 174,
+          "sink": "_result"
+        },
+        {
+          "path": "cdmw/services/mesh_service_morph_layers.py",
+          "line": 190,
           "sink": "_result"
         },
         {
@@ -166681,12 +170726,12 @@
         },
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 592,
+          "line": 634,
           "sink": "_result"
         },
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 608,
+          "line": 650,
           "sink": "_result"
         },
         {
@@ -179883,6 +183928,16 @@
           "path": "cdmw/services/archive_overlay_manager.py",
           "line": 618,
           "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} value",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_morph_profiles.py",
+          "line": 356,
+          "sink": "_finite"
         }
       ]
     },

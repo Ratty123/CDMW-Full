@@ -2,7 +2,7 @@
 //! The harness collects typed host commands and intercepts file picker actions.
 use super::*;
 
-fn authoring_ui() -> Result<HeadlessUi, Box<dyn std::error::Error>> {
+pub(super) fn authoring_ui() -> Result<HeadlessUi, Box<dyn std::error::Error>> {
     let mut application = two_part_application()?;
     let document = application.document.as_mut().ok_or("document")?;
     document.lods[0].submeshes[0].name = "Body".into();

@@ -1514,6 +1514,10 @@ class MeshService(MeshUvServiceMixin, _MeshServiceSessionLayerCore):
     ) -> MeshEditResult:
         edit_command = _coerce_command(command)
         action = str(edit_command.action or "").strip().lower()
+        morph_data = self._morph_sessions.get(session.session_id)
+        if (morph_data is not None and not getattr(morph_data, "corrections_enabled", True)
+                and action not in {"select", "set_mode", "morph_refresh", "morph_set_corrections_enabled"}):
+            raise RuntimeError("Turn outfit corrections back on before editing the mesh.")
         if action == "_resident_interaction_transaction":
             return apply_resident_interaction_transaction(self, session, edit_command)
         if action not in (*MESH_EDIT_ACTIONS, *MESH_MORPH_ACTIONS):

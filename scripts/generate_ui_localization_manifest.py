@@ -48,6 +48,13 @@ PYTHON_SOURCE_ROOTS = (
     ROOT / "tools" / "format_explorer",
     ROOT / "tools" / "translation_studio",
 )
+# Return values forwarded through typed Rust state have no Python widget sink.
+_DECLARED_PYTHON_UI_RETURN_METHODS = {
+    "cdmw/services/mesh_service_body_controls.py": frozenset({
+        "_body_controls_availability_locked",
+    }),
+}
+
 MANUAL_SOURCE_KEYS = frozenset(
     {
         # Virtual preparation reports these stages through its data-only worker protocol.
@@ -401,6 +408,7 @@ _PYTHON_SINKS = {
     "VirtualSessionStatus",
     "AssetAuthoringHelperSpec",
     "CompactToolSpec",
+    "build_region_slider_profile",
     "EmptyStateTreeWidget",
     "Guide",
     "MeshImportSetupSelection",
@@ -793,6 +801,12 @@ def _python_source_value(node: ast.AST) -> str:
 
 
 def _python_candidate_nodes(call: ast.Call, sink: str) -> Iterable[ast.AST]:
+    if sink == "build_region_slider_profile":
+        # The built-in profile name is visible; generated IDs remain machine data.
+        for keyword in call.keywords:
+            if keyword.arg == "name":
+                yield keyword.value
+        return
     if sink == "VirtualSessionStatus":
         yield from _python_wrapper_candidates(call, (1,), (("state", "detail", "generation", "pid"),))
         return
@@ -1604,7 +1618,10 @@ def _scan_python() -> dict[str, list[dict[str, object]]]:
         for definition in ast.walk(tree):
             if (
                 not isinstance(definition, (ast.FunctionDef, ast.AsyncFunctionDef))
-                or definition.name not in ui_return_methods
+                or (
+                    definition.name not in ui_return_methods
+                    and definition.name not in _DECLARED_PYTHON_UI_RETURN_METHODS.get(relative, ())
+                )
             ):
                 continue
             local_assignments = _python_local_assignments(definition)
@@ -1718,8 +1735,32 @@ def build_manifest() -> dict[str, object]:
 
     for key, rows in scan_rust(ROOT).items():
         origins.setdefault(key, []).extend(rows)
+    from cdmw.domain.mesh.body_region_sliders import DEFAULT_BODY_REGION_SLIDER_TEMPLATES
+    from cdmw.domain.mesh.body_regions import DEFAULT_BODY_REGION_RULES, sided_region_label
+    from cdmw.domain.mesh.morph_layers import _MACROS
     from cdmw.domain.mesh.shader_controls import EYE_COVER, FAMILIES
     from cdmw.domain.textures.editor_presets import texture_editor_dds_presets
+
+    # These built-in labels arrive in Rust through the typed morph state.
+    # Enumerate only the finite catalogue, never user profile names or IDs.
+    body_sources: set[tuple[str, str]] = set()
+    for macro in _MACROS:
+        for text in (macro.label, macro.description):
+            body_sources.add(("cdmw/domain/mesh/morph_layers.py", text))
+    for region in DEFAULT_BODY_REGION_RULES:
+        body_sources.add(("cdmw/domain/mesh/body_regions.py", region.group))
+        for side in (("center", "left", "right") if region.sided else ("center",)):
+            label = sided_region_label(region, side)
+            body_sources.add(("cdmw/domain/mesh/body_regions.py", label))
+            for template in DEFAULT_BODY_REGION_SLIDER_TEMPLATES:
+                body_sources.add(("cdmw/domain/mesh/body_region_sliders.py", f"{label} {template.label}"))
+        if region.sided:
+            for template in DEFAULT_BODY_REGION_SLIDER_TEMPLATES:
+                body_sources.add(("cdmw/domain/mesh/morph_layers.py", f"{region.label} {template.label}"))
+    for path, text in sorted(body_sources):
+        origins.setdefault(text, []).append({
+            "path": path, "line": 1, "sink": "rust-presentation",
+        })
 
     for preset in texture_editor_dds_presets():
         for text in (preset.label, preset.warning):
@@ -1831,6 +1872,22 @@ def _english_catalog(manifest: dict[str, object]) -> dict[str, object]:
 
 
 
+def _native_ui_keys(manifest: dict[str, object]) -> list[str]:
+    """Select only source keys delivered to the Rust helper."""
+    return [
+        entry["key"] for entry in manifest["entries"]
+        if any(
+            origin["sink"] == "rust-presentation"
+            or origin["path"].startswith((
+                "cdmw/services/mesh_rust_", "cdmw/services/mesh_shader_controls",
+                "cdmw/services/mesh_emission", "cdmw/services/mesh_service_morph",
+                "cdmw/services/mesh_morph_profiles", "cdmw/services/mesh_service_body_controls",
+            ))
+            for origin in entry["origins"]
+        )
+    ]
+
+
 def _serialized(payload: object) -> str:
     return json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=False) + "\n"
 
@@ -1921,18 +1978,7 @@ def main() -> int:
     expected = {
         MANIFEST_PATH: _serialized(manifest),
         ENGLISH_CATALOG_PATH: _serialized(english),
-        RUST_KEYS_PATH: _serialized([
-            entry["key"] for entry in manifest["entries"]
-            if any(
-                origin["sink"] == "rust-presentation"
-                or origin["path"].startswith((
-                    "cdmw/services/mesh_rust_", "cdmw/services/mesh_shader_controls",
-                    "cdmw/services/mesh_emission", "cdmw/services/mesh_service_morph",
-                    "cdmw/services/mesh_morph_profiles",
-                ))
-                for origin in entry["origins"]
-            )
-        ]),
+        RUST_KEYS_PATH: _serialized(_native_ui_keys(manifest)),
     }
     expected.update(_synchronized_builtin_catalogs(english))
     if args.write:

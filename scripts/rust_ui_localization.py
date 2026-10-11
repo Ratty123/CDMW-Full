@@ -19,6 +19,7 @@ RUST_UI_FILES = (
     "cdmw_vertex_inspector.rs", "cdmw_islands.rs", "cdmw_emission.rs",
     "cdmw_shader_controls.rs", "viewport.rs", "camera.rs",
     "main.rs", "cdmw_ui/morph_authoring.rs",
+    "cdmw_ui/morph_body_controls.rs", "cdmw_ui/morph_outfit_workflows.rs",
 )
 
 

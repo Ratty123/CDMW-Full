@@ -10,6 +10,8 @@ import re
 from typing import Iterable, Mapping
 
 from cdmw.core.atomic_file import atomic_write_text
+from cdmw.domain.mesh.morph import MESH_MORPH_LAYERED_PRESET_FORMAT
+from cdmw.domain.mesh.morph_layers import validate_mesh_morph_layers
 from cdmw.domain.mesh import (
     MESH_MORPH_PRESET_FORMAT,
     MESH_MORPH_AUTHORED_PROFILE_FORMAT,
@@ -80,6 +82,7 @@ def validate_mesh_morph_preset(profile: MeshMorphProfile, preset: MeshMorphValue
     for key, value in preset.values:
         if not definitions[key].min_percent <= value <= definitions[key].max_percent:
             raise ValueError(f"Preset value is outside the slider range: {key}")
+    validate_mesh_morph_layers(profile, preset)
 
 
 def mesh_morph_profile_root(settings: object | None) -> Path:
@@ -193,6 +196,8 @@ def list_mesh_morph_presets(
                 raise ValueError("preset driver identity does not match the active definition profile")
             if any(definition_id not in definition_ids for definition_id, _value in preset.values):
                 raise ValueError("preset references a missing procedural definition")
+            if preset.manual_values is not None:
+                validate_mesh_morph_preset(profile, preset)
         except (OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
             diagnostics.append(f"Skipped invalid morph preset {path.name}: {exc}")
             continue
@@ -284,28 +289,72 @@ def mesh_morph_profile_from_payload(payload: Mapping[str, object]) -> MeshMorphP
 
 
 def mesh_morph_preset_payload(preset: MeshMorphValuePreset) -> dict[str, object]:
-    return {
-        "format": MESH_MORPH_PRESET_FORMAT,
+    payload: dict[str, object] = {
+        "format": preset.format,
         "preset_id": preset.preset_id,
         "name": preset.name,
         "profile_id": preset.profile_id,
         "topology_fingerprint": preset.topology_fingerprint,
         "values": {definition_id: value for definition_id, value in preset.values},
     }
+    if preset.manual_values is not None:
+        payload.update(
+            manual_values=dict(preset.manual_values),
+            macro_values=dict(preset.macro_values),
+            symmetry_enabled=preset.symmetry_enabled,
+            profile_definition_fingerprint=preset.profile_definition_fingerprint,
+        )
+    return payload
 
 
 def mesh_morph_preset_from_payload(payload: Mapping[str, object]) -> MeshMorphValuePreset:
-    if str(payload.get("format") or "") != MESH_MORPH_PRESET_FORMAT:
+    preset_format = str(payload.get("format") or "")
+    if preset_format not in {MESH_MORPH_PRESET_FORMAT, MESH_MORPH_LAYERED_PRESET_FORMAT}:
         raise ValueError("unsupported procedural morph preset format")
     raw_values = payload.get("values")
     values = tuple((str(key), _finite(value, "preset value")) for key, value in raw_values.items()) if isinstance(raw_values, Mapping) else ()
+    layered_fields = {
+        "manual_values", "macro_values", "symmetry_enabled",
+        "profile_definition_fingerprint",
+    }
+    manual_values = None
+    macro_values = ()
+    symmetry_enabled = False
+    definition_fingerprint = ""
+    if preset_format == MESH_MORPH_LAYERED_PRESET_FORMAT:
+        if not layered_fields.issubset(payload) or not isinstance(raw_values, Mapping):
+            raise ValueError("Layered morph presets require all retained layer fields.")
+        manual_values = _layer_values_from_payload(payload["manual_values"], "manual")
+        macro_values = _layer_values_from_payload(payload["macro_values"], "macro")
+        symmetry_enabled = payload["symmetry_enabled"]
+        if not isinstance(symmetry_enabled, bool):
+            raise ValueError("Layered morph preset symmetry must be boolean.")
+        definition_fingerprint = str(payload["profile_definition_fingerprint"])
+    elif layered_fields.intersection(payload):
+        raise ValueError("Body control layers require the v3 value preset format.")
     return MeshMorphValuePreset(
         preset_id=str(payload.get("preset_id") or ""),
         name=str(payload.get("name") or ""),
         profile_id=str(payload.get("profile_id") or ""),
         topology_fingerprint=str(payload.get("topology_fingerprint") or ""),
         values=values,
+        format=preset_format,
+        manual_values=manual_values,
+        macro_values=macro_values,
+        symmetry_enabled=symmetry_enabled,
+        profile_definition_fingerprint=definition_fingerprint,
     )
+
+
+def _layer_values_from_payload(value: object, label: str) -> tuple[tuple[str, float], ...]:
+    if not isinstance(value, Mapping):
+        raise ValueError(f"Layered morph preset {label} values must be an object.")
+    entries = []
+    for key, raw in value.items():
+        if not isinstance(key, str) or not key or key != key.strip() or isinstance(raw, bool):
+            raise ValueError(f"Layered morph preset {label} values require exact ids and finite numbers.")
+        entries.append((key, _finite(raw, f"{label} value")))
+    return tuple(entries)
 
 
 def _definition_payload(definition: MeshMorphDefinition) -> dict[str, object]:

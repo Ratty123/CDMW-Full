@@ -47,6 +47,8 @@ class _MorphCorrectionCapture:
     neutral_mesh: ParsedMesh
     return_values: tuple[tuple[str, float], ...]
     effective_vertex_masks: tuple[tuple[int, tuple[tuple[int, float], ...]], ...] = ()
+    return_layers: tuple = (None, (), False)
+    return_preset_id: str = ""
 
 
 def _clone_authoring_mesh(mesh: ParsedMesh, operation: str) -> ParsedMesh:
@@ -268,10 +270,14 @@ class MeshMorphAuthoringMixin:
             self._morph_sessions[session.session_id] = data
         return data
 
-    def _require_no_pending_morph_authoring(self, session, *, include_baseline: bool = False):
+    def _require_no_pending_morph_authoring(
+        self, session, *, include_baseline: bool = False, allow_correction_comparison: bool = False,
+    ):
         data = self._morph_sessions.get(session.session_id)
         if data is None or getattr(data, "authoring_operation", False):
             return
+        if not allow_correction_comparison and not getattr(data, "corrections_enabled", True):
+            raise RuntimeError("Turn outfit corrections back on before editing or finishing.")
         if getattr(data, "correction_capture", None) is not None:
             raise RuntimeError("Save or Cancel the current garment correction before changing Morph & Refit.")
         if include_baseline and getattr(data, "authoring_baseline", None) is not None:
@@ -569,7 +575,10 @@ class MeshMorphAuthoringMixin:
             neutral = self._native_neutral_mesh_locked(session, parts)
             for item in data.profile.definitions:
                 validate_morph_definition_geometry(neutral, item)
+            from cdmw.services.mesh_service_morph_layers import capture_morph_layers
             return_values = tuple(data.state.values)
+            return_layers = capture_morph_layers(data)
+            return_preset_id = data.preset_id
             values = {item.definition_id: 100.0 if item.definition_id == definition.definition_id else 0.0 for item in data.profile.definitions}
 
             def begin():
@@ -583,6 +592,7 @@ class MeshMorphAuthoringMixin:
                     raise RuntimeError("The chosen garments are disabled or fully protected from refitting.")
                 self._authoring_data_locked(session).correction_capture = _MorphCorrectionCapture(
                     definition.definition_id, targets, preview, neutral, return_values, effective_masks,
+                    return_layers, return_preset_id,
                 )
                 return result
 
@@ -613,7 +623,10 @@ class MeshMorphAuthoringMixin:
             fields = _merged_correction_fields(definition, changes, dict(capture.effective_vertex_masks))
             corrected = with_morph_garment_corrections(definition, capture.neutral_mesh, fields)
             profile = replace(data.profile, definitions=tuple(corrected if item.definition_id == corrected.definition_id else item for item in data.profile.definitions))
-            values = {item.definition_id: 100.0 if item.definition_id == corrected.definition_id else 0.0 for item in profile.definitions}
+            values = (dict(capture.return_values) if capture.return_layers[0] is not None else {
+                item.definition_id: 100.0 if item.definition_id == corrected.definition_id else 0.0
+                for item in profile.definitions
+            })
 
             def save():
                 result, _state = self._activate_morph_profile_locked(
@@ -624,6 +637,10 @@ class MeshMorphAuthoringMixin:
                 current_data = self._authoring_data_locked(session)
                 current_data.topology_mesh = capture.neutral_mesh
                 current_data.correction_capture = None
+                if capture.return_layers[0] is not None:
+                    from cdmw.services.mesh_service_morph_layers import restore_morph_layers
+                    restore_morph_layers(current_data, capture.return_layers)
+                    current_data.preset_id = capture.return_preset_id
                 return result
 
             return self._morph_authoring_transaction_locked(session, "morph_save_correction", f"Save {definition.label} Garment Correction", save)
@@ -649,10 +666,78 @@ class MeshMorphAuthoringMixin:
                     neutral_positions=_neutral_rows(capture.neutral_mesh, parts),
                     values=dict(capture.return_values), base_mesh=capture.neutral_mesh,
                 )
-                self._authoring_data_locked(session).correction_capture = None
+                from cdmw.services.mesh_service_morph_layers import restore_morph_layers
+                current_data = self._authoring_data_locked(session)
+                current_data.correction_capture = None
+                restore_morph_layers(current_data, capture.return_layers)
+                current_data.preset_id = capture.return_preset_id
                 return result
 
             return self._morph_authoring_transaction_locked(session, "morph_cancel_correction", "Cancel Garment Correction", cancel)
+
+    def set_morph_corrections_enabled(self, session_id, enabled):
+        if not isinstance(enabled, bool):
+            raise ValueError("Show outfit corrections must be a boolean.")
+        session = self._session(session_id)
+        with session.export_lock:
+            self._require_no_pending_morph_authoring(
+                session, include_baseline=True, allow_correction_comparison=True,
+            )
+            data = self._required_morph_data(session)
+            state = self._refresh_cached_morph_metadata_locked(session)
+            if data.corrections_enabled == enabled:
+                return self._result(session, "morph_set_corrections_enabled", status="noop"), state
+            if not any(item.garment_corrections for item in data.profile.definitions):
+                raise ValueError("This profile has no saved outfit corrections to compare.")
+            neutral = self._native_neutral_mesh_locked(session, _profile_role_indices(data.profile))
+            preset_id = data.preset_id
+
+            def compare():
+                self._authoring_data_locked(session).corrections_enabled = enabled
+                result, _state = self._activate_morph_profile_locked(
+                    session, data.profile, record_history=False, preserve_runtime=True,
+                    values=dict(state.values), base_mesh=neutral, retain_layers=True,
+                )
+                self._authoring_data_locked(session).preset_id = preset_id
+                return result
+
+            return self._morph_authoring_transaction_locked(
+                session, "morph_set_corrections_enabled",
+                "Show Outfit Corrections" if enabled else "Compare Without Outfit Corrections", compare,
+            )
+
+    def reset_morph_correction(self, session_id, definition_id, garment_submesh_indices=()):
+        session = self._session(session_id)
+        with session.export_lock:
+            self._require_no_pending_morph_authoring(session, include_baseline=True)
+            data, targets, _settings = self._bound_garment_settings_locked(
+                session, garment_submesh_indices, selection=session.selection,
+            )
+            definition = next((item for item in data.profile.definitions if item.definition_id == str(definition_id)), None)
+            if definition is None:
+                raise ValueError("Choose the slider whose selected outfit correction should be reset.")
+            fields = tuple(field for field in definition.garment_corrections if field.submesh_index not in targets)
+            if fields == definition.garment_corrections:
+                return self._result(session, "morph_reset_correction", status="noop"), data.state
+            neutral = self._native_neutral_mesh_locked(session, _profile_role_indices(data.profile))
+            corrected = with_morph_garment_corrections(definition, neutral, fields)
+            profile = replace(data.profile, definitions=tuple(
+                corrected if item.definition_id == corrected.definition_id else item
+                for item in data.profile.definitions
+            ))
+            values, preset_id = dict(data.state.values), data.preset_id
+
+            def reset():
+                result, _state = self._activate_morph_profile_locked(
+                    session, profile, record_history=False, preserve_runtime=True,
+                    values=values, base_mesh=neutral, retain_layers=True,
+                )
+                self._authoring_data_locked(session).preset_id = preset_id
+                return result
+
+            return self._morph_authoring_transaction_locked(
+                session, "morph_reset_correction", f"Reset {definition.label} Selected Outfit Correction", reset,
+            )
 
     def set_refit_vertex_influence(self, session_id, *, selection=None, weight=0.0, garment_submesh_indices=()):
         influence = float(weight)
@@ -759,6 +844,14 @@ class MeshMorphAuthoringMixin:
 
     def _apply_morph_authoring_command_locked(self, session, action, params, selection):
         values = {key: value for key, value in params.items() if key != "stop_event"}
+        if action == "morph_set_corrections_enabled":
+            return self.set_morph_corrections_enabled(session.session_id, values.get("enabled"))[0]
+        if action == "morph_reset_correction":
+            return self.reset_morph_correction(session.session_id, values.get("definition_id"), values.get("garment_submesh_indices", ()))[0]
+        if action == "morph_save_setup":
+            return self.save_refit_setup(session.session_id, values.get("name"))[0]
+        if action == "morph_apply_setup":
+            return self.apply_refit_setup(session.session_id, values.get("recipe_id"), values.get("garment_submesh_indices", ()))[0]
         if action == "morph_capture_baseline":
             return self.capture_morph_baseline(session.session_id, values.get("submesh_indices", ()), selection=selection)[0]
         if action == "morph_cancel_baseline":

@@ -18,6 +18,8 @@ mod cloth_preview_tests;
 mod island_controls_tests;
 mod history_controls_tests;
 mod morph_authoring;
+mod morph_body_controls;
+mod morph_outfit_workflows;
 mod precision_controls {
     use super::*;
     use crate::cdmw_ui::numeric;

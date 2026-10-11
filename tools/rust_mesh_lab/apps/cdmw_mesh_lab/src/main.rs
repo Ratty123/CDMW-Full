@@ -1552,6 +1552,24 @@ impl UiAction {
                 | Self::OrbitYaw(_)
         )
     }
+
+    fn allowed_during_morph_comparison(&self) -> bool {
+        match self {
+            Self::SelectAllVertices | Self::SelectAllEdges | Self::SelectAllFaces
+            | Self::SelectLinked(_) | Self::GrowSelection(_) | Self::ShrinkSelection(_)
+            | Self::InvertSelection(_) | Self::ClearSelection | Self::SelectRigInfluence
+            | Self::FrameAll | Self::FrameSelected | Self::FrameRigBone | Self::FrameRigInfluence
+            | Self::StandardView(_) | Self::OrbitMode | Self::OrbitYaw(_)
+            | Self::Undo | Self::Redo | Self::CdmwHistoryCursor { .. }
+            | Self::SetPartSelection(_) | Self::SelectIsland { .. }
+            | Self::SetIslandVisibility { .. } | Self::IsolateIsland { .. }
+            | Self::ShowAllIslands | Self::SetPartVisibility { .. } => true,
+            Self::CdmwCommand { command, .. } => matches!(*command,
+                "select" | "morph_set_corrections_enabled" | "morph_cancel_correction"
+                    | "morph_cancel_baseline" | "replacement_cancel"),
+            _ => false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1698,7 +1716,20 @@ fn cdmw_request_origin(command: &str, arguments: &Value) -> Option<CdmwRequestOr
             .get("definition_id")
             .and_then(Value::as_str)
             .filter(|definition_id| !definition_id.trim().is_empty())
-            .map(|definition_id| CdmwRequestOrigin::MorphValue(definition_id.to_owned()));
+            .map(|definition_id| CdmwRequestOrigin::MorphValue(format!("definition:{definition_id}")));
+    }
+    if command == "morph_set_macro" {
+        return arguments
+            .get("macro_id")
+            .and_then(Value::as_str)
+            .filter(|macro_id| !macro_id.trim().is_empty())
+            .map(|macro_id| CdmwRequestOrigin::MorphValue(format!("macro:{macro_id}")));
+    }
+    if command == "morph_set_side_value" {
+        let pair_id = arguments.get("pair_id").and_then(Value::as_str)?.trim();
+        let side = arguments.get("side").and_then(Value::as_str)?;
+        return (!pair_id.is_empty() && matches!(side, "both" | "left" | "right"))
+            .then(|| CdmwRequestOrigin::MorphValue(format!("pair:{pair_id}:{side}")));
     }
     if command != "mesh_action" {
         return None;
@@ -2577,6 +2608,11 @@ impl LabApplication {
 
     fn cdmw_busy(&self) -> bool {
         self.cdmw_pending_request.is_some()
+    }
+
+    fn cdmw_morph_comparison_active(&self) -> bool {
+        self.cdmw_state.get("morph_refit").and_then(|state| state.get("corrections_enabled"))
+            .and_then(Value::as_bool) == Some(false)
     }
 
     fn submit_cdmw_local_edit(&mut self, edit: CdmwLocalEdit) {
@@ -4434,6 +4470,10 @@ impl LabApplication {
         let mut publish_mesh = false;
         let mut cdmw_transaction = None;
         for action in actions {
+            if self.cdmw_morph_comparison_active() && !action.allowed_during_morph_comparison() {
+                self.status = "Showing the fit without saved corrections. Turn corrections back on to continue editing or finish.".to_owned();
+                continue;
+            }
             if self.cdmw_mode()
                 && (self.cdmw_busy() || cdmw_transaction.is_some())
                 && !action.allowed_while_cdmw_pending()
@@ -5588,6 +5628,10 @@ impl LabApplication {
             return;
         }
         if self.mesh.is_none() || self.selection_gesture.is_some() || self.edit_gesture.is_some() {
+            return;
+        }
+        if self.cdmw_morph_comparison_active() && self.viewport_tool != ViewportTool::Select {
+            self.status = "Showing the fit without saved corrections. Turn corrections back on to continue editing or finish.".to_owned();
             return;
         }
         if self.cdmw_mode() && (self.cdmw_busy() || self.cdmw_orbit_mode) {

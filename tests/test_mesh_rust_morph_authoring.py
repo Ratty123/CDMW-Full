@@ -45,6 +45,15 @@ _OPERATIONS = _SELECTION_OPERATIONS | {
     "clear_refit_driver_region",
     "import_refit_recipe",
     "export_refit_recipe",
+    "generate_body_morph_controls",
+    "set_morph_macro",
+    "reset_morph_macros",
+    "set_morph_symmetry",
+    "set_morph_side_value",
+    "set_morph_corrections_enabled",
+    "reset_morph_correction",
+    "save_refit_setup",
+    "apply_refit_setup",
 }
 
 
@@ -124,6 +133,20 @@ _DEFINITION = {
         ("morph_capture_baseline", {"submesh_indices": [2, 0]},
          "capture_morph_baseline", ((2, 0),), {"selection": None}),
         ("morph_cancel_baseline", {}, "cancel_morph_baseline", (), {}),
+        ("morph_generate_body_controls", {}, "generate_body_morph_controls", (), {}),
+        ("morph_set_macro", {"macro_id": "waist_shape", "value": 35, "phase": "end"},
+         "set_morph_macro", ("waist_shape", 35), {"phase": "end"}),
+        ("morph_reset_macros", {}, "reset_morph_macros", (), {}),
+        ("morph_set_symmetry", {"enabled": True}, "set_morph_symmetry", (True,), {}),
+        ("morph_set_side_value", {"pair_id": "hip_size", "side": "left", "value": 25},
+         "set_morph_side_value", ("hip_size", 25), {"side": "left", "phase": "end"}),
+        ("morph_set_corrections_enabled", {"enabled": False},
+         "set_morph_corrections_enabled", (False,), {}),
+        ("morph_reset_correction", {"definition_id": "waist", "garment_submesh_indices": [3, 1]},
+         "reset_morph_correction", ("waist", (3, 1)), {}),
+        ("morph_save_setup", {"name": "Coat fit"}, "save_refit_setup", ("Coat fit",), {}),
+        ("morph_apply_setup", {"recipe_id": "setup-id", "garment_submesh_indices": [3, 1]},
+         "apply_refit_setup", ("setup-id", (3, 1)), {}),
         ("morph_capture_authored", {"definition": _DEFINITION},
          "capture_authored_morph_definition", (), _DEFINITION),
         ("morph_begin_correction",
@@ -265,6 +288,39 @@ def test_authored_capture_accepts_metadata_only(authoring_session, definition):
             "morph_capture_authored", {"definition": definition}
         )
     assert authoring_session.shadow_service.calls == []
+
+
+@pytest.mark.parametrize("command", ["morph_set_value", "morph_bake", "morph_save_setup", "morph_apply_setup"])
+def test_correction_comparison_refuses_editing_but_allows_restore(authoring_session, command):
+    service = authoring_session.shadow_service
+    service._morph_sessions = {"shadow": SimpleNamespace(corrections_enabled=False)}
+    with pytest.raises(RustMeshValidationError, match="corrections back on"):
+        authoring_session._run_morph_command(command, {})
+    assert service.calls == []
+    assert authoring_session._run_morph_command(
+        "morph_set_corrections_enabled", {"enabled": True},
+    ) is service.result
+    assert service.calls == [("set_morph_corrections_enabled", ("shadow", True), {})]
+
+
+@pytest.mark.parametrize("operation", ["finish", "apply_candidate"])
+def test_correction_comparison_refuses_publication_and_viewport_candidates(authoring_session, operation, monkeypatch):
+    service = authoring_session.shadow_service
+    service._morph_sessions = {"shadow": SimpleNamespace(corrections_enabled=False)}
+
+    def unexpected_prepare(*args, **kwargs):
+        pytest.fail("Correction comparison reached geometry preparation or publication")
+
+    monkeypatch.setattr(RustMeshAuthoringSession, "_prepare_finish_mesh", unexpected_prepare)
+    monkeypatch.setattr(RustMeshAuthoringSession, "_prepare_finish_profile_publication", unexpected_prepare)
+    request = {
+        "event": "finish_request", "protocol": bridge.RUST_MESH_EDITOR_PROTOCOL,
+        "session_id": authoring_session.session_id, "request_id": 1,
+        "base_revision": 7, "process_generation": authoring_session.process_generation,
+    }
+    with pytest.raises(RustMeshValidationError, match="corrections back on"):
+        getattr(authoring_session, operation)(request)
+    assert service.calls == []
 
 
 def _pending_state(phase: str) -> MeshMorphState:

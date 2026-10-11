@@ -221,9 +221,15 @@ impl LabApplication {
         let garments = value_u32_list(state.get("refit").unwrap_or(&Value::Null), "garment_submesh_indices");
         let targets: Vec<u32> = self.selected_part_indices().into_iter()
             .filter(|part| garments.contains(part)).collect();
+        let corrected = state.get("definitions").and_then(Value::as_array)
+            .and_then(|definitions| definitions.iter().find(|definition| state_str(definition, "definition_id") == Some(definition_id)))
+            .map(|definition| value_u32_list(definition, "garment_correction_submesh_indices"))
+            .unwrap_or_default();
+        let reset_targets: Vec<u32> = targets.iter().copied().filter(|part| corrected.contains(part)).collect();
         let ready = state_bool(&self.cdmw_state, "authoring_enabled")
             && !state_bool(state, "authoring_baseline_ready")
             && !state_str(state, "correction_definition_id").is_some_and(|id| !id.is_empty())
+            && !self.cdmw_morph_comparison_active()
             && !targets.is_empty();
         ui.push_id(("morph-correction", definition_id), |ui| {
             if ui.add_enabled(ready, Button::new(crate::localization::tr("Edit outfit correction")))
@@ -239,6 +245,18 @@ impl LabApplication {
                     command: "morph_begin_correction",
                     arguments: json!({"definition_id": definition_id, "garment_submesh_indices": targets}),
                     label: "Edit per-slider outfit correction",
+                });
+            }
+            if !corrected.is_empty() && ui.add_enabled(ready && !reset_targets.is_empty(),
+                Button::new(crate::localization::tr("Reset selected outfit correction")))
+                .on_hover_text(crate::localization::tr(
+                    "Remove this slider's saved correction only from the selected corrected garments. Other corrections and the body shape are retained.",
+                )).clicked()
+            {
+                actions.push(UiAction::CdmwCommand {
+                    command: "morph_reset_correction",
+                    arguments: json!({"definition_id": definition_id, "garment_submesh_indices": reset_targets}),
+                    label: "Reset selected outfit correction",
                 });
             }
         });
@@ -273,5 +291,6 @@ impl LabApplication {
         ui.small(crate::localization::tr(
             "Fitting setups retain the preset, body regions, garment masks and modes for the same loaded meshes.",
         ));
+        self.draw_cdmw_matching_setups(ui, actions, state);
     }
 }

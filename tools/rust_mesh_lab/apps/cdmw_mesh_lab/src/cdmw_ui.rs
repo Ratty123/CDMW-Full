@@ -4,6 +4,8 @@ use super::*;
 use egui::{Button, ComboBox, ScrollArea, Spinner};
 
 mod morph_authoring;
+mod morph_body_controls;
+mod morph_outfit_workflows;
 
 pub(crate) mod numeric {
     //! Shared precision controls. Increments are per-widget session UI state,
@@ -1208,6 +1210,7 @@ impl LabApplication {
         let _language = crate::localization::enter(&self.egui_context);
         let mut actions = Vec::new();
         self.draw_cdmw_session_bar(root_ui, &mut actions);
+        self.draw_cdmw_correction_comparison_banner(root_ui, &mut actions);
         self.draw_cdmw_bottom_bar(root_ui, &mut actions);
         let tools_expanded = cdmw_sidebar_visible(&self.egui_context, CDMW_TOOLS_SIDEBAR);
         let rail = if self.hair.active() {
@@ -1414,6 +1417,7 @@ impl LabApplication {
                 (!busy || self.hair.active())
                     && !self.hair.pending_finish
                     && authoring
+                    && !self.cdmw_morph_comparison_active()
                     && self.cdmw_host_connected,
                 Button::new(crate::localization::tr(if self.hair.pending_finish {
                     "Saving hair before Finish…"
@@ -1423,6 +1427,8 @@ impl LabApplication {
             )
             .on_disabled_hover_text(crate::localization::tr(if busy {
                 "Finish waits until the pending shadow transaction completes"
+            } else if self.cdmw_morph_comparison_active() {
+                "Turn outfit corrections back on before finishing."
             } else if !authoring {
                 policy_reason
             } else {
@@ -1580,7 +1586,10 @@ impl LabApplication {
                                         CdmwRailPage::Select | CdmwRailPage::VertexParameters
                                     )
                             );
-                            let enabled = !busy && (!requires_authoring || authoring);
+                            let enabled = !busy && (!requires_authoring || authoring)
+                                && (!self.cdmw_morph_comparison_active() || matches!(page,
+                                    CdmwSidebarPage::Viewport | CdmwSidebarPage::Tool(
+                                        CdmwRailPage::Select | CdmwRailPage::MorphRefit)));
                             let settings = CdmwSidebarSettings::load(ui.ctx());
                             let selected = match page {
                                 CdmwSidebarPage::Viewport => settings.open.contains(&page),
@@ -1834,7 +1843,10 @@ impl LabApplication {
                             | CdmwRailPage::VertexParameters
                             | CdmwRailPage::RigWeights
                     )
-            ) || state_bool(&self.cdmw_state, "authoring_enabled"));
+            ) || state_bool(&self.cdmw_state, "authoring_enabled"))
+            && (!self.cdmw_morph_comparison_active() || matches!(page,
+                CdmwSidebarPage::Viewport | CdmwSidebarPage::Tool(
+                    CdmwRailPage::Select | CdmwRailPage::MorphRefit)));
         // Explicit IDs keep collapsing sections and edit fields alive when their
         // settings move between the expanded rail, floating area and dock.
         ui.scope_builder(
@@ -2074,11 +2086,14 @@ impl LabApplication {
         );
         if ui
             .add_enabled(
-                !busy && (!requires_authoring || authoring),
+                !busy && (!requires_authoring || authoring)
+                    && (!self.cdmw_morph_comparison_active() || page == CdmwRailPage::Select),
                 Button::new(crate::localization::tr(label)).selected(active).wrap(),
             )
             .on_disabled_hover_text(crate::localization::tr(if busy {
                 "Wait for the current shadow operation"
+            } else if self.cdmw_morph_comparison_active() {
+                "Turn outfit corrections back on to continue editing."
             } else {
                 policy_reason
             }))
@@ -2214,7 +2229,7 @@ impl LabApplication {
         );
         if ui
             .add_enabled(
-                state_bool(&self.cdmw_state, "authoring_enabled"),
+                state_bool(&self.cdmw_state, "authoring_enabled") && !self.cdmw_morph_comparison_active(),
                 Button::new(crate::localization::tr("Open Package in CDMW...")),
             )
             .on_disabled_hover_text(
@@ -2225,7 +2240,9 @@ impl LabApplication {
             actions.push(UiAction::ChooseCdmwImportPackage);
         }
         ui.separator();
-        self.draw_cdmw_output_policy(ui, actions);
+        ui.add_enabled_ui(!self.cdmw_morph_comparison_active(), |ui| {
+            self.draw_cdmw_output_policy(ui, actions);
+        });
     }
 
     fn draw_cdmw_output_policy(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
@@ -2363,7 +2380,7 @@ impl LabApplication {
         let free_edit = state_str(&self.cdmw_state, "output_policy") == Some("free_edit_rebuild");
         if ui
             .add_enabled(
-                free_edit && self.selected_counts().faces > 0,
+                free_edit && !self.cdmw_morph_comparison_active() && self.selected_counts().faces > 0,
                 Button::new(crate::localization::tr("Create Part")),
             )
             .on_disabled_hover_text(crate::localization::tr("Create Part requires selected faces and Free Edit output"))
@@ -3002,7 +3019,9 @@ impl LabApplication {
         actions: &mut Vec<UiAction>,
         state: &Value,
     ) {
-        let blocked = if state_bool(state, "unbaked") {
+        let blocked = if self.cdmw_morph_comparison_active() {
+            "Turn outfit corrections back on to change the loaded meshes."
+        } else if state_bool(state, "unbaked") {
             "Reset or Bake before loading meshes."
         } else if state
             .get("refit")
@@ -3270,9 +3289,13 @@ impl LabApplication {
         cdmw_section(ui, "morph-meshes", "Meshes & selection", None, |ui| {
             self.draw_cdmw_morph_meshes(ui, actions, &state);
         });
-        self.draw_cdmw_authored_morph(ui, actions, &state);
+        self.draw_cdmw_correction_comparison(ui, actions, &state);
+        ui.add_enabled_ui(!self.cdmw_morph_comparison_active(), |ui| {
+            self.draw_cdmw_authored_morph(ui, actions, &state);
+        });
         let morph_pending = state_bool(&state, "authoring_baseline_ready")
-            || state_str(&state, "correction_definition_id").is_some_and(|id| !id.is_empty());
+            || state_str(&state, "correction_definition_id").is_some_and(|id| !id.is_empty())
+            || self.cdmw_morph_comparison_active();
         ui.add_enabled_ui(!morph_pending, |ui| {
         let mut reveal_authoring = self.draw_cdmw_refit_section(ui, actions, &state);
         cdmw_section(ui, "morph-profiles", "Profiles & presets", None, |ui| {
@@ -3404,11 +3427,18 @@ impl LabApplication {
             ui.small(crate::localization::tr("Export Preset creates a shareable JSON file."));
             self.draw_cdmw_refit_recipe(ui, actions, &state);
         });
+        self.draw_cdmw_body_controls(ui, actions, &state);
+        self.draw_cdmw_side_controls(ui, actions, &state);
         cdmw_section(ui, "morph-values", "Shape sliders", None, |ui| {
             if definitions.is_empty() {
                 ui.weak(crate::localization::tr("Create a slider or load a preset to begin."));
             }
-            let values = pair_number_list(&state, "values");
+            let values = pair_number_list(&state, if state.get("manual_values").is_some() {
+                "manual_values"
+            } else {
+                "values"
+            });
+            let effective_values = pair_number_list(&state, "values");
             for (definition_id, host_value) in values {
                 let definition = definitions.iter().find(|candidate| {
                     state_str(candidate, "definition_id") == Some(&definition_id)
@@ -3451,9 +3481,10 @@ impl LabApplication {
                     .and_then(|candidate| state_str(candidate, "mirror_mode"))
                     .unwrap_or("off")
                     .to_owned();
+                let draft_id = format!("definition:{definition_id}");
                 let mut value = self
                     .cdmw_morph_value_drafts
-                    .get(&definition_id)
+                    .get(&draft_id)
                     .copied()
                     .unwrap_or(host_value);
                 let response = ui
@@ -3465,12 +3496,18 @@ impl LabApplication {
                 }));
                 let commit = stage_cdmw_morph_value(
                     &mut self.cdmw_morph_value_drafts,
-                    &definition_id,
+                    &draft_id,
                     value,
                     response.changed(),
                     response.is_pointer_button_down_on() || response.has_focus(),
                     response.drag_stopped() || response.lost_focus(),
                 );
+                if let Some((_, effective_value)) = effective_values.iter()
+                    .find(|(id, _)| id == &definition_id)
+                    .filter(|(_, effective)| (*effective - host_value).abs() > 0.000_001)
+                {
+                    ui.small(crate::localization::tr(format!("Preview value: {effective_value:.3}%")));
+                }
                 ui.push_id(("morph-definition-actions", &definition_id), |ui| {
                     ui.horizontal_wrapped(|ui| {
                         if ui.add_enabled(!authored, Button::new(crate::localization::tr("Edit slider")))
@@ -4070,7 +4107,9 @@ impl LabApplication {
                         egui::Frame::group(ui.style()).show(ui, |ui| {
                             ui.set_width(ui.available_width());
                             cdmw_section(ui, "cdmw-layers", "Geometry Layers", None, |ui| {
-                                self.draw_cdmw_layers(ui, actions);
+                                ui.add_enabled_ui(!self.cdmw_morph_comparison_active(), |ui| {
+                                    self.draw_cdmw_layers(ui, actions);
+                                });
                             });
                         });
                         ui.add_space(6.0);
@@ -4353,6 +4392,9 @@ impl LabApplication {
     fn cdmw_part_action_reason(&self, action: &str) -> Option<&'static str> {
         if self.cdmw_busy() {
             return Some("Wait for the selected parts to finish updating");
+        }
+        if self.cdmw_morph_comparison_active() {
+            return Some("Turn outfit corrections back on to continue editing.");
         }
         if !state_bool(&self.cdmw_state, "authoring_enabled") {
             return Some("This session is read-only");

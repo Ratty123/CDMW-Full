@@ -7,7 +7,10 @@ import hashlib
 import json
 import math
 import operator
-from typing import Iterable, Mapping, Sequence
+from typing import TYPE_CHECKING, Iterable, Mapping, Sequence
+
+if TYPE_CHECKING:
+    from .morph_layers import MeshMorphMacroDefinition, MeshMorphSidePair
 
 
 Vec3 = tuple[float, float, float]
@@ -17,6 +20,7 @@ MESH_MORPH_MAX_DEFINITIONS = 512
 MESH_MORPH_MAX_SPARSE_VERTICES = 1_000_000
 MESH_MORPH_MAX_DELTA_COMPONENT = 1_000_000.0
 MESH_MORPH_PRESET_FORMAT = "cdmw.mesh_morph_value_preset.v2"
+MESH_MORPH_LAYERED_PRESET_FORMAT = "cdmw.mesh_morph_value_preset.v3"
 MESH_MORPH_RULES = ("volume", "scale", "move", "flatten", "taper", "twist", "radius")
 MESH_MORPH_AXES = ("x", "y", "z")
 MESH_MORPH_MIRROR_MODES = ("off", "x", "y", "z")
@@ -233,6 +237,10 @@ class MeshMorphValuePreset:
     topology_fingerprint: str
     values: tuple[tuple[str, float], ...] = ()
     format: str = MESH_MORPH_PRESET_FORMAT
+    manual_values: tuple[tuple[str, float], ...] | None = None
+    macro_values: tuple[tuple[str, float], ...] = ()
+    symmetry_enabled: bool = False
+    profile_definition_fingerprint: str = ""
 
     def __post_init__(self) -> None:
         preset_id = str(self.preset_id or "").strip()
@@ -256,6 +264,30 @@ class MeshMorphValuePreset:
         object.__setattr__(self, "name", str(self.name or preset_id).strip() or preset_id)
         object.__setattr__(self, "topology_fingerprint", fingerprint)
         object.__setattr__(self, "values", tuple(sorted(normalized)))
+        if self.format not in {MESH_MORPH_PRESET_FORMAT, MESH_MORPH_LAYERED_PRESET_FORMAT}:
+            raise ValueError("Unsupported morph value preset format.")
+        if not isinstance(self.symmetry_enabled, bool):
+            raise ValueError("Morph preset symmetry must be boolean.")
+        if self.manual_values is None:
+            if self.macro_values or self.symmetry_enabled or self.profile_definition_fingerprint or self.format == MESH_MORPH_LAYERED_PRESET_FORMAT:
+                raise ValueError("Body control state requires retained manual values.")
+            return
+        for attribute in ("manual_values", "macro_values"):
+            entries: list[tuple[str, float]] = []
+            layer_ids: set[str] = set()
+            for raw_key, raw_value in getattr(self, attribute):
+                if not isinstance(raw_key, str) or not raw_key or raw_key != raw_key.strip() or raw_key in layer_ids or isinstance(raw_value, bool):
+                    raise ValueError("Body control layers require unique exact ids and finite numeric values.")
+                value = float(raw_value)
+                if not math.isfinite(value):
+                    raise ValueError("Body control layers require finite numeric values.")
+                if attribute == "macro_values" and not -100.0 <= value <= 100.0:
+                    raise ValueError("Body control macro values must stay between -100 and 100 percent.")
+                layer_ids.add(raw_key)
+                entries.append((raw_key, value))
+            object.__setattr__(self, attribute, tuple(sorted(entries)))
+        object.__setattr__(self, "profile_definition_fingerprint", _sha256_digest(self.profile_definition_fingerprint, "Body control profile definition"))
+        object.__setattr__(self, "format", MESH_MORPH_LAYERED_PRESET_FORMAT)
 
 
 @dataclass(frozen=True, slots=True)
@@ -361,6 +393,9 @@ class MeshMorphFittingRecipe:
         for key, value in self.preset.values:
             if not definitions[key].min_percent <= value <= definitions[key].max_percent:
                 raise ValueError("Fitting recipe preset value is outside its slider range.")
+        if self.preset.manual_values is not None:
+            from .morph_layers import validate_mesh_morph_layers
+            validate_mesh_morph_layers(self.profile, self.preset)
         for definition in self.profile.definitions:
             if any(item.submesh_index not in drivers for item in definition.vertices):
                 raise ValueError("Fitting recipe profile references a part outside its driver roles.")
@@ -412,6 +447,15 @@ class MeshMorphState:
     authoring_driver_submesh_indices: tuple[int, ...] = ()
     correction_definition_id: str = ""
     correction_garment_submesh_indices: tuple[int, ...] = ()
+    manual_values: tuple[tuple[str, float], ...] = ()
+    macro_values: tuple[tuple[str, float], ...] = ()
+    macro_definitions: tuple[MeshMorphMacroDefinition, ...] = ()
+    symmetry_enabled: bool = False
+    side_pairs: tuple[MeshMorphSidePair, ...] = ()
+    corrections_enabled: bool = True
+    matching_recipes: tuple[tuple[str, str], ...] = ()
+    body_controls_available: bool = False
+    body_controls_reason: str = ""
 
 
 def mesh_topology_fingerprint(mesh: object, submesh_indices: Iterable[int] | None = None) -> str:
@@ -801,6 +845,7 @@ __all__ = [
     "MESH_MORPH_FALLOFFS",
     "MESH_MORPH_MIRROR_MODES",
     "MESH_MORPH_PRESET_FORMAT",
+    "MESH_MORPH_LAYERED_PRESET_FORMAT",
     "MESH_MORPH_PROFILE_FORMAT",
     "MESH_MORPH_RULES",
     "MeshMorphDefinition",
