@@ -134,6 +134,8 @@ const CDMW_UI_SOURCE: &str = concat!(
     "\n",
     include_str!("cdmw_ui/morph_outfit_workflows.rs"),
     "\n",
+    include_str!("cdmw_ui/morph_workflow.rs"),
+    "\n",
     include_str!("cdmw_history.rs"),
     "\n",
     include_str!("cdmw_islands.rs"),
