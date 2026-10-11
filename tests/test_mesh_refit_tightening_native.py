@@ -117,6 +117,36 @@ def test_layers_starting_inside_a_larger_body_keep_their_spacing():
             assert math.hypot(outer[0],outer[2])-math.hypot(inner[0],inner[2]) > .005
 
 
+@pytest.mark.parametrize("segments", (24, 48))
+def test_overlapping_folded_layers_share_fit_without_inflating_or_spiking(segments):
+    lining = _sleeve(radius=.1, segments=32)
+    panel = _sleeve(radius=.108, segments=segments)
+    # Different tessellation and crossing folds model authored overlapping trim,
+    # where imposing one hard layer order throughout would be contradictory.
+    panel.vertices = [(x * (1 + .11 * math.sin(4 * math.atan2(z, x) + y * 10)), y,
+                       z * (1 + .11 * math.sin(4 * math.atan2(z, x) + y * 10)))
+                      for x, y, z in panel.vertices]
+    mesh = _mesh(_arm(), lining, panel)
+    with _bound(mesh) as session:
+        _fit(session, (1, 2))
+        fitted = _snapshot(mesh, session)
+        for before, after in zip(mesh.submeshes[1:], fitted.submeshes[1:]):
+            radii = [math.hypot(x, z) for x, _, z in after.vertices]
+            assert sum(radii) / len(radii) < .08
+            assert min(radii) > .06
+            assert after.faces == before.faces
+            edges = {tuple(sorted((f[c], f[(c + 1) % 3]))) for f in before.faces for c in range(3)}
+            for a, b in edges:
+                ratio = math.dist(after.vertices[a], after.vertices[b]) / math.dist(before.vertices[a], before.vertices[b])
+                assert .3 < ratio < 1.6
+            # The open rings retain their topology, height and winding.
+            assert min(v[1] for v in after.vertices) == pytest.approx(.1, abs=.003)
+            assert max(v[1] for v in after.vertices) == pytest.approx(.4, abs=.003)
+        folded_ring = fitted.submeshes[2].vertices[3 * segments:4 * segments]
+        folded_radii = [math.hypot(x, z) for x, _, z in folded_ring]
+        assert max(folded_radii) - min(folded_radii) > .018
+
+
 def test_repeat_percentage_reset_bake_and_history_are_neutral_based():
     mesh = _mesh(_arm(), _sleeve())
     with _bound(mesh) as session:
@@ -281,6 +311,28 @@ def test_post_fit_correction_cannot_publish_a_body_intersection():
         assert "Part 1" in mesh_native_core.last_native_mesh_core_job_error()
         assert _state(session)==before
         assert _snapshot(mesh,session).submeshes[1].vertices==positions
+
+
+def test_post_fit_correction_cannot_reverse_authored_layer_order():
+    mesh = _mesh(_arm(), _sleeve(), _sleeve(radius=.11))
+    with _bound(mesh) as session:
+        _command(session, "morph_upload", {"profile": {
+            "profile_id": "fit", "name": "Fit", "topology_fingerprint": "a" * 64,
+            "definitions": [{"definition_id": "cross", "label": "Cross",
+                             "min_percent": 0., "max_percent": 100., "default_percent": 0.}],
+            "fields": [{"definition_id": "cross", "stage": "post_refit", "submesh_index": 1,
+                        "vertex_indices": list(range(len(mesh.submeshes[1].vertices))),
+                        "deltas": [[x * .2, 0., z * .2] for x, _, z in mesh.submeshes[1].vertices]}],
+        }})
+        _fit(session, (1, 2))
+        before = _state(session)
+        positions = _snapshot(mesh, session)
+        assert mesh_native_core.native_mesh_editor_session_command("morph_change", session, {
+            "definition_id": "cross", "value": 100., "phase": "end", "change_id": "cross-layer",
+        }) is None
+        assert "layer separation" in mesh_native_core.last_native_mesh_core_job_error()
+        assert _state(session) == before
+        assert [p.vertices for p in _snapshot(mesh, session).submeshes] == [p.vertices for p in positions.submeshes]
 
 
 def test_post_fit_correction_cannot_stretch_a_rigid_component():

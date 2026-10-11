@@ -470,7 +470,8 @@ void mesh_editor_relieve_refit_surface(
     const std::map<int, std::vector<Vec3>>& residual,
     std::map<int, std::vector<Vec3>>& layer,
     const RefitMaskWeightsNative* fitting_masks = nullptr,
-    bool validate_only = false
+    bool validate_only = false,
+    const std::map<int, std::vector<Vec3>>* layer_reference = nullptr
 ) {
     std::map<int, double> clearances;
     for (const auto& item : refit.garment_settings) {
@@ -574,6 +575,26 @@ void mesh_editor_relieve_refit_surface(
         }
         return point;
     };
+    // Shape constraints use the narrowed silhouette. Layer order must instead
+    // come from the followed garment, before conforming can bring shells through
+    // one another. Otherwise an intermediate crossing becomes the required order.
+    std::vector<Vec3> layer_rest;
+    for (const auto& cohort : cohorts) {
+        const auto vertex = cohort.vertices.front();
+        Vec3 point = cohort.original;
+        if (layer_reference) {
+            const auto found = layer_reference->find(vertex.first);
+            point = add_vec3(residual.at(vertex.first)[vertex.second],
+                found == layer_reference->end() ? Vec3{} : found->second[vertex.second]);
+        }
+        layer_rest.push_back(point);
+    }
+    const auto layer_sample_point = [&](const SurfaceSample& sample) {
+        Vec3 point{};
+        for (int corner = 0; corner < 3; ++corner)
+            point = add_vec3(point, scale_vec3(layer_rest[sample.corners[corner]], sample.weights[corner]));
+        return point;
+    };
     std::set<std::pair<std::size_t, std::size_t>> edges;
     std::map<std::pair<std::size_t, std::size_t>, int> edge_faces;
     std::map<std::pair<std::size_t, std::size_t>, std::vector<std::size_t>> edge_opposites;
@@ -655,14 +676,35 @@ void mesh_editor_relieve_refit_surface(
         reach = std::max(reach, length_vec3(sub_vec3(item.second.second, item.second.first)));
     }
     std::vector<LayerConstraint> layer_constraints;
+    auto layer_garments = garments;
+    for (auto& item : layer_garments) {
+        const auto& indices = vertex_cohorts.at(item.first);
+        for (std::size_t i = 0; i < indices.size(); ++i) item.second.vertices[i] = layer_rest[indices[i]];
+    }
+    std::vector<std::vector<std::size_t>> layer_neighbors(cohorts.size());
+    for (const auto& edge : edges) {
+        layer_neighbors[edge.first].push_back(edge.second);
+        layer_neighbors[edge.second].push_back(edge.first);
+    }
     // Infer local layer order from the authored surfaces, including samples
     // inside coarse outer-shell triangles. Material names do not establish
     // which surface is outside. Only couple nearby surfaces facing the body.
-    for (const auto& target : garments) {
+    for (const auto& target : layer_garments) {
         if (target.second.faces.empty()) continue;
-        const auto target_index = build_refit_spatial_index_native(garments, {target.first});
+        const auto target_index = build_refit_spatial_index_native(layer_garments, {target.first});
+        std::vector<double> authored_side(cohorts.size(), 0.0);
+        std::vector<Vec3> authored_normal(cohorts.size());
+        if (fitting_masks) for (std::size_t i = 0; i < cohorts.size(); ++i) {
+            long long tests = 0;
+            const auto nearest = closest_refit_binding_native(layer_rest[i], target_index, tests);
+            if (nearest.distance > refit.driver_diagonal * 0.03) continue;
+            const auto& face = nearest.driver_vertices;
+            const auto& points = target.second.vertices;
+            authored_normal[i] = refit_face_normal_native(points[face[0]], points[face[1]], points[face[2]]);
+            authored_side[i] = dot_vec3(sub_vec3(layer_rest[i], points[face[0]]), authored_normal[i]);
+        }
         const auto bind_layer = [&](const SurfaceSample& sample) {
-            const Vec3 point = sample_point(sample, true);
+            const Vec3 point = layer_sample_point(sample);
             long long candidate_tests = 0;
             const auto nearest = closest_refit_binding_native(point, target_index, candidate_tests);
             if (nearest.distance > refit.driver_diagonal * 0.03) return;
@@ -674,20 +716,36 @@ void mesh_editor_relieve_refit_surface(
                 }
             }
             const Vec3 normal = refit_face_normal_native(
-                cohorts[other.corners[0]].original, cohorts[other.corners[1]].original, cohorts[other.corners[2]].original
+                layer_rest[other.corners[0]], layer_rest[other.corners[1]], layer_rest[other.corners[2]]
             );
-            const double height = dot_vec3(sub_vec3(point, sample_point(other, true)), normal);
-            if (std::abs(height) <= tolerance * 4.0 || std::abs(height) < nearest.distance * 0.15) return;
+            const double height = dot_vec3(sub_vec3(point, layer_sample_point(other)), normal);
+            // Near-coincident material skins are attachments, not measurable
+            // separated shells. Their field links retain the join; assigning a
+            // hard side from micrometre-scale source rounding creates chatter.
+            const double order_epsilon = fitting_masks
+                ? std::max(tolerance * 4.0, refit.driver_diagonal * 1.0e-5) : tolerance * 4.0;
+            if (std::abs(height) <= order_epsilon || std::abs(height) < nearest.distance * 0.15) return;
+            if (fitting_masks && length_vec3(sub_vec3(sub_vec3(point, layer_sample_point(other)),
+                    scale_vec3(normal, height))) > tolerance * 4.0) return;
+            // Intersecting authored trim has no consistent layer order in this
+            // neighborhood. Its displacement links preserve the construction;
+            // conflicting hard half-spaces would tear it apart or inflate it.
+            if (fitting_masks) for (int c = 0; c < 3; ++c) {
+                if (sample.weights[c] <= 0.0) continue;
+                for (const auto neighbor : layer_neighbors[sample.corners[c]])
+                    if (height * authored_side[neighbor] < -tolerance * tolerance
+                        && dot_vec3(normal, authored_normal[neighbor]) > 0.5) return;
+            }
             // A sleeve near the waist is not another layer of the vest. Require
             // both samples to lie over the same local, outward-facing body region.
             const auto first_body = closest_refit_binding_native(point, spatial_index, candidate_tests);
-            const auto second_body = closest_refit_binding_native(sample_point(other, true), spatial_index, candidate_tests);
+            const auto second_body = closest_refit_binding_native(layer_sample_point(other), spatial_index, candidate_tests);
             if (dot_vec3(refit_binding_face_normal_native(first_body, driver_visible),
                          refit_binding_face_normal_native(second_body, driver_visible)) < 0.5) return;
             const double region_radius = std::max(nearest.distance * 2.0, refit.driver_diagonal * 0.05);
             if (distance_squared_vec3(mesh_editor_refit_driver_point(first_body, driver_visible),
                                       mesh_editor_refit_driver_point(second_body, driver_visible)) > region_radius * region_radius) return;
-            layer_constraints.push_back({sample, other, sub_vec3(point, sample_point(other, true)), normal, 0.25 * std::abs(height)});
+            layer_constraints.push_back({sample, other, sub_vec3(point, layer_sample_point(other)), normal, 0.25 * std::abs(height)});
         };
         for (const auto& source : garments) {
             if (source.first == target.first) continue;
@@ -1121,7 +1179,8 @@ void mesh_editor_relieve_refit_surface(
             other.weights = closest_triangle_point_native(point, a, b, c).barycentric;
             const Vec3 offset = sub_vec3(point, sample_point(other, false));
             // A nearby open edge does not cover a point past that edge.
-            if (length_vec3(sub_vec3(offset, scale_vec3(normal, height))) > refit.driver_diagonal * 0.005) continue;
+            if (length_vec3(sub_vec3(offset, scale_vec3(normal, height)))
+                    > (fitting_masks ? tolerance * 4.0 : refit.driver_diagonal * 0.005)) continue;
             maximum_correction = std::max(maximum_correction, std::abs(correction));
             const double weight_squared = dot_vec3(constraint.first.weights, constraint.first.weights)
                 + dot_vec3(other.weights, other.weights);
@@ -1371,10 +1430,16 @@ void mesh_editor_relieve_refit_surface(
         // Only its perpendicular projection onto the face can establish order.
         if (length_vec3(sub_vec3(offset,scale_vec3(normal,height))) > tolerance*4.0) continue;
         const double rest=dot_vec3(constraint.rest_offset,constraint.normal);
-        if ((rest > 0.0 ? height : -height) < std::min(std::abs(rest)*0.05,tolerance*4.0))
+        // Apply the same contact tolerance as the body validator. Near-coincident
+        // skins must not require sub-tolerance positive gaps while body contact
+        // accepts that same numerical error on either side of its boundary.
+        if ((rest > 0.0 ? height : -height) < -tolerance * 4.0)
             throw std::runtime_error("Fit to body: Part "
                 + std::to_string(cohorts[constraint.first.corners[0]].vertices.front().first)
-                + " cannot preserve its garment layer separation");
+                + " cannot preserve its garment layer separation from Part "
+                + std::to_string(cohorts[constraint.second.corners[0]].vertices.front().first)
+                + " (rest " + std::to_string(rest) + ", gap " + std::to_string(height)
+                + ", vertex " + std::to_string(cohorts[constraint.first.corners[0]].vertices.front().second) + ")");
     }
     for (const Cohort& cohort : cohorts) {
         const Vec3 delta = sub_vec3(cohort.position, cohort.original);
@@ -1484,7 +1549,7 @@ void mesh_editor_add_refit_layer(
         mesh_editor_refit_components(*morph.refit, submeshes, driver_visible, residual, followed, masks, layer, true);
         mesh_editor_validate_conformed_refit(*morph.refit, submeshes, residual, followed, layer, "conforming");
         const auto conformed = layer;
-        mesh_editor_relieve_refit_surface(*morph.refit, submeshes, driver_visible, residual, layer, &masks);
+        mesh_editor_relieve_refit_surface(*morph.refit, submeshes, driver_visible, residual, layer, &masks, false, &followed);
         mesh_editor_validate_conformed_refit(*morph.refit, submeshes, residual, conformed, layer, "clearance");
     }
 }
@@ -1631,7 +1696,7 @@ std::vector<SubmeshMeshEditResult> mesh_editor_recompose_morph(
                     body_layer==new_layer.end()?Vec3{}:body_layer->second[i]));
         }
         mesh_editor_validate_conformed_refit(*next.refit,submeshes,residual,fitted_layer,new_layer,"garment correction");
-        mesh_editor_relieve_refit_surface(*next.refit,submeshes,driver_visible,residual,new_layer,&masks,true);
+        mesh_editor_relieve_refit_surface(*next.refit,submeshes,driver_visible,residual,new_layer,&masks,true,&fitted_layer);
     }
     for (const auto& item : new_layer) indices.insert(item.first);
     std::vector<SubmeshMeshEditResult> results;

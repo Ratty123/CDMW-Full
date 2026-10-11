@@ -1621,9 +1621,14 @@ Materials do not choose a mode automatically.
 
 The fitter uses local body-surface correspondences and a seam-connected displacement
 solve, then checks contacts against the complete body, including when an allowed
-region limits correspondence. Nearby layers retain their separation. The collision
-stage uses the conformed silhouette for shape constraints so original garment width
-does not resist narrowing. Masks constrain movement, including coincident seams.
+region limits correspondence. Overlapping panels, belts and trim share nearby cloth
+movement even when their mesh densities differ. Layer order comes from the pre-fit
+garment; open edges do not push surfaces they do not cover. Already intersecting or
+nearly coincident trim follows the shared movement instead of imposing contradictory
+inside/outside constraints. The collision stage uses the conformed silhouette for
+shape constraints so original garment width does not resist narrowing. Thin folds
+are also checked against their moving neighbors. Masks constrain movement, including
+coincident seams.
 Unreliable correspondence, unresolved contact or invalid geometry refuses the whole
 candidate and identifies the affected Part; the previous preview and settings remain.
 A refused fit may need a narrower allowed region, different protection or manual edits.

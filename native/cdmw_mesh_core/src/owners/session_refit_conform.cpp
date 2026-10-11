@@ -217,6 +217,7 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
     for (const auto &item : garments)
         garment_positions[item.first] = item.second.vertices;
     std::vector<std::size_t> visited(body.triangles.size(), 0);
+    std::vector<Vec3> body_points(nodes.size()), body_normals(nodes.size());
     std::vector<bool> reliable(nodes.size(), false);
     for (std::size_t i = 0; i < nodes.size(); ++i) {
         auto &node = nodes[i];
@@ -282,6 +283,8 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
         if (!std::isfinite(best) || std::sqrt(best) > refit.driver_diagonal * 0.35)
             continue;
         reliable[i] = true;
+        body_points[i] = target_point;
+        body_normals[i] = target_normal;
         double clearance = 0.0;
         for (const auto &source : node.vertices)
             clearance = std::max(clearance, refit.garment_settings.at(source.first).clearance_percent *
@@ -367,6 +370,43 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
                 screen[i] = nodes[i].area;
         }
     }
+    // Overlapping material Parts share a local displacement field. A belt or
+    // folded panel must follow the cloth underneath instead of independently
+    // seeking the skin. Barycentric links preserve details even when the two
+    // surfaces have different tessellation; they do not weld their positions.
+    struct LayerLink {
+        std::array<std::size_t, 4> nodes;
+        std::array<double, 4> weights;
+        double strength;
+    };
+    std::vector<LayerLink> layer_links;
+    for (const auto& item : garments) {
+        const auto surface = build_refit_spatial_index_native(garments, {item.first});
+        if (surface.root < 0) continue;
+        for (std::size_t i = 0; i < nodes.size(); ++i) {
+            if (!reliable[i] || std::any_of(nodes[i].vertices.begin(), nodes[i].vertices.end(),
+                    [&](const auto& vertex) { return vertex.first == item.first; })) continue;
+            long long tests = 0;
+            const auto nearest = closest_refit_binding_native(nodes[i].point, surface, tests);
+            if (nearest.distance > refit.driver_diagonal * 0.03) continue;
+            const Vec3 point = mesh_editor_refit_driver_point(nearest, garment_positions);
+            const Vec3 normal = refit_binding_face_normal_native(nearest, garment_positions);
+            const double height = dot_vec3(sub_vec3(nodes[i].point, point), normal);
+            if (std::abs(height) < nearest.distance * 0.15) continue;
+            const auto anchor = closest_refit_binding_native(point, body, tests);
+            if (dot_vec3(refit_binding_face_normal_native(anchor, driver_visible), body_normals[i]) < 0.5
+                || distance_squared_vec3(mesh_editor_refit_driver_point(anchor, driver_visible), body_points[i])
+                    > std::pow(refit.driver_diagonal * 0.05, 2.0)) continue;
+            LayerLink link{{i, 0, 0, 0}, {1.0, 0.0, 0.0, 0.0}, nodes[i].area * 16.0};
+            bool shared = false;
+            for (int c = 0; c < 3; ++c) {
+                link.nodes[c + 1] = indices.at(item.first)[nearest.driver_vertices[c]];
+                link.weights[c + 1] = -nearest.barycentric[c];
+                shared |= link.nodes[c + 1] == i;
+            }
+            if (!shared) layer_links.push_back(link);
+        }
+    }
     std::vector<double> diagonal(nodes.size());
     std::vector<Vec3> rhs(nodes.size()), displacement(nodes.size()), r(nodes.size()), z(nodes.size()),
         direction(nodes.size());
@@ -382,6 +422,9 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
         if (nodes[edge.b].mobility > 0.0)
             diagonal[edge.b] += lambda * edge.weight;
     }
+    for (const auto& link : layer_links) for (int c = 0; c < 4; ++c)
+        if (nodes[link.nodes[c]].mobility > 0.0)
+            diagonal[link.nodes[c]] += link.strength * link.weights[c] * link.weights[c];
     const auto multiply = [&](const std::vector<Vec3> &values) {
         std::vector<Vec3> result(nodes.size());
         for (std::size_t i = 0; i < nodes.size(); ++i)
@@ -391,6 +434,15 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
                 result[edge.a] = sub_vec3(result[edge.a], scale_vec3(values[edge.b], lambda * edge.weight));
                 result[edge.b] = sub_vec3(result[edge.b], scale_vec3(values[edge.a], lambda * edge.weight));
             }
+        for (const auto& link : layer_links) {
+            Vec3 difference{};
+            for (int c = 0; c < 4; ++c) if (nodes[link.nodes[c]].mobility > 0.0)
+                difference = add_vec3(difference, scale_vec3(values[link.nodes[c]], link.weights[c]));
+            for (int c = 0; c < 4; ++c) if (nodes[link.nodes[c]].mobility > 0.0)
+                result[link.nodes[c]] = add_vec3(result[link.nodes[c]], scale_vec3(
+                    sub_vec3(difference, scale_vec3(values[link.nodes[c]], link.weights[c])),
+                    link.strength * link.weights[c]));
+        }
         return result;
     };
     const auto inner = [](const std::vector<Vec3> &a, const std::vector<Vec3> &b) {
@@ -439,7 +491,25 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
     };
     for (int pass = 0; pass < 32; ++pass) {
         bool changed = false;
-        for (const auto &item : garments)
+        for (const auto &item : garments) {
+            const auto& map = indices.at(item.first);
+            std::vector<std::set<int>> local_neighbors(item.second.vertices.size());
+            for (const auto& face : item.second.faces) for (const int a : face) for (const int b : face)
+                local_neighbors[a].insert(b);
+            std::vector<std::array<double, 4>> rotations(map.size());
+            for (std::size_t vertex = 0; vertex < map.size(); ++vertex) {
+                std::vector<Vec3> source, target;
+                Vec3 a{}, b{};
+                for (const auto other : local_neighbors[vertex]) {
+                    source.push_back(nodes[map[other]].point);
+                    target.push_back(candidate(map[other], step[map[other]]));
+                    a = add_vec3(a, source.back());
+                    b = add_vec3(b, target.back());
+                }
+                rotations[vertex] = source.empty() ? std::array<double, 4>{1., 0., 0., 0.}
+                    : refit_component_rotation_native(source, target,
+                        scale_vec3(a, 1.0 / source.size()), scale_vec3(b, 1.0 / target.size()));
+            }
             for (const auto &face : item.second.faces) {
                 const auto &map = indices.at(item.first);
                 const std::array<std::size_t, 3> v{map[face[0]], map[face[1]], map[face[2]]};
@@ -447,10 +517,18 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
                     refit_face_normal_native(nodes[v[0]].point, nodes[v[1]].point, nodes[v[2]].point);
                 if (dot_vec3(normal, normal) < 0.5)
                     continue;
+                Vec3 expected{};
+                for (const auto vertex : face)
+                    expected = add_vec3(expected, refit_rotate_quaternion_native(rotations[vertex], normal));
                 const auto safe = [&](double scale) {
                     std::array<Vec3, 3> p{candidate(v[0], step[v[0]] * scale), candidate(v[1], step[v[1]] * scale),
                                           candidate(v[2], step[v[2]] * scale)};
                     if (dot_vec3(normal, refit_face_normal_native(p[0], p[1], p[2])) < 0.1)
+                        return false;
+                    // Use the same moving neighborhood as final validation.
+                    // A thin folded attachment can invert relative to adjacent
+                    // cloth even while its global normal still points forward.
+                    if (dot_vec3(expected, refit_face_normal_native(p[0], p[1], p[2])) < 0.05)
                         return false;
                     for (int c = 0; c < 3; ++c) {
                         const double a = distance_squared_vec3(nodes[v[c]].point, nodes[v[(c + 1) % 3]].point);
@@ -474,6 +552,7 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
                     step[i] *= low * 0.95;
                 changed = true;
             }
+        }
         if (!changed)
             break;
         auto limited = step;
@@ -483,6 +562,20 @@ void mesh_editor_conform_refit(const MeshRefitRuntime &refit, const std::map<int
                                       std::max(smoothing_length, tolerance);
             limited[edge.a] = std::min(limited[edge.a], step[edge.b] + transition);
             limited[edge.b] = std::min(limited[edge.b], step[edge.a] + transition);
+        }
+        // A detail that limits the fit must also limit the cloth directly
+        // underneath it. Otherwise the independent triangle guard can undo the
+        // shared field and pull the lining through a preserved fold or buckle.
+        for (const auto& link : layer_links) {
+            Vec3 offset{};
+            double minimum = 1.0;
+            for (int c = 0; c < 4; ++c) {
+                offset = add_vec3(offset, scale_vec3(nodes[link.nodes[c]].point, link.weights[c]));
+                if (std::abs(link.weights[c]) > 1.0e-6) minimum = std::min(minimum, step[link.nodes[c]]);
+            }
+            const double transition = length_vec3(offset) / std::max(smoothing_length, tolerance);
+            for (int c = 0; c < 4; ++c) if (std::abs(link.weights[c]) > 1.0e-6)
+                limited[link.nodes[c]] = std::min(limited[link.nodes[c]], minimum + transition);
         }
         step = std::move(limited);
     }
