@@ -98,7 +98,10 @@ a load failure closes it to reveal the browser's retry controls.
 Apply **Search** to refresh the archive results.
 
 Startup catalogue and thumbnail warmups wait for the archive view to settle and
-yield to recent keyboard, mouse, wheel and focus activity throughout the app.
+pause during keyboard, mouse, drag, wheel and focus activity throughout the app,
+including input inside embedded native viewports on Windows. They resume after
+two seconds without input. Interrupted thumbnail jobs return to the queue and
+completed previews stay cached; startup's saved page remains background work.
 The extension picker defers new warmup requests until it closes. This also gates
 the first item-name build and saved-page lookup; foreground Finder icon requests
 retain priority. Archive worker replies are delivered in bounded GUI turns,
@@ -225,8 +228,11 @@ separators are repaired only in memory and reported.
 After the archive view is ready, two background jobs preload up to three pages
 per tab (432 results), alternating Bodies and Faces with both landing pages first.
 The catalogue results and rendered thumbnails are reused when the finder opens.
-Opening the finder pauses queued startup work while already assigned previews
-finish and remain reusable. Closing it resumes the remaining queue.
+Background preview threads and thumbnail renderer processes run at low priority.
+User activity interrupts assigned startup previews as well as queued jobs, and
+the idle gate is checked throughout each page. Opening the finder also holds the
+startup queue, while explicitly requested Finder previews retain priority.
+Closing it resumes the remaining queue after the input idle delay.
 New archives invalidate the warmup, and the shell retains its threads through
 shutdown. The first uncached render still requires model and texture preparation.
 

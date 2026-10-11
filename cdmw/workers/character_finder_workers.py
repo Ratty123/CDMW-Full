@@ -150,7 +150,8 @@ class CharacterFinderRenderWorker(QObject):
     finished = Signal()
 
     def __init__(self, token: int, inputs: CharacterPreviewInputs, *, cache_root: Path,
-                 fingerprint: str, settings: ModelPreviewRenderSettings, cache_only: bool = False) -> None:
+                 fingerprint: str, settings: ModelPreviewRenderSettings, cache_only: bool = False,
+                 background: bool = False) -> None:
         super().__init__()
         self.token = token
         self.inputs = inputs
@@ -160,6 +161,7 @@ class CharacterFinderRenderWorker(QObject):
         self._stop = threading.Event()
         self._capture_report = {}
         self._cache_only = cache_only
+        self._background = background
 
     def stop(self) -> None:
         self._stop.set()
@@ -393,8 +395,11 @@ class CharacterFinderRenderWorker(QObject):
             # Near-zero yaw points at the back of character heads.
             args = [str(resolution.resolved_path), "--capture-cdmw-preview-session", str(package.manifest_path),
                     "--capture-output", str(capture), "--capture-report-json", str(report), "--capture-size", "256"]
+            flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            if self._background:
+                flags |= getattr(subprocess, "BELOW_NORMAL_PRIORITY_CLASS", 0)
             process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+                creationflags=flags)
             deadline = time.monotonic() + 45
             try:
                 while True:

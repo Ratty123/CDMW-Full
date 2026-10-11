@@ -204,6 +204,44 @@ def test_scheduling_pause_finishes_active_startup_jobs_without_starting_more(pag
     wait_for(lambda: owner.page_complete)
 
 
+@pytest.mark.parametrize("finish", ["resume", "shutdown"])
+def test_activity_interrupts_active_preloads_without_losing_completed_rows(page_scheduler, finish):
+    owner, jobs = page_scheduler
+    delivered, failed = [], []
+    owner.thumbnail_ready.connect(lambda key, _result: delivered.append(key))
+    owner.failed.connect(lambda *args: failed.append(args))
+    owner.visible([row(i) for i in range(3)], session_id="session-a", generation=1)
+    wait_for(lambda: len(jobs) == 2)
+    jobs[0].release.set()
+    wait_for(lambda: len(jobs) == 3)
+    completed = jobs[0].selected.row.key
+    active = [(lane, lane._token, lane._active_key) for lane in owner._lanes if lane._active_key]
+    owner.pause_scheduling(cancel_active=True)
+    for lane, token, key in active:
+        # Even a result already queued before cancellation must not complete
+        # the interrupted row or schedule another thumbnail.
+        lane._render_ready(token, CharacterRenderResult(key, "package", "late", "base_appearance", ()))
+    wait_for(lambda: not owner.busy)
+    QTest.qWait(25)
+    assert len(jobs) == 3 and all(job.stopped.is_set() for job in jobs[1:])
+    assert delivered == [completed] and owner._done == {completed} and not failed
+    assert not owner.page_complete
+    if finish == "shutdown":
+        owner.shutdown()
+        owner.resume_scheduling()
+        QTest.qWait(25)
+        assert len(jobs) == 3 and not owner._schedule_timer.isActive()
+        return
+    owner.resume_scheduling()
+    wait_for(lambda: len(jobs) == 5)
+    assert all(job.selected.row.key != completed for job in jobs[3:])
+    for job in jobs[3:]:
+        job.release.set()
+    wait_for(lambda: owner.page_complete)
+    assert set(delivered) == {"asset:0", "asset:1", "asset:2"} and len(delivered) == 3
+    assert not failed
+
+
 @pytest.mark.parametrize("failures", [1, 99])
 def test_temporary_path_failure_retries_automatically_and_remains_bounded(page_scheduler, monkeypatch, failures):
     owner, jobs = page_scheduler

@@ -88,8 +88,9 @@ class _CharacterPreviewLane(QObject):
     progress = Signal(str, str, int, int)
     idle = Signal()
 
-    def __init__(self, service, *, fingerprint: str, cache_root: Path, settings, parent=None):
+    def __init__(self, service, *, fingerprint: str, cache_root: Path, settings, parent=None, background=False):
         super().__init__(parent)
+        self._background = background
         self._service = service
         self._fingerprint = fingerprint
         self._cache_root = cache_root
@@ -260,7 +261,7 @@ class _CharacterPreviewLane(QObject):
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
         thread.finished.connect(self._thread_finished)
-        thread.start()
+        thread.start(QThread.LowPriority if self._background else QThread.InheritPriority)
 
     @Slot()
     def _thread_finished(self):
@@ -291,7 +292,8 @@ class _CharacterPreviewLane(QObject):
         if self._closed or token != self._token or not self._active_key:
             return
         worker = CharacterFinderRenderWorker(token, inputs, cache_root=self._cache_root,
-                                            fingerprint=self._fingerprint, settings=self._settings, cache_only=cache_only)
+                                            fingerprint=self._fingerprint, settings=self._settings,
+                                            cache_only=cache_only, background=self._background)
         worker.package_ready.connect(self._deliver_package)
         worker.completed.connect(self._render_ready)
         worker.failed.connect(self._preparation_failed)
@@ -369,8 +371,9 @@ class CharacterFinderPreviewController(QObject):
     progress = Signal(str, str, int, int)
     idle = Signal()
 
-    def __init__(self, service, *, fingerprint, cache_root, settings, parent=None, max_lanes=None):
+    def __init__(self, service, *, fingerprint, cache_root, settings, parent=None, max_lanes=None, background=False):
         super().__init__(parent)
+        self._background = background
         self._rows = {}
         self._priority_keys = set()
         self._prefetch_rows = {}
@@ -393,7 +396,7 @@ class CharacterFinderPreviewController(QObject):
         if max_lanes is not None:
             lane_count = min(lane_count, max(1, max_lanes))
         self._lanes = [_CharacterPreviewLane(service, fingerprint=fingerprint,
-            cache_root=cache_root, settings=settings, parent=self) for _ in range(lane_count)]
+            cache_root=cache_root, settings=settings, parent=self, background=background) for _ in range(lane_count)]
         self._settings = self._lanes[0]._settings
         self._row_root = character_row_cache_root(cache_root, fingerprint, self._settings)
         self._schedule_timer = QTimer(self)
@@ -466,10 +469,21 @@ class CharacterFinderPreviewController(QObject):
         for lane in self._lanes:
             lane.clear_page()
 
-    def pause_scheduling(self):
-        """Let assigned jobs finish without starting the rest of the page."""
+    def pause_scheduling(self, *, cancel_active=False):
+        """Retain the page and completed cache; optionally interrupt assigned work."""
         self._scheduling_paused = True
         self._schedule_timer.stop()
+        if cancel_active:
+            self._assigned.clear()
+            for lane in self._lanes:
+                # Cancellation advances each lane's token before stopping its
+                # worker, so queued results cannot mark interrupted rows done.
+                lane.clear_page()
+            if self._cache_worker is not None:
+                self._cache_token += 1
+                self._cache_page = self._prefetch_cache_page = None
+                self._cache_pending.clear()
+                self._cache_worker.stop()
 
     def resume_scheduling(self):
         self._scheduling_paused = False
@@ -567,7 +581,7 @@ class CharacterFinderPreviewController(QObject):
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
         thread.finished.connect(self._page_cache_finished)
-        thread.start()
+        thread.start(QThread.LowPriority if self._background else QThread.InheritPriority)
 
     @Slot(int, object)
     def _page_cache_ready(self, token, results):

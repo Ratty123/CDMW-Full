@@ -13,13 +13,59 @@ from cdmw.services.archive_catalogue_service import ArchiveCatalogueService
 from cdmw.ui.shell.archive_backend_client import ArchiveBackendClient
 
 
+def _native_input_state() -> tuple[int, bool, bool] | None:
+    """Include input consumed by embedded native renderers, outside Qt's filter."""
+    import ctypes
+    from ctypes import wintypes
+
+    class LastInputInfo(ctypes.Structure):
+        _fields_ = [("cbSize", wintypes.UINT), ("dwTime", wintypes.DWORD)]
+
+    user32 = ctypes.windll.user32
+    info = LastInputInfo()
+    info.cbSize = ctypes.sizeof(info)
+    if not user32.GetLastInputInfo(ctypes.byref(info)):
+        return None
+    user32.GetForegroundWindow.restype = wintypes.HWND
+    foreground = user32.GetForegroundWindow()
+    process_id = wintypes.DWORD()
+    user32.GetWindowThreadProcessId(wintypes.HWND(foreground), ctypes.byref(process_id))
+    mouse_held = any(user32.GetAsyncKeyState(button) & 0x8000 for button in (1, 2, 4, 5, 6))
+    return info.dwTime, process_id.value == os.getpid(), mouse_held
+
+
 class _ArchiveUiActivityFilter(QObject):
     """Let archive warmups yield to input anywhere in the application."""
 
+    def __init__(self, archive):
+        super().__init__(archive)
+        self._last_native_input = None
+        self._native_input_timer = QTimer(self)
+        self._native_input_timer.setInterval(200)
+        self._native_input_timer.timeout.connect(self._poll_native_input)
+        if os.name == "nt":
+            self._poll_native_input()
+            self._native_input_timer.start()
+
+    def _poll_native_input(self):
+        archive = self.parent()
+        if archive.shell._shutting_down:
+            self._native_input_timer.stop()
+            return
+        state = _native_input_state()
+        if state is None:
+            return
+        timestamp, in_app, mouse_held = state
+        previous, self._last_native_input = self._last_native_input, timestamp
+        if in_app and (mouse_held or (previous is not None and timestamp != previous)):
+            archive._note_archive_ui_activity()
+
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
         if event.type() in (
-            QEvent.Type.KeyPress, QEvent.Type.MouseButtonPress,
-            QEvent.Type.MouseButtonDblClick, QEvent.Type.Wheel, QEvent.Type.FocusIn,
+            QEvent.Type.KeyPress, QEvent.Type.KeyRelease, QEvent.Type.MouseButtonPress,
+            QEvent.Type.MouseButtonRelease, QEvent.Type.MouseButtonDblClick,
+            QEvent.Type.MouseMove, QEvent.Type.Wheel, QEvent.Type.FocusIn,
+            QEvent.Type.TabletMove, QEvent.Type.TouchUpdate,
         ):
             archive = self.parent()
             if not archive.shell._shutting_down:

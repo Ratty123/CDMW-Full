@@ -349,11 +349,25 @@ class ArchiveBrowserRowPayloadMixin:
                 break
 
     def _note_archive_ui_activity(self) -> None:
-        self.archive_ui_activity_until = time.perf_counter() + 0.35
-        self.archive_ui_activity_timer.start(420)
+        self.archive_ui_activity_until = time.perf_counter() + 2.0
+        self.archive_ui_activity_timer.start(2000)
+        character_warmup = getattr(self, "archive_character_finder_warmup_controller", None)
+        if character_warmup is not None:
+            character_warmup.pause(self, cancel_active=True)
+        item_warmup = getattr(self, "archive_item_finder_warmup_controller", None)
+        if item_warmup is not None:
+            item_warmup.pause_background()
 
     def _clear_archive_ui_activity(self) -> None:
         self.archive_ui_activity_until = 0.0
+        if self.shell._shutting_down:
+            return
+        character_warmup = getattr(self, "archive_character_finder_warmup_controller", None)
+        if character_warmup is not None:
+            character_warmup.resume(self)
+        item_warmup = getattr(self, "archive_item_finder_warmup_controller", None)
+        if item_warmup is not None:
+            item_warmup.resume_background()
 
     def _archive_ui_interactive_active(self) -> bool:
         return time.perf_counter() < float(getattr(self, "archive_ui_activity_until", 0.0) or 0.0)

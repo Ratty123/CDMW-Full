@@ -70,20 +70,20 @@ class CharacterFinderWarmupController(QObject):
             return self._preview.cached_detail(key, session_id)
         return None
 
-    def pause(self, client):
+    def pause(self, client, *, cancel_active=False):
+        if self._closed or client in self._clients:
+            return
         self._clients.add(client)
         self._paused = True
         self._timer.stop()
         self._cancel_request()
         if self._preview is not None:
-            self._preview.pause_scheduling()
+            self._preview.pause_scheduling(cancel_active=cancel_active)
 
     def resume(self, client):
         self._clients.discard(client)
         if not self._closed and not self._clients:
             self._paused = False
-            if self._preview is not None:
-                self._preview.resume_scheduling()
             self._timer.start(500)
 
     def _cancel_request(self):
@@ -114,10 +114,17 @@ class CharacterFinderWarmupController(QObject):
             self._preview.deleteLater()
             self._preview = None
         if not self._archive._archive_browser_background_work_allowed():
+            if self._preview is not None:
+                self._preview.pause_scheduling(cancel_active=True)
             self._timer.start(500)
             return
+        if self._preview is not None:
+            self._preview.resume_scheduling()
         if self._rendering:
             if not self._preview.page_complete:
+                # The preview scheduler advances inside a page, independently
+                # of page completion. Keep applying the application idle gate.
+                self._timer.start(250)
                 return
             self._pages.popleft()
             self._rendering = False
@@ -138,10 +145,11 @@ class CharacterFinderWarmupController(QObject):
                     fingerprint=self._session.fingerprint,
                     cache_root=Path(self._archive._native_preview_package_cache_root()),
                     settings=self._archive._current_model_preview_render_settings(),
-                    parent=self, max_lanes=2)
+                    parent=self, max_lanes=2, background=True)
                 self._preview.idle.connect(self._schedule)
             self._rendering = True
             self._preview.visible(page.rows, session_id=self._session.session_id, generation=self._generation)
+            self._timer.start(250)
         except Exception:
             # A failed optional warmup must leave normal Finder retries available.
             self._rendering = False

@@ -42,6 +42,7 @@ class _WarmupThread:
     worker: ArchiveItemThumbnailWorker
     generation: int
     item_ids: tuple[int, ...]
+    paused: bool = False
 
 
 class RemoteItemFinderWarmupController(QObject):
@@ -91,6 +92,7 @@ class RemoteItemFinderWarmupController(QObject):
         self._initial_request: ItemCatalogSearchRequest | None = None
         self._continue_timer = QTimer(self)
         self._continue_timer.setSingleShot(True)
+        self._background_paused = False
         self._continue_timer.timeout.connect(self._continue_warmup)
         service.result_ready.connect(self._handle_result)
         service.request_failed.connect(self._handle_failure)
@@ -164,6 +166,32 @@ class RemoteItemFinderWarmupController(QObject):
             return
         self._closing = True
         self.invalidate()
+
+    def pause_background(self) -> None:
+        if self._closing or self._background_paused:
+            return
+        self._background_paused = True
+        # Only explicit Finder requests may continue during user activity.
+        # Cancelled warmup IDs remain queued, rather than becoming failed icons.
+        for request_id, request in tuple(self._requests.items()):
+            if request.kind == "icons" and self._priority_icon_ids.intersection(request.item_ids):
+                continue
+            self._requests.pop(request_id)
+            self._service.cancel(request_id)
+            if request.kind == "build":
+                self._state = "scheduled"
+            elif request.kind == "icons":
+                self._inflight_icon_ids.difference_update(request.item_ids)
+                self._queue_icon_ids(request.item_ids, priority=False)
+        for thread, handle in tuple(self._threads.items()):
+            if not self._priority_icon_ids.intersection(handle.item_ids):
+                self._threads[thread] = replace(handle, paused=True)
+                handle.worker.stop()
+
+    def resume_background(self) -> None:
+        self._background_paused = False
+        if not self._closing and self._session_id:
+            self._schedule_continue(0)
 
     def iter_shutdown_workers(self) -> Iterator[tuple[str, QThread, ArchiveItemThumbnailWorker]]:
         for thread, handle in tuple(self._threads.items()):
@@ -288,6 +316,8 @@ class RemoteItemFinderWarmupController(QObject):
         self._start_catalogue_page()
 
     def _background_work_allowed(self) -> bool:
+        if self._background_paused:
+            return False
         if self._background_allowed is None:
             return True
         try:
@@ -471,7 +501,7 @@ class RemoteItemFinderWarmupController(QObject):
         self._enumeration_page_start = 0
         initial_ids = tuple(row.item_id for row in result.items if row.icon_paths)
         self._startup_item_ids.update(initial_ids)
-        self._queue_icon_ids(initial_ids, priority=True)
+        self._queue_icon_ids(initial_ids, priority=False)
         self._schedule_continue(0)
 
     def _publish_catalogue_page(self, result: ItemCatalogSearchResult, page_start: int) -> None:
@@ -516,6 +546,11 @@ class RemoteItemFinderWarmupController(QObject):
             self._mark_icons_failed(failed)
         if not sources:
             self._schedule_continue(80)
+            return
+        if not self._priority_icon_ids.intersection(sources) and not self._background_work_allowed():
+            self._inflight_icon_ids.difference_update(sources)
+            self._queue_icon_ids(tuple(sources), priority=False)
+            self._schedule_continue(600)
             return
         self._start_decode_worker(sources, requested_ids=tuple(sources))
 
@@ -582,7 +617,10 @@ class RemoteItemFinderWarmupController(QObject):
             remaining = tuple(item_id for item_id in handle.item_ids if item_id in self._inflight_icon_ids)
             self._inflight_icon_ids.difference_update(remaining)
             if remaining:
-                self._mark_icons_failed(remaining)
+                if handle.paused:
+                    self._queue_icon_ids(remaining, priority=False)
+                else:
+                    self._mark_icons_failed(remaining)
         if not self._threads and not self._closing:
             self._schedule_continue(40)
 
