@@ -1230,7 +1230,7 @@ only when the effect's own name supplies no category. Tooltips make this inferen
 explicit; names do not prove appearance or game compatibility.
 
 The background index follows emitter and render/simulation preset dependencies once per
-definition; schema 2 invalidates old caches and includes dependency paths and archive
+definition; the current cache version invalidates old dependency results and includes paths and archive
 locations. Missing definitions are shown in tooltips without hiding otherwise usable
 effects. Effects with missing or incomplete timing metadata show **Unknown**, rather
 than being assumed to be one-shot. Explicit loop flags or a loop-name hint remain

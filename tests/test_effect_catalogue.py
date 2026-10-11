@@ -116,7 +116,7 @@ class CatalogueCacheTests(unittest.TestCase):
     def test_old_decoder_results_are_not_reused(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "effects.json"
-            path.write_text('{"schema": 2, "signature": "old", "effects": []}', encoding="utf-8")
+            path.write_text('{"schema": 3, "signature": "old", "effects": []}', encoding="utf-8")
             self.assertIsNone(load_effect_catalogue(path))
 
     def test_save_and_load_round_trip_and_the_signature_gate(self) -> None:

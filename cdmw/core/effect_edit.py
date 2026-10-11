@@ -222,9 +222,15 @@ def same_length_stem(stem: str, tag: str, *, taken: Iterable[str] = ()) -> str:
 
 
 def emitter_paths_of(document: EffectDocument) -> Tuple[str, ...]:
-    """The emitter files an effect names, as archive paths, in order."""
+    """Explicit ``emitter/<stem>`` file references, as archive paths, in order.
 
-    return tuple(f"{EMITTER_DIR}{name.split('/', 1)[-1]}.paem" for name in document.emitter_names())
+    Inline emitters also carry names (for example ``par_vec_blue``), but those
+    labels do not refer to external files. Inherited emitter types are audited
+    separately through their declared .paem paths.
+    """
+
+    return tuple(f"{EMITTER_DIR}{name.split('/', 1)[-1]}.paem"
+                 for name in document.emitter_names() if name.startswith("emitter/"))
 
 
 def preset_names_of(document: EffectDocument) -> Tuple[Tuple[str, str], ...]:

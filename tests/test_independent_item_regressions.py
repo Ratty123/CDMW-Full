@@ -83,7 +83,64 @@ def test_effect_clone_rebinds_declared_emitter_file_references():
     assert rename_effect_references(source, {TRAIL.stem[:-1]: clone[:-1]}) == source
 
 
-def test_effect_audit_rejects_missing_embedded_emitter_type(tmp_path):
+@pytest.mark.parametrize('edited', [False, True])
+def test_inline_emitter_labels_allow_independent_authoring_and_import(tmp_path, edited):
+    from cdmw.core.effect_binary import decode_effect_binary
+    from cdmw.core.effect_edit import emitter_paths_of
+    from cdmw.core.effect_writer import serialize_effect, set_typed_value
+    from cdmw.domain.new_item.effect_authoring import EmitterEdit
+    from cdmw.domain.new_item.spec import EffectLook, ModelSource
+    from cdmw.services.effect_catalogue_dependencies import describe
+    from cdmw.services.effect_recipe import compile_effect_recipe
+    from cdmw.services.new_item_planning import ModelFiles
+    from tests.test_effect_edit import EFFECT, TRAIL
+    from tests.test_new_item_service import PAC_XML, build_package, imported_pac
+
+    service, snapshot = imported_game(tmp_path / 'author', auxiliaries=True)
+    # Mix a complete inline emitter with an inherited emitter. The Goldenstar
+    # effect's bare labels must not be interpreted as external .paem filenames.
+    source = compile_effect_recipe(snapshot, EFFECT.read_bytes(),
+        EffectLook(emitter_order=(0, 0), emitters=(EmitterEdit(0),)))
+    document = decode_effect_binary(source)
+    inline = document.root.child('_emitterVariationDataArray')[0]
+    assert inline.child('_internalEmitterData').type_name == 'EmitterData'
+    assert set_typed_value(document, inline, '_emitterDataName', 'par_vec_blue')
+    assert set_typed_value(document, inline.child('_internalEmitterData'),
+                           '_emitterDataName', 'particle_vector')
+    source = serialize_effect(source, document)
+    effect_path = 'effect/binary__/releasebin/' + EFFECT.name
+    emitter_path = 'effect/binary__/emitter/' + TRAIL.name
+    files = {path: snapshot.payload(path) for path in snapshot.entries}
+    files[effect_path] = source
+    root = tmp_path / 'author/game'
+    build_package(root, files)
+    snapshot = snapshot_of(root)
+    choice = replace(shop_spec('InlineEffect'), model_source=ModelSource.IMPORTED,
+        include_perk_prices=False, effect=EFFECT.stem + '.level.effect',
+        effect_look=EffectLook(color=(0, 0, 1)) if edited else EffectLook())
+    before = files_in(root)
+    plan = service.plan(choice, snapshot,
+        model=ModelFiles(imported_pac(100), {PAC_XML: snapshot.payload(PAC_XML)}),
+        capture_independent=True)
+    package = from_plan(plan, uuid4().hex)
+    assert effect_path in package.dependencies and emitter_path in package.dependencies
+    assert not any(label in path for path in package.dependencies
+                   for label in ('par_vec_blue', 'particle_vector'))
+    assert prepare_install([package_bytes(package)], root).preparation is not None
+    assert files_in(root) == before
+    # Catalogue metadata uses the same dependency conversion, while retaining
+    # inline labels for discovery and the emitter inspector.
+    for metadata_only in (False, True):
+        document = decode_effect_binary(source, metadata_only=metadata_only)
+        assert 'par_vec_blue' in document.emitter_names()
+        assert emitter_paths_of(document) == (emitter_path,)
+        assert emitter_path in describe(document).paths
+        assert not any('par_vec_blue' in path or 'particle_vector' in path
+                       for path in describe(document).paths)
+
+
+@pytest.mark.parametrize('missing_reference', ['embedded_type', 'emitter_name'])
+def test_effect_audit_rejects_missing_emitter_reference(tmp_path, missing_reference):
     from cdmw.core.effect_binary import decode_effect_binary, write_value
     from cdmw.core.effect_edit import same_length_stem
     from cdmw.domain.new_item.spec import EffectLook, ModelSource
@@ -104,10 +161,14 @@ def test_effect_audit_rejects_missing_embedded_emitter_type(tmp_path):
     emitter = document.emitter_names()[0].split('/')[-1]
     missing = same_length_stem(emitter, '_absent')
     data = rename_effect_references(request.payload_data, {emitter: missing})
-    # Keep the ordinary emitter-name reference valid; only the embedded type is missing.
+    # Isolate each external reference: neither the inherited type nor an
+    # explicit emitter/... name may be discarded as an inline label.
+    if missing_reference == 'emitter_name':
+        data = request.payload_data
     for value in decode_effect_binary(data).root.all_values():
         if value.name == '_emitterDataName':
-            data = write_value(data, value, ('emitter/' + emitter).encode())
+            name = emitter if missing_reference == 'embedded_type' else missing
+            data = write_value(data, value, ('emitter/' + name).encode())
     changed = replace(plan, additions=tuple(
         replace(item, payload_data=data) if item is request else item for item in plan.additions))
     with pytest.raises(IndependentItemError, match='Unresolved item dependency: .*' + missing):

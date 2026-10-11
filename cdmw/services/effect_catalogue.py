@@ -34,7 +34,7 @@ __all__ = [
     "save_effect_catalogue",
 ]
 
-CATALOGUE_SCHEMA = 3
+CATALOGUE_SCHEMA = 4
 Vec3 = Tuple[float, float, float]
 LogFn = Callable[[str], None]
 ProgressFn = Callable[[int, int, str], None]

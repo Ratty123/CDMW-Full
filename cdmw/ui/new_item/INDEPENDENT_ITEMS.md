@@ -46,7 +46,9 @@ Installation allocates item/perk, recipe and reward integers in the existing
 model families and effects are rebuilt from the destination bindings. Reflection
 references use decoded values and bounded, declared strings; effect names retain
 their byte lengths. Embedded emitter file types are rebound with emitter names
-and included in dependency validation. For v1 and the v2 legacy module, original shared table records are
+and included in dependency validation. Bare inline-emitter labels are not external
+file dependencies; explicit `emitter/...` names and inherited `.paem` types still
+require verified files. For v1 and the v2 legacy module, original shared table records are
 preserved, apart from supported additive shop stock and item-group membership.
 
 Updates retain prior identities and atomically replace the selected item's
