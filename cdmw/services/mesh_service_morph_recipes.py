@@ -1,15 +1,17 @@
-"""Portable, bounded fitting recipes and transactional loaded-outfit application."""
+"""Portable fitting recipes and transactional loaded-outfit application."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-import json
+import io
 from pathlib import Path
 import re
 from typing import Mapping
 from uuid import uuid4
 
-from cdmw.core.atomic_file import atomic_write_text
+from cdmw.core.streaming_json import write_json
+from cdmw.core.atomic_file import atomic_binary_writer, atomic_text_writer
+from cdmw.services.mesh_morph_file_data import capture_profile_json, write_profile_file, profile_file_text
 from cdmw.domain.mesh import (
     MeshMorphFittingRecipe,
     MeshMorphValuePreset,
@@ -29,11 +31,13 @@ from cdmw.services.mesh_morph_profiles import (
     mesh_morph_profile_payload,
     save_mesh_morph_preset,
     save_mesh_morph_profile,
-    serialized_mesh_morph_preset,
-    serialized_mesh_morph_profile,
+    mesh_morph_preset_file_data,
+    mesh_morph_profile_file_data,
+    _streamed_profile_payload,
+    _read_object,
+    _read_object_stream,
 )
 from cdmw.services.mesh_service_history import (
-    _MESH_MORPH_PROFILE_MAX_FILE_BYTES,
     _validated_mesh_morph_profile_files,
 )
 from cdmw.services.mesh_service_morph_authoring import _merge_edit_results, _refit_settings_batch_payload, _strict_indices
@@ -48,12 +52,12 @@ def _objects(value: object, label: str):
     return tuple(value)
 
 
-def fitting_recipe_payload(recipe: MeshMorphFittingRecipe) -> dict[str, object]:
+def fitting_recipe_payload(recipe: MeshMorphFittingRecipe, *, streaming: bool = False) -> dict[str, object]:
     return {
         "format": _RECIPE_FORMAT,
         "recipe_id": recipe.recipe_id,
         "name": recipe.name,
-        "profile": mesh_morph_profile_payload(recipe.profile),
+        "profile": (_streamed_profile_payload if streaming else mesh_morph_profile_payload)(recipe.profile),
         "preset": mesh_morph_preset_payload(recipe.preset),
         "driver_submesh_indices": list(recipe.driver_submesh_indices),
         "topology_fingerprint": recipe.topology_fingerprint,
@@ -142,26 +146,17 @@ def fitting_recipe_from_payload(payload: Mapping[str, object]) -> MeshMorphFitti
     )
 
 
-def read_fitting_recipe(path: str | Path, *, max_bytes: int = _MESH_MORPH_PROFILE_MAX_FILE_BYTES) -> MeshMorphFittingRecipe:
+def read_fitting_recipe(path: str | Path, *, max_bytes: int | None = None) -> MeshMorphFittingRecipe:
     source = Path(path).expanduser()
-    if source.stat().st_size > max_bytes:
+    if max_bytes is not None and source.stat().st_size > max_bytes:
         raise ValueError("Fitting recipe exceeds its configured file limit.")
-    with source.open("rb") as stream:
-        encoded = stream.read(max_bytes + 1)
-    if len(encoded) > max_bytes:
-        raise ValueError("Fitting recipe exceeds its configured file limit.")
-    return fitting_recipe_from_payload(json.loads(encoded.decode("utf-8-sig")))
+    return fitting_recipe_from_payload(_read_object(source, parse_definitions=True))
 
 
-def serialized_fitting_recipe(recipe: MeshMorphFittingRecipe, *, max_bytes: int = _MESH_MORPH_PROFILE_MAX_FILE_BYTES) -> str:
-    chunks = []
-    size = 0
-    for chunk in json.JSONEncoder(sort_keys=True, indent=2, allow_nan=False).iterencode(fitting_recipe_payload(recipe)):
-        size += len(chunk.encode("utf-8"))
-        if size > max_bytes:
-            raise ValueError("Fitting recipe exceeds its configured file limit.")
-        chunks.append(chunk)
-    return "".join(chunks)
+def serialized_fitting_recipe(recipe: MeshMorphFittingRecipe, *, max_bytes: int | None = None) -> str:
+    stream = io.StringIO()
+    write_json(stream, fitting_recipe_payload(recipe, streaming=True), max_bytes=max_bytes)
+    return stream.getvalue()
 
 
 @dataclass(slots=True)
@@ -196,7 +191,8 @@ def _saved_setup_records(files) -> tuple[tuple[MeshMorphFittingRecipe, ...], tup
         identifier = relative[:-5]
         try:
             _saved_setup_id(identifier)
-            recipe = fitting_recipe_from_payload(json.loads(encoded.decode("utf-8-sig")))
+            with profile_file_text(encoded) as stream:
+                recipe = fitting_recipe_from_payload(_read_object_stream(stream, parse_definitions=True))
             if recipe.recipe_id != identifier:
                 raise ValueError("The setup file and its stored identity disagree.")
         except (UnicodeError, TypeError, ValueError, OverflowError) as exc:
@@ -246,12 +242,13 @@ class MeshMorphRecipeMixin:
         session = self._session(session_id)
         with session.export_lock:
             self._require_no_pending_morph_authoring(session, include_baseline=True)
-            document = serialized_fitting_recipe(self._build_refit_recipe_locked(session, name))
+            recipe = self._build_refit_recipe_locked(session, name)
         destination = Path(path).expanduser()
         if destination.suffix.lower() != ".json":
             raise ValueError("Fitting recipes must be saved to a .json file.")
         destination.parent.mkdir(parents=True, exist_ok=True)
-        atomic_write_text(destination, document)
+        with atomic_text_writer(destination) as stream:
+            write_json(stream, fitting_recipe_payload(recipe, streaming=True))
         return str(destination)
 
     def save_refit_setup(self, session_id, name):
@@ -268,7 +265,7 @@ class MeshMorphRecipeMixin:
                 recipe = self._build_refit_recipe_locked(
                     session, setup_name, recipe_id=f"setup-{uuid4().hex}",
                 )
-                document = serialized_fitting_recipe(recipe)
+                document = capture_profile_json(fitting_recipe_payload(recipe, streaming=True))
                 relative = f"fitting_setups/{recipe.recipe_id}.json"
                 _existed, previous_files, _fingerprint = _service_call(
                     "_mesh_morph_profile_directory_state", self._profile_root(),
@@ -276,11 +273,12 @@ class MeshMorphRecipeMixin:
                 candidate = dict(previous_files)
                 if relative in candidate:
                     raise RuntimeError("The new fitting setup identity already exists.")
-                candidate[relative] = document.encode("utf-8")
+                candidate[relative] = document
                 _validated_mesh_morph_profile_files(tuple(sorted(candidate.items())))
                 destination = self._profile_root() / "fitting_setups" / f"{recipe.recipe_id}.json"
                 destination.parent.mkdir(parents=True, exist_ok=True)
-                atomic_write_text(destination, document)
+                with atomic_binary_writer(destination) as stream:
+                    write_profile_file(stream, document)
                 self._authoring_data_locked(session).refit_setup_cache = None
                 return self._result(session, "morph_save_refit_setup")
 
@@ -384,7 +382,8 @@ class MeshMorphRecipeMixin:
             encoded = dict(files).get(f"fitting_setups/{identifier}.json")
             if encoded is None:
                 raise ValueError("This saved fitting setup is no longer available.")
-            recipe = fitting_recipe_from_payload(json.loads(encoded.decode("utf-8-sig")))
+            with profile_file_text(encoded) as stream:
+                recipe = fitting_recipe_from_payload(_read_object_stream(stream, parse_definitions=True))
             if recipe.recipe_id != identifier:
                 raise ValueError("The saved fitting setup identity does not match its file.")
             return self._apply_refit_recipe_locked(
@@ -461,19 +460,19 @@ class MeshMorphRecipeMixin:
             _existed, previous_files, _fingerprint = _service_call("_mesh_morph_profile_directory_state", self._profile_root())
             files = dict(previous_files)
             data = self._authoring_data_locked(session)
-            relative, document = serialized_mesh_morph_profile(profile, max_bytes=_MESH_MORPH_PROFILE_MAX_FILE_BYTES)
+            relative, document = mesh_morph_profile_file_data(profile)
             existing = data.known_profiles.get(profile.profile_id)
-            if (relative in files and files[relative] != document.encode("utf-8")) or (existing is not None and existing != profile):
+            if (relative in files and files[relative] != document) or (existing is not None and existing != profile):
                 profile = replace(profile, profile_id=f"recipe-{uuid4().hex[:12]}", name=f"{profile.name} (recipe)")
                 preset = replace(preset, profile_id=profile.profile_id)
-            relative, document = serialized_mesh_morph_preset(preset, max_bytes=_MESH_MORPH_PROFILE_MAX_FILE_BYTES)
-            if relative in files and files[relative] != document.encode("utf-8"):
+            relative, document = mesh_morph_preset_file_data(preset)
+            if relative in files and files[relative] != document:
                 preset = replace(preset, preset_id=f"recipe-{uuid4().hex[:12]}")
             for relative, document in (
-                serialized_mesh_morph_profile(profile, max_bytes=_MESH_MORPH_PROFILE_MAX_FILE_BYTES),
-                serialized_mesh_morph_preset(preset, max_bytes=_MESH_MORPH_PROFILE_MAX_FILE_BYTES),
+                mesh_morph_profile_file_data(profile),
+                mesh_morph_preset_file_data(preset),
             ):
-                files[relative] = document.encode("utf-8")
+                files[relative] = document
             _validated_mesh_morph_profile_files(tuple(sorted(files.items())))
 
             results = [self._activate_morph_profile_locked(

@@ -1959,8 +1959,6 @@ void mesh_editor_write_morph_state(std::ostream& out, const MeshEditorSession& s
 
 constexpr const char* MESH_EDITOR_MORPH_RUNTIME_SNAPSHOT_SCHEMA =
     "cdmw_mesh_editor_morph_runtime_snapshot_v1";
-constexpr std::size_t MESH_EDITOR_MORPH_RUNTIME_SNAPSHOT_MAX_BYTES =
-    256ULL * 1024ULL * 1024ULL;
 
 std::uint32_t mesh_editor_snapshot_rotr(std::uint32_t value, int count) {
     return (value >> count) | (value << (32 - count));

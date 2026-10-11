@@ -1,4 +1,4 @@
-"""Bounded Morph & Refit history snapshots and atomic file restoration."""
+"""Disk-backed Morph & Refit history snapshots and atomic file restoration."""
 
 from __future__ import annotations
 
@@ -13,18 +13,19 @@ from pathlib import Path, PurePosixPath
 from typing import Sequence
 from uuid import uuid4
 from cdmw.services.mesh_service_state import _MeshHistorySnapshot
+from cdmw.services.mesh_morph_file_data import (
+    MorphProfileFile, ProfileFileData, capture_profile_file,
+    profile_file_chunks, write_profile_file,
+)
 
 
 _MESH_MORPH_PROFILE_MAX_DEPTH = 4
-_MESH_MORPH_PROFILE_MAX_ENTRIES = 4096
-_MESH_MORPH_PROFILE_MAX_FILE_BYTES = 8 * 1024 * 1024
-_MESH_MORPH_PROFILE_MAX_TOTAL_BYTES = 64 * 1024 * 1024
 
 
 def _mesh_morph_profile_directory_state(
     root: Path | str,
-) -> tuple[bool, tuple[tuple[str, bytes], ...], str]:
-    """Capture one bounded settings-owned profile tree for reversible history."""
+) -> tuple[bool, tuple[tuple[str, ProfileFileData], ...], str]:
+    """Capture an owned tree, sharing unchanged disk data across history entries."""
 
     path = Path(root).expanduser().absolute()
     if os.path.lexists(path) and _mesh_history_path_is_link(path):
@@ -39,16 +40,11 @@ def _mesh_morph_profile_directory_state(
     if _mesh_history_path_is_link(path):
         raise RuntimeError("Mesh morph profile history does not accept symbolic links")
     root_stat = path.stat()
-    captured: list[tuple[str, bytes]] = []
+    captured: list[tuple[str, ProfileFileData]] = []
     stack: list[tuple[Path, int]] = [(path, 0)]
-    entry_count = 0
-    total_bytes = 0
     while stack:
         directory, depth = stack.pop()
         for item in directory.iterdir():
-            entry_count += 1
-            if entry_count > _MESH_MORPH_PROFILE_MAX_ENTRIES:
-                raise RuntimeError("Mesh morph profile history contains too many entries")
             if _mesh_history_path_is_link(item):
                 raise RuntimeError("Mesh morph profile history does not accept symbolic links")
             resolved = item.resolve(strict=True)
@@ -65,8 +61,6 @@ def _mesh_morph_profile_directory_state(
                 raise RuntimeError("Mesh morph profile history contains an unsafe relative path")
             declared_stat = item.stat()
             declared_length = int(declared_stat.st_size)
-            if declared_length > _MESH_MORPH_PROFILE_MAX_FILE_BYTES:
-                raise RuntimeError("Mesh morph profile history file exceeds the 8 MiB limit")
             with item.open("rb") as stream:
                 opened_stat = os.fstat(stream.fileno())
                 if (
@@ -75,22 +69,20 @@ def _mesh_morph_profile_directory_state(
                     or int(opened_stat.st_size) != declared_length
                 ):
                     raise RuntimeError("Mesh morph profile changed before history capture")
-                data = stream.read(_MESH_MORPH_PROFILE_MAX_FILE_BYTES + 1)
+                data = capture_profile_file(stream)
                 final_stat = os.fstat(stream.fileno())
             if _mesh_history_path_is_link(item):
                 raise RuntimeError("Mesh morph profile history does not accept symbolic links")
             current_stat = item.stat()
             if (
-                len(data) > _MESH_MORPH_PROFILE_MAX_FILE_BYTES
-                or len(data) != declared_length
+                len(data) != declared_length
                 or int(final_stat.st_size) != declared_length
+                or final_stat.st_mtime_ns != declared_stat.st_mtime_ns
+                or current_stat.st_mtime_ns != declared_stat.st_mtime_ns
                 or int(current_stat.st_dev) != int(declared_stat.st_dev)
                 or int(current_stat.st_ino) != int(declared_stat.st_ino)
             ):
-                raise RuntimeError("Mesh morph profile changed or exceeded its history limit")
-            total_bytes += len(data)
-            if total_bytes > _MESH_MORPH_PROFILE_MAX_TOTAL_BYTES:
-                raise RuntimeError("Mesh morph profile history exceeds the 64 MiB total limit")
+                raise RuntimeError("Mesh morph profile changed during history capture")
             captured.append((item.relative_to(path).as_posix(), data))
     if _mesh_history_path_is_link(path):
         raise RuntimeError("Mesh morph profile history does not accept symbolic links")
@@ -163,7 +155,7 @@ def _pinned_mesh_history_parent(path: Path):
 
 def _mesh_morph_profile_state_fingerprint(
     existed: bool,
-    files: Sequence[tuple[str, bytes]],
+    files: Sequence[tuple[str, ProfileFileData]],
 ) -> str:
     digest = hashlib.sha256()
     if not existed:
@@ -172,18 +164,17 @@ def _mesh_morph_profile_state_fingerprint(
     for relative, data in files:
         digest.update(str(relative).encode("utf-8"))
         digest.update(b"\0")
-        digest.update(bytes(data))
+        for chunk in profile_file_chunks(data):
+            digest.update(chunk)
         digest.update(b"\0")
     return digest.hexdigest().upper()
 
 
 def _validated_mesh_morph_profile_files(
-    files: Sequence[tuple[str, bytes]],
-) -> tuple[tuple[PurePosixPath, bytes], ...]:
-    validated: list[tuple[PurePosixPath, bytes]] = []
+    files: Sequence[tuple[str, ProfileFileData]],
+) -> tuple[tuple[PurePosixPath, ProfileFileData], ...]:
+    validated: list[tuple[PurePosixPath, ProfileFileData]] = []
     seen: set[str] = set()
-    directories: set[tuple[str, ...]] = set()
-    total_bytes = 0
     for raw_relative, raw_data in files:
         relative = PurePosixPath(str(raw_relative))
         if (
@@ -197,23 +188,10 @@ def _validated_mesh_morph_profile_files(
             raise RuntimeError("Mesh morph profile history contains duplicate paths")
         if len(relative.parts) - 1 > _MESH_MORPH_PROFILE_MAX_DEPTH:
             raise RuntimeError("Mesh morph profile history exceeds its directory-depth limit")
-        directories.update(
-            tuple(relative.parts[:depth])
-            for depth in range(1, len(relative.parts))
-        )
-        if len(validated) + 1 + len(directories) > _MESH_MORPH_PROFILE_MAX_ENTRIES:
-            raise RuntimeError("Mesh morph profile history contains too many entries")
-        try:
-            data_length = len(raw_data)
-        except TypeError as exc:
-            raise RuntimeError("Mesh morph profile history contains invalid file data") from exc
-        if data_length > _MESH_MORPH_PROFILE_MAX_FILE_BYTES:
-            raise RuntimeError("Mesh morph profile history file exceeds the 8 MiB limit")
-        total_bytes += int(data_length)
-        if total_bytes > _MESH_MORPH_PROFILE_MAX_TOTAL_BYTES:
-            raise RuntimeError("Mesh morph profile history exceeds the 64 MiB total limit")
+        if not isinstance(raw_data, (bytes, MorphProfileFile)):
+            raise RuntimeError("Mesh morph profile history contains invalid file data")
         seen.add(folded)
-        validated.append((relative, bytes(raw_data)))
+        validated.append((relative, raw_data))
     return tuple(validated)
 
 
@@ -221,7 +199,7 @@ def _restore_mesh_morph_profile_directory_state(
     root: Path | str,
     *,
     existed: bool,
-    files: Sequence[tuple[str, bytes]],
+    files: Sequence[tuple[str, ProfileFileData]],
     expected_fingerprint: str,
 ) -> None:
     """Atomically restore a profile tree if its current state is still expected."""
@@ -280,7 +258,8 @@ def _restore_mesh_morph_profile_directory_state(
                 for relative, data in validated:
                     target = staging.joinpath(*relative.parts)
                     target.parent.mkdir(parents=True, exist_ok=True)
-                    target.write_bytes(data)
+                    with target.open("wb") as stream:
+                        write_profile_file(stream, data)
                 staging_identity = _mesh_history_directory_identity(staging)
                 if _mesh_morph_profile_directory_state(staging)[2] != target_fingerprint:
                     raise RuntimeError("Mesh morph profile history staging validation failed")

@@ -21,6 +21,7 @@ from typing import Any, Iterable, Mapping, Optional, Sequence
 from uuid import uuid4
 
 from cdmw.core.common import ProcessTimeoutExpired
+from cdmw.core.streaming_json import read_json, write_json
 from cdmw.modding.mesh_deformer import MeshFaceDeleteResult, MeshPartSplitResult
 from cdmw.modding.mesh_native_core_constants import (
     Face,
@@ -65,7 +66,10 @@ def _run_native_mesh_core_service_job(
     stop_event: threading.Event | None = None,
     timeout_seconds: float,
 ) -> dict[str, object] | None:
-    if str(command or "").strip().lower() == "mesh-editor-session-json":
+    session_command = str(command or "").strip().lower() == "mesh-editor-session-json"
+    # Uploads scale with every affected vertex. Use the resident service's
+    # existing file-job route; its pipe carries only paths and acknowledgements.
+    if session_command and payload.get("command") != "morph_upload":
         return _run_native_mesh_core_service_inline_job(
             binary,
             command,
@@ -77,14 +81,18 @@ def _run_native_mesh_core_service_job(
         _note_native_job_failure(command, reason, binary=binary, payload=payload,
                                  timeout_seconds=timeout_seconds, exc_info=exc_info)
 
+    if session_command:
+        _LAST_NATIVE_JOB_REJECTION[0] = ""
     job_root = Path(tempfile.mkdtemp(prefix="cdmw_mesh_core_service_"))
     job_path = job_root / "job.json"
     report_path = job_root / "report.json"
     try:
-        job_path.write_text(
-            json.dumps(dict(payload), separators=(",", ":"), allow_nan=False, ensure_ascii=False),
-            encoding="utf-8",
-        )
+        def check_cancelled():
+            if stop_event is not None and stop_event.is_set():
+                raise RunCancelled()
+
+        with job_path.open("w", encoding="utf-8") as stream:
+            write_json(stream, dict(payload), check_cancelled=check_cancelled)
         service_kwargs: dict[str, object] = {"timeout_seconds": max(0.5, float(timeout_seconds))}
         if stop_event is not None:
             service_kwargs["stop_event"] = stop_event
@@ -98,8 +106,9 @@ def _run_native_mesh_core_service_job(
             note_failure("resident helper wrote no report")
             return None
         try:
-            report = json.loads(report_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
+            with report_path.open("r", encoding="utf-8") as stream:
+                report = read_json(stream)
+        except (OSError, ValueError) as exc:
             note_failure(f"report unreadable: {type(exc).__name__}: {exc}", exc_info=True)
             return None
         if not isinstance(report, dict):
@@ -108,6 +117,8 @@ def _run_native_mesh_core_service_job(
         status = str(report.get("status") or "").lower()
         if status != "ok":
             detail = str(report.get("error") or report.get("message") or report.get("reason") or "").strip()
+            if session_command and detail:
+                _LAST_NATIVE_JOB_REJECTION[0] = detail
             note_failure(f"resident status {status or 'missing'}: {detail or 'no message'}")
             return None
         _LAST_NATIVE_JOB_ERROR[0] = ""

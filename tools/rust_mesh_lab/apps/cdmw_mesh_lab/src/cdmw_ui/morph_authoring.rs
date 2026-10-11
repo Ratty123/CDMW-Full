@@ -14,42 +14,9 @@ impl LabApplication {
         let correction_id = state_str(state, "correction_definition_id").unwrap_or("");
         let correcting = !correction_id.is_empty();
         let body = value_u32_list(state, "driver_submesh_indices");
-        let profile_id = state_str(state, "profile_id").unwrap_or("");
-        if correcting {
-            ui.colored_label(
-                Color32::from_rgb(105, 205, 135),
-                crate::localization::tr("Editing an outfit correction. Save or cancel it before changing the fit."),
-            );
-            ui.horizontal_wrapped(|ui| {
-                if ui.add_enabled(authoring, Button::new(crate::localization::tr("Save outfit correction"))).clicked() {
-                    actions.push(UiAction::CdmwCommand {
-                        command: "morph_save_correction",
-                        arguments: json!({}),
-                        label: "Save outfit correction",
-                    });
-                }
-                if ui.add_enabled(authoring, Button::new(crate::localization::tr("Cancel outfit correction")))
-                    .on_hover_text(crate::localization::tr(
-                        "Discard all shape edits made while editing this correction and restore the previous slider values.",
-                    )).clicked() {
-                    actions.push(UiAction::CdmwCommand {
-                        command: "morph_cancel_correction",
-                        arguments: json!({}),
-                        label: "Cancel outfit correction",
-                    });
-                }
-            });
-        }
-        cdmw_section(ui, "morph-authored", "Sculpted sliders", None, |ui| {
-            ui.small(crate::localization::tr(
-                "Capture the body base, shape the body with the editing tools, then save the result as a slider.",
-            ));
-            if baseline_ready {
-                ui.colored_label(
-                    Color32::from_rgb(105, 205, 135),
-                    crate::localization::tr("Body base captured. Your edited shape will become 100%."),
-                );
-            }
+        ui.push_id("morph-authored", |ui| {
+            ui.weak(crate::localization::tr("Capture → sculpt → save"))
+                .on_hover_text(crate::localization::tr("Capture the body base, shape the body with the editing tools, then save the result as a slider. Keep the body's topology unchanged."));
             ui.horizontal_wrapped(|ui| {
                 if ui.add_enabled(
                     authoring && !unbaked && !correcting && !body.is_empty(),
@@ -63,27 +30,26 @@ impl LabApplication {
                         label: "Capture body base",
                     });
                 }
-                if baseline_ready && ui.add_enabled(
-                    authoring && !correcting,
-                    Button::new(crate::localization::tr("Discard captured base")),
-                ).on_hover_text(crate::localization::tr("Keeps the current geometry and discards the saved slider base.")).clicked() {
-                    actions.push(UiAction::CdmwCommand {
-                        command: "morph_cancel_baseline",
-                        arguments: json!({}),
-                        label: "Discard captured body base",
-                    });
-                }
             });
             ui.label(crate::localization::tr("Profile name"));
             ui.add(egui::TextEdit::singleline(&mut self.cdmw_morph_profile_name).desired_width(ui.available_width()));
             ui.label(crate::localization::tr("Sculpted slider name"));
             ui.add(egui::TextEdit::singleline(&mut self.cdmw_morph_definition_label).desired_width(ui.available_width()));
+        });
+    }
+
+    pub(super) fn draw_cdmw_authored_morph_save(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>, state: &Value) {
+        let authoring = state_bool(&self.cdmw_state, "authoring_enabled");
+        let baseline_ready = state_bool(state, "authoring_baseline_ready");
+        let correcting = state_str(state, "correction_definition_id").is_some_and(|id| !id.is_empty());
+        let profile_id = state_str(state, "profile_id").unwrap_or("");
+        ui.horizontal_wrapped(|ui| {
             let ready = authoring
                 && baseline_ready
                 && !correcting
                 && !self.cdmw_morph_profile_name.trim().is_empty()
                 && !self.cdmw_morph_definition_label.trim().is_empty();
-            if ui.add_enabled(ready, Button::new(crate::localization::tr("Save sculpted slider"))).clicked() {
+            if ui.add_enabled(ready, Button::new(crate::localization::tr("Save slider"))).clicked() {
                 let name = self.cdmw_morph_profile_name.trim().to_owned();
                 let label = self.cdmw_morph_definition_label.trim().to_owned();
                 actions.push(UiAction::CdmwCommand {
@@ -103,9 +69,16 @@ impl LabApplication {
                     label: "Save sculpted body slider",
                 });
             }
-            ui.small(crate::localization::tr(
-                "Keep the body's topology unchanged. Save Profile or Save Preset to retain the slider with your library.",
-            ));
+            if baseline_ready && ui.add_enabled(
+                authoring && !correcting,
+                Button::new(crate::localization::tr("Discard base")),
+            ).on_hover_text(crate::localization::tr("Keeps the current geometry and discards the saved slider base.")).clicked() {
+                actions.push(UiAction::CdmwCommand {
+                    command: "morph_cancel_baseline",
+                    arguments: json!({}),
+                    label: "Discard captured body base",
+                });
+            }
         });
     }
 
@@ -288,9 +261,6 @@ impl LabApplication {
                 actions.push(UiAction::ChooseCdmwRefitRecipe { save: false });
             }
         });
-        ui.small(crate::localization::tr(
-            "Fitting setups retain the preset, body regions, garment masks and modes for the same loaded meshes.",
-        ));
         self.draw_cdmw_matching_setups(ui, actions, state);
     }
 }

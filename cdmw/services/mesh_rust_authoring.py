@@ -31,6 +31,8 @@ from pathlib import Path, PurePosixPath
 from types import MappingProxyType, SimpleNamespace
 from uuid import uuid4
 
+from cdmw.services.mesh_morph_file_data import ProfileFileData, write_profile_file
+from cdmw.services.mesh_service_history_files import _mesh_morph_profile_state_fingerprint
 from cdmw.core.archive import ensure_archive_preview_source
 from cdmw.core.common import (
     read_file_bytes_cancellable,
@@ -153,9 +155,6 @@ _RUST_MATERIAL_LUMINANCE_GUARD_MAX_SURFACE_SAMPLES = (
 )
 _LAYER_GENERATION_RE = re.compile(r"generation-[0-9]+-[0-9a-f]{8}\Z")
 _PROFILE_MAX_DEPTH = 4
-_PROFILE_MAX_ENTRIES = 4096
-_PROFILE_MAX_FILE_BYTES = 8 * 1024 * 1024
-_PROFILE_MAX_TOTAL_BYTES = 64 * 1024 * 1024
 _MORPH_STATE_MAX_BYTES = 16 * 1024 * 1024
 _GENERATED_MAX_ENTRIES = 65_536
 _GENERATED_MAX_DEPTH = 8
@@ -1534,10 +1533,6 @@ def _validate_owned_profile_tree(root: Path) -> tuple[int, int]:
         directory, depth = stack.pop()
         for item in directory.iterdir():
             entry_count += 1
-            if entry_count > _PROFILE_MAX_ENTRIES:
-                raise RustMeshProtocolError(
-                    "Mesh morph profiles contain too many entries"
-                )
             _require_owned_path(item, owned_root)
             if item.is_dir():
                 if depth >= _PROFILE_MAX_DEPTH:
@@ -1551,119 +1546,31 @@ def _validate_owned_profile_tree(root: Path) -> tuple[int, int]:
                     "Mesh morph profiles contain an unexpected entry"
                 )
             length = item.stat().st_size
-            if length > _PROFILE_MAX_FILE_BYTES:
-                raise RustMeshProtocolError(
-                    "Mesh morph profile file exceeds the 8 MiB limit"
-                )
             total_bytes += length
-            if total_bytes > _PROFILE_MAX_TOTAL_BYTES:
-                raise RustMeshProtocolError(
-                    "Mesh morph profiles exceed the 64 MiB session limit"
-                )
     return entry_count, total_bytes
 
 
-def _profile_files_fingerprint(files: Sequence[tuple[str, bytes]]) -> str:
-    digest = hashlib.sha256()
-    for relative, data in files:
-        digest.update(str(relative).encode("utf-8"))
-        digest.update(b"\0")
-        digest.update(bytes(data))
-        digest.update(b"\0")
-    return digest.hexdigest().upper()
+def _profile_files_fingerprint(files: Sequence[tuple[str, ProfileFileData]]) -> str:
+    return _mesh_morph_profile_state_fingerprint(True, files)
 
 
 def _capture_owned_profile_tree(
     root: Path | None,
-) -> tuple[bool, tuple[tuple[str, bytes], ...], str]:
-    """Read one bounded, link-free profile snapshot for copying or CAS."""
-
-    if root is None or not root.exists():
-        digest = hashlib.sha256()
-        digest.update(b"missing")
-        return False, (), digest.hexdigest().upper()
-    if not root.is_dir():
-        raise RustMeshProtocolError("Mesh morph profile root is not a directory")
-    owned_root = root.resolve(strict=True)
-    _require_owned_path(root, owned_root)
-    root_stat = root.stat()
-    stack: list[tuple[Path, int]] = [(root, 0)]
-    entry_count = 0
-    total_bytes = 0
-    captured: list[tuple[str, bytes]] = []
-    while stack:
-        directory, depth = stack.pop()
-        for item in directory.iterdir():
-            entry_count += 1
-            if entry_count > _PROFILE_MAX_ENTRIES:
-                raise RustMeshProtocolError(
-                    "Mesh morph profiles contain too many entries"
-                )
-            _require_owned_path(item, owned_root)
-            if item.is_dir():
-                if depth >= _PROFILE_MAX_DEPTH:
-                    raise RustMeshProtocolError(
-                        "Mesh morph profiles exceed the directory-depth limit"
-                    )
-                stack.append((item, depth + 1))
-                continue
-            if not item.is_file() or item.suffix != ".json":
-                raise RustMeshProtocolError(
-                    "Mesh morph profiles contain an unexpected entry"
-                )
-            declared_length = item.stat().st_size
-            if declared_length > _PROFILE_MAX_FILE_BYTES:
-                raise RustMeshProtocolError(
-                    "Mesh morph profile file exceeds the 8 MiB limit"
-                )
-            declared_stat = item.stat()
-            with item.open("rb") as stream:
-                opened_stat = os.fstat(stream.fileno())
-                if (
-                    int(opened_stat.st_dev) != int(declared_stat.st_dev)
-                    or int(opened_stat.st_ino) != int(declared_stat.st_ino)
-                    or int(opened_stat.st_size) != declared_length
-                ):
-                    raise RustMeshProtocolError(
-                        "Mesh morph profile changed before it could be read"
-                    )
-                data = stream.read(_PROFILE_MAX_FILE_BYTES + 1)
-                final_stat = os.fstat(stream.fileno())
-            _require_owned_path(item, owned_root)
-            current_stat = item.stat()
-            if (
-                len(data) > _PROFILE_MAX_FILE_BYTES
-                or len(data) != declared_length
-                or int(final_stat.st_size) != declared_length
-                or int(current_stat.st_dev) != int(declared_stat.st_dev)
-                or int(current_stat.st_ino) != int(declared_stat.st_ino)
-            ):
-                raise RustMeshProtocolError(
-                    "Mesh morph profile changed or exceeded the 8 MiB limit"
-                )
-            total_bytes += len(data)
-            if total_bytes > _PROFILE_MAX_TOTAL_BYTES:
-                raise RustMeshProtocolError(
-                    "Mesh morph profiles exceed the 64 MiB session limit"
-                )
-            captured.append((item.relative_to(root).as_posix(), data))
-    current_root_stat = root.stat()
-    _require_owned_path(root, owned_root)
-    if (
-        root.resolve(strict=True) != owned_root
-        or int(current_root_stat.st_dev) != int(root_stat.st_dev)
-        or int(current_root_stat.st_ino) != int(root_stat.st_ino)
-    ):
-        raise RustMeshProtocolError(
-            "Mesh morph profile root changed while it was being read"
-        )
-    files = tuple(sorted(captured, key=lambda item: item[0].casefold()))
-    return True, files, _profile_files_fingerprint(files)
+) -> tuple[bool, tuple[tuple[str, ProfileFileData], ...], str]:
+    """Use the same streamed, owned capture for history, shadow copies and CAS."""
+    if root is None:
+        return False, (), hashlib.sha256(b"missing").hexdigest().upper()
+    try:
+        if root.is_dir():
+            _validate_owned_profile_tree(root)
+        return _mesh_morph_profile_directory_state(root)
+    except RuntimeError as exc:
+        raise RustMeshProtocolError(str(exc)) from exc
 
 
 def _write_owned_profile_tree(
     destination: Path,
-    files: Sequence[tuple[str, bytes]],
+    files: Sequence[tuple[str, ProfileFileData]],
 ) -> None:
     destination.mkdir()
     for relative, data in files:
@@ -1674,7 +1581,8 @@ def _write_owned_profile_tree(
             )
         target = destination.joinpath(*parts)
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(bytes(data))
+        with target.open("wb") as stream:
+            write_profile_file(stream, data)
 
 
 def _validate_owned_generated_tree(root: Path, session_root: Path) -> tuple[int, int]:
@@ -9605,7 +9513,7 @@ class RustMeshAuthoringSession:
         morph_publication: _MorphProfilePublication | None = None
         morph_profile_previous_state: tuple[
             bool,
-            tuple[tuple[str, bytes], ...],
+            tuple[tuple[str, ProfileFileData], ...],
             str,
         ] | None = None
         if shadow_morph_fingerprint != self.morph_profile_base_fingerprint:

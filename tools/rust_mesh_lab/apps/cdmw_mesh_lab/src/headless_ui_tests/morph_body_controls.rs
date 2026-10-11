@@ -29,7 +29,7 @@ fn command_arguments(actions: &[UiAction], expected: &str) -> Value {
 #[test]
 fn typed_body_control_submits_independent_macro_and_keeps_manual_values() -> TestResult {
     let mut ui = controls_ui()?;
-    ui.click("Body controls")?;
+    ui.open_morph_shape("Body")?;
     ui.last_actions.clear();
     ui.type_number_in_row("Waist shape", 25.0, "37.125")?;
     assert_eq!(command_arguments(&ui.last_actions, "morph_set_macro"), json!({
@@ -48,7 +48,7 @@ fn typed_body_control_submits_independent_macro_and_keeps_manual_values() -> Tes
 #[test]
 fn detailed_slider_shows_manual_input_and_the_combined_preview() -> TestResult {
     let mut ui = controls_ui()?;
-    ui.click("Shape sliders")?;
+    ui.open_morph_sliders()?;
     ui.reveal("Preview value: 42.500%")?;
     ui.last_actions.clear();
     ui.type_number_in_row("Body shape", 17.5, "21.25")?;
@@ -62,7 +62,7 @@ fn detailed_slider_shows_manual_input_and_the_combined_preview() -> TestResult {
 #[test]
 fn body_controls_observe_read_only_and_pending_authoring_gates() -> TestResult {
     let mut ui = controls_ui()?;
-    ui.click("Body controls")?;
+    ui.open_morph_shape("Body")?;
     for (authoring, pending) in [(false, false), (true, true)] {
         ui.application.cdmw_state["authoring_enabled"] = json!(authoring);
         ui.application.cdmw_state["morph_refit"]["authoring_baseline_ready"] = json!(pending);
@@ -81,7 +81,7 @@ fn body_control_creation_uses_resolved_body_availability_and_neutral_preview() -
     let mut ui = super::morph_authoring::authoring_ui()?;
     ui.application.cdmw_state["morph_refit"]["body_controls_available"] = json!(true);
     ui.frame(Vec::new());
-    ui.click("Body controls")?;
+    ui.open_morph_shape("Body")?;
     let create = ui.actions_from_click("Create body controls")?;
     assert_eq!(command_arguments(&create, "morph_generate_body_controls"), json!({}));
     ui.application.cdmw_state["morph_refit"]["unbaked"] = json!(true);
@@ -124,7 +124,7 @@ fn side_controls_ui() -> Result<HeadlessUi, Box<dyn std::error::Error>> {
         "both_min_percent": -85.0, "both_max_percent": 85.0
     }]);
     ui.frame(Vec::new());
-    ui.click("Side adjustments")?;
+    ui.open_morph_shape("Sides")?;
     Ok(ui)
 }
 
@@ -181,7 +181,7 @@ fn linking_sides_is_reversible_and_observes_authoring_gates() -> TestResult {
 fn unchanged_body_control_focus_does_not_swallow_reset() -> TestResult {
     let root = tempdir()?;
     let mut ui = controls_ui()?;
-    ui.click("Body controls")?;
+    ui.open_morph_shape("Body")?;
     ui.application.cdmw_bridge = Some(CdmwBridge::for_test(
         root.path().to_path_buf(), "macro-focus-reset", 1, 0,
     ));

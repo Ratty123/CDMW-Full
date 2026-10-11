@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-import hashlib
-import json
 import math
 import operator
 from typing import TYPE_CHECKING, Iterable, Mapping, Sequence
+
+from cdmw.core.streaming_json import JsonArray, json_sha256
 
 if TYPE_CHECKING:
     from .morph_layers import MeshMorphMacroDefinition, MeshMorphSidePair
@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 Vec3 = tuple[float, float, float]
 MESH_MORPH_PROFILE_FORMAT = "cdmw.mesh_morph_profile.v2"
 MESH_MORPH_AUTHORED_PROFILE_FORMAT = "cdmw.mesh_morph_profile.v3"
+# Historical thresholds kept as compatibility exports, not enforced quotas.
 MESH_MORPH_MAX_DEFINITIONS = 512
 MESH_MORPH_MAX_SPARSE_VERTICES = 1_000_000
 MESH_MORPH_MAX_DELTA_COMPONENT = 1_000_000.0
@@ -117,7 +118,10 @@ class MeshMorphDefinition:
             if key in seen:
                 raise ValueError("Morph definition contains a duplicate weighted vertex.")
             seen.add(key)
-            normalized_vertices.append(MeshMorphVertexWeight(key[0], key[1], weight))
+            normalized_vertices.append(
+                vertex if type(vertex.submesh_index) is int and type(vertex.vertex_index) is int
+                and type(vertex.weight) is float else MeshMorphVertexWeight(key[0], key[1], weight)
+            )
         mirror_mode = str(self.mirror_mode or "off").strip().lower()
         if mirror_mode not in MESH_MORPH_MIRROR_MODES:
             raise ValueError(f"Unsupported mirror mode: {self.mirror_mode!r}")
@@ -183,8 +187,8 @@ class MeshMorphSparseField:
         submesh_index = _strict_mesh_index(self.submesh_index, "Sparse field submesh")
         indices = tuple(_strict_mesh_index(item, "Sparse field vertex") for item in self.vertex_indices)
         deltas = tuple(_bounded_morph_delta(item) for item in self.deltas)
-        if not indices or len(indices) != len(deltas) or len(indices) > MESH_MORPH_MAX_SPARSE_VERTICES:
-            raise ValueError("Sparse morph fields require matching nonempty bounded indices and deltas.")
+        if not indices or len(indices) != len(deltas):
+            raise ValueError("Sparse morph fields require matching nonempty indices and deltas.")
         if len(set(indices)) != len(indices):
             raise ValueError("Sparse morph fields cannot repeat a vertex index.")
         pairs = sorted(zip(indices, deltas))
@@ -212,8 +216,6 @@ class MeshMorphProfile:
         if len(fingerprint) != 64 or any(character not in "0123456789abcdef" for character in fingerprint):
             raise ValueError("Morph profile topology_fingerprint must be an exact SHA-256 digest.")
         identifiers = [definition.definition_id for definition in self.definitions]
-        if len(identifiers) > MESH_MORPH_MAX_DEFINITIONS:
-            raise ValueError(f"Morph profiles support at most {MESH_MORPH_MAX_DEFINITIONS} definitions.")
         if len(set(identifiers)) != len(identifiers):
             raise ValueError("Morph profile definition ids must be unique.")
         driver_indices = {vertex.submesh_index for item in self.definitions for vertex in item.vertices}
@@ -223,8 +225,12 @@ class MeshMorphProfile:
         object.__setattr__(self, "name", str(self.name or profile_id).strip() or profile_id)
         object.__setattr__(self, "topology_fingerprint", fingerprint)
         extended = any(item.source_kind == "authored" or item.garment_corrections for item in self.definitions)
-        if sum(len(field.vertex_indices) for item in self.definitions for field in (*item.authored_fields, *item.garment_corrections)) > MESH_MORPH_MAX_SPARSE_VERTICES:
-            raise ValueError("Morph profile contains too many authored sparse vertices.")
+        # Body sliders often use exactly the same immutable weighted selection.
+        # Share it across controls and history without changing the saved schema.
+        selections = {}
+        for definition in self.definitions:
+            shared = selections.setdefault(definition.vertices, definition.vertices)
+            object.__setattr__(definition, "vertices", shared)
         object.__setattr__(self, "definitions", tuple(self.definitions))
         object.__setattr__(self, "format", MESH_MORPH_AUTHORED_PROFILE_FORMAT if extended else MESH_MORPH_PROFILE_FORMAT)
 
@@ -332,8 +338,6 @@ class MeshRefitGarmentSettings:
                     raise ValueError("Refit masks require unique indices and finite weights between 0 and 1.")
                 seen.add(index)
                 normalized_mask.append((index, weight))
-            if len(normalized_mask) > MESH_MORPH_MAX_SPARSE_VERTICES:
-                raise ValueError("Refit mask exceeds its vertex limit.")
             object.__setattr__(self, "vertex_mask", tuple(sorted(normalized_mask)))
 
 
@@ -345,8 +349,8 @@ class MeshRefitDriverRegion:
     def __post_init__(self) -> None:
         submesh_index = _strict_mesh_index(self.submesh_index, "Driver region submesh")
         indices = tuple(_strict_mesh_index(item, "Driver region vertex") for item in self.vertex_indices)
-        if not indices or len(indices) > MESH_MORPH_MAX_SPARSE_VERTICES or len(set(indices)) != len(indices):
-            raise ValueError("Driver regions require nonempty bounded unique vertex indices.")
+        if not indices or len(set(indices)) != len(indices):
+            raise ValueError("Driver regions require nonempty unique vertex indices.")
         object.__setattr__(self, "submesh_index", submesh_index)
         object.__setattr__(self, "vertex_indices", tuple(sorted(indices)))
 
@@ -474,20 +478,19 @@ def mesh_topology_fingerprint(mesh: object, submesh_indices: Iterable[int] | Non
         if not 0 <= submesh_index < len(submeshes):
             raise ValueError(f"Topology fingerprint submesh is out of range: {submesh_index}")
         submesh = submeshes[submesh_index]
-        faces = []
-        for face in tuple(getattr(submesh, "faces", ()) or ()):
-            values = tuple(int(index) for index in face[:3])
-            if len(values) == 3:
-                faces.append(values)
+        def face_rows(part=submesh):
+            for face in getattr(part, "faces", ()) or ():
+                values = tuple(int(index) for index in face[:3])
+                if len(values) == 3:
+                    yield values
         payload.append(
             {
                 "index": submesh_index,
                 "vertex_count": len(tuple(getattr(submesh, "vertices", ()) or ())),
-                "faces": faces,
+                "faces": JsonArray(face_rows),
             }
         )
-    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
+    return json_sha256(payload)
 
 
 def mesh_morph_driver_topology_fingerprint(
@@ -838,8 +841,6 @@ def _definition_sparse_fields(
         if item.submesh_index in seen:
             raise ValueError("A morph definition cannot repeat a sparse submesh field.")
         seen.add(item.submesh_index)
-    if sum(len(item.vertex_indices) for item in fields) > MESH_MORPH_MAX_SPARSE_VERTICES:
-        raise ValueError("Morph definition exceeds its sparse vertex limit.")
     return tuple(sorted(fields, key=lambda item: item.submesh_index))
 
 

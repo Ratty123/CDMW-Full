@@ -645,6 +645,7 @@ void mesh_editor_trim_history(std::vector<MeshEditorHistoryEntry>& stack) {
     while (!stack.empty()
         && (stack.size() > MESH_EDITOR_HISTORY_MAX_OPERATIONS
             || mesh_editor_history_stack_retained_bytes(stack) > MESH_EDITOR_HISTORY_MAX_BYTES)) {
+        if (stack.size() == 1 && (stack.back().morph_before || stack.back().morph_after)) break;
         stack.erase(stack.begin());
     }
 }
@@ -656,6 +657,10 @@ void mesh_editor_push_history(std::vector<MeshEditorHistoryEntry>& stack, MeshEd
 
 void mesh_editor_trim_session_history(MeshEditorSession& session) {
     while (!session.undo_stack.empty() || !session.redo_stack.empty()) {
+        if (session.undo_stack.size() + session.redo_stack.size() == 1) {
+            const auto& last = session.undo_stack.empty() ? session.redo_stack.back() : session.undo_stack.back();
+            if (last.morph_before || last.morph_after) break;
+        }
         const auto retained = mesh_editor_session_history_retained_bytes(session);
         if (session.undo_stack.size() + session.redo_stack.size() <= MESH_EDITOR_HISTORY_MAX_OPERATIONS
             && retained[0] + retained[1] <= MESH_EDITOR_HISTORY_MAX_BYTES) break;

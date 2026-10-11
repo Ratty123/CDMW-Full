@@ -37,9 +37,6 @@ from cdmw.services.mesh_service_history_files import (
     _restore_mesh_morph_profile_directory_state,
     _validate_mesh_morph_profile_history_state,
     _MESH_MORPH_PROFILE_MAX_DEPTH,
-    _MESH_MORPH_PROFILE_MAX_ENTRIES,
-    _MESH_MORPH_PROFILE_MAX_FILE_BYTES,
-    _MESH_MORPH_PROFILE_MAX_TOTAL_BYTES,
 )
 
 
@@ -62,6 +59,15 @@ class _MeshTransactionalRestoreCheckpoint:
 
 def _history_stack_retained_bytes(stack: Sequence[_MeshHistorySnapshot]) -> int:
     return sum(max(0, int(snapshot.retained_bytes or _history_snapshot_retained_bytes(snapshot))) for snapshot in stack)
+
+
+def _retain_last_morph_history(stack: Sequence[_MeshHistorySnapshot]) -> bool:
+    # A memory budget may evict older edits, but must not make the most recent
+    # large profile edit irreversible. Its file/runtime data already lives on disk.
+    return len(stack) == 1 and (
+        stack[0].morph_session_state is not None or stack[0].morph_profile_root is not None
+        or (stack[0].native_editor_history and stack[0].history_action.startswith(("morph_", "refit_")))
+    )
 
 
 def _history_snapshot_retained_bytes(snapshot: _MeshHistorySnapshot) -> int:
@@ -103,8 +109,8 @@ def _history_snapshot_retained_bytes(snapshot: _MeshHistorySnapshot) -> int:
     for delta in snapshot.vertex_position_deltas:
         if delta.native_sparse_snapshot_id or delta.before_positions_binary is not None:
             retained += len(delta.vertex_indices) * 3 * 8
-    if snapshot.morph_session_state is not None:
-        retained += max(0, int(snapshot.morph_session_state.retained_bytes or 0))
+    # Morph runtime snapshots are already owned files. Their serialized length
+    # is integrity evidence, not Python or resident history memory.
     return max(1, retained)
 
 
@@ -231,6 +237,8 @@ class MeshHistoryServiceMixin:
             max_count = max(1, int(self.max_history or 1))
             max_bytes = max(0, int(self.max_history_bytes or 0))
             while undo or redo:
+                if _retain_last_morph_history((*undo, *redo)):
+                    break
                 retained = _history_stack_retained_bytes(
                     undo
                 ) + _history_stack_retained_bytes(redo)
@@ -726,12 +734,16 @@ class MeshHistoryServiceMixin:
         max_count = max(1, int(self.max_history or 1))
         max_bytes = max(0, int(self.max_history_bytes or 0))
         while stack and (len(stack) > max_count or _history_stack_retained_bytes(stack) > max_bytes):
+            if _retain_last_morph_history(stack):
+                break
             _service_call("_discard_history_snapshot", stack, 0)
 
     def _trim_session_history(self, session: _MeshEditSession) -> None:
         max_count = max(1, int(self.max_history or 1))
         max_bytes = max(0, int(self.max_history_bytes or 0))
         while session.undo_stack or session.redo_stack:
+            if _retain_last_morph_history((*session.undo_stack, *session.redo_stack)):
+                return
             retained = _history_stack_retained_bytes(session.undo_stack) + _history_stack_retained_bytes(session.redo_stack)
             if (
                 len(session.undo_stack) + len(session.redo_stack) <= max_count

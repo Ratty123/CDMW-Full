@@ -303,7 +303,7 @@ def test_failed_speculative_history_trims_never_dispose_live_snapshots() -> None
         service.close_edit_session(view.session_id, force_without_saving=True)
 
 
-def test_profile_history_rejects_oversized_file_before_reading_it(
+def test_profile_history_spools_large_file_without_a_size_rejection(
     tmp_path: Path,
 ) -> None:
     profile_root = tmp_path / "mesh_slider_profiles"
@@ -312,8 +312,12 @@ def test_profile_history_rejects_oversized_file_before_reading_it(
     with profile_path.open("wb") as stream:
         stream.truncate((8 * 1024 * 1024) + 1)
 
-    with pytest.raises(RuntimeError, match="exceeds the 8 MiB limit"):
-        _mesh_morph_profile_directory_state(profile_root)
+    from cdmw.services.mesh_morph_file_data import MorphProfileFile
+    existed, files, fingerprint = _mesh_morph_profile_directory_state(profile_root)
+    assert existed and len(fingerprint) == 64
+    assert len(files) == 1 and files[0][0] == "definitions/oversized.json"
+    assert isinstance(files[0][1], MorphProfileFile)
+    assert len(files[0][1]) == 8 * 1024 * 1024 + 1
 
 
 def test_failed_history_rollback_poisons_cas_tokens() -> None:

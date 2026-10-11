@@ -14,11 +14,8 @@ impl LabApplication {
         let macros = state.get("macro_definitions").and_then(Value::as_array)
             .cloned().unwrap_or_default();
         let values = pair_number_list(state, "macro_values");
-        cdmw_section(ui, "morph-body-controls", "Body controls", None, |ui| {
+        ui.push_id("morph-body-controls", |ui| {
             if macros.is_empty() {
-                ui.small(crate::localization::tr(
-                    "Create coordinated controls from the assigned body's regions. Custom sculpted sliders keep their own controls.",
-                ));
                 if let Some(reason) = state_str(state, "body_controls_reason").filter(|reason| !reason.trim().is_empty()) {
                     ui.weak(crate::localization::tr(reason));
                 }
@@ -37,9 +34,6 @@ impl LabApplication {
                 }
                 return;
             }
-            ui.small(crate::localization::tr(
-                "Coordinate related body regions. Returning these controls to 0% restores your detailed slider values.",
-            ));
             ui.add_enabled_ui(authoring && !pending, |ui| {
                 for definition in &macros {
                     let Some(macro_id) = state_str(definition, "macro_id").filter(|id| !id.is_empty()) else {
@@ -99,6 +93,7 @@ impl LabApplication {
     ) {
         let Some(pairs) = state.get("side_pairs").and_then(Value::as_array)
             .filter(|pairs| !pairs.is_empty()) else {
+            ui.weak(crate::localization::tr("No paired sliders in this profile."));
             return;
         };
         let ready = state_bool(&self.cdmw_state, "authoring_enabled")
@@ -107,13 +102,11 @@ impl LabApplication {
         let manual = pair_number_list(state, "manual_values");
         let mode_id = egui::Id::new(("morph-side-mode", state_str(state, "profile_id").unwrap_or("")));
         let mut side = ui.data_mut(|data| data.get_temp::<String>(mode_id)).unwrap_or_else(|| "both".into());
-        cdmw_section(ui, "morph-side-controls", "Side adjustments", None, |ui| {
-            ui.small(crate::localization::tr(
-                "Both moves the two sides together while keeping their difference. Linking shows matching sides and retains your independent values.",
-            ));
+        ui.push_id("morph-side-controls", |ui| {
             ui.add_enabled_ui(ready, |ui| {
                 let mut linked = state_bool(state, "symmetry_enabled");
-                if ui.checkbox(&mut linked, crate::localization::tr("Link sides")).changed() {
+                if ui.checkbox(&mut linked, crate::localization::tr("Link sides"))
+                    .on_hover_text(crate::localization::tr("Linking shows matching sides and retains your independent values.")).changed() {
                     actions.push(UiAction::CdmwCommand {
                         command: "morph_set_symmetry",
                         arguments: json!({"enabled": linked}),

@@ -7,6 +7,8 @@ import sys
 from dataclasses import dataclass
 from collections.abc import Sequence
 
+from cdmw.services.mesh_morph_file_data import ProfileFileData
+
 from cdmw.domain.mesh import MeshObjectTransformState
 from cdmw.domain.mesh.authoring_capability import MeshOutputPolicy, output_policy_state
 from cdmw.domain.mesh.replacement import MeshReplacementState
@@ -71,9 +73,9 @@ class _ReplacementOptions:
     morph_session_state: _MeshMorphSessionState | None
     morph_profile_root: str | None
     morph_profile_root_existed: bool | None
-    morph_profile_files: Sequence[tuple[str, bytes]] | None
+    morph_profile_files: Sequence[tuple[str, ProfileFileData]] | None
     morph_profile_after_root_existed: bool | None
-    morph_profile_after_files: Sequence[tuple[str, bytes]] | None
+    morph_profile_after_files: Sequence[tuple[str, ProfileFileData]] | None
     morph_profile_expected_fingerprint: str | None
     require_reversible_history: bool
 
@@ -459,7 +461,7 @@ class MeshWorkingReplacementServiceMixin:
                 history_snapshot.morph_profile_root = str(options.morph_profile_root)
                 history_snapshot.morph_profile_root_existed = bool(options.morph_profile_root_existed)
                 history_snapshot.morph_profile_files = tuple(
-                    (str(relative), bytes(data)) for relative, data in options.morph_profile_files
+                    (str(relative), data) for relative, data in options.morph_profile_files
                 )
                 history_snapshot.morph_profile_expected_fingerprint = str(
                     options.morph_profile_expected_fingerprint
@@ -469,7 +471,8 @@ class MeshWorkingReplacementServiceMixin:
             )
             if options.require_reversible_history:
                 history_limit = max(0, int(self.max_history_bytes or 0))
-                if history_snapshot.retained_bytes > history_limit:
+                morph_history = history_snapshot.morph_session_state is not None or history_snapshot.morph_profile_root is not None
+                if history_snapshot.retained_bytes > history_limit and not morph_history:
                     raise RuntimeError(
                         "Edit Session cannot be committed because its reversible history "
                         "snapshot exceeds the configured history memory limit."
@@ -520,7 +523,7 @@ class MeshWorkingReplacementServiceMixin:
                     ),
                     morph_profile_files=(
                         tuple(
-                            (str(relative), bytes(data))
+                            (str(relative), data)
                             for relative, data in tuple(options.morph_profile_after_files or ())
                         )
                         if options.morph_profile_root is not None
@@ -541,7 +544,7 @@ class MeshWorkingReplacementServiceMixin:
                 after_retained_bytes = int(
                     _service_call("_history_snapshot_retained_bytes", after_snapshot)
                 )
-                if after_retained_bytes > history_limit:
+                if after_retained_bytes > history_limit and not morph_history:
                     raise RuntimeError(
                         "Edit Session cannot be committed because its result cannot fit "
                         "the configured reversible history memory limit."
@@ -571,9 +574,9 @@ class MeshWorkingReplacementServiceMixin:
         morph_session_state: _MeshMorphSessionState | None = None,
         morph_profile_root: str | None = None,
         morph_profile_root_existed: bool | None = None,
-        morph_profile_files: Sequence[tuple[str, bytes]] | None = None,
+        morph_profile_files: Sequence[tuple[str, ProfileFileData]] | None = None,
         morph_profile_after_root_existed: bool | None = None,
-        morph_profile_after_files: Sequence[tuple[str, bytes]] | None = None,
+        morph_profile_after_files: Sequence[tuple[str, ProfileFileData]] | None = None,
         morph_profile_expected_fingerprint: str | None = None,
         require_reversible_history: bool = False,
     ):
@@ -661,6 +664,11 @@ class MeshWorkingReplacementServiceMixin:
                 max_count = max(1, int(self.max_history or 1))
                 max_bytes = max(0, int(self.max_history_bytes or 0))
                 while next_undo or next_redo:
+                    if len(next_undo) + len(next_redo) == 1 and (
+                        history_snapshot.morph_session_state is not None
+                        or history_snapshot.morph_profile_root is not None
+                    ):
+                        break
                     retained = int(
                         _service_call("_history_stack_retained_bytes", next_undo)
                     ) + int(_service_call("_history_stack_retained_bytes", next_redo))

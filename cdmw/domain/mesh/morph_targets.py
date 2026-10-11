@@ -8,13 +8,14 @@ from __future__ import annotations
 
 from dataclasses import replace
 import hashlib
-import json
+import io
 import math
 import struct
 from typing import Iterable
 
+from cdmw.core.streaming_json import write_json
+
 from .morph import (
-    MESH_MORPH_MAX_SPARSE_VERTICES,
     MeshMorphDefinition,
     MeshMorphFittingRecipe,
     MeshMorphRule,
@@ -36,15 +37,13 @@ def _parts(mesh: object, submesh_indices: Iterable[int]) -> tuple[tuple[int, obj
     if not indices or len(set(indices)) != len(indices):
         raise ValueError("Morph identity requires nonempty unique part indices.")
     result = []
-    total = 0
     for index in sorted(indices):
         if index >= len(submeshes):
             raise ValueError("Morph identity submesh is out of range.")
         part = submeshes[index]
         positions = tuple(getattr(part, "vertices", ()) or ())
-        total += len(positions)
-        if not positions or total > MESH_MORPH_MAX_SPARSE_VERTICES:
-            raise ValueError("Morph identity exceeds its vertex limit or has an empty part.")
+        if not positions:
+            raise ValueError("Morph identity has an empty part.")
         for raw_face in tuple(getattr(part, "faces", ()) or ()):
             face = tuple(raw_face)
             if len(face) != 3:
@@ -75,7 +74,14 @@ def _source_identity(part: object) -> bytes:
         )
     }
     try:
-        return json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+        buffer = io.BytesIO()
+
+        class Sink:
+            def write(self, text):
+                buffer.write(text.encode("utf-8"))
+
+        write_json(Sink(), payload)
+        return buffer.getvalue()
     except (TypeError, ValueError, OverflowError) as exc:
         raise ValueError("Morph source/skin identity contains invalid or non-finite data.") from exc
 

@@ -722,7 +722,7 @@ def test_rejected_morph_activation_preflight_restores_only_cache_and_history(
         )
 
 
-def test_oversized_profile_save_is_rejected_before_file_or_history_mutation(
+def test_large_profile_save_remains_reversible(
     tmp_path: Path,
 ) -> None:
     service = MeshService(settings=_Settings(tmp_path / "settings.ini"))
@@ -733,20 +733,13 @@ def test_oversized_profile_save_is_rejected_before_file_or_history_mutation(
         oversized = replace(data.profile, name="x" * (8 * 1024 * 1024))
         data.profile = oversized
         data.known_profiles[oversized.profile_id] = oversized
-        before_undo = tuple(service._session(session_id).undo_stack)
-        before_redo = tuple(service._session(session_id).redo_stack)
-
-        with pytest.raises(ValueError, match="JSON exceeds"):
-            service.save_active_morph_profile(session_id)
-
-        assert not (
-            tmp_path
-            / "mesh_slider_profiles"
-            / "definitions"
-            / "resident-body.json"
-        ).exists()
-        assert tuple(service._session(session_id).undo_stack) == before_undo
-        assert tuple(service._session(session_id).redo_stack) == before_redo
+        before_undo = len(service._session(session_id).undo_stack)
+        service.save_active_morph_profile(session_id)
+        path = tmp_path / "mesh_slider_profiles" / "definitions" / "resident-body.json"
+        assert path.stat().st_size > 8 * 1024 * 1024
+        assert len(service._session(session_id).undo_stack) == before_undo + 1
+        assert service.undo(session_id).ok and not path.exists()
+        assert service.redo(session_id).ok and path.stat().st_size > 8 * 1024 * 1024
     finally:
         service.close_edit_session(session_id, force_without_saving=True)
 

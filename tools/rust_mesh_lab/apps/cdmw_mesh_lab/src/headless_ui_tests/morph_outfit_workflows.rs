@@ -31,7 +31,7 @@ fn command_arguments(actions: &[UiAction], expected: &str) -> Value {
 #[test]
 fn correction_reset_targets_only_selected_corrected_bound_garments() -> TestResult {
     let mut ui = outfit_ui()?;
-    ui.click("Shape sliders")?;
+    ui.open_morph_sliders()?;
     assert!(ui.actions_from_click("Reset selected outfit correction")?.is_empty());
     select_parts(&mut ui, &[0, 2])?;
     let reset = ui.actions_from_click("Reset selected outfit correction")?;
@@ -53,7 +53,7 @@ fn correction_reset_targets_only_selected_corrected_bound_garments() -> TestResu
 fn correction_comparison_preserves_authoring_policy_and_keeps_restore_and_history_available() -> TestResult {
     let mut ui = outfit_ui()?;
     select_parts(&mut ui, &[2])?;
-    ui.click("Shape sliders")?;
+    ui.open_morph_sliders()?;
     let hide = ui.actions_from_click("Show outfit corrections")?;
     assert_eq!(command_arguments(&hide, "morph_set_corrections_enabled"), json!({"enabled": false}));
     let output_policy = ui.application.cdmw_state["output_policy"].clone();
@@ -84,7 +84,7 @@ fn correction_comparison_allows_selection_but_blocks_keyboard_and_pointer_edits(
     ui.application.cdmw_state["morph_refit"]["corrections_enabled"] = json!(false);
     ui.application.selection_domain = SelectionDomain::Vertex;
     ui.frame(Vec::new());
-    ui.click("Meshes & selection")?;
+    ui.click("Setup")?;
     ui.click("Open Selection tool")?;
     let selection = ui.actions_from_click("Select All")?;
     assert!(selection.iter().any(|action| matches!(action, UiAction::SelectAllVertices)));
@@ -108,7 +108,7 @@ fn correction_comparison_allows_selection_but_blocks_keyboard_and_pointer_edits(
 fn saved_setups_dispatch_the_name_and_explicit_selected_garment_scope() -> TestResult {
     let mut ui = outfit_ui()?;
     select_parts(&mut ui, &[0, 2])?;
-    ui.click("Profiles & presets")?;
+    ui.open_morph_saved("Fitting setups")?;
     let save = ui.actions_from_click("Save reusable fitting setup")?;
     assert_eq!(command_arguments(&save, "morph_save_setup"), json!({"name": "Studio outfit"}));
     ui.last_actions.clear();
@@ -128,7 +128,7 @@ fn saved_setups_dispatch_the_name_and_explicit_selected_garment_scope() -> TestR
 #[test]
 fn saved_setup_matching_and_pending_authoring_gates_are_enforced() -> TestResult {
     let mut ui = outfit_ui()?;
-    ui.click("Profiles & presets")?;
+    ui.open_morph_saved("Fitting setups")?;
     ui.application.cdmw_state["morph_refit"]["authoring_baseline_ready"] = json!(true);
     ui.frame(Vec::new());
     ui.click("Choose matching setup")?;
@@ -150,7 +150,7 @@ fn matching_saved_setup_applies_during_an_active_unbaked_preview() -> TestResult
     ui.application.cdmw_state["morph_refit"]["unbaked"] = json!(true);
     ui.application.cdmw_state["morph_refit"]["values"] = json!([["body-shape", 42.5]]);
     ui.frame(Vec::new());
-    ui.click("Profiles & presets")?;
+    ui.open_morph_saved("Fitting setups")?;
     let save = ui.actions_from_click("Save reusable fitting setup")?;
     assert_eq!(command_arguments(&save, "morph_save_setup"), json!({"name": "Studio outfit"}));
     ui.last_actions.clear();
@@ -172,7 +172,7 @@ fn saved_setup_keeps_selected_recipe_garments_without_current_bindings() -> Test
         state["driver_submesh_indices"] = json!([]);
         state["refit"]["garment_submesh_indices"] = current_garments;
         select_parts(&mut ui, &[0, 2])?;
-        ui.click("Profiles & presets")?;
+        ui.open_morph_saved("Fitting setups")?;
         ui.last_actions.clear();
         ui.choose("Saved setup", "Choose matching setup", "Sleeve and plate fit")?;
         assert_eq!(command_arguments(&ui.last_actions, "morph_apply_setup"), json!({
@@ -186,7 +186,7 @@ fn saved_setup_keeps_selected_recipe_garments_without_current_bindings() -> Test
 fn saved_setup_never_widens_an_unmatched_selection_to_all_garments() -> TestResult {
     let mut ui = outfit_ui()?;
     select_parts(&mut ui, &[0])?;
-    ui.click("Profiles & presets")?;
+    ui.open_morph_saved("Fitting setups")?;
     ui.last_actions.clear();
     ui.choose("Saved setup", "Choose matching setup", "Sleeve and plate fit")?;
     assert!(ui.last_actions.is_empty());
@@ -198,7 +198,7 @@ fn saved_setup_requires_its_verified_garment_roles_before_application() -> TestR
     let mut ui = outfit_ui()?;
     ui.application.cdmw_state["morph_refit"]["matching_recipe_garments"] = json!([]);
     select_parts(&mut ui, &[])?;
-    ui.click("Profiles & presets")?;
+    ui.open_morph_saved("Fitting setups")?;
     ui.last_actions.clear();
     ui.choose("Saved setup", "Choose matching setup", "Sleeve and plate fit")?;
     assert!(ui.last_actions.is_empty());

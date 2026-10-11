@@ -4,18 +4,20 @@ from __future__ import annotations
 
 import hashlib
 import json
+import io
 import math
 from pathlib import Path
 import re
 from typing import Iterable, Mapping
 
-from cdmw.core.atomic_file import atomic_write_text
+from cdmw.core.atomic_file import atomic_text_writer
+from cdmw.core.streaming_json import JsonArray, read_json, write_json
+from cdmw.services.mesh_morph_file_data import capture_profile_json
 from cdmw.domain.mesh.morph import MESH_MORPH_LAYERED_PRESET_FORMAT
 from cdmw.domain.mesh.morph_layers import validate_mesh_morph_layers
 from cdmw.domain.mesh import (
     MESH_MORPH_PRESET_FORMAT,
     MESH_MORPH_AUTHORED_PROFILE_FORMAT,
-    MESH_MORPH_MAX_DEFINITIONS,
     MESH_MORPH_PROFILE_FORMAT,
     MeshMorphDefinition,
     MeshMorphProfile,
@@ -32,31 +34,28 @@ from cdmw.domain.mesh import (
 
 _LEGACY_PROFILE_FORMAT = "cdmw.mesh_morph_slider_profile.v1"
 _SAFE_ID = re.compile(r"[^a-z0-9_-]+")
+# Legacy threshold retained for callers measuring older profiles, not a quota.
 MESH_MORPH_PROFILE_MAX_BYTES = 8 * 1024 * 1024
 MESH_MORPH_BUNDLE_FORMAT = "cdmw.mesh_morph_preset_bundle.v1"
 
 
-def serialized_mesh_morph_bundle(profile: MeshMorphProfile, preset: MeshMorphValuePreset, *, max_bytes: int) -> str:
+def serialized_mesh_morph_bundle(profile: MeshMorphProfile, preset: MeshMorphValuePreset, *, max_bytes: int | None = None) -> str:
     """A portable preset carries the definition and topology it needs."""
     validate_mesh_morph_preset(profile, preset)
     return _serialized_json_document({
         "format": MESH_MORPH_BUNDLE_FORMAT,
-        "profile": mesh_morph_profile_payload(profile),
+        "profile": _streamed_profile_payload(profile),
         "preset": mesh_morph_preset_payload(preset),
     }, max_bytes=max_bytes)
 
 
-def read_mesh_morph_bundle(path: str | Path, mesh: object, *, max_bytes: int):
+def read_mesh_morph_bundle(path: str | Path, mesh: object, *, max_bytes: int | None = None):
     source = Path(path).expanduser()
     if source.suffix.lower() != ".json":
         raise ValueError("Choose a CDMW Morph preset JSON file")
-    if not source.is_file() or not 0 < source.stat().st_size <= max_bytes:
+    if not source.is_file() or source.stat().st_size <= 0 or (max_bytes is not None and source.stat().st_size > max_bytes):
         raise ValueError("Morph preset file is empty or exceeds its size limit")
-    with source.open("rb") as stream:
-        raw = stream.read(max_bytes + 1)
-    if len(raw) > max_bytes:
-        raise ValueError("Morph preset file exceeds its size limit")
-    payload = json.loads(raw)
+    payload = _read_object(source, parse_definitions=True)
     if not isinstance(payload, Mapping) or payload.get("format") != MESH_MORPH_BUNDLE_FORMAT:
         raise ValueError("Choose a portable preset made with Export Preset")
     if not isinstance(payload.get("profile"), Mapping) or not isinstance(payload.get("preset"), Mapping):
@@ -110,7 +109,7 @@ def list_mesh_morph_profiles(
     diagnostics: list[str] = []
     for path in sorted((profile_root / "definitions").glob("*.json")):
         try:
-            profile = mesh_morph_profile_from_payload(_read_object(path))
+            profile = mesh_morph_profile_from_payload(_read_object(path, parse_definitions=True))
             current_fingerprint = mesh_morph_driver_topology_fingerprint(mesh, profile.definitions)
             for definition in profile.definitions:
                 validate_morph_definition_geometry(mesh, definition)
@@ -141,10 +140,11 @@ def list_mesh_morph_profiles(
 def save_mesh_morph_profile(root: str | Path, profile: MeshMorphProfile) -> Path:
     """Atomically save a v2 definition profile without touching legacy files."""
 
-    relative, document = serialized_mesh_morph_profile(profile)
+    relative = mesh_morph_profile_relative_path(profile)
     destination = Path(root).expanduser().joinpath(*Path(relative).parts)
     destination.parent.mkdir(parents=True, exist_ok=True)
-    atomic_write_text(destination, document)
+    with atomic_text_writer(destination) as stream:
+        write_json(stream, _streamed_profile_payload(profile))
     return destination
 
 
@@ -161,12 +161,33 @@ def serialized_mesh_morph_profile(
         topology_fingerprint=profile.topology_fingerprint,
         definitions=profile.definitions,
     )
-    relative = (Path("definitions") / f"{_safe_id(profile.profile_id)}.json").as_posix()
+    relative = mesh_morph_profile_relative_path(normalized)
     document = _serialized_json_document(
-        mesh_morph_profile_payload(normalized),
+        _streamed_profile_payload(normalized),
         max_bytes=max_bytes,
     )
     return relative, document
+
+
+def mesh_morph_profile_relative_path(profile: MeshMorphProfile) -> str:
+    return (Path("definitions") / f"{_safe_id(profile.profile_id)}.json").as_posix()
+
+
+def mesh_morph_profile_file_data(profile: MeshMorphProfile):
+    return mesh_morph_profile_relative_path(profile), capture_profile_json(_streamed_profile_payload(profile))
+
+
+def mesh_morph_preset_file_data(preset: MeshMorphValuePreset):
+    relative = (Path("presets") / _safe_id(preset.profile_id) / f"{_safe_id(preset.preset_id)}.json").as_posix()
+    return relative, capture_profile_json(mesh_morph_preset_payload(preset))
+
+
+def save_mesh_morph_bundle(path: str | Path, profile: MeshMorphProfile, preset: MeshMorphValuePreset) -> None:
+    validate_mesh_morph_preset(profile, preset)
+    with atomic_text_writer(path) as stream:
+        write_json(stream, {"format": MESH_MORPH_BUNDLE_FORMAT,
+                            "profile": _streamed_profile_payload(profile),
+                            "preset": mesh_morph_preset_payload(preset)})
 
 
 def delete_mesh_morph_profile(root: str | Path, profile_id: object) -> bool:
@@ -210,7 +231,8 @@ def save_mesh_morph_preset(root: str | Path, preset: MeshMorphValuePreset) -> Pa
     relative, document = serialized_mesh_morph_preset(preset)
     destination = Path(root).expanduser().joinpath(*Path(relative).parts)
     destination.parent.mkdir(parents=True, exist_ok=True)
-    atomic_write_text(destination, document)
+    with atomic_text_writer(destination) as stream:
+        stream.write(document)
     return destination
 
 
@@ -238,19 +260,9 @@ def _serialized_json_document(
     *,
     max_bytes: int | None,
 ) -> str:
-    limit = MESH_MORPH_PROFILE_MAX_BYTES if max_bytes is None else min(MESH_MORPH_PROFILE_MAX_BYTES, max(0, int(max_bytes)))
-    chunks: list[str] = []
-    encoded_bytes = 0
-    # Dense body controls repeat weighted vertices across their sliders. Pretty
-    # printing can nearly double a valid profile past the bounded file limit.
-    # Keep the same lossless JSON schema and enforce the limit on compact bytes.
-    encoder = json.JSONEncoder(separators=(",", ":"), sort_keys=True, allow_nan=False)
-    for chunk in encoder.iterencode(payload):
-        encoded_bytes += len(chunk.encode("utf-8"))
-        if encoded_bytes > limit:
-            raise ValueError("Mesh morph profile JSON exceeds its configured file limit")
-        chunks.append(chunk)
-    return "".join(chunks)
+    stream = io.StringIO()
+    write_json(stream, payload, max_bytes=max_bytes)
+    return stream.getvalue()
 
 
 def delete_mesh_morph_preset(root: str | Path, profile_id: object, preset_id: object) -> bool:
@@ -271,14 +283,24 @@ def mesh_morph_profile_payload(profile: MeshMorphProfile) -> dict[str, object]:
     }
 
 
+def _streamed_profile_payload(profile: MeshMorphProfile) -> dict[str, object]:
+    return {"format": profile.format, "profile_id": profile.profile_id,
+            "name": profile.name, "topology_fingerprint": profile.topology_fingerprint,
+            "definitions": JsonArray(lambda: (_definition_payload(item, streaming=True) for item in profile.definitions))}
+
+
 def mesh_morph_profile_from_payload(payload: Mapping[str, object]) -> MeshMorphProfile:
     profile_format = str(payload.get("format") or "")
     if profile_format not in {MESH_MORPH_PROFILE_FORMAT, MESH_MORPH_AUTHORED_PROFILE_FORMAT}:
         raise ValueError("unsupported morph profile format")
-    raw_definitions = _strict_mapping_items(payload.get("definitions"), "morph definitions")
-    if len(raw_definitions) > MESH_MORPH_MAX_DEFINITIONS:
-        raise ValueError("Morph profile exceeds its definition limit")
-    definitions = tuple(_definition_from_payload(item) for item in raw_definitions)
+    raw_definitions = payload.get("definitions")
+    if raw_definitions is None:
+        raw_definitions = ()
+    if not isinstance(raw_definitions, (list, tuple)) or any(
+        not isinstance(item, (Mapping, MeshMorphDefinition)) for item in raw_definitions
+    ):
+        raise ValueError("morph definitions must be an array of objects")
+    definitions = tuple(item if isinstance(item, MeshMorphDefinition) else _definition_from_payload(item) for item in raw_definitions)
     if profile_format == MESH_MORPH_PROFILE_FORMAT and any(
         item.source_kind != "procedural" or item.garment_corrections for item in definitions
     ):
@@ -360,15 +382,15 @@ def _layer_values_from_payload(value: object, label: str) -> tuple[tuple[str, fl
     return tuple(entries)
 
 
-def _definition_payload(definition: MeshMorphDefinition) -> dict[str, object]:
+def _definition_payload(definition: MeshMorphDefinition, *, streaming: bool = False) -> dict[str, object]:
     payload: dict[str, object] = {
         "definition_id": definition.definition_id,
         "label": definition.label,
         "category": definition.category,
-        "vertices": [
+        "vertices": (JsonArray if streaming else lambda items: list(items()))(lambda: (
             {"submesh_index": item.submesh_index, "vertex_index": item.vertex_index, "weight": item.weight}
             for item in definition.vertices
-        ],
+        )),
         "pivot": list(definition.pivot),
         "local_basis": [list(axis) for axis in definition.local_basis],
         "rule": {
@@ -388,11 +410,11 @@ def _definition_payload(definition: MeshMorphDefinition) -> dict[str, object]:
         payload.update(
             source_kind="authored",
             base_geometry_fingerprint=definition.base_geometry_fingerprint,
-            authored_fields=_sparse_fields_payload(definition.authored_fields),
+            authored_fields=_sparse_fields_payload(definition.authored_fields, streaming=streaming),
         )
     if definition.garment_corrections:
         payload.update(
-            garment_corrections=_sparse_fields_payload(definition.garment_corrections),
+            garment_corrections=_sparse_fields_payload(definition.garment_corrections, streaming=streaming),
             correction_topology_fingerprint=definition.correction_topology_fingerprint,
             correction_base_geometry_fingerprint=definition.correction_base_geometry_fingerprint,
         )
@@ -451,13 +473,13 @@ def _strict_mapping_items(value: object, label: str) -> tuple[Mapping[str, objec
     return tuple(value)
 
 
-def _sparse_fields_payload(fields: tuple[MeshMorphSparseField, ...]) -> list[dict[str, object]]:
+def _sparse_fields_payload(fields: tuple[MeshMorphSparseField, ...], *, streaming: bool = False) -> list[dict[str, object]]:
     return [
         {
             "definition_id": item.definition_id,
             "submesh_index": item.submesh_index,
-            "vertex_indices": list(item.vertex_indices),
-            "deltas": [list(delta) for delta in item.deltas],
+            "vertex_indices": item.vertex_indices if streaming else list(item.vertex_indices),
+            "deltas": item.deltas if streaming else [list(delta) for delta in item.deltas],
         }
         for item in fields
     ]
@@ -562,14 +584,22 @@ def _mapping_items(value: object) -> Iterable[Mapping[str, object]]:
     return (item for item in tuple(value or ()) if isinstance(item, Mapping))
 
 
-def _read_object(path: Path) -> Mapping[str, object]:
-    if not 0 < path.stat().st_size <= MESH_MORPH_PROFILE_MAX_BYTES:
-        raise ValueError("Morph profile JSON is empty or exceeds the 8 MiB file limit")
-    with path.open("rb") as stream:
-        raw = stream.read(MESH_MORPH_PROFILE_MAX_BYTES + 1)
-    if len(raw) > MESH_MORPH_PROFILE_MAX_BYTES:
-        raise ValueError("Morph profile JSON exceeds the 8 MiB file limit")
-    payload = json.loads(raw)
+def _read_object(path: Path, *, parse_definitions: bool = False) -> Mapping[str, object]:
+    with path.open("r", encoding="utf-8-sig") as stream:
+        return _read_object_stream(stream, parse_definitions=parse_definitions)
+
+
+def _read_object_stream(stream, *, parse_definitions: bool = False) -> Mapping[str, object]:
+    selections = {}
+
+    def decoded_object(value):
+        if parse_definitions and {"definition_id", "vertices", "local_basis", "rule"} <= value.keys():
+            definition = _definition_from_payload(value)
+            object.__setattr__(definition, "vertices", selections.setdefault(definition.vertices, definition.vertices))
+            return definition
+        return value
+
+    payload = read_json(stream, object_hook=decoded_object)
     if not isinstance(payload, Mapping):
         raise ValueError("JSON root must be an object")
     return payload

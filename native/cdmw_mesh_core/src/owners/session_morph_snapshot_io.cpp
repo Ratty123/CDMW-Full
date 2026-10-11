@@ -41,7 +41,7 @@ std::string mesh_editor_read_morph_snapshot_file(const std::string& path) {
     std::ifstream input(path, std::ios::binary | std::ios::ate);
     if (!input) throw std::runtime_error("cannot open morph runtime snapshot");
     const std::streamoff end = input.tellg();
-    if (end <= 0 || static_cast<unsigned long long>(end) > MESH_EDITOR_MORPH_RUNTIME_SNAPSHOT_MAX_BYTES) {
+    if (end <= 0) {
         throw std::runtime_error("morph runtime snapshot size is invalid");
     }
     std::string payload(static_cast<std::size_t>(end), '\0');
@@ -52,7 +52,7 @@ std::string mesh_editor_read_morph_snapshot_file(const std::string& path) {
 }
 
 void mesh_editor_write_morph_snapshot_file(const std::string& path, const std::string& payload) {
-    if (payload.empty() || payload.size() > MESH_EDITOR_MORPH_RUNTIME_SNAPSHOT_MAX_BYTES) {
+    if (payload.empty()) {
         throw std::runtime_error("morph runtime snapshot size is invalid");
     }
     std::ofstream output(path, std::ios::binary | std::ios::trunc);

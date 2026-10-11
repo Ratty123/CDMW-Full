@@ -5,6 +5,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Mapping, Sequence
 
+from cdmw.services.mesh_morph_file_data import ProfileFileData
+
 from cdmw.domain.mesh import (
     MeshAnimationClip,
     MeshEditCommand,
@@ -81,7 +83,7 @@ class _MeshHistorySnapshot:
     output_destination_ready: bool | None = None
     morph_profile_root: str | None = None
     morph_profile_root_existed: bool | None = None
-    morph_profile_files: tuple[tuple[str, bytes], ...] | None = None
+    morph_profile_files: tuple[tuple[str, ProfileFileData], ...] | None = None
     morph_profile_expected_fingerprint: str | None = None
     morph_session_state: _MeshMorphSessionState | None = None
     material_generation: int | None = None

@@ -636,7 +636,6 @@ def export_native_mesh_editor_session_snapshot(
 
 _MORPH_RUNTIME_SNAPSHOT_SCHEMA = "cdmw_mesh_editor_morph_runtime_snapshot_v1"
 _MORPH_RUNTIME_SNAPSHOT_SUFFIX = "_morph_runtime_snapshot.json"
-_MORPH_RUNTIME_SNAPSHOT_MAX_BYTES = 256 * 1024 * 1024
 
 
 def _morph_runtime_snapshot_sha256(path: Path) -> str:
@@ -671,7 +670,7 @@ def _validated_morph_runtime_snapshot_descriptor(
             raise ValueError("Snapshot checksum is missing or invalid.")
         if len(topology_digest) != 64 or any(ch not in "0123456789abcdef" for ch in topology_digest):
             raise ValueError("Snapshot topology digest is missing or invalid.")
-        if not 0 < retained_bytes <= byte_length <= _MORPH_RUNTIME_SNAPSHOT_MAX_BYTES:
+        if not 0 < retained_bytes <= byte_length:
             raise ValueError("Snapshot retained bytes or file length is outside the allowed bounds.")
         path = Path(raw_path).resolve(strict=True)
         temp_root = Path(tempfile.gettempdir()).resolve(strict=True)

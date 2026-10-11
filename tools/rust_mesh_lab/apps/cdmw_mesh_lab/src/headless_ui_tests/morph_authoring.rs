@@ -107,17 +107,17 @@ fn replace_authoring_text(ui: &mut HeadlessUi, current: &str, replacement: &str)
 fn authored_capture_discard_and_typed_slider_save_dispatch_exact_commands() -> TestResult {
     let mut ui = authoring_ui()?;
     select_authoring_parts(&mut ui, &[1])?;
-    ui.click("Sculpted sliders")?;
+    ui.open_morph_creator(true)?;
     let capture = ui.actions_from_click("Capture body base")?;
     assert_eq!(command_arguments(&capture, "morph_capture_baseline"), json!({"submesh_indices": [0]}));
-    assert!(ui.actions_from_click("Save sculpted slider")?.is_empty());
+    assert!(ui.label_rect("Save slider").is_none());
 
     ui.application.cdmw_state["morph_refit"]["authoring_baseline_ready"] = json!(true);
     ui.application.cdmw_morph_definition_label = "Draft shape".into();
     ui.frame(Vec::new());
     replace_authoring_text(&mut ui, "Body profile", "Athletic body")?;
     replace_authoring_text(&mut ui, "Draft shape", "Athletic fit")?;
-    let save = ui.actions_from_click("Save sculpted slider")?;
+    let save = ui.actions_from_click("Save slider")?;
     assert_eq!(command_arguments(&save, "morph_capture_authored"), json!({
         "definition": {
             "profile_id": "authored-body",
@@ -130,7 +130,7 @@ fn authored_capture_discard_and_typed_slider_save_dispatch_exact_commands() -> T
             "default_percent": 0.0
         }
     }));
-    let discard = ui.actions_from_click("Discard captured base")?;
+    let discard = ui.actions_from_click("Discard base")?;
     assert_eq!(command_arguments(&discard, "morph_cancel_baseline"), json!({}));
     ui.application.cdmw_state["morph_refit"]["authoring_baseline_ready"] = json!(false);
     ui.application.cdmw_state["morph_refit"]["unbaked"] = json!(true);
@@ -146,7 +146,7 @@ fn authored_capture_discard_and_typed_slider_save_dispatch_exact_commands() -> T
 #[test]
 fn correction_start_save_and_cancel_use_explicit_selected_garments() -> TestResult {
     let mut ui = authoring_ui()?;
-    ui.click("Shape sliders")?;
+    ui.open_morph_sliders()?;
     assert!(ui.actions_from_click("Edit outfit correction")?.is_empty());
     select_authoring_parts(&mut ui, &[0, 2])?;
     let begin = ui.actions_from_click("Edit outfit correction")?;
@@ -155,12 +155,12 @@ fn correction_start_save_and_cancel_use_explicit_selected_garments() -> TestResu
     }));
     ui.application.cdmw_state["morph_refit"]["correction_definition_id"] = json!("body-shape");
     ui.frame(Vec::new());
-    let save = ui.actions_from_click("Save outfit correction")?;
+    let save = ui.actions_from_click("Save correction")?;
     assert_eq!(command_arguments(&save, "morph_save_correction"), json!({}));
-    let cancel = ui.actions_from_click("Cancel outfit correction")?;
+    let cancel = ui.actions_from_click("Cancel")?;
     assert_eq!(command_arguments(&cancel, "morph_cancel_correction"), json!({}));
     assert!(ui.actions_from_click("Edit outfit correction")?.is_empty());
-    ui.click("Sculpted sliders")?;
+    ui.open_morph_creator(true)?;
     assert!(ui.actions_from_click("Capture body base")?.is_empty());
     Ok(())
 }
@@ -168,7 +168,7 @@ fn correction_start_save_and_cancel_use_explicit_selected_garments() -> TestResu
 #[test]
 fn garment_influence_controls_keep_vertex_scope_and_type_fractional_weights() -> TestResult {
     let mut ui = authoring_ui()?;
-    ui.click("Refit clothing & armor")?;
+    ui.click("Fit")?;
     ui.click("Follow controls")?;
     assert!(ui.actions_from_click("Set selected influence")?.is_empty());
     select_authoring_element(&mut ui, 1, SelectionDomain::Vertex)?;
@@ -193,7 +193,7 @@ fn garment_influence_controls_keep_vertex_scope_and_type_fractional_weights() ->
 #[test]
 fn body_region_targets_remain_explicit_when_viewport_selection_changes() -> TestResult {
     let mut ui = authoring_ui()?;
-    ui.click("Refit clothing & armor")?;
+    ui.click("Fit")?;
     ui.click("Follow controls")?;
     ui.click("Allowed body region")?;
     select_authoring_element(&mut ui, 0, SelectionDomain::Face)?;
@@ -225,7 +225,7 @@ fn body_region_targets_remain_explicit_when_viewport_selection_changes() -> Test
 fn rigid_component_combo_dispatches_mode_with_typed_intensity() -> TestResult {
     let mut ui = authoring_ui()?;
     select_authoring_parts(&mut ui, &[2])?;
-    ui.click("Refit clothing & armor")?;
+    ui.click("Fit")?;
     ui.choose("Mode", "Surface", "Rigid component")?;
     ui.type_number_in_row("Intensity %", 100.0, "175")?;
     assert_eq!(ui.application.cdmw_refit_mode, "rigid_component");
@@ -240,7 +240,7 @@ fn rigid_component_combo_dispatches_mode_with_typed_intensity() -> TestResult {
 #[test]
 fn fitting_setup_pickers_dispatch_and_observe_pending_authoring_gates() -> TestResult {
     let mut ui = authoring_ui()?;
-    ui.click("Profiles & presets")?;
+    ui.open_morph_saved("Fitting setups")?;
     let save = ui.actions_from_click("Save fitting setup...")?;
     assert!(save.iter().any(|action| matches!(action, UiAction::ChooseCdmwRefitRecipe { save: true })));
     let load = ui.actions_from_click("Load fitting setup...")?;

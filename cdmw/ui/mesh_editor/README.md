@@ -1492,20 +1492,32 @@ do not pose it or paint weights with a brush.
 **Morph & Refit** uses a collapsible arrow header in the expanded Tools panel,
 matching the other tool groups. Click its header to open or close the settings;
 closing returns to Orbit navigation. Viewport, the tool groups, Parts,
-Geometry Layers, Action History, and the individual Morph & Refit sections start
-collapsed. Each section remembers its open state while navigating between tools
-in the current editor session. Closing panels preserves geometry and selection.
+Geometry Layers and Action History start collapsed. Morph & Refit opens directly to
+**Setup**, with **Fit**, **Shape** and **Saved** tabs. The selected tab, nested page
+and drafts stay available when returning from another tool or moving between expanded,
+pinned and floating settings. Closing panels preserves geometry and selection.
 
-**Meshes & selection** offers named Part checkboxes without an inner scrollbar; long
+**Setup** groups mesh loading, asset roles, body assignment and garment binding. It
+offers named Part checkboxes without an inner scrollbar; long
 names stay on one line with the full name on hover. **Open Selection tool** opens the
 standard selection controls for picking a region and preserves the current selection.
 New sliders capture that selection; existing sliders and presets use their saved regions
-without requiring another selection. **Body controls** coordinates anatomical regions;
-**Side adjustments** links or independently edits paired regions. **Shape sliders**
-holds manual values, Reset, and Bake. **Create / edit sliders** opens when editing a procedural slider and keeps its
-rule/axis/strength and advanced scope options together. **Sculpted sliders** captures a
-neutral body and the edited target shape; each Shape slider can also own a separate
-outfit correction.
+without requiring another selection.
+
+**Fit** contains Fit to body, garment settings, explicit selected/all apply actions,
+and collapsed follow controls for influence masks and allowed body regions.
+**Shape** offers **Body**, **Sides** and **Sliders** pages for coordinated controls,
+paired adjustments and manual values. **+ Create** opens **Procedural** or **Sculpted**
+creation; **Edit slider** opens its procedural fields directly. Sculpted creation
+captures a neutral body and the edited target shape. Each slider can also own a
+separate outfit correction. **Saved** separates **Profiles**, **Presets** and
+**Fitting setups**, including existing import, export and matching-setup actions.
+
+**Reset** and **Bake** remain below the scrolling content in every tab and panel
+presentation. A pending sculpted slider replaces them with **Save slider** and
+**Discard base**; an outfit correction shows **Save correction** and **Cancel**.
+Tab navigation remains available while these operations are pending, while conflicting
+actions stay disabled. Correction comparison also remains accessible in this strip.
 
 Slider definition labels and fields use separate rows to fit the expanded panel, pinned
 settings, and floating windows without horizontal clipping. Short windows scroll
@@ -1517,7 +1529,7 @@ Scrolling a panel cannot carry camera zoom into a later viewport click.
 
 #### Asset roles and catalogue browsers
 
-**Meshes & selection** shows a compact card for each loaded asset, with its current
+**Setup** shows a compact card for each loaded asset, with its current
 body/armor role, Part count, and full path on hover. **Set as body** assigns only that
 asset's Parts as the driver, making an incorrect role easy to correct. **Add as
 Body...** and **Add as Armor...** open the loaded game archive catalogue with search,
@@ -1692,17 +1704,21 @@ clearance still checks the complete selected body.
 
 #### Coordinated body controls and sides
 
-After assigning the body driver, open **Body controls** and choose **Create body
+After assigning the body driver, open **Shape → Body** and choose **Create body
 controls**. Generation requires source-owned PAC body Parts and their resolved,
 matching skeleton. An unavailable reason identifies missing source or palette
 information. Reset or Bake the current preview first. Generation creates a new
 profile and preserves the previous custom profile and existing garment bindings;
 Undo restores them together.
 
-Profiles use compact, lossless JSON so dense generated body controls fit without
-indentation consuming the file budget. The existing 8 MiB bound still applies to
-saved profiles, portable bundles and history; existing formatted profiles remain
-readable, and all vertex weights and definition fields are retained.
+Profiles use compact, lossless JSON and load existing formatted profiles too.
+Creation, saving, loading, portable presets and draft storage have no fixed profile
+byte limit. Large JSON work runs incrementally on the command worker. Repeated
+weighted selections are shared, and history keeps large files in shared temporary
+disk storage. These files are released with their last history reference. Memory
+budgets can discard older history, but retain the latest Morph edit for Undo/Redo.
+Topology, file ownership, checksums and atomic rollback remain validated; all
+vertex weights and definition fields are retained.
 
 Supported anatomical regions receive detailed Size, Length, Taper, Flatten and
 Shift sliders. Coordinated controls appear only when every required generated
@@ -1715,7 +1731,7 @@ slider and its supported rule are present:
 | Hip-to-thigh transition | Pelvis, hips and thighs |
 | Upper-body balance | Upper torso, shoulders, upper arms and forearms |
 
-These controls add to retained manual values. **Shape sliders** edits those manual
+These controls add to retained manual values. **Shape → Sliders** edits those manual
 values and shows the combined preview value when it differs. **Reset body controls**
 removes only the coordinated contributions, restoring the manual shape even after
 the combined preview reached a slider limit. Ordinary **Reset** clears the complete
@@ -1727,7 +1743,7 @@ their neutral geometry and source/skin identity before use. Every garment refere
 by a correction must remain bound. Resolve pending slider or correction authoring
 before changing these controls.
 
-**Side adjustments** offers **Both**, **Left** and **Right** for supported generated
+**Shape → Sides** offers **Both**, **Left** and **Right** for supported generated
 pairs. Both shifts the two manual values equally and keeps their difference.
 Its range narrows near the limits to preserve that difference, including fractional
 side offsets. Both displayed endpoints remain usable. Left and Right change only
@@ -1743,10 +1759,10 @@ present in the source body.
 Use a sculpted slider when a saved target shape is more useful than a procedural rule:
 
 1. Assign the body driver and Reset the current preview.
-2. Open **Sculpted sliders** and choose **Capture body base**.
+2. Open **Shape → Sliders → + Create → Sculpted** and choose **Capture body base**.
 3. Shape the body with the existing editing tools, keeping its topology and source
    mapping unchanged. A compatible edited package can also supply the target.
-4. Enter the profile and sculpted slider names, then choose **Save sculpted slider**.
+4. Enter the profile and sculpted slider names, then choose **Save slider** below the scrolling controls.
 5. Use **Save Profile**, **Save Preset** or a portable export to retain the definition.
 
 The capture becomes the slider's zero base. Saving activates the new slider at 100%
@@ -1755,7 +1771,7 @@ Other sliders can be combined with it against that same base. Capturing, saving,
 discarding, and normal geometry edits use the existing Undo/Redo history.
 
 **Recapture body base** deliberately replaces the pending reference with the current
-neutral geometry. **Discard captured base** removes the reference and keeps the
+neutral geometry. **Discard base** removes the reference and keeps the
 current geometry. Save or discard it before changing Morph & Refit setup or finishing.
 Compatible Rust sculpt publications retain the capture and fitting runtime across
 native-session replacement.
@@ -1776,13 +1792,13 @@ the baked base.
 
 Select bound garment Parts, then choose **Edit outfit correction** below the desired
 Shape slider. The editor isolates that slider at 100% and sets the other sliders to
-zero. Sculpt the selected garments, then choose **Save outfit correction**.
+zero. Sculpt the selected garments, then choose **Save correction** below the scrolling controls.
 
 The saved displacement is additional to the normal body fit and scales with that
 slider. Zero removes its correction; intermediate values apply the corresponding
 fraction. With direct sliders, saving keeps the selected slider at 100%. When retained
 body-control layers are active, saving returns to the preceding manual, macro and
-linked-side settings. **Cancel outfit correction** restores every Part's vertex
+linked-side settings. **Cancel** in the correction action strip restores every Part's vertex
 positions and all slider layers that were active when
 editing began. This also discards accidental body edits and shape changes outside
 the selected garments. UV and material edits are retained. Undo/Redo restores the

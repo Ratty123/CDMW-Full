@@ -6,9 +6,9 @@ infer a new anatomical axis or replace the mesh fitting engine.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
-import hashlib
-import json
+from cdmw.core.streaming_json import JsonArray, json_sha256
+
+from dataclasses import fields, is_dataclass, dataclass
 import math
 from typing import Mapping, Sequence
 
@@ -266,11 +266,19 @@ def _required_side_pair(profile: MeshMorphProfile, pair_id: str, side: str) -> M
     return pair
 
 
+def _fingerprint_payload(value):
+    if is_dataclass(value):
+        return {item.name: _fingerprint_payload(getattr(value, item.name)) for item in fields(value)}
+    if isinstance(value, (list, tuple)):
+        return JsonArray(lambda: (_fingerprint_payload(item) for item in value))
+    return value
+
+
 def mesh_morph_profile_definition_fingerprint(profile: MeshMorphProfile) -> str:
     """Bind saved layers to deformation semantics, including authored geometry."""
     definitions = []
     for definition in sorted(profile.definitions, key=lambda item: item.definition_id):
-        payload = asdict(definition)
+        payload = _fingerprint_payload(definition)
         # A label change or a correction-only edit does not alter how a body
         # control addresses or combines the underlying body definitions.
         for key in (
@@ -287,10 +295,7 @@ def mesh_morph_profile_definition_fingerprint(profile: MeshMorphProfile) -> str:
             for item in mesh_morph_macros(profile)
         ],
     }
-    encoded = json.dumps(
-        payload, sort_keys=True, separators=(",", ":"), allow_nan=False
-    ).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
+    return json_sha256(payload)
 
 
 def validate_mesh_morph_layers(profile: MeshMorphProfile, preset: MeshMorphValuePreset) -> None:

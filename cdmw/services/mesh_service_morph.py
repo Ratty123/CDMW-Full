@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import copy
-import json
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 import sys
@@ -11,7 +10,6 @@ import time
 from typing import Mapping, Sequence
 from uuid import uuid4
 
-from cdmw.core.atomic_file import atomic_write_text
 from cdmw.domain.mesh import (
     MeshEditCommand,
     MeshEditResult,
@@ -53,12 +51,11 @@ from cdmw.services.mesh_morph_profiles import (
     read_mesh_morph_bundle,
     save_mesh_morph_preset,
     save_mesh_morph_profile,
-    serialized_mesh_morph_preset,
-    serialized_mesh_morph_profile,
-    serialized_mesh_morph_bundle,
+    mesh_morph_preset_file_data,
+    mesh_morph_profile_file_data,
+    save_mesh_morph_bundle,
 )
 from cdmw.services.mesh_service_history import (
-    _MESH_MORPH_PROFILE_MAX_FILE_BYTES,
     _dispose_history_snapshot_without_state_failure,
     _validated_mesh_morph_profile_files,
 )
@@ -117,18 +114,6 @@ _DEFERRED_MORPH_DISPOSAL_LOCK = threading.Lock()
 _DEFERRED_MORPH_DISPOSALS: list[_MeshMorphSessionState] = []
 _MORPH_PROFILE_LOCKS_GUARD = threading.Lock()
 _MORPH_PROFILE_LOCKS: dict[str, threading.RLock] = {}
-_MORPH_MAX_DEFINITIONS = 512
-_MORPH_NATIVE_MESSAGE_MAX_BYTES = 64 * 1024 * 1024
-
-
-def _require_bounded_morph_json(value: object, *, limit: int, label: str) -> None:
-    encoded_bytes = 0
-    encoder = json.JSONEncoder(sort_keys=True, separators=(",", ":"))
-    for chunk in encoder.iterencode(value):
-        encoded_bytes += len(chunk.encode("utf-8"))
-        if encoded_bytes > int(limit):
-            raise RuntimeError(f"{label} exceeds its {int(limit) // (1024 * 1024)} MiB limit")
-
 
 def mesh_morph_profile_lock(root: Path | str) -> threading.RLock:
     """Return the process-wide lock for one settings-owned profile tree."""
@@ -501,6 +486,8 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
         max_count = max(1, int(self.max_history or 1))
         max_bytes = max(0, int(self.max_history_bytes or 0))
         while next_undo or next_redo:
+            if len(next_undo) + len(next_redo) == 1:
+                break
             retained = int(
                 _service_call("_history_stack_retained_bytes", next_undo)
             ) + int(_service_call("_history_stack_retained_bytes", next_redo))
@@ -520,21 +507,6 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
                 _service_call("_dispose_history_snapshot", discarded)
             except Exception:
                 pass
-
-    @staticmethod
-    def _preflight_morph_profile_history_file_locked(
-        snapshot: _MeshHistorySnapshot,
-        relative: str,
-        document: str,
-    ) -> None:
-        candidate = {
-            str(path): bytes(data)
-            for path, data in tuple(snapshot.morph_profile_files or ())
-        }
-        candidate[str(relative)] = str(document).encode("utf-8")
-        _validated_mesh_morph_profile_files(
-            tuple(sorted(candidate.items(), key=lambda item: item[0].casefold()))
-        )
 
     def _rollback_unpublished_morph_profile_history_locked(
         self,
@@ -582,12 +554,12 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
                 "Python Morph & Refit topology clone fallback blocked while native mesh core is available",
             )
         return _MeshMorphSessionData(
-            profile=copy.deepcopy(data.profile),
+            profile=data.profile,
             preset_id=str(data.preset_id),
             diagnostics=tuple(str(item) for item in data.diagnostics),
-            state=copy.deepcopy(data.state),
-            known_profiles=copy.deepcopy(data.known_profiles),
-            known_presets=copy.deepcopy(data.known_presets),
+            state=data.state,
+            known_profiles=dict(data.known_profiles),
+            known_presets=dict(data.known_presets),
             available_profile_ids=tuple(str(item) for item in data.available_profile_ids),
             profile_diagnostics=tuple(str(item) for item in data.profile_diagnostics),
             profiles_loaded=bool(data.profiles_loaded),
@@ -823,14 +795,6 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
                     values=values, base_mesh=base_mesh, retain_layers=retain_layers,
                 )[0],
             )
-        if len(profile.definitions) > _MORPH_MAX_DEFINITIONS:
-            raise RuntimeError(
-                f"Morph profiles support at most {_MORPH_MAX_DEFINITIONS} definitions"
-            )
-        serialized_mesh_morph_profile(
-            profile,
-            max_bytes=_MESH_MORPH_PROFILE_MAX_FILE_BYTES,
-        )
         driver_mesh = base_mesh if base_mesh is not None else self._profile_driver_mesh_locked(session)
         if base_mesh is None and any(item.source_kind == "authored" or item.garment_corrections for item in profile.definitions):
             driver_mesh = self._native_neutral_mesh_locked(session, _profile_role_indices(profile))
@@ -867,8 +831,8 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
                     {
                         "definition_id": sparse.definition_id,
                         "submesh_index": sparse.submesh_index,
-                        "vertex_indices": list(sparse.vertex_indices),
-                        "deltas": [list(delta) for delta in sparse.deltas],
+                        "vertex_indices": sparse.vertex_indices,
+                        "deltas": sparse.deltas,
                         "stage": stage,
                     }
                     for sparse, stage in fields
@@ -881,11 +845,6 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
             upload_payload["neutral_positions"] = list(neutral_positions)
         if values is not None:
             upload_payload["values"] = dict(values)
-        _require_bounded_morph_json(
-            upload_payload,
-            limit=_MORPH_NATIVE_MESSAGE_MAX_BYTES,
-            label="Resident Morph upload",
-        )
         report = self._run_morph_command_locked(
             session,
             "morph_upload",
@@ -1136,14 +1095,6 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
                 topology_fingerprint=mesh_morph_driver_topology_fingerprint(mesh, definitions),
                 definitions=tuple(definitions),
             )
-            if len(profile.definitions) > _MORPH_MAX_DEFINITIONS:
-                raise RuntimeError(
-                    f"Morph profiles support at most {_MORPH_MAX_DEFINITIONS} definitions"
-                )
-            serialized_mesh_morph_profile(
-                profile,
-                max_bytes=_MESH_MORPH_PROFILE_MAX_FILE_BYTES,
-            )
             if not isinstance(data, _MeshMorphSessionData):
                 data = _MeshMorphSessionData()
                 self._morph_sessions[session.session_id] = data
@@ -1193,19 +1144,6 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
             )
             history_base_revision = session.revision
             profile = replace(data.profile, migrated_from_version=0, requires_v2_save=False)
-            try:
-                relative, document = serialized_mesh_morph_profile(
-                    profile,
-                    max_bytes=_MESH_MORPH_PROFILE_MAX_FILE_BYTES,
-                )
-                self._preflight_morph_profile_history_file_locked(
-                    history,
-                    relative,
-                    document,
-                )
-            except Exception:
-                _service_call("_dispose_history_snapshot", history)
-                raise
             try:
                 save_mesh_morph_profile(self._profile_root(), profile)
                 data.profile = profile
@@ -1443,21 +1381,6 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
                 **self._morph_layer_preset_fields_locked(session),
             )
             try:
-                relative, document = serialized_mesh_morph_preset(
-                    preset,
-                    max_bytes=_MESH_MORPH_PROFILE_MAX_FILE_BYTES,
-                )
-                profile_relative, profile_document = serialized_mesh_morph_profile(
-                    data.profile, max_bytes=_MESH_MORPH_PROFILE_MAX_FILE_BYTES,
-                )
-                candidate = dict(history.morph_profile_files or ())
-                candidate[relative] = document.encode("utf-8")
-                candidate[profile_relative] = profile_document.encode("utf-8")
-                _validated_mesh_morph_profile_files(tuple(sorted(candidate.items())))
-            except Exception:
-                _service_call("_dispose_history_snapshot", history)
-                raise
-            try:
                 save_mesh_morph_profile(self._profile_root(), data.profile)
                 save_mesh_morph_preset(self._profile_root(), preset)
                 data.preset_id = preset.preset_id
@@ -1496,11 +1419,7 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
                 values=tuple(_morph_values_from_report(report).items()),
                 **self._morph_layer_preset_fields_locked(session),
             )
-            document = serialized_mesh_morph_bundle(
-                data.profile, preset, max_bytes=_MESH_MORPH_PROFILE_MAX_FILE_BYTES,
-            )
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        atomic_write_text(destination, document)
+            save_mesh_morph_bundle(destination, data.profile, preset)
         return str(destination)
 
     def import_morph_preset(self, session_id: str, path: str) -> MeshMorphState:
@@ -1510,30 +1429,28 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
             self._require_baked_morph_definition_edit(session)
             profile, preset = read_mesh_morph_bundle(
                 path, self._profile_driver_mesh_locked(session),
-                max_bytes=_MESH_MORPH_PROFILE_MAX_FILE_BYTES,
+                max_bytes=None,
             )
-            if len(profile.definitions) > _MORPH_MAX_DEFINITIONS:
-                raise ValueError(f"Morph profiles support at most {_MORPH_MAX_DEFINITIONS} definitions")
             history = self._capture_morph_profile_history_locked(
                 session, action="morph_import_preset", label=f"Load Morph Preset {preset.name}",
             )
             base_revision = session.revision
             try:
                 files = dict(history.morph_profile_files or ())
-                relative, document = serialized_mesh_morph_profile(profile)
+                relative, document = mesh_morph_profile_file_data(profile)
                 cache = self._morph_sessions.get(session_id)
                 existing = cache.known_profiles.get(profile.profile_id) if cache is not None else None
-                if (relative in files and files[relative] != document.encode("utf-8")) or (existing is not None and existing != profile):
+                if (relative in files and files[relative] != document) or (existing is not None and existing != profile):
                     profile = replace(profile, profile_id=f"import-{uuid4().hex[:12]}", name=f"{profile.name} (imported)")
                     preset = replace(preset, profile_id=profile.profile_id)
-                relative, document = serialized_mesh_morph_preset(preset)
-                if relative in files and files[relative] != document.encode("utf-8"):
+                relative, document = mesh_morph_preset_file_data(preset)
+                if relative in files and files[relative] != document:
                     preset = replace(preset, preset_id=f"import-{uuid4().hex[:12]}")
                 for relative, document in (
-                    serialized_mesh_morph_profile(profile, max_bytes=_MESH_MORPH_PROFILE_MAX_FILE_BYTES),
-                    serialized_mesh_morph_preset(preset, max_bytes=_MESH_MORPH_PROFILE_MAX_FILE_BYTES),
+                    mesh_morph_profile_file_data(profile),
+                    mesh_morph_preset_file_data(preset),
                 ):
-                    files[relative] = document.encode("utf-8")
+                    files[relative] = document
                 _validated_mesh_morph_profile_files(tuple(sorted(files.items())))
             except Exception:
                 _service_call("_dispose_history_snapshot", history)
@@ -1980,6 +1897,8 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
             max_count = max(1, int(self.max_history or 1))
             max_bytes = max(0, int(self.max_history_bytes or 0))
             while next_undo or next_redo:
+                if len(next_undo) + len(next_redo) == 1:
+                    break
                 retained = int(
                     _service_call("_history_stack_retained_bytes", next_undo)
                 ) + int(_service_call("_history_stack_retained_bytes", next_redo))

@@ -102,7 +102,7 @@ def test_morph_runtime_state_transfers_unsaved_profile_refit_without_recompositi
         assert captured.retained_bytes > 0
         assert snapshot_path.is_file()
         assert captured_cache is not source_cache
-        assert captured_cache.profile is not source_cache.profile  # type: ignore[union-attr]
+        assert captured_cache.profile is source_cache.profile  # type: ignore[union-attr]
         assert captured_cache.known_profiles is not source_cache.known_profiles  # type: ignore[union-attr]
         assert captured_cache.topology_mesh is not source_cache.topology_mesh  # type: ignore[union-attr]
         assert not (tmp_path / "mesh_slider_profiles" / "definitions" / "resident-body.json").exists()
@@ -126,7 +126,7 @@ def test_morph_runtime_state_transfers_unsaved_profile_refit_without_recompositi
             submesh.vertices for submesh in before_install.submeshes
         )
         assert target_cache is not captured_cache
-        assert target_cache.profile is not captured_cache.profile  # type: ignore[union-attr]
+        assert target_cache.profile is captured_cache.profile  # type: ignore[union-attr]
         assert target_cache.known_profiles is not captured_cache.known_profiles  # type: ignore[union-attr]
         assert target_cache.topology_mesh is not captured_cache.topology_mesh  # type: ignore[union-attr]
 

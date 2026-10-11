@@ -3,17 +3,41 @@ from __future__ import annotations
 
 import copy
 import hashlib
-import json
+import io
 import math
 from pathlib import Path
 import tempfile
 from uuid import uuid4
 
-from cdmw.core.atomic_file import atomic_write_text
-from cdmw.services.mesh_morph_profiles import mesh_morph_profile_from_payload, mesh_morph_profile_payload
+from cdmw.core.atomic_file import atomic_text_writer
+from cdmw.core.streaming_json import read_json, write_json
+from cdmw.services.mesh_morph_profiles import mesh_morph_profile_from_payload, _streamed_profile_payload, _read_object_stream
 
 
-_MAX_BYTES = 256 * 1024 * 1024
+def _file_sha256(path):
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        while chunk := stream.read(1024 * 1024):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+class _CheckedReader(io.RawIOBase):
+    """Hash exactly the bytes decoded, including across concurrent file writes."""
+    def __init__(self, stream):
+        super().__init__()
+        self.stream = stream
+        self.digest = hashlib.sha256()
+        self.size = 0
+
+    def readable(self):
+        return True
+
+    def readinto(self, buffer):
+        count = self.stream.readinto(buffer)
+        self.digest.update(memoryview(buffer)[:count])
+        self.size += count
+        return count
 
 
 def capture_morph_draft(service, session):
@@ -27,7 +51,7 @@ def capture_morph_draft(service, session):
         return {
             "format": "cdmw.morph_draft.v2",
             "native": Path(state.native_snapshot["path"]).read_text(encoding="utf-8"),
-            "profile": mesh_morph_profile_payload(cache.profile),
+            "profile": _streamed_profile_payload(cache.profile),
             "preset_id": cache.preset_id,
             "manual_values": cache.manual_values,
             "macro_values": cache.macro_values,
@@ -40,12 +64,10 @@ def capture_morph_draft(service, session):
 
 def persist_morph_draft(payload, generation_dir, project_root):
     path = generation_dir / "morph.json"
-    encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode("utf-8")
-    if len(encoded) > _MAX_BYTES:
-        raise ValueError("Morph & Refit draft size does not match.")
-    atomic_write_text(path, encoded.decode("utf-8"))
-    return {"path": path.relative_to(project_root).as_posix(), "size": len(encoded),
-            "sha256": hashlib.sha256(encoded).hexdigest()}
+    with atomic_text_writer(path) as stream:
+        write_json(stream, payload)
+    return {"path": path.relative_to(project_root).as_posix(), "size": path.stat().st_size,
+            "sha256": _file_sha256(path)}
 
 
 def load_morph_draft(descriptor, project_root):
@@ -54,18 +76,19 @@ def load_morph_draft(descriptor, project_root):
     path = (project_root / str(descriptor.get("path", ""))).resolve()
     if project_root.resolve() not in path.parents or not path.is_file():
         raise ValueError("Morph & Refit draft path escapes its project or is missing.")
-    if not 0 < path.stat().st_size == descriptor.get("size", 0) <= _MAX_BYTES:
+    if not 0 < path.stat().st_size == descriptor.get("size", 0):
         raise ValueError("Morph & Refit draft size does not match.")
-    with path.open("rb") as stream:
-        encoded = stream.read(_MAX_BYTES + 1)
-    if len(encoded) != descriptor.get("size") or hashlib.sha256(encoded).hexdigest() != descriptor.get("sha256"):
+    with path.open("rb") as source:
+        checked = _CheckedReader(source)
+        with io.TextIOWrapper(io.BufferedReader(checked), encoding="utf-8-sig") as stream:
+            payload = _read_object_stream(stream, parse_definitions=True)
+    if checked.size != descriptor.get("size") or checked.digest.hexdigest() != descriptor.get("sha256"):
         raise ValueError("Morph & Refit draft checksum does not match.")
-    payload = json.loads(encoded)
     if not isinstance(payload, dict) or payload.get("format") != "cdmw.morph_draft.v2":
         raise ValueError("Unsupported Morph & Refit draft format.")
     if not isinstance(payload.get("native"), str) or not isinstance(payload.get("profile"), dict):
         raise ValueError("Morph & Refit draft omitted its snapshot or profile.")
-    native = json.loads(payload["native"])
+    native = read_json(io.StringIO(payload["native"]))
     if not isinstance(native, dict) or native.get("version") != 2:
         raise ValueError("Morph & Refit draft requires a version 2 native snapshot.")
     runtime = native.get("runtime")
@@ -96,13 +119,10 @@ def restore_morph_draft(service, session, payload):
 
     profile = mesh_morph_profile_from_payload(payload["profile"])
     native_text = payload["native"]
-    native = json.loads(native_text)
-    encoded = native_text.encode("utf-8")
+    native = read_json(io.StringIO(native_text))
     path = Path(tempfile.gettempdir()) / f"cdmw_mesh_preview_delta_{uuid4().hex}_morph_runtime_snapshot.json"
     descriptor = {key: native[key] for key in ("schema", "version", "snapshot_id", "source_session_id", "topology_digest")}
     # Retained bytes measure the in-memory runtime, independently of JSON spacing.
-    descriptor.update(path=str(path), sha256=hashlib.sha256(encoded).hexdigest(), byte_length=len(encoded),
-                      retained_bytes=int(native["retained_bytes"]))
     cache = _MeshMorphSessionData(profile=profile, known_profiles={profile.profile_id: profile},
                                  preset_id=str(payload.get("preset_id") or ""))
     cache.topology_mesh = copy.deepcopy(session.working_mesh)
@@ -111,10 +131,18 @@ def restore_morph_draft(service, session, payload):
     for key in ("manual_values", "macro_values", "symmetry_enabled", "corrections_enabled"):
         if key in payload:
             setattr(cache, key, copy.deepcopy(payload[key]))
-    state = _MeshMorphSessionState(present=True, native_snapshot=descriptor, cache=cache,
-                                  retained_bytes=descriptor["retained_bytes"])
+    state = None
     try:
-        path.write_bytes(encoded)
+        with path.open("w", encoding="utf-8", newline="") as stream:
+            for start in range(0, len(native_text), 64 * 1024):
+                stream.write(native_text[start:start + 64 * 1024])
+        descriptor.update(path=str(path), sha256=_file_sha256(path), byte_length=path.stat().st_size,
+                          retained_bytes=int(native["retained_bytes"]))
+        state = _MeshMorphSessionState(present=True, native_snapshot=descriptor, cache=cache,
+                                      retained_bytes=descriptor["retained_bytes"])
         service._install_morph_session_state_locked(session, state, reconcile_profiles=False)
     finally:
-        service.dispose_morph_session_state(state)
+        if state is not None:
+            service.dispose_morph_session_state(state)
+        else:
+            path.unlink(missing_ok=True)

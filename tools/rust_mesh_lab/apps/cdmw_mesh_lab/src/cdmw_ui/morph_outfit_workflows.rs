@@ -88,15 +88,13 @@ impl LabApplication {
         let selected = self.selected_part_indices();
         let recipes = pair_list(state, "matching_recipes");
         ui.separator();
-        ui.label(RichText::new(crate::localization::tr("Matching fitting setups")).strong());
-        ui.small(crate::localization::tr(
-            "Saved setups appear here when their body and garment identities match the loaded meshes.",
-        ));
+        ui.label(RichText::new(crate::localization::tr("Matching fitting setups")).strong())
+            .on_hover_text(crate::localization::tr("Saved setups appear here when their body and garment identities match the loaded meshes."));
         let save_ready = authoring && !pending && !self.cdmw_morph_comparison_active()
             && !state_str(state, "profile_id").unwrap_or("").is_empty()
             && !garments.is_empty() && !self.cdmw_morph_preset_name.trim().is_empty();
         if ui.add_enabled(save_ready, Button::new(crate::localization::tr("Save reusable fitting setup")))
-            .on_hover_text(crate::localization::tr("Use the preset name above to save this setup for these meshes."))
+            .on_hover_text(crate::localization::tr("Use the setup name above to save this setup for these meshes."))
             .clicked()
         {
             actions.push(UiAction::CdmwCommand {
