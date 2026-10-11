@@ -128,6 +128,8 @@ fn all_anchors_present(source: &str, anchors: &str) -> bool {
 const CDMW_UI_SOURCE: &str = concat!(
     include_str!("cdmw_ui.rs"),
     "\n",
+    include_str!("cdmw_ui/morph_authoring.rs"),
+    "\n",
     include_str!("cdmw_history.rs"),
     "\n",
     include_str!("cdmw_islands.rs"),
@@ -734,6 +736,19 @@ jiggle.preview.damping|jiggle|"Preview damping"|settings.damping
 uv.transform|uv|"uv_transform"|UiAction::CdmwMeshAction
 uv.auto_unwrap|uv|"auto_uv"|UiAction::CdmwMeshAction
 uv.pixel_snap|uv|"snap_pixels"|UiAction::CdmwMeshAction
+morph.capture_baseline|morph_refit|command: "morph_capture_baseline"|UiAction::CdmwCommand
+morph.cancel_baseline|morph_refit|command: "morph_cancel_baseline"|UiAction::CdmwCommand
+morph.capture_authored|morph_refit|command: "morph_capture_authored"|UiAction::CdmwCommand
+morph.begin_correction|morph_refit|command: "morph_begin_correction"|UiAction::CdmwCommand
+morph.save_correction|morph_refit|command: "morph_save_correction"|UiAction::CdmwCommand
+morph.cancel_correction|morph_refit|command: "morph_cancel_correction"|UiAction::CdmwCommand
+refit.vertex_influence|morph_refit|command: "morph_set_influence"|UiAction::CdmwCommand
+refit.clear_influence|morph_refit|command: "morph_clear_influence"|UiAction::CdmwCommand
+refit.driver_region|morph_refit|command: "morph_set_driver_region"|UiAction::CdmwCommand
+refit.clear_driver_region|morph_refit|command: "morph_clear_driver_region"|UiAction::CdmwCommand
+refit.rigid_component|morph_refit|"rigid_component"|cdmw_refit_mode
+refit.load_recipe|morph_refit|ChooseCdmwRefitRecipe|morph_import_recipe
+refit.save_recipe|morph_refit|ChooseCdmwRefitRecipe|morph_export_recipe
 morph.load_preset|morph_refit|ChooseCdmwMorphPreset|morph_import_preset
 morph.export_preset|morph_refit|ChooseCdmwMorphPreset|morph_export_preset
 refit.load_mesh|morph_refit|ChooseCdmwRefitMesh|refit_choose_archive

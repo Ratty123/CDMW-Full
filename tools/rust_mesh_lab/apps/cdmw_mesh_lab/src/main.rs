@@ -1476,6 +1476,9 @@ enum UiAction {
     ChooseCdmwMorphPreset {
         save: bool,
     },
+    ChooseCdmwRefitRecipe {
+        save: bool,
+    },
     ChooseCdmwRefitMesh {
         role: &'static str,
     },
@@ -2156,6 +2159,8 @@ struct LabApplication {
     cdmw_refit_intensity: f32,
     cdmw_refit_mode: String,
     cdmw_refit_clearance: f32,
+    cdmw_refit_vertex_weight: f32,
+    cdmw_refit_region_targets: Vec<u32>,
     cdmw_refit_hydration_key: String,
     cdmw_refit_settings_dirty: bool,
     cdmw_cleanup_merge_distance: f32,
@@ -2329,6 +2334,8 @@ impl LabApplication {
             cdmw_refit_intensity: 100.0,
             cdmw_refit_mode: "surface".to_owned(),
             cdmw_refit_clearance: 0.0,
+            cdmw_refit_vertex_weight: 100.0,
+            cdmw_refit_region_targets: Vec::new(),
             cdmw_refit_hydration_key: String::new(),
             cdmw_refit_settings_dirty: false,
             cdmw_cleanup_merge_distance: 0.0001,
@@ -4698,6 +4705,7 @@ impl LabApplication {
                 UiAction::ChooseCdmwImportPackage => self.choose_cdmw_import_package(),
                 UiAction::ChooseCdmwFreeEdit => self.choose_cdmw_free_edit(),
                 UiAction::ChooseCdmwMorphPreset { save } => self.choose_cdmw_morph_preset(save),
+                UiAction::ChooseCdmwRefitRecipe { save } => self.choose_cdmw_refit_recipe(save),
                 UiAction::ChooseCdmwRefitMesh { role } => self.choose_cdmw_refit_mesh(role),
                 UiAction::ChooseClothCollisionInput { role } => self.choose_cloth_collision_input(role),
                 UiAction::FinishCdmw => self.submit_cdmw_finish(),
@@ -5150,6 +5158,39 @@ impl LabApplication {
                 command: if save { "morph_export_preset" } else { "morph_import_preset" },
                 arguments: json!({"path": path.to_string_lossy(), "name": self.cdmw_morph_preset_name}),
                 label: if save { "Export morph preset" } else { "Load morph preset" },
+            }]);
+        }
+    }
+
+    fn choose_cdmw_refit_recipe(&mut self, save: bool) {
+        let mut dialog = self
+            .cdmw_file_dialog()
+            .add_filter(crate::localization::tr("CDMW fitting setup"), &["json"]);
+        if let Some(folder) = self
+            .cdmw_state
+            .get("morph_preset_directory")
+            .and_then(Value::as_str)
+        {
+            dialog = dialog.set_directory(folder);
+        }
+        let path = if save {
+            dialog
+                .set_title(crate::localization::tr("Save fitting setup"))
+                .set_file_name(format!(
+                    "{}.json",
+                    cdmw_ui::stable_ui_id("fitting", &self.cdmw_morph_preset_name)
+                ))
+                .save_file()
+        } else {
+            dialog
+                .set_title(crate::localization::tr("Load fitting setup for the loaded meshes"))
+                .pick_file()
+        };
+        if let Some(path) = path {
+            self.handle_actions(vec![UiAction::CdmwCommand {
+                command: if save { "morph_export_recipe" } else { "morph_import_recipe" },
+                arguments: json!({"path": path.to_string_lossy(), "name": self.cdmw_morph_preset_name}),
+                label: if save { "Save fitting setup" } else { "Load fitting setup" },
             }]);
         }
     }

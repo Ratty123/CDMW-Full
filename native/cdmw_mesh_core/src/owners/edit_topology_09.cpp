@@ -160,13 +160,17 @@ int refit_build_spatial_node_native(
 
 RefitSpatialIndexNative build_refit_spatial_index_native(
     const std::map<int, MeshSessionSubmesh>& submeshes,
-    const std::set<int>& drivers
+    const std::set<int>& drivers,
+    const std::map<int, std::set<int>>* regions = nullptr
 ) {
     RefitSpatialIndexNative index;
     for (const int driver_index : drivers) {
         const auto found = submeshes.find(driver_index);
         if (found == submeshes.end()) continue;
+        const auto region = regions ? regions->find(driver_index) : std::map<int, std::set<int>>::const_iterator{};
+        if (regions && region == regions->end()) continue;
         for (const auto& face : found->second.faces) {
+            if (regions && (!region->second.count(face[0]) || !region->second.count(face[1]) || !region->second.count(face[2]))) continue;
             if (face[0] < 0 || face[1] < 0 || face[2] < 0
                 || static_cast<std::size_t>(face[0]) >= found->second.vertices.size()
                 || static_cast<std::size_t>(face[1]) >= found->second.vertices.size()
@@ -654,10 +658,90 @@ std::tuple<long long, long long, long long> mesh_editor_refit_cell(const Vec3& p
     };
 }
 
+std::map<int, std::set<int>> refit_regions_from_json_native(
+    const JsonValue* raw,
+    const std::map<int, MeshSessionSubmesh>& submeshes,
+    const std::set<int>& drivers
+) {
+    std::map<int, std::set<int>> regions;
+    if (!raw) return regions;
+    if (raw->type != JsonValue::Type::Array || raw->array_value.empty()) {
+        throw std::runtime_error("refit driver regions must contain at least one complete triangle");
+    }
+    for (const auto& row : raw->array_value) {
+        int index = -1;
+        if (row.type != JsonValue::Type::Object || !strict_int_or(row.get("submesh_index"), index)
+            || !drivers.count(index) || !submeshes.count(index) || regions.count(index)) {
+            throw std::runtime_error("refit driver region references an invalid or duplicate driver");
+        }
+        const auto* vertices = row.get("vertex_indices");
+        if (!vertices || vertices->type != JsonValue::Type::Array || vertices->array_value.empty()
+            || vertices->array_value.size() > submeshes.at(index).vertices.size()) {
+            throw std::runtime_error("refit driver region requires valid selected vertices");
+        }
+        auto& selected = regions[index];
+        for (const auto& value : vertices->array_value) {
+            int vertex = -1;
+            if (!strict_int_or(&value, vertex) || vertex < 0
+                || static_cast<std::size_t>(vertex) >= submeshes.at(index).vertices.size()
+                || !selected.insert(vertex).second) {
+                throw std::runtime_error("refit driver region contains an invalid or duplicate vertex");
+            }
+        }
+    }
+    if (build_refit_spatial_index_native(submeshes, drivers, &regions).triangles.empty()) {
+        throw std::runtime_error("refit driver regions contain no complete driver triangle");
+    }
+    return regions;
+}
+
+void refit_read_vertex_masks_native(
+    MeshRefitRuntime& refit,
+    const JsonValue* raw,
+    const std::map<int, MeshSessionSubmesh>& submeshes,
+    const std::set<int>& garments
+) {
+    if (!raw) return;
+    if (raw->type != JsonValue::Type::Array) throw std::runtime_error("refit vertex masks must be an array");
+    if (raw->array_value.empty()) {
+        for (const int index : garments) refit.vertex_masks.erase(index);
+        return;
+    }
+    std::set<int> seen;
+    for (const auto& row : raw->array_value) {
+        int index = -1;
+        if (row.type != JsonValue::Type::Object || !strict_int_or(row.get("submesh_index"), index)
+            || !garments.count(index) || !submeshes.count(index) || !seen.insert(index).second) {
+            throw std::runtime_error("refit vertex mask references an invalid or duplicate garment");
+        }
+        const auto* indices = row.get("vertex_indices");
+        const auto* weights = row.get("weights");
+        if (!indices || !weights || indices->type != JsonValue::Type::Array || weights->type != JsonValue::Type::Array
+            || indices->array_value.size() != weights->array_value.size()
+            || indices->array_value.size() > submeshes.at(index).vertices.size()) {
+            throw std::runtime_error("refit vertex mask requires matching indices and weights");
+        }
+        std::map<int, double> mask;
+        for (std::size_t position = 0; position < indices->array_value.size(); ++position) {
+            int vertex = -1;
+            const auto& weight = weights->array_value[position];
+            if (!strict_int_or(&indices->array_value[position], vertex) || vertex < 0
+                || static_cast<std::size_t>(vertex) >= submeshes.at(index).vertices.size()
+                || weight.type != JsonValue::Type::Number || !std::isfinite(weight.number_value)
+                || weight.number_value < 0.0 || weight.number_value > 1.0
+                || !mask.emplace(vertex, weight.number_value).second) {
+                throw std::runtime_error("refit vertex mask contains an invalid vertex or weight");
+            }
+        }
+        refit.vertex_masks[index] = std::move(mask);
+    }
+}
+
 std::shared_ptr<const MeshRefitRuntime> mesh_editor_build_refit(
     const std::map<int, MeshSessionSubmesh>& submeshes,
     const std::set<int>& drivers,
-    const std::set<int>& garments
+    const std::set<int>& garments,
+    const std::map<int, std::set<int>>& regions = {}
 ) {
     for (const int index : garments) {
         if (drivers.find(index) != drivers.end()) {
@@ -679,7 +763,11 @@ std::shared_ptr<const MeshRefitRuntime> mesh_editor_build_refit(
     refit->driver_diagonal = mesh_editor_driver_diagonal(submeshes, drivers);
     const double cohort_tolerance = std::max(1.0e-6, refit->driver_diagonal * 1.0e-7);
     refit->warning_distance = skin_transfer_distance_limit_native(all_driver_vertices);
-    const RefitSpatialIndexNative spatial_index = build_refit_spatial_index_native(submeshes, drivers);
+    const RefitSpatialIndexNative spatial_index = build_refit_spatial_index_native(
+        submeshes, drivers, regions.empty() ? nullptr : &regions
+    );
+    if (spatial_index.triangles.empty()) throw std::runtime_error("refit driver regions contain no complete driver triangle");
+    for (const int index : garments) if (!regions.empty()) refit->garment_regions[index] = regions;
     refit->driver_triangle_count = static_cast<long long>(spatial_index.triangles.size());
     std::map<std::tuple<long long, long long, long long>, std::vector<std::pair<Vec3, MeshRefitVertexBindingRuntime>>> cohorts;
     std::vector<double> distances;

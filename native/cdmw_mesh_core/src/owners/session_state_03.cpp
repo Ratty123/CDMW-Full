@@ -229,8 +229,9 @@ void mesh_editor_write_session_counts(std::ostream& out, const MeshEditorSession
         vertex_count += entry.second.vertices.size();
         face_count += entry.second.faces.size();
     }
-    const std::size_t undo_bytes = mesh_editor_history_stack_retained_bytes(session.undo_stack);
-    const std::size_t redo_bytes = mesh_editor_history_stack_retained_bytes(session.redo_stack);
+    const auto retained_bytes = mesh_editor_session_history_retained_bytes(session);
+    const std::size_t undo_bytes = retained_bytes[0];
+    const std::size_t redo_bytes = retained_bytes[1];
     out << "\"submesh_count\":" << mesh_editor_submeshes(session).size()
         << ",\"vertex_count\":" << vertex_count
         << ",\"face_count\":" << face_count
@@ -533,10 +534,111 @@ std::size_t mesh_editor_history_entry_retained_bytes(const MeshEditorHistoryEntr
     return retained;
 }
 
-std::size_t mesh_editor_history_stack_retained_bytes(const std::vector<MeshEditorHistoryEntry>& stack) {
-    std::size_t retained = stack.capacity() * sizeof(MeshEditorHistoryEntry);
-    for (const MeshEditorHistoryEntry& entry : stack) retained += mesh_editor_history_entry_retained_bytes(entry);
+struct MeshEditorMorphMemoryAccounting {
+    std::set<const MeshMorphRuntime*> runtimes;
+    std::set<const MeshMorphProfileRuntime*> profiles;
+    std::set<const MeshRefitRuntime*> refits;
+};
+
+std::size_t mesh_editor_morph_position_map_bytes(const std::map<int, std::vector<Vec3>>& positions) {
+    std::size_t retained = 0;
+    for (const auto& item : positions) {
+        retained += sizeof(item) + 3 * sizeof(void*) + item.second.capacity() * sizeof(Vec3);
+    }
     return retained;
+}
+
+std::size_t mesh_editor_morph_profile_bytes(const MeshMorphProfileRuntime& profile) {
+    std::size_t retained = sizeof(profile) + 2 * sizeof(void*)
+        + profile.profile_id.capacity() + profile.name.capacity() + profile.topology_fingerprint.capacity();
+    for (const auto& item : profile.definitions) {
+        const auto& definition = item.second;
+        retained += sizeof(item) + 3 * sizeof(void*) + item.first.capacity()
+            + definition.definition_id.capacity() + definition.label.capacity() + definition.category.capacity();
+        for (const auto* fields : {&definition.fields, &definition.post_refit_fields}) {
+            for (const auto& field : *fields) {
+                retained += sizeof(field) + 3 * sizeof(void*)
+                    + field.second.vertex_indices.capacity() * sizeof(int)
+                    + field.second.deltas.capacity() * sizeof(Vec3);
+            }
+        }
+    }
+    return retained;
+}
+
+std::size_t mesh_editor_refit_runtime_bytes(const MeshRefitRuntime& refit) {
+    std::size_t retained = sizeof(refit) + 2 * sizeof(void*)
+        + (refit.driver_submesh_indices.size() + refit.garment_submesh_indices.size())
+            * (sizeof(int) + 3 * sizeof(void*))
+        + mesh_editor_morph_position_map_bytes(refit.driver_baseline_positions)
+        + refit.bindings.capacity() * sizeof(MeshRefitVertexBindingRuntime);
+    for (const auto& item : refit.garment_settings) {
+        retained += sizeof(item) + 3 * sizeof(void*) + item.second.mode.capacity();
+    }
+    for (const auto& row : refit.vertex_masks) {
+        retained += sizeof(row) + 3 * sizeof(void*);
+        retained += row.second.size() * (sizeof(std::pair<const int, double>) + 3 * sizeof(void*));
+    }
+    for (const auto& garment : refit.garment_regions) {
+        retained += sizeof(garment) + 3 * sizeof(void*);
+        for (const auto& region : garment.second) {
+            retained += sizeof(region) + 3 * sizeof(void*)
+                + region.second.size() * (sizeof(int) + 3 * sizeof(void*));
+        }
+    }
+    return retained;
+}
+
+std::size_t mesh_editor_morph_runtime_bytes(
+    const std::shared_ptr<const MeshMorphRuntime>& runtime,
+    MeshEditorMorphMemoryAccounting& accounting
+) {
+    // Empty bookkeeping runtimes accompany geometry-only history. Keep that
+    // established metric unchanged while counting every allocated morph layer.
+    if (!runtime || (!runtime->profile && !runtime->refit && runtime->values.empty()
+        && runtime->current_layer.empty() && runtime->neutral_positions.empty()
+        && runtime->composed_positions.empty() && runtime->driver_submesh_indices.empty())) return 0;
+    if (!accounting.runtimes.insert(runtime.get()).second) return 0;
+    std::size_t retained = sizeof(*runtime) + 2 * sizeof(void*)
+        + runtime->preset_id.capacity() + runtime->change_id.capacity()
+        + runtime->active_change_id.capacity() + runtime->active_definition_id.capacity()
+        + runtime->driver_submesh_indices.size() * (sizeof(int) + 3 * sizeof(void*))
+        + mesh_editor_morph_position_map_bytes(runtime->current_layer)
+        + mesh_editor_morph_position_map_bytes(runtime->neutral_positions)
+        + mesh_editor_morph_position_map_bytes(runtime->composed_positions);
+    for (const auto& item : runtime->values) retained += sizeof(item) + 3 * sizeof(void*) + item.first.capacity();
+    if (runtime->profile && accounting.profiles.insert(runtime->profile.get()).second) {
+        retained += mesh_editor_morph_profile_bytes(*runtime->profile);
+    }
+    if (runtime->refit && accounting.refits.insert(runtime->refit.get()).second) {
+        retained += mesh_editor_refit_runtime_bytes(*runtime->refit);
+    }
+    return retained;
+}
+
+std::size_t mesh_editor_history_stack_retained_bytes_with_morph(
+    const std::vector<MeshEditorHistoryEntry>& stack,
+    MeshEditorMorphMemoryAccounting& accounting
+) {
+    std::size_t retained = stack.capacity() * sizeof(MeshEditorHistoryEntry);
+    for (const MeshEditorHistoryEntry& entry : stack) {
+        retained += mesh_editor_history_entry_retained_bytes(entry);
+        retained += mesh_editor_morph_runtime_bytes(entry.morph_before, accounting);
+        retained += mesh_editor_morph_runtime_bytes(entry.morph_after, accounting);
+    }
+    return retained;
+}
+
+std::size_t mesh_editor_history_stack_retained_bytes(const std::vector<MeshEditorHistoryEntry>& stack) {
+    MeshEditorMorphMemoryAccounting accounting;
+    return mesh_editor_history_stack_retained_bytes_with_morph(stack, accounting);
+}
+
+std::array<std::size_t, 2> mesh_editor_session_history_retained_bytes(const MeshEditorSession& session) {
+    MeshEditorMorphMemoryAccounting accounting;
+    const std::size_t undo = mesh_editor_history_stack_retained_bytes_with_morph(session.undo_stack, accounting);
+    const std::size_t redo = mesh_editor_history_stack_retained_bytes_with_morph(session.redo_stack, accounting);
+    return {undo, redo};
 }
 
 void mesh_editor_trim_history(std::vector<MeshEditorHistoryEntry>& stack) {
@@ -553,10 +655,10 @@ void mesh_editor_push_history(std::vector<MeshEditorHistoryEntry>& stack, MeshEd
 }
 
 void mesh_editor_trim_session_history(MeshEditorSession& session) {
-    while ((!session.undo_stack.empty() || !session.redo_stack.empty())
-        && (session.undo_stack.size() + session.redo_stack.size() > MESH_EDITOR_HISTORY_MAX_OPERATIONS
-            || mesh_editor_history_stack_retained_bytes(session.undo_stack)
-                + mesh_editor_history_stack_retained_bytes(session.redo_stack) > MESH_EDITOR_HISTORY_MAX_BYTES)) {
+    while (!session.undo_stack.empty() || !session.redo_stack.empty()) {
+        const auto retained = mesh_editor_session_history_retained_bytes(session);
+        if (session.undo_stack.size() + session.redo_stack.size() <= MESH_EDITOR_HISTORY_MAX_OPERATIONS
+            && retained[0] + retained[1] <= MESH_EDITOR_HISTORY_MAX_BYTES) break;
         if (!session.undo_stack.empty()) {
             session.undo_stack.erase(session.undo_stack.begin());
         } else {

@@ -17,6 +17,7 @@ use winit::event::DeviceId;
 mod cloth_preview_tests;
 mod island_controls_tests;
 mod history_controls_tests;
+mod morph_authoring;
 mod precision_controls {
     use super::*;
     use crate::cdmw_ui::numeric;
@@ -1345,6 +1346,7 @@ impl HeadlessUi {
                         UiAction::ChooseCdmwFreeEdit
                             | UiAction::ChooseCdmwMorphPreset { .. }
                             | UiAction::ChooseCdmwRefitMesh { .. }
+                            | UiAction::ChooseCdmwRefitRecipe { .. }
                             | UiAction::ChooseClothCollisionInput { .. }
                     )
                 })

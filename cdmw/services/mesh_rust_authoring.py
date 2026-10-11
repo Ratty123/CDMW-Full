@@ -38,7 +38,7 @@ from cdmw.core.common import (
 from cdmw.domain.cancellation import RunCancelled
 from cdmw.domain.mesh import MeshEditCommand, MeshEditResult, MeshEditSelection
 from cdmw.domain.mesh.export_validation import MeshExportValidationReport, describe_mesh_export_issue
-from cdmw.domain.mesh.morph import MeshMorphDefinition
+from cdmw.domain.mesh.morph import MeshMorphDefinition, MeshRefitDriverRegion, MeshRefitGarmentSettings
 from cdmw.domain.mesh.authoring_capability import (
     MeshOutputPolicy,
     action_authoring_capability,
@@ -2140,6 +2140,20 @@ def read_owned_payload_reference(
     return payload
 
 
+def _morph_target_indices(
+    args: Mapping[str, object], key: str = "garment_submesh_indices",
+) -> tuple[int, ...]:
+    """Keep selected-target commands from silently broadening malformed scopes."""
+    raw = args.get(key, ())
+    if not isinstance(raw, (list, tuple)):
+        raise RustMeshValidationError(f"{key} must be a list of Part indices.")
+    if any(type(index) is not int or index < 0 for index in raw):
+        raise RustMeshValidationError(f"{key} must contain non-negative integer Part indices.")
+    if len(set(raw)) != len(raw):
+        raise RustMeshValidationError(f"{key} cannot contain duplicate Part indices.")
+    return tuple(raw)
+
+
 def _json_safe(value: object) -> object:
     if value is None or isinstance(value, (bool, int, float, str)):
         return value
@@ -2148,13 +2162,16 @@ def _json_safe(value: object) -> object:
     if isinstance(value, Path):
         return str(value)
     if is_dataclass(value) and not isinstance(value, type):
-        # The Rust UI edits slider metadata by definition ID. Weighted vertex
-        # scopes remain in the host profile, including when a command returns
-        # that profile; sending them twice can overflow the 256 KiB channel.
-        return {
+        # Sparse shape, correction, and selection arrays stay in the host.
+        # The UI needs only metadata and counts, even for large authored profiles.
+        payload = {
             item.name: _json_safe(getattr(value, item.name))
             for item in fields(value)
-            if not (isinstance(value, MeshMorphDefinition) and item.name == "vertices")
+            if not (isinstance(value, MeshMorphDefinition) and item.name in {
+                "vertices", "authored_fields", "garment_corrections",
+            })
+            and not (isinstance(value, MeshRefitGarmentSettings) and item.name == "vertex_mask")
+            and not (isinstance(value, MeshRefitDriverRegion) and item.name == "vertex_indices")
             # Geometry and selection arrive through the acknowledged state and
             # hashed mesh document, not these duplicate native service arrays.
             and not (isinstance(value, MeshEditResult) and item.name in {
@@ -2162,6 +2179,14 @@ def _json_safe(value: object) -> object:
                 "native_preview_vertex_update_groups", "native_preview_triangle_groups", "session_view",
             })
         }
+        if isinstance(value, MeshMorphDefinition):
+            payload["authored_vertex_count"] = sum(len(item.vertex_indices) for item in value.authored_fields)
+            payload["correction_vertex_count"] = sum(len(item.vertex_indices) for item in value.garment_corrections)
+        elif isinstance(value, MeshRefitGarmentSettings):
+            payload["has_vertex_mask"] = value.vertex_mask is not None
+        elif isinstance(value, MeshRefitDriverRegion):
+            payload["vertex_count"] = len(value.vertex_indices)
+        return payload
     if isinstance(value, Mapping):
         return {str(key): _json_safe(item) for key, item in value.items()}
     if isinstance(value, (set, frozenset)):
@@ -8555,7 +8580,7 @@ class RustMeshAuthoringSession:
                     "Mesh transaction selection contains invalid mesh elements"
                 )
             prepared = replace(prepared, selection=selection)
-            self.shadow_service.commit_prepared_working_mesh_replacement(
+            self._commit_morph_preserving_replacement(
                 prepared,
                 history_action="rust_transaction",
                 history_label=str(request.get("label", "") or "Edit Gesture"),
@@ -8641,6 +8666,47 @@ class RustMeshAuthoringSession:
             self.max_state_document_bytes = max(self.max_state_document_bytes, admitted)
             return {"session_id": view.session_id, "loaded_parts": indices, "role": role}
 
+    def _commit_morph_preserving_replacement(self, prepared, *, imported_target=False, **options):
+        """Transfer compatible fitting state across a sculpt or edited-package import."""
+        from cdmw.domain.mesh import validate_morph_target_identity
+
+        service = self.shadow_service
+        session = service._session(self.shadow_session_id)
+        with session.export_lock:
+            cached = service.cached_morph_state_from_runtime(self.shadow_session_id)
+            pending = bool(cached.authoring_baseline_ready or cached.correction_definition_id)
+            if not (cached.profile_id or pending or cached.refit.garment_submesh_indices):
+                return service.commit_prepared_working_mesh_replacement(prepared, **options)
+            original = service.working_mesh(self.shadow_session_id, clone=False)
+            try:
+                validate_morph_target_identity(
+                    original, prepared.working_mesh,
+                    submesh_indices=tuple(range(len(original.submeshes))),
+                    require_source_mapping=pending and imported_target,
+                )
+            except (TypeError, ValueError) as exc:
+                if pending:
+                    raise RustMeshValidationError(
+                        "A sculpted slider or outfit correction requires unchanged topology and source mapping. "
+                        "Undo the incompatible edit, or save/discard the pending work before replacing the mesh."
+                    ) from exc
+                return service.commit_prepared_working_mesh_replacement(prepared, **options)
+            captured = service.capture_morph_session_state(self.shadow_session_id)
+            try:
+                return service.commit_prepared_working_mesh_replacement(
+                    prepared, morph_session_state=captured, require_reversible_history=True, **options,
+                )
+            finally:
+                try:
+                    service.dispose_morph_session_state(captured)
+                except Exception as exc:
+                    # Disposal cannot turn an accepted geometry publication into
+                    # a reported rollback. Retain owned cleanup for a later retry.
+                    try:
+                        service.defer_morph_session_state_disposal(captured)
+                    except Exception:
+                        session.mesh_layer_autosave_error = f"{type(exc).__name__}: {exc}"
+
     def _import_editable_package_command(self, args, stop_event):
         raw_package_path = str(args.get("path", "") or "").strip()
         if not raw_package_path:
@@ -8670,8 +8736,8 @@ class RustMeshAuthoringSession:
         admitted_document_bytes = self._preflight_mesh_document_capacity(
             imported_prepared.working_mesh
         )
-        view = self.shadow_service.commit_prepared_working_mesh_replacement(
-            imported_prepared,
+        view = self._commit_morph_preserving_replacement(
+            imported_prepared, imported_target=True,
         )
         self.max_state_document_bytes = max(
             self.max_state_document_bytes,
@@ -8692,6 +8758,8 @@ class RustMeshAuthoringSession:
 
 
     def _execute_shadow_command(self, command, args, stop_event, before_revision, before_signature):
+        if command.startswith(("morph_", "refit_")):
+            self._ensure_morph_authoring_resolved(command)
         if command == "cloth_collision_input":
             from cdmw.services.mesh_rust_jiggle import set_cloth_collision_input
             result = set_cloth_collision_input(self, args, stop_event)
@@ -8977,6 +9045,7 @@ class RustMeshAuthoringSession:
     ) -> object:
         file_commands = {
             "morph_import_preset",
+            "morph_import_recipe",
             "morph_save_profile",
             "morph_delete_profile",
             "morph_save_preset",
@@ -9045,9 +9114,77 @@ class RustMeshAuthoringSession:
             self._profile_tree_tainted = False
             return result
 
+    def _ensure_morph_authoring_resolved(self, command: str = "") -> None:
+        cached = getattr(self.shadow_service, "cached_morph_state_from_runtime", None)
+        if not callable(cached):
+            return
+        state = cached(self.shadow_session_id)
+        if getattr(state, "correction_definition_id", ""):
+            if command not in {"morph_save_correction", "morph_cancel_correction"}:
+                raise RustMeshValidationError(
+                    "Save or cancel the outfit correction before changing Morph & Refit or finishing."
+                )
+        if getattr(state, "authoring_baseline_ready", False):
+            if command not in {"morph_capture_authored", "morph_capture_baseline", "morph_cancel_baseline"}:
+                raise RustMeshValidationError(
+                    "Save the sculpted slider or discard its captured base before changing Morph & Refit or finishing."
+                )
+
     def _run_morph_command(self, command: str, args: Mapping[str, object]) -> object:
         service = self.shadow_service
         session_id = self.shadow_session_id
+        self._ensure_morph_authoring_resolved(command)
+        if command == "morph_capture_baseline":
+            return service.capture_morph_baseline(
+                session_id, _morph_target_indices(args, "submesh_indices"), selection=None,
+            )
+        if command == "morph_cancel_baseline":
+            return service.cancel_morph_baseline(session_id)
+        if command == "morph_capture_authored":
+            definition = args.get("definition")
+            if not isinstance(definition, Mapping):
+                raise RustMeshValidationError("A sculpted slider definition is required.")
+            allowed = {
+                "profile_id", "profile_name", "definition_id", "label", "category",
+                "min_percent", "max_percent", "default_percent",
+            }
+            if set(definition) - allowed:
+                raise RustMeshValidationError("The sculpted slider contains unsupported metadata.")
+            return service.capture_authored_morph_definition(session_id, **dict(definition))
+        if command == "morph_begin_correction":
+            return service.begin_morph_correction(
+                session_id, str(args.get("definition_id", "")), _morph_target_indices(args),
+            )
+        if command == "morph_save_correction":
+            return service.save_morph_correction(session_id)
+        if command == "morph_cancel_correction":
+            return service.cancel_morph_correction(session_id)
+        if command == "morph_set_influence":
+            return service.set_refit_vertex_influence(
+                session_id, selection=None, weight=args.get("weight", 0.0),
+                garment_submesh_indices=_morph_target_indices(args),
+            )
+        if command == "morph_clear_influence":
+            return service.clear_refit_vertex_influence(
+                session_id, _morph_target_indices(args), selection=None,
+            )
+        if command == "morph_set_driver_region":
+            return service.set_refit_driver_region(
+                session_id, _morph_target_indices(args), selection=None,
+            )
+        if command == "morph_clear_driver_region":
+            return service.clear_refit_driver_region(session_id, _morph_target_indices(args))
+        if command == "morph_import_recipe":
+            return service.import_refit_recipe(
+                session_id, str(args.get("path", "")), _morph_target_indices(args),
+            )
+        if command == "morph_export_recipe":
+            path = Path(str(args.get("path", ""))).expanduser().resolve()
+            if path.is_relative_to(self.root) or (
+                self.authoritative_morph_root is not None and path.is_relative_to(self.authoritative_morph_root)
+            ):
+                raise RustMeshValidationError("Save fitting setups outside the internal profile and edit-session folders")
+            return service.export_refit_recipe(session_id, str(path), str(args.get("name", "")))
         if command == "morph_import_preset":
             return service.import_morph_preset(session_id, str(args.get("path", "")))
         if command == "morph_export_preset":
@@ -9670,6 +9807,7 @@ class RustMeshAuthoringSession:
         _validate_owned_session_tree(self.root, self.root_identity)
         self._require_acknowledged_profile_tree()
         self._require_authoring_enabled("finish this session")
+        self._ensure_morph_authoring_resolved()
         (
             authoritative_session, prepared, geometry_layers, active_geometry_layer_id,
             geometry_layer_copy_counter, object_transform, output_policy, output_destination,

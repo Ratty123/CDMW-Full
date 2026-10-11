@@ -566,6 +566,20 @@ source topology and rebuild each loaded asset separately. See the [Mesh Editor
 workflow](../../cdmw/ui/mesh_editor/README.md#morph--refit-workflow) for the current
 product controls and output limits.
 
+The active controls in `cdmw_ui/morph_authoring.rs` add captured body targets,
+per-slider outfit corrections, selected-vertex influence, garment-specific body
+regions and portable fitting setups. Rigid component mode uses the host's connected
+piece transform. All geometry and file operations dispatch through the existing
+typed host command path. Large sparse target, correction and mask arrays remain in
+the host; state messages contain metadata and counts.
+
+Pending target/correction workflows gate unrelated Morph & Refit commands and
+Finish. Compatible sculpt candidates and imported edited packages preserve native
+runtime snapshots and authoring metadata across geometry replacement. External
+pending targets require retained source mapping; incompatible replacements fail
+before publication. New real headless interaction cases live in
+`src/headless_ui_tests/morph_authoring.rs`.
+
 The session bar and camera strip use labelled rows, the left rail groups Selection,
 Transform, Sculpt, Mesh Data, and Deform tools, and the right rail separates Parts,
 Layers, and History. CDMW supplies its semantic palette, light/dark variant, UI and data

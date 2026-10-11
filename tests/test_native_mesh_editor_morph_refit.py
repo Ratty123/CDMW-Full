@@ -5,6 +5,7 @@ import hashlib
 import json
 import math
 from pathlib import Path
+import struct
 from uuid import uuid4
 
 import pytest
@@ -1443,3 +1444,465 @@ def test_morph_runtime_snapshot_rejects_busy_capture_and_topology_mismatch_atomi
                 snapshot,
                 timeout_seconds=10.0,
             )
+
+
+def _neutral_positions(session_id: str, submesh_index: int) -> list[list[float]]:
+    return _command(session_id, "morph_state", {
+        "include_neutral_positions": True, "submesh_indices": [submesh_index],
+    })["neutral_positions"][0]["positions"]
+
+
+def _authored_snapshot_runtime(session_id: str) -> dict[str, object]:
+    snapshot = mesh_native_core.create_native_mesh_editor_morph_runtime_snapshot(
+        session_id, timeout_seconds=15.0,
+    )
+    assert snapshot is not None
+    try:
+        return json.loads(Path(str(snapshot["path"])).read_text(encoding="utf-8"))["runtime"]
+    finally:
+        assert mesh_native_core.dispose_native_mesh_editor_morph_runtime_snapshot(snapshot, timeout_seconds=15.0)
+
+
+def test_post_refit_slider_corrections_scale_reset_and_respect_seam_masks() -> None:
+    mesh = _driver_garment_mesh()
+    payload = _profile_payload(mesh)
+    payload["profile"]["fields"].append({
+        "definition_id": "lift", "stage": "post_refit", "submesh_index": 2,
+        "vertex_indices": list(range(7)), "deltas": [[0.0, 0.2, 0.0]] * 7,
+    })
+    session_id = _open(mesh)
+    try:
+        _command(session_id, "morph_upload", payload)
+        _command(session_id, "morph_set_driver", {"submesh_indices": [0, 1]})
+        _command(session_id, "morph_bind", {"garment_submesh_indices": [2]})
+        _command(session_id, "morph_configure_refit", {
+            "garment_submesh_indices": [2], "vertex_masks": [{
+                "submesh_index": 2, "vertex_indices": list(range(7)),
+                "weights": [0.0, 1.0, 0.5, 1.0, 0.5, 1.0, 1.0],
+            }],
+        })
+        _change(session_id, 50.0, "end", "masked-correction")
+        after = _snapshot(mesh, session_id)
+        weights = [0.0, 1.0, 0.5, 0.0, 0.5, 1.0, 1.0]
+        effective = _command(session_id, "morph_state", {
+            "include_effective_vertex_masks": True, "submesh_indices": [2],
+        })
+        assert effective["effective_vertex_masks"] == [{
+            "submesh_index": 2, "vertex_indices": list(range(7)), "weights": weights,
+        }]
+        _assert_positions_close(after.submeshes[2].vertices, [
+            (x, y + 0.1 * weight, z + 0.5 * weight)
+            for (x, y, z), weight in zip(mesh.submeshes[2].vertices, weights)
+        ])
+        runtime = _authored_snapshot_runtime(session_id)
+        assert any(field.get("stage") == "post_refit" for field in runtime["profile"]["fields"])
+        assert runtime["refit"]["vertex_masks"][0]["weights"][3] == 1.0
+        neutral = _command(session_id, "morph_state", {
+            "include_neutral_positions": True, "submesh_indices": [2],
+        })
+        _assert_positions_close(neutral["neutral_positions"][0]["positions"], mesh.submeshes[2].vertices)
+        _command(session_id, "morph_configure_refit", {"garment_submesh_indices": [2], "vertex_masks": []})
+        unmasked = _snapshot(mesh, session_id)
+        assert unmasked.submeshes[2].vertices[0] == pytest.approx((0.0, 0.1, 0.6))
+        assert mesh_native_core.undo_native_mesh_editor_session(session_id, timeout_seconds=15.0) is not None
+        _assert_positions_close(_snapshot(mesh, session_id).submeshes[2].vertices, after.submeshes[2].vertices)
+        _command(session_id, "morph_reset")
+        _assert_positions_close(_snapshot(mesh, session_id).submeshes[2].vertices, mesh.submeshes[2].vertices)
+        _change(session_id, 100.0, "end", "bake-correction")
+        baked = _snapshot(mesh, session_id)
+        _command(session_id, "morph_bake")
+        _command(session_id, "morph_reset")
+        _assert_positions_close(_snapshot(mesh, session_id).submeshes[2].vertices, baked.submeshes[2].vertices)
+    finally:
+        mesh_native_core.close_native_mesh_editor_session(session_id)
+
+
+def test_masked_vertices_stay_fixed_after_clearance_and_post_refit_corrections() -> None:
+    mesh = _driver_garment_mesh(garment_height=-0.1)
+    payload = _profile_payload(mesh)
+    payload["profile"]["fields"].append({
+        "definition_id": "lift", "stage": "post_refit", "submesh_index": 2,
+        "vertex_indices": list(range(7)), "deltas": [[0.1, 0.0, 0.1]] * 7,
+    })
+    session_id = _open(mesh)
+    try:
+        _command(session_id, "morph_upload", payload)
+        _command(session_id, "morph_set_driver", {"submesh_indices": [0, 1]})
+        _command(session_id, "morph_bind", {"garment_submesh_indices": [2]})
+        _command(session_id, "morph_configure_refit", {
+            "garment_submesh_indices": [2], "clearance_percent": 0.1,
+            "vertex_masks": [{"submesh_index": 2, "vertex_indices": [], "weights": []}],
+        })
+        _change(session_id, 100.0, "end", "protected-clearance")
+        assert _snapshot(mesh, session_id).submeshes[2].vertices == mesh.submeshes[2].vertices
+    finally:
+        mesh_native_core.close_native_mesh_editor_session(session_id)
+
+
+def test_scoped_driver_region_rebind_preserves_other_garment_bindings_and_settings() -> None:
+    mesh = _driver_garment_mesh()
+    payload = _profile_payload(mesh)
+    payload["profile"]["fields"][1]["deltas"] = [[0.0, 0.0, -1.0]] * 3
+    session_id = _open(mesh)
+    try:
+        _command(session_id, "morph_upload", payload)
+        _command(session_id, "morph_set_driver", {"submesh_indices": [0, 1]})
+        _command(session_id, "morph_bind", {"garment_submesh_indices": [2, 3]})
+        _command(session_id, "morph_configure_refit", {
+            "garment_submesh_indices": [3], "intensity_percent": 25.0,
+            "vertex_masks": [{"submesh_index": 3, "vertex_indices": [0, 1, 2], "weights": [1.0] * 3}],
+        })
+        before = _authored_snapshot_runtime(session_id)["refit"]
+        _command(session_id, "morph_bind", {
+            "garment_submesh_indices": [2], "preserve_existing": True,
+            "driver_regions": [{"submesh_index": 0, "vertex_indices": [0, 1, 2]}],
+        })
+        after = _authored_snapshot_runtime(session_id)["refit"]
+        assert [row for row in before["bindings"] if row["garment_submesh_index"] == 3] == [
+            row for row in after["bindings"] if row["garment_submesh_index"] == 3]
+        assert before["garment_settings"] == after["garment_settings"]
+        assert before["vertex_masks"] == after["vertex_masks"]
+        assert after["garment_regions"] == [{
+            "garment_submesh_index": 2,
+            "driver_regions": [{"submesh_index": 0, "vertex_indices": [0, 1, 2]}],
+        }]
+        _change(session_id, 100.0, "end", "scoped-region")
+        fitted = _snapshot(mesh, session_id)
+        assert fitted.submeshes[2].vertices[6][2] == pytest.approx(1.1)
+        assert fitted.submeshes[3].vertices[0][2] == pytest.approx(-0.25)
+        _command(session_id, "morph_reset")
+        preserved = _state(session_id)
+        assert mesh_native_core.native_mesh_editor_session_command("morph_bind", session_id, {
+            "garment_submesh_indices": [2], "preserve_existing": True,
+            "driver_regions": [{"submesh_index": 0, "vertex_indices": [0, 1]}],
+        }, timeout_seconds=15.0) is None
+        assert _state(session_id) == preserved
+    finally:
+        mesh_native_core.close_native_mesh_editor_session(session_id)
+
+
+@pytest.mark.parametrize("intensity", [50.0, 100.0, 175.0])
+def test_rigid_component_preserves_all_pairwise_distances_under_nonuniform_body_morph(intensity: float) -> None:
+    body = _part("body", [(0., 0., 0.), (1., 0., 0.), (0., 1., 0.), (1., 1., 0.)],
+                 [(0, 1, 2), (1, 3, 2)], material="skin", texture="")
+    garment = _part("plate", [(x, y, .1) for x, y, _ in body.vertices],
+                    list(body.faces), material="metal", texture="")
+    mesh = ParsedMesh(path="rigid-component.pac", format="pac", submeshes=[body, garment],
+                      total_vertices=8, total_faces=4, has_bones=True, has_uvs=True)
+    payload = _profile_payload(mesh)
+    payload["profile"]["fields"] = [{
+        "definition_id": "lift", "submesh_index": 0, "vertex_indices": [3],
+        "deltas": [[0.0, 0.0, 0.75]],
+    }]
+    session_id = _open(mesh)
+    try:
+        _command(session_id, "morph_upload", payload)
+        _command(session_id, "morph_set_driver", {"submesh_indices": [0]})
+        _command(session_id, "morph_bind", {"garment_submesh_indices": [1]})
+        _command(session_id, "morph_configure_refit", {
+            "garment_submesh_indices": [1], "mode": "rigid_component", "intensity_percent": intensity,
+        })
+        _change(session_id, 100.0, "end", "component-morph")
+        fitted = _snapshot(mesh, session_id).submeshes[1]
+        assert max(math.dist(a, b) for a, b in zip(fitted.vertices, garment.vertices)) > 0.05
+        for first in range(4):
+            for second in range(first):
+                assert math.dist(fitted.vertices[first], fitted.vertices[second]) == pytest.approx(
+                    math.dist(garment.vertices[first], garment.vertices[second]), abs=1e-8,
+                )
+        before = _state(session_id)
+        assert mesh_native_core.native_mesh_editor_session_command("morph_configure_refit", session_id, {
+            "garment_submesh_indices": [1], "mode": "rigid_component",
+            "vertex_masks": [{"submesh_index": 1, "vertex_indices": [0, 1, 2, 3], "weights": [0., 1., 1., 1.]}],
+        }, timeout_seconds=15.0) is None
+        assert _state(session_id) == before
+        _assert_positions_close(_snapshot(mesh, session_id).submeshes[1].vertices, fitted.vertices)
+        _command(session_id, "morph_reset")
+        _assert_positions_close(_snapshot(mesh, session_id).submeshes[1].vertices, garment.vertices)
+    finally:
+        mesh_native_core.close_native_mesh_editor_session(session_id)
+
+
+def test_authored_upload_preserves_current_shape_and_undo_then_zero_returns_explicit_neutral() -> None:
+    mesh = _driver_garment_mesh()
+    mesh.submeshes[0].vertices = [(x, y, z + 1.0) for x, y, z in mesh.submeshes[0].vertices]
+    session_id = _open(mesh)
+    try:
+        payload = _profile_payload(mesh)
+        payload["profile"]["fields"] = payload["profile"]["fields"][:1]
+        payload.update({
+            "preserve_runtime": True, "values": {"lift": 100.0},
+            "neutral_positions": [{
+                "submesh_index": 0, "vertex_indices": [0, 1, 2],
+                "positions": [[x, y, z - 1.0] for x, y, z in mesh.submeshes[0].vertices],
+            }],
+        })
+        uploaded = _command(session_id, "morph_upload", payload)
+        assert uploaded["history_published"] is True
+        _assert_positions_close(_snapshot(mesh, session_id).submeshes[0].vertices, mesh.submeshes[0].vertices)
+        state = _state(session_id)
+        invalid = deepcopy(payload)
+        invalid["neutral_positions"][0]["vertex_indices"][1] = 99
+        assert mesh_native_core.native_mesh_editor_session_command(
+            "morph_upload", session_id, invalid, timeout_seconds=15.0,
+        ) is None
+        assert _state(session_id) == state
+        _change(session_id, 0.0, "end", "authored-zero")
+        expected = [(x, y, z - 1.0) for x, y, z in mesh.submeshes[0].vertices]
+        _assert_positions_close(_snapshot(mesh, session_id).submeshes[0].vertices, expected)
+        assert mesh_native_core.undo_native_mesh_editor_session(session_id, timeout_seconds=15.0) is not None
+        _assert_positions_close(_snapshot(mesh, session_id).submeshes[0].vertices, mesh.submeshes[0].vertices)
+        assert mesh_native_core.undo_native_mesh_editor_session(session_id, timeout_seconds=15.0) is not None
+        assert _state(session_id)["profile_id"] == ""
+        _assert_positions_close(_snapshot(mesh, session_id).submeshes[0].vertices, mesh.submeshes[0].vertices)
+    finally:
+        mesh_native_core.close_native_mesh_editor_session(session_id)
+
+
+def test_unknown_morph_field_stage_is_rejected_without_replacing_profile() -> None:
+    mesh = _driver_garment_mesh()
+    session_id = _open(mesh)
+    try:
+        _command(session_id, "morph_upload", _profile_payload(mesh))
+        before = _state(session_id)
+        invalid = _profile_payload(mesh)
+        invalid["profile"]["fields"][0]["stage"] = "after_everything"
+        assert mesh_native_core.native_mesh_editor_session_command(
+            "morph_upload", session_id, invalid, timeout_seconds=15.0,
+        ) is None
+        assert _state(session_id) == before
+    finally:
+        mesh_native_core.close_native_mesh_editor_session(session_id)
+
+
+def test_authored_corrections_masks_and_scoped_regions_survive_native_snapshot_restore() -> None:
+    mesh = _driver_garment_mesh()
+    payload = _profile_payload(mesh)
+    payload["profile"]["fields"].append({
+        "definition_id": "lift", "stage": "post_refit", "submesh_index": 2,
+        "vertex_indices": list(range(7)), "deltas": [[0.0, 0.2, 0.0]] * 7,
+    })
+    source = _open(mesh)
+    target = None
+    snapshot = None
+    try:
+        _command(source, "morph_upload", payload)
+        _command(source, "morph_set_driver", {"submesh_indices": [0, 1]})
+        _command(source, "morph_bind", {
+            "garment_submesh_indices": [2],
+            "driver_regions": [{"submesh_index": 0, "vertex_indices": [0, 1, 2]}],
+        })
+        _command(source, "morph_configure_refit", {
+            "garment_submesh_indices": [2],
+            "vertex_masks": [{"submesh_index": 2, "vertex_indices": list(range(7)), "weights": [0.5] * 7}],
+        })
+        _change(source, 70.0, "end", "snapshot-authored")
+        geometry = _snapshot(mesh, source)
+        snapshot = mesh_native_core.create_native_mesh_editor_morph_runtime_snapshot(source, timeout_seconds=15.0)
+        assert snapshot is not None
+        target = _open(geometry)
+        restored = mesh_native_core.restore_native_mesh_editor_morph_runtime_snapshot(
+            target, snapshot, timeout_seconds=15.0,
+        )
+        assert restored is not None
+        _assert_positions_close(_snapshot(geometry, target).submeshes[2].vertices, geometry.submeshes[2].vertices)
+        assert _state(target)["refit"] == _state(source)["refit"]
+        _change(target, 25.0, "end", "restored-authored")
+        after = _snapshot(geometry, target)
+        _assert_positions_close(after.submeshes[2].vertices, [
+            (x, y + 0.025, z + 0.125) for x, y, z in mesh.submeshes[2].vertices
+        ])
+    finally:
+        if target is not None:
+            mesh_native_core.close_native_mesh_editor_session(target)
+        mesh_native_core.close_native_mesh_editor_session(source)
+        if snapshot is not None:
+            assert mesh_native_core.dispose_native_mesh_editor_morph_runtime_snapshot(snapshot, timeout_seconds=15.0)
+
+
+def test_rigid_component_rotation_intensity_uses_one_rigid_rotation() -> None:
+    body = _part("body", [(-1., -1., 0.), (1., -1., 0.), (-1., 1., 0.), (1., 1., 0.)],
+                 [(0, 1, 2), (1, 3, 2)], material="skin", texture="")
+    garment = _part("plate", [(x, y, .1) for x, y, _ in body.vertices],
+                    list(body.faces), material="metal", texture="")
+    mesh = ParsedMesh(path="rigid-rotation.pac", format="pac", submeshes=[body, garment],
+                      total_vertices=8, total_faces=4, has_bones=True, has_uvs=True)
+    payload = _profile_payload(mesh)
+    payload["profile"]["fields"] = [{
+        "definition_id": "lift", "submesh_index": 0, "vertex_indices": [0, 1, 2, 3],
+        "deltas": [[-y - x, x - y, 0.0] for x, y, _ in body.vertices],
+    }]
+    session_id = _open(mesh)
+    try:
+        _command(session_id, "morph_upload", payload)
+        _command(session_id, "morph_set_driver", {"submesh_indices": [0]})
+        _command(session_id, "morph_bind", {"garment_submesh_indices": [1]})
+        _command(session_id, "morph_configure_refit", {
+            "garment_submesh_indices": [1], "mode": "rigid_component", "intensity_percent": 50.0,
+        })
+        _change(session_id, 100.0, "end", "half-rigid-rotation")
+        factor = 2.0 ** -0.5
+        _assert_positions_close(_snapshot(mesh, session_id).submeshes[1].vertices, [
+            ((x - y) * factor, (x + y) * factor, z) for x, y, z in garment.vertices
+        ])
+        _command(session_id, "morph_configure_refit", {
+            "garment_submesh_indices": [1], "mode": "rigid_component", "intensity_percent": 100.0,
+        })
+        _assert_positions_close(_snapshot(mesh, session_id).submeshes[1].vertices, [
+            (-y, x, z) for x, y, z in garment.vertices
+        ])
+        _command(session_id, "morph_configure_refit", {
+            "garment_submesh_indices": [1], "mode": "rigid_component", "clearance_percent": 0.1,
+            "vertex_masks": [{"submesh_index": 1, "vertex_indices": [], "weights": []}],
+        })
+        assert _snapshot(mesh, session_id).submeshes[1].vertices == garment.vertices
+    finally:
+        mesh_native_core.close_native_mesh_editor_session(session_id)
+
+
+
+def test_neutral_positions_remain_exact_through_decimal_previews_reset_and_undo() -> None:
+    mesh = _driver_garment_mesh()
+    mesh.submeshes[0].vertices = [(x + 1e-10, y + 0.123456789, 1e-10) for x, y, _ in mesh.submeshes[0].vertices]
+    payload = _profile_payload(mesh)
+    payload["profile"]["fields"] = [{
+        "definition_id": "lift", "submesh_index": 0, "vertex_indices": [0, 1, 2],
+        "deltas": [[0.2, -0.3, 0.2]] * 3,
+    }]
+    session_id = _open(mesh)
+    try:
+        neutral = _neutral_positions(session_id, 0)
+        _command(session_id, "morph_upload", payload)
+        for ordinal, value in enumerate((25.0, 100.0, -37.3, 99.1, 0.0)):
+            _change(session_id, value, "end", f"decimal-neutral-{ordinal}")
+            assert _neutral_positions(session_id, 0) == neutral
+        assert mesh_native_core.undo_native_mesh_editor_session(session_id, timeout_seconds=15.0) is not None
+        assert _neutral_positions(session_id, 0) == neutral
+        _command(session_id, "morph_reset")
+        assert _neutral_positions(session_id, 0) == neutral
+    finally:
+        mesh_native_core.close_native_mesh_editor_session(session_id)
+
+
+@pytest.mark.parametrize("edited_replacement", [False, True])
+def test_neutral_snapshot_float32_roundtrip_preserves_identity_and_external_sculpt(edited_replacement: bool) -> None:
+    mesh = _driver_garment_mesh()
+    mesh.submeshes[0].vertices = [(x + 1e-10, y + 0.123456789, 1e-10) for x, y, _ in mesh.submeshes[0].vertices]
+    payload = _profile_payload(mesh)
+    payload["profile"]["fields"] = [{
+        "definition_id": "lift", "submesh_index": 0, "vertex_indices": [0, 1, 2],
+        "deltas": [[0.2, -0.3, 0.2]] * 3,
+    }]
+    source = _open(mesh)
+    target = None
+    snapshot = None
+
+    def f32(value: float) -> float:
+        return struct.unpack("<f", struct.pack("<f", value))[0]
+
+    try:
+        neutral = _neutral_positions(source, 0)
+        _command(source, "morph_upload", payload)
+        _change(source, 100.0, "end", "neutral-snapshot-source")
+        geometry = _snapshot(mesh, source)
+        snapshot = mesh_native_core.create_native_mesh_editor_morph_runtime_snapshot(source, timeout_seconds=15.0)
+        assert snapshot is not None
+        runtime = json.loads(Path(str(snapshot["path"])).read_text(encoding="utf-8"))["runtime"]
+        source_visible = next(row["composed_positions"] for row in runtime["neutral_positions"] if row["submesh_index"] == 0)
+        for part in geometry.submeshes:
+            part.vertices = [tuple(f32(axis) for axis in point) for point in part.vertices]
+        if edited_replacement:
+            x, y, z = geometry.submeshes[0].vertices[0]
+            geometry.submeshes[0].vertices[0] = (f32(x + 0.125), y, z)
+        target = _open(geometry)
+        target_visible = _neutral_positions(target, 0)
+        expected = deepcopy(neutral)
+        for vertex, point in enumerate(target_visible):
+            for axis, value in enumerate(point):
+                anchor = source_visible[vertex][axis]
+                if value != anchor and value != f32(anchor):
+                    expected[vertex][axis] += value - anchor
+        restored = mesh_native_core.restore_native_mesh_editor_morph_runtime_snapshot(
+            target, snapshot, timeout_seconds=15.0,
+        )
+        assert restored is not None
+        assert _neutral_positions(target, 0) == expected
+        if edited_replacement:
+            assert expected[0][0] - neutral[0][0] == pytest.approx(0.125, abs=1e-7)
+            assert expected[0][1:] == neutral[0][1:]
+            assert expected[1:] == neutral[1:]
+        else:
+            assert expected == neutral
+        _change(target, 0.0, "end", "neutral-restored-zero")
+        assert _neutral_positions(target, 0) == expected
+        _assert_positions_close(_snapshot(geometry, target).submeshes[0].vertices, expected)
+        _change(target, 33.3, "end", "neutral-restored-preview")
+        assert _neutral_positions(target, 0) == expected
+        assert mesh_native_core.undo_native_mesh_editor_session(target, timeout_seconds=15.0) is not None
+        assert _neutral_positions(target, 0) == expected
+    finally:
+        if target is not None:
+            mesh_native_core.close_native_mesh_editor_session(target)
+        mesh_native_core.close_native_mesh_editor_session(source)
+        if snapshot is not None:
+            assert mesh_native_core.dispose_native_mesh_editor_morph_runtime_snapshot(snapshot, timeout_seconds=15.0)
+
+
+
+def test_morph_history_counts_shared_runtime_buffers_and_enforces_retained_memory_budget() -> None:
+    # Only one body vertex changes. The old geometry-only counter sees tiny
+    # sparse deltas, while each exact neutral/runtime layer retains dense buffers.
+    vertex_count = 160_000
+    mesh = _driver_garment_mesh()
+    body_vertices = [(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)]
+    body_vertices.extend([(0.5, 0.5, 0.0)] * (vertex_count - 3))
+    mesh.submeshes[0] = _part(
+        "large-body", body_vertices, [(0, 1, 2)], material="skin", texture="",
+    )
+    mesh.total_vertices = sum(len(part.vertices) for part in mesh.submeshes)
+    payload = _profile_payload(_driver_garment_mesh())
+    payload["profile"]["fields"] = [{
+        "definition_id": "lift", "submesh_index": 0,
+        "vertex_indices": [0], "deltas": [[0.0, 0.0, 1.0]],
+    }]
+    session_id = _open(mesh)
+    try:
+        _command(session_id, "morph_upload", payload)
+        _command(session_id, "morph_set_driver", {"submesh_indices": [0]})
+        _command(session_id, "morph_bind", {"garment_submesh_indices": [2]})
+        _command(session_id, "morph_configure_refit", {
+            "garment_submesh_indices": [2],
+            "vertex_masks": [{
+                "submesh_index": 2, "vertex_indices": list(range(7)), "weights": [1.0] * 7,
+            }],
+        })
+        setup_count = _command(session_id, "morph_state")["history_undo_count"]
+        first = _change(session_id, 25.0, "end", "memory-morph-0")
+        second = _change(session_id, 50.0, "end", "memory-morph-1")
+        # A previous runtime is shared by adjacent history entries; profile and
+        # refit baselines are shared by all these changes. Count them once.
+        growth = second["history_retained_bytes"] - first["history_retained_bytes"]
+        dense_runtime_bytes = (vertex_count + 7) * 3 * 3 * 8
+        assert dense_runtime_bytes <= growth < dense_runtime_bytes + 150_000
+
+        for ordinal in range(2, 24):
+            report = _change(
+                session_id, 25.0 if ordinal % 2 == 0 else 50.0, "end", f"memory-morph-{ordinal}",
+            )
+            assert report["history_retained_bytes"] <= report["history_max_bytes"]
+        assert 0 < report["history_undo_count"] < setup_count + 24
+        assert report["history_undo_count"] < report["history_max_operations"]
+
+        before_undo = report["history_retained_bytes"]
+        assert mesh_native_core.undo_native_mesh_editor_session(session_id, timeout_seconds=15.0) is not None
+        undone = _command(session_id, "morph_state")
+        assert undone["morph_state"]["values"] == {"lift": 25}
+        assert undone["history_retained_bytes"] <= undone["history_max_bytes"]
+        # Moving one entry across stacks must not count shared layers again.
+        assert abs(undone["history_retained_bytes"] - before_undo) < 150_000
+        assert mesh_native_core.redo_native_mesh_editor_session(session_id, timeout_seconds=15.0) is not None
+        redone = _command(session_id, "morph_state")
+        assert redone["morph_state"]["values"] == {"lift": 50}
+        assert redone["history_retained_bytes"] <= redone["history_max_bytes"]
+    finally:
+        mesh_native_core.close_native_mesh_editor_session(session_id)

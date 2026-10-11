@@ -12,20 +12,25 @@ from typing import Iterable, Mapping
 from cdmw.core.atomic_file import atomic_write_text
 from cdmw.domain.mesh import (
     MESH_MORPH_PRESET_FORMAT,
+    MESH_MORPH_AUTHORED_PROFILE_FORMAT,
+    MESH_MORPH_MAX_DEFINITIONS,
     MESH_MORPH_PROFILE_FORMAT,
     MeshMorphDefinition,
     MeshMorphProfile,
     MeshMorphRule,
+    MeshMorphSparseField,
     MeshMorphValuePreset,
     MeshMorphVertexWeight,
     build_weighted_morph_selection,
     mesh_morph_driver_topology_fingerprint,
     procedural_morph_pivot,
+    validate_morph_definition_geometry,
 )
 
 
 _LEGACY_PROFILE_FORMAT = "cdmw.mesh_morph_slider_profile.v1"
 _SAFE_ID = re.compile(r"[^a-z0-9_-]+")
+MESH_MORPH_PROFILE_MAX_BYTES = 8 * 1024 * 1024
 MESH_MORPH_BUNDLE_FORMAT = "cdmw.mesh_morph_preset_bundle.v1"
 
 
@@ -60,6 +65,8 @@ def read_mesh_morph_bundle(path: str | Path, mesh: object, *, max_bytes: int):
         raise ValueError("Morph preset has no slider definitions")
     if profile.topology_fingerprint != mesh_morph_driver_topology_fingerprint(mesh, profile.definitions):
         raise ValueError("Preset topology does not match the loaded mesh Parts; load the same meshes in the same order")
+    for definition in profile.definitions:
+        validate_morph_definition_geometry(mesh, definition)
     validate_mesh_morph_preset(profile, preset)
     return profile, preset
 
@@ -102,6 +109,8 @@ def list_mesh_morph_profiles(
         try:
             profile = mesh_morph_profile_from_payload(_read_object(path))
             current_fingerprint = mesh_morph_driver_topology_fingerprint(mesh, profile.definitions)
+            for definition in profile.definitions:
+                validate_morph_definition_geometry(mesh, definition)
         except (OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
             diagnostics.append(f"Skipped invalid procedural morph profile {path.name}: {exc}")
             continue
@@ -224,12 +233,10 @@ def _serialized_json_document(
     *,
     max_bytes: int | None,
 ) -> str:
-    if max_bytes is None:
-        return json.dumps(payload, indent=2, sort_keys=True)
-    limit = max(0, int(max_bytes))
+    limit = MESH_MORPH_PROFILE_MAX_BYTES if max_bytes is None else min(MESH_MORPH_PROFILE_MAX_BYTES, max(0, int(max_bytes)))
     chunks: list[str] = []
     encoded_bytes = 0
-    encoder = json.JSONEncoder(indent=2, sort_keys=True)
+    encoder = json.JSONEncoder(indent=2, sort_keys=True, allow_nan=False)
     for chunk in encoder.iterencode(payload):
         encoded_bytes += len(chunk.encode("utf-8"))
         if encoded_bytes > limit:
@@ -248,7 +255,7 @@ def delete_mesh_morph_preset(root: str | Path, profile_id: object, preset_id: ob
 
 def mesh_morph_profile_payload(profile: MeshMorphProfile) -> dict[str, object]:
     return {
-        "format": MESH_MORPH_PROFILE_FORMAT,
+        "format": profile.format,
         "profile_id": profile.profile_id,
         "name": profile.name,
         "topology_fingerprint": profile.topology_fingerprint,
@@ -257,12 +264,17 @@ def mesh_morph_profile_payload(profile: MeshMorphProfile) -> dict[str, object]:
 
 
 def mesh_morph_profile_from_payload(payload: Mapping[str, object]) -> MeshMorphProfile:
-    if str(payload.get("format") or "") != MESH_MORPH_PROFILE_FORMAT:
-        raise ValueError("unsupported procedural morph profile format")
-    definitions = tuple(
-        _definition_from_payload(item)
-        for item in _mapping_items(payload.get("definitions"))
-    )
+    profile_format = str(payload.get("format") or "")
+    if profile_format not in {MESH_MORPH_PROFILE_FORMAT, MESH_MORPH_AUTHORED_PROFILE_FORMAT}:
+        raise ValueError("unsupported morph profile format")
+    raw_definitions = _strict_mapping_items(payload.get("definitions"), "morph definitions")
+    if len(raw_definitions) > MESH_MORPH_MAX_DEFINITIONS:
+        raise ValueError("Morph profile exceeds its definition limit")
+    definitions = tuple(_definition_from_payload(item) for item in raw_definitions)
+    if profile_format == MESH_MORPH_PROFILE_FORMAT and any(
+        item.source_kind != "procedural" or item.garment_corrections for item in definitions
+    ):
+        raise ValueError("Authored targets and garment corrections require a v3 profile")
     return MeshMorphProfile(
         profile_id=str(payload.get("profile_id") or ""),
         name=str(payload.get("name") or ""),
@@ -297,7 +309,7 @@ def mesh_morph_preset_from_payload(payload: Mapping[str, object]) -> MeshMorphVa
 
 
 def _definition_payload(definition: MeshMorphDefinition) -> dict[str, object]:
-    return {
+    payload: dict[str, object] = {
         "definition_id": definition.definition_id,
         "label": definition.label,
         "category": definition.category,
@@ -320,6 +332,19 @@ def _definition_payload(definition: MeshMorphDefinition) -> dict[str, object]:
         "max_percent": definition.max_percent,
         "default_percent": definition.default_percent,
     }
+    if definition.source_kind == "authored":
+        payload.update(
+            source_kind="authored",
+            base_geometry_fingerprint=definition.base_geometry_fingerprint,
+            authored_fields=_sparse_fields_payload(definition.authored_fields),
+        )
+    if definition.garment_corrections:
+        payload.update(
+            garment_corrections=_sparse_fields_payload(definition.garment_corrections),
+            correction_topology_fingerprint=definition.correction_topology_fingerprint,
+            correction_base_geometry_fingerprint=definition.correction_base_geometry_fingerprint,
+        )
+    return payload
 
 
 def _definition_from_payload(payload: Mapping[str, object]) -> MeshMorphDefinition:
@@ -337,11 +362,11 @@ def _definition_from_payload(payload: Mapping[str, object]) -> MeshMorphDefiniti
         category=str(payload.get("category") or "General"),
         vertices=tuple(
             MeshMorphVertexWeight(
-                int(item.get("submesh_index", -1)),
-                int(item.get("vertex_index", -1)),
+                item.get("submesh_index", -1),
+                item.get("vertex_index", -1),
                 _finite(item.get("weight", 1.0), "vertex weight"),
             )
-            for item in _mapping_items(payload.get("vertices"))
+            for item in _strict_mapping_items(payload.get("vertices"), "morph vertices")
         ),
         pivot=_vec3(payload.get("pivot")),
         local_basis=tuple(_vec3(axis) for axis in raw_basis),  # type: ignore[arg-type]
@@ -357,7 +382,49 @@ def _definition_from_payload(payload: Mapping[str, object]) -> MeshMorphDefiniti
         min_percent=_finite(payload.get("min_percent", -100.0), "minimum percent"),
         max_percent=_finite(payload.get("max_percent", 100.0), "maximum percent"),
         default_percent=_finite(payload.get("default_percent", 0.0), "default percent"),
+        source_kind=str(payload.get("source_kind") or "procedural"),
+        authored_fields=_sparse_fields_from_payload(payload.get("authored_fields"), str(payload.get("definition_id") or "")),
+        base_geometry_fingerprint=str(payload.get("base_geometry_fingerprint") or ""),
+        garment_corrections=_sparse_fields_from_payload(payload.get("garment_corrections"), str(payload.get("definition_id") or "")),
+        correction_topology_fingerprint=str(payload.get("correction_topology_fingerprint") or ""),
+        correction_base_geometry_fingerprint=str(payload.get("correction_base_geometry_fingerprint") or ""),
     )
+
+
+def _strict_mapping_items(value: object, label: str) -> tuple[Mapping[str, object], ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, (list, tuple)) or any(not isinstance(item, Mapping) for item in value):
+        raise ValueError(f"{label} must be an array of objects")
+    return tuple(value)
+
+
+def _sparse_fields_payload(fields: tuple[MeshMorphSparseField, ...]) -> list[dict[str, object]]:
+    return [
+        {
+            "definition_id": item.definition_id,
+            "submesh_index": item.submesh_index,
+            "vertex_indices": list(item.vertex_indices),
+            "deltas": [list(delta) for delta in item.deltas],
+        }
+        for item in fields
+    ]
+
+
+def _sparse_fields_from_payload(value: object, definition_id: str) -> tuple[MeshMorphSparseField, ...]:
+    fields = []
+    for item in _strict_mapping_items(value, "authored sparse fields"):
+        indices = item.get("vertex_indices")
+        deltas = item.get("deltas")
+        if not isinstance(indices, (list, tuple)) or not isinstance(deltas, (list, tuple)):
+            raise ValueError("Sparse field indices and deltas must be arrays")
+        fields.append(MeshMorphSparseField(
+            definition_id=str(item.get("definition_id") or definition_id),
+            submesh_index=item.get("submesh_index", -1),
+            vertex_indices=tuple(indices),
+            deltas=tuple(deltas),
+        ))
+    return tuple(fields)
 
 
 def _migrate_legacy_profile(
@@ -444,7 +511,13 @@ def _mapping_items(value: object) -> Iterable[Mapping[str, object]]:
 
 
 def _read_object(path: Path) -> Mapping[str, object]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not 0 < path.stat().st_size <= MESH_MORPH_PROFILE_MAX_BYTES:
+        raise ValueError("Morph profile JSON is empty or exceeds the 8 MiB file limit")
+    with path.open("rb") as stream:
+        raw = stream.read(MESH_MORPH_PROFILE_MAX_BYTES + 1)
+    if len(raw) > MESH_MORPH_PROFILE_MAX_BYTES:
+        raise ValueError("Morph profile JSON exceeds the 8 MiB file limit")
+    payload = json.loads(raw)
     if not isinstance(payload, Mapping):
         raise ValueError("JSON root must be an object")
     return payload

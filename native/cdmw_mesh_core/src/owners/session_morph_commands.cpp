@@ -12,7 +12,8 @@ std::map<int, MeshSessionSubmesh> mesh_editor_capture_morph_submeshes(
 ) {
     const auto& submeshes = mesh_editor_submeshes(session);
     std::map<int, std::vector<Vec3>> next_layer = mesh_editor_build_procedural_morph_layer(next, submeshes);
-    const std::set<int> indices = mesh_editor_morph_runtime_indices(*session.morph, next_layer);
+    std::set<int> indices = mesh_editor_morph_runtime_indices(*session.morph, next_layer);
+    for (const auto& item : mesh_editor_build_procedural_morph_layer(next, submeshes, true)) indices.insert(item.first);
     std::map<int, MeshSessionSubmesh> before;
     for (const int index : indices) {
         const auto found = submeshes.find(index);
@@ -22,11 +23,215 @@ std::map<int, MeshSessionSubmesh> mesh_editor_capture_morph_submeshes(
 }
 
 std::string mesh_editor_morph_state_session_report(
+    const JsonValue& root,
     const std::string& session_id,
     const MeshEditorSession& session,
     const std::chrono::steady_clock::time_point& started
 ) {
-    return mesh_editor_morph_report_json("morph_state", session_id, session, {}, {}, false, "", false, started);
+    std::string report = mesh_editor_morph_report_json("morph_state", session_id, session, {}, {}, false, "", false, started);
+    const bool include_neutral = bool_or(root.get("include_neutral_positions"), false);
+    const bool include_masks = bool_or(root.get("include_effective_vertex_masks"), false);
+    if (!include_neutral && !include_masks) return report;
+    const auto& submeshes = mesh_editor_submeshes(session);
+    const auto* requested = root.get("submesh_indices");
+    if (!requested || requested->type != JsonValue::Type::Array || requested->array_value.empty()
+        || requested->array_value.size() > submeshes.size()) {
+        throw std::runtime_error("morph geometry query requires bounded explicit submesh indices");
+    }
+    std::set<int> indices;
+    for (const auto& item : requested->array_value) {
+        int index = -1;
+        if (!strict_int_or(&item, index) || !submeshes.count(index) || !indices.insert(index).second)
+            throw std::runtime_error("morph geometry query contains an invalid or duplicate submesh");
+    }
+    const MeshMorphRuntime empty;
+    const auto& morph = session.morph ? *session.morph : empty;
+    std::set<int> needed = indices;
+    if (include_masks) {
+        if (!morph.refit) throw std::runtime_error("effective influence query requires bound garments");
+        for (const int index : indices) {
+            if (!morph.refit->garment_submesh_indices.count(index))
+                throw std::runtime_error("effective influence query references an unbound garment");
+        }
+        needed.insert(morph.refit->garment_submesh_indices.begin(), morph.refit->garment_submesh_indices.end());
+    }
+    const auto positions = mesh_editor_morph_residual_positions(morph, submeshes, needed);
+    std::ostringstream out;
+    out << report.substr(0, report.size() - 1);
+    if (include_neutral) {
+        out << ",\"neutral_positions\":[";
+        bool wrote = false;
+        for (const int index : indices) {
+            if (wrote) out << ',';
+            wrote = true;
+            const auto& vertices = positions.at(index);
+            out << "{\"submesh_index\":" << index << ",\"vertex_indices\":[";
+            for (std::size_t i = 0; i < vertices.size(); ++i) { if (i) out << ','; out << i; }
+            out << "],\"positions\":";
+            mesh_editor_write_snapshot_vec3s(out, vertices);
+            out << '}';
+        }
+        out << ']';
+    }
+    if (include_masks) {
+        const auto masks = mesh_editor_refit_masks(*morph.refit, positions);
+        out << ",\"effective_vertex_masks\":[";
+        bool wrote = false;
+        for (const int index : indices) {
+            if (wrote) out << ',';
+            wrote = true;
+            const std::size_t count = submeshes.at(index).vertices.size();
+            const auto settings = morph.refit->garment_settings.find(index);
+            const bool enabled = settings == morph.refit->garment_settings.end() || settings->second.enabled;
+            out << "{\"submesh_index\":" << index << ",\"vertex_indices\":[";
+            for (std::size_t vertex = 0; vertex < count; ++vertex) { if (vertex) out << ','; out << vertex; }
+            out << "],\"weights\":[";
+            for (std::size_t vertex = 0; vertex < count; ++vertex) {
+                if (vertex) out << ',';
+                out << std::setprecision(17) << (enabled ? mesh_editor_refit_mask_weight(masks, index, vertex) : 0.0);
+            }
+            out << "]}";
+        }
+        out << ']';
+    }
+    out << '}';
+    return out.str();
+}
+
+std::string mesh_editor_morph_upload_preserving_session_report(
+    const JsonValue& root,
+    const std::string& session_id,
+    MeshEditorSession& session,
+    const std::chrono::steady_clock::time_point& started
+) {
+    if (session.morph && !session.morph->active_change_id.empty()) {
+        throw std::runtime_error("Finish the active slider gesture before capturing an authored shape");
+    }
+    const bool preserve = bool_or(root.get("preserve_runtime"), false);
+    if (session.morph && session.morph->unbaked && !preserve) {
+        throw std::runtime_error("Bake or Reset active sliders before switching profiles");
+    }
+    auto& submeshes = mesh_editor_submeshes(session);
+    const auto previous = session.morph;
+    const MeshMorphRuntime empty;
+    const auto& old = previous ? *previous : empty;
+    auto next = mesh_editor_clone_morph_runtime(session);
+    next->profile = mesh_editor_morph_profile_from_json(root.get("profile"), submeshes);
+    next->values.clear();
+    if (next->profile) for (const auto& item : next->profile->definitions) {
+        const auto value = old.values.find(item.first);
+        next->values[item.first] = preserve && value != old.values.end()
+            ? std::clamp(value->second, item.second.min_percent, item.second.max_percent) : 0.0;
+    }
+    if (const auto* values = root.get("values")) {
+        if (values->type != JsonValue::Type::Object) throw std::runtime_error("morph upload values must be an object");
+        for (const auto& item : values->object_value) {
+            if (!next->profile || !next->profile->definitions.count(item.first)
+                || item.second.type != JsonValue::Type::Number || !std::isfinite(item.second.number_value)) {
+                throw std::runtime_error("morph upload values reference an invalid slider");
+            }
+            const auto& definition = next->profile->definitions.at(item.first);
+            if (item.second.number_value < definition.min_percent || item.second.number_value > definition.max_percent)
+                throw std::runtime_error("morph upload value is outside its slider range");
+            next->values[item.first] = item.second.number_value;
+        }
+    }
+    std::set<int> indices;
+    for (const auto& item : old.current_layer) indices.insert(item.first);
+    if (next->profile) for (const auto& definition : next->profile->definitions) {
+        for (const auto& item : definition.second.fields) indices.insert(item.first);
+        for (const auto& item : definition.second.post_refit_fields) indices.insert(item.first);
+    }
+    if (next->refit) {
+        indices.insert(next->refit->driver_submesh_indices.begin(), next->refit->driver_submesh_indices.end());
+        indices.insert(next->refit->garment_submesh_indices.begin(), next->refit->garment_submesh_indices.end());
+    }
+    std::map<int, std::map<int, Vec3>> overrides;
+    if (const auto* rows = root.get("neutral_positions")) {
+        if (rows->type != JsonValue::Type::Array) throw std::runtime_error("neutral positions must be an array");
+        for (const auto& row : rows->array_value) {
+            int index = -1;
+            if (row.type != JsonValue::Type::Object || !strict_int_or(row.get("submesh_index"), index)
+                || !submeshes.count(index) || overrides.count(index)) {
+                throw std::runtime_error("neutral positions reference an invalid or duplicate submesh");
+            }
+            const auto* vertices = row.get("vertex_indices");
+            const auto* positions = row.get("positions");
+            if (!vertices || !positions || vertices->type != JsonValue::Type::Array || positions->type != JsonValue::Type::Array
+                || vertices->array_value.size() != positions->array_value.size()
+                || vertices->array_value.size() > submeshes.at(index).vertices.size()) {
+                throw std::runtime_error("neutral positions require matching bounded indices and positions");
+            }
+            auto& selected = overrides[index];
+            for (std::size_t i = 0; i < vertices->array_value.size(); ++i) {
+                int vertex = -1;
+                const auto& position = positions->array_value[i];
+                if (!strict_int_or(&vertices->array_value[i], vertex) || vertex < 0
+                    || static_cast<std::size_t>(vertex) >= submeshes.at(index).vertices.size()
+                    || position.type != JsonValue::Type::Array || position.array_value.size() != 3
+                    || selected.count(vertex)) throw std::runtime_error("invalid neutral position vertex");
+                Vec3 point{};
+                for (int axis = 0; axis < 3; ++axis) {
+                    const auto& value = position.array_value[axis];
+                    if (value.type != JsonValue::Type::Number || !std::isfinite(value.number_value))
+                        throw std::runtime_error("neutral position must be finite");
+                    point[axis] = value.number_value;
+                }
+                selected.emplace(vertex, point);
+            }
+            indices.insert(index);
+        }
+    }
+    auto residual = mesh_editor_morph_residual_positions(old, submeshes, indices);
+    for (const auto& item : overrides) for (const auto& vertex : item.second)
+        residual.at(item.first)[vertex.first] = vertex.second;
+    std::map<int, MeshSessionSubmesh> before;
+    for (const int index : indices) before[index] = submeshes.at(index);
+    const auto old_state_revision = session.morph_state_revision;
+    const auto old_edit_revision = session.edit_revision;
+    const std::string output = string_or(root.get("delta_output_dir"), "");
+    std::vector<SubmeshMeshEditResult> results;
+    try {
+        for (const auto& item : residual) submeshes.at(item.first).vertices = item.second;
+        auto neutral = std::make_shared<MeshMorphRuntime>(old);
+        neutral->current_layer.clear();
+        for (const auto& item : residual) {
+            neutral->neutral_positions[item.first] = item.second;
+            neutral->composed_positions[item.first] = item.second;
+        }
+        // Retain affected zero layers so old-only profile and explicit base edits are recomposed.
+        for (const int index : indices) neutral->current_layer[index] = mesh_editor_zero_morph_layer(submeshes.at(index).vertices.size());
+        session.morph = neutral;
+        next->current_layer.clear();
+        next->active_change_id.clear();
+        next->active_definition_id.clear();
+        next->active_change_update_count = 0;
+        next->preset_id.clear();
+        mesh_editor_recompose_morph(session, *next, "morph_upload", output, session_id);
+        // Report against the pre-transaction geometry, including neutral-only edits.
+        for (const auto& item : before) {
+            auto result = mesh_editor_morph_sparse_result(item.first, submeshes.at(item.first),
+                item.second.vertices, "morph_upload", output, session_id);
+            if (!result.changed_vertices.empty()) results.push_back(std::move(result));
+        }
+        next->change_id = "capture-authored";
+        next->state_revision = ++session.morph_state_revision;
+        session.morph = next;
+    } catch (...) {
+        for (auto& item : before) submeshes[item.first] = std::move(item.second);
+        session.morph = previous;
+        session.morph_state_revision = old_state_revision;
+        session.edit_revision = old_edit_revision;
+        throw;
+    }
+    MeshEditorHistoryEntry history;
+    history.operation = "morph_upload";
+    history.morph_before = previous;
+    const bool published = bool_or(root.get("suppress_history"), false)
+        ? false : mesh_editor_publish_morph_history(session, std::move(history), before, "", false);
+    if (!results.empty()) ++session.edit_revision;
+    return mesh_editor_morph_report_json("morph_upload", session_id, session, results,
+        mesh_editor_morph_result_indices(results), published, output, bool_or(root.get("include_edit_report"), true), started);
 }
 
 std::string mesh_editor_morph_upload_session_report(
@@ -35,6 +240,9 @@ std::string mesh_editor_morph_upload_session_report(
     MeshEditorSession& session,
     const std::chrono::steady_clock::time_point& started
 ) {
+    if (bool_or(root.get("preserve_runtime"), false) || root.get("neutral_positions") || root.get("values")) {
+        return mesh_editor_morph_upload_preserving_session_report(root, session_id, session, started);
+    }
     if (session.morph && session.morph->unbaked) {
         throw std::runtime_error("Bake or Reset active procedural sliders before switching profiles");
     }
@@ -43,6 +251,8 @@ std::string mesh_editor_morph_upload_session_report(
     next->preset_id.clear();
     next->values.clear();
     next->current_layer.clear();
+    next->neutral_positions.clear();
+    next->composed_positions.clear();
     if (next->profile) {
         for (const auto& item : next->profile->definitions) next->values[item.first] = 0.0;
     }
@@ -248,7 +458,61 @@ std::string mesh_editor_morph_bind_session_report(
     const auto& submeshes = mesh_editor_submeshes(session);
     const std::set<int> garments = mesh_editor_valid_submesh_set(root.get("garment_submesh_indices"), submeshes, "garment refit target");
     auto next = mesh_editor_clone_morph_runtime(session);
-    next->refit = mesh_editor_build_refit(submeshes, next->driver_submesh_indices, garments);
+    const auto regions = refit_regions_from_json_native(root.get("driver_regions"), submeshes, next->driver_submesh_indices);
+    const bool preserve = bool_or(root.get("preserve_existing"), false);
+    if (preserve && next->refit) {
+        if (next->unbaked || !next->active_change_id.empty()) {
+            throw std::runtime_error("Reset or Bake active deformation before changing a garment driver region");
+        }
+        for (const auto& item : next->refit->driver_baseline_positions) {
+            if (!submeshes.count(item.first) || submeshes.at(item.first).vertices != item.second) {
+                throw std::runtime_error("scoped refit binding requires the unchanged driver baseline");
+            }
+        }
+    }
+    auto rebound = std::make_shared<MeshRefitRuntime>(
+        *mesh_editor_build_refit(submeshes, next->driver_submesh_indices, garments, regions));
+    if (next->refit) {
+        for (const int index : garments) {
+            const auto settings = next->refit->garment_settings.find(index);
+            if (settings != next->refit->garment_settings.end()) rebound->garment_settings[index] = settings->second;
+            const auto mask = next->refit->vertex_masks.find(index);
+            if (mask != next->refit->vertex_masks.end()) rebound->vertex_masks[index] = mask->second;
+        }
+        if (preserve) {
+            for (const auto& binding : next->refit->bindings)
+                if (!garments.count(binding.garment_submesh_index)) rebound->bindings.push_back(binding);
+            for (const int index : next->refit->garment_submesh_indices) {
+                if (garments.count(index)) continue;
+                rebound->garment_submesh_indices.insert(index);
+                rebound->garment_settings[index] = next->refit->garment_settings.at(index);
+                const auto mask = next->refit->vertex_masks.find(index);
+                if (mask != next->refit->vertex_masks.end()) rebound->vertex_masks[index] = mask->second;
+                const auto old_region = next->refit->garment_regions.find(index);
+                if (old_region != next->refit->garment_regions.end()) rebound->garment_regions[index] = old_region->second;
+            }
+            std::vector<double> distances;
+            for (const auto& binding : rebound->bindings) distances.push_back(binding.distance);
+            rebound->maximum_distance = *std::max_element(distances.begin(), distances.end());
+            rebound->p95_distance = percentile_95_native(distances);
+            rebound->distance_warning = rebound->maximum_distance > rebound->warning_distance
+                || rebound->p95_distance > rebound->warning_distance;
+            rebound->candidate_triangle_tests += next->refit->candidate_triangle_tests;
+            rebound->driver_triangle_count = 0;
+            for (const int index : rebound->driver_submesh_indices) for (const auto& face : submeshes.at(index).faces) {
+                bool allowed = false;
+                for (const int garment : rebound->garment_submesh_indices) {
+                    const auto restriction = rebound->garment_regions.find(garment);
+                    if (restriction == rebound->garment_regions.end()) { allowed = true; break; }
+                    const auto region = restriction->second.find(index);
+                    if (region != restriction->second.end() && region->second.count(face[0])
+                        && region->second.count(face[1]) && region->second.count(face[2])) { allowed = true; break; }
+                }
+                if (allowed) ++rebound->driver_triangle_count;
+            }
+        }
+    }
+    next->refit = std::move(rebound);
     next->change_id = "bind-refit";
     next->state_revision = ++session.morph_state_revision;
     MeshEditorHistoryEntry history;
@@ -287,8 +551,8 @@ std::string mesh_editor_morph_configure_refit_session_report(
         || settings.intensity_percent < 0.0 || settings.intensity_percent > 200.0) {
         throw std::runtime_error("garment refit intensity must be between 0 and 200 percent");
     }
-    if (settings.mode != "surface" && settings.mode != "rigid") {
-        throw std::runtime_error("garment refit mode must be surface or rigid");
+    if (settings.mode != "surface" && settings.mode != "rigid" && settings.mode != "rigid_component") {
+        throw std::runtime_error("garment refit mode must be surface, rigid or rigid_component");
     }
     if (!std::isfinite(settings.clearance_percent)
         || settings.clearance_percent < 0.0 || settings.clearance_percent > 5.0) {
@@ -297,6 +561,7 @@ std::string mesh_editor_morph_configure_refit_session_report(
     auto next = mesh_editor_clone_morph_runtime(session);
     auto next_refit = std::make_shared<MeshRefitRuntime>(*next->refit);
     for (const int index : garments) next_refit->garment_settings[index] = settings;
+    refit_read_vertex_masks_native(*next_refit, root.get("vertex_masks"), submeshes, garments);
     next->refit = std::move(next_refit);
     next->change_id = "configure-refit";
     next->state_revision = ++session.morph_state_revision;
@@ -365,6 +630,8 @@ std::string mesh_editor_morph_reset_or_bake_session_report(
         for (auto& item : next->values) item.second = 0.0;
         next->preset_id.clear();
         next->current_layer.clear();
+        next->neutral_positions.clear();
+        next->composed_positions.clear();
         next->unbaked = false;
         next->refit = mesh_editor_rebased_refit(*next, mesh_editor_submeshes(session));
     }

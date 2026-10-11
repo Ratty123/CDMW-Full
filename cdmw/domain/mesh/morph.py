@@ -6,11 +6,16 @@ from dataclasses import dataclass, field
 import hashlib
 import json
 import math
+import operator
 from typing import Iterable, Mapping, Sequence
 
 
 Vec3 = tuple[float, float, float]
 MESH_MORPH_PROFILE_FORMAT = "cdmw.mesh_morph_profile.v2"
+MESH_MORPH_AUTHORED_PROFILE_FORMAT = "cdmw.mesh_morph_profile.v3"
+MESH_MORPH_MAX_DEFINITIONS = 512
+MESH_MORPH_MAX_SPARSE_VERTICES = 1_000_000
+MESH_MORPH_MAX_DELTA_COMPONENT = 1_000_000.0
 MESH_MORPH_PRESET_FORMAT = "cdmw.mesh_morph_value_preset.v2"
 MESH_MORPH_RULES = ("volume", "scale", "move", "flatten", "taper", "twist", "radius")
 MESH_MORPH_AXES = ("x", "y", "z")
@@ -76,6 +81,12 @@ class MeshMorphDefinition:
     min_percent: float = -100.0
     max_percent: float = 100.0
     default_percent: float = 0.0
+    source_kind: str = "procedural"
+    authored_fields: tuple[MeshMorphSparseField, ...] = ()
+    base_geometry_fingerprint: str = ""
+    garment_corrections: tuple[MeshMorphSparseField, ...] = ()
+    correction_topology_fingerprint: str = ""
+    correction_base_geometry_fingerprint: str = ""
 
     def __post_init__(self) -> None:
         definition_id = str(self.definition_id or "").strip()
@@ -92,7 +103,10 @@ class MeshMorphDefinition:
         normalized_vertices: list[MeshMorphVertexWeight] = []
         seen: set[tuple[int, int]] = set()
         for vertex in self.vertices:
-            key = (int(vertex.submesh_index), int(vertex.vertex_index))
+            key = (
+                _strict_mesh_index(vertex.submesh_index, "Morph definition submesh"),
+                _strict_mesh_index(vertex.vertex_index, "Morph definition vertex"),
+            )
             weight = float(vertex.weight)
             if key[0] < 0 or key[1] < 0 or not math.isfinite(weight) or not 0.0 < weight <= 1.0:
                 raise ValueError("Morph definition vertices require nonnegative indices and weights in (0, 1].")
@@ -120,6 +134,35 @@ class MeshMorphDefinition:
         object.__setattr__(self, "vertices", tuple(sorted(normalized_vertices, key=lambda item: (item.submesh_index, item.vertex_index))))
         object.__setattr__(self, "pivot", pivot)
         object.__setattr__(self, "local_basis", basis)
+        source_kind = str(self.source_kind or "procedural").strip().lower()
+        if source_kind not in {"procedural", "authored"}:
+            raise ValueError("Morph source_kind must be procedural or authored.")
+        fields = _definition_sparse_fields(self.authored_fields, definition_id)
+        corrections = _definition_sparse_fields(self.garment_corrections, definition_id)
+        driver_indices = {vertex.submesh_index for vertex in normalized_vertices}
+        if source_kind == "authored":
+            if not fields:
+                raise ValueError("An authored morph requires nonempty sparse target fields.")
+            if {item.submesh_index for item in fields} != driver_indices:
+                raise ValueError("Authored target fields must match the definition's driver parts.")
+            selected_keys = {(vertex.submesh_index, vertex.vertex_index) for vertex in normalized_vertices}
+            if any((item.submesh_index, index) not in selected_keys for item in fields for index in item.vertex_indices):
+                raise ValueError("Authored target contains a vertex outside its definition selection.")
+            object.__setattr__(self, "base_geometry_fingerprint", _sha256_digest(self.base_geometry_fingerprint, "Authored base geometry"))
+        elif fields or self.base_geometry_fingerprint:
+            raise ValueError("Procedural definitions cannot carry authored target data.")
+        if corrections:
+            if any(item.submesh_index in driver_indices for item in corrections):
+                raise ValueError("Garment corrections cannot target a driver part.")
+            object.__setattr__(self, "correction_topology_fingerprint", _sha256_digest(self.correction_topology_fingerprint, "Correction topology"))
+            object.__setattr__(self, "correction_base_geometry_fingerprint", _sha256_digest(self.correction_base_geometry_fingerprint, "Correction base geometry"))
+        elif self.correction_topology_fingerprint or self.correction_base_geometry_fingerprint:
+            raise ValueError("Correction identity requires nonempty garment correction fields.")
+        if (source_kind == "authored" or corrections) and max(abs(minimum), abs(maximum)) > 10_000.0:
+            raise ValueError("Authored slider ranges must stay within +/-10000 percent.")
+        object.__setattr__(self, "source_kind", source_kind)
+        object.__setattr__(self, "authored_fields", fields)
+        object.__setattr__(self, "garment_corrections", corrections)
 
 
 @dataclass(frozen=True, slots=True)
@@ -128,6 +171,23 @@ class MeshMorphSparseField:
     submesh_index: int
     vertex_indices: tuple[int, ...]
     deltas: tuple[Vec3, ...]
+
+    def __post_init__(self) -> None:
+        definition_id = str(self.definition_id or "").strip()
+        if not definition_id:
+            raise ValueError("Sparse morph field requires a definition id.")
+        submesh_index = _strict_mesh_index(self.submesh_index, "Sparse field submesh")
+        indices = tuple(_strict_mesh_index(item, "Sparse field vertex") for item in self.vertex_indices)
+        deltas = tuple(_bounded_morph_delta(item) for item in self.deltas)
+        if not indices or len(indices) != len(deltas) or len(indices) > MESH_MORPH_MAX_SPARSE_VERTICES:
+            raise ValueError("Sparse morph fields require matching nonempty bounded indices and deltas.")
+        if len(set(indices)) != len(indices):
+            raise ValueError("Sparse morph fields cannot repeat a vertex index.")
+        pairs = sorted(zip(indices, deltas))
+        object.__setattr__(self, "definition_id", definition_id)
+        object.__setattr__(self, "submesh_index", submesh_index)
+        object.__setattr__(self, "vertex_indices", tuple(item[0] for item in pairs))
+        object.__setattr__(self, "deltas", tuple(item[1] for item in pairs))
 
 
 @dataclass(frozen=True, slots=True)
@@ -148,11 +208,21 @@ class MeshMorphProfile:
         if len(fingerprint) != 64 or any(character not in "0123456789abcdef" for character in fingerprint):
             raise ValueError("Morph profile topology_fingerprint must be an exact SHA-256 digest.")
         identifiers = [definition.definition_id for definition in self.definitions]
+        if len(identifiers) > MESH_MORPH_MAX_DEFINITIONS:
+            raise ValueError(f"Morph profiles support at most {MESH_MORPH_MAX_DEFINITIONS} definitions.")
         if len(set(identifiers)) != len(identifiers):
             raise ValueError("Morph profile definition ids must be unique.")
+        driver_indices = {vertex.submesh_index for item in self.definitions for vertex in item.vertices}
+        if any(field.submesh_index in driver_indices for item in self.definitions for field in item.garment_corrections):
+            raise ValueError("Garment corrections cannot target any profile driver part.")
         object.__setattr__(self, "profile_id", profile_id)
         object.__setattr__(self, "name", str(self.name or profile_id).strip() or profile_id)
         object.__setattr__(self, "topology_fingerprint", fingerprint)
+        extended = any(item.source_kind == "authored" or item.garment_corrections for item in self.definitions)
+        if sum(len(field.vertex_indices) for item in self.definitions for field in (*item.authored_fields, *item.garment_corrections)) > MESH_MORPH_MAX_SPARSE_VERTICES:
+            raise ValueError("Morph profile contains too many authored sparse vertices.")
+        object.__setattr__(self, "definitions", tuple(self.definitions))
+        object.__setattr__(self, "format", MESH_MORPH_AUTHORED_PROFILE_FORMAT if extended else MESH_MORPH_PROFILE_FORMAT)
 
 
 @dataclass(frozen=True, slots=True)
@@ -195,9 +265,10 @@ class MeshRefitGarmentSettings:
     intensity_percent: float = 100.0
     mode: str = "surface"
     clearance_percent: float = 0.0
+    vertex_mask: tuple[tuple[int, float], ...] | None = None
 
     def __post_init__(self) -> None:
-        submesh_index = int(self.submesh_index)
+        submesh_index = _strict_mesh_index(self.submesh_index, "Refit garment submesh")
         intensity = float(self.intensity_percent)
         mode = str(self.mode or "surface").strip().lower()
         clearance = float(self.clearance_percent)
@@ -205,8 +276,8 @@ class MeshRefitGarmentSettings:
             raise ValueError("Refit garment submesh index must be non-negative.")
         if not math.isfinite(intensity) or not 0.0 <= intensity <= 200.0:
             raise ValueError("Refit intensity must be between 0 and 200 percent.")
-        if mode not in {"surface", "rigid"}:
-            raise ValueError("Refit mode must be 'surface' or 'rigid'.")
+        if mode not in {"surface", "rigid", "rigid_component"}:
+            raise ValueError("Refit mode must be 'surface', 'rigid', or 'rigid_component'.")
         if not math.isfinite(clearance) or not 0.0 <= clearance <= 5.0:
             raise ValueError("Refit clearance must be between 0 and 5 percent of driver size.")
         object.__setattr__(self, "submesh_index", submesh_index)
@@ -214,6 +285,33 @@ class MeshRefitGarmentSettings:
         object.__setattr__(self, "intensity_percent", intensity)
         object.__setattr__(self, "mode", mode)
         object.__setattr__(self, "clearance_percent", clearance)
+        if self.vertex_mask is not None:
+            normalized_mask: list[tuple[int, float]] = []
+            seen: set[int] = set()
+            for raw_index, raw_weight in self.vertex_mask:
+                index = _strict_mesh_index(raw_index, "Refit mask vertex")
+                weight = float(raw_weight)
+                if index in seen or not math.isfinite(weight) or not 0.0 <= weight <= 1.0:
+                    raise ValueError("Refit masks require unique indices and finite weights between 0 and 1.")
+                seen.add(index)
+                normalized_mask.append((index, weight))
+            if len(normalized_mask) > MESH_MORPH_MAX_SPARSE_VERTICES:
+                raise ValueError("Refit mask exceeds its vertex limit.")
+            object.__setattr__(self, "vertex_mask", tuple(sorted(normalized_mask)))
+
+
+@dataclass(frozen=True, slots=True)
+class MeshRefitDriverRegion:
+    submesh_index: int
+    vertex_indices: tuple[int, ...]
+
+    def __post_init__(self) -> None:
+        submesh_index = _strict_mesh_index(self.submesh_index, "Driver region submesh")
+        indices = tuple(_strict_mesh_index(item, "Driver region vertex") for item in self.vertex_indices)
+        if not indices or len(indices) > MESH_MORPH_MAX_SPARSE_VERTICES or len(set(indices)) != len(indices):
+            raise ValueError("Driver regions require nonempty bounded unique vertex indices.")
+        object.__setattr__(self, "submesh_index", submesh_index)
+        object.__setattr__(self, "vertex_indices", tuple(sorted(indices)))
 
 
 @dataclass(frozen=True, slots=True)
@@ -228,6 +326,66 @@ class MeshRefitBindingSummary:
     driver_triangle_count: int = 0
     candidate_triangle_tests: int = 0
     garment_settings: tuple[MeshRefitGarmentSettings, ...] = ()
+    garment_regions: tuple[tuple[int, tuple[MeshRefitDriverRegion, ...]], ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class MeshMorphFittingRecipe:
+    recipe_id: str
+    name: str
+    profile: MeshMorphProfile
+    preset: MeshMorphValuePreset
+    driver_submesh_indices: tuple[int, ...]
+    garment_settings: tuple[MeshRefitGarmentSettings, ...]
+    topology_fingerprint: str
+    base_geometry_fingerprint: str
+    garment_regions: tuple[tuple[int, tuple[MeshRefitDriverRegion, ...]], ...] = ()
+    format: str = "cdmw.mesh_refit_recipe.v1"
+
+    def __post_init__(self) -> None:
+        recipe_id = str(self.recipe_id or "").strip()
+        if not recipe_id:
+            raise ValueError("Fitting recipe id is required.")
+        drivers = tuple(_strict_mesh_index(item, "Recipe driver") for item in self.driver_submesh_indices)
+        garments = tuple(self.garment_settings)
+        garment_indices = tuple(item.submesh_index for item in garments)
+        if not drivers or not garments or len(set(drivers)) != len(drivers) or len(set(garment_indices)) != len(garment_indices):
+            raise ValueError("Fitting recipes require unique nonempty driver and garment roles.")
+        if set(drivers).intersection(garment_indices):
+            raise ValueError("Fitting recipe driver and garment roles cannot overlap.")
+        if self.preset.profile_id != self.profile.profile_id or self.preset.topology_fingerprint != self.profile.topology_fingerprint:
+            raise ValueError("Fitting recipe preset does not match its profile.")
+        definitions = {item.definition_id: item for item in self.profile.definitions}
+        if not definitions or set(dict(self.preset.values)) != set(definitions):
+            raise ValueError("Fitting recipe preset must include every profile slider.")
+        for key, value in self.preset.values:
+            if not definitions[key].min_percent <= value <= definitions[key].max_percent:
+                raise ValueError("Fitting recipe preset value is outside its slider range.")
+        for definition in self.profile.definitions:
+            if any(item.submesh_index not in drivers for item in definition.vertices):
+                raise ValueError("Fitting recipe profile references a part outside its driver roles.")
+            if any(item.submesh_index not in garment_indices for item in definition.garment_corrections):
+                raise ValueError("Fitting recipe correction references a part outside its garment roles.")
+        regions = []
+        seen_garments: set[int] = set()
+        for raw_garment, raw_regions in self.garment_regions:
+            garment = _strict_mesh_index(raw_garment, "Recipe region garment")
+            entries = tuple(raw_regions)
+            if garment not in garment_indices or garment in seen_garments:
+                raise ValueError("Fitting recipe regions must identify unique configured garments.")
+            if any(not isinstance(item, MeshRefitDriverRegion) or item.submesh_index not in drivers for item in entries):
+                raise ValueError("Fitting recipe regions must belong to its driver parts.")
+            if len({item.submesh_index for item in entries}) != len(entries):
+                raise ValueError("Fitting recipe regions cannot repeat a driver part.")
+            seen_garments.add(garment)
+            regions.append((garment, tuple(sorted(entries, key=lambda item: item.submesh_index))))
+        object.__setattr__(self, "recipe_id", recipe_id)
+        object.__setattr__(self, "name", str(self.name or recipe_id).strip() or recipe_id)
+        object.__setattr__(self, "driver_submesh_indices", tuple(sorted(drivers)))
+        object.__setattr__(self, "garment_settings", tuple(sorted(garments, key=lambda item: item.submesh_index)))
+        object.__setattr__(self, "garment_regions", tuple(sorted(regions)))
+        object.__setattr__(self, "topology_fingerprint", _sha256_digest(self.topology_fingerprint, "Recipe topology"))
+        object.__setattr__(self, "base_geometry_fingerprint", _sha256_digest(self.base_geometry_fingerprint, "Recipe base geometry"))
 
 
 @dataclass(frozen=True, slots=True)
@@ -250,6 +408,10 @@ class MeshMorphState:
     state_revision: int = 0
     edit_revision: int = 0
     change_id: str = ""
+    authoring_baseline_ready: bool = False
+    authoring_driver_submesh_indices: tuple[int, ...] = ()
+    correction_definition_id: str = ""
+    correction_garment_submesh_indices: tuple[int, ...] = ()
 
 
 def mesh_topology_fingerprint(mesh: object, submesh_indices: Iterable[int] | None = None) -> str:
@@ -364,6 +526,9 @@ def generate_procedural_morph_fields(
 ) -> tuple[MeshMorphSparseField, ...]:
     """Generate deterministic sparse 100-percent deltas for one definition."""
 
+    if definition.source_kind == "authored":
+        from .morph_targets import generate_morph_fields
+        return generate_morph_fields(mesh, definition)
     submeshes = tuple(getattr(mesh, "submeshes", ()) or ())
     axis = _normalized(definition.local_basis[MESH_MORPH_AXES.index(definition.rule.axis)])
     selected_positions: list[Vec3] = []
@@ -577,8 +742,62 @@ def _rodrigues(value: Vec3, axis: Vec3, angle: float) -> Vec3:
     return _add(_add(_scale(value, cosine), _scale(cross, sine)), _scale(axis, _dot(axis, value) * (1.0 - cosine)))
 
 
+def _sha256_digest(value: object, label: str) -> str:
+    digest = str(value or "").strip().lower()
+    if len(digest) != 64 or any(character not in "0123456789abcdef" for character in digest):
+        raise ValueError(f"{label} must be an exact SHA-256 digest.")
+    return digest
+
+
+def _strict_mesh_index(value: object, label: str) -> int:
+    try:
+        if isinstance(value, bool):
+            raise TypeError
+        index = operator.index(value)
+    except TypeError as exc:
+        raise ValueError(f"{label} must be an integer index.") from exc
+    if not 0 <= index <= 0x7FFFFFFF:
+        raise ValueError(f"{label} must be a nonnegative bounded index.")
+    return index
+
+
+def _bounded_morph_delta(value: object) -> Vec3:
+    if isinstance(value, (str, bytes)):
+        raise ValueError("Sparse morph delta must have exactly three components.")
+    try:
+        raw = tuple(value)  # type: ignore[arg-type]
+    except TypeError as exc:
+        raise ValueError("Sparse morph delta must have exactly three components.") from exc
+    if len(raw) != 3:
+        raise ValueError("Sparse morph delta must have exactly three components.")
+    delta = _point3(raw)
+    if any(abs(component) > MESH_MORPH_MAX_DELTA_COMPONENT for component in delta):
+        raise ValueError("Sparse morph delta exceeds its component limit.")
+    return delta
+
+
+def _definition_sparse_fields(
+    values: Sequence[MeshMorphSparseField],
+    definition_id: str,
+) -> tuple[MeshMorphSparseField, ...]:
+    fields = tuple(values)
+    seen: set[int] = set()
+    for item in fields:
+        if not isinstance(item, MeshMorphSparseField) or item.definition_id != definition_id:
+            raise ValueError("Sparse fields must belong to their morph definition.")
+        if item.submesh_index in seen:
+            raise ValueError("A morph definition cannot repeat a sparse submesh field.")
+        seen.add(item.submesh_index)
+    if sum(len(item.vertex_indices) for item in fields) > MESH_MORPH_MAX_SPARSE_VERTICES:
+        raise ValueError("Morph definition exceeds its sparse vertex limit.")
+    return tuple(sorted(fields, key=lambda item: item.submesh_index))
+
+
 __all__ = [
     "MESH_MORPH_AXES",
+    "MESH_MORPH_AUTHORED_PROFILE_FORMAT",
+    "MESH_MORPH_MAX_DEFINITIONS",
+    "MESH_MORPH_MAX_SPARSE_VERTICES",
     "MESH_MORPH_FALLOFFS",
     "MESH_MORPH_MIRROR_MODES",
     "MESH_MORPH_PRESET_FORMAT",
@@ -593,6 +812,8 @@ __all__ = [
     "MeshMorphVertexWeight",
     "MeshRefitBindingSummary",
     "MeshRefitGarmentSettings",
+    "MeshRefitDriverRegion",
+    "MeshMorphFittingRecipe",
     "build_weighted_morph_selection",
     "clamp_morph_value",
     "generate_procedural_morph_fields",

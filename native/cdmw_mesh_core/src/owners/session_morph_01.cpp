@@ -100,12 +100,21 @@ std::shared_ptr<const MeshMorphProfileRuntime> mesh_editor_morph_profile_from_js
         field.vertex_indices = int_vector_from_json(item.get("vertex_indices"));
         field.deltas = vertices_from_json(item.get("deltas"));
         mesh_editor_validate_morph_profile_field(submeshes, submesh_index, field);
-        if (!definition->second.fields.emplace(submesh_index, std::move(field)).second) {
+        const auto* raw_stage = item.get("stage");
+        if (raw_stage && raw_stage->type != JsonValue::Type::String) {
+            throw std::runtime_error("morph sparse field stage must be a string");
+        }
+        const std::string stage = string_or(raw_stage, "base");
+        if (stage != "base" && stage != "post_refit") {
+            throw std::runtime_error("morph sparse field stage must be base or post_refit");
+        }
+        auto& fields = stage == "post_refit" ? definition->second.post_refit_fields : definition->second.fields;
+        if (!fields.emplace(submesh_index, std::move(field)).second) {
             throw std::runtime_error("procedural morph definition contains duplicate submesh fields");
         }
     }
     for (const auto& definition : profile->definitions) {
-        if (definition.second.fields.empty()) {
+        if (definition.second.fields.empty() && definition.second.post_refit_fields.empty()) {
             throw std::runtime_error("procedural morph definition generated no sparse field");
         }
     }
@@ -114,7 +123,8 @@ std::shared_ptr<const MeshMorphProfileRuntime> mesh_editor_morph_profile_from_js
 
 std::map<int, std::vector<Vec3>> mesh_editor_build_procedural_morph_layer(
     const MeshMorphRuntime& morph,
-    const std::map<int, MeshSessionSubmesh>& submeshes
+    const std::map<int, MeshSessionSubmesh>& submeshes,
+    bool post_refit = false
 ) {
     std::map<int, std::vector<Vec3>> layer;
     if (!morph.profile) return layer;
@@ -127,7 +137,8 @@ std::map<int, std::vector<Vec3>> mesh_editor_build_procedural_morph_layer(
         );
         if (std::fabs(percent) <= 1.0e-12) continue;
         const double factor = percent / 100.0;
-        for (const auto& field_item : definition.fields) {
+        const auto& fields = post_refit ? definition.post_refit_fields : definition.fields;
+        for (const auto& field_item : fields) {
             const auto submesh = submeshes.find(field_item.first);
             if (submesh == submeshes.end()) {
                 throw std::runtime_error("procedural morph profile topology is no longer available");
@@ -173,6 +184,247 @@ Vec3 mesh_editor_refit_driver_point(
         point = add_vec3(point, scale_vec3(found->second[static_cast<std::size_t>(vertex_index)], binding.barycentric[corner]));
     }
     return point;
+}
+
+using RefitMaskWeightsNative = std::map<int, std::vector<double>>;
+
+RefitMaskWeightsNative mesh_editor_refit_masks(
+    const MeshRefitRuntime& refit,
+    const std::map<int, std::vector<Vec3>>& residual
+) {
+    RefitMaskWeightsNative result;
+    if (refit.vertex_masks.empty()) return result;
+    struct Cohort { Vec3 point; double weight; std::vector<std::pair<int, int>> vertices; };
+    std::vector<Cohort> cohorts;
+    std::map<std::tuple<long long, long long, long long>, std::vector<std::size_t>> cells;
+    const double tolerance = std::max(1.0e-6, refit.driver_diagonal * 1.0e-7);
+    for (const int index : refit.garment_submesh_indices) {
+        const auto positions = residual.find(index);
+        if (positions == residual.end()) throw std::runtime_error("refit mask target topology changed");
+        const auto mask = refit.vertex_masks.find(index);
+        auto& weights = result[index];
+        weights.resize(positions->second.size(), mask == refit.vertex_masks.end() ? 1.0 : 0.0);
+        if (mask != refit.vertex_masks.end()) for (const auto& entry : mask->second) {
+            if (entry.first < 0 || static_cast<std::size_t>(entry.first) >= weights.size()) {
+                throw std::runtime_error("refit mask target topology changed");
+            }
+            weights[static_cast<std::size_t>(entry.first)] = entry.second;
+        }
+        for (std::size_t vertex = 0; vertex < weights.size(); ++vertex) {
+            const Vec3 point = positions->second[vertex];
+            const auto cell = mesh_editor_refit_cell(point, tolerance);
+            std::size_t selected = cohorts.size();
+            for (long long x = -1; x <= 1 && selected == cohorts.size(); ++x)
+                for (long long y = -1; y <= 1 && selected == cohorts.size(); ++y)
+                    for (long long z = -1; z <= 1 && selected == cohorts.size(); ++z) {
+                        const auto found = cells.find({std::get<0>(cell) + x, std::get<1>(cell) + y, std::get<2>(cell) + z});
+                        if (found == cells.end()) continue;
+                        for (const auto candidate : found->second) {
+                            if (distance_squared_vec3(point, cohorts[candidate].point) <= tolerance * tolerance) {
+                                selected = candidate;
+                                break;
+                            }
+                        }
+                    }
+            if (selected == cohorts.size()) {
+                cells[cell].push_back(selected);
+                cohorts.push_back({point, weights[vertex], {}});
+            }
+            cohorts[selected].weight = std::min(cohorts[selected].weight, weights[vertex]);
+            cohorts[selected].vertices.emplace_back(index, static_cast<int>(vertex));
+        }
+    }
+    for (const auto& cohort : cohorts) for (const auto& vertex : cohort.vertices) {
+        result.at(vertex.first)[static_cast<std::size_t>(vertex.second)] = cohort.weight;
+    }
+    return result;
+}
+
+double mesh_editor_refit_mask_weight(const RefitMaskWeightsNative& masks, int submesh, std::size_t vertex) {
+    const auto found = masks.find(submesh);
+    return found == masks.end() ? 1.0 : found->second.at(vertex);
+}
+
+Vec3 refit_rotate_quaternion_native(const std::array<double, 4>& q, const Vec3& point) {
+    const Vec3 axis{q[1], q[2], q[3]};
+    const Vec3 cross{axis[1] * point[2] - axis[2] * point[1],
+                     axis[2] * point[0] - axis[0] * point[2],
+                     axis[0] * point[1] - axis[1] * point[0]};
+    return add_vec3(scale_vec3(point, q[0] * q[0] - dot_vec3(axis, axis)),
+        add_vec3(scale_vec3(axis, 2.0 * dot_vec3(axis, point)), scale_vec3(cross, 2.0 * q[0])));
+}
+
+std::array<double, 4> refit_component_rotation_native(
+    const std::vector<Vec3>& original, const std::vector<Vec3>& target,
+    const Vec3& original_center, const Vec3& target_center
+) {
+    double covariance[3][3]{};
+    for (std::size_t i = 0; i < original.size(); ++i) {
+        const Vec3 p = sub_vec3(original[i], original_center), q = sub_vec3(target[i], target_center);
+        for (int row = 0; row < 3; ++row) for (int column = 0; column < 3; ++column)
+            covariance[row][column] += p[row] * q[column];
+    }
+    const auto& s = covariance;
+    double matrix[4][4]{
+        {s[0][0]+s[1][1]+s[2][2], s[1][2]-s[2][1], s[2][0]-s[0][2], s[0][1]-s[1][0]},
+        {s[1][2]-s[2][1], s[0][0]-s[1][1]-s[2][2], s[0][1]+s[1][0], s[0][2]+s[2][0]},
+        {s[2][0]-s[0][2], s[0][1]+s[1][0], -s[0][0]+s[1][1]-s[2][2], s[1][2]+s[2][1]},
+        {s[0][1]-s[1][0], s[0][2]+s[2][0], s[1][2]+s[2][1], -s[0][0]-s[1][1]+s[2][2]}
+    };
+    double eigenvectors[4][4]{};
+    double scale = 0.0;
+    for (int row = 0; row < 4; ++row) {
+        eigenvectors[row][row] = 1.0;
+        for (int column = 0; column < 4; ++column) scale = std::max(scale, std::abs(matrix[row][column]));
+    }
+    if (scale <= 1.0e-30) return {1.0, 0.0, 0.0, 0.0};
+    // Deterministic Jacobi diagonalization of the symmetric quaternion fit.
+    for (int iteration = 0; iteration < 64; ++iteration) {
+        int first = 0, second = 1;
+        for (int row = 0; row < 4; ++row) for (int column = row + 1; column < 4; ++column)
+            if (std::abs(matrix[row][column]) > std::abs(matrix[first][second])) { first = row; second = column; }
+        const double off = matrix[first][second];
+        if (std::abs(off) <= scale * 1.0e-14) break;
+        const double tau = (matrix[second][second] - matrix[first][first]) / (2.0 * off);
+        const double tangent = std::copysign(1.0, tau) / (std::abs(tau) + std::sqrt(1.0 + tau * tau));
+        const double cosine = 1.0 / std::sqrt(1.0 + tangent * tangent), sine = tangent * cosine;
+        matrix[first][first] -= tangent * off;
+        matrix[second][second] += tangent * off;
+        matrix[first][second] = matrix[second][first] = 0.0;
+        for (int row = 0; row < 4; ++row) {
+            if (row != first && row != second) {
+                const double a = matrix[row][first], b = matrix[row][second];
+                matrix[row][first] = matrix[first][row] = cosine * a - sine * b;
+                matrix[row][second] = matrix[second][row] = sine * a + cosine * b;
+            }
+            const double a = eigenvectors[row][first], b = eigenvectors[row][second];
+            eigenvectors[row][first] = cosine * a - sine * b;
+            eigenvectors[row][second] = sine * a + cosine * b;
+        }
+    }
+    int selected = 0;
+    for (int column = 1; column < 4; ++column)
+        if (matrix[column][column] > matrix[selected][selected] + scale * 1.0e-13) selected = column;
+    std::array<double, 4> q{};
+    double norm = 0.0;
+    for (int row = 0; row < 4; ++row) { q[row] = eigenvectors[row][selected]; norm += q[row] * q[row]; }
+    const double factor = (q[0] < 0.0 ? -1.0 : 1.0) / std::sqrt(norm);
+    for (auto& value : q) value *= factor;
+    return q;
+}
+
+void mesh_editor_refit_components(
+    const MeshRefitRuntime& refit,
+    const std::map<int, MeshSessionSubmesh>& submeshes,
+    const std::map<int, std::vector<Vec3>>& driver_visible,
+    const std::map<int, std::vector<Vec3>>& residual,
+    const std::map<int, std::vector<Vec3>>& base_layer,
+    const RefitMaskWeightsNative& masks,
+    std::map<int, std::vector<Vec3>>& layer
+) {
+    struct Vertex { int submesh; int vertex; Vec3 original; Vec3 target; double weight; };
+    std::vector<Vertex> vertices;
+    std::vector<std::size_t> roots;
+    std::map<int, std::vector<std::size_t>> indices;
+    const auto root_of = [&](std::size_t index) {
+        while (roots[index] != index) { roots[index] = roots[roots[index]]; index = roots[index]; }
+        return index;
+    };
+    const double tolerance = std::max(1.0e-6, refit.driver_diagonal * 1.0e-7);
+    std::map<std::tuple<long long, long long, long long>, std::vector<std::size_t>> cells;
+    for (const auto& item : refit.garment_settings) {
+        if (!item.second.enabled || item.second.mode != "rigid_component") continue;
+        const auto& part = submeshes.at(item.first);
+        const auto base = base_layer.find(item.first);
+        for (std::size_t vertex = 0; vertex < part.vertices.size(); ++vertex) {
+            const auto index = vertices.size();
+            const Vec3 p = add_vec3(residual.at(item.first)[vertex],
+                base == base_layer.end() ? Vec3{} : base->second[vertex]);
+            roots.push_back(index);
+            vertices.push_back({item.first, static_cast<int>(vertex), p,
+                add_vec3(residual.at(item.first)[vertex], layer.at(item.first)[vertex]),
+                mesh_editor_refit_mask_weight(masks, item.first, vertex)});
+            indices[item.first].push_back(index);
+            const auto cell = mesh_editor_refit_cell(p, tolerance);
+            for (long long x = -1; x <= 1; ++x) for (long long y = -1; y <= 1; ++y) for (long long z = -1; z <= 1; ++z) {
+                const auto found = cells.find({std::get<0>(cell) + x, std::get<1>(cell) + y, std::get<2>(cell) + z});
+                if (found == cells.end()) continue;
+                for (const auto other : found->second)
+                    if (distance_squared_vec3(p, vertices[other].original) <= tolerance * tolerance)
+                        roots[root_of(index)] = root_of(other);
+            }
+            cells[cell].push_back(index);
+        }
+        for (const auto& face : part.faces) {
+            for (int corner = 0; corner < 3; ++corner) {
+                if (face[corner] < 0 || static_cast<std::size_t>(face[corner]) >= part.vertices.size())
+                    throw std::runtime_error("rigid component contains an invalid face");
+            }
+            roots[root_of(indices.at(item.first)[face[0]])] = root_of(indices.at(item.first)[face[1]]);
+            roots[root_of(indices.at(item.first)[face[1]])] = root_of(indices.at(item.first)[face[2]]);
+        }
+    }
+    if (vertices.empty()) return;
+    std::map<std::size_t, std::vector<std::size_t>> components;
+    for (std::size_t i = 0; i < vertices.size(); ++i) components[root_of(i)].push_back(i);
+    std::map<int, MeshSessionSubmesh> drivers;
+    for (const auto& item : driver_visible) { drivers[item.first].vertices = item.second; drivers[item.first].faces = submeshes.at(item.first).faces; }
+    const auto spatial = build_refit_spatial_index_native(drivers, refit.driver_submesh_indices);
+    for (const auto& component : components) {
+        const auto& first = vertices[component.second.front()];
+        const auto& settings = refit.garment_settings.at(first.submesh);
+        std::vector<Vec3> original, target;
+        Vec3 original_center{}, target_center{};
+        for (const auto index : component.second) {
+            const auto& vertex = vertices[index];
+            const auto& current = refit.garment_settings.at(vertex.submesh);
+            if (std::abs(vertex.weight - first.weight) > 1.0e-12
+                || current.intensity_percent != settings.intensity_percent
+                || current.clearance_percent != settings.clearance_percent) {
+                throw std::runtime_error("rigid components require uniform vertex masks, intensity and clearance");
+            }
+            original.push_back(vertex.original); target.push_back(vertex.target);
+            original_center = add_vec3(original_center, vertex.original);
+            target_center = add_vec3(target_center, vertex.target);
+        }
+        original_center = scale_vec3(original_center, 1.0 / original.size());
+        target_center = scale_vec3(target_center, 1.0 / target.size());
+        auto rotation = refit_component_rotation_native(original, target, original_center, target_center);
+        const double amount = settings.intensity_percent / 100.0 * first.weight;
+        const double half_angle = std::acos(std::clamp(rotation[0], -1.0, 1.0));
+        if (half_angle > 1.0e-12) {
+            const double scale = std::sin(half_angle * amount) / std::sin(half_angle);
+            rotation[0] = std::cos(half_angle * amount);
+            for (int axis = 1; axis < 4; ++axis) rotation[axis] *= scale;
+        }
+        const Vec3 center = add_vec3(original_center, scale_vec3(sub_vec3(target_center, original_center), amount));
+        std::vector<Vec3> fitted;
+        for (const auto& point : original) fitted.push_back(amount == 0.0 ? point :
+            add_vec3(center, refit_rotate_quaternion_native(rotation, sub_vec3(point, original_center))));
+        Vec3 clearance_shift{};
+        const double clearance = refit.driver_diagonal * settings.clearance_percent / 100.0 * first.weight;
+        // Every clearance adjustment is one shared translation, preserving the hard part.
+        if (clearance > 0.0) for (int pass = 0; pass < 32; ++pass) {
+            double missing_max = tolerance;
+            Vec3 correction{};
+            for (const auto& point : fitted) {
+                const Vec3 predicted = add_vec3(point, clearance_shift);
+                long long candidate_tests = 0;
+                const auto binding = closest_refit_binding_native(predicted, spatial, candidate_tests);
+                const Vec3 normal = refit_binding_face_normal_native(binding, driver_visible);
+                const double missing = clearance - dot_vec3(sub_vec3(predicted,
+                    mesh_editor_refit_driver_point(binding, driver_visible)), normal);
+                if (missing > missing_max) { missing_max = missing; correction = scale_vec3(normal, missing); }
+            }
+            if (missing_max <= tolerance) break;
+            clearance_shift = add_vec3(clearance_shift, correction);
+        }
+        for (std::size_t i = 0; i < component.second.size(); ++i) {
+            const auto& vertex = vertices[component.second[i]];
+            layer.at(vertex.submesh)[vertex.vertex] = sub_vec3(
+                add_vec3(fitted[i], clearance_shift), residual.at(vertex.submesh)[vertex.vertex]);
+        }
+    }
 }
 
 void mesh_editor_relieve_refit_surface(
@@ -955,6 +1207,8 @@ void mesh_editor_add_refit_layer(
     std::map<int, std::vector<Vec3>>& layer
 ) {
     if (!morph.refit) return;
+    const auto base_layer = layer;
+    const auto masks = mesh_editor_refit_masks(*morph.refit, residual);
     std::map<int, std::vector<Vec3>> driver_visible;
     for (const int driver_index : morph.refit->driver_submesh_indices) {
         const auto current = submeshes.find(driver_index);
@@ -996,7 +1250,7 @@ void mesh_editor_add_refit_layer(
                     binding, morph.refit->driver_baseline_positions, driver_visible, rigid_delta
                 )) refit_delta = rigid_delta;
         }
-        const double intensity = settings.intensity_percent / 100.0;
+        const double intensity = settings.mode == "rigid_component" ? 1.0 : settings.intensity_percent / 100.0;
         if (intensity != 1.0) refit_delta = scale_vec3(refit_delta, intensity);
         const double clearance = morph.refit->driver_diagonal * settings.clearance_percent / 100.0;
         if (clearance > 0.0 && settings.mode == "rigid") {
@@ -1017,6 +1271,18 @@ void mesh_editor_add_refit_layer(
         target_layer[target_vertex_index] = add_vec3(target_layer[target_vertex_index], refit_delta);
     }
     mesh_editor_relieve_refit_surface(*morph.refit, submeshes, driver_visible, residual, layer);
+    for (const auto& item : masks) {
+        const auto settings = morph.refit->garment_settings.find(item.first);
+        if (settings != morph.refit->garment_settings.end() && settings->second.mode == "rigid_component") continue;
+        auto target = layer.find(item.first);
+        if (target == layer.end()) continue;
+        const auto original = base_layer.find(item.first);
+        for (std::size_t vertex = 0; vertex < item.second.size(); ++vertex) {
+            const Vec3 base = original == base_layer.end() ? Vec3{} : original->second[vertex];
+            target->second[vertex] = add_vec3(base, scale_vec3(sub_vec3(target->second[vertex], base), item.second[vertex]));
+        }
+    }
+    mesh_editor_refit_components(*morph.refit, submeshes, driver_visible, residual, base_layer, masks, layer);
 }
 
 std::map<int, std::vector<Vec3>> mesh_editor_morph_residual_positions(
@@ -1033,10 +1299,29 @@ std::map<int, std::vector<Vec3>> mesh_editor_morph_residual_positions(
         if (old_layer.size() != current->second.vertices.size()) {
             throw std::runtime_error("procedural morph topology changed without Bake or Reset");
         }
+        const auto neutral = morph.neutral_positions.find(index);
+        const auto composed = morph.composed_positions.find(index);
+        const bool has_neutral = neutral != morph.neutral_positions.end()
+            && composed != morph.composed_positions.end();
+        if (has_neutral && (neutral->second.size() != current->second.vertices.size()
+            || composed->second.size() != current->second.vertices.size())) {
+            throw std::runtime_error("procedural morph neutral topology changed without Bake or Reset");
+        }
         std::vector<Vec3>& values = residual[index];
         values.reserve(current->second.vertices.size());
         for (std::size_t vertex_index = 0; vertex_index < current->second.vertices.size(); ++vertex_index) {
-            values.push_back(sub_vec3(current->second.vertices[vertex_index], old_layer[vertex_index]));
+            if (!has_neutral) {
+                // Legacy snapshots have no retained neutral coordinates.
+                values.push_back(sub_vec3(current->second.vertices[vertex_index], old_layer[vertex_index]));
+                continue;
+            }
+            Vec3 value = neutral->second[vertex_index];
+            for (std::size_t axis = 0; axis < 3; ++axis) {
+                const double visible = current->second.vertices[vertex_index][axis];
+                const double anchor = composed->second[vertex_index][axis];
+                if (visible != anchor) value[axis] += visible - anchor;
+            }
+            values.push_back(value);
         }
     }
     return residual;
@@ -1103,13 +1388,28 @@ std::vector<SubmeshMeshEditResult> mesh_editor_recompose_morph(
 ) {
     std::map<int, MeshSessionSubmesh>& submeshes = mesh_editor_submeshes(session);
     std::map<int, std::vector<Vec3>> new_layer = mesh_editor_build_procedural_morph_layer(next, submeshes);
+    const auto post_refit = mesh_editor_build_procedural_morph_layer(next, submeshes, true);
     std::set<int> indices = mesh_editor_morph_runtime_indices(*session.morph, new_layer);
+    for (const auto& item : post_refit) indices.insert(item.first);
     if (next.refit) {
         indices.insert(next.refit->driver_submesh_indices.begin(), next.refit->driver_submesh_indices.end());
         indices.insert(next.refit->garment_submesh_indices.begin(), next.refit->garment_submesh_indices.end());
     }
     const std::map<int, std::vector<Vec3>> residual = mesh_editor_morph_residual_positions(*session.morph, submeshes, indices);
     mesh_editor_add_refit_layer(next, submeshes, residual, new_layer);
+    const auto masks = next.refit ? mesh_editor_refit_masks(*next.refit, residual) : RefitMaskWeightsNative{};
+    for (const auto& item : post_refit) {
+        if (next.refit) {
+            const auto settings = next.refit->garment_settings.find(item.first);
+            if (settings != next.refit->garment_settings.end() && !settings->second.enabled) continue;
+        }
+        auto& target = new_layer[item.first];
+        if (target.empty()) target = mesh_editor_zero_morph_layer(item.second.size());
+        for (std::size_t vertex = 0; vertex < target.size(); ++vertex) {
+            target[vertex] = add_vec3(target[vertex], scale_vec3(item.second[vertex],
+                mesh_editor_refit_mask_weight(masks, item.first, vertex)));
+        }
+    }
     for (const auto& item : new_layer) indices.insert(item.first);
     std::vector<SubmeshMeshEditResult> results;
     for (const int index : indices) {
@@ -1127,6 +1427,8 @@ std::vector<SubmeshMeshEditResult> mesh_editor_recompose_morph(
             index, current->second, before, action, delta_output_dir, session_id
         );
         if (!result.changed_vertices.empty()) results.push_back(std::move(result));
+        next.neutral_positions[index] = residual_item->second;
+        next.composed_positions[index] = current->second.vertices;
     }
     next.current_layer = std::move(new_layer);
     next.unbaked = mesh_editor_morph_layer_has_value(next.current_layer);
@@ -1219,6 +1521,39 @@ void mesh_editor_write_refit_settings(std::ostream& out, const MeshRefitRuntime&
     out << ']';
 }
 
+void mesh_editor_write_refit_constraints(std::ostream& out, const MeshRefitRuntime& refit) {
+    out << ",\"vertex_masks\":[";
+    bool wrote = false;
+    for (const auto& item : refit.vertex_masks) {
+        if (wrote) out << ',';
+        wrote = true;
+        out << "{\"submesh_index\":" << item.first << ",\"vertex_indices\":[";
+        bool first = true;
+        for (const auto& entry : item.second) { if (!first) out << ','; first = false; out << entry.first; }
+        out << "],\"weights\":[";
+        first = true;
+        for (const auto& entry : item.second) { if (!first) out << ','; first = false; out << std::setprecision(17) << entry.second; }
+        out << "]}";
+    }
+    out << "],\"garment_regions\":[";
+    wrote = false;
+    for (const auto& garment : refit.garment_regions) {
+        if (wrote) out << ',';
+        wrote = true;
+        out << "{\"garment_submesh_index\":" << garment.first << ",\"driver_regions\":[";
+        bool first = true;
+        for (const auto& region : garment.second) {
+            if (!first) out << ',';
+            first = false;
+            out << "{\"submesh_index\":" << region.first << ",\"vertex_indices\":";
+            mesh_editor_write_morph_index_set(out, region.second);
+            out << '}';
+        }
+        out << "]}";
+    }
+    out << ']';
+}
+
 void mesh_editor_write_morph_state(std::ostream& out, const MeshEditorSession& session) {
     const MeshMorphRuntime empty;
     const MeshMorphRuntime& morph = session.morph ? *session.morph : empty;
@@ -1251,6 +1586,7 @@ void mesh_editor_write_morph_state(std::ostream& out, const MeshEditorSession& s
             << ",\"candidate_triangle_tests\":" << morph.refit->candidate_triangle_tests
             << ",\"garment_settings\":";
         mesh_editor_write_refit_settings(out, *morph.refit);
+        mesh_editor_write_refit_constraints(out, *morph.refit);
     } else {
         out << "\"driver_submesh_indices\":[],\"garment_submesh_indices\":[],\"bound_vertex_count\":0,"
                "\"maximum_distance\":0,\"p95_distance\":0,\"warning_distance\":0,\"distance_warning\":false,"

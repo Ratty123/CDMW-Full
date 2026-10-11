@@ -1488,8 +1488,10 @@ names stay on one line with the full name on hover. **Open Selection tool** open
 standard selection controls for picking a region and preserves the current selection.
 New sliders capture that selection; existing sliders and presets use their saved regions
 without requiring another selection. **Shape sliders** holds preview values, Reset, and
-Bake. **Create / edit sliders** opens when editing a slider and keeps its
-rule/axis/strength and advanced scope options together.
+Bake. **Create / edit sliders** opens when editing a procedural slider and keeps its
+rule/axis/strength and advanced scope options together. **Sculpted sliders** captures a
+neutral body and the edited target shape; each Shape slider can also own a separate
+outfit correction.
 
 Slider definition labels and fields use separate rows to fit the expanded panel, pinned
 settings, and floating windows without horizontal clipping. Short windows scroll
@@ -1571,8 +1573,9 @@ file. Its highlighted state shows when the body is already selected.
 disabled until the body is assigned, so an unassigned body cannot be included.
 When only a body is loaded, **Load armor...** opens the archive browser directly.
 Refit setup appears immediately after the meshes, with one compact next action.
-The Rust control messages carry slider metadata only; full weighted vertex scopes
-stay in the host profiles for editing, saving, and preset export.
+The Rust control messages carry slider metadata, status and counts. Full weighted
+vertex scopes, target deltas, corrections and masks stay in the host for editing,
+saving and export.
 
 Select clothing/armor Parts and bind them. **Create body slider** selects the driver and
 opens the slider creator in view when no shape sliders exist. Custom regions can still
@@ -1580,11 +1583,20 @@ be selected with the Selection tool. The panel rejects overlapping roles and set
 changes during an unbaked preview, and shows the binding-distance warning. Binding
 replaces the garment set; select every garment that should participate.
 
-Surface and Rigid modes retain per-garment enable, intensity, and clearance controls,
-which appear only after binding. **Changes not applied** marks pending settings; use
-**Apply to Selected Garments** or **Apply to All Bound Garments** to update the preview.
-Surface follows the body surface; Rigid keeps each garment Part rigid. Intensity
-controls following strength; clearance adds space as a percentage of body size.
+Surface, Rigid and Rigid component modes retain per-garment enable, intensity and
+clearance controls, which appear only after binding. **Changes not applied** marks
+pending settings; use **Apply to Selected Garments** or **Apply to All Bound Garments**
+to update the preview.
+
+| Mode | Following behavior | Typical use |
+| --- | --- | --- |
+| Surface | Follows and deforms along the body surface. | Cloth and flexible armor. |
+| Rigid | Preserves each vertex's local offset from its body triangle; a connected piece can still bend. | Existing fits that use the original Rigid behavior. |
+| Rigid component | Uses one shared rotation and translation for each connected piece, including coincident seams. Fractional intensity interpolates that rotation. | Hard plates and other pieces that must retain their shape. |
+
+Intensity controls following strength; clearance adds space as a percentage of body
+size. Rigid component clearance translates a whole piece together. Its influence mask
+must be uniform within each connected piece; conflicting weights are refused.
 
 Positive clearance pushes outward even when the garment was already inside the body when
 bound. **Fit to body** previews a fit for every bound garment using Surface, 100%
@@ -1613,6 +1625,90 @@ Static fit and PAC round-trip checks do not establish animation or in-game appea
 To redo a poor baked fit, undo the bake or reload the original meshes before fitting
 again. Shape sliders move the driver and bound garments together. Use the normal
 transform tools if the meshes need alignment.
+
+#### Control what follows the body
+
+**Follow controls** uses the ordinary vertex, edge, face or whole-Part selection.
+Set **Selected influence** and choose **Set selected influence** to assign that weight
+to the selected garment vertices. **Protect selection** assigns zero; **Restore
+selected influence** assigns full influence. **Clear masks on selected garments**
+removes their custom masks and returns those garments to full influence.
+
+An absent mask follows fully. In a saved sparse mask, vertices absent from its rows
+are protected. Zero influence prevents fitting, clearance and saved outfit corrections
+from moving those vertices. Coincident seam vertices use the least influence in their
+cohort, so a protected side of a seam stays protected. Protected areas may retain
+clipping intentionally. Surface and the original Rigid mode accept mixed weights;
+Rigid component requires one weight throughout each connected piece.
+
+**Allowed body region** keeps its garment targets separate from viewport selection:
+
+1. Check the garments that should use the constraint.
+2. Select the body faces or vertices they may follow.
+3. Choose **Use selected body region**.
+
+Only complete triangles inside the selected body vertices are eligible for binding.
+A region with no usable triangle is refused. **Use whole body** removes the constraint
+for the checked garments. Region changes require a neutral preview, and rebinding
+preserves other garments' bindings, modes and masks. Regions constrain correspondence;
+clearance still checks the complete selected body.
+
+#### Sculpted body sliders
+
+Use a sculpted slider when a saved target shape is more useful than a procedural rule:
+
+1. Assign the body driver and Reset the current preview.
+2. Open **Sculpted sliders** and choose **Capture body base**.
+3. Shape the body with the existing editing tools, keeping its topology and source
+   mapping unchanged. A compatible edited package can also supply the target.
+4. Enter the profile and sculpted slider names, then choose **Save sculpted slider**.
+5. Use **Save Profile**, **Save Preset** or a portable export to retain the definition.
+
+The capture becomes the slider's zero base. Saving activates the new slider at 100%
+and keeps the visible target; intermediate percentages blend its saved vertex deltas.
+Other sliders can be combined with it against that same base. Capturing, saving,
+discarding, and normal geometry edits use the existing Undo/Redo history.
+
+**Recapture body base** deliberately replaces the pending reference with the current
+neutral geometry. **Discard captured base** removes the reference and keeps the
+current geometry. Save or discard it before changing Morph & Refit setup or finishing.
+Compatible Rust sculpt publications retain the capture and fitting runtime across
+native-session replacement.
+
+External authored targets must come from a compatible package with retained source
+vertex mapping. Matching counts alone are insufficient: Part order, triangles,
+source mapping and skin identity are checked. Reindexed or unrelated imports are
+rejected before replacing a pending capture.
+
+Authored definitions store exact neutral coordinates at the native float32 boundary.
+They are refused on a different neutral body instead of silently applying the saved
+deltas to an unrelated shape. Reset retains the original base for further adjustment.
+Bake makes the current geometry the new base; undo that bake or reopen the original
+matching mesh to reuse the old authored definition, or capture a new definition for
+the baked base.
+
+#### Per-slider outfit corrections
+
+Select bound garment Parts, then choose **Edit outfit correction** below the desired
+Shape slider. The editor isolates that slider at 100% and sets the other sliders to
+zero. Sculpt the selected garments, then choose **Save outfit correction**.
+
+The saved displacement is additional to the normal body fit and scales with that
+slider. Zero removes its correction; intermediate values apply the corresponding
+fraction. Saving keeps the selected slider at 100%. **Cancel outfit correction**
+restores the selected garments and the slider values that were active when editing
+began. Undo/Redo restores the pending correction as well as its geometry.
+
+Edits to unrelated Parts, changed topology, or effectively protected vertices are
+refused when saving. Correction capture uses the fitter's actual seam-aware influence
+weights, so fractional masks do not attenuate the captured correction twice. Finish
+and unrelated Morph & Refit operations require the pending correction to be saved or
+cancelled first.
+
+Corrections retain the matching garments' topology, neutral geometry and skin/source
+identity. Bind those garments before using a profile that contains their corrections.
+Save Profile or Save Preset retains the correction with its slider; the mask and
+binding constraints belong in a fitting setup.
 
 #### Geometry layers and output
 
@@ -1646,9 +1742,42 @@ percentages. **Load Preset...** validates the file, loads its profile and values
 previews it, and adds it to the session library with Undo/Redo.
 
 Conflicting IDs get a new imported identity rather than overwriting different saved
-definitions. The same driver topology and Part order are required. Refit bindings remain
-session-specific; set them for the loaded body and garments. Legacy profile and preset
-storage stays compatible.
+definitions. The same driver topology and Part order are required. Authored targets
+and corrections also require their recorded neutral geometry and source/skin identity.
+Procedural-only profiles retain their version 2 shape. Profiles containing authored
+targets or corrections declare version 3, so older CDMW builds refuse unsupported
+data instead of silently omitting it. Existing version 1 region migration remains
+available; unverified legacy external target files are not reconstructed automatically.
+
+Ordinary preset files retain slider definitions and values. They do not retain
+session-specific garment bindings, masks or allowed body regions; use a fitting setup
+for that complete configuration.
+
+#### Reusable fitting setups and multiple outfits
+
+**Save fitting setup...** writes a portable JSON file containing the active profile,
+slider percentages, body roles, each garment's mode/intensity/clearance, influence
+masks and allowed body regions. It records the neutral base even when a preview is
+active. Give the setup a name in the preset-name field before saving.
+
+**Load fitting setup...** validates the complete file against the currently loaded
+meshes before applying it. The ordered body and garment slots, topology, neutral
+coordinates and available source/skin identity must match. It recreates the saved
+bindings and applies the body preset and garment settings in one undoable operation.
+Conflicting profile or preset IDs receive new identities. Failed imports restore the
+previous mesh, runtime, metadata and session library.
+
+A setup can be reopened in a later compatible session. Load multiple outfit assets
+around the same body to apply one preset and their individual settings together;
+Finish and Build Mod continue through the existing atomic multi-asset output.
+Service callers can target a subset of the recipe's garment slots; other bindings
+and settings are retained, while the body preset remains shared by the session.
+
+This workflow operates on loaded, verified meshes. It does not search arbitrary
+folders for outfits or transfer a garment's indexed mask and corrections to different
+topology. Portable setup export writes its chosen file immediately; imported profile
+and preset library changes are committed by Finish and discarded when the edit is
+cancelled.
 
 Undo and Redo restore library files through the same locked history path and update
 the acknowledged profile fingerprint. Subsequent commands and Finish accept those

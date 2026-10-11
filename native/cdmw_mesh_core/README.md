@@ -180,6 +180,55 @@ trim still needs inspection; static clearance is not animation or in-game proof.
 owning focused regression file is `tests/test_native_mesh_editor_morph_refit.py` at the
 repository root.
 
+#### Selective following and authored targets
+
+Resident sparse morph fields accept `stage: "base"` (the existing default) or
+`stage: "post_refit"`. Body targets compose before garment fitting; per-slider
+outfit corrections compose afterward and use the same slider percentage. Unknown
+stages are refused. Reset, Bake and runtime snapshots retain the stage semantics.
+
+`morph_configure_refit` accepts optional `vertex_masks` rows containing a garment
+`submesh_index`, `vertex_indices` and `weights`. A missing mask means full
+influence; vertices omitted from a present sparse row have zero influence. Omitting
+the argument preserves existing masks. An empty array clears masks on the configured
+garments; an empty row protects its entire garment. The least mask value in a
+coincident seam cohort governs fitting, clearance and post-refit corrections.
+
+`morph_bind` accepts `driver_regions` rows containing a driver `submesh_index`
+and allowed `vertex_indices`. Only triangles with all three vertices allowed are
+eligible. Invalid, out-of-role or triangle-free regions fail before publication.
+Omission selects the whole driver. With `preserve_existing: true`, only the named
+garments are rebound; their compatible settings and masks, and all other garments'
+bindings, remain intact. `garment_regions` in state and snapshots records the scope
+for each garment. Clearance continues to check the complete selected body.
+
+The additional `rigid_component` mode solves one rigid rotation and translation
+per connected garment piece and interpolates the rotation for intensity. Clearance
+uses one shared translation per piece. Nonuniform effective masks within a piece
+are rejected. The original `surface` and `rigid` modes retain their behavior.
+
+Authored capture uses an atomic `morph_upload` extension: `preserve_runtime: true`,
+verified `neutral_positions` rows and initial `values`. The command removes the
+previous morph layer, restores the supplied neutral coordinates and recomposes the
+new profile without an intermediate user-visible reset. Invalid payloads restore
+the previous geometry and runtime.
+
+A bounded `morph_state` query can request `include_neutral_positions: true` or
+`include_effective_vertex_masks: true` for explicit `submesh_indices`. These
+read-only arrays stay in host/native operations and are not duplicated in the Rust
+control state. Effective masks come from the same seam-cohort computation as the
+fitter, so correction capture can normalize partial influence correctly.
+
+Runtime snapshots retain exact neutral and composed coordinates. Restoration
+distinguishes a native float32 round trip from an actual compatible geometry edit,
+preserving the latter as an edit residual. Legacy snapshots keep their existing
+fallback behavior. The service owns target/source identity validation, profile
+version 3 persistence, fitting recipe files, and reversible publication.
+
+History memory accounting includes retained neutral/composed coordinates and shared
+profile/refit data. Shared allocations are counted once across Undo and Redo, so
+large authored workflows observe the existing history memory budget.
+
 ### Automatic UV generation
 
 `auto-uv-json` uses bundled xatlas and reports generated UVs, output faces,

@@ -3,6 +3,8 @@
 use super::*;
 use egui::{Button, ComboBox, ScrollArea, Spinner};
 
+mod morph_authoring;
+
 pub(crate) mod numeric {
     //! Shared precision controls. Increments are per-widget session UI state,
     //! never part of a mesh, material, physics profile or undo command.
@@ -3268,6 +3270,10 @@ impl LabApplication {
         cdmw_section(ui, "morph-meshes", "Meshes & selection", None, |ui| {
             self.draw_cdmw_morph_meshes(ui, actions, &state);
         });
+        self.draw_cdmw_authored_morph(ui, actions, &state);
+        let morph_pending = state_bool(&state, "authoring_baseline_ready")
+            || state_str(&state, "correction_definition_id").is_some_and(|id| !id.is_empty());
+        ui.add_enabled_ui(!morph_pending, |ui| {
         let mut reveal_authoring = self.draw_cdmw_refit_section(ui, actions, &state);
         cdmw_section(ui, "morph-profiles", "Profiles & presets", None, |ui| {
             let profile_label = ui.label(crate::localization::tr("Profile"));
@@ -3396,6 +3402,7 @@ impl LabApplication {
                 }
             });
             ui.small(crate::localization::tr("Export Preset creates a shareable JSON file."));
+            self.draw_cdmw_refit_recipe(ui, actions, &state);
         });
         cdmw_section(ui, "morph-values", "Shape sliders", None, |ui| {
             if definitions.is_empty() {
@@ -3421,6 +3428,8 @@ impl LabApplication {
                     .and_then(Value::as_f64)
                     .filter(|value| value.is_finite() && *value > minimum)
                     .unwrap_or(100.0);
+                let authored = definition
+                    .and_then(|candidate| state_str(candidate, "source_kind")) == Some("authored");
                 let rule = definition
                     .and_then(|candidate| candidate.get("rule"))
                     .cloned()
@@ -3449,9 +3458,11 @@ impl LabApplication {
                     .unwrap_or(host_value);
                 let response = ui
                 .add(crate::cdmw_ui::numeric::slider(&mut value, minimum..=maximum).text(crate::localization::tr(&label)))
-                .on_hover_text(crate::localization::tr(format!(
-                    "Stored {rule_name} rule · axis {rule_axis} · 100% strength {rule_amount:.3}"
-                )));
+                .on_hover_text(crate::localization::tr(if authored {
+                    "Stored sculpted shape. 100% reproduces the captured body target.".to_owned()
+                } else {
+                    format!("Stored {rule_name} rule · axis {rule_axis} · 100% strength {rule_amount:.3}")
+                }));
                 let commit = stage_cdmw_morph_value(
                     &mut self.cdmw_morph_value_drafts,
                     &definition_id,
@@ -3462,7 +3473,9 @@ impl LabApplication {
                 );
                 ui.push_id(("morph-definition-actions", &definition_id), |ui| {
                     ui.horizontal_wrapped(|ui| {
-                        if ui.button(crate::localization::tr("Edit slider")).clicked() {
+                        if ui.add_enabled(!authored, Button::new(crate::localization::tr("Edit slider")))
+                            .on_disabled_hover_text(crate::localization::tr("Sculpted sliders store a captured shape. Capture a new target to replace the shape."))
+                            .clicked() {
                             reveal_authoring = true;
                             self.cdmw_morph_definition_edit_id = definition_id.clone();
                             self.cdmw_morph_replace_selection_on_edit = false;
@@ -3494,6 +3507,7 @@ impl LabApplication {
                         }
                     });
                 });
+                self.draw_cdmw_morph_correction_button(ui, actions, &state, &definition_id);
                 if let Some(value) = commit {
                     actions.push(UiAction::CdmwCommand {
                     command: "morph_set_value",
@@ -3746,6 +3760,7 @@ impl LabApplication {
                 .header_response
                 .scroll_to_me(Some(egui::Align::Min));
         }
+        });
     }
 
     fn draw_cdmw_refit_section(
@@ -3934,7 +3949,11 @@ impl LabApplication {
                 ui.checkbox(&mut self.cdmw_refit_enabled, crate::localization::tr("Refit enabled"))
                     .on_hover_text(crate::localization::tr("Let these garments follow body Shape sliders. Apply to update the current preview."));
                 crate::localization::combo("Mode")
-                    .selected_text(crate::localization::tr(if self.cdmw_refit_mode == "rigid" { "Rigid" } else { "Surface" }))
+                    .selected_text(crate::localization::tr(match self.cdmw_refit_mode.as_str() {
+                        "rigid" => "Rigid",
+                        "rigid_component" => "Rigid component",
+                        _ => "Surface",
+                    }))
                     .show_ui(ui, |ui| {
                         ui.selectable_value(
                             &mut self.cdmw_refit_mode,
@@ -3942,7 +3961,9 @@ impl LabApplication {
                             crate::localization::tr("Surface"),
                         ).on_hover_text(crate::localization::tr("Follow the body surface. Suitable for cloth and flexible armor."));
                         ui.selectable_value(&mut self.cdmw_refit_mode, "rigid".to_owned(), crate::localization::tr("Rigid"))
-                            .on_hover_text(crate::localization::tr("Move each Part as a rigid piece. Suitable for hard armor plates."));
+                            .on_hover_text(crate::localization::tr("Preserve each vertex's local offset from the body. This mode can bend a connected piece."));
+                        ui.selectable_value(&mut self.cdmw_refit_mode, "rigid_component".to_owned(), crate::localization::tr("Rigid component"))
+                            .on_hover_text(crate::localization::tr("Move each connected garment piece with one rotation and translation. Suitable for hard armor plates."));
                     });
                 ui.add(
                     crate::cdmw_ui::numeric::slider(&mut self.cdmw_refit_intensity, 0.0..=200.0)
@@ -3999,6 +4020,7 @@ impl LabApplication {
                     });
                 }
             });
+            self.draw_cdmw_refit_follow_controls(ui, actions, state);
         });
         create_body_slider
     }

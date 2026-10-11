@@ -2337,6 +2337,16 @@
       ]
     },
     {
+      "key": "0% protects vertices; 100% follows fully. Rigid components require one influence across each connected piece.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 165,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "0.25x",
       "origins": [
         {
@@ -4053,6 +4063,16 @@
           "path": "cdmw/ui/new_item/item_preview_materials.py",
           "line": 166,
           "sink": "TypeError"
+        }
+      ]
+    },
+    {
+      "key": "A protected garment vertex was edited. Cancel the correction or restore that vertex.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 218,
+          "sink": "ValueError"
         }
       ]
     },
@@ -7712,6 +7732,16 @@
       ]
     },
     {
+      "key": "Allowed body region",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 167,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Allows adding and removing geometry. Choose a folder for a new OBJ package.",
       "origins": [
         {
@@ -8120,6 +8150,36 @@
       "key": "An attachment event lies beyond this clip duration",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "An authored body baseline cannot contain bound garment parts.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 427,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "An authored slider range must include both zero and 100 percent.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 466,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "An authored target must be an identity-checked ParsedMesh.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 469,
+          "sink": "TypeError"
+        }
+      ]
     },
     {
       "key": "An earlier operation in this session already changed this. It is not the game's default.",
@@ -13407,6 +13467,16 @@
       ]
     },
     {
+      "key": "Assign a body and reset or bake the current preview before capturing its base.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 55,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Assign a source texture to {value_0} / {value_1}.",
       "origins": [
         {
@@ -14053,6 +14123,11 @@
           "path": "cdmw/ui/character_context_panel.py",
           "line": 339,
           "sink": "QTreeWidgetItem"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 94,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -14063,6 +14138,16 @@
           "path": "cdmw/ui/character_context_panel.py",
           "line": 82,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Authored body parts",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 422,
+          "sink": "_strict_indices"
         }
       ]
     },
@@ -14093,6 +14178,26 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_cloth.rs",
           "line": 473,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Authored target capture requires zero slider values.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 464,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "Authored targets and garment corrections require a v3 profile",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_morph_profiles.py",
+          "line": 277,
+          "sink": "ValueError"
         }
       ]
     },
@@ -15872,6 +15977,16 @@
       ]
     },
     {
+      "key": "Begin a garment correction before saving it.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 567,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
       "key": "Below Y",
       "origins": [
         {
@@ -16015,6 +16130,26 @@
       "key": "Binary header preview:",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Bind at least one garment to a body driver before exporting a fitting recipe.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_recipes.py",
+          "line": 171,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "Bind every garment referenced by this profile's corrections before using its sliders.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 734,
+          "sink": "RuntimeError"
+        }
+      ]
     },
     {
       "key": "Bind pose",
@@ -16482,6 +16617,16 @@
       ]
     },
     {
+      "key": "Body base captured. Your edited shape will become 100%.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 47,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Body collisions",
       "origins": [
         {
@@ -16788,6 +16933,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
           "line": 4065,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Bound garment parts",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 405,
+          "sink": "_strict_indices"
         }
       ]
     },
@@ -19282,6 +19437,16 @@
       ]
     },
     {
+      "key": "CDMW fitting setup",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
+          "line": 5168,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "CDMW handshake failed: {value_0}",
       "origins": [
         {
@@ -20572,6 +20737,21 @@
       ]
     },
     {
+      "key": "Cancel outfit correction",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 31,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 35,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Cancel preparation",
       "origins": [
         {
@@ -20987,6 +21167,21 @@
       ]
     },
     {
+      "key": "Capture body base",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 53,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 60,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Capture crash details to local report files on unhandled exceptions",
       "origins": [],
       "manual": true
@@ -21008,6 +21203,26 @@
           "path": "cdmw/ui/new_item/panels_model.py",
           "line": 451,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Capture the body base, shape the body with the editing tools, then save the result as a slider.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 42,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Capture the neutral body baseline before sculpting or importing a target.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 461,
+          "sink": "RuntimeError"
         }
       ]
     },
@@ -24227,6 +24442,16 @@
       ]
     },
     {
+      "key": "Choose a fitting recipe destination.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_recipes.py",
+          "line": 161,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Choose a fixed-size string field to edit:",
       "origins": [
         {
@@ -24558,6 +24783,16 @@
           "path": "cdmw/ui/new_item/independent_items_page.py",
           "line": 267,
           "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Choose a slider before beginning its garment correction.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 536,
+          "sink": "ValueError"
         }
       ]
     },
@@ -25732,6 +25967,16 @@
       ]
     },
     {
+      "key": "Choose the garments below, select the body faces they may follow, then apply the region.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 170,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Choose the groups myself instead",
       "origins": [
         {
@@ -26802,6 +27047,16 @@
       ]
     },
     {
+      "key": "Clear garment influence masks",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 161,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Clear generated hairstyle",
       "origins": [
         {
@@ -26847,6 +27102,16 @@
       ]
     },
     {
+      "key": "Clear masks on selected garments",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 156,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Clear only the original reference part selection and preview highlight.",
       "origins": [],
       "manual": true
@@ -26877,6 +27142,16 @@
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 3841,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Clear selected garment body regions",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 200,
           "sink": "rust-presentation"
         }
       ]
@@ -29777,6 +30052,16 @@
       ]
     },
     {
+      "key": "Constrain garment binding to body region",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 193,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Constraint",
       "origins": [
         {
@@ -31127,12 +31412,32 @@
       ]
     },
     {
+      "key": "Correction capture omitted effective garment influence.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 212,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
       "key": "Correction eligibility: {value_0}",
       "origins": [
         {
           "path": "cdmw/ui/policy_preview_dialog.py",
           "line": 255,
           "sink": "setPlainText"
+        }
+      ]
+    },
+    {
+      "key": "Correction garment parts",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 356,
+          "sink": "_strict_indices"
         }
       ]
     },
@@ -37152,6 +37457,26 @@
       ]
     },
     {
+      "key": "Discard captured base",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 65,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Discard captured body base",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 70,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Discard selected",
       "origins": [
         {
@@ -38432,6 +38757,16 @@
       ]
     },
     {
+      "key": "Driver regions must select only the active body driver parts.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 684,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Drop every free-form edit, keeping the accepted operations. The next move then starts from vanilla plus what was actually decided.",
       "origins": [
         {
@@ -39667,6 +40002,26 @@
       ]
     },
     {
+      "key": "Edit outfit correction",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 226,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Edit per-slider outfit correction",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 238,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Edit physics profile",
       "origins": [
         {
@@ -40168,6 +40523,16 @@
           "path": "tools/placement_studio/rig_behaviour.py",
           "line": 144,
           "sink": "Section"
+        }
+      ]
+    },
+    {
+      "key": "Editing an outfit correction. Save or cancel it before changing the fit.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 21,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -41938,6 +42303,16 @@
           "path": "cdmw/ui/new_item/panels_stats.py",
           "line": 227,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Every target garment must already be bound to the active driver.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 408,
+          "sink": "ValueError"
         }
       ]
     },
@@ -48582,6 +48957,76 @@
       ]
     },
     {
+      "key": "Fitting recipe exceeds its configured file limit.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_recipes.py",
+          "line": 137,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/mesh_service_morph_recipes.py",
+          "line": 141,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/mesh_service_morph_recipes.py",
+          "line": 151,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Fitting recipe garment enabled flags must be boolean.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_recipes.py",
+          "line": 99,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Fitting recipe must embed its profile and slider preset.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_recipes.py",
+          "line": 89,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Fitting recipe {value_0} must be an array of objects.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_recipes.py",
+          "line": 43,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Fitting recipes must be saved to a .json file.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_recipes.py",
+          "line": 192,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Fitting setups retain the preset, body regions, garment masks and modes for the same loaded meshes.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 271,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Fix Winding",
       "origins": [
         {
@@ -49243,6 +49688,16 @@
           "path": "cdmw/constants.py",
           "line": 209,
           "sink": "python-data:UI_TEXT_COLOR_SCHEME_OPTIONS"
+        }
+      ]
+    },
+    {
+      "key": "Follow controls",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 124,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -51012,6 +51467,26 @@
       ]
     },
     {
+      "key": "Garment correction authoring requires a slider with a 100 percent target.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 538,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Garment correction topology changed. Undo that topology edit before saving.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 575,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Garment parts cannot also be refit driver parts: {value_0}",
       "origins": [
         {
@@ -51028,6 +51503,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 3850,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Garment vertex influence must be between zero and one.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 633,
+          "sink": "ValueError"
         }
       ]
     },
@@ -57562,6 +58047,16 @@
       ]
     },
     {
+      "key": "Include every unbound garment referenced by the recipe's saved corrections.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_recipes.py",
+          "line": 223,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Include extra local context in diagnostic reports",
       "origins": [
         {
@@ -58428,6 +58923,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
           "line": 4572,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Influence selection must contain vertices only from the chosen bound garments.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 641,
+          "sink": "ValueError"
         }
       ]
     },
@@ -62147,6 +62652,16 @@
       ]
     },
     {
+      "key": "Keep the body's topology unchanged. Save Profile or Save Preset to retain the slider with your library.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 104,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Keep the current proportions when editing a scale value. Doubling X also doubles Y and Z.",
       "origins": [
         {
@@ -62262,6 +62777,16 @@
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
           "line": 626,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Keeps the current geometry and discards the saved slider base.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 66,
           "sink": "rust-presentation"
         }
       ]
@@ -64613,6 +65138,36 @@
           "path": "tools/translation_studio/tab.py",
           "line": 631,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Load fitting setup",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
+          "line": 5193,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Load fitting setup for the loaded meshes",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
+          "line": 5186,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Load fitting setup...",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 265,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -74757,11 +75312,41 @@
       ]
     },
     {
+      "key": "Morph profile JSON exceeds the 8 MiB file limit",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_morph_profiles.py",
+          "line": 519,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Morph profile JSON is empty or exceeds the 8 MiB file limit",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_morph_profiles.py",
+          "line": 515,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Morph profile and preset ids require at least one alphanumeric character.",
       "origins": [
         {
           "path": "cdmw/services/mesh_morph_profiles.py",
           "line": 456,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Morph profile exceeds its definition limit",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_morph_profiles.py",
+          "line": 272,
           "sink": "ValueError"
         }
       ]
@@ -75187,11 +75772,11 @@
       ]
     },
     {
-      "key": "Move each Part as a rigid piece. Suitable for hard armor plates.",
+      "key": "Move each connected garment piece with one rotation and translation. Suitable for hard armor plates.",
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
-          "line": 3945,
+          "line": 3966,
           "sink": "rust-presentation"
         }
       ]
@@ -76168,6 +76753,16 @@
           "path": "cdmw/ui/shell/problem_report_catalog.py",
           "line": 141,
           "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Name the fitting recipe before exporting it.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_recipes.py",
+          "line": 164,
+          "sink": "ValueError"
         }
       ]
     },
@@ -77152,12 +77747,32 @@
       ]
     },
     {
+      "key": "Neutral mesh parts",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 324,
+          "sink": "_strict_indices"
+        }
+      ]
+    },
+    {
       "key": "Neutral navigation mode; edit gestures are inactive. RMB orbits, MMB pans, and the wheel zooms.",
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 1495,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Neutral part",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 340,
+          "sink": "_strict_indices"
         }
       ]
     },
@@ -78287,6 +78902,16 @@
       "manual": true
     },
     {
+      "key": "No authored baseline is pending.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 442,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
       "key": "No authored hair section is included in the hairstyle.",
       "origins": [
         {
@@ -79148,6 +79773,26 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 3181,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "No garment correction changes were found. Use Cancel to leave correction editing.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 582,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "No garment correction is pending.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 607,
+          "sink": "RuntimeError"
         }
       ]
     },
@@ -80058,6 +80703,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_rig.rs",
           "line": 214,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "No native edit results were supplied.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 147,
+          "sink": "ValueError"
         }
       ]
     },
@@ -95697,6 +96352,16 @@
       ]
     },
     {
+      "key": "Preserve each vertex's local offset from the body. This mode can bend a connected piece.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 3964,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Preserve existing target loose file",
       "origins": [
         {
@@ -99768,6 +100433,11 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 3539,
           "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 74,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -100478,6 +101148,26 @@
           "path": "schemas/archive_content_capabilities.v1.json",
           "line": 1,
           "sink": "json-presentation:origin"
+        }
+      ]
+    },
+    {
+      "key": "Protect selected garment vertices",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 142,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Protect selection",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 138,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -103257,6 +103947,16 @@
       ]
     },
     {
+      "key": "Recapture body base",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 53,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Recent Work",
       "origins": [],
       "manual": true
@@ -103342,6 +104042,26 @@
       ]
     },
     {
+      "key": "Recipe driver",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_recipes.py",
+          "line": 126,
+          "sink": "_strict_indices"
+        }
+      ]
+    },
+    {
+      "key": "Recipe garment",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_recipes.py",
+          "line": 101,
+          "sink": "_strict_indices"
+        }
+      ]
+    },
+    {
       "key": "Recipe output quantity or enhancement is out of range.",
       "origins": [
         {
@@ -103368,6 +104088,26 @@
           "path": "cdmw/services/new_item_recipes.py",
           "line": 77,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Recipe region garment",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_recipes.py",
+          "line": 110,
+          "sink": "_strict_indices"
+        }
+      ]
+    },
+    {
+      "key": "Recipe target garments",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_recipes.py",
+          "line": 209,
+          "sink": "_strict_indices"
         }
       ]
     },
@@ -104787,6 +105527,26 @@
       ]
     },
     {
+      "key": "Refit mask part",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 185,
+          "sink": "_strict_indices"
+        }
+      ]
+    },
+    {
+      "key": "Refit mask vertices",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 189,
+          "sink": "_strict_indices"
+        }
+      ]
+    },
+    {
       "key": "Refit mesh has no usable triangle geometry",
       "origins": [
         {
@@ -105313,6 +106073,16 @@
           "path": "cdmw/ui/mesh_editor/body_region_atlas_panel.py",
           "line": 69,
           "sink": "setHeaderLabels"
+        }
+      ]
+    },
+    {
+      "key": "Region changes require a neutral fit. Other garments keep their bindings.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 205,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -108602,6 +109372,36 @@
       "manual": true
     },
     {
+      "key": "Reset active slider values before capturing an authored baseline.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 420,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "Reset active slider values before changing a garment's driver region.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 680,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "Reset active slider values before clearing a garment's driver region.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 701,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
       "key": "Reset all",
       "origins": [
         {
@@ -109082,6 +109882,36 @@
       ]
     },
     {
+      "key": "Resident correction query omitted effective garment influence.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 366,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "Resident correction query omitted garment vertices.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 372,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "Resident correction query omitted requested garment parts.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 369,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
       "key": "Resident interaction descriptor session identity does not match.",
       "origins": [
         {
@@ -109497,6 +110327,86 @@
       ]
     },
     {
+      "key": "Resident morph export changed the loaded source vertex mapping; exact authored identity cannot be preserved.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 289,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Resident morph identity has invalid topology provenance.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 278,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Resident morph snapshot changed the loaded source vertex mapping.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 311,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Resident neutral mesh query did not return every vertex in order.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 347,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "Resident neutral mesh query omitted requested parts.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 335,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "Resident neutral mesh query returned a duplicate or unrequested part.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 342,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "Resident neutral mesh query returned invalid coordinates.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 350,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "Resident neutral mesh row is invalid.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 339,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
       "key": "Resident part action bridge is unavailable.",
       "origins": [
         {
@@ -109567,12 +110477,62 @@
       ]
     },
     {
+      "key": "Resident refit state omitted a bound garment's settings.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 411,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "Resident refit state returned an invalid vertex mask.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 184,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "Resident refit state returned duplicate vertex masks.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 187,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "Resident refit state returned invalid mask weights.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 192,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
       "key": "Resident scene frame was rejected; the last acknowledged frame remains active: {value_0}",
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
           "line": 769,
           "sink": "_set_dotnet_status"
+        }
+      ]
+    },
+    {
+      "key": "Resident source identity export failed after geometry history restore.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 318,
+          "sink": "RuntimeError"
         }
       ]
     },
@@ -110467,6 +111427,26 @@
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle.rs",
           "line": 437,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Restore selected garment vertex influence",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 149,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Restore selected influence",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 145,
           "sink": "rust-presentation"
         }
       ]
@@ -112292,6 +113272,21 @@
       ]
     },
     {
+      "key": "Rigid component",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 3954,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 3965,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Risk",
       "origins": [
         {
@@ -114077,6 +115072,31 @@
       ]
     },
     {
+      "key": "Save fitting setup",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
+          "line": 5178,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
+          "line": 5193,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Save fitting setup...",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 259,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Save flattened PNG",
       "origins": [
         {
@@ -114107,6 +115127,16 @@
       ]
     },
     {
+      "key": "Save or Cancel the current garment correction before changing Morph & Refit.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 250,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
       "key": "Save or undo your other changes first",
       "origins": [
         {
@@ -114117,12 +115147,57 @@
       ]
     },
     {
+      "key": "Save outfit correction",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 24,
+          "sink": "rust-presentation"
+        },
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 28,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Save rebuild report",
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
           "line": 431,
           "sink": "setAccessibleName"
+        }
+      ]
+    },
+    {
+      "key": "Save sculpted body slider",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 100,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Save sculpted slider",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 83,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Save the captured slider or Discard its baseline before changing Morph & Refit.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 252,
+          "sink": "RuntimeError"
         }
       ]
     },
@@ -115548,6 +116623,36 @@
           "path": "cdmw/ui/mesh_editor/actions.py",
           "line": 200,
           "sink": "python-data:_TOOLTIPS"
+        }
+      ]
+    },
+    {
+      "key": "Sculpted slider name",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 76,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Sculpted sliders",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 40,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Sculpted sliders store a captured shape. Capture a new target to replace the shape.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 3477,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -118987,6 +120092,16 @@
       ]
     },
     {
+      "key": "Select at least one complete body triangle for the driver region.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 691,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Select at least one manager output.",
       "origins": [
         {
@@ -119127,6 +120242,26 @@
       ]
     },
     {
+      "key": "Select body or garment vertices, faces, or parts first.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 122,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Select bound garment Parts and finish any pending sculpted slider or correction first.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 231,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Select chaiNNer chain",
       "origins": [
         {
@@ -119192,6 +120327,16 @@
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 2677,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Select garment vertices, faces or a whole Part to control how strongly they follow the body.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 126,
           "sink": "rust-presentation"
         }
       ]
@@ -120232,12 +121377,42 @@
       ]
     },
     {
+      "key": "Selected edge",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 111,
+          "sink": "_strict_indices"
+        }
+      ]
+    },
+    {
+      "key": "Selected edges must have two endpoints.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 109,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Selected elements target their owning Part for Recalculate, Weighted, and Tangents. Flip, Sharpen, Soften, and Copy can use element rows. Normal commands enable the direction preview automatically; tangents are recorded but have no line overlay.",
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 2806,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Selected face",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 115,
+          "sink": "_strict_indices"
         }
       ]
     },
@@ -120262,6 +121437,16 @@
       ]
     },
     {
+      "key": "Selected garment parts are absent from this fitting recipe.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_recipes.py",
+          "line": 214,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Selected group: {value_0} ({value_1} member(s), {value_2} package(s)).",
       "origins": [
         {
@@ -120278,6 +121463,16 @@
           "path": "cdmw/ui/research/texture_group_state.py",
           "line": 36,
           "sink": "python-return:texture_group_population_selected_status_text"
+        }
+      ]
+    },
+    {
+      "key": "Selected influence",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 128,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -120358,6 +121553,16 @@
           "path": "cdmw/ui/tools/mod_package_retrofit_view.py",
           "line": 171,
           "sink": "python-return:build_retrofit_update_plan_html"
+        }
+      ]
+    },
+    {
+      "key": "Selected part",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 97,
+          "sink": "_strict_indices"
         }
       ]
     },
@@ -120563,6 +121768,16 @@
           "path": "cdmw/ui/new_item/tab.py",
           "line": 269,
           "sink": "_append_log"
+        }
+      ]
+    },
+    {
+      "key": "Selected vertex",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 103,
+          "sink": "_strict_indices"
         }
       ]
     },
@@ -121352,6 +122567,16 @@
       ]
     },
     {
+      "key": "Set garment vertex influence",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 135,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Set jiggle contribution",
       "origins": [
         {
@@ -121437,6 +122662,16 @@
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
           "line": 1077,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Set selected influence",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 131,
           "sink": "rust-presentation"
         }
       ]
@@ -121543,6 +122778,16 @@
           "path": "cdmw/ui/texture_workflow/editor_dialogs.py",
           "line": 27,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Set this slider to 100%, sculpt the selected garments, then save the correction. Other sliders are set to zero.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 228,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -127317,6 +128562,16 @@
       ]
     },
     {
+      "key": "Sparse field indices and deltas must be arrays",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_morph_profiles.py",
+          "line": 420,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Spatial frequency U",
       "origins": [
         {
@@ -129438,6 +130693,16 @@
           "path": "tools/placement_studio/window_rig_behaviour.py",
           "line": 99,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Stored sculpted shape. 100% reproduces the captured body target.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
+          "line": 3462,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -134407,6 +135672,16 @@
       ]
     },
     {
+      "key": "The chosen garments are disabled or fully protected from refitting.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 553,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
       "key": "The cleaned archive list differs from the reviewed change.",
       "origins": [
         {
@@ -134513,6 +135788,16 @@
           "path": "tools/placement_studio/tab.py",
           "line": 142,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The corrected slider is no longer available.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 571,
+          "sink": "RuntimeError"
         }
       ]
     },
@@ -138697,6 +139982,16 @@
       ]
     },
     {
+      "key": "This recipe would replace the driver of other bound garments. Use a session with matching driver roles.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_recipes.py",
+          "line": 220,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "This replacement mapping belongs to an older import. Review the current import before applying.",
       "origins": [
         {
@@ -142652,6 +143947,16 @@
       ]
     },
     {
+      "key": "Unsupported fitting recipe format.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_recipes.py",
+          "line": 85,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Unsupported game metadata in mod: {value_0}",
       "origins": [
         {
@@ -144477,6 +145782,16 @@
       ]
     },
     {
+      "key": "Use selected body region",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 188,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "Use selection",
       "origins": [
         {
@@ -144713,6 +146028,16 @@
           "path": "cdmw/ui/new_item/surface_editor.py",
           "line": 40,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Use whole body",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_authoring.rs",
+          "line": 196,
+          "sink": "rust-presentation"
         }
       ]
     },
@@ -146168,6 +147493,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 2182,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Vertices outside the chosen garments changed. Undo those edits or Cancel this correction.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 577,
+          "sink": "ValueError"
         }
       ]
     },
@@ -152707,6 +154042,16 @@
       ]
     },
     {
+      "key": "authored sparse fields",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_morph_profiles.py",
+          "line": 416,
+          "sink": "_strict_mapping_items"
+        }
+      ]
+    },
+    {
       "key": "authoring package belongs to a different active edit session. Close the current editor before opening another mesh.",
       "origins": [
         {
@@ -156142,6 +157487,16 @@
       ]
     },
     {
+      "key": "driver regions",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_recipes.py",
+          "line": 116,
+          "sink": "_objects"
+        }
+      ]
+    },
+    {
       "key": "dropsetinfo",
       "origins": [
         {
@@ -158468,6 +159823,26 @@
           "path": "schemas/archive_content_capabilities.v1.json",
           "line": 1,
           "sink": "json-presentation:evidence"
+        }
+      ]
+    },
+    {
+      "key": "garment regions",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_recipes.py",
+          "line": 119,
+          "sink": "_objects"
+        }
+      ]
+    },
+    {
+      "key": "garment settings",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_recipes.py",
+          "line": 91,
+          "sink": "_objects"
         }
       ]
     },
@@ -162407,6 +163782,16 @@
       ]
     },
     {
+      "key": "morph definitions",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_morph_profiles.py",
+          "line": 270,
+          "sink": "_strict_mapping_items"
+        }
+      ]
+    },
+    {
       "key": "morph profile publication was not prepared",
       "origins": [
         {
@@ -162418,6 +163803,16 @@
           "path": "cdmw/services/mesh_rust_authoring.py",
           "line": 7061,
           "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "morph vertices",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_morph_profiles.py",
+          "line": 369,
+          "sink": "_strict_mapping_items"
         }
       ]
     },
@@ -171657,6 +173052,16 @@
       ]
     },
     {
+      "key": "unsupported morph profile format",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_morph_profiles.py",
+          "line": 269,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "unsupported non-native mesh edit action: {value_0}",
       "origins": [
         {
@@ -171677,16 +173082,6 @@
         {
           "path": "cdmw/services/mesh_morph_profiles.py",
           "line": 287,
-          "sink": "ValueError"
-        }
-      ]
-    },
-    {
-      "key": "unsupported procedural morph profile format",
-      "origins": [
-        {
-          "path": "cdmw/services/mesh_morph_profiles.py",
-          "line": 261,
           "sink": "ValueError"
         }
       ]
@@ -172113,6 +173508,16 @@
           "path": "tools/placement_studio/clip_names.py",
           "line": 86,
           "sink": "python-return:take_of"
+        }
+      ]
+    },
+    {
+      "key": "vertex mask",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_recipes.py",
+          "line": 95,
+          "sink": "_objects"
         }
       ]
     },
@@ -175207,6 +176612,16 @@
       ]
     },
     {
+      "key": "{value_0} contains a duplicate or out-of-range index.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 83,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "{value_0} context",
       "origins": [
         {
@@ -176232,6 +177647,16 @@
       ]
     },
     {
+      "key": "{value_0} must be an array of objects",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_morph_profiles.py",
+          "line": 398,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "{value_0} must be finite",
       "origins": [
         {
@@ -176652,6 +178077,16 @@
       ]
     },
     {
+      "key": "{value_0} requires a nonempty selection.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 87,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "{value_0} requires a number",
       "origins": [
         {
@@ -176668,6 +178103,21 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
           "line": 361,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} requires integer indices.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 77,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/mesh_service_morph_authoring.py",
+          "line": 81,
+          "sink": "ValueError"
         }
       ]
     },

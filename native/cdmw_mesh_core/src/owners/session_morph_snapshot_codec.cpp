@@ -64,11 +64,14 @@ void mesh_editor_write_snapshot_profile(std::ostream& out, const MeshMorphRuntim
     out << "],\"fields\":[";
     bool wrote_field = false;
     for (const auto& definition_item : morph.profile->definitions) {
-        for (const auto& field_item : definition_item.second.fields) {
+        for (const bool post_refit : {false, true}) {
+        const auto& fields = post_refit ? definition_item.second.post_refit_fields : definition_item.second.fields;
+        for (const auto& field_item : fields) {
             if (wrote_field) out << ',';
             wrote_field = true;
             out << "{\"definition_id\":";
             write_escaped(out, definition_item.first);
+            if (post_refit) out << ",\"stage\":\"post_refit\"";
             out << ",\"submesh_index\":" << field_item.first << ",\"vertex_indices\":[";
             bool wrote_index = false;
             for (const int vertex_index : field_item.second.vertex_indices) {
@@ -79,6 +82,7 @@ void mesh_editor_write_snapshot_profile(std::ostream& out, const MeshMorphRuntim
             out << "],\"deltas\":";
             mesh_editor_write_snapshot_vec3s(out, field_item.second.deltas);
             out << '}';
+        }
         }
     }
     out << "]}";
@@ -139,7 +143,9 @@ void mesh_editor_write_snapshot_refit(std::ostream& out, const MeshMorphRuntime&
         << ",\"warning_distance\":" << refit.warning_distance
         << ",\"distance_warning\":" << (refit.distance_warning ? "true" : "false")
         << ",\"driver_triangle_count\":" << refit.driver_triangle_count
-        << ",\"candidate_triangle_tests\":" << refit.candidate_triangle_tests << '}';
+        << ",\"candidate_triangle_tests\":" << refit.candidate_triangle_tests;
+    mesh_editor_write_refit_constraints(out, refit);
+    out << '}';
 }
 
 std::string mesh_editor_morph_runtime_snapshot_payload(const MeshEditorSession& session) {
@@ -165,6 +171,22 @@ std::string mesh_editor_morph_runtime_snapshot_payload(const MeshEditorSession& 
         wrote_layer = true;
         out << "{\"submesh_index\":" << item.first << ",\"deltas\":";
         mesh_editor_write_snapshot_vec3s(out, item.second);
+        out << '}';
+    }
+    out << "],\"neutral_positions\":[";
+    std::set<int> neutral_indices;
+    for (const auto& item : morph.current_layer) neutral_indices.insert(item.first);
+    for (const auto& item : morph.neutral_positions) neutral_indices.insert(item.first);
+    const auto& submeshes = mesh_editor_submeshes(session);
+    const auto neutral = mesh_editor_morph_residual_positions(morph, submeshes, neutral_indices);
+    bool wrote_neutral = false;
+    for (const auto& item : neutral) {
+        if (wrote_neutral) out << ',';
+        wrote_neutral = true;
+        out << "{\"submesh_index\":" << item.first << ",\"positions\":";
+        mesh_editor_write_snapshot_vec3s(out, item.second);
+        out << ",\"composed_positions\":";
+        mesh_editor_write_snapshot_vec3s(out, submeshes.at(item.first).vertices);
         out << '}';
     }
     out << "],\"driver_submesh_indices\":";
@@ -333,6 +355,18 @@ std::shared_ptr<const MeshRefitRuntime> mesh_editor_refit_from_snapshot(
         }
     }
     restore_refit_driver_baselines(raw_refit, submeshes, refit);
+    refit_read_vertex_masks_native(*refit, raw_refit->get("vertex_masks"), submeshes, refit->garment_submesh_indices);
+    if (const auto* raw_regions = raw_refit->get("garment_regions")) {
+        if (raw_regions->type != JsonValue::Type::Array) throw std::runtime_error("invalid refit garment regions");
+        for (const auto& item : raw_regions->array_value) {
+            int index = -1;
+            if (item.type != JsonValue::Type::Object || !strict_int_or(item.get("garment_submesh_index"), index)
+                || !refit->garment_submesh_indices.count(index) || refit->garment_regions.count(index)
+                || !item.get("driver_regions")) throw std::runtime_error("invalid refit garment region target");
+            refit->garment_regions[index] = refit_regions_from_json_native(
+                item.get("driver_regions"), submeshes, refit->driver_submesh_indices);
+        }
+    }
     const JsonValue& raw_bindings = mesh_editor_snapshot_required_member(
         *raw_refit, "bindings", JsonValue::Type::Array
     );
@@ -379,6 +413,16 @@ std::shared_ptr<const MeshRefitRuntime> mesh_editor_refit_from_snapshot(
             }
             binding.barycentric[corner] = raw_barycentric.array_value[corner].number_value;
         }
+        const auto restriction = refit->garment_regions.find(binding.garment_submesh_index);
+        if (restriction != refit->garment_regions.end()) {
+            const auto allowed = restriction->second.find(binding.driver_submesh_index);
+            if (allowed == restriction->second.end()
+                || !allowed->second.count(binding.driver_vertices[0])
+                || !allowed->second.count(binding.driver_vertices[1])
+                || !allowed->second.count(binding.driver_vertices[2])) {
+                throw std::runtime_error("refit binding escaped its allowed driver region");
+            }
+        }
         binding.distance = mesh_editor_snapshot_number(item, "distance");
         binding.baseline_normal = mesh_editor_snapshot_vec3(
             mesh_editor_snapshot_required_member(item, "baseline_normal", JsonValue::Type::Array),
@@ -417,7 +461,7 @@ std::shared_ptr<const MeshRefitRuntime> mesh_editor_refit_from_snapshot(
         settings.mode = mesh_editor_snapshot_string(item, "mode");
         settings.clearance_percent = mesh_editor_snapshot_number(item, "clearance_percent");
         if (settings.intensity_percent < 0.0 || settings.intensity_percent > 200.0
-            || (settings.mode != "surface" && settings.mode != "rigid")
+            || (settings.mode != "surface" && settings.mode != "rigid" && settings.mode != "rigid_component")
             || settings.clearance_percent < 0.0 || settings.clearance_percent > 5.0
             || !refit->garment_settings.emplace(submesh_index, std::move(settings)).second) {
             throw std::runtime_error("morph runtime snapshot has invalid garment settings");
@@ -495,6 +539,41 @@ std::shared_ptr<MeshMorphRuntime> mesh_editor_morph_runtime_from_snapshot(
         if (submesh == submeshes.end() || deltas.size() != submesh->second.vertices.size()
             || !runtime->current_layer.emplace(submesh_index, std::move(deltas)).second) {
             throw std::runtime_error("morph runtime snapshot current layer topology does not match");
+        }
+    }
+    if (const auto* raw_neutral = raw_runtime.get("neutral_positions")) {
+        if (raw_neutral->type != JsonValue::Type::Array) {
+            throw std::runtime_error("morph runtime snapshot has invalid neutral positions");
+        }
+        for (const auto& row : raw_neutral->array_value) {
+            int index = -1;
+            if (row.type != JsonValue::Type::Object || !strict_int_or(row.get("submesh_index"), index)
+                || !submeshes.count(index) || runtime->neutral_positions.count(index)) {
+                throw std::runtime_error("morph runtime snapshot has invalid neutral submesh");
+            }
+            auto neutral = mesh_editor_snapshot_vec3s(
+                mesh_editor_snapshot_required_member(row, "positions", JsonValue::Type::Array),
+                "neutral positions");
+            const auto composed = mesh_editor_snapshot_vec3s(
+                mesh_editor_snapshot_required_member(row, "composed_positions", JsonValue::Type::Array),
+                "composed positions");
+            const auto& visible = submeshes.at(index).vertices;
+            if (neutral.size() != visible.size() || composed.size() != visible.size()) {
+                throw std::runtime_error("morph runtime snapshot neutral topology does not match");
+            }
+            for (std::size_t vertex = 0; vertex < visible.size(); ++vertex) {
+                for (std::size_t axis = 0; axis < 3; ++axis) {
+                    const double source = composed[vertex][axis];
+                    const double target = visible[vertex][axis];
+                    // Geometry snapshots may round to float32. A compatible
+                    // replacement can also carry real edits, which stay residual.
+                    if (target != source && target != static_cast<double>(static_cast<float>(source))) {
+                        neutral[vertex][axis] += target - source;
+                    }
+                }
+            }
+            runtime->neutral_positions[index] = std::move(neutral);
+            runtime->composed_positions[index] = visible;
         }
     }
     runtime->driver_submesh_indices = mesh_editor_snapshot_submesh_set(

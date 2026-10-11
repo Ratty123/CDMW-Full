@@ -9,6 +9,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Added
 
+- Mesh Editor can save sculpted body shapes as sliders and save outfit corrections for individual sliders, with profile and preset reuse and Undo/Redo.
+- Morph & Refit adds selected-vertex influence masks, allowed body regions for chosen garments, and a Rigid component mode that preserves the shape of connected hard pieces.
+- Mesh Editor can save and load fitting setups containing a body preset, garment settings, influence masks and body regions, and apply them together to matching loaded outfits.
+
 - Mod Management adds experimental virtual loading for independent item packages and supported mods. It keeps original game archives unchanged, retains item identities, verifies a save backup before each virtual launch and refuses changed or incompatible inputs. It requires the verified Windows executable and existing ASI bootstrap; item, effect and other-mod compatibility still require testing.
 - Independent items can scan mounted mods or an extracted mod folder for conflicts, preserve supported unrelated record changes, and prepare a reviewed merge or separate merged package. Required-record conflicts and unsupported inputs are reported explicitly; runtime plugins and in-game compatibility remain unverified.
 - Item identities can rebuild installed packages from their retained source without changing item IDs, using the normal review and backup flow. Virtual profiles compiled by an older or different compiler require **Apply changes** before launch.
@@ -18,6 +22,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - Independent item packages can copy verified template collision physics while preserving unchanged mesh and cloth bindings, including when adding effects or emission. Unknown physics layouts and transfers to changed geometry are refused. Armor physics still needs in-game validation before community support is advertised.
 
 ### Changed
+
+- Compatible sculpt commits and edited mesh package imports retain Morph & Refit state. Pending sculpted sliders and outfit corrections must be saved or discarded before Finish, and changed topology or source mappings are refused.
 
 - Mod Management opens one searchable, sortable mod list showing each mod's type, loading method and status. **Apply changes** prepares and saves supported new selections, then **Launch game** starts them. Existing installs retain their loading method; externally managed mods are clearly identified. First-time virtual loader setup asks once in the same flow, with verified CDMW updates automatic afterward. Installed-only games launch without virtual setup. Previews open from the selected mod. Advanced consolidates seven tabs into Health and recovery, Prepare packages, and Item identities, with clearer task descriptions and layouts that adapt to narrow windows and larger text.
 - Create New Item makes its `.cditem` output explicit. Mod Management keeps guidance concise and adapts to window size and text scaling. Archive folders show existing files by default; Show missing references reveals stale mod entries, and Clean missing references removes them after review and a verified backup. Item package tools retain sortable, resizable columns and numeric Game ID sorting. Repackage keeps results inline and supports cancellation.
@@ -42,6 +48,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - Create New Item can read available archives after a mod folder was manually deleted; missing required game archives still produce an error. Game-update checks now handle added and replaced textures without the unpacking error.
 
 ### Docs
+
+- Mesh Editor documents sculpted sliders, per-slider corrections, selective following, rigid components and portable fitting setups, including compatibility, baking and output limits.
 
 - Independent items and Virtual Loader describe current module coverage, folder coexistence, export limits and scoped recovery. They distinguish verified save backups and observed save attempts from save compatibility, and identify the missing adapters and trusted profile-origin evidence.
 

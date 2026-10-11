@@ -21,10 +21,12 @@ from cdmw.domain.mesh import (
     MeshMorphState,
     MeshMorphValuePreset,
     MeshRefitBindingSummary,
+    MeshRefitDriverRegion,
     MeshRefitGarmentSettings,
     build_weighted_morph_selection,
     clamp_morph_value,
-    generate_procedural_morph_fields,
+    generate_morph_fields,
+    validate_morph_definition_geometry,
     mesh_morph_driver_topology_fingerprint,
     procedural_morph_pivot,
 )
@@ -66,6 +68,16 @@ from cdmw.services.mesh_service_reports import (
     _native_editor_report_changed_vertices,
 )
 from cdmw.services.mesh_service_native_clone import _clone_mesh_for_service_native_snapshot
+from cdmw.services.mesh_service_morph_authoring import (
+    MeshMorphAuthoringMixin,
+    _MorphAuthoringBaseline,
+    _MorphCorrectionCapture,
+    _profile_role_indices,
+    _refit_masks_from_report,
+    clone_authoring_baseline,
+    clone_correction_capture,
+)
+from cdmw.services.mesh_service_morph_recipes import MeshMorphRecipeMixin
 from cdmw.services.mesh_service_state import (
     _MeshEditSession,
     _MeshHistorySnapshot,
@@ -87,6 +99,9 @@ class _MeshMorphSessionData:
     profiles_frozen: bool = False
     topology_mesh: object | None = None
     topology_invalidated: bool = False
+    authoring_baseline: _MorphAuthoringBaseline | None = None
+    correction_capture: _MorphCorrectionCapture | None = None
+    authoring_operation: bool = False
 
 
 _DEFERRED_MORPH_DISPOSAL_LOCK = threading.Lock()
@@ -178,7 +193,7 @@ def dispose_mesh_morph_session_state(state: _MeshMorphSessionState) -> None:
         raise RuntimeError("Resident C++ Morph & Refit runtime snapshot cleanup failed.")
 
 
-class MeshMorphServiceMixin:
+class MeshMorphServiceMixin(MeshMorphAuthoringMixin, MeshMorphRecipeMixin):
     """Keep UI shells thin while the resident C++ session owns deformation."""
 
     def capture_morph_session_state(self, session_id: str) -> _MeshMorphSessionState:
@@ -558,6 +573,8 @@ class MeshMorphServiceMixin:
             profiles_frozen=bool(data.profiles_frozen),
             topology_mesh=topology_mesh,
             topology_invalidated=bool(data.topology_invalidated),
+            authoring_baseline=clone_authoring_baseline(data.authoring_baseline),
+            correction_capture=clone_correction_capture(data.correction_capture),
         )
 
     def _apply_morph_edit_command_locked(
@@ -568,6 +585,11 @@ class MeshMorphServiceMixin:
         action = str(command.action or "").strip().lower()
         params = dict(command.params or {})
         selection = command.selection if command.selection is not None else session.selection
+        authored_result = self._apply_morph_authoring_command_locked(session, action, params, selection)
+        if authored_result is not None:
+            return authored_result
+        if action != "morph_refresh":
+            self._require_no_pending_morph_authoring(session, include_baseline=True)
         if action == "morph_refresh":
             self.morph_state(session.session_id)
             return self._result(session, action)
@@ -750,6 +772,10 @@ class MeshMorphServiceMixin:
         diagnostics: tuple[str, ...] = (),
         *,
         record_history: bool = True,
+        preserve_runtime: bool = False,
+        neutral_positions: Sequence[Mapping[str, object]] | None = None,
+        values: Mapping[str, float] | None = None,
+        base_mesh: ParsedMesh | None = None,
     ) -> tuple[MeshEditResult, MeshMorphState]:
         if len(profile.definitions) > _MORPH_MAX_DEFINITIONS:
             raise RuntimeError(
@@ -759,14 +785,20 @@ class MeshMorphServiceMixin:
             profile,
             max_bytes=_MESH_MORPH_PROFILE_MAX_FILE_BYTES,
         )
-        driver_mesh = self._profile_driver_mesh_locked(session)
+        driver_mesh = base_mesh if base_mesh is not None else self._profile_driver_mesh_locked(session)
+        if base_mesh is None and any(item.source_kind == "authored" or item.garment_corrections for item in profile.definitions):
+            driver_mesh = self._native_neutral_mesh_locked(session, _profile_role_indices(profile))
         current_fingerprint = mesh_morph_driver_topology_fingerprint(driver_mesh, profile.definitions)
         if profile.topology_fingerprint != current_fingerprint:
             raise RuntimeError("Procedural morph profile topology does not match the active Edit Mesh driver.")
         fields = [
-            sparse
+            (sparse, stage)
             for definition in profile.definitions
-            for sparse in generate_procedural_morph_fields(driver_mesh, definition)
+            for stage, rows in (
+                ("base", generate_morph_fields(driver_mesh, definition)),
+                ("post_refit", definition.garment_corrections),
+            )
+            for sparse in rows
         ]
         upload_payload = {
             "profile": {
@@ -790,11 +822,18 @@ class MeshMorphServiceMixin:
                         "submesh_index": sparse.submesh_index,
                         "vertex_indices": list(sparse.vertex_indices),
                         "deltas": [list(delta) for delta in sparse.deltas],
+                        "stage": stage,
                     }
-                    for sparse in fields
+                    for sparse, stage in fields
                 ],
             }
         }
+        if preserve_runtime:
+            upload_payload["preserve_runtime"] = True
+        if neutral_positions is not None:
+            upload_payload["neutral_positions"] = list(neutral_positions)
+        if values is not None:
+            upload_payload["values"] = dict(values)
         _require_bounded_morph_json(
             upload_payload,
             limit=_MORPH_NATIVE_MESSAGE_MAX_BYTES,
@@ -817,6 +856,8 @@ class MeshMorphServiceMixin:
         data.known_profiles[profile.profile_id] = profile
         data.available_profile_ids = tuple(dict.fromkeys((*data.available_profile_ids, profile.profile_id)))
         data.topology_invalidated = False
+        if base_mesh is not None or any(item.source_kind == "authored" or item.garment_corrections for item in profile.definitions):
+            data.topology_mesh = driver_mesh
         return self._morph_result_and_state_locked(session, "morph_upload", report)
 
     def create_morph_definition(
@@ -1572,6 +1613,7 @@ class MeshMorphServiceMixin:
         return ordered, diagnostics
 
     def _require_baked_morph_definition_edit(self, session: _MeshEditSession) -> None:
+        self._require_no_pending_morph_authoring(session, include_baseline=True)
         data = self._morph_sessions.get(session.session_id)
         if isinstance(data, _MeshMorphSessionData) and data.state is not None and data.state.unbaked:
             raise RuntimeError("Bake or Reset active Morph & Refit values before editing profile definitions.")
@@ -1677,6 +1719,8 @@ class MeshMorphServiceMixin:
         history_label: str,
         record_history: bool,
     ) -> Mapping[str, object]:
+        self._require_no_pending_morph_authoring(session, include_baseline=True)
+        self._validate_authored_runtime_use_locked(session, command, payload)
         self._ensure_native_morph_session_locked(session)
         request = dict(payload)
         request["delta_output_dir"] = _native_preview_delta_output_dir()
@@ -1871,6 +1915,22 @@ class MeshMorphServiceMixin:
         data.preset_id = raw_preset_id if raw_preset_id in available_preset_ids else ""
         raw_refit = raw_state.get("refit")
         refit = raw_refit if isinstance(raw_refit, Mapping) else {}
+        vertex_masks = _refit_masks_from_report(refit)
+        garment_regions = tuple(
+            (
+                int(item.get("garment_submesh_index", -1)),
+                tuple(
+                    MeshRefitDriverRegion(
+                        submesh_index=region.get("submesh_index"),
+                        vertex_indices=tuple(region.get("vertex_indices") or ()),
+                    )
+                    for region in tuple(item.get("driver_regions") or ())
+                    if isinstance(region, Mapping)
+                ),
+            )
+            for item in tuple(refit.get("garment_regions") or ())
+            if isinstance(item, Mapping)
+        )
         garment_settings = tuple(
             MeshRefitGarmentSettings(
                 submesh_index=int(item.get("submesh_index", -1)),
@@ -1878,6 +1938,7 @@ class MeshMorphServiceMixin:
                 intensity_percent=float(item.get("intensity_percent", 100.0)),
                 mode=str(item.get("mode") or "surface"),
                 clearance_percent=float(item.get("clearance_percent", 0.0)),
+                vertex_mask=vertex_masks.get(int(item.get("submesh_index", -1))),
             )
             for item in tuple(refit.get("garment_settings") or ())
             if isinstance(item, Mapping)
@@ -1913,6 +1974,7 @@ class MeshMorphServiceMixin:
                 driver_triangle_count=int(refit.get("driver_triangle_count", 0) or 0),
                 candidate_triangle_tests=int(refit.get("candidate_triangle_tests", 0) or 0),
                 garment_settings=tuple(sorted(garment_settings, key=lambda item: item.submesh_index)),
+                garment_regions=tuple(sorted(garment_regions)),
             ),
             unbaked=bool(raw_state.get("unbaked")),
             topology_blocked=bool(raw_state.get("topology_blocked")),
@@ -1922,6 +1984,10 @@ class MeshMorphServiceMixin:
             state_revision=int(raw_state.get("state_revision", 0) or 0),
             edit_revision=int(raw_state.get("edit_revision", session.revision) or 0),
             change_id=str(raw_state.get("change_id") or ""),
+            authoring_baseline_ready=data.authoring_baseline is not None,
+            authoring_driver_submesh_indices=(data.authoring_baseline.driver_submesh_indices if data.authoring_baseline is not None else ()),
+            correction_definition_id=(data.correction_capture.definition_id if data.correction_capture is not None else ""),
+            correction_garment_submesh_indices=(data.correction_capture.garment_submesh_indices if data.correction_capture is not None else ()),
         )
 
 

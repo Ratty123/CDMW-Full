@@ -51,6 +51,7 @@ struct MeshMorphDefinitionRuntime {
     double max_percent = 100.0;
     double default_percent = 0.0;
     std::map<int, MeshMorphSparseFieldRuntime> fields;
+    std::map<int, MeshMorphSparseFieldRuntime> post_refit_fields;
 };
 
 struct MeshMorphProfileRuntime {
@@ -93,6 +94,10 @@ struct MeshRefitRuntime {
     std::map<int, std::vector<Vec3>> driver_baseline_positions;
     std::vector<MeshRefitVertexBindingRuntime> bindings;
     std::map<int, MeshRefitGarmentSettingsRuntime> garment_settings;
+    // A missing mask means full influence; a present sparse row defaults to zero.
+    std::map<int, std::map<int, double>> vertex_masks;
+    // Restrictions are scoped to each garment; missing entries permit every driver face.
+    std::map<int, std::map<int, std::set<int>>> garment_regions;
     double driver_diagonal = 0.0;
     double maximum_distance = 0.0;
     double p95_distance = 0.0;
@@ -107,6 +112,10 @@ struct MeshMorphRuntime {
     std::string preset_id;
     std::map<std::string, double> values;
     std::map<int, std::vector<Vec3>> current_layer;
+    // Preserve exact neutral coordinates across preview arithmetic. The visible
+    // anchor distinguishes subsequent sculpt edits from layer roundoff.
+    std::map<int, std::vector<Vec3>> neutral_positions;
+    std::map<int, std::vector<Vec3>> composed_positions;
     std::set<int> driver_submesh_indices;
     std::shared_ptr<const MeshRefitRuntime> refit;
     bool unbaked = false;
@@ -206,6 +215,7 @@ const std::map<int, MeshSessionSubmesh>& mesh_editor_submeshes(const MeshEditorS
 }
 
 std::size_t mesh_editor_history_stack_retained_bytes(const std::vector<MeshEditorHistoryEntry>& stack);
+std::array<std::size_t, 2> mesh_editor_session_history_retained_bytes(const MeshEditorSession& session);
 
 std::string read_text_file(const std::string& path) {
     std::ifstream input(path, std::ios::binary);

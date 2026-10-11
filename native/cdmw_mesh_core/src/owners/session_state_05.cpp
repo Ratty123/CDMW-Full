@@ -28,7 +28,7 @@ std::string run_mesh_editor_session(const JsonValue& root) {
         return mesh_editor_summary_report(session_id, session, started);
     }
     if (command == "morph_state") {
-        return mesh_editor_morph_state_session_report(session_id, session, started);
+        return mesh_editor_morph_state_session_report(root, session_id, session, started);
     }
     if (command == "morph_snapshot_create") {
         return mesh_editor_morph_snapshot_create_session_report(root, session_id, session, started);
